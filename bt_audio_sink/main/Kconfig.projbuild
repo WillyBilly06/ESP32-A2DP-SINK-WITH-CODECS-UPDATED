@@ -1,0 +1,292 @@
+menu "A2DP DSP BLE Configuration"
+
+    menu "I2S Configuration"
+        config I2S_BCK_PIN
+            int "I2S BCK (Bit Clock) GPIO"
+            default 27
+            range 0 39
+            help
+                GPIO pin for I2S bit clock output.
+
+        config I2S_LRCK_PIN
+            int "I2S LRCK (Word Select) GPIO"
+            default 25
+            range 0 39
+            help
+                GPIO pin for I2S word select (left/right clock) output.
+
+        config I2S_DATA_PIN
+            int "I2S DATA GPIO"
+            default 26
+            range 0 39
+            help
+                GPIO pin for I2S data output.
+
+        config I2S_DEFAULT_SAMPLE_RATE
+            int "Default I2S sample rate"
+            default 44100
+            range 8000 192000
+            help
+                Default sample rate when no codec is configured.
+    endmenu
+
+    menu "GPIO Configuration"
+        config BUTTON1_GPIO
+            int "Button 1 GPIO (Bass Boost / Channel Flip)"
+            default 18
+            range 0 39
+            help
+                GPIO pin for button 1 (short press: bass boost, long press: channel flip).
+
+        config BUTTON2_GPIO
+            int "Button 2 GPIO (Bypass Toggle)"
+            default 21
+            range 0 39
+            help
+                GPIO pin for button 2 (bypass toggle).
+
+        config BEAT_LED_GPIO
+            int "Beat LED GPIO"
+            default 5
+            range 0 39
+            help
+                GPIO pin for beat detection LED.
+    endmenu
+
+    menu "DSP Configuration"
+        config DSP_GOERTZEL_N
+            int "Goertzel block size (samples)"
+            default 512
+            range 128 2048
+            help
+                Number of samples for Goertzel frequency analysis.
+                Larger values give better frequency resolution but more latency.
+
+        config DSP_CROSSOVER_LP_FREQ
+            int "Crossover low-pass frequency (Hz)"
+            default 90
+            range 20 500
+            help
+                Low-pass cutoff frequency for split-ear mode subwoofer channel.
+
+        config DSP_CROSSOVER_HP_FREQ
+            int "Crossover high-pass frequency (Hz)"
+            default 500
+            range 100 2000
+            help
+                High-pass cutoff frequency for split-ear mode mid/high channel.
+
+        config DSP_OUT_FRAMES
+            int "DSP output buffer frames"
+            default 1024
+            range 256 8192
+            help
+                Maximum frames per DSP processing block.
+                Larger values reduce overhead for high sample rate codecs like LDAC 96kHz.
+    endmenu
+
+    menu "Beat Detection"
+        config BEAT_BASS_AVG_ALPHA
+            int "Bass average alpha (x1000)"
+            default 10
+            range 1 100
+            help
+                Smoothing factor for bass average (divided by 1000).
+
+        config BEAT_BASS_SMOOTH_ALPHA
+            int "Bass smooth alpha (x1000)"
+            default 350
+            range 50 900
+            help
+                Smoothing factor for bass envelope (divided by 1000).
+
+        config BEAT_BASS_MIN_LEVEL
+            int "Minimum bass level (x10000)"
+            default 120
+            range 10 1000
+            help
+                Minimum bass level to trigger detection (divided by 10000).
+
+        config BEAT_RATIO_THRESH
+            int "Beat ratio threshold (x10)"
+            default 16
+            range 10 50
+            help
+                Ratio threshold for beat detection (divided by 10).
+
+        config BEAT_MIN_INTERVAL_MS
+            int "Minimum beat interval (ms)"
+            default 90
+            range 30 500
+            help
+                Minimum time between beats in milliseconds.
+
+        config BEAT_FLASH_DURATION_MS
+            int "Beat flash duration (ms)"
+            default 60
+            range 10 200
+            help
+                LED flash duration for beat detection.
+
+        config LEVELS_UPDATE_MS
+            int "Level meter update interval (ms)"
+            default 50
+            range 20 200
+            help
+                BLE level meter notification interval.
+    endmenu
+
+    menu "Device Settings"
+        config DEFAULT_DEVICE_NAME
+            string "Default Bluetooth device name"
+            default "BDK SPEAKER"
+            help
+                Default name for Bluetooth advertising.
+
+        config FIRMWARE_VERSION
+            string "Firmware version"
+            default "1.0.3"
+            help
+                Firmware version string reported via BLE.
+    endmenu
+
+    menu "Audio Buffer Configuration"
+        config PSRAM_MODE
+            bool "Use PSRAM for audio buffers"
+            default y
+            help
+                Enable this if your ESP32 has PSRAM (WROVER modules).
+                Disable for ESP32 without PSRAM (WROOM modules).
+                When disabled, reduced buffer sizes are used to fit in internal RAM.
+
+        config AUDIO_POOL_COUNT
+            int "Audio buffer pool count"
+            default 48 if PSRAM_MODE
+            default 16 if !PSRAM_MODE
+            range 8 128
+            help
+                Number of audio buffers in the pool.
+                Reduced to 16 for non-PSRAM builds.
+
+        config AUDIO_POOL_BUF_SIZE
+            int "Audio buffer size (bytes)"
+            default 8192 if PSRAM_MODE
+            default 2048 if !PSRAM_MODE
+            range 1024 32768
+            help
+                Size of each audio buffer in bytes.
+                Reduced to 2048 for non-PSRAM builds.
+
+        config OTA_BUFFER_SIZE
+            int "OTA pre-buffer size (bytes)"
+            default 16384 if PSRAM_MODE
+            default 4096 if !PSRAM_MODE
+            range 2048 65536
+            help
+                Size of OTA pre-begin buffer.
+                Reduced for non-PSRAM builds.
+    endmenu
+
+    menu "LED Matrix Configuration"
+        config LED_MATRIX_ENABLE
+            bool "Enable WS2812B LED Matrix"
+            default y
+            help
+                Enable the 16x16 WS2812B LED matrix with audio-reactive effects.
+
+        config LED_MATRIX_GPIO
+            int "LED Matrix Data GPIO"
+            default 4
+            range 0 39
+            depends on LED_MATRIX_ENABLE
+            help
+                GPIO pin for WS2812B data line.
+
+        config LED_BRIGHTNESS
+            int "Default LED brightness (0-255)"
+            default 64
+            range 1 255
+            depends on LED_MATRIX_ENABLE
+            help
+                Default brightness level for the LED matrix.
+                Lower values reduce power consumption.
+
+        config LED_FPS
+            int "LED update rate (FPS)"
+            default 30
+            range 10 60
+            depends on LED_MATRIX_ENABLE
+            help
+                Frame rate for LED effect updates.
+                Higher values are smoother but use more CPU.
+
+        config LED_DEMO_TIMEOUT
+            int "Demo mode timeout (seconds)"
+            default 5
+            range 1 60
+            depends on LED_MATRIX_ENABLE
+            help
+                Time without audio before switching to demo mode.
+
+        config LED_EFFECT_BUTTON_GPIO
+            int "Effect cycle button GPIO"
+            default 19
+            range 0 39
+            depends on LED_MATRIX_ENABLE
+            help
+                GPIO pin for button to cycle through LED effects.
+                Set to same as Button1 or Button2 to share a button.
+
+        config LED_MATRIX_WIDTH
+            int "Matrix width (pixels)"
+            default 16
+            range 1 32
+            depends on LED_MATRIX_ENABLE
+            help
+                Width of the LED matrix.
+
+        config LED_MATRIX_HEIGHT
+            int "Matrix height (pixels)"
+            default 16
+            range 1 32
+            depends on LED_MATRIX_ENABLE
+            help
+                Height of the LED matrix.
+    endmenu
+
+    menu "Rotary Encoder Configuration"
+        config ENCODER_ENABLE
+            bool "Enable Quad Rotary Encoder"
+            default y
+            help
+                Enable Adafruit Quad Rotary Encoder Breakout (Product 5752)
+                for hardware control of volume, EQ, and brightness.
+                Single I2C device with 4 rotary encoders.
+
+        config ENCODER_I2C_SDA_GPIO
+            int "Encoder I2C SDA GPIO"
+            default 23
+            range 0 39
+            depends on ENCODER_ENABLE
+            help
+                GPIO pin for encoder I2C data line (SDA).
+
+        config ENCODER_I2C_SCL_GPIO
+            int "Encoder I2C SCL GPIO"
+            default 22
+            range 0 39
+            depends on ENCODER_ENABLE
+            help
+                GPIO pin for encoder I2C clock line (SCL).
+
+        config ENCODER_ADDR_QUAD
+            hex "Quad Encoder I2C address"
+            default 0x07
+            range 0x03 0x7F
+            depends on ENCODER_ENABLE
+            help
+                I2C address for the Quad Rotary Encoder Breakout.
+                Default 0x07 (user configured).
+    endmenu
+
+endmenu

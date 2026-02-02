@@ -1,0 +1,28 @@
+# Build directories
+build/
+bt_audio_sink/build/
+recovery/build/
+
+# IDE
+.vscode/
+*.code-workspace
+
+# ESP-IDF
+sdkconfig.old
+*.pyc
+__pycache__/
+
+# OTA releases (encrypted firmware)
+ota_releases/*.enc
+
+# Managed components (downloaded at build time)
+managed_components/
+
+# Python env
+*.egg-info/
+.eggs/
+dist/
+
+# OS
+.DS_Store
+Thumbs.db

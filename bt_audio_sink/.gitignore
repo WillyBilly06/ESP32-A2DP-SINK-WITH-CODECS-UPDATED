@@ -1,0 +1,26 @@
+# Build outputs
+build/
+*.o
+*.a
+*.bin
+*.elf
+*.map
+
+# IDE/Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ESP-IDF
+sdkconfig.old
+dependencies.lock
+
+# Temporary files
+*.tmp
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
