@@ -7,12 +7,12 @@
 
 <p align="center">
   <b>High-fidelity Bluetooth audio receiver with premium codec support</b><br>
-  <sub>LDAC | aptX HD | aptX | aptX-LL | AAC | LC3plus | Opus | SBC</sub>
+  <sub>LDAC | aptX HD | aptX | AAC | SBC</sub>
 </p>
 
 <p align="center">
   <i>Updated version built on ESP-IDF v5.5.2 with native multi-codec decoding</i><br>
-  <a href="https://github.com/WillyBilly06/esp32-a2dp-sink-with-LDAC-APTX-AAC">View original ESP-IDF 5.3 version</a>
+  <a href="https://github.com/WillyBilly06/esp32-a2dp-sink-with-LDAC-APTX-AAC">View original ESP-IDF 5.1.4 version</a>
 </p>
 
 ---
@@ -173,15 +173,13 @@ cd esp-idf
 **Windows:**
 ```cmd
 cd ..\bt_audio_sink
-idf.py set-target esp32
 idf.py build
-idf.py -p COM10 flash monitor
+idf.py -p COMXX (Replace this with your ESP32 COM) flash monitor
 ```
 
 **Linux/macOS:**
 ```bash
 cd ../bt_audio_sink
-idf.py set-target esp32
 idf.py build
 idf.py -p /dev/ttyUSB0 flash monitor
 ```
@@ -298,16 +296,20 @@ This project builds upon the excellent work of the open-source community:
 
 | Project | Author | Description |
 |:--------|:-------|:------------|
-| [ESP32-A2DP](https://github.com/pschatzmann/ESP32-A2DP) | pschatzmann | A2DP sink library |
-| [arduino-audio-tools](https://github.com/pschatzmann/arduino-audio-tools) | pschatzmann | Audio processing utilities |
+| [ESP32-A2DP](https://github.com/cfint/ESP32-A2DP/tree/v5.1-a2dp_codecs) | cfint/pschatzmann | A2DP library |
+| [arduino-audio-tools](https://github.com/cfint/arduino-audio-tools/tree/v5.1-a2dp_codecs) | cfint/pschatzmann | Audio Processing |
+| [libldac-dec](https://github.com/cfint/libldac-dec) | cfint | LDAC decoder |
+| [libfreeaptx-esp](https://github.com/cfint/libfreeaptx-esp) | cfint | aptX decoder for ESP32 |
 | [ESP-IDF](https://github.com/espressif/esp-idf) | Espressif | Official ESP32 development framework |
-| [Original Project](https://github.com/WillyBilly06/esp32-a2dp-sink-with-LDAC-APTX-AAC) | WillyBilly06 | ESP-IDF 5.3 version |
+| [Original Project](https://github.com/WillyBilly06/esp32-a2dp-sink-with-LDAC-APTX-AAC) | WillyBilly06 | ESP-IDF 5.1.4 version |
+
+
 
 ### Codec Libraries (integrated into patched ESP-IDF)
 
 - libldac-dec - LDAC decoder
 - libfreeaptx - aptX/aptX-HD decoder
-- FDK-AAC - AAC decoder
+- LibHelix-AAC - AAC decoder
 - libopus - Opus decoder
 - liblc3 - LC3 decoder
 
