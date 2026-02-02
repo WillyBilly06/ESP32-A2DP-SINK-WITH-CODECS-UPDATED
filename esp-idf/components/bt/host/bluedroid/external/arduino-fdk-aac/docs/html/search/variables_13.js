@@ -1,0 +1,26 @@
+var searchData=
+[
+  ['usaccoreext_3014',['usacCoreExt',['../struct_a_a_c___d_e_c_o_d_e_r___i_n_s_t_a_n_c_e.html#a850d409f1b2f59c7b78df31dfbbb8e8a',1,'AAC_DECODER_INSTANCE']]],
+  ['usacresidualdelay_3015',['usacResidualDelay',['../struct_a_a_c___d_e_c_o_d_e_r___i_n_s_t_a_n_c_e.html#a559ee383a8165f9faea6108e3ec031fc',1,'AAC_DECODER_INSTANCE']]],
+  ['usb_3016',['usb',['../struct_q_m_f___f_i_l_t_e_r___b_a_n_k.html#a56d8115590b3c827cd845fa471cf8466',1,'QMF_FILTER_BANK']]],
+  ['useparametriccoding_3017',['useParametricCoding',['../struct_s_b_r___c_o_n_f_i_g___d_a_t_a.html#a3304be67c0e882e884244ea3e6133b0e',1,'SBR_CONFIG_DATA']]],
+  ['useraot_3018',['userAOT',['../struct_u_s_e_r___p_a_r_a_m.html#ab1f283041e6418b538bded1244449eab',1,'USER_PARAM']]],
+  ['userertools_3019',['userErTools',['../struct_u_s_e_r___p_a_r_a_m.html#a9103b39631048fb625c5a0e441a617d8',1,'USER_PARAM']]],
+  ['userintensity_3020',['userIntensity',['../struct_u_s_e_r___p_a_r_a_m.html#a0100f606c1389d52a0db734d7b2b0b08',1,'USER_PARAM']]],
+  ['usermetadatamode_3021',['userMetaDataMode',['../struct_u_s_e_r___p_a_r_a_m.html#a6b5c647a8ef60d390af931666f2fa62b',1,'USER_PARAM']]],
+  ['userpceadditions_3022',['userPceAdditions',['../struct_u_s_e_r___p_a_r_a_m.html#a4c142895137123c54b7ea8983a87885a',1,'USER_PARAM']]],
+  ['userpns_3023',['userPns',['../struct_u_s_e_r___p_a_r_a_m.html#a9bec4352bec770aef6c5db9016a2b93f',1,'USER_PARAM']]],
+  ['usersamplerate_3024',['userSamplerate',['../struct_u_s_e_r___p_a_r_a_m.html#aa09d8f926874fabecb17ecaf4b4153a9',1,'USER_PARAM']]],
+  ['usersbrenabled_3025',['userSbrEnabled',['../struct_u_s_e_r___p_a_r_a_m.html#a770149c912ca0ba5642dfc80ac80252b',1,'USER_PARAM']]],
+  ['usersbrratio_3026',['userSbrRatio',['../struct_u_s_e_r___p_a_r_a_m.html#a11c53c560e185350031d5f995d444b28',1,'USER_PARAM']]],
+  ['usertns_3027',['userTns',['../struct_u_s_e_r___p_a_r_a_m.html#a80e0a78c0a999f83bac50f95bb696d45',1,'USER_PARAM']]],
+  ['usertpamxv_3028',['userTpAmxv',['../struct_u_s_e_r___p_a_r_a_m.html#ab33e8a66e43dd35f7b5b5f3736661cda',1,'USER_PARAM']]],
+  ['usertpheaderperiod_3029',['userTpHeaderPeriod',['../struct_u_s_e_r___p_a_r_a_m.html#a36fadb45979d46d99455b9dbfb2a6e44',1,'USER_PARAM']]],
+  ['usertpnsubframes_3030',['userTpNsubFrames',['../struct_u_s_e_r___p_a_r_a_m.html#aef12c9002063258249a27cd89e73cbb1',1,'USER_PARAM']]],
+  ['usertpsignaling_3031',['userTpSignaling',['../struct_u_s_e_r___p_a_r_a_m.html#a0403b845b81cf2c546e21ef40d1fd50f',1,'USER_PARAM']]],
+  ['usertptype_3032',['userTpType',['../struct_u_s_e_r___p_a_r_a_m.html#a659b4f3fc0578f02f8b3a9bd83423cd2',1,'USER_PARAM']]],
+  ['usesapan_3033',['useSaPan',['../structsbr_configuration.html#a49e0000a6aaccae21b266f4de6cd5b64',1,'sbrConfiguration']]],
+  ['usespeechconfig_3034',['useSpeechConfig',['../structsbr_configuration.html#a4bb71bd1348a078d2a6c2cb16d649817',1,'sbrConfiguration']]],
+  ['usewavecoding_3035',['useWaveCoding',['../structsbr_configuration.html#a97face026b159c98a3d3021134ff439d',1,'sbrConfiguration::useWaveCoding()'],['../struct_s_b_r___c_o_n_f_i_g___d_a_t_a.html#acd678f6407cc2de5247622cc1dcc0632',1,'SBR_CONFIG_DATA::useWaveCoding()']]],
+  ['useweighting_3036',['useWeighting',['../struct_d_r_c___c_o_m_p.html#ac9a262b1ab57917da55588e11bd2a37c',1,'DRC_COMP']]]
+];

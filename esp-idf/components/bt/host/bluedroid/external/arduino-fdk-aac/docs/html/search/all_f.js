@@ -1,0 +1,28 @@
+var searchData=
+[
+  ['qc_5finit_1279',['QC_INIT',['../struct_q_c___i_n_i_t.html',1,'']]],
+  ['qc_5fout_1280',['QC_OUT',['../struct_q_c___o_u_t.html',1,'']]],
+  ['qc_5fout_5fchannel_1281',['QC_OUT_CHANNEL',['../struct_q_c___o_u_t___c_h_a_n_n_e_l.html',1,'']]],
+  ['qc_5fout_5felement_1282',['QC_OUT_ELEMENT',['../struct_q_c___o_u_t___e_l_e_m_e_n_t.html',1,'']]],
+  ['qc_5fout_5fextension_1283',['QC_OUT_EXTENSION',['../struct_q_c___o_u_t___e_x_t_e_n_s_i_o_n.html',1,'']]],
+  ['qc_5fstate_1284',['QC_STATE',['../struct_q_c___s_t_a_t_e.html',1,'']]],
+  ['qmf_2ecpp_1285',['qmf.cpp',['../qmf_8cpp.html',1,'']]],
+  ['qmf_2eh_1286',['qmf.h',['../qmf_8h.html',1,'']]],
+  ['qmf_5ffilter_5fbank_1287',['QMF_FILTER_BANK',['../struct_q_m_f___f_i_l_t_e_r___b_a_n_k.html',1,'']]],
+  ['qmf_5fscale_5ffactor_1288',['QMF_SCALE_FACTOR',['../struct_q_m_f___s_c_a_l_e___f_a_c_t_o_r.html',1,'']]],
+  ['qmfanalysisfiltering_1289',['qmfAnalysisFiltering',['../qmf_8h.html#a66711cf6dcf999fad902dd68b0381040',1,'qmf.h']]],
+  ['qmfanalysisfilteringslot_1290',['qmfAnalysisFilteringSlot',['../qmf_8h.html#a1828474d65f0df57dc19ee57f5059604',1,'qmf.h']]],
+  ['qmfchangeoutgain_1291',['qmfChangeOutGain',['../qmf_8h.html#acb1256d28e1dce82ccdf06eb7e0d55d2',1,'qmfChangeOutGain(HANDLE_QMF_FILTER_BANK synQmf, FIXP_DBL outputGain, int outputGainScale):&#160;qmf.cpp'],['../qmf_8cpp.html#acb1256d28e1dce82ccdf06eb7e0d55d2',1,'qmfChangeOutGain(HANDLE_QMF_FILTER_BANK synQmf, FIXP_DBL outputGain, int outputGainScale):&#160;qmf.cpp']]],
+  ['qmfchangeoutscalefactor_1292',['qmfChangeOutScalefactor',['../qmf_8h.html#ae5bef0d7634451ad6d4ae534c91f2d37',1,'qmfChangeOutScalefactor(HANDLE_QMF_FILTER_BANK synQmf, int outScalefactor):&#160;qmf.cpp'],['../qmf_8cpp.html#ae5bef0d7634451ad6d4ae534c91f2d37',1,'qmfChangeOutScalefactor(HANDLE_QMF_FILTER_BANK synQmf, int outScalefactor):&#160;qmf.cpp']]],
+  ['qmfdomain_1293',['qmfDomain',['../struct_a_a_c___d_e_c_o_d_e_r___i_n_s_t_a_n_c_e.html#a92ca950ebf23eee35eeb51cdc869c595',1,'AAC_DECODER_INSTANCE']]],
+  ['qmfdomainexplicitconfig_1294',['qmfDomainExplicitConfig',['../struct_f_d_k___q_m_f___d_o_m_a_i_n___g_c.html#a1750f0444bdd34f3c1a49f2378730283',1,'FDK_QMF_DOMAIN_GC']]],
+  ['qmfdomainin_1295',['QmfDomainIn',['../struct_f_d_k___q_m_f___d_o_m_a_i_n.html#a54f4a7fdb142a1df349f9d8e36fe70dc',1,'FDK_QMF_DOMAIN']]],
+  ['qmfdomainout_1296',['QmfDomainOut',['../struct_f_d_k___q_m_f___d_o_m_a_i_n.html#a095c6b92140410cdf2cf20051fd29ff5',1,'FDK_QMF_DOMAIN']]],
+  ['qmfgetoutscalefactor_1297',['qmfGetOutScalefactor',['../qmf_8h.html#a3d9c3e55c050c9aeecf63f45666d7fe0',1,'qmfGetOutScalefactor(HANDLE_QMF_FILTER_BANK synQmf):&#160;qmf.cpp'],['../qmf_8cpp.html#a3d9c3e55c050c9aeecf63f45666d7fe0',1,'qmfGetOutScalefactor(HANDLE_QMF_FILTER_BANK synQmf):&#160;qmf.cpp']]],
+  ['qmfinitanalysisfilterbank_1298',['qmfInitAnalysisFilterBank',['../qmf_8h.html#a2eebf39f55d68bc420322cbef754ce44',1,'qmf_pcm.h']]],
+  ['qmfinitsynthesisfilterbank_1299',['qmfInitSynthesisFilterBank',['../qmf_8h.html#afbf62e34fe9c67ebe0b5efb56e312110',1,'qmfInitSynthesisFilterBank(HANDLE_QMF_FILTER_BANK h_Qmf, FIXP_QSS *pFilterStates, int noCols, int lsb, int usb, int no_channels, int flags):&#160;qmf.cpp'],['../qmf_8cpp.html#afbf62e34fe9c67ebe0b5efb56e312110',1,'qmfInitSynthesisFilterBank(HANDLE_QMF_FILTER_BANK h_Qmf, FIXP_QSS *pFilterStates, int noCols, int lsb, int usb, int no_channels, int flags):&#160;qmf.cpp']]],
+  ['qmfmodecurr_1300',['qmfModeCurr',['../struct_a_a_c___d_e_c_o_d_e_r___i_n_s_t_a_n_c_e.html#ae34bc1f1a0ef3c7ee624b65bd859a7d9',1,'AAC_DECODER_INSTANCE']]],
+  ['qmfmodeuser_1301',['qmfModeUser',['../struct_a_a_c___d_e_c_o_d_e_r___i_n_s_t_a_n_c_e.html#a1a7595cbebcff5f4d7c91de08169465d',1,'AAC_DECODER_INSTANCE']]],
+  ['qmfsynthesisfiltering_1302',['qmfSynthesisFiltering',['../qmf_8h.html#a90bee73427a5c886148fbc2aeeb349f1',1,'qmf.h']]],
+  ['quotamatrix_1303',['quotaMatrix',['../struct_s_b_r___t_o_n___c_o_r_r___e_s_t.html#a47a14cc1c2c36d8c17c2a0f03d22bf0c',1,'SBR_TON_CORR_EST']]]
+];

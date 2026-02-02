@@ -1,0 +1,11 @@
+--- src/libAACenc/aacenc.cpp	2021-01-24 17:15:00.000000000 +0100
++++ utils/patches/aacenc.cpp	2021-01-23 17:21:04.000000000 +0100
+@@ -118,7 +118,7 @@
+   300 /* default threshold for using reduced/disabled bitres mode */
+ #define BITRES_MAX_LD 4000
+ #define BITRES_MIN_LD 500
+-#define BITRATE_MAX_LD 70000 /* Max assumed bitrate for bitres calculation */
++#define BITRATE_MAX_LD (int) 70000 /* Max assumed bitrate for bitres calculation */
+ #define BITRATE_MIN_LD 12000 /* Min assumed bitrate for bitres calculation */
+ 
+ INT FDKaacEnc_CalcBitsPerFrame(const INT bitRate, const INT frameLength,

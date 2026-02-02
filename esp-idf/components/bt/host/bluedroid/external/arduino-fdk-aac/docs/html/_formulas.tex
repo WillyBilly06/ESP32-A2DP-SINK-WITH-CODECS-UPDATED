@@ -1,0 +1,51 @@
+\documentclass{article}
+\usepackage{ifthen}
+\usepackage{epsfig}
+\usepackage[utf8]{inputenc}
+\usepackage{newunicodechar}
+  \newunicodechar{⁻}{${}^{-}$}% Superscript minus
+  \newunicodechar{²}{${}^{2}$}% Superscript two
+  \newunicodechar{³}{${}^{3}$}% Superscript three
+
+\pagestyle{empty}
+\begin{document}
+\[ bitreservoir = nEffChannels*6144 - (bitrate*framelength/samplerate) \]
+\pagebreak
+
+\[ 1000 * fs / (dsf * sr) \]
+\pagebreak
+
+$N\_FRAMES$
+\pagebreak
+
+\[ N\_FRAMES = 44100 / 2048 = 21.5332 \]
+\pagebreak
+
+$N\_BITS\_PER\_FRAME$
+\pagebreak
+
+\[ N\_BITS\_PER\_FRAME = 8000 / 21.5332 = 371.52 \]
+\pagebreak
+
+\[ N\_BITS\_PER\_FRAME = 32000 / 21.5332 = 1486 \]
+\pagebreak
+
+$ 2^{scalefactor} $
+\pagebreak
+
+$ value = value\_m * 2^{value\_e} $
+\pagebreak
+
+$\pm 32768 $
+\pagebreak
+
+$ \pm 1$
+\pagebreak
+
+$ gain = \sqrt{ \frac{nrgRef}{nrgEst} \cdot (1 - noiseRatio) } \hspace{2cm} noise = \sqrt{ nrgRef \cdot noiseRatio } $
+\pagebreak
+
+$ a = a\_m * 2^{a\_e} $
+\pagebreak
+
+\end{document}

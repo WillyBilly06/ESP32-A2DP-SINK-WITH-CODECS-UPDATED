@@ -1,0 +1,10 @@
+另一种方式实现的LDAC解码库
+
+LDAC decoding library implemented in another way
+auto_test.c用于执行自动测试
+
+ldac_enc_test.c 用于生成测试解码器所需的bin文件,执行3次会生成三个后缀分别为 _HQ.bin _SQ.bin _MQ.bin 的LDAC流文件
+输入的wav文件要放在cmake生成目录的上级文件夹
+这个分支没有包含编码库,缺失的函数请从aosp获取或者使用all分支,all分支合并了编码器和解码器
+
+ldac_dec_test.c 用于测试解码器,执行3次会生成三个后缀分别为 _HQ.wav _SQ.wav _MQ.wav 的wav文件

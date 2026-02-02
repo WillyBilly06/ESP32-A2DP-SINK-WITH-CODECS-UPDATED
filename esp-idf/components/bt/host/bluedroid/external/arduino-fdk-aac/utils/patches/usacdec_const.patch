@@ -1,0 +1,24 @@
+--- src/libAACdec/usacdec_const.h	2021-01-24 17:14:56.000000000 +0100
++++ utils/patches/usacdec_const.h	2021-01-23 17:19:16.000000000 +0100
+@@ -102,7 +102,6 @@
+ 
+ #ifndef USACDEC_CONST_H
+ #define USACDEC_CONST_H
+-
+ /* scale factors */
+ #define SF_CODE 6       /* exponent of code[], fixed codebook vector */
+ #define SF_GAIN_C 16    /* exponent of gain code and smoothed gain code */
+@@ -139,9 +138,13 @@
+      256) /* cannot be smaller because of tcx time domain concealment */
+ #define PIT_MAX_MAX 256
+ #else
++#include "AACCostantsOverride.h"
++#ifndef PIT_MAX_MAX
+ #define PIT_MAX_MAX PIT_MAX_TMP
+ #endif
+ 
++#endif
++
+ #define NB_DIV 4   /* number of division (20ms) per 80ms frame */
+ #define L_SUBFR 64 /* subframe size (5ms) */
+ #define BPF_SFD 1  /* bass postfilter delay (subframe) */

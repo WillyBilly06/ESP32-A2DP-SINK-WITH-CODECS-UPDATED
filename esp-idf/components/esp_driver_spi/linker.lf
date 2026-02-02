@@ -1,0 +1,7 @@
+[mapping:gpspi_hal]
+archive: libhal.a
+entries:
+    if SPI_MASTER_ISR_IN_IRAM = y:
+        spi_hal_iram (noflash)
+    if SPI_SLAVE_ISR_IN_IRAM = y:
+        spi_slave_hal_iram (noflash)
