@@ -263,6 +263,14 @@ public:
             }
 
             if (!skipWrite) {
+                // Swap L/R channels: ESP32 I2S with I2S_CHANNEL_FMT_RIGHT_LEFT
+                // clocks out the first sample per frame on WS high (right channel),
+                // but our DSP output is [L, R, L, R, ...]. Swap to [R, L, R, L, ...]
+                // so left audio reaches the left speaker and vice versa.
+                for (uint32_t f = 0; f < frames; ++f) {
+                    std::swap(m_dspOut[f * 2], m_dspOut[f * 2 + 1]);
+                }
+
                 size_t bytesToWrite = frames * 2u * sizeof(int32_t);
                 size_t written = i2s.write(m_dspOut, bytesToWrite);
                 
