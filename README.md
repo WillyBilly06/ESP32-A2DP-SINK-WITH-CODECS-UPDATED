@@ -120,10 +120,9 @@ For the original PSRAM-dependent version, see the [`PSRAM-only`](https://github.
 | I2S DATA      | 26   | Yes                           |
 | I2S BCK       | 27   | Yes                           |
 | I2S LRCK      | 25   | Yes                           |
-| LED Data      | 4    | Yes                           |
+| WS2812B Data      | 4    | Yes                           |
 | Button 1      | 18   | Yes                           |
 | Button 2      | 21   | Yes                           |
-| Beat LED      | 5    | Yes                           |
 | Encoder SDA   | 23   | Yes                           |
 | Encoder SCL   | 22   | Yes                           |
 
