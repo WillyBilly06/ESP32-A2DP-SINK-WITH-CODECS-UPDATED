@@ -1,3 +1,22 @@
+<p align="center">
+  <img src="https://img.shields.io/badge/ESP32-WROVER-000000?style=for-the-badge&logo=espressif&logoColor=white" alt="ESP32"/>
+  <img src="https://img.shields.io/badge/ESP--IDF-v5.5.2-E7352C?style=for-the-badge&logo=espressif&logoColor=white" alt="ESP-IDF"/>
+  <img src="https://img.shields.io/badge/Bluetooth-A2DP-0082FC?style=for-the-badge&logo=bluetooth&logoColor=white" alt="Bluetooth"/>
+  <img src="https://img.shields.io/badge/License-MIT-green?style=for-the-badge" alt="License"/>
+</p>
+
+<p align="center">
+  <b>High-fidelity Bluetooth audio receiver with premium codec support</b><br>
+  <sub>LDAC | aptX HD | aptX | AAC | SBC</sub>
+</p>
+
+<p align="center">
+  <i>Updated version built on ESP-IDF v5.5.2 with native multi-codec decoding</i><br>
+  <a href="https://github.com/WillyBilly06/esp32-a2dp-sink-with-LDAC-APTX-AAC">View original ESP-IDF 5.1.4 version</a>
+</p>
+
+---
+
 # ESP32 A2DP Sink with LDAC, aptX, and AAC Codecs (Internal RAM Edition)
 
 > **Branch:** `internal-ram-only` — runs entirely on internal SRAM. No PSRAM required.
@@ -5,6 +24,35 @@
 High-quality Bluetooth audio receiver for ESP32 with native multi-codec decoding (LDAC, aptX-HD, aptX, AAC, SBC). Built on a patched ESP-IDF v5.5.2 Bluetooth stack. This branch is optimized for **internal RAM only** and works on standard ESP32-WROOM modules without external PSRAM.
 
 For the original PSRAM-dependent version, see the `main` branch.
+
+## Table of Contents
+
+- [What's Different in This Branch](#whats-different-in-this-branch)
+- [Features](#features)
+  - [Audio](#audio)
+  - [Visual](#visual)
+  - [Hardware Control](#hardware-control)
+  - [Connectivity](#connectivity)
+- [Hardware Requirements](#hardware-requirements)
+- [Pin Configuration (Default)](#pin-configuration-default)
+- [Codec Support](#codec-support)
+- [Building](#building)
+  - [Prerequisites](#prerequisites)
+  - [Build Steps](#build-steps)
+- [Architecture Overview](#architecture-overview)
+  - [Memory Budget (Internal RAM)](#memory-budget-internal-ram)
+- [OTA Updates](#ota-updates)
+  - [BLE OTA (Primary)](#ble-ota-primary)
+  - [WiFi Recovery OTA (Fallback)](#wifi-recovery-ota-fallback)
+  - [Security Notice](#security-notice)
+- [Configuration](#configuration)
+- [Project Structure](#project-structure)
+- [How It Works](#how-it-works)
+- [Troubleshooting](#troubleshooting)
+- [Compatibility](#compatibility)
+- [Changes from `main` Branch](#changes-from-main-branch)
+- [Credits](#credits)
+- [License](#license)
 
 ## What's Different in This Branch
 
@@ -87,7 +135,7 @@ For the original PSRAM-dependent version, see the `main` branch.
 | aptX-HD | 576 kbps    | 48 kHz      | 24-bit, Qualcomm              |
 | aptX    | 352 kbps    | 48 kHz      | Low latency                   |
 | aptX-LL | 352 kbps    | 48 kHz      | Ultra low latency             |
-| AAC     | 256 kbps    | 48 kHz      | Apple devices; no PSRAM req |
+| AAC     | 256 kbps    | 48 kHz      | Apple devices; no PSRAM req   |
 | SBC     | 328 kbps    | 48 kHz      | Universal fallback            |
 
 > **Opus and LC3plus are currently disabled** — still under testing for stability on internal RAM builds.
@@ -142,7 +190,7 @@ Bluetooth A2DP (Core 1)
 | I2S DMA buffers        | ~3 KB       |
 | LED framebuffer        | ~1 KB       |
 | BT/BLE stack           | ~90 KB      |
-| Free heap (LDAC)      | ~40 KB      |
+| Free heap (LDAC)       | ~40 KB      |
 | Free heap (AAC / SBC)  | ~50 KB      |
 | Free heap (aptX / aptX-HD / aptX-LL) | ~45 KB |
 
