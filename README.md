@@ -315,20 +315,20 @@ Tested with:
 - Windows 11 (aptX, SBC, AAC, LDAC)
 - macOS (AAC, SBC)
 - iOS (AAC, SBC)
-- Linux (all enabled codecs with BlueZ)
+- Linux (all enabled codecs with BlueZ except LC3 and Opus)
 
 ## Changes from `PSRAM-only` Branch
 
 - **Memory:** All allocations forced to internal SRAM (`MALLOC_CAP_INTERNAL`) — PSRAM-only used `MALLOC_CAP_SPIRAM`
 - **A2DP:** Replaced external `ESP32-A2DP` + `arduino-audio-tools` with native ESP-IDF wrapper
-- **Codecs:** Disabled Opus and LC3plus to save decoder RAM
+- **Codecs:** Disabled Opus and LC3plus (Still in optimizing process)
 - **3D Sound:** Removed Stage Presence 3D processor
 - **DSP:** Added Goertzel/peak-meter analysis decimation to reduce CPU load at high sample rates
 - **Audio Pipeline:** Switched from pool-based PSRAM buffers to Q1.31 internal RAM ring buffer with software ASRC and backpressure
 - **Overlay Mixer:** Fixed duck gain wrap bug (int16→int32) for seamless sound effect ducking
 - **Sound Player:** Switched from spawning a new static task per play to a persistent task with zero heap cost per play
 - **LED:** Lazy effect allocation instead of pre-allocating all effects at boot
-- **OTA:** Added BLE OTA path in addition to existing WiFi recovery OTA
+- **OTA:** Using BLE to do OTA for main code, fallback to Wifi OTA if main firmware is corrupted
 
 ## Credits
 
