@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://img.shields.io/badge/ESP32-WROVER-000000?style=for-the-badge&logo=espressif&logoColor=white" alt="ESP32"/>
+  <img src="https://img.shields.io/badge/ESP32-WROOM-000000?style=for-the-badge&logo=espressif&logoColor=white" alt="ESP32"/>
   <img src="https://img.shields.io/badge/ESP--IDF-v5.5.2-E7352C?style=for-the-badge&logo=espressif&logoColor=white" alt="ESP-IDF"/>
   <img src="https://img.shields.io/badge/Bluetooth-A2DP-0082FC?style=for-the-badge&logo=bluetooth&logoColor=white" alt="Bluetooth"/>
   <img src="https://img.shields.io/badge/License-MIT-green?style=for-the-badge" alt="License"/>
@@ -19,11 +19,11 @@
 
 # ESP32 A2DP Sink with LDAC, aptX, and AAC Codecs (Internal RAM Edition)
 
-> **Branch:** `internal-ram-only` — runs entirely on internal SRAM. No PSRAM required.
+> **Branch:** `main` — runs entirely on internal SRAM. No PSRAM required.
 
 High-quality Bluetooth audio receiver for ESP32 with native multi-codec decoding (LDAC, aptX-HD, aptX, AAC, SBC). Built on a patched ESP-IDF v5.5.2 Bluetooth stack. This branch is optimized for **internal RAM only** and works on standard ESP32-WROOM modules without external PSRAM.
 
-For the original PSRAM-dependent version, see the `main` branch.
+For the original PSRAM-dependent version, see the [`PSRAM-only`](https://github.com/WillyBilly06/ESP32-A2DP-SINK-WITH-CODECS-UPDATED/tree/PSRAM-only) branch.
 
 ## Table of Contents
 
@@ -50,22 +50,22 @@ For the original PSRAM-dependent version, see the `main` branch.
 - [How It Works](#how-it-works)
 - [Troubleshooting](#troubleshooting)
 - [Compatibility](#compatibility)
-- [Changes from `main` Branch](#changes-from-main-branch)
+- [Changes from `PSRAM-only` Branch](#changes-from-psram-only-branch)
 - [Credits](#credits)
 - [License](#license)
 
 ## What's Different in This Branch
 
-| Feature | `main` Branch | `internal-ram-only` (this) |
+| Feature | `PSRAM-only` Branch | `main` (this) |
 |---|---|---|
 | **Memory** | Requires PSRAM (WROVER) | Internal SRAM only (WROOM) |
-| **A2DP Library** | External `ESP32-A2DP` library | Native ESP-IDF A2DP/AVRCP wrapper |
+| **A2DP Library** | External `ESP32-A2DP` + `arduino-audio-tools` | Native ESP-IDF A2DP/AVRCP wrapper |
 | **Codecs** | All 8 codecs (incl. Opus, LC3plus) | SBC, AAC, aptX, aptX-HD, aptX-LL, LDAC |
 | **3D Sound** | Stage Presence 3D enabled | **Removed** (saves ~2 KB + CPU) |
 | **LED Effects** | All pre-allocated at boot | Lazy allocation (only current effect) |
-| **Sound Player** | Spawns task per play | Persistent task + pre-allocated buffers |
-| **Audio Pipeline** | Basic buffering | Q1.31 ring + software ASRC + backpressure |
-| **DSP** | Standard | Division-free, analysis decimation |
+| **Sound Player** | Spawns new static task per play | Persistent task (zero heap per play) |
+| **Audio Pipeline** | Pool-based buffers in PSRAM | Q1.31 ring buffer in internal RAM + software ASRC |
+| **DSP** | Goertzel on every sample | Analysis decimation (~4-9x less CPU at 96 kHz) |
 
 ## Features
 
@@ -275,7 +275,7 @@ bt_audio_sink/
   ota_releases/           # Encrypted firmware output folder
 ```
 
-> **Note:** `components/ESP32-A2DP/` and `components/arduino-audio-tools/` from the original version are **not used** in this branch. The A2DP sink is implemented natively in `main/bt/a2dp_sink_native.cpp`. The AAC decoder is **Helix** (from [arduino-libhelix](https://github.com/pschatzmann/arduino-libhelix)), patched into the ESP-IDF Bluetooth stack — it is not used as an Arduino library here.
+> **Note:** The external Arduino libraries `ESP32-A2DP` and `arduino-audio-tools` from the `PSRAM-only` branch are **not used** here. The A2DP sink is implemented natively in `main/bt/a2dp_sink_native.cpp`. The AAC decoder is **Helix** (from [arduino-libhelix](https://github.com/pschatzmann/arduino-libhelix)), patched into the ESP-IDF Bluetooth stack — it is not used as an Arduino library here.
 
 ## How It Works
 
@@ -317,20 +317,18 @@ Tested with:
 - iOS (AAC, SBC)
 - Linux (all enabled codecs with BlueZ)
 
-## Changes from `main` Branch
+## Changes from `PSRAM-only` Branch
 
-- **Memory:** All allocations forced to internal SRAM (`MALLOC_CAP_INTERNAL`)
-- **A2DP:** Replaced external Arduino libraries with native ESP-IDF wrapper
+- **Memory:** All allocations forced to internal SRAM (`MALLOC_CAP_INTERNAL`) — PSRAM-only used `MALLOC_CAP_SPIRAM`
+- **A2DP:** Replaced external `ESP32-A2DP` + `arduino-audio-tools` with native ESP-IDF wrapper
 - **Codecs:** Disabled Opus and LC3plus to save decoder RAM
 - **3D Sound:** Removed Stage Presence 3D processor
-- **DSP:** Added division-free math, analysis decimation, soft clipper
-- **Audio Pipeline:** New Q1.31 ring buffer with software ASRC and backpressure
-- **Overlay Mixer:** Added ducking/gain ramping for seamless sound effects
-- **Sound Player:** Persistent playback task + streaming resampler (zero heap per play)
-- **LED:** Lazy effect allocation instead of pre-allocating all effects
-- **BLE:** Unified single-service protocol replacing legacy multi-characteristic design
-- **OTA:** Added BLE OTA path in addition to WiFi recovery
-- **Recovery:** Recovery partition with button-boot and captive portal
+- **DSP:** Added Goertzel/peak-meter analysis decimation to reduce CPU load at high sample rates
+- **Audio Pipeline:** Switched from pool-based PSRAM buffers to Q1.31 internal RAM ring buffer with software ASRC and backpressure
+- **Overlay Mixer:** Fixed duck gain wrap bug (int16→int32) for seamless sound effect ducking
+- **Sound Player:** Switched from spawning a new static task per play to a persistent task with zero heap cost per play
+- **LED:** Lazy effect allocation instead of pre-allocating all effects at boot
+- **OTA:** Added BLE OTA path in addition to existing WiFi recovery OTA
 
 ## Credits
 
