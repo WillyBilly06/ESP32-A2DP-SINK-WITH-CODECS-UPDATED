@@ -1,0 +1,13 @@
+# Documentation: .gitlab/ci/README.md#manifest-file-to-control-the-buildtest-apps
+
+components/app_trace/test_apps:
+  depends_components:
+    - app_trace
+    - esp_timer
+    - soc
+    - driver
+    - esp_hw_support
+  disable:
+    - if: IDF_TARGET in ["esp32c5", "esp32c61", "esp32h21", "esp32h4"]
+      temporary: true
+      reason: not support yet # TODO: [ESP32C5] IDF-8705, [ESP32C61] IDF-9306, [ESP32H21] IDF-11539 [ESP32H4] IDF-12325

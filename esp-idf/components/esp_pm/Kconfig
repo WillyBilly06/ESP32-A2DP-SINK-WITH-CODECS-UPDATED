@@ -1,0 +1,221 @@
+menu "Power Management"
+
+    config PM_SLEEP_FUNC_IN_IRAM
+        bool "Place Power Management module functions in IRAM" if IDF_TARGET_ESP32C2
+        default y
+        select PM_SLP_IRAM_OPT if SOC_LIGHT_SLEEP_SUPPORTED
+        select PM_RTOS_IDLE_OPT if FREERTOS_USE_TICKLESS_IDLE
+        select ESP_PERIPH_CTRL_FUNC_IN_IRAM
+        select ESP_REGI2C_CTRL_FUNC_IN_IRAM
+
+
+    config PM_ENABLE
+        bool "Support for power management"
+        # SMP FreeRTOS currently does not support power management IDF-4997
+        depends on (!FREERTOS_SMP && SOC_PM_SUPPORTED) || __DOXYGEN__
+        default n
+        help
+            If enabled, application is compiled with support for power management.
+            This option has run-time overhead (increased interrupt latency,
+            longer time to enter idle state), and it also reduces accuracy of
+            RTOS ticks and timers used for timekeeping.
+            Enable this option if application uses power management APIs.
+
+    config PM_DFS_INIT_AUTO
+        bool "Enable dynamic frequency scaling (DFS) at startup"
+        depends on PM_ENABLE
+        default n
+        help
+            If enabled, startup code configures dynamic frequency scaling.
+            Max CPU frequency is set to DEFAULT_CPU_FREQ_MHZ setting,
+            min frequency is set to XTAL frequency.
+            If disabled, DFS will not be active until the application
+            configures it using esp_pm_configure function.
+
+    config PM_PROFILING
+        bool "Enable profiling counters for PM locks"
+        depends on PM_ENABLE
+        default n
+        help
+            If enabled, esp_pm_* functions will keep track of the amount of time
+            each of the power management locks has been held, and esp_pm_dump_locks
+            function will print this information.
+            This feature can be used to analyze which locks are preventing the chip
+            from going into a lower power state, and see what time the chip spends
+            in each power saving mode. This feature does incur some run-time
+            overhead, so should typically be disabled in production builds.
+
+    config PM_TRACE
+        bool "Enable debug tracing of PM using GPIOs"
+        depends on PM_ENABLE
+        default n
+        help
+            If enabled, some GPIOs will be used to signal events such as RTOS ticks,
+            frequency switching, entry/exit from idle state. Refer to pm_trace.c
+            file for the list of GPIOs.
+            This feature is intended to be used when analyzing/debugging behavior
+            of power management implementation, and should be kept disabled in
+            applications.
+
+    config PM_SLP_IRAM_OPT
+        bool "Put lightsleep related codes in internal RAM"
+        depends on SOC_LIGHT_SLEEP_SUPPORTED
+        select ESP_TIMER_IN_IRAM
+        help
+            If enabled, about 2.1KB of lightsleep related source code would be in IRAM and chip would sleep
+            longer for 310us at 160MHz CPU frequency most each time.
+            This feature is intended to be used when lower power consumption is needed
+            while there is enough place in IRAM to place source code.
+
+    config PM_RTOS_IDLE_OPT
+        bool "Put RTOS IDLE related codes in internal RAM"
+        depends on FREERTOS_USE_TICKLESS_IDLE
+        help
+            If enabled, about 180Bytes of RTOS_IDLE related source code would be in IRAM and chip would sleep
+            longer for 20us at 160MHz CPU frequency most each time.
+            This feature is intended to be used when lower power consumption is needed
+            while there is enough place in IRAM to place source code.
+
+    config PM_SLP_DISABLE_GPIO
+        bool "Disable all GPIO when chip at sleep"
+        depends on FREERTOS_USE_TICKLESS_IDLE
+        help
+            This feature is intended to disable all GPIO pins at automantic sleep to get a lower power mode.
+            If enabled, chips will disable all GPIO pins at automantic sleep to reduce about 200~300 uA current.
+            If you want to specifically use some pins normally as chip wakes when chip sleeps,
+            you can call 'gpio_sleep_sel_dis' to disable this feature on those pins.
+            You can also keep this feature on and call 'gpio_sleep_set_direction' and 'gpio_sleep_set_pull_mode'
+            to have a different GPIO configuration at sleep.
+            Warning: If you want to enable this option on ESP32, you should enable `GPIO_ESP32_SUPPORT_SWITCH_SLP_PULL`
+            at first, otherwise you will not be able to switch pullup/pulldown mode.
+
+    config PM_SLP_DEFAULT_PARAMS_OPT
+        bool
+        default n
+
+    config PM_CHECK_SLEEP_RETENTION_FRAME
+        bool
+        depends on (PM_POWER_DOWN_CPU_IN_LIGHT_SLEEP || \
+            (ESP32P4_SELECTS_REV_LESS_V3 && PM_POWER_DOWN_PERIPHERAL_IN_LIGHT_SLEEP))
+        default y if IDF_CI_BUILD
+        default n
+        help
+            This option is invisible to users, and it is only used for ci testing,
+            enabling it in the application will increase the sleep and wake-up time overhead
+
+    config PM_LIGHTSLEEP_RTC_OSC_CAL_INTERVAL
+        int "Calibrate the RTC_FAST/SLOW clock every N times of light sleep"
+        default 1
+        depends on PM_ENABLE
+        range 1 128
+        help
+            The value of this option determines the calibration interval of the RTC_FAST/SLOW clock during sleep when
+            power management is enabled. When it is configured as N, the RTC_FAST/SLOW clock will be calibrated
+            every N times of lightsleep.
+            Decreasing this value will increase the time the chip is in the active state, thereby increasing the
+            average power consumption of the chip.
+            Increasing this value can reduce the average power consumption, but when the external environment changes
+            drastically and the chip RTC_FAST/SLOW oscillator frequency drifts, it may cause system instability.
+
+    config PM_POWER_DOWN_CPU_IN_LIGHT_SLEEP
+        bool "Power down CPU in light sleep"
+        depends on SOC_PM_SUPPORT_CPU_PD && !ESP32P4_SELECTS_REV_LESS_V3
+        select PM_RESTORE_CACHE_TAGMEM_AFTER_LIGHT_SLEEP if ESP32S3_DATA_CACHE_16KB
+        default y
+        help
+            If enabled, the CPU will be powered down in light sleep,
+            ESP chips supports saving and restoring CPU's running context before and after light sleep,
+            the feature provides applications with seamless CPU powerdowned lightsleep without user awareness.
+            But this will takes up some internal memory.
+            On esp32c3 soc, enabling this option will consume 1.68 KB of internal RAM
+            and will reduce sleep current consumption by about 100 uA.
+            On esp32s3 soc, enabling this option will consume 8.58 KB of internal RAM
+            and will reduce sleep current consumption by about 650 uA.
+
+    config PM_RESTORE_CACHE_TAGMEM_AFTER_LIGHT_SLEEP
+        bool "Restore I/D-cache tag memory after power down CPU light sleep"
+        depends on IDF_TARGET_ESP32S3 && PM_POWER_DOWN_CPU_IN_LIGHT_SLEEP
+        default y
+        help
+            Cache tag memory and CPU both belong to the CPU power domain.
+            ESP chips supports saving and restoring Cache tag memory before and after sleep,
+            this feature supports accesses to the external memory that was cached before sleep still
+            be cached when the CPU wakes up from a powerdowned CPU lightsleep.
+            This option controls the restore method for Cache tag memory in lightsleep.
+            If this option is enabled, the I/D-cache tag memory will be backuped to the internal RAM
+            before sleep and restored upon wakeup.
+            Depending on the the cache configuration, if this option is enabled,
+            it will consume up to 9 KB of internal RAM.
+            If this option is disabled, all cached data won't be kept after sleep,
+            the DCache will be writeback before sleep and invalid all cached data after sleep,
+            all accesses to external memory(Flash/PSRAM) will be cache missed after waking up,
+            resulting in performance degradation due to increased memory accesses latency.
+
+    config PM_POWER_DOWN_PERIPHERAL_IN_LIGHT_SLEEP
+        bool "Power down Digital Peripheral in light sleep (EXPERIMENTAL)"
+        depends on SOC_PM_SUPPORT_TOP_PD && SOC_PAU_SUPPORTED
+        depends on !(IDF_TARGET_ESP32P4 && (ESP_REV_MIN_FULL = 300) && SPIRAM)
+        select PM_POWER_DOWN_CPU_IN_LIGHT_SLEEP if !ESP32P4_SELECTS_REV_LESS_V3
+        select ESP_SLEEP_POWER_DOWN_FLASH if (IDF_TARGET_ESP32P4 && (ESP_REV_MIN_FULL = 300))
+        default n #TODO: enable by default if periph init/deinit management supported (WIFI-5252)
+        help
+            If enabled, digital peripherals will try to powered down in light sleep, then all related peripherals will
+            not be available during sleep, including wake-up sources from the peripherals (For detailed availability
+            information, see the note of the corresponding wakeup source enable function).
+            The chip will automatically save/restore register context during sleep/wakeup to make the upper layer
+            user unaware of the peripheral powerdown during sleep. Enabling this option will increase static RAM and
+            heap usage but will also significantly reduce power.
+            consumption during lightsleep, the actual memory cost depends on the peripherals you have initialized,
+            for specific power consumption data in this mode, please refer to Electrical Characteristics section
+            in the chip datasheet.
+            (In order to save/restore the context of the necessary hardware for FreeRTOS to run, it will need
+            at least 4.55 KB free heap at sleep time. Otherwise sleep will not power down the peripherals.)
+
+            Note1: Please use this option with caution, the current IDF does not support the retention of
+            all peripherals. When the digital peripherals are powered off and a sleep and wake-up is completed,
+            the peripherals that have not saved the running context are equivalent to performing a reset.
+            !!! Please confirm the peripherals used in your application and their sleep retention support status
+            before enabling this option, peripherals sleep retention driver support status is tracked in
+            power_management.rst
+
+            Note2: When this option is enabled simultaneously with FREERTOS_USE_TICKLESS_IDLE, since the UART will
+            be powered down, the uart FIFO will be flushed before sleep to avoid data loss, however, this has the
+            potential to block the sleep process and cause the wakeup time to be skipped, which will cause the tick
+            of freertos to not be compensated correctly when returning from sleep and cause the system to crash.
+            To avoid this, you can increase FREERTOS_IDLE_TIME_BEFORE_SLEEP threshold in menuconfig.
+
+            Note3: Enabling this option does not necessarily mean that the peripheral power domain will be
+            turned down during sleep. The control priority of `esp_sleep_pd_config` is higher than this option,
+            user code can still prevent the peripheral power domain from powering down during sleep by
+            `esp_sleep_pd_config(ESP_PD_DOMAIN_TOP, ESP_PD_OPTION_ON)`. In addition, whether the peripheral power
+            domain is powered down during sleep also depends on the sleep working strategy selected by the driver.
+            If any module belonging to the peripheral power domain chooses not to be powered down during sleep,
+            then the peripheral power domain will not be powered off either.
+
+    config PM_UPDATE_CCOMPARE_HLI_WORKAROUND
+        bool
+        default y if PM_ENABLE && BTDM_CTRL_HLI
+
+    config PM_LIGHT_SLEEP_CALLBACKS
+        bool "Enable registration of pm light sleep callbacks"
+        depends on FREERTOS_USE_TICKLESS_IDLE
+        default n
+        help
+            If enabled, it allows user to register entry and exit callbacks which are called before and after
+            entering auto light sleep.
+
+            NOTE: These callbacks are executed from the IDLE task context hence you cannot have any blocking calls
+            in your callbacks.
+
+            NOTE: Enabling these callbacks may change sleep duration calculations based on time spent in callback and
+            hence it is highly recommended to keep them as short as possible
+
+    config PM_WORKAROUND_FREQ_LIMIT_ENABLED
+        bool
+        default y if SPI_FLASH_FREQ_LIMIT_C5_240MHZ
+        help
+            Workaround for frequency limit during encrypted flash writes.
+            Only enabled when SPI_FLASH_FREQ_LIMIT_C5_240MHZ is enabled.
+            This is an internal configuration, automatically set based on SPI Flash configuration.
+
+endmenu # "Power Management"

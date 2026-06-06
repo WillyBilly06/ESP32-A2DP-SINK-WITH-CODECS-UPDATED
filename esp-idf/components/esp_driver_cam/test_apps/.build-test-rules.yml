@@ -1,0 +1,20 @@
+components/esp_driver_cam/test_apps/csi:
+  disable:
+    - if: SOC_MIPI_CSI_SUPPORTED != 1
+    - if: IDF_TARGET == "esp32p4" # TODO: IDF-14358
+      temporary: true
+      reason: p4 rev3 migration
+  depends_components:
+    - esp_driver_cam
+
+components/esp_driver_cam/test_apps/dvp:
+  disable:
+    - if: SOC_LCDCAM_CAM_SUPPORTED != 1
+  depends_components:
+    - esp_driver_cam
+
+components/esp_driver_cam/test_apps/isp_dvp:
+  disable:
+    - if: SOC_ISP_DVP_SUPPORTED != 1
+  depends_components:
+    - esp_driver_cam

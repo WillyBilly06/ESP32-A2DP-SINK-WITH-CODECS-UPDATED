@@ -1,0 +1,17 @@
+menu "ESP-Driver:Sigma Delta Modulator Configurations"
+    depends on SOC_SDM_SUPPORTED
+    config SDM_CTRL_FUNC_IN_IRAM
+        bool "Place SDM control functions into IRAM"
+        default n
+        help
+            Place SDM control functions (like set_duty) into IRAM,
+            so that these functions can be IRAM-safe and able to be called in the other IRAM interrupt context.
+            Enabling this option can improve driver performance as well.
+
+    config SDM_ENABLE_DEBUG_LOG
+        bool "Enable debug log"
+        default n
+        help
+            whether to enable the debug log message for SDM driver.
+            Note that, this option only controls the SDM driver log, won't affect other drivers.
+endmenu # Sigma Delta Modulator Configurations
