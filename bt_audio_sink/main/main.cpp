@@ -483,7 +483,8 @@
      if (data[0] == 'B' && len >= 6 && memcmp(data, "BEGIN:", 6) == 0) {
          // Parse ASCII: "BEGIN:<size>"
          char sizeBuf[16] = {0};
-         size_t copyLen = (len - 6 < sizeof(sizeBuf) - 1) ? (len - 6) : (sizeof(sizeBuf) - 1);
+        size_t copyLen = len - 6;
+        if (copyLen >= sizeof(sizeBuf)) copyLen = sizeof(sizeBuf) - 1;
          memcpy(sizeBuf, data + 6, copyLen);
          uint32_t size = (uint32_t)atoi(sizeBuf);
          
