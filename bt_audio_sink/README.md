@@ -11,7 +11,7 @@ For the original PSRAM-dependent version, see the `main` branch.
 | Feature | `main` Branch | `internal-ram-only` (this) |
 |---|---|---|
 | **Memory** | Requires PSRAM (WROVER) | Internal SRAM only (WROOM) |
-| **A2DP Library** | External `ESP32-A2DP` + `arduino-audio-tools` | Native ESP-IDF A2DP/AVRCP wrapper |
+| **A2DP Library** | External `ESP32-A2DP` library | Native ESP-IDF A2DP/AVRCP wrapper |
 | **Codecs** | All 8 codecs (incl. Opus, LC3plus) | SBC, AAC, aptX, aptX-HD, aptX-LL, LDAC |
 | **3D Sound** | Stage Presence 3D enabled | **Removed** (saves ~2 KB + CPU) |
 | **LED Effects** | All pre-allocated at boot | Lazy allocation (only current effect) |
@@ -90,7 +90,7 @@ For the original PSRAM-dependent version, see the `main` branch.
 | AAC     | 256 kbps    | 48 kHz      | Apple devices; no PSRAM req |
 | SBC     | 328 kbps    | 48 kHz      | Universal fallback            |
 
-> **Opus and LC3plus are disabled** in this branch to free internal RAM for LDAC/AAC decode.
+> **Opus and LC3plus are currently disabled** — still under testing for stability on internal RAM builds.
 
 ## Building
 
@@ -109,16 +109,15 @@ cd esp-idf
 
 # Build the project
 cd ..\bt_audio_sink
-idf.py set-target esp32
 idf.py build
 
 # Flash to device
-idf.py -p COM3 flash monitor
+idf.py -p COMXX flash monitor
 ```
 
 > On first flash, also flash the recovery partition so the recovery button works:
 > ```bash
-> idf.py -p COM3 flash
+> idf.py -p COMXX flash
 > ```
 
 ## Architecture Overview
@@ -143,7 +142,9 @@ Bluetooth A2DP (Core 1)
 | I2S DMA buffers        | ~3 KB       |
 | LED framebuffer        | ~1 KB       |
 | BT/BLE stack           | ~90 KB      |
-| Free heap at runtime   | ~15-25 KB   |
+| Free heap (LDAC)      | ~40 KB      |
+| Free heap (AAC / SBC)  | ~50 KB      |
+| Free heap (aptX / aptX-HD / aptX-LL) | ~45 KB |
 
 ## OTA Updates
 
@@ -226,7 +227,7 @@ bt_audio_sink/
   ota_releases/           # Encrypted firmware output folder
 ```
 
-> **Note:** `components/ESP32-A2DP/` and `components/arduino-audio-tools/` from the original version are **not used** in this branch. The A2DP sink is implemented natively in `main/bt/a2dp_sink_native.cpp`.
+> **Note:** `components/ESP32-A2DP/` and `components/arduino-audio-tools/` from the original version are **not used** in this branch. The A2DP sink is implemented natively in `main/bt/a2dp_sink_native.cpp`. The AAC decoder is **Helix** (from [arduino-libhelix](https://github.com/pschatzmann/arduino-libhelix)), patched into the ESP-IDF Bluetooth stack — it is not used as an Arduino library here.
 
 ## How It Works
 
@@ -263,7 +264,7 @@ In this branch, AAC does **not** require PSRAM. If it fails, ensure your ESP32 h
 
 Tested with:
 - Android phones (LDAC, aptX HD, aptX, AAC, SBC)
-- Windows 11 (aptX, SBC, AAC)
+- Windows 11 (aptX, SBC, AAC, LDAC)
 - macOS (AAC, SBC)
 - iOS (AAC, SBC)
 - Linux (all enabled codecs with BlueZ)
@@ -286,7 +287,7 @@ Tested with:
 ## Credits
 
 - ESP-IDF Bluetooth stack by Espressif
-- Codec libraries (patched into ESP-IDF): libldac-dec, libfreeaptx-esp, FDK-AAC
+- Codec libraries (patched into ESP-IDF): libldac-dec, libfreeaptx-esp, Helix AAC (arduino-libhelix)
 - Original ESP32-A2DP codec project by [cfint](https://github.com/cfint/ESP32-A2DP)
 
 ## License
