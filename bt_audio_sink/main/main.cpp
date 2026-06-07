@@ -24,7 +24,7 @@
  #include "esp_partition.h"
  #include "esp_bt_device.h"
  #include "bt/a2dp_sink_native.h"
- 
+
  // Modular components
  #include "config/app_config.h"
  #include "dsp/dsp_processor.h"
@@ -1770,9 +1770,8 @@
                      ESP_LOGI(TAG, "Codec switch detected - skipping connected sound");
                  } else if (g_a2dpConnected && g_pipeline.isAudioActive()) {
                      ESP_LOGI(TAG, "A2DP stream already active - skipping connected sound to protect audio startup");
-                 } else if (g_sampleRate > 48000 ||
-                            heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT) < 24 * 1024) {
-                     ESP_LOGI(TAG, "Skipping connected sound: sr=%u free_internal=%u",
+                 } else if (heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT) < 24 * 1024) {
+                     ESP_LOGI(TAG, "Skipping connected sound: low internal heap sr=%u free_internal=%u",
                               (unsigned)g_sampleRate,
                               (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT));
                  } else {
@@ -2382,6 +2381,5 @@
      xTimerStart(heapTimer, 0);
  #endif
  
-     ESP_LOGI(TAG, "System ready");
- }
- 
+    ESP_LOGI(TAG, "System ready");
+}
