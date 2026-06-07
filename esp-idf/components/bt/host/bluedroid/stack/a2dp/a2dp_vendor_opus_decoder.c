@@ -32,7 +32,7 @@
 #define OPUS_A2DP_CHANNEL_MAX        2
 #define OPUS_A2DP_FRAGMENT_BUF_SIZE  (6 * 1024)
 
-/* 40 ms @ 48 kHz. This tree advertises 10/20/40 ms by default. */
+/* 40 ms @ 48 kHz covers PipeWire Opus 05. Android Opus uses 20 ms. */
 #define OPUS_A2DP_MAX_FRAME_SAMPLES  1920
 
 /* 40 ms stereo 16-bit PCM = 1920 * 2 * 2 = 7680 bytes. */
@@ -49,23 +49,61 @@ typedef struct {
 
 static tA2DP_OPUS_DECODER_CB a2dp_opus_decoder_cb;
 
+static uint8_t opus_cie_channel_count(const tA2DP_OPUS_CIE *ie)
+{
+    if (!ie) return 0;
+
+    if (ie->variant == A2DP_OPUS_VARIANT_ANDROID) {
+        switch (ie->channelMode) {
+        case A2DP_OPUS_CHANNEL_MODE_MONO:
+            return 1;
+        case A2DP_OPUS_CHANNEL_MODE_STEREO:
+            return 2;
+        default:
+            return 0;
+        }
+    }
+
+    return ie->channels;
+}
+
 static bool opus_cie_is_supported(const tA2DP_OPUS_CIE *ie)
 {
     if (!ie) return false;
 
-    /* This A2DP sink only supports normal raw mono/stereo Opus. */
-    if (ie->channels < 1 || ie->channels > OPUS_A2DP_CHANNEL_MAX) {
-        APPL_TRACE_ERROR("%s: unsupported channel count: %u", __func__, ie->channels);
+    uint8_t channels = opus_cie_channel_count(ie);
+    if (channels < 1 || channels > OPUS_A2DP_CHANNEL_MAX) {
+        APPL_TRACE_ERROR("%s: unsupported channel mode: 0x%02x", __func__,
+                         ie->channelMode);
         return false;
     }
 
-    /* For stereo, Linux should negotiate one coupled stream. For mono, zero is OK. */
+    if (ie->variant == A2DP_OPUS_VARIANT_ANDROID &&
+        ie->samplingFreq != A2DP_OPUS_SAMPLING_FREQ_48000) {
+        APPL_TRACE_ERROR("%s: unsupported sampling frequency: 0x%02x", __func__,
+                         ie->samplingFreq);
+        return false;
+    }
+
+    if (ie->variant == A2DP_OPUS_VARIANT_ANDROID) {
+        switch (ie->frameSize) {
+        case A2DP_OPUS_10MS_FRAMESIZE:
+        case A2DP_OPUS_20MS_FRAMESIZE:
+            return true;
+        default:
+            APPL_TRACE_ERROR("%s: unsupported frame size: 0x%02x", __func__, ie->frameSize);
+            return false;
+        }
+    }
+
     if (ie->channels == 1 && ie->coupled_streams != 0) {
-        APPL_TRACE_ERROR("%s: invalid mono coupled_streams=%u", __func__, ie->coupled_streams);
+        APPL_TRACE_ERROR("%s: invalid mono coupled_streams=%u", __func__,
+                         ie->coupled_streams);
         return false;
     }
     if (ie->channels == 2 && ie->coupled_streams != 1) {
-        APPL_TRACE_ERROR("%s: invalid stereo coupled_streams=%u", __func__, ie->coupled_streams);
+        APPL_TRACE_ERROR("%s: invalid stereo coupled_streams=%u", __func__,
+                         ie->coupled_streams);
         return false;
     }
 
@@ -77,7 +115,8 @@ static bool opus_cie_is_supported(const tA2DP_OPUS_CIE *ie)
     case A2DP_OPUS_FRAME_DURATION_40:
         return true;
     default:
-        APPL_TRACE_ERROR("%s: unsupported frame duration id: %u", __func__, ie->frame_duration);
+        APPL_TRACE_ERROR("%s: unsupported frame duration id: %u", __func__,
+                         ie->frame_duration);
         return false;
     }
 }
@@ -122,18 +161,20 @@ void a2dp_opus_decoder_configure(const uint8_t *p_codec_info)
         return;
     }
 
+    uint8_t channels = opus_cie_channel_count(&ie);
+
     int error = OPUS_OK;
-    OpusDecoder *dec = opus_decoder_create(OPUS_A2DP_SAMPLE_RATE, (int)ie.channels, &error);
+    OpusDecoder *dec = opus_decoder_create(OPUS_A2DP_SAMPLE_RATE, (int)channels, &error);
     if (error != OPUS_OK || !dec) {
         APPL_TRACE_ERROR("%s: opus_decoder_create failed: %d", __func__, error);
         return;
     }
 
-    LOG_INFO("%s: Opus configured: channels=%u coupled=%u bitrate=%u frame_dur=0x%02x",
-             __func__, ie.channels, ie.coupled_streams, ie.maximum_bitrate, ie.frame_duration);
+    LOG_INFO("%s: Opus configured: variant=%u channels=%u sample_rate=48000",
+             __func__, ie.variant, channels);
 
     cb->decoder = dec;
-    cb->channels = ie.channels;
+    cb->channels = channels;
 }
 
 ssize_t a2dp_opus_decoder_decode_packet_header(BT_HDR *p_buf)

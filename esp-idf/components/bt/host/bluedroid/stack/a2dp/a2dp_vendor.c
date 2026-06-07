@@ -64,8 +64,7 @@ tA2D_STATUS A2DP_VendorParseInfo(uint8_t* p_ie, const uint8_t* p_codec_info,
 
 #if (defined(OPUS_DEC_INCLUDED) && OPUS_DEC_INCLUDED == TRUE)
   // Check for Opus
-  if (vendor_id == A2DP_OPUS_VENDOR_ID &&
-      codec_id == A2DP_OPUS_CODEC_ID) {
+  if (A2DP_VendorCodecIsOpus(vendor_id, codec_id)) {
     return A2DP_ParseInfoOpus((tA2DP_OPUS_CIE*)p_ie, p_codec_info, is_capability);
   }
 #endif /* defined(OPUS_DEC_INCLUDED) && OPUS_DEC_INCLUDED == TRUE) */
@@ -117,8 +116,7 @@ bool A2DP_IsVendorPeerSinkCodecValid(const uint8_t* p_codec_info) {
 
 #if (defined(OPUS_DEC_INCLUDED) && OPUS_DEC_INCLUDED == TRUE)
   // Check for Opus
-  if (vendor_id == A2DP_OPUS_VENDOR_ID &&
-      codec_id == A2DP_OPUS_CODEC_ID) {
+  if (A2DP_VendorCodecIsOpus(vendor_id, codec_id)) {
     return A2DP_IsVendorPeerSinkCodecValidOpus(p_codec_info);
   }
 #endif /* defined(OPUS_DEC_INCLUDED) && OPUS_DEC_INCLUDED == TRUE) */
@@ -183,8 +181,7 @@ tA2D_STATUS A2DP_IsVendorPeerSourceCodecSupported(const uint8_t* p_codec_info) {
 
 #if (defined(OPUS_DEC_INCLUDED) && OPUS_DEC_INCLUDED == TRUE)
   // Check for Opus
-  if (vendor_id == A2DP_OPUS_VENDOR_ID &&
-      codec_id == A2DP_OPUS_CODEC_ID) {
+  if (A2DP_VendorCodecIsOpus(vendor_id, codec_id)) {
     return A2DP_IsVendorPeerSourceCodecValidOpus(p_codec_info);
   }
 #endif /* defined(OPUS_DEC_INCLUDED) && OPUS_DEC_INCLUDED == TRUE) */
@@ -257,8 +254,7 @@ btav_a2dp_codec_index_t A2DP_VendorSinkCodecIndex(
 
 #if (defined(OPUS_DEC_INCLUDED) && OPUS_DEC_INCLUDED == TRUE)
   // Check for Opus
-  if (vendor_id == A2DP_OPUS_VENDOR_ID &&
-      codec_id == A2DP_OPUS_CODEC_ID) {
+  if (A2DP_VendorCodecIsOpus(vendor_id, codec_id)) {
     return A2DP_VendorSinkCodecIndexOpus(p_codec_info);
   }
 #endif /* defined(OPUS_DEC_INCLUDED) && OPUS_DEC_INCLUDED == TRUE) */
@@ -311,8 +307,7 @@ btav_a2dp_codec_index_t A2DP_VendorSourceCodecIndex(
 
 #if (defined(OPUS_DEC_INCLUDED) && OPUS_DEC_INCLUDED == TRUE)
   // Check for Opus
-  if (vendor_id == A2DP_OPUS_VENDOR_ID &&
-      codec_id == A2DP_OPUS_CODEC_ID) {
+  if (A2DP_VendorCodecIsOpus(vendor_id, codec_id)) {
     return A2DP_VendorSourceCodecIndexOpus(p_codec_info);
   }
 #endif /* defined(OPUS_DEC_INCLUDED) && OPUS_DEC_INCLUDED == TRUE) */
@@ -409,8 +404,7 @@ bool A2DP_VendorBuildCodecConfig(UINT8 *p_src_cap, UINT8 *p_result) {
 
 #if (defined(OPUS_DEC_INCLUDED) && OPUS_DEC_INCLUDED == TRUE)
   // Check for Opus
-  if (vendor_id == A2DP_OPUS_VENDOR_ID &&
-      codec_id == A2DP_OPUS_CODEC_ID) {
+  if (A2DP_VendorCodecIsOpus(vendor_id, codec_id)) {
     return A2DP_VendorBuildCodecConfigOpus(p_src_cap, p_result);
   }
 #endif /* defined(OPUS_DEC_INCLUDED) && OPUS_DEC_INCLUDED == TRUE) */
@@ -462,8 +456,7 @@ const char* A2DP_VendorCodecName(const uint8_t* p_codec_info) {
 
 #if (defined(OPUS_DEC_INCLUDED) && OPUS_DEC_INCLUDED == TRUE)
   // Check for Opus
-  if (vendor_id == A2DP_OPUS_VENDOR_ID &&
-      codec_id == A2DP_OPUS_CODEC_ID) {
+  if (A2DP_VendorCodecIsOpus(vendor_id, codec_id)) {
     return A2DP_VendorCodecNameOpus(p_codec_info);
   }
 #endif /* defined(OPUS_DEC_INCLUDED) && OPUS_DEC_INCLUDED == TRUE) */
@@ -528,8 +521,7 @@ bool A2DP_VendorCodecTypeEquals(const uint8_t* p_codec_info_a,
 
 #if (defined(OPUS_DEC_INCLUDED) && OPUS_DEC_INCLUDED == TRUE)
   // Check for Opus
-  if (vendor_id_a == A2DP_OPUS_VENDOR_ID &&
-      codec_id_a == A2DP_OPUS_CODEC_ID) {
+  if (A2DP_VendorCodecIsOpus(vendor_id_a, codec_id_a)) {
     return A2DP_VendorCodecTypeEqualsOpus(p_codec_info_a, p_codec_info_b);
   }
 #endif /* defined(OPUS_DEC_INCLUDED) && OPUS_DEC_INCLUDED == TRUE) */
@@ -582,8 +574,7 @@ const tA2DP_DECODER_INTERFACE* A2DP_GetVendorDecoderInterface(
 
 #if (defined(OPUS_DEC_INCLUDED) && OPUS_DEC_INCLUDED == TRUE)
   // Check for Opus
-  if (vendor_id == A2DP_OPUS_VENDOR_ID &&
-      codec_id == A2DP_OPUS_CODEC_ID) {
+  if (A2DP_VendorCodecIsOpus(vendor_id, codec_id)) {
     return A2DP_GetVendorDecoderInterfaceOpus(p_codec_info);
   }
 #endif /* defined(OPUS_DEC_INCLUDED) && OPUS_DEC_INCLUDED == TRUE) */

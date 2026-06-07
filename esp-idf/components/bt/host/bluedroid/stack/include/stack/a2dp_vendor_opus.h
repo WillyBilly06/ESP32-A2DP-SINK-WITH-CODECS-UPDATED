@@ -28,13 +28,19 @@
 typedef struct {
   uint32_t vendorId;
   uint16_t codecId;
+  uint8_t variant;
 
+  // Android A2DP Opus fields.
+  uint8_t channelMode;
+  uint8_t frameSize;
+  uint8_t samplingFreq;
+
+  // PipeWire/BlueZ Opus 05 fields.
   uint8_t channels;
   uint8_t coupled_streams;
   uint32_t audio_location;
   uint8_t frame_duration;
   uint16_t maximum_bitrate;
-
   uint8_t bidi_channels;
   uint8_t bidi_coupled_streams;
   uint32_t bidi_audio_location;
@@ -165,6 +171,8 @@ btav_a2dp_codec_index_t A2DP_VendorSourceCodecIndexOpus(
 **
 ******************************************************************************/
 const char* A2DP_VendorCodecNameOpus(const uint8_t* p_codec_info);
+
+bool A2DP_VendorCodecIsOpus(uint32_t vendor_id, uint16_t codec_id);
 
 /******************************************************************************
 **

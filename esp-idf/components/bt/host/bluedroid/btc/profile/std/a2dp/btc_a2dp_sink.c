@@ -178,6 +178,7 @@ static size_t btc_a2dp_sink_decode_buf_size(btav_a2dp_codec_index_t codec_index)
 #endif
 #if (defined(OPUS_DEC_INCLUDED) && OPUS_DEC_INCLUDED == TRUE)
     case BTAV_A2DP_CODEC_INDEX_SINK_OPUS:
+    case BTAV_A2DP_CODEC_INDEX_SINK_OPUS_ANDROID:
         return BT_A2DP_SINK_BUF_OPUS;
 #endif
 #if (defined(LC3PLUS_DEC_INCLUDED) && LC3PLUS_DEC_INCLUDED == TRUE)
