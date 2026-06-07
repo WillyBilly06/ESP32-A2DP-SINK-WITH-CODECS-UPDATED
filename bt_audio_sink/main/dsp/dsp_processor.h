@@ -63,18 +63,18 @@ public:
     
     // LED audio boost factor - increases as volume decreases for better reactivity
     // Returns a linear gain multiplier to compensate for low volume
-    // At 1% volume we need ~100x boost to get similar LED reactivity as 100% volume
+    // At 5% volume we need ~20x boost; beyond that AGC handles the rest.
     float getLedAudioBoost() const {
         // Volume 0-127 maps to 0-100%
         // At 100% volume: boost = 1.0 (no boost)
-        // At 1% volume: boost = ~100.0 (100x boost for full LED visibility)
-        // Use exponential curve for smoother transition at low volumes
+        // At 5% volume: boost = ~20.0 (20x boost)
+        // Flatter curve so bass bands keep their relative separation at low volume.
         float volumePct = (float)m_volume * fast_recipsf2(127.0f);
-        if (volumePct < 0.01f) volumePct = 0.01f;  // Clamp minimum to 1%
+        if (volumePct < 0.05f) volumePct = 0.05f;  // Clamp minimum to 5%
         
-        // Inverse relationship: boost = 1/volumePct, clamped to 100x max
+        // Inverse relationship: boost = 1/volumePct, clamped to 20x max
         float boost = fast_recipsf2(volumePct);
-        if (boost > 100.0f) boost = 100.0f;
+        if (boost > 20.0f) boost = 20.0f;
         return boost;
     }
 

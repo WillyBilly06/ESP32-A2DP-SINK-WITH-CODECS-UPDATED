@@ -13,7 +13,6 @@ set(COMPONENT_ADD_INCLUDEDIRS
     "audio" 
     "ble" 
     "config" 
-    "core"
     "bt"
     "dsp" 
     "input" 

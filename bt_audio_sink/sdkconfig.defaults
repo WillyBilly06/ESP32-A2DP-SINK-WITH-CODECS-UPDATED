@@ -1,6 +1,6 @@
 # =============================================================
 # ESP32 A2DP Sink - Internal RAM Only (NO PSRAM)
-# Codecs: SBC, AAC, aptX/aptX-HD, LDAC. Opus/LC3plus disabled to save RAM.
+# Codecs: SBC, AAC, aptX/aptX-HD, LDAC, Opus. LC3plus disabled to save RAM.
 # =============================================================
 
 # Flash
@@ -24,7 +24,7 @@ CONFIG_BT_CLASSIC_ENABLED=y
 CONFIG_BT_A2DP_ENABLE=y
 CONFIG_BT_A2DP_APTX_DECODER=y
 CONFIG_BT_A2DP_LDAC_DECODER=y
-# CONFIG_BT_A2DP_OPUS_DECODER is not set
+CONFIG_BT_A2DP_OPUS_DECODER=y
 # CONFIG_BT_A2DP_LC3PLUS_DECODER is not set
 CONFIG_BT_A2DP_AAC_DECODER=y
 CONFIG_BT_BLE_ENABLED=y

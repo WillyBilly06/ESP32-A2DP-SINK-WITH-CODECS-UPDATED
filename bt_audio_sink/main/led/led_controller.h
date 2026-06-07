@@ -1071,11 +1071,11 @@ struct AudioAGC {
     
     // AGC parameters - MORE AGGRESSIVE for 1% volume support
     float targetDb = -3.0f;      // Target output level (-3dB = 0.7 linear = 70%)
-    float minFloorLin = 0.7f;    // FIXED MINIMUM: Always boost audio to at least 70% for LEDs
+    float minFloorLin = 0.25f;   // FIXED MINIMUM: Always boost audio to at least 25% for LEDs
     float attackRate = 0.4f;     // Faster attack to catch beats at low volume
     float decayRate = 0.999f;    // Slower decay (keeps gain high for quiet parts)
     float minInputDb = -100.0f;  // Minimum detectable input (-100dB for 1% volume support)
-    float maxGainDb = 80.0f;     // Maximum gain in dB (80dB = 10000x amplification for 1% volume!)
+    float maxGainDb = 5.0f;     // Maximum gain in dB (40dB = 100x amplification for 1% volume)
     
     void updatePeaks(float bassLin, float midLin, float highLin) {
         // Convert linear to dB with floor

@@ -42,7 +42,7 @@
 #define BT_A2DP_SINK_BUF_SBC        (1024)
 #define BT_A2DP_SINK_BUF_LDAC       (2048)
 #define BT_A2DP_SINK_BUF_APTX       (4*1024)
-#define BT_A2DP_SINK_BUF_OPUS       (4*1024)
+#define BT_A2DP_SINK_BUF_OPUS       (4*2000)
 #define BT_A2DP_SINK_BUF_LC3PLUS    (4*1024)
 #define BT_A2DP_SINK_BUF_DEFAULT    (4*1024)
 
@@ -95,7 +95,7 @@ enum {
 #define A2DP_TASK_NAME                   "A2DP_DECODER"
 /* 4KB is sufficient for all codecs (SBC, aptX, LDAC, Opus, LC3plus).
  * Decoders use pre-allocated static context, not deep stack recursion. */
-#define A2DP_TASK_STACK_SIZE             (4096)
+#define A2DP_TASK_STACK_SIZE             (8192)
 #define A2DP_TASK_PRIO                   (BT_TASK_MAX_PRIORITIES - 6)
 #define A2DP_TASK_PINNED_TO_CORE         (1)
 #define A2DP_TASK_WORKQUEUE_NUM          (2)

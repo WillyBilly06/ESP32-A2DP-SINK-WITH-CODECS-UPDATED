@@ -25,5 +25,6 @@ dependencies.lock
 .DS_Store
 Thumbs.db
 
-Bluetooth Project - Copy.zip
+*.zip
+*.code-workspace
 
