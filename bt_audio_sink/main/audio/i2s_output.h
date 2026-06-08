@@ -17,6 +17,15 @@
 // Callback for sample rate change notifications
 using SampleRateChangeCallback = void(*)(uint32_t newRate);
 
+struct I2SOutputConfig {
+    i2s_port_t port;
+    gpio_num_t mclk;
+    gpio_num_t bclk;
+    gpio_num_t lrclk;
+    gpio_num_t data;
+    const char* name;
+};
+
 class I2SOutput {
 public:
     I2SOutput()
@@ -42,15 +51,28 @@ public:
 
     // Initialize I2S driver (call once at startup)
     esp_err_t init(uint32_t sampleRate) {
+        const I2SOutputConfig cfg = {
+            .port = (i2s_port_t)APP_I2S_PORT,
+            .mclk = I2S_GPIO_UNUSED,
+            .bclk = (gpio_num_t)APP_I2S_BCK_PIN,
+            .lrclk = (gpio_num_t)APP_I2S_LRCK_PIN,
+            .data = (gpio_num_t)APP_I2S_DATA_PIN,
+            .name = "I2S",
+        };
+        return init(sampleRate, cfg);
+    }
+
+    esp_err_t init(uint32_t sampleRate, const I2SOutputConfig& output) {
         if (m_initialized) return ESP_OK;
+        m_name = output.name ? output.name : TAG;
 
         m_mutex = xSemaphoreCreateMutex();
         if (!m_mutex) {
-            ESP_LOGE(TAG, "Failed to create I2S mutex");
+            ESP_LOGE(TAG, "%s: failed to create I2S mutex", m_name);
             return ESP_ERR_NO_MEM;
         }
 
-        i2s_chan_config_t chan_cfg = I2S_CHANNEL_DEFAULT_CONFIG((i2s_port_t)APP_I2S_PORT, I2S_ROLE_MASTER);
+        i2s_chan_config_t chan_cfg = I2S_CHANNEL_DEFAULT_CONFIG(output.port, I2S_ROLE_MASTER);
         chan_cfg.auto_clear = true;
         // Keep the DMA as a SMALL bridge (3x256 = 768 frames, ~8 ms @ 96k / ~17 ms
         // @ 44.1k) -- just enough to cover render scheduling latency. The jitter
@@ -62,7 +84,7 @@ public:
 
         esp_err_t err = i2s_new_channel(&chan_cfg, &m_txHandle, NULL);
         if (err != ESP_OK) {
-            ESP_LOGE(TAG, "i2s_new_channel failed: %s", esp_err_to_name(err));
+            ESP_LOGE(TAG, "%s: i2s_new_channel failed: %s", m_name, esp_err_to_name(err));
             return err;
         }
 
@@ -71,10 +93,10 @@ public:
             .clk_cfg = clk_cfg,
             .slot_cfg = I2S_STD_PHILIPS_SLOT_DEFAULT_CONFIG(I2S_DATA_BIT_WIDTH_32BIT, I2S_SLOT_MODE_STEREO),
             .gpio_cfg = {
-                .mclk = I2S_GPIO_UNUSED,
-                .bclk = (gpio_num_t)APP_I2S_BCK_PIN,
-                .ws   = (gpio_num_t)APP_I2S_LRCK_PIN,
-                .dout = (gpio_num_t)APP_I2S_DATA_PIN,
+                .mclk = output.mclk,
+                .bclk = output.bclk,
+                .ws   = output.lrclk,
+                .dout = output.data,
                 .din  = I2S_GPIO_UNUSED,
                 .invert_flags = { .mclk_inv = false, .bclk_inv = false, .ws_inv = false },
             },
@@ -82,12 +104,14 @@ public:
 
         err = i2s_channel_init_std_mode(m_txHandle, &std_cfg);
         if (err != ESP_OK) {
-            ESP_LOGW(TAG, "I2S APLL init failed: %s; falling back to default clock", esp_err_to_name(err));
+            ESP_LOGW(TAG, "%s: APLL init failed: %s; falling back to default clock",
+                     m_name, esp_err_to_name(err));
             clk_cfg = makeClockConfig(sampleRate, false);
             std_cfg.clk_cfg = clk_cfg;
             err = i2s_channel_init_std_mode(m_txHandle, &std_cfg);
             if (err != ESP_OK) {
-                ESP_LOGE(TAG, "i2s_channel_init_std_mode failed: %s", esp_err_to_name(err));
+                ESP_LOGE(TAG, "%s: i2s_channel_init_std_mode failed: %s",
+                         m_name, esp_err_to_name(err));
                 i2s_del_channel(m_txHandle);
                 m_txHandle = nullptr;
                 return err;
@@ -99,7 +123,7 @@ public:
 
         err = i2s_channel_enable(m_txHandle);
         if (err != ESP_OK) {
-            ESP_LOGE(TAG, "i2s_channel_enable failed: %s", esp_err_to_name(err));
+            ESP_LOGE(TAG, "%s: i2s_channel_enable failed: %s", m_name, esp_err_to_name(err));
             i2s_del_channel(m_txHandle);
             m_txHandle = nullptr;
             return err;
@@ -107,8 +131,10 @@ public:
 
         m_initialized = true;
         m_sampleRate = sampleRate;
-        ESP_LOGI(TAG, "I2S initialized (%s): sr=%u, 32-bit stereo, dma=%ux%u",
+        ESP_LOGI(TAG, "%s initialized (%s): sr=%u, 32-bit stereo, mclk=%d bclk=%d lrclk=%d data=%d dma=%ux%u",
+                 m_name,
                  m_usingApll ? "APLL" : "default", (unsigned)sampleRate,
+                 output.mclk, output.bclk, output.lrclk, output.data,
                  (unsigned)chan_cfg.dma_desc_num,
                  (unsigned)chan_cfg.dma_frame_num);
         return ESP_OK;
@@ -128,8 +154,8 @@ public:
         i2s_std_clk_config_t clk_cfg = makeClockConfig(sampleRate, true);
         esp_err_t err = i2s_channel_reconfig_std_clock(m_txHandle, &clk_cfg);
         if (err != ESP_OK) {
-            ESP_LOGW(TAG, "I2S APLL clock update failed: %s; falling back to default clock",
-                     esp_err_to_name(err));
+            ESP_LOGW(TAG, "%s: APLL clock update failed: %s; falling back to default clock",
+                     m_name, esp_err_to_name(err));
             clk_cfg = makeClockConfig(sampleRate, false);
             err = i2s_channel_reconfig_std_clock(m_txHandle, &clk_cfg);
             if (err == ESP_OK) {
@@ -140,13 +166,14 @@ public:
         }
         if (err == ESP_OK) {
             m_sampleRate = sampleRate;
-            ESP_LOGI(TAG, "I2S %s clock updated: sr=%u",
-                     m_usingApll ? "APLL" : "default", (unsigned)sampleRate);
+            ESP_LOGI(TAG, "%s %s clock updated: sr=%u",
+                     m_name, m_usingApll ? "APLL" : "default", (unsigned)sampleRate);
             if (m_sampleRateCallback) {
                 m_sampleRateCallback(sampleRate);
             }
         } else {
-            ESP_LOGE(TAG, "i2s_channel_reconfig_std_clock failed: %s", esp_err_to_name(err));
+            ESP_LOGE(TAG, "%s: i2s_channel_reconfig_std_clock failed: %s",
+                     m_name, esp_err_to_name(err));
         }
 
         i2s_channel_enable(m_txHandle);
@@ -193,9 +220,9 @@ public:
         zeroDMA();
 
         if (err == ESP_OK) {
-            ESP_LOGW(TAG, "I2S same-rate recovery refresh: sr=%u", (unsigned)sr);
+            ESP_LOGW(TAG, "%s same-rate recovery refresh: sr=%u", m_name, (unsigned)sr);
         } else {
-            ESP_LOGE(TAG, "I2S same-rate recovery failed: %s", esp_err_to_name(err));
+            ESP_LOGE(TAG, "%s same-rate recovery failed: %s", m_name, esp_err_to_name(err));
         }
     }
 
@@ -280,4 +307,5 @@ private:
     SemaphoreHandle_t m_mutex;
     i2s_chan_handle_t m_txHandle;
     SampleRateChangeCallback m_sampleRateCallback;
+    const char* m_name = TAG;
 };

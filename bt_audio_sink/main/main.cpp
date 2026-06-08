@@ -56,10 +56,13 @@
  // -----------------------------------------------------------
  // Global instances (no raw global state - encapsulated in classes)
  // -----------------------------------------------------------
- static NVSSettings     g_settings;
- static DSPProcessor    g_dsp;
- static I2SOutput       g_i2s;
- static AudioPipeline   g_pipeline;
+static NVSSettings     g_settings;
+static DSPProcessor    g_dsp;
+static I2SOutput       g_i2s;
+#if APP_SPDIF_I2S_ENABLE
+static I2SOutput       g_spdifI2s;
+#endif
+static AudioPipeline   g_pipeline;
  static OverlayMixer    g_overlayMixer;
  static BleUnifiedService g_ble;
  static NativeA2DPSink g_a2dp;
@@ -269,6 +272,9 @@
      // Reset I2S to default sample rate for sound playback
      g_sampleRate = APP_I2S_DEFAULT_SAMPLE_RATE;
      g_i2s.updateClock(APP_I2S_DEFAULT_SAMPLE_RATE);
+#if APP_SPDIF_I2S_ENABLE
+     g_spdifI2s.updateClock(APP_I2S_DEFAULT_SAMPLE_RATE);
+#endif
      g_dsp.setSampleRate(APP_I2S_DEFAULT_SAMPLE_RATE);
      
      // Enable discoverable mode for new device pairing
@@ -1477,6 +1483,9 @@
      g_channels = channels;
  
      g_i2s.updateClock(rate);
+#if APP_SPDIF_I2S_ENABLE
+     g_spdifI2s.updateClock(rate);
+#endif
      g_pipeline.setSampleRate(rate);
      g_dsp.setSampleRate(rate);
      // Analysis runs at every sample rate now: the Goertzel is fixed-point and
@@ -2061,6 +2070,20 @@
          ESP_LOGE(TAG, "I2S init failed");
          return;
      }
+#if APP_SPDIF_I2S_ENABLE
+     const I2SOutputConfig spdifCfg = {
+         .port = (i2s_port_t)APP_SPDIF_I2S_PORT,
+         .mclk = (gpio_num_t)APP_SPDIF_I2S_MCLK_PIN,
+         .bclk = (gpio_num_t)APP_SPDIF_I2S_BCK_PIN,
+         .lrclk = (gpio_num_t)APP_SPDIF_I2S_LRCK_PIN,
+         .data = (gpio_num_t)APP_SPDIF_I2S_DATA_PIN,
+         .name = "SPDIF_I2S",
+     };
+     if (g_spdifI2s.init(APP_I2S_DEFAULT_SAMPLE_RATE, spdifCfg) != ESP_OK) {
+         ESP_LOGE(TAG, "WM8805 I2S init failed");
+         return;
+     }
+#endif
      
      // Set up I2S sample rate change callback to notify SoundPlayer
      g_i2s.setSampleRateCallback([](uint32_t newRate) {
@@ -2069,7 +2092,13 @@
  
      // Set up sound player I2S write function (after I2S init)
      g_sound.setI2SWriteFunc([](const uint8_t* data, size_t len) -> size_t {
-         return g_i2s.write(data, len);
+         size_t written = g_i2s.write(data, len);
+#if APP_SPDIF_I2S_ENABLE
+         if (g_spdifI2s.isInitialized()) {
+             g_spdifI2s.write(data, len);
+         }
+#endif
+         return written;
      });
  
      logHeap("after_i2s");
@@ -2079,6 +2108,9 @@
          ESP_LOGE(TAG, "Audio pipeline init failed");
          return;
      }
+#if APP_SPDIF_I2S_ENABLE
+     g_pipeline.setSecondaryOutput(&g_spdifI2s);
+#endif
      
      // Initialize overlay mixer for sound effects during playback
      if (!g_overlayMixer.init()) {

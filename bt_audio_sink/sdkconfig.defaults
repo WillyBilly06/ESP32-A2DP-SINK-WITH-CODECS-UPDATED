@@ -91,6 +91,13 @@ CONFIG_BTDM_BLE_ADV_REPORT_FLOW_CTRL_NUM=50
 # BLE meter notifications are useful but should not compete with A2DP audio.
 CONFIG_LEVELS_UPDATE_MS=30
 
+# Secondary WM8805 I2S-to-S/PDIF output
+CONFIG_SPDIF_I2S_ENABLE=y
+CONFIG_SPDIF_I2S_MCLK_PIN=0
+CONFIG_SPDIF_I2S_BCK_PIN=32
+CONFIG_SPDIF_I2S_LRCK_PIN=33
+CONFIG_SPDIF_I2S_DATA_PIN=13
+
 # Disable BT debug logs for production (saves rodata/flash)
 CONFIG_BT_STACK_NO_LOG=y
 

@@ -44,6 +44,7 @@ public:
         , m_wasSkipping(false)
         , m_audioActive(false)
         , m_overlayMixer(nullptr)
+        , m_secondaryOutput(nullptr)
         , m_renderTask(nullptr)
     {
     }
@@ -58,6 +59,10 @@ public:
     }
 
     OverlayMixer* getOverlayMixer() const { return m_overlayMixer; }
+
+    void setSecondaryOutput(I2SOutput* output) {
+        m_secondaryOutput = output;
+    }
 
     void setRenderTaskHandle(TaskHandle_t task) {
         m_renderTask = task;
@@ -320,12 +325,12 @@ public:
 
         const bool skipWrite = m_skipWriteCallback && m_skipWriteCallback();
         if (skipWrite && !m_wasSkipping) {
-            i2s.zeroDMA();
+            zeroOutputs(i2s);
         }
         m_wasSkipping = skipWrite;
 
         if (!skipWrite) {
-            i2s.write(m_dspOut, outFrames * 2u * sizeof(int32_t));
+            writeOutputs(i2s, m_dspOut, outFrames * 2u * sizeof(int32_t));
             m_writeCount++;
         }
 
@@ -353,11 +358,14 @@ public:
         m_underrunCount = 0;
         m_catchupDrops = 0;
         i2s.forceClockRefresh();
+        if (m_secondaryOutput && m_secondaryOutput->isInitialized()) {
+            m_secondaryOutput->forceClockRefresh();
+        }
     }
 
     void clearWithDMA(I2SOutput& i2s) {
         clear();
-        i2s.zeroDMA();
+        zeroOutputs(i2s);
     }
 
     uint32_t getLastProcessMs() const { return m_lastProcessMs; }
@@ -421,6 +429,20 @@ private:
         return true;
     }
 
+    void zeroOutputs(I2SOutput& primary) {
+        primary.zeroDMA();
+        if (m_secondaryOutput && m_secondaryOutput->isInitialized()) {
+            m_secondaryOutput->zeroDMA();
+        }
+    }
+
+    void writeOutputs(I2SOutput& primary, const void* data, size_t bytes) {
+        primary.write(data, bytes);
+        if (m_secondaryOutput && m_secondaryOutput->isInitialized()) {
+            m_secondaryOutput->write(data, bytes);
+        }
+    }
+
     // Emit one chunk of silence with the overlay mixed on top. Used when an
     // overlay sound is active but no BT audio is flowing, so the effect still
     // plays (and its ring keeps draining) instead of stalling its producer.
@@ -431,12 +453,12 @@ private:
 
         const bool skipWrite = m_skipWriteCallback && m_skipWriteCallback();
         if (skipWrite && !m_wasSkipping) {
-            i2s.zeroDMA();
+            zeroOutputs(i2s);
         }
         m_wasSkipping = skipWrite;
 
         if (!skipWrite) {
-            i2s.write(m_dspOut, frames * 2u * sizeof(int32_t));
+            writeOutputs(i2s, m_dspOut, frames * 2u * sizeof(int32_t));
             m_writeCount++;
         }
         m_fillAvg = (int32_t)getFillFrames();
@@ -481,12 +503,12 @@ private:
 
         const bool skipWrite = m_skipWriteCallback && m_skipWriteCallback();
         if (skipWrite && !m_wasSkipping) {
-            i2s.zeroDMA();
+            zeroOutputs(i2s);
         }
         m_wasSkipping = skipWrite;
 
         if (!skipWrite) {
-            i2s.write(m_dspOut, APP_DSP_OUT_FRAMES * 2u * sizeof(int32_t));
+            writeOutputs(i2s, m_dspOut, APP_DSP_OUT_FRAMES * 2u * sizeof(int32_t));
             m_writeCount++;
         }
 
@@ -523,5 +545,6 @@ private:
     volatile bool m_audioActive;
 
     OverlayMixer* m_overlayMixer;
+    I2SOutput* m_secondaryOutput;
     TaskHandle_t m_renderTask;
 };

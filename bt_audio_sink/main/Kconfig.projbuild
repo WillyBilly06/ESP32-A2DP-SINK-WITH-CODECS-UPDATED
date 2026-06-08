@@ -28,6 +28,47 @@ menu "A2DP DSP BLE Configuration"
             range 8000 192000
             help
                 Default sample rate when no codec is configured.
+
+        config SPDIF_I2S_ENABLE
+            bool "Enable secondary I2S output for WM8805 S/PDIF"
+            default y
+            help
+                Enables a second I2S TX bus for an external I2S-to-S/PDIF
+                transmitter such as WM8805. The primary PCM5102A I2S bus is
+                left unchanged.
+
+        config SPDIF_I2S_MCLK_PIN
+            int "WM8805 I2S MCLK GPIO"
+            default 0
+            range 0 39
+            depends on SPDIF_I2S_ENABLE
+            help
+                GPIO pin for WM8805 master clock. GPIO0 is a boot strap pin;
+                ensure the module does not pull it low during reset.
+
+        config SPDIF_I2S_BCK_PIN
+            int "WM8805 I2S BCLK GPIO"
+            default 32
+            range 0 39
+            depends on SPDIF_I2S_ENABLE
+            help
+                GPIO pin for WM8805 I2S bit clock.
+
+        config SPDIF_I2S_LRCK_PIN
+            int "WM8805 I2S LRCLK GPIO"
+            default 33
+            range 0 39
+            depends on SPDIF_I2S_ENABLE
+            help
+                GPIO pin for WM8805 I2S word clock.
+
+        config SPDIF_I2S_DATA_PIN
+            int "WM8805 I2S DATA GPIO"
+            default 13
+            range 0 39
+            depends on SPDIF_I2S_ENABLE
+            help
+                GPIO pin for WM8805 I2S data input.
     endmenu
 
     menu "GPIO Configuration"
