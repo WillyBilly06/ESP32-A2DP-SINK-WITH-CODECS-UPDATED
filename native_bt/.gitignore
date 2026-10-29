@@ -1,0 +1,5 @@
+_build/
+__pycache__/
+esp32_probe/sdkconfig
+esp32_probe/sdkconfig.old
+esp32_probe/dependencies.lock

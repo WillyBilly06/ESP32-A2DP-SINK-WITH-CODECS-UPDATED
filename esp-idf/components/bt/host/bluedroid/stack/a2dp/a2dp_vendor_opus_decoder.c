@@ -21,10 +21,13 @@
 #include <sys/types.h>
 
 #include "common/bt_trace.h"
+#include "osi/allocator.h"
 #include "stack/a2dp_vendor_opus_constants.h"
 #include "stack/a2dp_vendor_opus_decoder.h"
 #include "stack/a2dp_vendor_opus.h"
 #include "opus.h"
+#include "dbt_opus_scratch.h"
+#include "dbt_opus_guarded_api.h"
 
 #if (defined(OPUS_DEC_INCLUDED) && OPUS_DEC_INCLUDED == TRUE)
 
@@ -40,10 +43,13 @@
 
 typedef struct {
     OpusDecoder *decoder;
+    dbt_opus_scratch scratch;
+    bool usable;
     int fragment_size;
     int fragment_count;
-    uint8_t fragment[OPUS_A2DP_FRAGMENT_BUF_SIZE];
+    uint8_t *fragment; /* Allocated only after a fragmented packet is observed. */
     uint8_t channels;
+    uint16_t frame_samples;
     decoded_data_callback_t decode_callback;
 } tA2DP_OPUS_DECODER_CB;
 
@@ -121,60 +127,153 @@ static bool opus_cie_is_supported(const tA2DP_OPUS_CIE *ie)
     }
 }
 
+static uint16_t opus_cie_frame_samples(const tA2DP_OPUS_CIE *ie)
+{
+    if (ie->variant == A2DP_OPUS_VARIANT_ANDROID) {
+        return ie->frameSize == A2DP_OPUS_10MS_FRAMESIZE ? 480 :
+               ie->frameSize == A2DP_OPUS_20MS_FRAMESIZE ? 960 : 0;
+    }
+    switch (ie->frame_duration) {
+    case A2DP_OPUS_FRAME_DURATION_2_5: return 120;
+    case A2DP_OPUS_FRAME_DURATION_5_0: return 240;
+    case A2DP_OPUS_FRAME_DURATION_10: return 480;
+    case A2DP_OPUS_FRAME_DURATION_20: return 960;
+    case A2DP_OPUS_FRAME_DURATION_40: return 1920;
+    default: return 0;
+    }
+}
+
+size_t a2dp_opus_decoder_buffer_size(const uint8_t *codec_info)
+{
+    tA2DP_OPUS_CIE ie;
+    memset(&ie, 0, sizeof(ie));
+    if (!codec_info || A2DP_ParseInfoOpus(&ie, codec_info, false) != A2D_SUCCESS ||
+        !opus_cie_is_supported(&ie)) return 0;
+    return (size_t)opus_cie_frame_samples(&ie) * opus_cie_channel_count(&ie) * sizeof(opus_int16);
+}
+
+static void opus_clear_fragments(tA2DP_OPUS_DECODER_CB *cb, bool release)
+{
+    cb->fragment_size = cb->fragment_count = 0;
+    if (release && cb->fragment) {
+        free(cb->fragment);
+        cb->fragment = NULL;
+    }
+}
+
+/* The SDK dispatches configure, decode and cleanup on A2DP_DECODER. The
+ * global scratch gate also rejects concurrent or recursive Opus decode calls. */
+static void *opus_scratch_allocate(size_t size)
+{
+    /* Unlike osi_malloc_func, the base allocator reports OOM without asserting. */
+    return osi_malloc_base(size);
+}
+static void opus_scratch_release(void *ptr) { free(ptr); }
+
+static bool opus_release_decoder(tA2DP_OPUS_DECODER_CB *cb)
+{
+    /* Do not invalidate a live decode or its arena if an unexpected caller
+     * violates the SDK owner-task contract. */
+    if (dbt_opus_scratch_destroy(&cb->scratch) != DBT_OPUS_SCRATCH_OK) {
+        return false;
+    }
+    free(cb->decoder);
+    cb->decoder = NULL;
+    cb->usable = false;
+    cb->channels = 0;
+    cb->frame_samples = 0;
+    opus_clear_fragments(cb, true);
+    return true;
+}
+
 bool a2dp_opus_decoder_init(decoded_data_callback_t decode_callback)
 {
-    memset(&a2dp_opus_decoder_cb, 0, sizeof(a2dp_opus_decoder_cb));
-    a2dp_opus_decoder_cb.decode_callback = decode_callback;
+    tA2DP_OPUS_DECODER_CB *cb = &a2dp_opus_decoder_cb;
+    if (!opus_release_decoder(cb)) return false;
+    memset(cb, 0, sizeof(*cb));
+    cb->decode_callback = decode_callback;
     return true;
 }
 
 void a2dp_opus_decoder_cleanup(void)
 {
     tA2DP_OPUS_DECODER_CB *cb = &a2dp_opus_decoder_cb;
-    if (cb->decoder) {
-        opus_decoder_destroy(cb->decoder);
-    }
+    if (!opus_release_decoder(cb)) return;
     memset(cb, 0, sizeof(*cb));
 }
 
 void a2dp_opus_decoder_configure(const uint8_t *p_codec_info)
 {
     tA2DP_OPUS_DECODER_CB *cb = &a2dp_opus_decoder_cb;
-
-    if (cb->decoder) {
-        opus_decoder_destroy(cb->decoder);
-        cb->decoder = NULL;
-    }
-    cb->channels = 0;
-    cb->fragment_size = 0;
-    cb->fragment_count = 0;
+    if (!opus_release_decoder(cb)) return;
 
     tA2DP_OPUS_CIE ie;
     memset(&ie, 0, sizeof(ie));
-
-    if (A2DP_ParseInfoOpus(&ie, p_codec_info, false) != A2D_SUCCESS) {
+    if (!p_codec_info || A2DP_ParseInfoOpus(&ie, p_codec_info, false) != A2D_SUCCESS) {
         APPL_TRACE_ERROR("%s: failed to parse Opus CIE", __func__);
         return;
     }
-
-    if (!opus_cie_is_supported(&ie)) {
-        return;
-    }
+    if (!opus_cie_is_supported(&ie)) return;
 
     uint8_t channels = opus_cie_channel_count(&ie);
-
-    int error = OPUS_OK;
-    OpusDecoder *dec = opus_decoder_create(OPUS_A2DP_SAMPLE_RATE, (int)channels, &error);
-    if (error != OPUS_OK || !dec) {
-        APPL_TRACE_ERROR("%s: opus_decoder_create failed: %d", __func__, error);
+    size_t arena_size = dbt_opus_scratch_capacity(channels);
+    if (dbt_opus_scratch_init(&cb->scratch, arena_size, opus_scratch_allocate,
+                              opus_scratch_release) != DBT_OPUS_SCRATCH_OK) {
+        APPL_TRACE_ERROR("%s: Opus scratch allocation failed", __func__);
+        return;
+    }
+    int decoder_size = opus_decoder_get_size(channels);
+    OpusDecoder *dec = decoder_size > 0 ? opus_scratch_allocate((size_t)decoder_size) : NULL;
+    int error = dec ? opus_decoder_init(dec, OPUS_A2DP_SAMPLE_RATE, (int)channels) : OPUS_ALLOC_FAIL;
+    if (error != OPUS_OK) {
+        free(dec);
+        (void)dbt_opus_scratch_destroy(&cb->scratch);
+        APPL_TRACE_ERROR("%s: Opus decoder allocation/init failed: %d", __func__, error);
         return;
     }
 
+    cb->decoder = dec;
+    cb->usable = true;
+    cb->channels = channels;
+    cb->frame_samples = opus_cie_frame_samples(&ie);
     LOG_INFO("%s: Opus configured: variant=%u channels=%u sample_rate=48000",
              __func__, ie.variant, channels);
+}
 
-    cb->decoder = dec;
-    cb->channels = channels;
+typedef struct {
+    tA2DP_OPUS_DECODER_CB *cb;
+    const unsigned char *packet;
+    opus_int32 packet_size;
+    unsigned char *pcm;
+    size_t pcm_size;
+    int samples;
+} opus_decode_job_t;
+
+static int opus_decode_work(void *context)
+{
+    opus_decode_job_t *job = context;
+    return dbt_opus_arena_decode(job->cb->decoder, job->packet, job->packet_size,
+                                 (opus_int16 *)job->pcm, job->samples, 0);
+}
+
+static int opus_decode_recover(void *context)
+{
+    opus_decode_job_t *job = context;
+    memset(job->pcm, 0, job->pcm_size);
+    int status = opus_decoder_ctl(job->cb->decoder, OPUS_RESET_STATE);
+    if (status != OPUS_OK) job->cb->usable = false;
+    return status == OPUS_OK ? 0 : -1;
+}
+
+static bool opus_decode_guarded(opus_decode_job_t *job, int *samples)
+{
+    int status = dbt_opus_scratch_run(&job->cb->scratch, opus_decode_work, job,
+                                      opus_decode_recover, job, samples);
+    if (status == DBT_OPUS_SCRATCH_OK) return true;
+    /* BUSY did not run decode; all other failures also discard partial PCM. */
+    memset(job->pcm, 0, job->pcm_size);
+    if (status == DBT_OPUS_SCRATCH_RESET_FAILED) job->cb->usable = false;
+    return false;
 }
 
 ssize_t a2dp_opus_decoder_decode_packet_header(BT_HDR *p_buf)
@@ -201,8 +300,7 @@ ssize_t a2dp_opus_decoder_decode_packet_header(BT_HDR *p_buf)
         } else if (payload->frame_count + 1 != cb->fragment_count ||
                    (payload->frame_count == 1 && !payload->is_last_fragment)) {
             APPL_TRACE_ERROR("%s: fragments out of order", __func__);
-            cb->fragment_count = 0;
-            cb->fragment_size = 0;
+            opus_clear_fragments(cb, true);
             return -EINVAL;
         }
         cb->fragment_count = payload->frame_count;
@@ -211,8 +309,7 @@ ssize_t a2dp_opus_decoder_decode_packet_header(BT_HDR *p_buf)
             APPL_TRACE_ERROR("%s: unsupported frame_count=%u", __func__, payload->frame_count);
             return -EINVAL;
         }
-        cb->fragment_count = 0;
-        cb->fragment_size = 0;
+        opus_clear_fragments(cb, true);
     }
 
     p_buf->offset += header_len;
@@ -227,14 +324,15 @@ bool a2dp_opus_decoder_decode_packet(BT_HDR *p_buf, unsigned char *buf, size_t b
     if (!p_buf || !buf || buf_len == 0) return false;
 
     OpusDecoder *dec = cb->decoder;
-    if (!dec || cb->channels < 1 || cb->channels > OPUS_A2DP_CHANNEL_MAX) {
+    if (!dec || !cb->usable || cb->channels < 1 || cb->channels > OPUS_A2DP_CHANNEL_MAX) {
         APPL_TRACE_ERROR("%s: decoder not ready", __func__);
         return false;
     }
 
-    if (buf_len < OPUS_A2DP_MAX_PCM_BYTES) {
+    size_t required_pcm = (size_t)cb->frame_samples * cb->channels * sizeof(opus_int16);
+    if (required_pcm == 0 || buf_len < required_pcm) {
         APPL_TRACE_ERROR("%s: decode buffer too small: %u < %u",
-                         __func__, (unsigned)buf_len, (unsigned)OPUS_A2DP_MAX_PCM_BYTES);
+                         __func__, (unsigned)buf_len, (unsigned)required_pcm);
         return false;
     }
 
@@ -242,10 +340,16 @@ bool a2dp_opus_decoder_decode_packet(BT_HDR *p_buf, unsigned char *buf, size_t b
     size_t src_size = p_buf->len;
 
     if (cb->fragment_count > 0) {
-        if (src_size > (sizeof(cb->fragment) - (size_t)cb->fragment_size)) {
+        if (!cb->fragment) {
+            cb->fragment = osi_malloc_base(OPUS_A2DP_FRAGMENT_BUF_SIZE);
+            if (!cb->fragment) {
+                opus_clear_fragments(cb, true);
+                return false;
+            }
+        }
+        if (src_size > (OPUS_A2DP_FRAGMENT_BUF_SIZE - (size_t)cb->fragment_size)) {
             APPL_TRACE_ERROR("%s: fragmented Opus frame too large", __func__);
-            cb->fragment_count = 0;
-            cb->fragment_size = 0;
+            opus_clear_fragments(cb, true);
             return false;
         }
 
@@ -263,20 +367,19 @@ bool a2dp_opus_decoder_decode_packet(BT_HDR *p_buf, unsigned char *buf, size_t b
     }
 
     int dst_samples = (int)(buf_len / (sizeof(opus_int16) * cb->channels));
-    if (dst_samples > OPUS_A2DP_MAX_FRAME_SAMPLES) {
-        dst_samples = OPUS_A2DP_MAX_FRAME_SAMPLES;
+    if (dst_samples > cb->frame_samples) {
+        dst_samples = cb->frame_samples;
     }
 
-    int res = opus_decode(dec,
-                          (const unsigned char *)src,
-                          (opus_int32)src_size,
-                          (opus_int16 *)buf,
-                          dst_samples,
-                          0);
-
+    opus_decode_job_t job = {cb, (const unsigned char *)src, (opus_int32)src_size,
+                             buf, buf_len, dst_samples};
+    int res = OPUS_INTERNAL_ERROR;
+    if (!opus_decode_guarded(&job, &res)) return false;
     if (res < OPUS_OK) {
         APPL_TRACE_ERROR("%s: opus_decode error=%d, using PLC", __func__, res);
-        res = opus_decode(dec, NULL, 0, (opus_int16 *)buf, dst_samples, 0);
+        job.packet = NULL;
+        job.packet_size = 0;
+        if (!opus_decode_guarded(&job, &res)) return false;
     }
 
     if (res < OPUS_OK) {

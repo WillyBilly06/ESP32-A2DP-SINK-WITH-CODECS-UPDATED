@@ -6,8 +6,47 @@
  * Provides the same C++ interface as BluetoothA2DPSink for minimal main.cpp changes.
  */
 
-#include <string.h>
 #include <stdint.h>
+#include <stddef.h>
+
+/* The SDK exposes the vendor-specific CIE bytes after the three-byte AVDTP
+ * codec header. Both supported Opus decoders deliver interleaved signed 16-bit
+ * samples at 48 kHz. This helper consumes only the event's copied bytes. */
+enum class NativeOpusCieResult : uint8_t { Other, Android, Opus05, Invalid };
+struct NativeOpusPcmFormat { uint32_t rate; uint8_t bits; uint8_t channels; };
+static inline NativeOpusCieResult nativeOpusPcmFormat(const uint8_t *raw, size_t size,
+                                                       NativeOpusPcmFormat *out) {
+    if (!raw || !out || size < 6) return NativeOpusCieResult::Invalid;
+    const uint32_t vendor = (uint32_t)raw[0] | ((uint32_t)raw[1] << 8) |
+                            ((uint32_t)raw[2] << 16) | ((uint32_t)raw[3] << 24);
+    const uint16_t codec = (uint16_t)(raw[4] | ((uint16_t)raw[5] << 8));
+    uint8_t channels;
+    NativeOpusCieResult kind;
+    if (vendor == 0x000000e0u && codec == 0x0001u) {
+        if (size < 7) return NativeOpusCieResult::Invalid;
+        const uint8_t config = raw[6], mode = config & 0x07u, frame = config & 0x18u;
+        if (!(config & 0x80u) || (mode != 1u && mode != 2u) ||
+            (frame != 0x08u && frame != 0x10u)) return NativeOpusCieResult::Invalid;
+        channels = mode == 1u ? 1u : 2u;
+        kind = NativeOpusCieResult::Android;
+    } else if (vendor == 0x000005f1u && codec == 0x1005u) {
+        if (size < 13) return NativeOpusCieResult::Invalid;
+        channels = raw[6];
+        if (!((channels == 1u && raw[7] == 0u) || (channels == 2u && raw[7] == 1u)))
+            return NativeOpusCieResult::Invalid;
+        const uint8_t frame = raw[12];
+        if (frame != 1u && frame != 2u && frame != 4u && frame != 8u && frame != 16u)
+            return NativeOpusCieResult::Invalid;
+        kind = NativeOpusCieResult::Opus05;
+    } else {
+        return NativeOpusCieResult::Other;
+    }
+    *out = {48000u, 16u, channels};
+    return kind;
+}
+
+#ifndef NATIVE_A2DP_PCM_FORMAT_ONLY
+#include <string.h>
 #include <string>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -50,6 +89,8 @@ public:
     // Codec config
     void set_codec_config_callback(a2dp_codec_config_cb callback);
     esp_a2d_mct_t get_audio_type();
+    /* Vendor variants share ESP_A2D_MCT_NON_A2DP in the SDK event. */
+    NativeOpusCieResult get_opus_variant() const;
 
     // Connection callbacks
     void set_on_connection_state_changed(a2dp_connection_state_cb callback);
@@ -112,6 +153,10 @@ private:
     esp_bd_addr_t last_connection = {0};
     uint16_t m_sample_rate = 44100;
     esp_a2d_mct_t audio_type = ESP_A2D_MCT_SBC;
+    /* Suppress PCM after an invalid recognized Opus configuration until the
+     * next successfully forwarded codec configuration. */
+    uint32_t pcm_format_ready = 1;
+    uint32_t opus_variant = (uint32_t)NativeOpusCieResult::Other;
     bool avrc_connection_state = false;
 
     // AVRCP peer caps
@@ -172,3 +217,4 @@ private:
     void get_last_connection();
     void set_last_connection(esp_bd_addr_t bda);
 };
+#endif /* NATIVE_A2DP_PCM_FORMAT_ONLY */
