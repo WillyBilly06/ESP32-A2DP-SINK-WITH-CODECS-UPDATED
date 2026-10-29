@@ -1,6 +1,7 @@
 #include "dbt_gap.h"
 #include "dbt_att_bearer.h"
 #include "dbt_sdp_bearer.h"
+#include "dbt_avdtp_bearer.h"
 #ifdef _WIN32
 #define EXPORT __declspec(dllexport)
 #else
@@ -25,6 +26,10 @@ static uint8_t last_status;
 static dbt_att_server_t att_server;
 static dbt_att_bearer_t att_bearer;
 static unsigned att_errors;
+static dbt_avdtp_t avdtp_signals[2];
+static dbt_avdtp_bearer_t avdtp_bearers[2];
+static bool avdtp_enabled;
+static unsigned avdtp_errors, avdtp_commands[2], avdtp_responses[2];
 static void zero(void *data, unsigned size) { uint8_t *p=data; for(unsigned i=0;i<size;++i)p[i]=0; }
 static void copy(uint8_t *out,const uint8_t *in,unsigned size){for(unsigned i=0;i<size;++i)out[i]=in[i];}
 static void w16(uint8_t *p,uint16_t v){p[0]=(uint8_t)v;p[1]=(uint8_t)(v>>8);}
@@ -48,8 +53,14 @@ static void link_change(void *context,const dbt_link_change_t *change){(void)cha
 static void channel(void *context,dbt_channel_event_t kind,const dbt_channel_t *snapshot,dbt_channel_reason_t reason,uint16_t result){
     peer_t *peer=context;(void)reason;(void)result;
     if(kind==DBT_CH_EVENT_OPEN){++peer->opens;peer->cid=snapshot->local_cid;}
+    if(avdtp_enabled)dbt_avdtp_bearer_event(&avdtp_bearers[peer==&peers[1]],kind,snapshot);
 }
 static void data(void *context,const dbt_channel_t *snapshot,const uint8_t *bytes,uint16_t size){
+    if(avdtp_enabled){
+        dbt_result_t result=dbt_avdtp_bearer_receive(&avdtp_bearers[context==&peers[1]],snapshot,bytes,size);
+        if(result!=DBT_OK && result!=DBT_EMPTY)++avdtp_errors;
+        return;
+    }
     peer_t *peer=context;(void)snapshot;++peer->data_calls;peer->received_size=size;copy(peer->received,bytes,size);
 }
 static void fixed(void *context,const dbt_link_t *link,uint16_t cid,const uint8_t *bytes,uint16_t size){
@@ -93,6 +104,7 @@ static void controller(peer_t *peer){
     peer->ready=true;(void)event(peer,0x0e,bytes,size);
 }
 static int fixture(unsigned index){
+    avdtp_enabled=false;
     peer_t *peer=&peers[index];zero(peer,sizeof(*peer));peer->ready=peer->accept=true;
     dbt_transport_t transport={peer,can_send,send};dbt_runtime_hooks_t hooks={0};
     hooks.context=peer;hooks.allocate=allocate;hooks.release=release;hooks.link=link_change;
@@ -125,6 +137,95 @@ static void pump(unsigned rounds){
         deliver(&peers[0],&peers[1]);deliver(&peers[1],&peers[0]);++clock_ms;
         dbt_runtime_poll(&peers[0].runtime,clock_ms,8,4);dbt_runtime_poll(&peers[1].runtime,clock_ms,8,4);
     }
+}
+static void avdtp_command_received(void *context,const dbt_avdtp_message_t *message){
+    peer_t *peer=context;unsigned index=peer==&peers[1];++avdtp_commands[index];
+    peer->received_size=message->size;copy(peer->received,message->data,message->size);
+    if(dbt_avdtp_respond(&avdtp_signals[index],message->label,message->signal,DBT_AVDTP_ACCEPT,
+                         message->data,message->size,clock_ms)!=DBT_OK)++avdtp_errors;
+}
+static void avdtp_response_received(void *context,dbt_avdtp_outcome_t outcome,
+                                   const dbt_avdtp_message_t *message){
+    peer_t *peer=context;unsigned index=peer==&peers[1];++avdtp_responses[index];
+    if(outcome==DBT_AVDTP_RESPONSE && message){
+        peer->received_size=message->size;copy(peer->received,message->data,message->size);
+    }
+}
+static int avdtp_fixture(void){
+    clock_ms=0;int result=fixture(0);if(result)return result;result=fixture(1);if(result)return result;
+    avdtp_errors=0;zero(avdtp_commands,sizeof(avdtp_commands));zero(avdtp_responses,sizeof(avdtp_responses));
+    for(unsigned i=0;i<2;++i){add_link(&peers[i],1,false);add_link(&peers[i],2,true);
+        CHECK(dbt_channels_register_fixed(&peers[i].runtime.channels,DBT_LINK_LE,4)==DBT_OK);}
+    dbt_service_t service={0x19,48,48,DBT_SECURITY_NONE};
+    CHECK(dbt_channels_register(&peers[1].runtime.channels,service)==DBT_OK);
+    uint16_t cid=0;
+    CHECK(dbt_channels_open(&peers[0].runtime.channels,1,0x19,48,48,DBT_SECURITY_NONE,clock_ms,&cid)==DBT_OK);
+    pump(70);
+    for(unsigned i=0;i<2;++i){
+        peer_t *peer=&peers[i];
+        const dbt_channel_t *current=dbt_channels_find(&peer->runtime.channels,1,peer->cid);
+        CHECK(current && current->state==DBT_CH_OPEN);
+        dbt_avdtp_hooks_t hooks={peer,allocate,release,avdtp_command_received,avdtp_response_received,0};
+        CHECK(dbt_avdtp_init(&avdtp_signals[i],hooks,current->serial,48,48,1024,1000,2000)==DBT_OK);
+        CHECK(dbt_avdtp_bearer_init(&avdtp_bearers[i],&peer->runtime,&avdtp_signals[i],current)==DBT_OK);
+    }
+    avdtp_enabled=true;return 0;
+}
+EXPORT int test_avdtp_runtime_fragmentation_credit_stall_and_ble(void){
+    int result=avdtp_fixture();if(result)return result;
+    uint8_t body[193],label=0;for(unsigned i=0;i<sizeof(body);++i)body[i]=(uint8_t)(i*31u+7u);
+    CHECK(dbt_avdtp_command(&avdtp_signals[0],DBT_AVDTP_SECURITY_CONTROL,body,sizeof(body),clock_ms,&label)==DBT_OK);
+    CHECK(dbt_avdtp_bearer_poll(&avdtp_bearers[0],clock_ms)==DBT_OK && avdtp_bearers[0].active);
+    CHECK(dbt_avdtp_bearer_clear(&avdtp_bearers[0])==DBT_BUSY);
+    CHECK(dbt_avdtp_bearer_wait_ms(&avdtp_bearers[0],clock_ms)==1000);
+    peers[0].runtime.acl.pools[0].available=0;
+    CHECK(dbt_runtime_send_fixed(&peers[0].runtime,2,4,body,100,tx_done,0)==DBT_OK);
+    pump(30);
+    CHECK(peers[1].fixed_calls==1 && !avdtp_commands[1] && avdtp_signals[0].pinned);
+    peers[0].runtime.acl.pools[0].available=2;
+    for(unsigned i=0;i<100;++i){
+        CHECK(dbt_avdtp_bearer_poll(&avdtp_bearers[0],clock_ms)==DBT_OK);
+        CHECK(dbt_avdtp_bearer_poll(&avdtp_bearers[1],clock_ms)==DBT_OK);
+        pump(1);
+    }
+    CHECK(avdtp_commands[1]==1 && avdtp_responses[0]==1 && !avdtp_errors);
+    CHECK(peers[0].received_size==sizeof(body));
+    for(unsigned i=0;i<sizeof(body);++i)CHECK(peers[0].received[i]==body[i]);
+    CHECK(dbt_avdtp_bearer_clear(&avdtp_bearers[0])==DBT_OK);
+    CHECK(dbt_avdtp_bearer_clear(&avdtp_bearers[1])==DBT_OK);
+    for(unsigned i=0;i<2;++i)CHECK(peers[i].allocated==peers[i].released && !peers[i].integrity_errors);
+    avdtp_enabled=false;return 0;
+}
+EXPORT int test_avdtp_runtime_disconnect_and_stale_channel(void){
+    int result=avdtp_fixture();if(result)return result;
+    uint8_t body[193]={0xa5},label=0;
+    CHECK(dbt_avdtp_command(&avdtp_signals[0],DBT_AVDTP_SECURITY_CONTROL,body,sizeof(body),clock_ms,&label)==DBT_OK);
+    CHECK(dbt_avdtp_bearer_poll(&avdtp_bearers[0],clock_ms)==DBT_OK);
+    dbt_runtime_poll(&peers[0].runtime,++clock_ms,8,1);
+    CHECK(!peers[0].ready && avdtp_signals[0].pinned && avdtp_bearers[0].active);
+    dbt_channel_t old;
+    copy((uint8_t *)&old,(const uint8_t *)dbt_channels_find(&peers[0].runtime.channels,1,peers[0].cid),sizeof(old));
+    uint8_t disconnected[]={0,1,0,0x13};
+    CHECK(event(&peers[0],5,disconnected,sizeof(disconnected))==DBT_OK);
+    dbt_runtime_poll(&peers[0].runtime,++clock_ms,8,0);check_borrow(&peers[0]);
+    CHECK(!avdtp_bearers[0].attached && !avdtp_signals[0].binding && avdtp_responses[0]==1);
+    CHECK(peers[0].allocated==peers[0].released && !peers[0].integrity_errors);
+    uint8_t stale[]={0,1};
+    CHECK(dbt_avdtp_bearer_receive(&avdtp_bearers[0],&old,stale,sizeof(stale))==DBT_INVALID);
+    CHECK(dbt_avdtp_bearer_clear(&avdtp_bearers[1])==DBT_OK);
+    avdtp_enabled=false;return 0;
+}
+EXPORT int test_avdtp_runtime_reconfigured_mtu_fails_closed(void){
+    int result=avdtp_fixture();if(result)return result;
+    dbt_channel_t *live=0;
+    for(unsigned i=0;i<DBT_CHANNEL_LIMIT;++i)
+        if(peers[0].runtime.channels.channels[i].local_cid==peers[0].cid)
+            live=&peers[0].runtime.channels.channels[i];
+    CHECK(live);live->tx_mtu=64;
+    CHECK(dbt_avdtp_bearer_poll(&avdtp_bearers[0],clock_ms)==DBT_INVALID);
+    CHECK(!avdtp_bearers[0].attached && !avdtp_signals[0].binding);
+    CHECK(dbt_avdtp_bearer_clear(&avdtp_bearers[1])==DBT_OK);
+    avdtp_enabled=false;return 0;
 }
 EXPORT int test_commands_copy_credit_status_and_rejection(void){
     clock_ms=0;int r=fixture(0);if(r)return r;peer_t *p=&peers[0];dbt_host_t *host=&p->runtime.host;

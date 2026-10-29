@@ -69,6 +69,14 @@ TESTS = [
     "rx_flow_setup_limits_and_capabilities", "rx_flow_acks_ignore_credits_and_retain_transport_bytes",
     "rx_flow_disconnect_generations_and_error_response", "runtime_rx_flow_counts_consumed_classic_and_le_packets",
     "runtime_sco_framing_status_and_explicit_route",
+    "avdtp_control_correlation_and_lazy_storage", "avdtp_fragmented_duplex_and_transport_pins",
+    "avdtp_receive_sequence_limits_and_abort", "avdtp_deadlines_wrap_and_pinned_timeout",
+    "avdtp_oom_retries_and_response_priority", "avdtp_unknown_signals_and_command_backpressure",
+    "avdtp_rtp_media_headers_and_bounds", "avdtp_generated_packets_reclaim_storage",
+    "avdtp_runtime_fragmentation_credit_stall_and_ble", "avdtp_runtime_disconnect_and_stale_channel",
+    "avdtp_reply_lengths_and_fragment_capacity", "avdtp_simultaneous_local_and_remote_transactions",
+    "avdtp_capabilities_configuration_and_alternatives", "avdtp_capability_format_errors_and_generated_tlvs",
+    "avdtp_runtime_reconfigured_mtu_fails_closed",
 ]
 
 

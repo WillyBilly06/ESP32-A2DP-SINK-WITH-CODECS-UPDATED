@@ -31,7 +31,7 @@ before ordinary command/TX work to avoid starvation.
 
 ## Evidence and limits
 
-The current 101-group Windows/Linux suite and Linux ASan/UBSan pass. Added checks
+The current 116-group Windows/Linux suite and Linux ASan/UBSan pass. Added checks
 cover setup limits/support masks, rejection/timeout, zero command/ACL credits,
 retained packet bytes, disconnect/reuse, error replies, paired Classic/LE payloads,
 and SCO framing/status/route behavior. Target `rx_flow_ready` confirms accepted

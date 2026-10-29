@@ -8,6 +8,9 @@ Current milestone: a portable C11 HCI/ACL/Basic L2CAP runtime, GAP setup, LE ATT
 Classic security and an SDP server, with an isolated ESP-IDF 5.5.2 probe.
 Controller-to-host ACL credits and bounded SCO HCI framing are also implemented;
 voice connection/profile ownership remains pending.
+Owned AVDTP signaling, capability validation and an RTP media-header view are
+implemented as the next audio-profile foundation; endpoint/codec negotiation
+and playback integration remain pending. See [AVDTP scope](docs/AVDTP.md).
 This is **not yet a complete Bluetooth host or a product audio
 firmware replacement**. The staged audio application still uses Bluedroid and
 includes the separately requested integer DSP and codec-memory changes.
@@ -56,7 +59,7 @@ Classic credits while LE data/control continue. `dbt_gap` has explicit incoming
 admission and security-owner hooks; no bonding/security/profile implementation is
 implied by enabling SSP in the controller.
 
-There are 101 native groups, including the concurrent queue test. Run
+There are 116 native groups, including the concurrent queue test. Run
 `python native_bt/tools/test_stack_linux.py --host HOST --user USER` for Linux
 normal/ASan/UBSan checks; the password prompt is session-only. The default probe
 does not require the separate LHDC checkout. `build_probe.ps1 -WithLhdc` enables

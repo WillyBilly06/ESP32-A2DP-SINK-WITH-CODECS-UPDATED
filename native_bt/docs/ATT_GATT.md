@@ -61,7 +61,7 @@ acknowledgement if durable completion must be reported.
 
 ## Verified scope
 
-The current native suite has 101 groups, including Classic security, SDP and receive flow. ATT
+The current native suite has 116 groups, including Classic security, SDP, receive flow and AVDTP. ATT
 checks include 10,240 generated opcode/length
 cases with allocation reclamation, security, per-client CCCDs, prepare limits/OOM,
 deferred completion, timeouts, and paired runtime fragmented reads/disconnects.

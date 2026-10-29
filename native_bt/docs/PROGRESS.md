@@ -36,7 +36,8 @@ it does not publish or replace the locally modified Bluedroid audio application.
 | Classic security | Owned SSP/PIN/passkey/OOB policy, key lifecycle, encryption/key-size qualification, asynchronous durable store/delete and pending L2CAP security; live Just Works pairing and encrypted 16-byte-key channel passed | Linux diagnostic bond later disappeared; durable reconnect interoperability and other pairing methods need qualification. BLE SMP remains pending |
 | ATT/GATT server | Owned LE ATT server and runtime bridge; discovery, reads/blobs/multiple, MTU 517, writes/commands, prepare/execute/cancel, per-client CCCDs, security policy, notify/indicate, deferred worker completion | Product command/OTA binding, real security/bond store, GATT client/EATT/signed writes/robust caching pending |
 | SDP server | Immutable flash database, UUID aliases, all three server transactions, bounded continuation, streaming response slices and lazy runtime bridge; Linux verifier and BlueZ sdptool passed | SDP client and audio service records pending; discovery does not implement the advertised product profiles |
-| Tests | 101 groups pass on Windows/Linux, including 10,240 generated ATT inputs, 8192 generated SDP inputs, security/key lifecycle tests, exact 1021-byte interleaved fragments, receive-credit/SCO framing tests and 20,000 concurrent FIFO packets; Linux ASan/UBSan passes | Host behavior and memory safety; separate limited RF evidence below |
+| AVDTP foundation | Signaling transactions/fragmentation, lazy buffers, timeout/pin lifetime, runtime bridge, transport capability validation and RTP header view | Host-tested and ESP32 archive compiled; probe does not link/use it. Endpoint/codec state, media channels and A2DP integration pending |
+| Tests | 116 groups pass on Windows/Linux, including 10,240 generated ATT inputs, 8192 generated SDP inputs, security/key lifecycle tests, exact 1021-byte interleaved fragments, receive-credit/SCO framing, AVDTP generated-input and runtime tests and 20,000 concurrent FIFO packets; Linux ASan/UBSan passes | Host behavior and memory safety; separate limited RF evidence below |
 | Integer DSP | Flash coefficient tables for 13 rates; Q4.28 coefficients/Q5.27 headroom, fractional error carry, 20 ms ramps, render-owned histories, atomic controls | Embedded CPU and audible tests pending |
 | DSP numerical tests | 36 cases at 44.1/48/96/192 kHz; max magnitude error ~0.00000145 dB against the coefficient response; native state 1128 bytes | Not ESP32 timing or acoustic proof |
 | C++ integration | Actual DSP/storage headers: normal, ASan/UBSan and ThreadSanitizer pass with concurrent control/render/meter requests | NVS is mocked; no physical power-loss test |
@@ -58,7 +59,7 @@ measurements of the selected path, not total codec RAM or embedded performance.
 GAP initiator/discovery procedures and recovery; broader receive-flow interoperability;
 L2CAP modes beyond Basic; further Classic security interoperability and BLE SMP/bonding/privacy;
 product ATT/GATT integration, GATT client/advanced features; SDP client;
-AVDTP/A2DP/AVRCP; remaining profiles; complete app migration; concurrent Classic/BLE
+AVDTP endpoint/codec/transport state and A2DP/AVRCP; remaining profiles; complete app migration; concurrent Classic/BLE
 hardware validation; equivalent-feature memory/CPU/latency comparisons.
 
 AAC and Opus lifetime changes are implemented with native PCM/allocation checks;
