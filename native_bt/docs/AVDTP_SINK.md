@@ -97,7 +97,8 @@ metadata measures 164 bytes for signaling, 284 for the complete sink including t
 signaling, and 24 for a runtime adapter. These are not additive twice and exclude
 all active buffers, decoder/worker/controller memory and the rest of the host.
 See [SBC pipeline evidence](SBC_PIPELINE.md) for the RF decoded-PCM count/fingerprint.
-I2S, Firefox playback and acoustic evidence remain absent.
+The later experimental integer DSP/I2S path and its separate evidence are in
+[AUDIO_OUTPUT.md](AUDIO_OUTPUT.md). Firefox and acoustic qualification remain pending.
 
 Next work is DSP/I2S application handoff, audio SDP/delay integration, then other
 codec validators/adapters and AVRCP. The

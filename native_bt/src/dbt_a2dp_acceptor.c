@@ -138,7 +138,10 @@ static void close_all(dbt_a2dp_acceptor_t *p,uint32_t now){
 dbt_result_t dbt_a2dp_acceptor_poll(dbt_a2dp_acceptor_t *p,uint32_t now){
     if(!p || !p->runtime)return DBT_INVALID;
     if(!p->enabled || p->draining)close_all(p,now);
-    if(!p->active)return DBT_OK;
+    if(!p->active){
+        if(p->draining && !staged(p))p->draining=false;
+        return DBT_OK;
+    }
     if(p->runtime->host.state==DBT_HOST_FAILED)p->draining=true;
     if(!p->draining){
         if(dbt_avdtp_sink_poll(&p->sink,now)!=DBT_OK || !p->bearer.attached ||
@@ -159,7 +162,7 @@ dbt_result_t dbt_a2dp_acceptor_poll(dbt_a2dp_acceptor_t *p,uint32_t now){
 uint32_t dbt_a2dp_acceptor_wait_ms(const dbt_a2dp_acceptor_t *p,uint32_t now){
     if(!p)return UINT32_MAX;
     if(!p->active){
-        if(!p->enabled)for(unsigned i=0;i<DBT_CHANNEL_LIMIT;++i){
+        if(!p->enabled || p->draining)for(unsigned i=0;i<DBT_CHANNEL_LIMIT;++i){
             const dbt_channel_t *channel=&p->runtime->channels.channels[i];
             if(channel->psm==0x19 && channel->state!=DBT_CH_FREE && channel->state!=DBT_CH_DISCONNECTING)return 0;
         }
@@ -181,9 +184,14 @@ dbt_result_t dbt_a2dp_acceptor_complete(dbt_a2dp_acceptor_t *p,uint32_t binding,
     if(!p || !p->active)return DBT_EMPTY;
     return dbt_avdtp_sink_complete(&p->sink,binding,token,result,now);
 }
+dbt_result_t dbt_a2dp_acceptor_retire(dbt_a2dp_acceptor_t *p,uint32_t now){
+    if(!p || !p->runtime)return DBT_INVALID;
+    (void)now;
+    p->draining=p->active || staged(p);
+    return p->draining?DBT_BUSY:DBT_OK;
+}
 dbt_result_t dbt_a2dp_acceptor_stop(dbt_a2dp_acceptor_t *p,uint32_t now){
     if(!p || !p->runtime)return DBT_INVALID;
-    p->enabled=false;
-    if(!p->active){(void)dbt_a2dp_acceptor_poll(p,now);return staged(p)?DBT_BUSY:DBT_OK;}
-    p->draining=true;(void)dbt_a2dp_acceptor_poll(p,now);return p->active?DBT_BUSY:DBT_OK;
+    p->enabled=false;(void)dbt_a2dp_acceptor_retire(p,now);
+    (void)dbt_a2dp_acceptor_poll(p,now);return p->active || staged(p)?DBT_BUSY:DBT_OK;
 }

@@ -5,6 +5,7 @@ idf_component_register(
          "../../../src/dbt_avdtp_sink.c"
          "../../../src/dbt_a2dp_sbc.c"
          "../../../src/dbt_a2dp_acceptor.c" "../../../src/dbt_sbc_media.c"
-    INCLUDE_DIRS "../../../include"
+         "../../../src/dbt_audio.c" "../../../../bt_audio_sink/main/dsp/fixed_dsp.c"
+    INCLUDE_DIRS "../../../include" "../../../../bt_audio_sink/main/dsp"
 )
 target_compile_options(${COMPONENT_LIB} PRIVATE -std=c11 -Wall -Wextra -Werror)

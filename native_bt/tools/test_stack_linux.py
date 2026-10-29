@@ -40,13 +40,54 @@ static void *consume(void *unused) {
  }
  return 0;
 }
+int audio_stress_begin(void); int audio_stress_end(void); int audio_stress_produce(unsigned);
+unsigned audio_stress_render(void); unsigned audio_stress_rendered(void); int audio_stress_consume(void);
+int audio_snapshot_begin(void); int audio_snapshot_end(void); int audio_snapshot_write(int); int audio_snapshot_read(void);
+static _Atomic int audio_stop,audio_failed,controls_done;
+static void *audio_produce(void *unused){
+ (void)unused;
+ for(unsigned n=0;n<16384 && !atomic_load(&audio_stop);n+=64){
+  int result;while((result=audio_stress_produce(n))==5 && !atomic_load(&audio_stop))sched_yield();
+  if(result!=0){atomic_store(&audio_failed,1);atomic_store(&audio_stop,1);break;}
+ }
+ return 0;
+}
+static void *audio_render(void *unused){
+ (void)unused;while(!atomic_load(&audio_stop) && audio_stress_rendered()<16384)if(!audio_stress_render())sched_yield();return 0;
+}
+static void *audio_consume(void *unused){
+ (void)unused;
+ for(unsigned blocks=0;blocks<256 && !atomic_load(&audio_stop);){
+  int result=audio_stress_consume();if(result==0)++blocks;
+  else if(result==1)sched_yield();else{atomic_store(&audio_failed,1);atomic_store(&audio_stop,1);}
+ }
+ return 0;
+}
+static void *audio_controls(void *unused){
+ (void)unused;
+ for(int n=0;n<10000;++n)if(audio_snapshot_write(n%25-12)){atomic_store(&audio_failed,1);break;}
+ atomic_store(&controls_done,1);return 0;
+}
+static int check_audio_owners(void){
+ pthread_t producer,renderer,consumer,controls;
+ if(audio_stress_begin())return 1;
+ atomic_init(&audio_stop,0);atomic_init(&audio_failed,0);atomic_init(&controls_done,0);
+ if(pthread_create(&producer,0,audio_produce,0)||pthread_create(&renderer,0,audio_render,0)||pthread_create(&consumer,0,audio_consume,0))return 2;
+ pthread_join(producer,0);pthread_join(renderer,0);pthread_join(consumer,0);
+ if(atomic_load(&audio_failed)||audio_stress_end())return 3;
+ if(audio_snapshot_begin()||pthread_create(&controls,0,audio_controls,0))return 4;
+ while(!atomic_load(&controls_done))if(audio_snapshot_read())atomic_store(&audio_failed,1);
+ pthread_join(controls,0);
+ return atomic_load(&audio_failed)||audio_snapshot_end();
+}
 '''
-main='#include <stdio.h>\n#include <pthread.h>\n#include <sched.h>\n'+declarations+concurrent+'\nint main(void) { int line;\n'+calls+'''
+main='#include <stdio.h>\n#include <pthread.h>\n#include <sched.h>\n#include <stdatomic.h>\n'+declarations+concurrent+'\nint main(void) { int line;\n'+calls+'''
  pthread_t producer,consumer; void *a,*b;
  stress_begin();
  if(pthread_create(&producer,0,produce,0)||pthread_create(&consumer,0,consume,0))return 2;
  pthread_join(producer,&a);pthread_join(consumer,&b);
  if(a||b)return 3;
+ if(check_audio_owners())return 4;
  puts("all host/runtime groups and 20000 concurrent packets passed");return 0;
 }
 '''
@@ -55,9 +96,13 @@ sources=[str(p) for p in sorted((root/'src').glob('*.c'))+sorted((root/'tests').
 command=['gcc','-std=c11','-O1','-g','-Wall','-Wextra','-Werror','-fsanitize=address,undefined',
  '-fno-omit-frame-pointer','-Iinclude','-Idsp','-pthread',*sources,'dsp/fixed_dsp.c','sanitizer_main.c','-o','sanitized']
 run(command);sanitized=run(['./sanitized'])
+thread_command=[arg.replace('-fsanitize=address,undefined','-fsanitize=thread').replace('sanitized','threaded') for arg in command]
+run(thread_command);threaded=run(['./threaded'])
 report={'passed':True,'scope':'owned host/runtime paired-peer simulation and memory safety; no RF or profiles validation',
  'normal_groups':len(native['tests']),'address_undefined_passed':True,'concurrent_packets':20000,
  'sanitizer_output':sanitized.strip(),'source_sha256':native['source_sha256']}
+report['thread_sanitizer_passed']=True
+report['audio_three_owner_frames']=16384
 (root/'linux_results.json').write_text(json.dumps(report,indent=2)+'\n')
 print(json.dumps(report,indent=2))
 """

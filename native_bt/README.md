@@ -11,9 +11,11 @@ voice connection/profile ownership remains pending.
 Owned AVDTP signaling, capability validation and an RTP media-header view are
 implemented alongside an asynchronous sink acceptor, runtime media manager and
 actual SBC decoder worker. A restricted RF diagnostic passes SBC-to-PCM counters
-with concurrent LE ATT traffic. Product DSP/I2S/Firefox playback remains pending.
+with concurrent LE ATT traffic. An optional integer DSP/I2S candidate also passed
+a finite raw-SBC/BLE digital-counter run; product/Firefox qualification remains pending.
 See [AVDTP scope](docs/AVDTP.md) and [sink lifecycle](docs/AVDTP_SINK.md).
 See [SBC pipeline evidence](docs/SBC_PIPELINE.md) for the exact workload and limits.
+See [experimental output evidence](docs/AUDIO_OUTPUT.md) for output ownership and limitations.
 This is **not yet a complete Bluetooth host or a product audio
 firmware replacement**. The staged audio application still uses Bluedroid and
 includes the separately requested integer DSP and codec-memory changes.
@@ -93,6 +95,13 @@ adds the restricted direct-AVDTP diagnostic. It hashes PCM and has no I2S output
 or Audio Sink SDP advertisement. The finite 48 kHz stereo test decoded 8000 frames
 while 166 ATT writes/notifications completed; this does not qualify other codecs,
 Firefox playback or resolve the large-payload generic dual-mode failure.
+
+`-WithAudioOutput -WithGatt -WithClassicSecurity -TestPeer <address>` additionally
+enables the native integer renderer, I2S on GPIO27/25/26, an Audio Sink SDP record
+and queue-estimated delay reporting. Its linked ISR roots/direct references are
+audited for IRAM/internal SRAM; this does not qualify physical NVS continuity.
+Codec/input/output storage is released on close, and session retirement gates
+readmission until the old worker and channels drain. This remains experimental.
 
 See [release gates](docs/RELEASE_READINESS.md) before publishing a replacement
 firmware. This milestone remains an incomplete development implementation.

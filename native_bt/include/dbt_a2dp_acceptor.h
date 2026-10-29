@@ -41,6 +41,10 @@ dbt_result_t dbt_a2dp_acceptor_poll(dbt_a2dp_acceptor_t *profile,uint32_t now_ms
 uint32_t dbt_a2dp_acceptor_wait_ms(const dbt_a2dp_acceptor_t *profile,uint32_t now_ms);
 dbt_result_t dbt_a2dp_acceptor_complete(dbt_a2dp_acceptor_t *profile,uint32_t binding,uint32_t token,
     dbt_sink_work_result_t result,uint32_t now_ms);
+/* Retire the current session without disabling future admission. Safe from a
+ * channel callback: only requests draining; poll closes channels and waits for
+ * worker DROP. BUSY means cleanup remains, and a new session is still gated. */
+dbt_result_t dbt_a2dp_acceptor_retire(dbt_a2dp_acceptor_t *profile,uint32_t now_ms);
 /* Stops admission; BUSY means channels/borrowed TX/worker cleanup remain. Keep
  * runtime and this profile polling and forwarding receipts until OK. */
 dbt_result_t dbt_a2dp_acceptor_stop(dbt_a2dp_acceptor_t *profile,uint32_t now_ms);

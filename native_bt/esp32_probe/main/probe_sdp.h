@@ -7,4 +7,6 @@ void probe_sdp_event(dbt_channel_event_t event, const dbt_channel_t *channel);
 dbt_result_t probe_sdp_poll(void);
 uint32_t probe_sdp_wait_ms(void);
 unsigned probe_sdp_bytes(void);
+unsigned probe_sdp_records(void);
+bool probe_sdp_audio_sink(void);
 #endif

@@ -13,7 +13,9 @@ def read(name):
 
 def main():
     source = read("linux-native-sbc.json")
-    firmware = read("COM6-probe-trial.json")
+    # Preserve the earlier counter-only image identity after an output trial.
+    archived = "COM6-probe-sbc-counters.json"
+    firmware = read(archived if (HARDWARE/archived).exists() else "COM6-probe-trial.json")
     window = read("sbc-rf-COM6-115200.json")
     assert source["return_code"] == 0 and source["result"]["passed"]
     assert source["firmware"]["candidate_sha256"] == firmware["candidate_sha256"]

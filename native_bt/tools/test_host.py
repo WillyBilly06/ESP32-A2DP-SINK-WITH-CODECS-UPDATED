@@ -89,6 +89,11 @@ TESTS = [
     "sbc_fragment_lifecycle_sequence_wrap_and_lazy_storage", "sbc_fragment_errors_deadlines_and_oom",
     "sbc_generated_inputs_keep_output_and_allocations_bounded",
     "a2dp_acceptor_admission_routing_and_retirement",
+    "a2dp_acceptor_abrupt_close_and_readmission",
+    "a2dp_acceptor_configured_acl_loss",
+    "audio_formats_match_integer_dsp_reference", "audio_whole_blocks_wrap_and_silence_accounting",
+    "audio_oom_cleanup_and_control_snapshot", "audio_adaptive_fraction_bounds_and_clock_limit",
+    "audio_consumer_fade_exact_duration_and_full_scale",
 ]
 
 
@@ -163,6 +168,69 @@ def concurrent_stress(lib, count=20000):
     return count
 
 
+def audio_concurrent_stress(lib):
+    if lib.audio_stress_begin():
+        raise RuntimeError("Audio stress initialization failed")
+    lib.audio_stress_produce.argtypes = [ctypes.c_uint32]
+    lib.audio_stress_rendered.restype = ctypes.c_uint32
+    errors = []
+    stopped = threading.Event()
+    deadline = time.monotonic() + 20
+
+    def producer():
+        for sequence in range(0, 16384, 64):
+            while not stopped.is_set():
+                result = lib.audio_stress_produce(sequence)
+                if result == 0:
+                    break
+                if result != 5 or time.monotonic() > deadline:
+                    errors.append("PCM producer failed: " + str(result)); stopped.set(); return
+                time.sleep(0)
+
+    def renderer():
+        while not stopped.is_set() and lib.audio_stress_rendered() < 16384:
+            if not lib.audio_stress_render():
+                if time.monotonic() > deadline:
+                    errors.append("Render deadline"); stopped.set(); return
+                time.sleep(0)
+
+    def consumer():
+        blocks = 0
+        while not stopped.is_set() and blocks < 256:
+            result = lib.audio_stress_consume()
+            if result == 0:
+                blocks += 1
+            elif result != 1 or time.monotonic() > deadline:
+                errors.append("DMA consumer/reference mismatch: " + str(result)); stopped.set(); return
+            else:
+                time.sleep(0)
+
+    workers = [threading.Thread(target=fn, daemon=True) for fn in [producer, renderer, consumer]]
+    for worker in workers: worker.start()
+    for worker in workers: worker.join(22)
+    if any(worker.is_alive() for worker in workers):
+        raise RuntimeError("Audio owner thread did not stop")
+    if lib.audio_stress_end(): errors.append("Audio counters or allocation cleanup failed")
+    if errors: raise RuntimeError("; ".join(errors))
+    if lib.audio_snapshot_begin(): raise RuntimeError("Snapshot stress initialization failed")
+    finished = threading.Event()
+
+    def write_controls():
+        for n in range(10000):
+            if lib.audio_snapshot_write(n % 25 - 12):
+                errors.append("Snapshot writer failed"); break
+        finished.set()
+
+    control = threading.Thread(target=write_controls, daemon=True); control.start()
+    while not finished.is_set():
+        if lib.audio_snapshot_read(): errors.append("Torn control tuple"); break
+    control.join(10)
+    if control.is_alive(): raise RuntimeError("Snapshot owner did not stop")
+    if lib.audio_snapshot_end(): errors.append("Snapshot cleanup failed")
+    if errors: raise RuntimeError("; ".join(errors))
+    return 16384
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--output-dir", type=Path, default=ROOT / "_build/host")
@@ -187,6 +255,12 @@ def main():
         print(f"PASS concurrent_spsc ({packets} packets on two threads)", flush=True)
     except RuntimeError as error:
         results.append({"name": "concurrent_spsc", "passed": False, "error": str(error)})
+    try:
+        frames = audio_concurrent_stress(lib)
+        results.append({"name": "audio_three_owners_and_controls", "passed": True, "frames": frames})
+        print(f"PASS audio_three_owners_and_controls ({frames} frames, separate producer/render/consumer)", flush=True)
+    except RuntimeError as error:
+        results.append({"name": "audio_three_owners_and_controls", "passed": False, "error": str(error)})
     lib.test_host_bytes.restype = ctypes.c_uint32
     lib.test_queue_bytes.restype = ctypes.c_uint32
     report = {

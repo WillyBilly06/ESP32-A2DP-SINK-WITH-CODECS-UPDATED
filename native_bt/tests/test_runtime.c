@@ -64,7 +64,9 @@ static void channel(void *context,dbt_channel_event_t kind,const dbt_channel_t *
     if(kind==DBT_CH_EVENT_OPEN){++peer->opens;peer->cid=snapshot->local_cid;}
     if(acceptor_enabled && peer==&peers[1] && snapshot->psm==0x19){
         dbt_result_t status=dbt_a2dp_acceptor_event(&acceptor,kind,snapshot);
-        if(status!=DBT_OK && status!=DBT_EMPTY)++avdtp_errors;
+        if(status!=DBT_OK && status!=DBT_EMPTY){
+            ++avdtp_errors;(void)dbt_a2dp_acceptor_retire(&acceptor,clock_ms);
+        }
         return;
     }
     if(avdtp_enabled)dbt_avdtp_bearer_event(&avdtp_bearers[peer==&peers[1]],kind,snapshot);
@@ -398,6 +400,49 @@ EXPORT int test_a2dp_acceptor_admission_routing_and_retirement(void){
     CHECK(acceptor_steps(60,false) && acceptor.active && acceptor.draining && sink_job_pending && acceptor.sink.retiring);
     CHECK(!dbt_a2dp_acceptor_accept(&acceptor,&peers[1].runtime.acl.links[0]));
     CHECK(acceptor_steps(3,true) && !acceptor.active && dbt_a2dp_acceptor_stop(&acceptor,clock_ms)==DBT_OK);
+    for(unsigned i=0;i<2;++i)CHECK(peers[i].allocated==peers[i].released && !peers[i].integrity_errors);
+    acceptor_enabled=avdtp_enabled=false;return 0;
+}
+EXPORT int test_a2dp_acceptor_abrupt_close_and_readmission(void){
+    int result=acceptor_fixture();if(result)return result;
+    uint8_t configuration[]={4,8,1,0,7,6,0,0,0x21,0x15,2,53,8,0},label=0,seid=4;
+    CHECK(dbt_avdtp_command(&avdtp_signals[0],3,configuration,sizeof(configuration),clock_ms,&label)==DBT_OK);
+    CHECK(acceptor_steps(20,true) && acceptor.sink.state==DBT_STREAM_CONFIGURED);
+    CHECK(dbt_avdtp_command(&avdtp_signals[0],6,&seid,1,clock_ms,&label)==DBT_OK);
+    CHECK(acceptor_steps(20,true) && acceptor.sink.state==DBT_STREAM_OPEN);
+    uint16_t cid=0;CHECK(dbt_channels_open(&peers[0].runtime.channels,1,0x19,672,335,DBT_SECURITY_ENCRYPTED,clock_ms,&cid)==DBT_OK);
+    CHECK(acceptor_steps(40,true) && acceptor.media.serial);
+    uint32_t old=acceptor.signaling.serial;
+    /* Ordinary device disconnect may close media without an AVDTP Close. The
+     * error callback requests retirement without mutating channels recursively. */
+    CHECK(dbt_channels_close(&peers[0].runtime.channels,1,cid,clock_ms)==DBT_OK);
+    CHECK(acceptor_steps(60,false) && avdtp_errors==1 && acceptor.active && acceptor.draining);
+    CHECK(acceptor.enabled && sink_job_pending && acceptor.sink.retiring);
+    CHECK(!dbt_a2dp_acceptor_accept(&acceptor,&peers[1].runtime.acl.links[0]));
+    CHECK(acceptor_steps(10,true) && !acceptor.active && !acceptor.draining && acceptor.enabled);
+    CHECK(dbt_a2dp_acceptor_retire(&acceptor,clock_ms)==DBT_OK);
+    CHECK(dbt_a2dp_acceptor_accept(&acceptor,&peers[1].runtime.acl.links[0]));
+    CHECK(dbt_channels_open(&peers[0].runtime.channels,1,0x19,672,335,DBT_SECURITY_ENCRYPTED,clock_ms,&cid)==DBT_OK);
+    CHECK(acceptor_steps(50,true) && acceptor.active && acceptor.signaling.serial!=old);
+    CHECK(acceptor.sink.state==DBT_STREAM_IDLE && avdtp_errors==1);
+    CHECK(dbt_a2dp_acceptor_retire(&acceptor,clock_ms)==DBT_BUSY);
+    CHECK(acceptor_steps(50,true) && !acceptor.active && !acceptor.draining && acceptor.enabled);
+    CHECK(dbt_a2dp_acceptor_stop(&acceptor,clock_ms)==DBT_OK && !acceptor.enabled);
+    CHECK(!dbt_a2dp_acceptor_accept(&acceptor,&peers[1].runtime.acl.links[0]));
+    for(unsigned i=0;i<2;++i)CHECK(peers[i].allocated==peers[i].released && !peers[i].integrity_errors);
+    acceptor_enabled=avdtp_enabled=false;return 0;
+}
+EXPORT int test_a2dp_acceptor_configured_acl_loss(void){
+    int result=acceptor_fixture();if(result)return result;
+    uint8_t configuration[]={4,8,1,0,7,6,0,0,0x21,0x15,2,53,8,0},label=0;
+    CHECK(dbt_avdtp_command(&avdtp_signals[0],3,configuration,sizeof(configuration),clock_ms,&label)==DBT_OK);
+    CHECK(acceptor_steps(20,true) && acceptor.sink.state==DBT_STREAM_CONFIGURED);
+    uint8_t removed[]={0,1,0,0x13};
+    CHECK(event(&peers[0],5,removed,sizeof(removed))==DBT_OK);
+    CHECK(event(&peers[1],5,removed,sizeof(removed))==DBT_OK);
+    CHECK(acceptor_steps(50,false) && acceptor.active && acceptor.draining && sink_job_pending);
+    CHECK(acceptor_steps(20,true) && !acceptor.active && !acceptor.draining && acceptor.enabled);
+    CHECK(!avdtp_errors);
     for(unsigned i=0;i<2;++i)CHECK(peers[i].allocated==peers[i].released && !peers[i].integrity_errors);
     acceptor_enabled=avdtp_enabled=false;return 0;
 }

@@ -254,7 +254,8 @@ void app_main(void) {
                 dbt_runtime_abort(&runtime,DBT_FAULT_BAD_RESPONSE);
             else {
                 echo_initialized=true;
-                printf("{\"probe\":\"sdp_ready\",\"records\":2,\"metadata_bytes\":%u,\"audio_ready\":false}\n",probe_sdp_bytes());
+                printf("{\"probe\":\"sdp_ready\",\"records\":%u,\"metadata_bytes\":%u,\"audio_sink_advertised\":%s,\"audio_ready\":false}\n",
+                       probe_sdp_records(),probe_sdp_bytes(),probe_sdp_audio_sink()?"true":"false");
 #ifdef DBT_PROBE_INGRESS_TRACE
                 printf("{\"probe\":\"ingress_trace\",\"diagnostic_bytes\":%u,\"production_measurement\":false}\n",probe_ingress_bytes());
 #endif

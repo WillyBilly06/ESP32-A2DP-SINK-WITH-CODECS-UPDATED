@@ -94,6 +94,7 @@ for path in sorted(root.glob('tone_*.sbc')):
 report={'passed':True,'scope':'standalone SDK SBC codec + owned wrapper/media; no ESP32 timing/RF/I2S proof',
  'vectors':vectors,'address_undefined_sanitizers':True,'allocation_failure_retry':True,'reopen_without_two_workspaces':True,
  'worker_actual_pcm':True,'worker_start_stop_epoch':True,'worker_drop_releases_all':True,
+ 'worker_new_binding_after_close_abort_and_oom':True,
  'worker_two_threads_packets_per_vector':500,'thread_sanitizer':True}
 (root/'results.json').write_text(json.dumps(report,indent=2)+'\n')
 print(json.dumps(report,indent=2))

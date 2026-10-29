@@ -121,6 +121,38 @@ int probe_worker(const uint8_t *cie,const uint8_t *frame,unsigned size,int16_t *
     if(dbt_sbc_worker_media(&worker,&media)!=DBT_BUSY)return 38;
     (void)dbt_sbc_worker_step(&worker,2,2);
     if(live || dbt_sbc_worker_receipt(&worker,&receipt)!=DBT_OK || receipt.token!=5 || receipt.result!=DBT_SINK_WORK_READY)return 39;
+    for(unsigned termination=0;termination<2;++termination){
+        job.binding+=1;job.token+=1;job.operation=DBT_SINK_CONFIGURE;
+        if(dbt_sbc_worker_submit(&worker,&job)!=DBT_OK)return 40;
+        (void)dbt_sbc_worker_step(&worker,3,2);
+        if(dbt_sbc_worker_receipt(&worker,&receipt)!=DBT_OK || receipt.result!=DBT_SINK_WORK_READY)return 41;
+        job.token+=1;job.operation=termination?DBT_SINK_ABORT:DBT_SINK_CLOSE;
+        if(dbt_sbc_worker_submit(&worker,&job)!=DBT_OK)return 42;
+        (void)dbt_sbc_worker_step(&worker,4,2);
+        if(live || dbt_sbc_worker_receipt(&worker,&receipt)!=DBT_OK || receipt.result!=DBT_SINK_WORK_READY)return 43;
+        /* A completed Close/Abort owns no resources and the sink will not send
+         * DROP. A new signaling binding must be able to configure a decoder. */
+        job.binding+=1;job.token+=1;job.operation=DBT_SINK_CONFIGURE;
+        if(dbt_sbc_worker_submit(&worker,&job)!=DBT_OK)return 44;
+        (void)dbt_sbc_worker_step(&worker,5,2);
+        if(dbt_sbc_worker_receipt(&worker,&receipt)!=DBT_OK || receipt.result!=DBT_SINK_WORK_READY || !live)return 45;
+        job.token+=1;job.operation=DBT_SINK_DROP;
+        if(dbt_sbc_worker_submit(&worker,&job)!=DBT_OK)return 46;
+        (void)dbt_sbc_worker_step(&worker,6,2);
+        if(live || dbt_sbc_worker_receipt(&worker,&receipt)!=DBT_OK || receipt.result!=DBT_SINK_WORK_READY)return 47;
+    }
+    job.binding+=1;job.token+=1;job.operation=DBT_SINK_CONFIGURE;fail_next=1;
+    if(dbt_sbc_worker_submit(&worker,&job)!=DBT_OK)return 48;
+    (void)dbt_sbc_worker_step(&worker,7,2);
+    if(live || dbt_sbc_worker_receipt(&worker,&receipt)!=DBT_OK || receipt.result!=DBT_SINK_WORK_REJECTED)return 49;
+    job.binding+=1;job.token+=1;
+    if(dbt_sbc_worker_submit(&worker,&job)!=DBT_OK)return 50;
+    (void)dbt_sbc_worker_step(&worker,8,2);
+    if(dbt_sbc_worker_receipt(&worker,&receipt)!=DBT_OK || receipt.result!=DBT_SINK_WORK_READY || !live)return 51;
+    job.token+=1;job.operation=DBT_SINK_DROP;
+    if(dbt_sbc_worker_submit(&worker,&job)!=DBT_OK)return 52;
+    (void)dbt_sbc_worker_step(&worker,9,2);
+    if(live || dbt_sbc_worker_receipt(&worker,&receipt)!=DBT_OK || receipt.result!=DBT_SINK_WORK_READY)return 53;
     return 0;
 }
 #ifdef SBC_THREAD_TEST

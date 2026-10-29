@@ -35,11 +35,12 @@ it does not publish or replace the locally modified Bluedroid audio application.
 | GAP | Event masks, LE host support, local name/class, SSP enable, legacy advertising parameters/data/scan response; explicit Classic scan and LE advertising controls | Incoming Classic policy hook; security requests default to negative replies without a security owner. BLE bonding/privacy and initiator procedures pending |
 | Classic security | Owned SSP/PIN/passkey/OOB policy, key lifecycle, encryption/key-size qualification, asynchronous durable store/delete and pending L2CAP security; live Just Works pairing and encrypted 16-byte-key channel passed | Linux diagnostic bond later disappeared; durable reconnect interoperability and other pairing methods need qualification. BLE SMP remains pending |
 | ATT/GATT server | Owned LE ATT server and runtime bridge; discovery, reads/blobs/multiple, MTU 517, writes/commands, prepare/execute/cancel, per-client CCCDs, security policy, notify/indicate, deferred worker completion | Product command/OTA binding, real security/bond store, GATT client/EATT/signed writes/robust caching pending |
-| SDP server | Immutable flash database, UUID aliases, all three server transactions, bounded continuation, streaming response slices and lazy runtime bridge; Linux verifier and BlueZ sdptool passed | SDP client and audio service records pending; discovery does not implement the advertised product profiles |
-| AVDTP sink/control | Owned signaling/sink, encrypted PSM/media manager, SBC configuration/frame validation and actual lazy decoder worker. ESP32 diagnostic decoded 8000 frames while kernel ATT traffic stayed active | PCM counter consumer only; no Audio Sink SDP/I2S/Firefox/acoustic qualification. Other codec workers and product integration pending |
-| Tests | 136 groups pass on Windows/Linux, including 10,240 generated ATT inputs, 8192 generated SDP inputs, security/key lifecycle, receive-credit/SCO, SBC CRC/fragment and acceptor/runtime tests plus 20,000 concurrent FIFO packets; Linux ASan/UBSan passes | Host behavior and memory safety; separate finite RF evidence |
+| SDP server | Immutable flash database, UUID aliases, all three server transactions, bounded continuation, streaming response slices and lazy runtime bridge; Linux verifier and BlueZ sdptool passed. Audio Sink record is enabled only with the experimental native I2S output build | SDP client and ordinary Linux audio discovery/playback qualification pending |
+| AVDTP sink/control | Owned signaling/sink, encrypted PSM/media manager, SBC validation and actual lazy decoder worker. Raw RF/I2S diagnostic decoded 8000 frames during ATT traffic; ordinary BlueZ negotiation and two profile sessions separated by disconnect passed | Firefox media observed, but its overall run failed on host malformed-packet/shutdown handling. Other codec workers and product integration pending |
+| Tests | 144 groups pass on Windows/Linux, including 10,240 generated ATT inputs, 8192 generated SDP inputs, security/key lifecycle, receive-credit/SCO, SBC CRC/fragment, session retirement/ACL loss and integer audio tests plus 20,000 concurrent FIFO packets; Linux ASan/UBSan and TSan pass, including 16,384 frames through three concurrent audio owners | Host behavior and memory safety; separate finite RF evidence |
 | SBC decoder/worker | Actual 44.1/48 kHz mono/stereo frames produce PCM identical to the standalone reference; fragments, OOM/retry and no-overlap reopen pass. ASan/UBSan and TSan pass; actual two-thread worker processes 500 packets per vector | SDK codec only, owned wrapper/scheduler; full application output/timing and broad SBC conformance pending |
 | Integer DSP | Flash coefficient tables for 13 rates; Q4.28 coefficients/Q5.27 headroom, fractional error carry, 20 ms ramps, render-owned histories, atomic controls | Embedded CPU and audible tests pending |
+| Native DSP/I2S candidate | Active-only PCM/output rings; render-owned integer DSP, fractional clock adjustment and stop fade. Firefox played via ordinary PipeWire joint-stereo SBC during 22.119 s / 184 ATT writes/notifications; 8910 decoded frames, zero recorded decoder drops, output underruns or descriptor errors | Overall Firefox run FAILED: native BAD_PACKET fault and disconnect timeout. Exact fault time relative to overlap is not established. Acoustics, physical NVS stress and product handoff unqualified; see AUDIO_OUTPUT.md |
 | DSP numerical tests | 36 cases at 44.1/48/96/192 kHz; max magnitude error ~0.00000145 dB against the coefficient response; native state 1128 bytes | Not ESP32 timing or acoustic proof |
 | C++ integration | Actual DSP/storage headers: normal, ASan/UBSan and ThreadSanitizer pass with concurrent control/render/meter requests | NVS is mocked; no physical power-loss test |
 | EQ persistence | Immediate single packed tuple write + commit; legacy-key load fallback; write/commit failures tested; latest app builds | Physical flash/power-loss tests pending |
@@ -60,7 +61,7 @@ measurements of the selected path, not total codec RAM or embedded performance.
 GAP initiator/discovery procedures and recovery; broader receive-flow interoperability;
 L2CAP modes beyond Basic; further Classic security interoperability and BLE SMP/bonding/privacy;
 product ATT/GATT integration, GATT client/advanced features; SDP client;
-DSP/I2S application handoff, honest audio SDP/delay integration, remaining codec negotiation and A2DP/AVRCP parity; remaining profiles; complete app migration; sustained Classic/BLE
+product DSP/I2S/service handoff and measured delay, remaining codec negotiation and A2DP/AVRCP parity; remaining profiles; complete app migration; sustained Classic/BLE
 hardware validation; equivalent-feature memory/CPU/latency comparisons.
 
 AAC and Opus lifetime changes are implemented with native PCM/allocation checks;
@@ -70,9 +71,13 @@ fragmented stream, and frees it on unfragmented input/reconfiguration/cleanup.
 SBC now has lazy negotiated-channel state and actual PCM/allocation checks; further
 SBC CPU/conformance work and LDAC/aptX optimization/benchmarks remain pending.
 
-Immediate NVS remains mandatory. I2S DMA is currently 3 x 128 stereo frames and
-the I2S ISR IRAM-safe option is disabled. Flash/cache interruption is a separate
-unverified audio risk; a filter transition test does not prove it fixed.
+Immediate NVS remains mandatory. The baseline app has 3 x 128 stereo DMA frames
+and its I2S ISR IRAM-safe option is disabled. The new native output candidate
+requires IRAM-safe I2S and copies already rendered internal-SRAM samples in the
+ISR; its owned ISR roots/direct references passed a linked-address audit. It
+buffers approximately 64 ms before DMA, allocating only for the active stream.
+Physical flash/cache interruption remains unverified; the address audit and
+filter transition tests do not prove continuous output during an NVS commit.
 
 ## Hardware and Linux
 

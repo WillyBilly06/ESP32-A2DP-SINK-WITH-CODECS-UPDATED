@@ -4,7 +4,11 @@ static dbt_sdp_t server;
 static dbt_sdp_bearer_t bearer;
 static const uint8_t server_class[] = {0x35, 3, 0x19, 0x10, 0};
 static const uint8_t versions[] = {0x35, 3, 9, 1, 0};
+#ifdef DBT_PROBE_AUDIO_OUTPUT
+static const uint8_t state[] = {10, 0, 0, 0, 2};
+#else
 static const uint8_t state[] = {10, 0, 0, 0, 1};
+#endif
 static const dbt_sdp_attribute_t server_attributes[] = {{1, sizeof(server_class), server_class},
                                                         {0x200, sizeof(versions), versions},
                                                         {0x201, sizeof(state), state}};
@@ -22,12 +26,27 @@ static const dbt_sdp_attribute_t echo_attributes[] = {{1, sizeof(echo_class), ec
                                                       {5, sizeof(browse), browse},
                                                       {6, sizeof(language), language},
                                                       {0x100, sizeof(name), name}};
+#ifdef DBT_PROBE_AUDIO_OUTPUT
+static const uint8_t sink_class[]={0x35,3,0x19,0x11,0x0b};
+static const uint8_t sink_protocol[]={0x35,16,0x35,6,0x19,1,0,9,0,0x19,0x35,6,0x19,0,0x19,9,1,3};
+static const uint8_t sink_profile[]={0x35,8,0x35,6,0x19,0x11,0x0d,9,1,3};
+static const uint8_t sink_features[]={9,0,2};
+static const uint8_t sink_name[]="\x25\x12" "Native SBC Speaker";
+static const dbt_sdp_attribute_t sink_attributes[]={
+    {1,sizeof(sink_class),sink_class},{4,sizeof(sink_protocol),sink_protocol},{5,sizeof(browse),browse},
+    {6,sizeof(language),language},{9,sizeof(sink_profile),sink_profile},{0x100,sizeof(sink_name)-1,sink_name},
+    {0x311,sizeof(sink_features),sink_features}};
+#endif
 static const dbt_sdp_record_t records[] = {
     {0, server_attributes, sizeof(server_attributes) / sizeof(server_attributes[0])},
-    {0x10000, echo_attributes, sizeof(echo_attributes) / sizeof(echo_attributes[0])}};
+    {0x10000, echo_attributes, sizeof(echo_attributes) / sizeof(echo_attributes[0])},
+#ifdef DBT_PROBE_AUDIO_OUTPUT
+    {0x10001,sink_attributes,sizeof(sink_attributes)/sizeof(sink_attributes[0])}
+#endif
+};
 
 dbt_result_t probe_sdp_init(dbt_runtime_t *runtime) {
-    dbt_result_t result = dbt_sdp_init(&server, records, sizeof(records) / sizeof(records[0]), 1);
+    dbt_result_t result = dbt_sdp_init(&server, records, sizeof(records) / sizeof(records[0]), probe_sdp_audio_sink()?2:1);
     return result == DBT_OK ? dbt_sdp_bearer_init(&bearer, runtime, &server, 672) : result;
 }
 dbt_result_t probe_sdp_receive(const dbt_channel_t *channel, const uint8_t *data, uint16_t size) {
@@ -39,3 +58,11 @@ void probe_sdp_event(dbt_channel_event_t event, const dbt_channel_t *channel) {
 dbt_result_t probe_sdp_poll(void) { return dbt_sdp_bearer_poll(&bearer); }
 uint32_t probe_sdp_wait_ms(void) { return dbt_sdp_bearer_wait_ms(&bearer); }
 unsigned probe_sdp_bytes(void) { return sizeof(server) + sizeof(bearer); }
+unsigned probe_sdp_records(void){return sizeof(records)/sizeof(records[0]);}
+bool probe_sdp_audio_sink(void){
+#ifdef DBT_PROBE_AUDIO_OUTPUT
+    return true;
+#else
+    return false;
+#endif
+}

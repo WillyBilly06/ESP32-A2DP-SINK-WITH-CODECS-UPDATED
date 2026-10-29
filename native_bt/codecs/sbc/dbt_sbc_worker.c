@@ -97,7 +97,9 @@ static dbt_sink_work_result_t control(dbt_sbc_worker_t *w,const dbt_sbc_work_t *
     if(w->binding && w->binding!=job->binding)return DBT_SINK_WORK_FATAL;
     if(job->operation==DBT_SINK_DROP || job->operation==DBT_SINK_CLOSE || job->operation==DBT_SINK_ABORT){
         dbt_result_t stopped=w->hooks.stream?w->hooks.stream(w->hooks.decoder.context,false):DBT_OK;
-        clear(w);if(job->operation==DBT_SINK_DROP)w->binding=0;
+        /* Close/Abort release the decoder lease just like DROP. The sink does
+         * not schedule another DROP after their successful completion. */
+        clear(w);w->binding=0;
         return stopped==DBT_OK?DBT_SINK_WORK_READY:DBT_SINK_WORK_FATAL;
     }
     if(job->operation==DBT_SINK_CONFIGURE || job->operation==DBT_SINK_RECONFIGURE){
@@ -105,7 +107,7 @@ static dbt_sink_work_result_t control(dbt_sbc_worker_t *w,const dbt_sbc_work_t *
         clear(w);w->binding=job->binding;
         dbt_result_t result=construct(w,job->configuration);
         if(result!=DBT_OK){
-            if(!restore)return DBT_SINK_WORK_REJECTED;
+            if(!restore){w->binding=0;return DBT_SINK_WORK_REJECTED;}
             if(construct(w,old)!=DBT_OK)return DBT_SINK_WORK_FATAL;
         }
         dbt_sbc_media_hooks_t hooks={w,fragment_allocate,fragment_release,decode_frame};

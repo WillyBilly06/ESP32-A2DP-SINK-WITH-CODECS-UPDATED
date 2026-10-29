@@ -74,6 +74,10 @@ counters can lag that tuple during a packet; final idle observations are stable.
 
 ## Verified evidence
 
+The later experimental integer DSP/I2S candidate is documented separately in
+[AUDIO_OUTPUT.md](AUDIO_OUTPUT.md). The 136-group suite and counter-only RF run
+below describe the earlier checkpoint; the current portable suite has 142 groups.
+
 136 owned host groups pass on Windows/Linux, including Linux ASan/UBSan and
 20,000 concurrent ingress packets. Actual SBC tests use FFmpeg-generated tone
 frames at 44.1/48 kHz mono/stereo. Candidate PCM matches the standalone reference,
