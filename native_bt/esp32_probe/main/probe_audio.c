@@ -17,6 +17,7 @@ static TaskHandle_t owner,decoder_task,logger_task;
 static bool initialized,failed;
 static _Atomic uint32_t pcm_generation,pcm_frames,pcm_bytes,pcm_hash,pcm_rate,pcm_channels;
 static _Atomic uint32_t profile_snapshot,event_errors,last_channel_event,last_channel_result;
+static _Atomic uint32_t ignored_dynamic,oversized_dynamic;
 static const uint8_t capabilities[]={1,0,7,6,0,0,0x3f,0xff,2,53,8,0};
 static const dbt_avdtp_endpoint_t endpoint={capabilities,sizeof(capabilities),1,dbt_a2dp_sbc_validate};
 static uint32_t now_ms(void){return (uint32_t)(esp_timer_get_time()/1000);}
@@ -66,7 +67,7 @@ static void decode_loop(void *unused){
 }
 static void log_loop(void *unused){
     (void)unused;
-    uint32_t previous=UINT32_MAX,previous_errors=UINT32_MAX;
+    uint32_t previous=UINT32_MAX,previous_errors=UINT32_MAX,previous_ignored=UINT32_MAX,previous_oversized=UINT32_MAX;
     for(;;){
         vTaskDelay(pdMS_TO_TICKS(1000));
         uint32_t generation=atomic_load_explicit(&pcm_generation,memory_order_acquire);
@@ -80,12 +81,15 @@ static void log_loop(void *unused){
                ",\"resets\":%" PRIu32 ",\"resident\":%" PRIu32 ",\"i2s_output\":" AUDIO_OUTPUT_JSON "}\n",frames,bytes,hash,rate,channels,
                atomic_load(&worker.packets),atomic_load(&worker.media_drops),atomic_load(&worker.resets),atomic_load(&worker.resident_bytes));
         uint32_t snapshot=atomic_load(&profile_snapshot),errors=atomic_load(&event_errors);
-        if(snapshot!=previous || errors!=previous_errors){
+        uint32_t ignored=atomic_load(&ignored_dynamic),oversized=atomic_load(&oversized_dynamic);
+        if(snapshot!=previous || errors!=previous_errors || ignored!=previous_ignored || oversized!=previous_oversized){
             previous=snapshot;previous_errors=errors;
+            previous_ignored=ignored;previous_oversized=oversized;
             printf("{\"probe\":\"native_profile\",\"state\":%u,\"active\":%u,\"enabled\":%u,\"draining\":%u,"
-                   "\"event_errors\":%" PRIu32 ",\"last_event\":%" PRIu32 ",\"last_result\":%" PRIu32 ",\"detail\":%" PRIu32 "}\n",
+                   "\"event_errors\":%" PRIu32 ",\"last_event\":%" PRIu32 ",\"last_result\":%" PRIu32 ",\"detail\":%" PRIu32
+                   ",\"ignored_dynamic\":%" PRIu32 ",\"oversized_dynamic\":%" PRIu32 "}\n",
                    (unsigned)(snapshot&255u),(unsigned)((snapshot>>8)&1u),(unsigned)((snapshot>>9)&1u),
-                   (unsigned)((snapshot>>10)&1u),errors,atomic_load(&last_channel_event),atomic_load(&last_channel_result),snapshot>>11);
+                   (unsigned)((snapshot>>10)&1u),errors,atomic_load(&last_channel_event),atomic_load(&last_channel_result),snapshot>>11,ignored,oversized);
         }
 #ifdef DBT_PROBE_AUDIO_OUTPUT
         probe_output_stats_t stats;probe_output_stats(&stats);
@@ -142,6 +146,8 @@ void probe_audio_poll(uint32_t now){
         (void)dbt_a2dp_acceptor_complete(&profile,receipt.binding,receipt.token,receipt.result,now);
     if(failed)(void)dbt_a2dp_acceptor_stop(&profile,now);
     (void)dbt_a2dp_acceptor_poll(&profile,now);
+    atomic_store(&ignored_dynamic,profile.runtime->channels.ignored_dynamic_pdus);
+    atomic_store(&oversized_dynamic,profile.runtime->channels.oversized_dynamic_pdus);
     uint32_t staged=0;
     for(unsigned i=0;i<DBT_CHANNEL_LIMIT;++i){
         const dbt_channel_t *channel=&profile.runtime->channels.channels[i];

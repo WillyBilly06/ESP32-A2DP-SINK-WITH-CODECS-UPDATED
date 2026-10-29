@@ -4,6 +4,7 @@ import ctypes
 import hashlib
 import json
 import os
+import re
 from pathlib import Path
 import shutil
 import subprocess
@@ -91,15 +92,33 @@ TESTS = [
     "a2dp_acceptor_admission_routing_and_retirement",
     "a2dp_acceptor_abrupt_close_and_readmission",
     "a2dp_acceptor_configured_acl_loss",
+    "runtime_first_parser_failure_metadata",
+    "channels_late_data_and_reconfiguration",
+    "channels_response_cids_and_closed_disconnect",
+    "channels_oversized_signaling_request_identity", "channels_hinted_options_and_reconfig_tx",
+    "credit_receive_lazy_sdu_and_bounds", "credit_violations_oom_and_grant_admission",
+    "credit_generated_roundtrip_and_tx_backpressure",
+    "le_coc_signaling_validation_and_oom", "le_coc_security_and_key_size_qualification",
+    "le_coc_duplicate_grant_admission_and_deadline",
+    "le_coc_security_revoke_during_setup_and_open", "le_coc_grant_queue_backpressure",
+    "runtime_le_coc_segmented_bidirectional_and_stalls", "runtime_le_coc_classic_fairness_and_fault_isolation",
+    "runtime_le_coc_simultaneous_opens_and_cid_direction", "runtime_le_coc_abort_and_generation_cleanup",
     "audio_formats_match_integer_dsp_reference", "audio_whole_blocks_wrap_and_silence_accounting",
     "audio_oom_cleanup_and_control_snapshot", "audio_adaptive_fraction_bounds_and_clock_limit",
     "audio_consumer_fade_exact_duration_and_full_scale",
+    "aac_selection_and_endpoint_subset", "aac_latm_boundaries_and_transaction",
+    "codec_lazy_lifecycle_and_rollback", "codec_queue_gates_and_copy", "codec_reset_failure_stops_stream",
 ]
 
 
 def build(output):
+    exported = {name for path in (ROOT / "tests").glob("test_*.c")
+                for name in re.findall(r"EXPORT\s+int\s+test_(\w+)\s*\(\s*void\s*\)", path.read_text())}
+    if exported != set(TESTS):
+        raise RuntimeError(f"Test inventory mismatch: omitted={sorted(exported - set(TESTS))}, stale={sorted(set(TESTS) - exported)}")
     sources = sorted((ROOT / "src").glob("*.c")) + sorted((ROOT / "tests").glob("test_*.c"))
     sources += [ROOT.parent / "bt_audio_sink/main/dsp/fixed_dsp.c"]
+    sources += [ROOT / "codecs/common/dbt_codec.c", ROOT / "codecs/aac/dbt_aac_transport.c"]
     compiler = os.environ.get("CC") or shutil.which("clang") or shutil.which("cc")
     if not compiler and os.name == "nt":
         candidate = Path(os.environ["ProgramFiles"]) / "LLVM/bin/clang.exe"
@@ -108,7 +127,8 @@ def build(output):
     if not compiler:
         raise RuntimeError("Install a C11 compiler or set CC to its executable path")
     args = [compiler, "-std=c11", "-O2", "-Wall", "-Wextra", "-Werror", "-I", str(ROOT / "include"),
-            "-I", str(ROOT.parent / "bt_audio_sink/main/dsp")]
+            "-I", str(ROOT.parent / "bt_audio_sink/main/dsp"),
+            "-I", str(ROOT / "codecs/common"), "-I", str(ROOT / "codecs/aac")]
     if os.name == "nt":
         # No dependency on a Visual Studio installation or CRT startup code.
         args += ["-ffreestanding", "-fno-builtin", "-fno-stack-protector",
@@ -271,6 +291,7 @@ def main():
         "tests": results,
         "source_sha256": {str(Path(os.path.relpath(path, ROOT))): hashlib.sha256(path.read_bytes()).hexdigest()
                           for path in sources + sorted((ROOT / "include").glob("*.h")) +
+                          list((ROOT / "codecs/common").glob("*.h")) + list((ROOT / "codecs/aac").glob("*.h")) +
                           list((ROOT.parent / "bt_audio_sink/main/dsp").glob("fixed_dsp.*")) +
                           [ROOT.parent / "bt_audio_sink/main/dsp/fixed_dsp_tables.inc"]},
     }

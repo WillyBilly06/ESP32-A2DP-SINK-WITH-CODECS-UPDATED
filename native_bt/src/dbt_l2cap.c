@@ -122,6 +122,14 @@ dbt_result_t dbt_l2cap_tx_begin(dbt_l2cap_tx_t *tx, const dbt_link_t *link,
     tx->handle = link->handle;
     tx->cid = cid;
     tx->size = size;
+    tx->prefix_size=0;tx->prefix[0]=tx->prefix[1]=0;
+    return DBT_OK;
+}
+dbt_result_t dbt_l2cap_tx_begin_credit(dbt_l2cap_tx_t *tx,const dbt_link_t *link,
+    uint16_t cid,const uint8_t *data,uint16_t size,bool first,uint16_t sdu_length){
+    if(first && size>UINT16_MAX-2u)return DBT_INVALID;
+    dbt_result_t result=dbt_l2cap_tx_begin(tx,link,cid,data,size);if(result!=DBT_OK)return result;
+    if(first){tx->prefix[0]=(uint8_t)sdu_length;tx->prefix[1]=(uint8_t)(sdu_length>>8);tx->prefix_size=2;tx->size=(uint16_t)(size+2u);}
     return DBT_OK;
 }
 
@@ -149,7 +157,8 @@ dbt_result_t dbt_l2cap_tx_peek(dbt_l2cap_tx_t *tx, const dbt_acl_t *acl,
     uint8_t header[4] = {(uint8_t)tx->size, (uint8_t)(tx->size >> 8), (uint8_t)tx->cid, (uint8_t)(tx->cid >> 8)};
     for (uint32_t i = 0; i < payload; ++i) {
         uint32_t position = tx->cursor + i;
-        output[5u + i] = position < 4u ? header[position] : tx->data[position - 4u];
+        output[5u+i]=position<4u?header[position]:position<4u+tx->prefix_size?
+            tx->prefix[position-4u]:tx->data[position-4u-tx->prefix_size];
     }
     *written = (uint16_t)(5u + payload);
     tx->pending = (uint16_t)payload;

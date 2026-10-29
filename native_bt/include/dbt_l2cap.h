@@ -28,6 +28,7 @@ typedef struct {
     const uint8_t *data;
     uint32_t generation, cursor;
     uint16_t handle, cid, size, pending;
+    uint8_t prefix[2],prefix_size;
 } dbt_l2cap_tx_t;
 
 /* Basic PDU framing only. CID negotiation, signaling/security and channel modes
@@ -41,6 +42,9 @@ unsigned dbt_l2cap_expire(dbt_l2cap_rx_t *rx, uint32_t now_ms);
 void dbt_l2cap_rx_clear(dbt_l2cap_rx_t *rx);
 dbt_result_t dbt_l2cap_tx_begin(dbt_l2cap_tx_t *tx, const dbt_link_t *link,
                                uint16_t cid, const uint8_t *data, uint16_t size);
+/* Optional copied SDU-length prefix plus borrowed K-frame payload. */
+dbt_result_t dbt_l2cap_tx_begin_credit(dbt_l2cap_tx_t *tx,const dbt_link_t *link,
+    uint16_t cid,const uint8_t *data,uint16_t size,bool first,uint16_t sdu_length);
 /* Peek is repeatable under backpressure. Commit only after dbt_acl_submit OK. */
 dbt_result_t dbt_l2cap_tx_peek(dbt_l2cap_tx_t *tx, const dbt_acl_t *acl,
                               uint8_t *output, uint16_t capacity, uint16_t *written);

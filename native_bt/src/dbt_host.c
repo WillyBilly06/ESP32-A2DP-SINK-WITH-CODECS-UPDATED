@@ -230,7 +230,7 @@ uint16_t dbt_host_poll(dbt_host_t *host, uint32_t now_ms, uint16_t rx_budget) {
     }
     if(host->state == DBT_HOST_IDLE || host->state == DBT_HOST_FAILED)return 0;
     dbt_fault_t ingress_fault = (dbt_fault_t)atomic_load_explicit(&host->ingress_fault, memory_order_acquire);
-    if (ingress_fault != DBT_FAULT_NONE) { fail(host, ingress_fault); return 0; }
+    if (ingress_fault != DBT_FAULT_NONE) { host->fault_stage=1;fail(host, ingress_fault); return 0; }
     if (host->state == DBT_HOST_PROBING && due(now_ms, host->deadline_ms)) {
         fail(host, DBT_FAULT_TIMEOUT);
         return 0;
@@ -240,18 +240,26 @@ uint16_t dbt_host_poll(dbt_host_t *host, uint32_t now_ms, uint16_t rx_budget) {
         uint16_t size = 0;
         dbt_result_t result = dbt_queue_pop(&host->ingress, host->rx_packet, sizeof(host->rx_packet), &size);
         if (result == DBT_EMPTY) break;
-        if (result != DBT_OK) { fail(host, DBT_FAULT_BAD_PACKET); break; }
+        if (result != DBT_OK) { host->fault_stage=2;fail(host, DBT_FAULT_BAD_PACKET); break; }
         dbt_hci_packet_t packet;
         if (dbt_hci_decode(host->rx_packet, size, &packet) != DBT_OK) {
+            host->fault_stage=3;host->fault_packet_size=size;
+            host->fault_packet_type=size?host->rx_packet[0]:0;
+            host->fault_event=size>=2 && host->rx_packet[0]==DBT_H4_EVENT?host->rx_packet[1]:0;
             fail(host, DBT_FAULT_BAD_PACKET);
             break;
         }
         ++processed;
         ++host->packets_processed;
         if (packet.type == DBT_H4_EVENT) handle_event(host, &packet, now_ms);
+        bool event_failed=host->state==DBT_HOST_FAILED;
         if (host->observer != 0) host->observer(host->observer_context, &packet);
         if(sensitive(&packet))wipe(host->rx_packet,size);
-        if (host->state == DBT_HOST_FAILED) break;
+        if (host->state == DBT_HOST_FAILED){
+            host->fault_stage=event_failed?4:5;host->fault_packet_size=size;
+            host->fault_packet_type=packet.type;host->fault_event=packet.event;
+            break;
+        }
     }
     if (host->state == DBT_HOST_PROBING && host->pending_opcode == 0 &&
         host->command_credits != 0 && host->transport.can_send(host->transport.context)) {

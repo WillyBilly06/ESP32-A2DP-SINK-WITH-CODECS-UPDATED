@@ -321,6 +321,14 @@ void app_main(void) {
                        "\"pending_opcode\":%u,\"rx_rejected\":%" PRIu32 ",\"rx_flow_failed_opcode\":%u}\n",
                        (unsigned)host->fault, host->controller_status, host->pending_opcode,
                        atomic_load_explicit(&host->ingress.rejected, memory_order_relaxed),runtime.rx_flow.failed_opcode);
+                const dbt_runtime_failure_t *f=&runtime.failure;
+                printf("{\"probe\":\"parser_failure\",\"at_ms\":%" PRIu32 ",\"origin\":%u,\"result\":%u,"
+                       "\"handle\":%u,\"generation\":%" PRIu32 ",\"link_present\":%u,\"cid\":%u,\"bytes\":%u,\"declared\":%u,"
+                       "\"type\":%u,\"event\":%u,\"pb\":%u,\"bc\":%u,\"code\":%u,\"identifier\":%u,"
+                       "\"host_stage\":%u,\"host_packet_bytes\":%u,\"host_type\":%u,\"host_event\":%u}\n",
+                       f->at_ms,f->origin,f->result,f->handle,f->generation,(unsigned)f->link_present,f->cid,f->bytes,f->declared,
+                       f->packet_type,f->event,f->pb,f->bc,f->code,f->identifier,
+                       host->fault_stage,host->fault_packet_size,host->fault_packet_type,host->fault_event);
             }
         }
         if (gap.state != previous_gap) {

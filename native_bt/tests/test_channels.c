@@ -117,7 +117,8 @@ EXPORT int test_channels_outgoing_and_asymmetric_mtu(void) {
     CHECK(dbt_channels_prepare_data(&manager,1,local,body,1001,&tx)==DBT_NO_SPACE);
     CHECK(dbt_channels_receive(&manager,1,channel->link_generation,local,body,3)==DBT_OK);
     CHECK(data_calls==1 && data_cid==local && data_size==3 && received_data[2]==3);
-    CHECK(dbt_channels_receive(&manager,1,channel->link_generation,local,body,257)==DBT_INVALID);
+    CHECK(dbt_channels_receive(&manager,1,channel->link_generation,local,body,257)==DBT_OK);
+    CHECK(data_calls==1 && manager.oversized_dynamic_pdus==1);
     return 0;
 }
 
@@ -215,7 +216,7 @@ EXPORT int test_channels_timers_pending_and_unsent_responses(void) {
     fixture();CHECK(dbt_channels_open(&manager,1,0x19,256,48,DBT_SECURITY_NONE,0,&local)==DBT_OK);
     CHECK(dbt_channels_tx_peek(&manager,&view)==DBT_OK);uint8_t id=view.data[1];
     CHECK(dbt_channels_tx_commit(&manager,0)==DBT_OK);
-    uint8_t waiting[8]={0,0,0,0,1,0,1,0};
+    uint8_t waiting[8]={0,0,0,0,1,0,1,0};w16(waiting+2,local);
     CHECK(rx(1,1,3,id,waiting,8)==DBT_OK);dbt_channels_poll(&manager,1,32);
     for(uint32_t time=59000;time<=295000;time+=59000) {
         CHECK(rx(1,1,3,id,waiting,8)==DBT_OK);dbt_channels_poll(&manager,time,32);CHECK(failed==0);
@@ -306,6 +307,229 @@ EXPORT int test_channels_reconfiguration_and_disconnect(void) {
     return 0;
 }
 
+EXPORT int test_channels_late_data_and_reconfiguration(void){
+    fixture();uint16_t local=0;int result=open_channel(1,672,0x80,1000,&local);if(result)return result;
+    uint32_t generation=dbt_acl_find(&acl,1)->generation;
+    uint8_t media[608];for(unsigned i=0;i<sizeof(media);++i)media[i]=(uint8_t)i;
+    media[0]=0x80;media[1]=96;
+    CHECK(dbt_channels_receive(&manager,1,generation,local,media,sizeof(media))==DBT_OK && data_calls==1);
+    CHECK(dbt_channels_close(&manager,1,local,++now)==DBT_OK);
+    CHECK(dbt_channels_receive(&manager,1,generation,local,media,sizeof(media))==DBT_OK);
+    CHECK(data_calls==1 && manager.ignored_dynamic_pdus==1);
+    result=take(6);if(result)return result;uint8_t id=wire_id;result=commit();if(result)return result;
+    uint8_t response[4]={0x80,0,0,0};w16(response+2,local);
+    CHECK(rx(1,1,7,id,response,sizeof(response))==DBT_OK);poll();
+    CHECK(closed==1 && !dbt_channels_find(&manager,1,local));
+    CHECK(dbt_channels_receive(&manager,1,generation,local,media,sizeof(media))==DBT_OK);
+    CHECK(data_calls==1 && manager.ignored_dynamic_pdus==2);
+    CHECK(dbt_channels_receive(&manager,1,generation+1,local,media,sizeof(media))==DBT_INVALID);
+    fixture();result=open_channel(1,672,0x80,1000,&local);if(result)return result;
+    generation=dbt_acl_find(&acl,1)->generation;
+    uint8_t config[8]={0,0,0,0,1,2,0,2};w16(config,local);
+    CHECK(rx(1,1,4,44,config,sizeof(config))==DBT_OK);poll();
+    CHECK(dbt_channels_find(&manager,1,local)->state==DBT_CH_CONFIGURING);
+    CHECK(dbt_channels_receive(&manager,1,generation,local,media,sizeof(media))==DBT_OK && data_calls==1);
+    CHECK(dbt_channels_receive(&manager,1,generation,local,media,673)==DBT_OK);
+    CHECK(data_calls==1 && manager.ignored_dynamic_pdus==0 && manager.oversized_dynamic_pdus==1);
+    return 0;
+}
+EXPORT int test_channels_response_cids_and_closed_disconnect(void){
+    fixture();uint16_t local=0;
+    CHECK(dbt_channels_open(&manager,1,0x19,256,48,DBT_SECURITY_NONE,++now,&local)==DBT_OK);
+    int result=take(2);if(result)return result;uint8_t id=wire_id;result=commit();if(result)return result;
+    uint8_t response[8]={0x80,0,0,0,1,0,0,0};w16(response+2,local+1);
+    CHECK(rx(1,1,3,id,response,sizeof(response))==DBT_OK);poll();
+    const dbt_channel_t *channel=dbt_channels_find(&manager,1,local);
+    CHECK(channel && channel->pending_extended && manager.unknown_responses==0);
+    response[4]=2;CHECK(rx(1,1,3,id,response,sizeof(response))==DBT_OK);poll();
+    CHECK(!dbt_channels_find(&manager,1,local) && failed==1);
+    CHECK(dbt_channels_open(&manager,1,0x19,256,48,DBT_SECURITY_NONE,++now,&local)==DBT_OK);
+    result=take(2);if(result)return result;id=wire_id;result=commit();if(result)return result;
+    response[4]=0;w16(response+2,local+1);CHECK(rx(1,1,3,id,response,sizeof(response))==DBT_OK);poll();
+    CHECK(!dbt_channels_find(&manager,1,local) && failed==2 && last_reason==DBT_CH_REASON_PROTOCOL);
+    uint8_t closed_pair[4];w16(closed_pair,local);w16(closed_pair+2,0x80);
+    CHECK(rx(1,1,6,99,closed_pair,sizeof(closed_pair))==DBT_OK);poll();
+    result=take(7);if(result)return result;
+    CHECK(wire_id==99 && r16(wire+4)==local && r16(wire+6)==0x80);
+    result=commit();if(result)return result;
+    CHECK(!dbt_channels_find(&manager,1,local) && opened==0 && closed==0 && failed==2);
+    return 0;
+}
+EXPORT int test_channels_oversized_signaling_request_identity(void){
+    fixture();uint8_t body[48];for(unsigned i=0;i<sizeof(body);++i)body[i]=(uint8_t)i;
+    CHECK(rx(1,1,9,11,body,sizeof(body))==DBT_OK);poll();
+    dbt_signal_view_t view;CHECK(dbt_channels_tx_peek(&manager,&view)==DBT_EMPTY && !manager.rx_count && manager.oversized_signaling_pdus==1);
+    /* A recognized response precedes the first request in this oversized
+     * multi-command C-frame. Reject must echo the request's ID, not 11. */
+    command[0]=9;command[1]=11;w16(command+2,40);
+    for(unsigned i=0;i<40;++i)command[4+i]=0;
+    command[44]=8;command[45]=22;w16(command+46,4);for(unsigned i=48;i<52;++i)command[i]=0;
+    const dbt_link_t *link=dbt_acl_find(&acl,1);
+    CHECK(dbt_channels_receive(&manager,1,link->generation,1,command,52)==DBT_OK);poll();
+    int result=take(1);if(result)return result;
+    CHECK(wire_id==22 && r16(wire+4)==1 && r16(wire+6)==48 && manager.oversized_signaling_pdus==2);
+    result=commit();if(result)return result;CHECK(dbt_channels_tx_peek(&manager,&view)==DBT_EMPTY);return 0;
+}
+EXPORT int test_channels_hinted_options_and_reconfig_tx(void){
+    fixture();uint16_t local;int result=open_channel(1,256,0x80,1000,&local);if(result)return result;
+    uint8_t config[15]={0,0,0,0,0x84,9,3,1,1,0,0,0,0,0,0};w16(config,local);
+    CHECK(rx(1,1,4,55,config,sizeof(config))==DBT_OK);poll();result=take(5);if(result)return result;
+    CHECK(r16(wire+8)==0 && wire_size==14);
+    const dbt_channel_t *channel=dbt_channels_find(&manager,1,local);
+    CHECK(channel && channel->reconfiguring && channel->state==DBT_CH_CONFIGURING);
+    uint8_t bytes[2]={1,2};dbt_l2cap_tx_t tx;
+    CHECK(dbt_channels_prepare_data(&manager,1,local,bytes,2,&tx)==DBT_OK && tx.cid==0x80);
+    result=commit();if(result)return result;
+    /* Drain the locally generated configuration request before the next peer
+     * continuation; Basic data remains permitted in this state. */
+    result=take(4);if(result)return result;uint8_t id=wire_id;result=commit();if(result)return result;
+    uint8_t response[6]={0};w16(response,local);CHECK(rx(1,1,5,id,response,sizeof(response))==DBT_OK);poll();
+    CHECK(dbt_channels_find(&manager,1,local)->state==DBT_CH_OPEN);
+    uint8_t mtu_hint[8]={0,0,0,0,0x81,2,1,0};w16(mtu_hint,local);
+    CHECK(rx(1,1,4,56,mtu_hint,sizeof(mtu_hint))==DBT_OK);poll();result=take(5);if(result)return result;
+    CHECK(r16(wire+8)==0 && r16(wire+12)==1000);
+    /* Ignoring a hint does not waive the profile's independent minimum MTU.
+     * Its implied default 672 still needs adjustment for this service. */
+    fixture();dbt_service_t service={0x19,1000,1000,DBT_SECURITY_NONE};
+    CHECK(dbt_channels_register(&manager,service)==DBT_OK);
+    uint8_t incoming[4]={0x19,0,0x80,0};CHECK(rx(1,1,2,60,incoming,sizeof(incoming))==DBT_OK);poll();
+    result=take(3);if(result)return result;local=r16(wire+4);result=commit();if(result)return result;
+    result=take(4);if(result)return result;result=commit();if(result)return result;
+    w16(mtu_hint,local);CHECK(rx(1,1,4,61,mtu_hint,sizeof(mtu_hint))==DBT_OK);poll();result=take(5);if(result)return result;
+    CHECK(r16(wire+8)==1 && r16(wire+12)==1000);return 0;
+}
+static _Alignas(8) uint8_t le_storage[4][1032];
+static bool le_used[4],le_oom;
+static uint16_t le_sizes[4],le_policy;
+static unsigned le_allocated,le_released,le_errors,le_security_calls;
+static uint8_t *le_alloc(void *context,uint16_t size){
+    (void)context;if(le_oom || !size || size>1024)return 0;
+    for(unsigned i=0;i<4;++i)if(!le_used[i]){le_used[i]=true;le_sizes[i]=size;le_storage[i][size]=0xa5;++le_allocated;return le_storage[i];}
+    return 0;
+}
+static void le_free(void *context,uint8_t *bytes){
+    (void)context;for(unsigned i=0;i<4;++i){if(bytes==le_storage[i]){
+        if(!le_used[i] || le_storage[i][le_sizes[i]]!=0xa5)++le_errors;
+        le_used[i]=false;++le_released;return;
+    }}
+    ++le_errors;
+}
+static uint16_t qualify(void *context,const dbt_link_t *link,uint16_t spsm,dbt_security_t security,uint8_t minimum){
+    (void)context;(void)link;(void)spsm;(void)security;(void)minimum;++le_security_calls;return le_policy;
+}
+static void le_fixture(void){
+    fixture();for(unsigned i=0;i<4;++i)le_used[i]=false;
+    le_allocated=le_released=le_errors=le_security_calls=0;le_oom=false;le_policy=0;
+    manager.hooks.allocate=le_alloc;manager.hooks.release=le_free;
+}
+static dbt_result_t le_request(uint8_t id,uint16_t spsm,uint16_t cid,uint16_t mtu,uint16_t mps,uint16_t credits){
+    uint8_t body[10];w16(body,spsm);w16(body+2,cid);w16(body+4,mtu);w16(body+6,mps);w16(body+8,credits);
+    return rx(3,5,0x14,id,body,sizeof(body));
+}
+EXPORT int test_le_coc_signaling_validation_and_oom(void){
+    const dbt_le_service_t s={128,{1000,27,1},DBT_SECURITY_NONE,0};
+    le_fixture();CHECK(dbt_channels_register_le(&manager,&s,1)==DBT_OK && !le_allocated);
+    const uint16_t cases[][5]={{129,0x60,100,23,2},{128,0x80,100,23,9},{128,0x60,22,23,11},{128,0x60,100,22,11},{128,0x60,100,65534,11}};
+    for(unsigned i=0;i<sizeof(cases)/sizeof(cases[0]);++i){
+        CHECK(le_request((uint8_t)(20u+i),cases[i][0],cases[i][1],cases[i][2],cases[i][3],1)==DBT_OK);poll();
+        int result=take(0x15);if(result)return result;CHECK(wire_size==14 && r16(wire+12)==cases[i][4] && r16(wire+4)==0);
+        result=commit();if(result)return result;CHECK(!le_allocated && !opened);
+    }
+    le_oom=true;CHECK(le_request(30,128,0x60,100,23,1)==DBT_OK);poll();int result=take(0x15);if(result)return result;
+    CHECK(r16(wire+12)==4 && !dbt_channels_find(&manager,3,0x40));result=commit();if(result)return result;
+    le_oom=false;CHECK(le_request(31,128,0x60,100,23,1)==DBT_OK);poll();result=take(0x15);if(result)return result;
+    CHECK(r16(wire+12)==0 && !opened && le_allocated==1);uint16_t cid=r16(wire+4);
+    uint8_t sdu[]={1,0,42};const dbt_link_t *link=dbt_acl_find(&acl,3);
+    CHECK(dbt_channels_receive(&manager,3,link->generation,cid,sdu,sizeof(sdu))==DBT_OK && !data_calls);
+    result=commit();if(result)return result;CHECK(opened==1);
+    CHECK(le_request(32,128,0x60,100,23,1)==DBT_OK);poll();result=take(0x15);if(result)return result;CHECK(r16(wire+12)==10);result=commit();if(result)return result;
+    dbt_channels_clear(&manager);CHECK(le_allocated==le_released && !le_errors);return 0;
+}
+EXPORT int test_le_coc_security_and_key_size_qualification(void){
+    const dbt_le_service_t s={128,{1000,27,1},DBT_SECURITY_AUTHENTICATED,16};
+    le_fixture();CHECK(dbt_channels_register_le(&manager,&s,1)==DBT_OK);
+    CHECK(le_request(40,128,0x60,100,23,1)==DBT_OK);poll();int result=take(0x15);if(result)return result;
+    CHECK(r16(wire+12)==8 && !le_allocated);result=commit();if(result)return result;
+    dbt_link_change_t change;uint8_t cipher[]={0,3,0,1};CHECK(link_event(8,cipher,sizeof(cipher),&change)==DBT_OK);
+    CHECK(le_request(41,128,0x60,100,23,1)==DBT_OK);poll();result=take(0x15);if(result)return result;CHECK(r16(wire+12)==5);result=commit();if(result)return result;
+    manager.hooks.le_security=qualify;
+    for(unsigned code=5;code<=8;++code){le_policy=(uint16_t)code;CHECK(le_request((uint8_t)(42u+code),128,0x60,100,23,1)==DBT_OK);poll();
+        result=take(0x15);if(result)return result;CHECK(r16(wire+12)==code && !le_allocated);result=commit();if(result)return result;}
+    le_policy=0;permit=false;CHECK(le_request(51,128,0x60,100,23,1)==DBT_OK);poll();result=take(0x15);if(result)return result;
+    CHECK(r16(wire+12)==6 && !le_allocated);result=commit();if(result)return result;
+    permit=true;CHECK(le_request(52,128,0x60,100,23,1)==DBT_OK);poll();result=take(0x15);if(result)return result;
+    CHECK(r16(wire+12)==0 && !opened);result=commit();if(result)return result;CHECK(opened==1 && le_security_calls>=6);
+    dbt_channels_clear(&manager);CHECK(le_allocated==le_released && !le_errors);return 0;
+}
+EXPORT int test_le_coc_duplicate_grant_admission_and_deadline(void){
+    const dbt_le_service_t s={128,{1000,27,1},DBT_SECURITY_NONE,0};
+    le_fixture();CHECK(dbt_channels_register_le(&manager,&s,1)==DBT_OK);
+    CHECK(le_request(60,128,0x60,100,23,1)==DBT_OK);poll();
+    CHECK(le_request(60,128,0x60,100,23,1)==DBT_OK);poll();
+    int result=take(0x15);if(result)return result;uint16_t cid=r16(wire+4);result=commit();if(result)return result;
+    const dbt_link_t *link=dbt_acl_find(&acl,3);uint8_t data_packet[]={1,0,77};
+    CHECK(dbt_channels_receive(&manager,3,link->generation,cid,data_packet,sizeof(data_packet))==DBT_OK && data_calls==1);
+    result=take(0x15);if(result)return result;result=commit();if(result)return result;CHECK(opened==1 && le_allocated==1);
+    /* Replayed success must not grant the initial receive credit again. */
+    CHECK(dbt_channels_receive(&manager,3,link->generation,cid,data_packet,sizeof(data_packet))==DBT_OK && data_calls==1);
+    CHECK(dbt_channels_find(&manager,3,cid)->state==DBT_CH_DISCONNECTING);dbt_channels_clear(&manager);
+    CHECK(le_allocated==le_released && !le_errors);
+    le_fixture();CHECK(dbt_channels_register_le(&manager,&s,1)==DBT_OK);
+    CHECK(le_request(61,128,0x60,100,23,1)==DBT_OK);poll();result=take(0x15);if(result)return result;cid=r16(wire+4);result=commit();if(result)return result;
+    link=dbt_acl_find(&acl,3);CHECK(dbt_channels_receive(&manager,3,link->generation,cid,data_packet,sizeof(data_packet))==DBT_OK);
+    CHECK(dbt_channels_grant_le(&manager,3,cid,1)==DBT_OK && dbt_channels_grant_le(&manager,3,cid,1)==DBT_BUSY);
+    /* The staged grant is not usable until its whole indication is admitted. */
+    CHECK(dbt_channels_receive(&manager,3,link->generation,cid,data_packet,sizeof(data_packet))==DBT_OK && data_calls==1);
+    dbt_channels_clear(&manager);CHECK(le_allocated==le_released);
+    le_fixture();CHECK(dbt_channels_open_le(&manager,3,&s,now,&cid)==DBT_OK);result=take(0x14);if(result)return result;
+    CHECK(wire_size==14 && r16(wire+4)==128 && r16(wire+6)==cid);result=commit();if(result)return result;
+    now+=1001;dbt_channels_poll(&manager,now,4);
+    CHECK(!dbt_channels_find(&manager,3,cid) && failed==1 && le_allocated==le_released && !le_errors);return 0;
+}
+EXPORT int test_le_coc_security_revoke_during_setup_and_open(void){
+    const dbt_le_service_t service={128,{1000,27,1},DBT_SECURITY_AUTHENTICATED,16};
+    le_fixture();manager.hooks.le_security=qualify;
+    dbt_link_change_t change;uint8_t cipher[]={0,3,0,1};CHECK(link_event(8,cipher,sizeof(cipher),&change)==DBT_OK);
+    CHECK(dbt_channels_register_le(&manager,&service,1)==DBT_OK);
+    CHECK(le_request(80,128,0x60,100,23,1)==DBT_OK);poll();int result=take(0x15);if(result)return result;
+    uint16_t cid=r16(wire+4);CHECK(!r16(wire+12) && !opened);
+    le_policy=7;result=commit();if(result)return result;
+    CHECK(!opened && dbt_channels_find(&manager,3,cid)->state==DBT_CH_DISCONNECTING);
+    result=take(6);if(result)return result;uint8_t id=wire_id;result=commit();if(result)return result;
+    uint8_t response[4];w16(response,0x60);w16(response+2,cid);CHECK(rx(3,5,7,id,response,4)==DBT_OK);poll();
+    CHECK(failed==1 && !opened && le_allocated==le_released);
+    le_fixture();manager.hooks.le_security=qualify;CHECK(link_event(8,cipher,sizeof(cipher),&change)==DBT_OK);
+    CHECK(dbt_channels_register_le(&manager,&service,1)==DBT_OK);
+    CHECK(le_request(81,128,0x60,100,23,1)==DBT_OK);poll();result=take(0x15);if(result)return result;cid=r16(wire+4);
+    result=commit();if(result)return result;CHECK(opened==1);
+    cipher[3]=0;CHECK(link_event(8,cipher,sizeof(cipher),&change)==DBT_OK);poll();
+    CHECK(dbt_channels_find(&manager,3,cid)->state==DBT_CH_DISCONNECTING && !closed);
+    result=take(6);if(result)return result;id=wire_id;result=commit();if(result)return result;
+    w16(response+2,cid);CHECK(rx(3,5,7,id,response,4)==DBT_OK);poll();
+    CHECK(closed==1 && le_allocated==le_released && !le_errors);
+    le_fixture();manager.hooks.le_security=qualify;cipher[3]=1;CHECK(link_event(8,cipher,sizeof(cipher),&change)==DBT_OK);
+    CHECK(dbt_channels_open_le(&manager,3,&service,now,&cid)==DBT_OK);result=take(0x14);if(result)return result;
+    id=wire_id;result=commit();if(result)return result;le_policy=7;
+    uint8_t success[10]={0x60,0,100,0,23,0,1,0,0,0};CHECK(rx(3,5,0x15,id,success,10)==DBT_OK);poll();
+    CHECK(!opened && dbt_channels_find(&manager,3,cid)->state==DBT_CH_DISCONNECTING);
+    dbt_channels_clear(&manager);CHECK(le_allocated==le_released && !le_errors);return 0;
+}
+EXPORT int test_le_coc_grant_queue_backpressure(void){
+    const dbt_le_service_t service={128,{1000,27,1},DBT_SECURITY_NONE,0};
+    le_fixture();CHECK(dbt_channels_register_le(&manager,&service,1)==DBT_OK);
+    CHECK(le_request(90,128,0x60,100,23,1)==DBT_OK);poll();int result=take(0x15);if(result)return result;
+    uint16_t cid=r16(wire+4);result=commit();if(result)return result;
+    const dbt_link_t *link=dbt_acl_find(&acl,3);uint8_t whole[]={1,0,55};
+    CHECK(dbt_channels_receive(&manager,3,link->generation,cid,whole,sizeof(whole))==DBT_OK && data_calls==1);
+    for(unsigned i=0;i<DBT_SIGNAL_TX_SLOTS;++i){CHECK(rx(1,1,8,(uint8_t)(100u+i),0,0)==DBT_OK);poll();}
+    CHECK(dbt_channels_grant_le(&manager,3,cid,1)==DBT_BUSY);
+    for(unsigned i=0;i<DBT_SIGNAL_TX_SLOTS;++i){result=take(9);if(result)return result;result=commit();if(result)return result;}
+    CHECK(dbt_channels_grant_le(&manager,3,cid,1)==DBT_OK);result=take(0x16);if(result)return result;
+    CHECK(r16(wire+4)==cid && r16(wire+6)==1);result=commit();if(result)return result;
+    CHECK(dbt_channels_receive(&manager,3,link->generation,cid,whole,sizeof(whole))==DBT_OK && data_calls==2);
+    CHECK(dbt_channels_find(&manager,3,cid)->state==DBT_CH_OPEN);
+    dbt_channels_clear(&manager);CHECK(le_allocated==le_released && !le_errors);return 0;
+}
 EXPORT uint32_t test_channels_bytes(void) {return sizeof(manager);}
 
 EXPORT int test_channels_limits_ids_and_protocol_rejections(void) {
@@ -314,7 +538,7 @@ EXPORT int test_channels_limits_ids_and_protocol_rejections(void) {
         CHECK(dbt_channels_open(&manager,1,0x19,256,48,DBT_SECURITY_NONE,++now,&local)==DBT_OK);
         int result=take(2);if(result)return result;CHECK(wire_id!=0 && wire_id!=previous);previous=wire_id;
         result=commit();if(result)return result;
-        uint8_t refused[8]={0,0,0,0,2,0,0,0};
+        uint8_t refused[8]={0,0,0,0,2,0,0,0};w16(refused+2,local);
         CHECK(rx(1,1,3,previous,refused,8)==DBT_OK);poll();CHECK(dbt_channels_find(&manager,1,local)==0);
     }
     CHECK(failed==270);
@@ -350,7 +574,7 @@ EXPORT int test_channels_timer_wrap_and_late_pending_bound(void) {
     fixture();CHECK(dbt_channels_open(&manager,1,0x19,256,48,DBT_SECURITY_NONE,0,&local)==DBT_OK);
     CHECK(dbt_channels_tx_peek(&manager,&view)==DBT_OK);id=view.data[1];
     CHECK(dbt_channels_tx_commit(&manager,0)==DBT_OK);
-    uint8_t waiting[8]={0,0,0,0,1,0,0,0};
+    uint8_t waiting[8]={0,0,0,0,1,0,0,0};w16(waiting+2,local);
     CHECK(rx(1,1,3,id,waiting,8)==DBT_OK);dbt_channels_poll(&manager,1,32);
     CHECK(rx(1,1,3,id,waiting,8)==DBT_OK);dbt_channels_poll(&manager,300001,32);
     CHECK(failed==1 && dbt_channels_find(&manager,1,local)==0);

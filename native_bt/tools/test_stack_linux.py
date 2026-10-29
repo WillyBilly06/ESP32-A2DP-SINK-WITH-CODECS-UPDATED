@@ -93,8 +93,9 @@ main='#include <stdio.h>\n#include <pthread.h>\n#include <sched.h>\n#include <st
 '''
 (root/'sanitizer_main.c').write_text(main)
 sources=[str(p) for p in sorted((root/'src').glob('*.c'))+sorted((root/'tests').glob('test_*.c'))]
+sources+=['codecs/common/dbt_codec.c','codecs/aac/dbt_aac_transport.c']
 command=['gcc','-std=c11','-O1','-g','-Wall','-Wextra','-Werror','-fsanitize=address,undefined',
- '-fno-omit-frame-pointer','-Iinclude','-Idsp','-pthread',*sources,'dsp/fixed_dsp.c','sanitizer_main.c','-o','sanitized']
+ '-fno-omit-frame-pointer','-Iinclude','-Idsp','-Icodecs/common','-Icodecs/aac','-pthread',*sources,'dsp/fixed_dsp.c','sanitizer_main.c','-o','sanitized']
 run(command);sanitized=run(['./sanitized'])
 thread_command=[arg.replace('-fsanitize=address,undefined','-fsanitize=thread').replace('sanitized','threaded') for arg in command]
 run(thread_command);threaded=run(['./threaded'])
@@ -128,13 +129,15 @@ def main():
         if not remote.startswith("/home/") or not remote.endswith("/.cache/native_bt/stack_tests"):
             raise RuntimeError("Unexpected remote workspace")
         _, stdout, stderr = client.exec_command("mkdir -p " + " ".join(shlex.quote(remote + "/" + value)
-            for value in ["src", "include", "tests", "tools", "dsp"]), timeout=8)
+            for value in ["src", "include", "tests", "tools", "dsp", "codecs/common", "codecs/aac"]), timeout=8)
         if stdout.channel.recv_exit_status():
             raise RuntimeError(stderr.read().decode())
         files = {str(path.relative_to(ROOT)).replace("\\", "/"): path
                  for folder, pattern in [("src", "*.c"), ("include", "*.h"), ("tests", "test_*.c")]
                  for path in (ROOT / folder).glob(pattern)}
         files["tools/test_host.py"] = ROOT / "tools/test_host.py"
+        for name in ["codecs/common/dbt_codec.c", "codecs/common/dbt_codec.h", "codecs/aac/dbt_aac_transport.c", "codecs/aac/dbt_aac.h"]:
+            files[name] = ROOT / name
         for name in ["fixed_dsp.c", "fixed_dsp.h", "fixed_dsp_tables.inc"]:
             files["dsp/" + name] = ROOT.parent / "bt_audio_sink/main/dsp" / name
         sftp = client.open_sftp()

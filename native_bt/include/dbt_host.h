@@ -87,6 +87,10 @@ typedef struct {
     uint8_t command_credits;
     uint8_t probe_index;
     uint8_t controller_status;
+    /* Owner-only failure metadata. No packet payload or key bytes retained.
+     * Stages: 1 ingress, 2 queue, 3 H4 decode, 4 HCI event, 5 observer. */
+    uint16_t fault_packet_size;
+    uint8_t fault_packet_type, fault_event, fault_stage;
     uint8_t rx_packet[DBT_MAX_H4_BYTES];
     uint8_t tx_command[259];
     dbt_command_t commands[DBT_COMMAND_SLOTS];

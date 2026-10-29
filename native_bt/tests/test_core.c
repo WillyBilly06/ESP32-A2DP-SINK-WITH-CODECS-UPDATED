@@ -309,17 +309,19 @@ EXPORT int test_bad_ingress_and_hardware_error(void) {
     uint8_t event[] = { 4, 0xff, 1 };
     CHECK(dbt_host_receive(&host, event, sizeof(event)) == DBT_INVALID);
     dbt_host_poll(&host, 0, 8);
-    CHECK(host.fault == DBT_FAULT_BAD_PACKET);
+    CHECK(host.fault == DBT_FAULT_BAD_PACKET && host.fault_stage == 1);
     fixture(0);
     uint8_t error[] = { 4, 16, 1, 0x42 };
     CHECK(dbt_host_receive(&host, error, sizeof(error)) == DBT_OK);
     dbt_host_poll(&host, 0, 8);
     CHECK(host.fault == DBT_FAULT_CONTROLLER && host.controller_status == 0x42);
+    CHECK(host.fault_stage == 4 && host.fault_packet_size == sizeof(error) && host.fault_event == 16);
     fixture(0);
     uint8_t short_cc[] = { 4, 14, 2, 1, 3 };
     CHECK(dbt_host_receive(&host, short_cc, sizeof(short_cc)) == DBT_OK);
     dbt_host_poll(&host, 0, 8);
     CHECK(host.fault == DBT_FAULT_BAD_PACKET);
+    CHECK(host.fault_stage == 4 && host.fault_packet_type == DBT_H4_EVENT && host.fault_event == 14);
     return 0;
 }
 

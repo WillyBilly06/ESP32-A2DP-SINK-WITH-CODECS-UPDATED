@@ -1,6 +1,6 @@
 # Independent host release gates
 
-Updated 2026-10-28. **Development milestone; replacement firmware is not ready to ship.**
+Updated 2026-10-29. **Development milestone; replacement firmware is not ready to ship.**
 
 The existing audio application uses Bluedroid. The independent probe has a diagnostic
 LE GATT service when explicitly enabled, but no product audio/control/OTA profiles.
@@ -21,7 +21,7 @@ the product application.
 | Audio codec parity | Separate Bluedroid AAC/Opus memory changes and DSP tests | All codec configurations, LHDC V5 A2DP integration, lazy switch peaks and allocation failures on ESP32 |
 | EQ persistence and playback | Immediate packed NVS commit; integer ramps; host tests | Power-loss persistence and physical continuous audio during repeated real flash commits |
 | Interoperability/audio | Finite raw SBC/I2S test and two-session ordinary BlueZ reconnect passed. Firefox music advanced during 22.119 s of ATT traffic with zero recorded decoder/output counter faults; overall run FAILED on native BAD_PACKET and disconnect timeout | Resolve malformed-packet shutdown failure; physical I2S capture/acoustics, sustained Classic+LE traffic at every negotiated codec/configuration; resolve generic large-payload corruption |
-| Feature coverage | Explicit architecture inventory | ERTM/LE credit channels and other requested profiles/roles; reject unsupported modes accurately |
+| Feature coverage | Explicit architecture inventory | ERTM/Streaming/enhanced credit modes and other profiles/roles; LE CoC is now runtime-integrated and offline-tested but needs external-peer/RF qualification |
 | Resource advantage | Bounded disk outputs; reported object allocations | Compare RAM/CPU/latency against equivalent enabled features and workloads, including switch peaks |
 
 Test receipts with source hashes are generated under `_build/host/`. Keep private

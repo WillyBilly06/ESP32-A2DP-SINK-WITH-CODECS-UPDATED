@@ -1,6 +1,19 @@
 # Current project progress
 
-Updated 2026-10-28. Goal **active and incomplete**.
+Updated 2026-10-29. Goal **active and incomplete**.
+
+Current phase: source audit, owned fixes and offline verification before any new
+Bluetooth connection test. [L2CAP comparison](L2CAP_COMPARISON.md) records Basic
+signaling/reconfiguration corrections. [LE credit channels](CREDIT_CHANNELS.md)
+now integrate incoming/outgoing setup, security qualification, credit admission,
+segmented runtime transfers and channel-level failure cleanup. Current suite:
+**166 groups pass** on Windows/Linux, including ASan/UBSan and TSan. The ESP32
+probe builds and links the credit engine; no CoC service is enabled by default
+and no post-fix RF success is asserted. ERTM and other required modes remain open.
+The common codec worker and AAC CIE/LATM transport now have portable lifecycle,
+rollback, gate and parser tests; the new native AAC decoder adapter still needs
+actual PCM validation and target integration. The previously tested audio-app AAC
+wrapper is a different path.
 
 This report covers the full local working tree. The GitHub host checkpoint is
 limited to the owned host/probe, tests, docs and portable DSP test dependency;
@@ -37,7 +50,7 @@ it does not publish or replace the locally modified Bluedroid audio application.
 | ATT/GATT server | Owned LE ATT server and runtime bridge; discovery, reads/blobs/multiple, MTU 517, writes/commands, prepare/execute/cancel, per-client CCCDs, security policy, notify/indicate, deferred worker completion | Product command/OTA binding, real security/bond store, GATT client/EATT/signed writes/robust caching pending |
 | SDP server | Immutable flash database, UUID aliases, all three server transactions, bounded continuation, streaming response slices and lazy runtime bridge; Linux verifier and BlueZ sdptool passed. Audio Sink record is enabled only with the experimental native I2S output build | SDP client and ordinary Linux audio discovery/playback qualification pending |
 | AVDTP sink/control | Owned signaling/sink, encrypted PSM/media manager, SBC validation and actual lazy decoder worker. Raw RF/I2S diagnostic decoded 8000 frames during ATT traffic; ordinary BlueZ negotiation and two profile sessions separated by disconnect passed | Firefox media observed, but its overall run failed on host malformed-packet/shutdown handling. Other codec workers and product integration pending |
-| Tests | 144 groups pass on Windows/Linux, including 10,240 generated ATT inputs, 8192 generated SDP inputs, security/key lifecycle, receive-credit/SCO, SBC CRC/fragment, session retirement/ACL loss and integer audio tests plus 20,000 concurrent FIFO packets; Linux ASan/UBSan and TSan pass, including 16,384 frames through three concurrent audio owners | Host behavior and memory safety; separate finite RF evidence |
+| Tests | 166 groups pass on Windows/Linux, including 10,240 generated ATT inputs, 8192 generated SDP inputs, security/key lifecycle, receive-credit/SCO, SBC CRC/fragment, session retirement/ACL loss, Basic signaling/reconfiguration, LE CoC signaling/runtime and 1,001 credit-engine round trips, codec lifecycle/AAC transport and integer audio tests plus 20,000 concurrent FIFO packets; Linux ASan/UBSan and TSan pass, including 16,384 frames through three concurrent audio owners | Host behavior and memory safety; separate finite RF evidence; CoC lacks external-peer/RF qualification |
 | SBC decoder/worker | Actual 44.1/48 kHz mono/stereo frames produce PCM identical to the standalone reference; fragments, OOM/retry and no-overlap reopen pass. ASan/UBSan and TSan pass; actual two-thread worker processes 500 packets per vector | SDK codec only, owned wrapper/scheduler; full application output/timing and broad SBC conformance pending |
 | Integer DSP | Flash coefficient tables for 13 rates; Q4.28 coefficients/Q5.27 headroom, fractional error carry, 20 ms ramps, render-owned histories, atomic controls | Embedded CPU and audible tests pending |
 | Native DSP/I2S candidate | Active-only PCM/output rings; render-owned integer DSP, fractional clock adjustment and stop fade. Firefox played via ordinary PipeWire joint-stereo SBC during 22.119 s / 184 ATT writes/notifications; 8910 decoded frames, zero recorded decoder drops, output underruns or descriptor errors | Overall Firefox run FAILED: native BAD_PACKET fault and disconnect timeout. Exact fault time relative to overlap is not established. Acoustics, physical NVS stress and product handoff unqualified; see AUDIO_OUTPUT.md |

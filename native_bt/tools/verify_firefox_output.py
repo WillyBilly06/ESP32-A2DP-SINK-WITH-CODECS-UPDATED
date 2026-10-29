@@ -1,6 +1,7 @@
 """Record browser/media progress and native faults as separate observations."""
 import hashlib
 import json
+import argparse
 from pathlib import Path
 
 ROOT=Path(__file__).resolve().parents[1]
@@ -12,9 +13,17 @@ def read(name):
 
 
 def main():
-    source=read('linux-firefox-sbc-fixed.json')
-    firmware=read('COM6-probe-firefox.json')
-    window=read('firefox-sbc-fixed-COM6-115200.json')
+    parser=argparse.ArgumentParser()
+    parser.add_argument('--source',default='linux-firefox-sbc-fixed.json')
+    parser.add_argument('--firmware',default='COM6-probe-firefox.json')
+    parser.add_argument('--label',default='firefox-sbc-fixed')
+    parser.add_argument('--report',default='firefox-output-validation.json')
+    args=parser.parse_args()
+    for value in [args.source,args.firmware,args.report,args.label]:
+        assert value and Path(value).name==value and '/' not in value and '\\' not in value
+    source=read(args.source)
+    firmware=read(args.firmware)
+    window=read(args.label+'-COM6-115200.json')
     result=source['result']
     assert source['return_code']==0 and result['passed']
     assert source['firmware']['candidate_sha256']==firmware['candidate_sha256']
@@ -29,11 +38,12 @@ def main():
     states=[row for row in result['browser_states'] if result['overlap_start_unix']<=row['received_unix']<=result['overlap_end_unix']]
     assert len(states)>=30 and states[-1]['time']-states[0]['time']>=19
     assert not any(row['paused'] or row['error'] or row['event'] in ['waiting','stalled','ended','error'] for row in states)
-    capture=HARDWARE/'firefox-sbc-fixed-COM6-115200.txt'
+    capture=HARDWARE/(args.label+'-COM6-115200.txt')
     rows=[json.loads(line) for line in capture.read_text(encoding='utf-8').splitlines() if line.startswith('{"probe":')]
     pcm=[row for row in rows if row['probe']=='sbc_pcm']
     output=[row for row in rows if row['probe']=='native_i2s']
     faults=[row for row in rows if row['probe']=='failed']
+    parsers=[row for row in rows if row['probe']=='parser_failure']
     assert pcm and output and any(row['running'] and row['dma_eofs'] for row in output)
     assert pcm[-1]['frames']>7000 and pcm[-1]['resident']==output[-1]['requested_bytes']==0
     decoder_errors=max(row['drops']+row['resets'] for row in pcm)
@@ -50,12 +60,12 @@ def main():
         'maximum_output_requested_bytes':max(row['requested_bytes'] for row in output),
         'recorded_output_underrun_frames':max(row['underrun_frames'] for row in output),
         'recorded_descriptor_errors':max(row['descriptor_errors'] for row in output),
-        'final_output':output[-1],'host_faults':faults,'disconnect_failed':bool(result.get('disconnect_error')),
+        'final_output':output[-1],'host_faults':faults,'parser_failures':parsers,'disconnect_failed':bool(result.get('disconnect_error')),
         'fault_timing_limit':'UART receipt has no per-row wall timestamps; do not assert an exact fault time relative to the browser overlap',
         'uart_complete_window':True,'uart_capture_sha256':hashlib.sha256(capture.read_bytes()).hexdigest(),
         'physical_i2s_capture':False,'acoustic_test':False,'physical_nvs_stress':False,
         'all_codec_qualification':False,'replacement_ready':False}
-    (HARDWARE/'firefox-output-validation.json').write_text(json.dumps(report,indent=2)+'\n',encoding='utf-8')
+    (HARDWARE/args.report).write_text(json.dumps(report,indent=2)+'\n',encoding='utf-8')
     print(json.dumps(report,indent=2))
     return 0 if passed else 1
 

@@ -2,6 +2,7 @@
 #define DBT_CHANNELS_H
 
 #include "dbt_l2cap.h"
+#include "dbt_credit.h"
 
 #define DBT_CHANNEL_LIMIT 8u
 #define DBT_SERVICE_LIMIT 8u
@@ -23,6 +24,13 @@ typedef struct {
     uint16_t psm, rx_mtu, minimum_mtu;
     dbt_security_t security;
 } dbt_service_t;
+typedef struct {
+    uint16_t spsm;
+    dbt_credit_parameters_t receive;
+    dbt_security_t security;
+    uint8_t minimum_key_size;
+} dbt_le_service_t;
+struct dbt_le_channel;
 
 typedef struct {
     uint32_t serial, link_generation, deadline, pending_limit, config_limit;
@@ -36,6 +44,7 @@ typedef struct {
     bool incoming_more, incoming_failed, response_more, response_failed, reconfiguring, opened_once;
     bool security_incoming, security_pending_sent;
     uint8_t cached_request[DBT_SIGNAL_BYTES], cached_reply[DBT_SIGNAL_BYTES];
+    struct dbt_le_channel *le; /* Lazy active-channel state; NULL for Basic. */
 } dbt_channel_t;
 
 typedef struct {
@@ -64,6 +73,15 @@ typedef struct {
      * allocation/security work. Pure bounded admission policy, no mutations of
      * this manager. It does not replace authorization or encryption checks. */
     bool (*accept)(void *context, const dbt_link_t *link, uint16_t psm);
+    /* Optional LE CoC state/reassembly allocator, host owner only. */
+    uint8_t *(*allocate)(void *context,uint16_t bytes);
+    void (*release)(void *context,uint8_t *bytes);
+    /* Pure LE security qualification, returns wire result 0 or 5..8. Required
+     * for authenticated policy or verified minimum key size; encryption alone
+     * is insufficient. Incoming CoC requests are refused while security lacks
+     * qualification; this does not implement SMP or claim successful pairing. */
+    uint16_t (*le_security)(void *context,const dbt_link_t *link,uint16_t spsm,
+        dbt_security_t security,uint8_t minimum_key_size);
 } dbt_channel_hooks_t;
 
 typedef struct {
@@ -96,25 +114,39 @@ typedef struct {
     dbt_acl_t *acl;
     dbt_channel_hooks_t hooks;
     dbt_service_t services[DBT_SERVICE_LIMIT];
+    const dbt_le_service_t *le_services;
     dbt_channel_t channels[DBT_CHANNEL_LIMIT];
     dbt_signal_link_t links[DBT_MAX_LINKS];
     dbt_signal_tx_t tx[DBT_SIGNAL_TX_SLOTS];
     dbt_signal_rx_t rx[DBT_SIGNAL_RX_SLOTS];
     uint64_t fixed_mask[2];
     uint32_t serial, rtx_ms, ertx_ms, now_ms;
-    uint32_t stale_pdus, unknown_responses, malformed_pdus;
+    uint32_t stale_pdus, unknown_responses, malformed_pdus, ignored_dynamic_pdus, oversized_dynamic_pdus, oversized_signaling_pdus;
     uint16_t maximum_mtu;
     uint8_t tx_head, tx_count, rx_head, rx_count;
+    uint8_t le_service_count;
     bool tx_locked, in_callback, rx_deferred;
 } dbt_channels_t;
 
 /* Single host owner. Callbacks are borrowed, nonblocking and non-reentrant.
- * Basic Classic channels are implemented here. ERTM/LE credit channels remain
- * separate work; neither is advertised by the information response. */
+ * Classic Basic and LE credit channels share signaling/ownership. ERTM and
+ * enhanced credit mode are not advertised by the information response. */
 dbt_result_t dbt_channels_init(dbt_channels_t *manager, dbt_acl_t *acl,
                                dbt_channel_hooks_t hooks, uint16_t maximum_mtu,
                                uint32_t rtx_ms, uint32_t ertx_ms);
 dbt_result_t dbt_channels_register(dbt_channels_t *manager, dbt_service_t service);
+/* One immutable descriptor list, borrowed for manager lifetime (flash suitable).
+ * No per-service heap/payload allocation. Must register before accepting LE CoC. */
+dbt_result_t dbt_channels_register_le(dbt_channels_t *manager,const dbt_le_service_t *services,uint8_t count);
+dbt_result_t dbt_channels_open_le(dbt_channels_t *manager,uint16_t handle,const dbt_le_service_t *selection,
+    uint32_t now_ms,uint16_t *local_cid);
+dbt_result_t dbt_channels_grant_le(dbt_channels_t *manager,uint16_t handle,uint16_t local_cid,uint16_t credits);
+dbt_result_t dbt_channels_credit_begin(dbt_channels_t *manager,uint16_t handle,uint16_t local_cid,const uint8_t *data,uint16_t size);
+dbt_result_t dbt_channels_credit_frame(dbt_channels_t *manager,uint16_t handle,uint16_t local_cid,dbt_l2cap_tx_t *frame);
+dbt_result_t dbt_channels_credit_commit(dbt_channels_t *manager,uint16_t handle,uint16_t local_cid,bool *complete);
+bool dbt_channels_credit_ready(const dbt_channels_t *manager,uint16_t handle,uint16_t local_cid);
+/* Abort all channels and release lazy state after transport has been quiesced. */
+void dbt_channels_clear(dbt_channels_t *manager);
 dbt_result_t dbt_channels_register_fixed(dbt_channels_t *manager, dbt_link_kind_t kind, uint16_t cid);
 dbt_result_t dbt_channels_open(dbt_channels_t *manager, uint16_t handle, uint16_t psm,
                                uint16_t rx_mtu, uint16_t minimum_mtu, dbt_security_t security,

@@ -1,8 +1,17 @@
 #include "dbt_channels.h"
 
-enum { TX_PLAIN, TX_REQUEST, TX_CONNECTION_ACCEPT, TX_CONFIG_ACCEPT, TX_SECURITY_PENDING };
+enum { TX_PLAIN, TX_REQUEST, TX_CONNECTION_ACCEPT, TX_CONFIG_ACCEPT, TX_SECURITY_PENDING, TX_LE_ACCEPT, TX_LE_GRANT };
 enum { CONNECTION_REQUEST = 2, CONNECTION_RESPONSE = 3, CONFIG_REQUEST = 4,
-       CONFIG_RESPONSE = 5, DISCONNECT_REQUEST = 6, DISCONNECT_RESPONSE = 7 };
+       CONFIG_RESPONSE = 5, DISCONNECT_REQUEST = 6, DISCONNECT_RESPONSE = 7,
+       LE_CONNECT_REQUEST=0x14,LE_CONNECT_RESPONSE=0x15,LE_CREDITS=0x16 };
+struct dbt_le_channel {
+    dbt_credit_t engine;
+    dbt_channels_t *manager;
+    dbt_channel_t *channel;
+    uint16_t initial_credits;
+    uint8_t minimum_key_size;
+    bool faulted;
+};
 
 static void copy(void *destination, const void *source, unsigned size) {
     uint8_t *out = destination;
@@ -25,6 +34,20 @@ static bool due(uint32_t now, uint32_t deadline) {
 }
 static bool psm_valid(uint16_t psm) { return (psm & 0x0101u) == 1u; }
 static uint16_t smaller(uint16_t left, uint16_t right) { return left < right ? left : right; }
+static uint8_t *le_allocate(void *context,uint16_t bytes){
+    struct dbt_le_channel *le=context;dbt_channels_t *m=le->manager;
+    return m->hooks.allocate(m->hooks.context,bytes);
+}
+static void le_release(void *context,uint8_t *bytes){
+    struct dbt_le_channel *le=context;dbt_channels_t *m=le->manager;m->hooks.release(m->hooks.context,bytes);
+}
+static void le_sdu(void *context,const uint8_t *bytes,uint16_t size){
+    struct dbt_le_channel *le=context;dbt_channels_t *m=le->manager;
+    if(m->hooks.data){m->in_callback=true;m->hooks.data(m->hooks.context,le->channel,bytes,size);m->in_callback=false;}
+}
+static void le_dispose(dbt_channels_t *m,dbt_channel_t *c){
+    if(c->le){dbt_credit_close(&c->le->engine);m->hooks.release(m->hooks.context,(uint8_t *)c->le);c->le=0;}
+}
 
 static dbt_channel_t *find(dbt_channels_t *manager, uint16_t handle, uint16_t cid) {
     for (unsigned i = 0; i < DBT_CHANNEL_LIMIT; ++i) {
@@ -70,6 +93,7 @@ static void finish(dbt_channels_t *manager, dbt_channel_t *channel, dbt_channel_
     bool opened = channel->opened_once;
     /* Keep the snapshot useful to the event consumer, then make the slot free. */
     notify(manager, channel, opened ? DBT_CH_EVENT_CLOSED : DBT_CH_EVENT_FAILED, reason, result);
+    le_dispose(manager,channel);
     zero(channel, sizeof(*channel));
 }
 static void maybe_open(dbt_channels_t *manager, dbt_channel_t *channel) {
@@ -143,6 +167,7 @@ static dbt_channel_t *allocate_channel(dbt_channels_t *manager, const dbt_link_t
     if (!empty) return 0;
     uint16_t cid = 0x0040;
     while (find(manager, link->handle, cid)) ++cid;
+    if(link->kind==DBT_LINK_LE && cid>0x007f)return 0;
     zero(empty, sizeof(*empty));
     empty->serial = ++manager->serial;
     empty->handle = link->handle; empty->link_generation = link->generation;
@@ -177,20 +202,120 @@ static uint8_t request_id(dbt_channels_t *manager, const dbt_link_t *link) {
 static dbt_result_t queue_request(dbt_channels_t *manager, dbt_channel_t *channel, uint8_t code, bool null_config) {
     const dbt_link_t *link = dbt_acl_find(manager->acl, channel->handle);
     if (!link || link->generation != channel->link_generation) return DBT_INVALID;
-    uint8_t body[8]; uint16_t size = 4;
+    uint8_t body[10]; uint16_t size = 4;
     if (code == CONNECTION_REQUEST) { put16(body, channel->psm); put16(body + 2, channel->local_cid); }
     else if (code == CONFIG_REQUEST) {
         put16(body, channel->remote_cid); put16(body + 2, 0);
         if (!null_config) { body[4] = 1; body[5] = 2; put16(body + 6, channel->rx_mtu); size = 8; }
+    } else if(code==LE_CONNECT_REQUEST){
+        if(!channel->le)return DBT_INVALID;
+        put16(body,channel->psm);put16(body+2,channel->local_cid);put16(body+4,channel->rx_mtu);
+        put16(body+6,channel->le->engine.local.mps);put16(body+8,channel->le->initial_credits);size=10;
     } else { put16(body, channel->remote_cid); put16(body + 2, channel->local_cid); }
     uint8_t id = request_id(manager, link);
-    dbt_result_t result = enqueue(manager, link, 1, code, id, body, size, channel, TX_REQUEST, 0);
+    dbt_result_t result = enqueue(manager, link, link->kind==DBT_LINK_LE?5:1, code, id, body, size, channel, TX_REQUEST, 0);
     if (result == DBT_OK) {
         channel->request_code = code; channel->request_id = id;
         channel->request_sent = false; channel->pending_extended = false;
         channel->deadline = manager->now_ms + manager->rtx_ms;
     }
     return result;
+}
+static bool le_selection_valid(const dbt_channels_t *m,const dbt_le_service_t *s){
+    return s && s->spsm && s->spsm<=255 && s->receive.mtu>=23 && s->receive.mtu<=m->maximum_mtu &&
+        s->receive.mps>=23 && s->receive.mps<=65533u && s->receive.mps<=m->maximum_mtu &&
+        s->security<=DBT_SECURITY_AUTHENTICATED &&
+        (!s->minimum_key_size || (s->minimum_key_size>=7 && s->minimum_key_size<=16 && s->security>=DBT_SECURITY_ENCRYPTED));
+}
+static uint16_t le_security(dbt_channels_t *m,const dbt_link_t *link,const dbt_le_service_t *s){
+    if(s->security>=DBT_SECURITY_ENCRYPTED && !link->encrypted)return 8;
+    if(!m->hooks.le_security && (s->security==DBT_SECURITY_AUTHENTICATED || s->minimum_key_size))
+        return s->security==DBT_SECURITY_AUTHENTICATED?5:7;
+    if(m->hooks.le_security){
+        m->in_callback=true;
+        uint16_t result=m->hooks.le_security(m->hooks.context,link,s->spsm,s->security,s->minimum_key_size);
+        m->in_callback=false;if(result)return result>=5 && result<=8?result:6;
+    }
+    return authorized(m,link,s->spsm,s->security)?0:6;
+}
+static bool le_construct(dbt_channels_t *m,dbt_channel_t *c,const dbt_le_service_t *s,dbt_credit_parameters_t peer){
+    struct dbt_le_channel *le=(struct dbt_le_channel *)m->hooks.allocate(m->hooks.context,sizeof(*le));
+    if(!le)return false;
+    zero(le,sizeof(*le));le->manager=m;le->channel=c;le->initial_credits=s->receive.credits;le->minimum_key_size=s->minimum_key_size;
+    dbt_credit_parameters_t local=s->receive;local.credits=0;
+    dbt_credit_hooks_t hooks={le,le_allocate,le_release,le_sdu};
+    if(dbt_credit_init(&le->engine,hooks,local,peer)!=DBT_OK){m->hooks.release(m->hooks.context,(uint8_t *)le);return false;}
+    c->le=le;return true;
+}
+static void le_fault(dbt_channels_t *m,dbt_channel_t *c){
+    if(!c->le || c->state==DBT_CH_DISCONNECTING)return;
+    c->le->faulted=true;dbt_credit_close(&c->le->engine);
+    c->request_code=0;c->request_sent=false;c->state=DBT_CH_DISCONNECTING;c->deadline=m->now_ms+m->rtx_ms;
+    (void)queue_request(m,c,DISCONNECT_REQUEST,false);
+}
+
+dbt_result_t dbt_channels_register_le(dbt_channels_t *m,const dbt_le_service_t *services,uint8_t count){
+    if(!m || m->in_callback || !services || !count || count>DBT_SERVICE_LIMIT || m->le_service_count ||
+       !m->hooks.allocate || !m->hooks.release)return DBT_INVALID;
+    for(unsigned i=0;i<count;++i){
+        if(!le_selection_valid(m,&services[i]))return DBT_INVALID;
+        for(unsigned j=0;j<i;++j)if(services[i].spsm==services[j].spsm)return DBT_INVALID;
+    }
+    m->le_services=services;m->le_service_count=count;return DBT_OK;
+}
+dbt_result_t dbt_channels_open_le(dbt_channels_t *m,uint16_t handle,const dbt_le_service_t *s,uint32_t now,uint16_t *cid){
+    if(!m || m->in_callback || !cid || !le_selection_valid(m,s) || !m->hooks.allocate || !m->hooks.release)return DBT_INVALID;
+    const dbt_link_t *link=dbt_acl_find(m->acl,handle);if(!link || link->kind!=DBT_LINK_LE)return DBT_UNSUPPORTED;
+    if(le_security(m,link,s))return DBT_UNSUPPORTED;
+    prune_tx(m);if(m->tx_count==DBT_SIGNAL_TX_SLOTS)return DBT_BUSY;
+    dbt_channel_t *c=allocate_channel(m,link,s->spsm,s->receive.mtu,23,s->security);if(!c)return DBT_NO_SPACE;
+    dbt_credit_parameters_t peer={23,23,0};
+    if(!le_construct(m,c,s,peer)){zero(c,sizeof(*c));return DBT_NO_SPACE;}
+    m->now_ms=now;dbt_result_t result=queue_request(m,c,LE_CONNECT_REQUEST,false);
+    if(result!=DBT_OK){le_dispose(m,c);zero(c,sizeof(*c));return result;}
+    *cid=c->local_cid;return DBT_OK;
+}
+dbt_result_t dbt_channels_grant_le(dbt_channels_t *m,uint16_t handle,uint16_t cid,uint16_t credits){
+    if(!m || m->in_callback)return DBT_INVALID;
+    dbt_channel_t *c=find(m,handle,cid);const dbt_link_t *link=dbt_acl_find(m->acl,handle);
+    if(!c || !c->le || !link || c->state!=DBT_CH_OPEN || c->link_generation!=link->generation)return DBT_BUSY;
+    dbt_result_t result=dbt_credit_grant_prepare(&c->le->engine,credits);if(result!=DBT_OK)return result;
+    uint8_t body[4];put16(body,c->local_cid);put16(body+2,credits);
+    result=enqueue(m,link,5,LE_CREDITS,request_id(m,link),body,4,c,TX_LE_GRANT,0);
+    if(result!=DBT_OK)dbt_credit_grant_cancel(&c->le->engine);
+    return result;
+}
+static bool le_data_allowed(dbt_channels_t *m,dbt_channel_t *c,const dbt_link_t *link){
+    if(!c || !c->le || !link || c->link_generation!=link->generation || c->state!=DBT_CH_OPEN || !c->connection_ready)return false;
+    dbt_le_service_t s={c->psm,c->le->engine.local,c->security,c->le->minimum_key_size};
+    return le_security(m,link,&s)==0;
+}
+dbt_result_t dbt_channels_credit_begin(dbt_channels_t *m,uint16_t handle,uint16_t cid,const uint8_t *bytes,uint16_t size){
+    if(!m || m->in_callback)return DBT_INVALID;
+    dbt_channel_t *c=find(m,handle,cid);if(!le_data_allowed(m,c,dbt_acl_find(m->acl,handle)))return DBT_BUSY;
+    return dbt_credit_tx_begin(&c->le->engine,bytes,size);
+}
+dbt_result_t dbt_channels_credit_frame(dbt_channels_t *m,uint16_t handle,uint16_t cid,dbt_l2cap_tx_t *frame){
+    if(!m || m->in_callback || !frame)return DBT_INVALID;
+    dbt_channel_t *c=find(m,handle,cid);const dbt_link_t *link=dbt_acl_find(m->acl,handle);
+    if(!le_data_allowed(m,c,link))return DBT_BUSY;
+    dbt_credit_frame_t view;dbt_result_t result=dbt_credit_tx_view(&c->le->engine,&view);if(result!=DBT_OK)return result;
+    return dbt_l2cap_tx_begin_credit(frame,link,c->remote_cid,view.data,view.size,view.first,view.sdu_length);
+}
+dbt_result_t dbt_channels_credit_commit(dbt_channels_t *m,uint16_t handle,uint16_t cid,bool *complete){
+    if(!m || m->in_callback || !complete)return DBT_INVALID;
+    dbt_channel_t *c=find(m,handle,cid);if(!c || !c->le || c->state!=DBT_CH_OPEN)return DBT_INVALID;
+    dbt_result_t result=dbt_credit_tx_commit(&c->le->engine);if(result==DBT_OK)*complete=!c->le->engine.tx_active;return result;
+}
+bool dbt_channels_credit_ready(const dbt_channels_t *m,uint16_t handle,uint16_t cid){
+    if(!m)return false;
+    const dbt_channel_t *c=dbt_channels_find(m,handle,cid);
+    return c && c->le && c->state==DBT_CH_OPEN && c->le->engine.tx_active && c->le->engine.peer.credits;
+}
+void dbt_channels_clear(dbt_channels_t *m){
+    if(!m || m->in_callback)return;
+    for(unsigned i=0;i<DBT_CHANNEL_LIMIT;++i)if(m->channels[i].state!=DBT_CH_FREE)finish(m,&m->channels[i],DBT_CH_REASON_PROTOCOL,0);
+    m->tx_count=m->rx_count=0;m->tx_locked=m->rx_deferred=false;
 }
 static dbt_result_t reject(dbt_channels_t *manager, const dbt_link_t *link, uint16_t cid,
                             uint8_t id, uint16_t reason, uint16_t local, uint16_t remote) {
@@ -264,7 +389,7 @@ dbt_result_t dbt_channels_close(dbt_channels_t *manager, uint16_t handle, uint16
     if (manager->tx_count == DBT_SIGNAL_TX_SLOTS) return DBT_BUSY;
     channel->request_code = 0; manager->now_ms = now;
     dbt_result_t result = queue_request(manager, channel, DISCONNECT_REQUEST, false);
-    if (result == DBT_OK) channel->state = DBT_CH_DISCONNECTING;
+    if (result == DBT_OK){channel->state=DBT_CH_DISCONNECTING;if(channel->le)dbt_credit_close(&channel->le->engine);}
     return result;
 }
 
@@ -284,7 +409,15 @@ static bool command_shape(const uint8_t *command, uint16_t size) {
     case 0x0b: return size >= 8;
     case 0x12: return size == 12;
     case 0x13: return size == 6;
+    case LE_CONNECT_REQUEST:case LE_CONNECT_RESPONSE:return size==14;
+    case LE_CREDITS:return size==8;
     default: return true;
+    }
+}
+static bool response_code(uint8_t code){
+    switch(code){
+    case 1:case 3:case 5:case 7:case 9:case 0x0b:case 0x13:case 0x15:case 0x18:case 0x1a:return true;
+    default:return false;
     }
 }
 dbt_result_t dbt_channels_receive(dbt_channels_t *manager, uint16_t handle, uint32_t generation,
@@ -295,7 +428,21 @@ dbt_result_t dbt_channels_receive(dbt_channels_t *manager, uint16_t handle, uint
     if (cid != (link->kind == DBT_LINK_CLASSIC ? 1 : 5)) {
         if (cid >= 0x0040) {
             dbt_channel_t *channel = find(manager, handle, cid);
-            if (!channel || channel->link_generation != generation || channel->state != DBT_CH_OPEN || size > channel->rx_mtu) return DBT_INVALID;
+            /* Core Vol 3 A 6.1: CLOSED / WAIT_CONNECT / WAIT_DISCONNECT data
+             * is ignored. A queued media PDU during Close is not a host fault.
+             * Basic-mode data still flows during reconfiguration of an open
+             * channel, using its current receive MTU and security policy. */
+            if(!channel){++manager->ignored_dynamic_pdus;return DBT_OK;}
+            if(channel->link_generation!=generation)return DBT_INVALID;
+            bool receive_open=channel->state==DBT_CH_OPEN ||
+                (channel->state==DBT_CH_CONFIGURING && channel->opened_once && channel->reconfiguring);
+            if(!receive_open){++manager->ignored_dynamic_pdus;return DBT_OK;}
+            if(channel->le){
+                if(!le_data_allowed(manager,channel,link)){le_fault(manager,channel);return DBT_OK;}
+                if(dbt_credit_receive(&channel->le->engine,data,size)!=DBT_OK)le_fault(manager,channel);
+                return DBT_OK;
+            }
+            if(size>channel->rx_mtu){++manager->oversized_dynamic_pdus;return DBT_OK;}
             if (!authorized(manager,link,channel->psm,channel->security)) return DBT_UNSUPPORTED;
             if (manager->hooks.data) {
                 manager->in_callback = true;
@@ -311,24 +458,30 @@ dbt_result_t dbt_channels_receive(dbt_channels_t *manager, uint16_t handle, uint
         manager->in_callback = false;
         return DBT_OK;
     }
-    uint32_t cursor = 0; unsigned commands = 0;
+    uint32_t cursor = 0, first_request = UINT32_MAX; unsigned commands = 0;
     while (cursor < size) {
         if (size - cursor < 4u) goto malformed;
         uint16_t length = dbt_read_le16(data + cursor + 2);
         uint32_t total = 4u + length;
         if (total > size - cursor || data[cursor + 1] == 0 ||
             !command_shape(data + cursor, (uint16_t)total)) goto malformed;
+        if(first_request==UINT32_MAX && !response_code(data[cursor]))first_request=cursor;
         cursor += total; ++commands;
     }
     if (commands == 0 || (link->kind == DBT_LINK_LE && commands != 1)) goto malformed;
+    bool oversized=size>(link->kind==DBT_LINK_LE?23u:DBT_SIGNAL_BYTES);
+    /* Core 4.1: reject the first Request in an oversized C-frame. A frame
+     * containing only recognized Responses is silently discarded. */
+    if(oversized && first_request==UINT32_MAX){++manager->oversized_signaling_pdus;return DBT_OK;}
     if (manager->rx_count == DBT_SIGNAL_RX_SLOTS) return DBT_NO_SPACE;
     unsigned index = (manager->rx_head + manager->rx_count) % DBT_SIGNAL_RX_SLOTS;
     dbt_signal_rx_t *slot = &manager->rx[index];
     zero(slot, sizeof(*slot));
     slot->handle = handle; slot->generation = generation; slot->cid = cid;
-    slot->oversized = size > (link->kind == DBT_LINK_LE ? 23u : DBT_SIGNAL_BYTES);
+    slot->oversized = oversized;
     slot->size = slot->oversized ? 4 : (uint8_t)size;
-    copy(slot->bytes, data, slot->size); ++manager->rx_count;
+    copy(slot->bytes, data+(oversized?first_request:0u), slot->size); ++manager->rx_count;
+    if(oversized)++manager->oversized_signaling_pdus;
     manager->rx_deferred = false;
     return DBT_OK;
 malformed:
@@ -391,6 +544,8 @@ static void connection_response(dbt_channels_t *manager, const dbt_link_t *link,
     dbt_channel_t *channel = by_request(manager, link->handle, link->generation, CONNECTION_REQUEST, command[1]);
     if (!channel) { ++manager->unknown_responses; return; }
     uint16_t result = dbt_read_le16(command + 8);
+    /* Core 4.3: both CIDs may be invalid on every non-success response,
+     * including Pending. Correlate those by link generation and identifier. */
     if (result == 1) {
         if (dbt_read_le16(command + 10) > 2) finish(manager, channel, DBT_CH_REASON_PROTOCOL, result);
         else pending(manager, channel);
@@ -419,6 +574,7 @@ static bool parse_options(const uint8_t *data, uint16_t size, uint16_t minimum, 
         if (total > size - cursor) return false;
         const uint8_t *value = data + cursor + 2;
         uint8_t type = raw_type & 0x7fu;
+        uint16_t previous_mtu=parsed->mtu;bool previous_mtu_seen=parsed->mtu_seen;
         uint8_t replacement[24]; uint8_t replacement_size = 0; bool unknown = false;
         if (type == 1) {
             if (length != 2) return false;
@@ -448,11 +604,16 @@ static bool parse_options(const uint8_t *data, uint16_t size, uint16_t minimum, 
             if (parsed->result != 3) { parsed->result = 3; parsed->size = 0; }
             if (parsed->size + total > sizeof(parsed->options)) { parsed->result = 2; parsed->size = 0; return true; }
             copy(parsed->options + parsed->size, data + cursor, total); parsed->size += (uint8_t)total;
-        } else if (!response && replacement_size && parsed->result != 3) {
+        } else if (!response && replacement_size && !(raw_type&0x80u) && parsed->result != 3) {
             parsed->result = 1;
             if (parsed->size + replacement_size > sizeof(parsed->options)) { parsed->result = 2; parsed->size = 0; return true; }
             copy(parsed->options + parsed->size, replacement, replacement_size); parsed->size += replacement_size;
         } else if (response && ((unknown && !(raw_type & 0x80u)) || replacement_size)) return false;
+        /* Hints cannot be the sole cause of a rejected configuration (4.5).
+         * Keep the previous MTU when a hinted value is below the minimum. */
+        if(!response && (raw_type&0x80u) && type==1 && replacement_size){
+            parsed->mtu=previous_mtu;parsed->mtu_seen=previous_mtu_seen;
+        }
         cursor += total;
     }
     if (!response && !parsed->mtu_seen && parsed->mtu < minimum && parsed->result == 0) {
@@ -544,12 +705,59 @@ static void config_response(dbt_channels_t *manager, const dbt_link_t *link, con
     maybe_open(manager, channel);
 }
 
+static dbt_result_t le_connection_request(dbt_channels_t *m,const dbt_link_t *link,const uint8_t *command){
+    uint16_t spsm=dbt_read_le16(command+4),peer_cid=dbt_read_le16(command+6),result=0;
+    dbt_channel_t *c=by_remote(m,link->handle,link->generation,peer_cid);
+    if(c && c->le && c->cached_request_size==14 && equal(c->cached_request,command,14))
+        return enqueue(m,link,5,LE_CONNECT_RESPONSE,command[1],c->cached_reply+4,10,c,
+            c->connection_ready?TX_PLAIN:TX_LE_ACCEPT,0);
+    const dbt_le_service_t *service=0;
+    for(unsigned i=0;i<m->le_service_count;++i)if(m->le_services[i].spsm==spsm)service=&m->le_services[i];
+    dbt_credit_parameters_t peer={dbt_read_le16(command+8),dbt_read_le16(command+10),dbt_read_le16(command+12)};
+    if(peer_cid<0x40 || peer_cid>0x7f)result=9;
+    else if(c)result=10;
+    else if(!service)result=2;
+    else if(peer.mtu<23 || peer.mps<23 || peer.mps>65533u)result=11;
+    else if((result=le_security(m,link,service))!=0){}
+    else if(!accept_incoming(m,link,spsm))result=4;
+    c=0;
+    if(!result){
+        c=allocate_channel(m,link,spsm,service->receive.mtu,23,service->security);
+        if(!c)result=4;
+        else if(!le_construct(m,c,service,peer)){zero(c,sizeof(*c));c=0;result=4;}
+        else{c->remote_cid=peer_cid;c->tx_mtu=peer.mtu;c->incoming_connect_id=command[1];c->deadline=m->now_ms+m->rtx_ms;}
+    }
+    uint8_t body[10];zero(body,sizeof(body));put16(body+8,result);
+    if(c){put16(body,c->local_cid);put16(body+2,c->rx_mtu);put16(body+4,c->le->engine.local.mps);put16(body+6,c->le->initial_credits);}
+    dbt_signal_tx_t *slot=0;
+    dbt_result_t queued=enqueue(m,link,5,LE_CONNECT_RESPONSE,command[1],body,10,c,c?TX_LE_ACCEPT:TX_PLAIN,&slot);
+    if(queued!=DBT_OK){if(c){le_dispose(m,c);zero(c,sizeof(*c));}return queued;}
+    if(c){c->cached_request_size=14;copy(c->cached_request,command,14);c->cached_reply_size=14;copy(c->cached_reply,slot->bytes,14);}
+    return DBT_OK;
+}
+static void le_connection_response(dbt_channels_t *m,const dbt_link_t *link,const uint8_t *command){
+    dbt_channel_t *c=by_request(m,link->handle,link->generation,LE_CONNECT_REQUEST,command[1]);
+    if(!c || !c->le){++m->unknown_responses;return;}
+    uint16_t result=dbt_read_le16(command+12);
+    if(result){finish(m,c,DBT_CH_REASON_REFUSED,result);return;}
+    uint16_t cid=dbt_read_le16(command+4);
+    dbt_credit_parameters_t peer={dbt_read_le16(command+6),dbt_read_le16(command+8),dbt_read_le16(command+10)};
+    if(cid<0x40 || cid>0x7f || by_remote(m,link->handle,link->generation,cid) || peer.mtu<23 || peer.mps<23 || peer.mps>65533u){
+        finish(m,c,DBT_CH_REASON_PROTOCOL,0);return;
+    }
+    c->remote_cid=cid;c->tx_mtu=peer.mtu;c->le->engine.peer=peer;
+    c->connection_ready=c->local_configured=c->peer_configured=true;
+    c->request_code=0;c->request_sent=false;c->state=DBT_CH_OPEN;
+    if(!le_data_allowed(m,c,link)){le_fault(m,c);return;}
+    c->opened_once=true;notify(m,c,DBT_CH_EVENT_OPEN,DBT_CH_REASON_NORMAL,0);
+}
 static dbt_result_t process_command(dbt_channels_t *manager, const dbt_link_t *link, uint16_t cid,
                                      const uint8_t *command, uint16_t size) {
     uint8_t code = command[0], id = command[1];
     const uint8_t *body = command + 4;
-    if (link->kind == DBT_LINK_LE && code != 1 && code != 6 && code != 7 && code != 0x12 && code != 0x13) return reject(manager, link, cid, id, 0, 0, 0);
-    if (link->kind == DBT_LINK_CLASSIC && (code == 0x12 || code == 0x13)) return reject(manager, link, cid, id, 0, 0, 0);
+    if (link->kind == DBT_LINK_LE && code != 1 && code != 6 && code != 7 && code != 0x12 && code != 0x13 &&
+        code!=LE_CONNECT_REQUEST && code!=LE_CONNECT_RESPONSE && code!=LE_CREDITS)return reject(manager,link,cid,id,0,0,0);
+    if (link->kind == DBT_LINK_CLASSIC && (code == 0x12 || code == 0x13 || code==LE_CONNECT_REQUEST || code==LE_CONNECT_RESPONSE || code==LE_CREDITS)) return reject(manager, link, cid, id, 0, 0, 0);
     switch (code) {
     case 1:
         for (unsigned i = 0; i < DBT_CHANNEL_LIMIT; ++i) {
@@ -564,10 +772,19 @@ static dbt_result_t process_command(dbt_channels_t *manager, const dbt_link_t *l
     case CONNECTION_RESPONSE: connection_response(manager, link, command); return DBT_OK;
     case CONFIG_REQUEST: return config_request(manager, link, command, size);
     case CONFIG_RESPONSE: config_response(manager, link, command, size); return DBT_OK;
+    case LE_CONNECT_REQUEST:return le_connection_request(manager,link,command);
+    case LE_CONNECT_RESPONSE:le_connection_response(manager,link,command);return DBT_OK;
+    case LE_CREDITS:{
+        dbt_channel_t *c=by_remote(manager,link->handle,link->generation,dbt_read_le16(body));
+        if(!c || !c->le || c->state!=DBT_CH_OPEN)return DBT_OK;
+        if(dbt_credit_add_peer_credits(&c->le->engine,dbt_read_le16(body+2))!=DBT_OK)le_fault(manager,c);
+        return DBT_OK;
+    }
     case DISCONNECT_REQUEST: {
         uint16_t local = dbt_read_le16(body), remote = dbt_read_le16(body + 2);
         dbt_channel_t *channel = find(manager, link->handle, local);
-        if (!channel) return reject(manager, link, cid, id, 2, local, remote);
+        /* CLOSED acknowledges a retransmission without recreating state. */
+        if (!channel) return enqueue(manager, link, cid, DISCONNECT_RESPONSE, id, body, 4, 0, TX_PLAIN, 0);
         if (channel->remote_cid != remote) return DBT_OK;
         dbt_result_t result = enqueue(manager, link, cid, DISCONNECT_RESPONSE, id, body, 4, 0, TX_PLAIN, 0);
         if (result == DBT_OK) finish(manager, channel, DBT_CH_REASON_NORMAL, 0);
@@ -647,6 +864,9 @@ uint16_t dbt_channels_poll(dbt_channels_t *manager, uint32_t now, uint16_t budge
         if (channel->state == DBT_CH_FREE) continue;
         const dbt_link_t *link = dbt_acl_find(manager->acl, channel->handle);
         if (!link || link->generation != channel->link_generation) { finish(manager, channel, DBT_CH_REASON_LINK_LOST, 0); continue; }
+        if(channel->le && channel->state==DBT_CH_OPEN && !le_data_allowed(manager,channel,link))le_fault(manager,channel);
+        if(channel->le && channel->le->faulted && channel->state==DBT_CH_DISCONNECTING && !channel->request_code)
+            (void)queue_request(manager,channel,DISCONNECT_REQUEST,false);
         if(channel->state==DBT_CH_SECURING) {
             bool allowed=authorized(manager,link,channel->psm,channel->security);
             dbt_result_t progress=allowed?DBT_OK:security_request(manager,link,channel->psm,channel->security,false);
@@ -667,7 +887,7 @@ uint16_t dbt_channels_poll(dbt_channels_t *manager, uint32_t now, uint16_t budge
             }
             continue;
         }
-        if (channel->security >= DBT_SECURITY_ENCRYPTED && !link->encrypted) { finish(manager, channel, DBT_CH_REASON_SECURITY, 0); continue; }
+        if (!channel->le && channel->security >= DBT_SECURITY_ENCRYPTED && !link->encrypted) { finish(manager, channel, DBT_CH_REASON_SECURITY, 0); continue; }
         if (channel->state == DBT_CH_CONFIGURING && channel->connection_ready && due(now, channel->config_limit)) {
             finish(manager, channel, DBT_CH_REASON_RESPONSE_TIMEOUT, 0); continue;
         }
@@ -732,6 +952,16 @@ dbt_result_t dbt_channels_tx_commit(dbt_channels_t *manager, uint32_t now) {
         channel->security_pending_sent=true;
     } else if (snapshot.effect == TX_REQUEST && channel->request_id == snapshot.bytes[1] && channel->request_code == snapshot.bytes[0]) {
         channel->request_sent = true; channel->deadline = now + manager->rtx_ms;
+        if(channel->le && channel->request_code==LE_CONNECT_REQUEST)channel->le->engine.local.credits=channel->le->initial_credits;
+    } else if(snapshot.effect==TX_LE_ACCEPT && channel->le && !channel->connection_ready){
+        channel->le->engine.local.credits=channel->le->initial_credits;
+        channel->connection_ready=channel->local_configured=channel->peer_configured=true;
+        channel->state=DBT_CH_OPEN;
+        const dbt_link_t *link=dbt_acl_find(manager->acl,channel->handle);
+        if(le_data_allowed(manager,channel,link)){channel->opened_once=true;notify(manager,channel,DBT_CH_EVENT_OPEN,DBT_CH_REASON_NORMAL,0);}
+        else le_fault(manager,channel);
+    } else if(snapshot.effect==TX_LE_GRANT && channel->le && channel->state==DBT_CH_OPEN){
+        if(dbt_credit_grant_commit(&channel->le->engine)!=DBT_OK)le_fault(manager,channel);
     } else if (snapshot.effect == TX_CONNECTION_ACCEPT && !channel->connection_ready) {
         channel->connection_ready = true; channel->deadline = now + manager->rtx_ms;
         channel->config_limit = now + 300000u;
@@ -766,7 +996,11 @@ dbt_result_t dbt_channels_prepare_data(dbt_channels_t *manager, uint16_t handle,
     if (!manager || manager->in_callback) return DBT_INVALID;
     dbt_channel_t *channel = find(manager, handle, cid);
     const dbt_link_t *link = dbt_acl_find(manager->acl, handle);
-    if (!channel || !link || link->generation != channel->link_generation || channel->state != DBT_CH_OPEN) return DBT_BUSY;
+    if (!channel || !link || link->generation != channel->link_generation)return DBT_BUSY;
+    if(channel->le)return DBT_UNSUPPORTED;
+    bool transmitting=channel->state==DBT_CH_OPEN ||
+        (channel->state==DBT_CH_CONFIGURING && channel->opened_once && channel->reconfiguring);
+    if(!transmitting)return DBT_BUSY;
     if(!authorized(manager,link,channel->psm,channel->security))return DBT_BUSY;
     if (size > channel->tx_mtu) return DBT_NO_SPACE;
     return dbt_l2cap_tx_begin(tx, link, channel->remote_cid, data, size);
