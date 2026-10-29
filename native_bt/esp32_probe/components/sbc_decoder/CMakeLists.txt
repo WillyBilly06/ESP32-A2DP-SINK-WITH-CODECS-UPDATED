@@ -1,5 +1,5 @@
 if(CMAKE_BUILD_EARLY_EXPANSION)
-    idf_component_register(REQUIRES native_bt)
+    idf_component_register(REQUIRES native_bt codec_core)
     return()
 endif()
 get_filename_component(workspace "${CMAKE_CURRENT_LIST_DIR}/../../../.." ABSOLUTE)
@@ -12,7 +12,7 @@ if(NOT port_result EQUAL 0)
     message(FATAL_ERROR "Standalone SBC arithmetic port requires source review")
 endif()
 idf_component_register(
-    SRCS "${owned}/dbt_sbc_decoder.c" "${owned}/dbt_sbc_worker.c"
+    SRCS "${owned}/dbt_sbc_decoder.c" "${owned}/dbt_sbc_codec.c"
          "${codec}/srce/alloc.c" "${codec}/srce/bitalloc-sbc.c" "${codec}/srce/bitalloc.c"
          "${codec}/srce/bitstream-decode.c" "${codec}/srce/decoder-oina.c" "${codec}/srce/decoder-private.c"
          "${codec}/srce/decoder-sbc.c" "${codec}/srce/dequant.c" "${codec}/srce/framing-sbc.c"
@@ -20,6 +20,6 @@ idf_component_register(
          "${CMAKE_CURRENT_BINARY_DIR}/port/synthesis-dct8.c" "${CMAKE_CURRENT_BINARY_DIR}/port/synthesis-sbc.c"
     INCLUDE_DIRS "${owned}"
     PRIV_INCLUDE_DIRS "${owned}/port" "${codec}/include"
-    REQUIRES native_bt
+    REQUIRES native_bt codec_core
 )
 target_compile_options(${COMPONENT_LIB} PRIVATE -std=c11 -fwrapv)

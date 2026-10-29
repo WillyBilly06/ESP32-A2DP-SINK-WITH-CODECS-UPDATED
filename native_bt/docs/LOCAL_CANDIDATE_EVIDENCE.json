@@ -1,0 +1,61 @@
+{
+  "scope": "local source/test/build checkpoint; not a complete product or hardware qualification",
+  "image_sha256": "4ac970772b158c3e80e9dd9d19f076ed456b383eda793e54f6664296ef313092",
+  "image_bytes": 1019680,
+  "esp32_image_validation": {
+    "passed": true,
+    "scope": "offline image checksum/digest, ESP32 revision and admitted OTA capacity; no device access or runtime qualification",
+    "image_sha256": "4ac970772b158c3e80e9dd9d19f076ed456b383eda793e54f6664296ef313092",
+    "image_bytes": 1019680,
+    "project": "native_bt_probe",
+    "chip_id": 0,
+    "revision_range": [
+      0,
+      399
+    ],
+    "checksum_verified": true,
+    "digest_verified": true,
+    "controller_only_dual_mode": true,
+    "anti_rollback_fuse_updates": false,
+    "partition_offset": 3735552,
+    "partition_bytes": 2621440,
+    "partition_remaining_bytes": 1601760,
+    "hardware_accessed": false,
+    "runtime_qualified": false
+  },
+  "host_groups": 166,
+  "host_groups_passed": 166,
+  "host_sources_stable": true,
+  "codec_host_configurations": 37,
+  "codec_host_stack_and_time_are_stubs": true,
+  "cpu_mhz": 240,
+  "btstack_runtime_integration": false,
+  "hardware_hold_active": true,
+  "this_candidate_flashed": false,
+  "this_candidate_rf_tested": false,
+  "runtime_qualified": false,
+  "equivalent_feature_advantage_proven": false,
+  "last_device_qualification": {
+    "image_sha256": "06ea0f6e4a2859d64108caa235f505b70b64e152fcabbddc6ebe2ab554774085",
+    "passed_configurations": 19,
+    "selected_configurations": 37,
+    "comparison_failures": 5,
+    "later_opus_not_run": 13,
+    "controller_enabled": false
+  },
+  "oracle_corrections_hardware_confirmed": false,
+  "product_integration": "BLE EQ/control has immediate NVS and field-preserving DSP providers; name/LED/sound/OTA providers and other product parity remain incomplete",
+  "feature_matrix": "FEATURE_MATRIX.md",
+  "linux_core": {
+    "normal_groups": 166,
+    "address_undefined_passed": true,
+    "thread_sanitizer_passed": true,
+    "concurrent_packets": 20000,
+    "audio_three_owner_frames": 16384
+  },
+  "clock_linux_asan_ubsan_passed": true,
+  "ble_control_linux_asan_ubsan_passed": true,
+  "source_content_stable_across_final_build": true,
+  "build_source_inputs": 1190,
+  "generated_mib": 359.665
+}

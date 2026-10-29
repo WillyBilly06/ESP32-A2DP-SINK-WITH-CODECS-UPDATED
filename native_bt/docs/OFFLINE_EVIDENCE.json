@@ -109,5 +109,8 @@
     "product BLE control/OTA",
     "post-audit external-peer/all-codec RF qualification",
     "equivalent-feature resource/performance benchmarks"
-  ]
+  ],
+  "historical_checkpoint": true,
+  "superseded_by": "LOCAL_CANDIDATE_EVIDENCE.json",
+  "current_source_match_claim_applies_only_to_recorded_historical_checkpoint": true
 }

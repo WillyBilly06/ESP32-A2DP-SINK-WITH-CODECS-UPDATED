@@ -76,6 +76,9 @@ static void event(void *context, dbt_channel_event_t kind, const dbt_channel_t *
     dbt_channel_hooks_t *hooks = &runtime->hooks.channels;
     if(kind == DBT_CH_EVENT_CLOSED || kind == DBT_CH_EVENT_FAILED) {
         for(unsigned i=0;i<DBT_MAX_LINKS;++i) {
+            dbt_runtime_ertm_tx_t *frame=&runtime->ertm_tx[i];
+            if(frame->active && frame->pdu.handle==channel->handle && frame->pdu.generation==channel->link_generation &&
+               frame->local_cid==channel->local_cid)frame->active=false;
             dbt_runtime_tx_t *tx=&runtime->tx[i];
             if(tx->active && tx->pdu.handle==channel->handle && tx->pdu.generation==channel->link_generation &&
                 tx->local_cid==channel->local_cid) finish_tx(tx,reason==DBT_CH_REASON_LINK_LOST?DBT_TX_LINK_LOST:DBT_TX_ABORTED);
@@ -244,14 +247,18 @@ static dbt_result_t send_pdu(dbt_runtime_t *runtime, uint16_t handle, uint16_t c
     } else {
         const dbt_channel_t *channel=dbt_channels_find(&runtime->channels,handle,cid);
         tx->credit_channel=channel && channel->le;
+        tx->ertm_channel=channel && channel->ertm;
         if(tx->credit_channel){
             result=dbt_channels_credit_begin(&runtime->channels,handle,cid,data,size);
+            if(result==DBT_OK)result=dbt_l2cap_tx_begin(&tx->pdu,dbt_acl_find(&runtime->acl,handle),channel->remote_cid,0,0);
+        }else if(tx->ertm_channel){
+            result=dbt_channels_ertm_begin(&runtime->channels,handle,cid,data,size);
             if(result==DBT_OK)result=dbt_l2cap_tx_begin(&tx->pdu,dbt_acl_find(&runtime->acl,handle),channel->remote_cid,0,0);
         }else result=dbt_channels_prepare_data(&runtime->channels,handle,cid,data,size,&tx->pdu);
     }
     if (result != DBT_OK) return result;
-    if(fixed_channel)tx->credit_channel=false;
-    tx->frame_ready=!tx->credit_channel;
+    if(fixed_channel)tx->credit_channel=tx->ertm_channel=false;
+    tx->frame_ready=!tx->credit_channel && !tx->ertm_channel;
     tx->local_cid = cid; tx->done = done; tx->context = context; tx->active = true;
     return DBT_OK;
 }
@@ -269,21 +276,42 @@ static bool credit(const dbt_runtime_t *runtime, const dbt_link_t *link) {
 static bool send_fragment(dbt_runtime_t *runtime, unsigned index) {
     const dbt_link_t *link = &runtime->acl.links[index];
     dbt_runtime_tx_t *app = &runtime->tx[index];
+    dbt_runtime_ertm_tx_t *enhanced=&runtime->ertm_tx[index];
+    if(enhanced->active){
+        const dbt_channel_t *c=dbt_channels_find(&runtime->channels,link->handle,enhanced->local_cid);
+        if(!c || c->state==DBT_CH_DISCONNECTING){
+            if(c)(void)dbt_channels_ertm_cancel(&runtime->channels,link->handle,enhanced->local_cid);
+            enhanced->active=false;
+        }
+    }
     if(app->active && app->local_cid>=0x40){
         const dbt_channel_t *c=dbt_channels_find(&runtime->channels,link->handle,app->local_cid);
-        if(!c || c->state==DBT_CH_DISCONNECTING)finish_tx(app,DBT_TX_ABORTED);
+        if(!c || c->state==DBT_CH_DISCONNECTING){
+            if(app->ertm_channel && enhanced->active && enhanced->local_cid==app->local_cid){
+                if(c)(void)dbt_channels_ertm_cancel(&runtime->channels,link->handle,app->local_cid);
+                enhanced->active=false;
+            }
+            finish_tx(app,DBT_TX_ABORTED);
+        }
     }
     bool control = runtime->control_active && runtime->control.handle == link->handle;
-    if (!control && !(app->active && app->pdu.cursor) && !runtime->control_active) {
+    bool app_ready=app->active && !app->ertm_channel && (!app->credit_channel || app->frame_ready ||
+        dbt_channels_credit_ready(&runtime->channels,link->handle,app->local_cid));
+    if (!control && !(app_ready && app->pdu.cursor) && !(enhanced->active && enhanced->pdu.cursor) && !runtime->control_active) {
         dbt_signal_view_t view;
         if (dbt_channels_tx_select(&runtime->channels, link->handle, &view) == DBT_OK) {
             (void)dbt_l2cap_tx_begin(&runtime->control, link, view.cid, view.data, view.size);
             runtime->control_active = true; control = true;
         }
     }
-    dbt_l2cap_tx_t *tx = control ? &runtime->control : app->active ? &app->pdu : 0;
+    if(!control && !enhanced->active && !(app_ready && app->pdu.cursor) && (enhanced->prefer_ertm || !app_ready)){
+        dbt_result_t prepared=dbt_channels_ertm_frame(&runtime->channels,link->handle,&enhanced->pdu,&enhanced->local_cid);
+        if(prepared==DBT_OK)enhanced->active=true;
+    }
+    bool use_ertm=!control && enhanced->active && (enhanced->pdu.cursor || !app_ready || enhanced->prefer_ertm);
+    dbt_l2cap_tx_t *tx = control ? &runtime->control : use_ertm ? &enhanced->pdu : app_ready ? &app->pdu : 0;
     if (!tx) return false;
-    if(!control && app->credit_channel && !app->frame_ready){
+    if(!control && !use_ertm && app->credit_channel && !app->frame_ready){
         dbt_result_t prepared=dbt_channels_credit_frame(&runtime->channels,link->handle,app->local_cid,tx);
         if(prepared==DBT_BUSY)return false;
         if(prepared!=DBT_OK){finish_tx(app,DBT_TX_ABORTED);return false;}
@@ -297,19 +325,23 @@ static bool send_fragment(dbt_runtime_t *runtime, unsigned index) {
         if (control) {
             runtime->control_active = false;
             (void)dbt_channels_tx_commit(&runtime->channels, runtime->now_ms);
+        } else if(use_ertm){
+            uint16_t cid=enhanced->local_cid;enhanced->active=false;enhanced->prefer_ertm=false;
+            (void)dbt_channels_ertm_commit(&runtime->channels,link->handle,cid,runtime->now_ms);
         } else if(app->credit_channel){
             bool complete=false;
             if(dbt_channels_credit_commit(&runtime->channels,link->handle,app->local_cid,&complete)!=DBT_OK)
                 finish_tx(app,DBT_TX_ABORTED);
-            else if(complete)finish_tx(app,DBT_TX_ADMITTED);
+            else if(complete){enhanced->prefer_ertm=true;finish_tx(app,DBT_TX_ADMITTED);}
             else{app->frame_ready=false;app->pdu.cursor=0;}
-        } else finish_tx(app, DBT_TX_ADMITTED);
+        } else {enhanced->prefer_ertm=true;finish_tx(app, DBT_TX_ADMITTED);}
     }
     return true;
 }
 void dbt_runtime_poll(dbt_runtime_t *runtime, uint32_t now_ms, uint16_t rx_budget, uint16_t tx_budget) {
     if (!runtime || runtime->in_poll) return;
     runtime->in_poll = true; runtime->now_ms = now_ms;
+    if(runtime->ready)runtime->channels.now_ms=now_ms;
     /* Return released RX buffers before another ordinary command can take the
      * transport. Acks remain independent of command and outbound ACL credits. */
     dbt_rx_flow_poll(&runtime->rx_flow,now_ms);
@@ -323,6 +355,21 @@ void dbt_runtime_poll(dbt_runtime_t *runtime, uint32_t now_ms, uint16_t rx_budge
     if (runtime->ready) {
         (void)dbt_l2cap_expire(&runtime->rx, now_ms);
         (void)dbt_channels_poll(&runtime->channels, now_ms, rx_budget);
+        for(unsigned i=0;i<DBT_MAX_LINKS;++i){
+            dbt_runtime_tx_t *tx=&runtime->tx[i];
+            if(tx->active && tx->ertm_channel){
+                const dbt_channel_t *c=dbt_channels_find(&runtime->channels,tx->pdu.handle,tx->local_cid);
+                if(!c || c->state!=DBT_CH_OPEN){
+                    dbt_runtime_ertm_tx_t *frame=&runtime->ertm_tx[i];
+                    if(frame->active && frame->local_cid==tx->local_cid){
+                        if(c)(void)dbt_channels_ertm_cancel(&runtime->channels,tx->pdu.handle,tx->local_cid);
+                        frame->active=false;
+                    }
+                    finish_tx(tx,DBT_TX_ABORTED);
+                }else if(!dbt_channels_ertm_sdu_active(&runtime->channels,tx->pdu.handle,tx->local_cid))
+                    finish_tx(tx,DBT_TX_ADMITTED);
+            }
+        }
         for (unsigned sent = 0; sent < tx_budget; ++sent) {
             if (!runtime->host.transport.can_send(runtime->host.transport.context)) break;
             bool progressed = false;
@@ -358,9 +405,10 @@ uint32_t dbt_runtime_wait_ms(const dbt_runtime_t *runtime, uint32_t now_ms) {
         const dbt_link_t *link = &runtime->acl.links[i];
         if (!link->used || !credit(runtime, link)) continue;
         const dbt_runtime_tx_t *tx=&runtime->tx[i];
-        bool data_ready=tx->active && (!tx->credit_channel || tx->frame_ready ||
+        bool data_ready=tx->active && !tx->ertm_channel && (!tx->credit_channel || tx->frame_ready ||
             dbt_channels_credit_ready(&runtime->channels,link->handle,tx->local_cid));
-        if (data_ready || (runtime->control_active && runtime->control.handle == link->handle) ||
+        if (data_ready || runtime->ertm_tx[i].active || dbt_channels_ertm_ready(&runtime->channels,link->handle,now_ms) ||
+            (runtime->control_active && runtime->control.handle == link->handle) ||
             (!runtime->control_active && dbt_channels_tx_pending(&runtime->channels, link->handle))) return 0;
     }
     return wait;

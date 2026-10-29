@@ -3,6 +3,7 @@
 
 #include "dbt_l2cap.h"
 #include "dbt_credit.h"
+#include "dbt_ertm_engine.h"
 
 #define DBT_CHANNEL_LIMIT 8u
 #define DBT_SERVICE_LIMIT 8u
@@ -31,6 +32,7 @@ typedef struct {
     uint8_t minimum_key_size;
 } dbt_le_service_t;
 struct dbt_le_channel;
+struct dbt_ertm_channel;
 
 typedef struct {
     uint32_t serial, link_generation, deadline, pending_limit, config_limit;
@@ -45,6 +47,7 @@ typedef struct {
     bool security_incoming, security_pending_sent;
     uint8_t cached_request[DBT_SIGNAL_BYTES], cached_reply[DBT_SIGNAL_BYTES];
     struct dbt_le_channel *le; /* Lazy active-channel state; NULL for Basic. */
+    struct dbt_ertm_channel *ertm; /* Allocated only for an explicitly required ERTM channel. */
 } dbt_channel_t;
 
 typedef struct {
@@ -85,9 +88,9 @@ typedef struct {
 } dbt_channel_hooks_t;
 
 typedef struct {
-    uint32_t generation;
+    uint32_t generation, feature_mask, feature_deadline;
     uint16_t handle;
-    uint8_t next_id;
+    uint8_t next_id, feature_id, feature_state;
     bool used;
 } dbt_signal_link_t;
 typedef struct {
@@ -114,6 +117,7 @@ typedef struct {
     dbt_acl_t *acl;
     dbt_channel_hooks_t hooks;
     dbt_service_t services[DBT_SERVICE_LIMIT];
+    dbt_ertm_parameters_t ertm_services[DBT_SERVICE_LIMIT];
     const dbt_le_service_t *le_services;
     dbt_channel_t channels[DBT_CHANNEL_LIMIT];
     dbt_signal_link_t links[DBT_MAX_LINKS];
@@ -123,9 +127,9 @@ typedef struct {
     uint32_t serial, rtx_ms, ertx_ms, now_ms;
     uint32_t stale_pdus, unknown_responses, malformed_pdus, ignored_dynamic_pdus, oversized_dynamic_pdus, oversized_signaling_pdus;
     uint16_t maximum_mtu;
-    uint8_t tx_head, tx_count, rx_head, rx_count;
+    uint8_t tx_head, tx_count, rx_head, rx_count, ertm_cursor;
     uint8_t le_service_count;
-    bool tx_locked, in_callback, rx_deferred;
+    bool tx_locked, in_callback, rx_deferred, ertm_enabled;
 } dbt_channels_t;
 
 /* Single host owner. Callbacks are borrowed, nonblocking and non-reentrant.
@@ -135,6 +139,9 @@ dbt_result_t dbt_channels_init(dbt_channels_t *manager, dbt_acl_t *acl,
                                dbt_channel_hooks_t hooks, uint16_t maximum_mtu,
                                uint32_t rtx_ms, uint32_t ertx_ms);
 dbt_result_t dbt_channels_register(dbt_channels_t *manager, dbt_service_t service);
+/* Require ERTM for a registered service. Configuration is rejected if the
+ * peer lacks the mode; Basic services retain their existing behavior. */
+dbt_result_t dbt_channels_require_ertm(dbt_channels_t *manager,uint16_t psm,dbt_ertm_parameters_t receive);
 /* One immutable descriptor list, borrowed for manager lifetime (flash suitable).
  * No per-service heap/payload allocation. Must register before accepting LE CoC. */
 dbt_result_t dbt_channels_register_le(dbt_channels_t *manager,const dbt_le_service_t *services,uint8_t count);
@@ -145,12 +152,27 @@ dbt_result_t dbt_channels_credit_begin(dbt_channels_t *manager,uint16_t handle,u
 dbt_result_t dbt_channels_credit_frame(dbt_channels_t *manager,uint16_t handle,uint16_t local_cid,dbt_l2cap_tx_t *frame);
 dbt_result_t dbt_channels_credit_commit(dbt_channels_t *manager,uint16_t handle,uint16_t local_cid,bool *complete);
 bool dbt_channels_credit_ready(const dbt_channels_t *manager,uint16_t handle,uint16_t local_cid);
+/* Runtime-only ERTM operations: the caller holds a prepared frame through all
+ * ACL fragments and commits or cancels before releasing its borrowed SDU. */
+dbt_result_t dbt_channels_ertm_begin(dbt_channels_t *manager,uint16_t handle,uint16_t local_cid,const uint8_t *data,uint16_t size);
+dbt_result_t dbt_channels_ertm_frame(dbt_channels_t *manager,uint16_t handle,dbt_l2cap_tx_t *frame,uint16_t *local_cid);
+dbt_result_t dbt_channels_ertm_commit(dbt_channels_t *manager,uint16_t handle,uint16_t local_cid,uint32_t now_ms);
+dbt_result_t dbt_channels_ertm_cancel(dbt_channels_t *manager,uint16_t handle,uint16_t local_cid);
+bool dbt_channels_ertm_sdu_active(const dbt_channels_t *manager,uint16_t handle,uint16_t local_cid);
+bool dbt_channels_ertm_ready(const dbt_channels_t *manager,uint16_t handle,uint32_t now_ms);
 /* Abort all channels and release lazy state after transport has been quiesced. */
 void dbt_channels_clear(dbt_channels_t *manager);
 dbt_result_t dbt_channels_register_fixed(dbt_channels_t *manager, dbt_link_kind_t kind, uint16_t cid);
+/* Start Classic Extended Features discovery once per live link generation.
+ * Read returns BUSY until the response, UNSUPPORTED on reject/timeout, and OK
+ * with the peer's mask on success. Neither function advertises a local mode. */
+dbt_result_t dbt_channels_discover_features(dbt_channels_t *manager,uint16_t handle,uint32_t now_ms);
+dbt_result_t dbt_channels_peer_features(const dbt_channels_t *manager,uint16_t handle,uint32_t *mask);
 dbt_result_t dbt_channels_open(dbt_channels_t *manager, uint16_t handle, uint16_t psm,
                                uint16_t rx_mtu, uint16_t minimum_mtu, dbt_security_t security,
                                uint32_t now_ms, uint16_t *local_cid);
+dbt_result_t dbt_channels_open_ertm(dbt_channels_t *manager,uint16_t handle,uint16_t psm,
+    uint16_t minimum_mtu,dbt_security_t security,dbt_ertm_parameters_t receive,uint32_t now_ms,uint16_t *local_cid);
 dbt_result_t dbt_channels_close(dbt_channels_t *manager, uint16_t handle,
                                 uint16_t local_cid, uint32_t now_ms);
 const dbt_channel_t *dbt_channels_find(const dbt_channels_t *manager, uint16_t handle, uint16_t local_cid);

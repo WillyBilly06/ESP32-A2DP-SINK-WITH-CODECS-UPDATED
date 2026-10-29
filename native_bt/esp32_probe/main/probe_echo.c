@@ -2,7 +2,7 @@
 #include "probe_security.h"
 #include "esp_heap_caps.h"
 
-/* Encrypted diagnostic Basic channel, not an audio profile. One echo at a time. */
+/* Encrypted diagnostic ERTM channel, not an audio profile. One echo at a time. */
 static dbt_runtime_t *runtime;
 static dbt_gap_t *gap;
 typedef struct {
@@ -45,10 +45,13 @@ static void done(void *context, dbt_tx_outcome_t outcome) {
 dbt_result_t probe_echo_init(dbt_runtime_t *host_runtime, dbt_gap_t *host_gap) {
     runtime = host_runtime;
     gap = host_gap;
-    dbt_service_t service = {0x1001, 2048, 48, DBT_SECURITY_ENCRYPTED};
+    dbt_service_t service = {0x1001, 2048, 2048, DBT_SECURITY_ENCRYPTED};
     dbt_result_t result = dbt_channels_register(&runtime->channels, service);
     if (result != DBT_OK)
         return result;
+    dbt_ertm_parameters_t ertm={.mtu=2048,.mps=256,.retransmission_ms=2000,.monitor_ms=12000,.window=8,.max_transmit=3};
+    result=dbt_channels_require_ertm(&runtime->channels,0x1001,ertm);
+    if(result!=DBT_OK)return result;
     /* Encrypted diagnostic administration: 0x01 forgets this bound peer and
      * disconnects after the NVS commit. No unsecured BLE reset endpoint. */
     dbt_service_t administration = {0x1003, 48, 48, DBT_SECURITY_ENCRYPTED};

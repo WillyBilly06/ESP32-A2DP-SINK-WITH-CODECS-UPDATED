@@ -1010,6 +1010,14 @@ if(CONFIG_BT_A2DP_OPUS_DECODER)
 
     list(APPEND priv_include_dirs   "host/bluedroid/external/opus_config")
 
+    # One guarded arena implementation for every bundled Opus translation unit.
+    # The application and independent host share this owned scratch source; no
+    # second SDK or BTstack implementation is imported.
+    get_filename_component(dbt_opus_scratch_dir
+        "${CMAKE_CURRENT_LIST_DIR}/../../../native_bt/codecs/opus/scratch" ABSOLUTE)
+    list(APPEND priv_include_dirs "${dbt_opus_scratch_dir}")
+    list(APPEND srcs "${dbt_opus_scratch_dir}/dbt_opus_scratch.c")
+
     file(GLOB opus_srcs "host/bluedroid/external/opus/src/*.c")
     file(GLOB opus_silk "host/bluedroid/external/opus/silk/*.c")
     file(GLOB opus_celt "host/bluedroid/external/opus/celt/*.c")
@@ -1028,6 +1036,12 @@ if(CONFIG_BT_A2DP_OPUS_DECODER)
 
     list(APPEND srcs "host/bluedroid/stack/a2dp/a2dp_vendor_opus.c"
                      "host/bluedroid/stack/a2dp/a2dp_vendor_opus_decoder.c")
+    set_property(SOURCE ${opus_srcs} ${opus_silk} ${opus_celt} ${opus_fixed}
+        "host/bluedroid/stack/a2dp/a2dp_vendor_opus.c"
+        "host/bluedroid/stack/a2dp/a2dp_vendor_opus_decoder.c"
+        APPEND PROPERTY COMPILE_OPTIONS
+        "-include" "${dbt_opus_scratch_dir}/dbt_opus_scratch_override.h"
+        "-DDBT_OPUS_GUARDED_API=1")
 endif()
 
 if(CONFIG_BT_A2DP_LC3PLUS_DECODER)

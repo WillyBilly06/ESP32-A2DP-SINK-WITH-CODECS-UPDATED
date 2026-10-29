@@ -55,6 +55,8 @@ typedef void (*dbt_observer_t)(void *context, const dbt_hci_packet_t *packet);
 typedef enum { DBT_COMMAND_COMPLETE, DBT_COMMAND_STATUS } dbt_command_response_t;
 typedef enum { DBT_COMMAND_SUCCESS, DBT_COMMAND_REJECTED,
                DBT_COMMAND_TIMEOUT, DBT_COMMAND_ABORTED } dbt_command_outcome_t;
+typedef enum { DBT_COMMAND_CANCELLED, DBT_COMMAND_ALREADY_SUBMITTED,
+               DBT_COMMAND_NOT_FOUND } dbt_command_cancel_result_t;
 /* STATUS success means controller procedure admission, not connection completion.
  * Return parameters (including Status) are borrowed only during this callback. */
 typedef void (*dbt_command_done_t)(void *context, uint16_t opcode,
@@ -62,7 +64,7 @@ typedef void (*dbt_command_done_t)(void *context, uint16_t opcode,
 typedef struct {
     void *context;
     dbt_command_done_t done;
-    uint32_t deadline;
+    uint32_t deadline, token;
     uint16_t opcode;
     uint8_t size;
     dbt_command_response_t response;
@@ -98,7 +100,9 @@ typedef struct {
     bool in_poll, tx_retained;
 } dbt_host_t;
 
-/* All APIs except receive are single-owner, called from the host task. */
+/* All APIs except receive are single-owner, called from the host task. Before
+ * reinitializing a used host, abort outstanding work, complete its callbacks,
+ * and wait until the transport has returned any retained TX storage. */
 dbt_result_t dbt_host_init(dbt_host_t *host, dbt_transport_t transport,
                           dbt_observer_t observer, void *context, uint32_t timeout_ms);
 dbt_result_t dbt_host_start(dbt_host_t *host, uint32_t now_ms);
@@ -114,6 +118,16 @@ uint32_t dbt_host_wait_ms(const dbt_host_t *host, uint32_t now_ms);
 dbt_result_t dbt_host_command(dbt_host_t *host, uint16_t opcode,
     const uint8_t *parameters, uint8_t size, dbt_command_response_t response,
     dbt_command_done_t done, void *context, uint32_t now_ms);
+/* Identical enqueue semantics, additionally yielding a process-unique nonzero
+ * token on success. Output is unchanged on failure. Tokens never wrap or repeat
+ * across host reinitialization; exhaustion fails closed. */
+dbt_result_t dbt_host_command_tracked(dbt_host_t *host, uint16_t opcode,
+    const uint8_t *parameters, uint8_t size, dbt_command_response_t response,
+    dbt_command_done_t done, void *context, uint32_t now_ms, uint32_t *token);
+/* Owner only, including during a host observer callback. An unsent command is
+ * removed and wiped before its synchronous ABORTED callback. An HCI-admitted
+ * command stays pending until its normal completion or host failure. */
+dbt_command_cancel_result_t dbt_host_cancel_command(dbt_host_t *host,uint32_t token);
 void dbt_host_abort(dbt_host_t *host, dbt_fault_t fault);
 
 #endif

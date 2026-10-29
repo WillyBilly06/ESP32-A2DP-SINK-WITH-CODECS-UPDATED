@@ -24,8 +24,13 @@ typedef struct {
     dbt_tx_done_t done;
     void *context;
     uint16_t local_cid;
-    bool active,credit_channel,frame_ready;
+    bool active,credit_channel,ertm_channel,frame_ready;
 } dbt_runtime_tx_t;
+typedef struct {
+    dbt_l2cap_tx_t pdu;
+    uint16_t local_cid;
+    bool active, prefer_ertm;
+} dbt_runtime_ertm_tx_t;
 
 typedef enum { DBT_RUNTIME_FAULT_NONE, DBT_RUNTIME_FAULT_ACL_EVENT,
     DBT_RUNTIME_FAULT_L2CAP, DBT_RUNTIME_FAULT_CHANNEL_PDU,
@@ -48,6 +53,7 @@ typedef struct {
     dbt_runtime_hooks_t hooks;
     dbt_runtime_failure_t failure;
     dbt_runtime_tx_t tx[DBT_MAX_LINKS];
+    dbt_runtime_ertm_tx_t ertm_tx[DBT_MAX_LINKS];
     dbt_l2cap_tx_t control;
     uint32_t now_ms;
     uint16_t maximum_mtu;
@@ -69,7 +75,8 @@ void dbt_runtime_poll(dbt_runtime_t *runtime, uint32_t now_ms, uint16_t rx_budge
 uint32_t dbt_runtime_wait_ms(const dbt_runtime_t *runtime, uint32_t now_ms);
 /* One borrowed outbound SDU per connection. Keep it unchanged until done, even
  * during controller credit stalls. Channel callbacks may enqueue fixed replies;
- * dynamic channel operations follow the channel manager's non-reentrant rules. */
+ * dynamic channel operations follow the channel manager's non-reentrant rules.
+ * ERTM retains the SDU through peer acknowledgment and any pinned frame. */
 dbt_result_t dbt_runtime_send(dbt_runtime_t *runtime, uint16_t handle, uint16_t local_cid,
     const uint8_t *data, uint16_t size, dbt_tx_done_t done, void *context);
 dbt_result_t dbt_runtime_send_fixed(dbt_runtime_t *runtime, uint16_t handle, uint16_t cid,

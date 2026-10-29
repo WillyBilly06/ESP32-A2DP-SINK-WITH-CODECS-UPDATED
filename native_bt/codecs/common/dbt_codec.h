@@ -2,7 +2,7 @@
 #define DBT_CODEC_H
 #include "dbt_avdtp_sink.h"
 
-#define DBT_CODEC_CIE_BYTES 16u
+#define DBT_CODEC_CIE_BYTES 26u
 struct dbt_codec_ops;
 typedef struct {
     const struct dbt_codec_ops *ops;

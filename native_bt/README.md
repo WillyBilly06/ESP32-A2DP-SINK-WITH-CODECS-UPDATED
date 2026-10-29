@@ -4,26 +4,33 @@ The project goal is a small, independently authored Bluetooth Classic + BLE host
 with simultaneous operation through the original ESP32's Espressif dual-mode
 controller. BTstack is inspected only in `../reference/btstack`.
 
-Current milestone: a portable C11 HCI/ACL/Basic L2CAP runtime, GAP setup, LE ATT/GATT,
-Classic security and an SDP server, with an isolated ESP-IDF 5.5.2 probe.
-Controller-to-host ACL credits and bounded SCO HCI framing are also implemented;
-voice connection/profile ownership remains pending.
-Owned AVDTP signaling, capability validation and an RTP media-header view are
-implemented alongside an asynchronous sink acceptor, runtime media manager and
-actual SBC decoder worker. A restricted RF diagnostic passes SBC-to-PCM counters
-with concurrent LE ATT traffic. An optional integer DSP/I2S candidate also passed
-a finite raw-SBC/BLE digital-counter run; product/Firefox qualification remains pending.
-See [AVDTP scope](docs/AVDTP.md) and [sink lifecycle](docs/AVDTP_SINK.md).
-See [SBC pipeline evidence](docs/SBC_PIPELINE.md) for the exact workload and limits.
-See [experimental output evidence](docs/AUDIO_OUTPUT.md) for output ownership and limitations.
-This is **not yet a complete Bluetooth host or a product audio
-firmware replacement**. The staged audio application still uses Bluedroid and
-includes the separately requested integer DSP and codec-memory changes.
+Current local candidate includes the independently authored HCI/ACL, Basic and
+credit-based L2CAP, required-mode ERTM, GAP, ATT/GATT, Classic security, SMP,
+SDP, AVDTP/A2DP and AVRCP control/metadata paths. The codec worker selects SBC,
+AAC-LC, aptX/HD/LL, Android Opus/Opus05, LDAC and LHDC V5 without retaining the
+other decoder working sets. Fixed-point EQ and adaptive clock correction run
+outside the host owner; immutable FIR/codec tables remain in flash.
 
-The GitHub host checkpoint includes the owned host/probe, native tests and their
-portable DSP C test dependency. Audio-application/DSP-wrapper/SDK codec changes
-described in the local progress report are separate work and are not a completed
-application migration in this checkpoint.
+The owned BLE service now carries the baseline app UUIDs and EQ/control/status/
+meter protocol. Each accepted EQ update has its own immediate NVS commit;
+there is no debounce or coalescing. Other product providers and profile roles
+remain incomplete. See [the feature matrix](docs/FEATURE_MATRIX.md) for the
+implemented, host-tested, target-linked and missing pieces.
+
+**This is not a complete or production-qualified replacement.** The last device
+candidate passed image readback but only 19/37 codec checks; five comparisons
+failed and thirteen later Opus cases did not run, so Bluetooth stayed disabled.
+The AAC host-math and Opus arithmetic-profile oracles have since been corrected
+locally and remain unconfirmed on device. Historical RF/audio evidence belongs
+to its stated earlier firmware identities.
+
+The user has reserved the ESP32. All further testing is off-board until explicitly
+released: the serial reader is released, and deployment/reset/automatic reconnect
+is held. Local builds and checksum/partition checks establish flashable image
+format and capacity, not runtime, coexistence or acoustic performance. Current
+local evidence is in [LOCAL_CANDIDATE_EVIDENCE.json](docs/LOCAL_CANDIDATE_EVIDENCE.json).
+The full project goal remains active; no equivalent-feature advantage over
+Bluedroid or BTstack is claimed. BTstack remains source-reference-only.
 
 | Path | Purpose |
 | --- | --- |

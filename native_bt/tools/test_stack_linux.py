@@ -133,7 +133,7 @@ def main():
         if stdout.channel.recv_exit_status():
             raise RuntimeError(stderr.read().decode())
         files = {str(path.relative_to(ROOT)).replace("\\", "/"): path
-                 for folder, pattern in [("src", "*.c"), ("include", "*.h"), ("tests", "test_*.c")]
+                 for folder, pattern in [("src", "*.c"), ("src", "*.inc"), ("include", "*.h"), ("tests", "test_*.c")]
                  for path in (ROOT / folder).glob(pattern)}
         files["tools/test_host.py"] = ROOT / "tools/test_host.py"
         for name in ["codecs/common/dbt_codec.c", "codecs/common/dbt_codec.h", "codecs/aac/dbt_aac_transport.c", "codecs/aac/dbt_aac.h"]:

@@ -6,7 +6,7 @@
 #define DBT_GAP_REPLY_SLOTS 4u
 typedef enum { DBT_GAP_IDLE, DBT_GAP_CONFIGURING, DBT_GAP_READY, DBT_GAP_FAILED } dbt_gap_state_t;
 typedef struct {
-    char name[32];
+    char name[33];
     uint8_t class_of_device[3];
     uint8_t advertising[31], advertising_size;
     uint8_t scan_response[31], scan_response_size;

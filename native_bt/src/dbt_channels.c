@@ -1,6 +1,7 @@
 #include "dbt_channels.h"
 
-enum { TX_PLAIN, TX_REQUEST, TX_CONNECTION_ACCEPT, TX_CONFIG_ACCEPT, TX_SECURITY_PENDING, TX_LE_ACCEPT, TX_LE_GRANT };
+enum { TX_PLAIN, TX_REQUEST, TX_CONNECTION_ACCEPT, TX_CONFIG_ACCEPT, TX_SECURITY_PENDING, TX_LE_ACCEPT, TX_LE_GRANT, TX_FEATURES };
+enum { FEATURES_UNKNOWN, FEATURES_QUEUED, FEATURES_SENT, FEATURES_READY, FEATURES_UNAVAILABLE };
 enum { CONNECTION_REQUEST = 2, CONNECTION_RESPONSE = 3, CONFIG_REQUEST = 4,
        CONFIG_RESPONSE = 5, DISCONNECT_REQUEST = 6, DISCONNECT_RESPONSE = 7,
        LE_CONNECT_REQUEST=0x14,LE_CONNECT_RESPONSE=0x15,LE_CREDITS=0x16 };
@@ -12,6 +13,16 @@ struct dbt_le_channel {
     uint8_t minimum_key_size;
     bool faulted;
 };
+struct dbt_ertm_channel {
+    dbt_ertm_engine_t engine;
+    dbt_ertm_parameters_t local,peer,staged_peer;
+    dbt_channels_t *manager;
+    dbt_channel_t *channel;
+    uint8_t *encoded;
+    bool initialized,feature_started;
+};
+static void ertm_fault(dbt_channels_t *m,dbt_channel_t *c);
+static bool authorized(dbt_channels_t *manager,const dbt_link_t *link,uint16_t psm,dbt_security_t security);
 
 static void copy(void *destination, const void *source, unsigned size) {
     uint8_t *out = destination;
@@ -47,6 +58,36 @@ static void le_sdu(void *context,const uint8_t *bytes,uint16_t size){
 }
 static void le_dispose(dbt_channels_t *m,dbt_channel_t *c){
     if(c->le){dbt_credit_close(&c->le->engine);m->hooks.release(m->hooks.context,(uint8_t *)c->le);c->le=0;}
+}
+static void ertm_dispose(dbt_channels_t *m,dbt_channel_t *c){
+    if(!c->ertm)return;
+    struct dbt_ertm_channel *e=c->ertm;
+    if(e->initialized){
+        if(dbt_ertm_engine_close(&e->engine)==DBT_BUSY){
+            (void)dbt_ertm_engine_cancel_frame(&e->engine);
+            (void)dbt_ertm_engine_close(&e->engine);
+        }
+    }
+    if(e->encoded)m->hooks.release(m->hooks.context,e->encoded);
+    m->hooks.release(m->hooks.context,(uint8_t *)e);c->ertm=0;
+}
+static bool ertm_construct(dbt_channels_t *m,dbt_channel_t *c,dbt_ertm_parameters_t local){
+    struct dbt_ertm_channel *e=(struct dbt_ertm_channel *)m->hooks.allocate(m->hooks.context,sizeof(*e));
+    if(!e)return false;
+    if((uintptr_t)e%_Alignof(struct dbt_ertm_channel)){
+        m->hooks.release(m->hooks.context,(uint8_t *)e);return false;
+    }
+    zero(e,sizeof(*e));e->local=local;e->manager=m;e->channel=c;c->ertm=e;return true;
+}
+static uint8_t *ertm_allocate(void *context,uint16_t bytes){
+    struct dbt_ertm_channel *e=context;return e->manager->hooks.allocate(e->manager->hooks.context,bytes);
+}
+static void ertm_release(void *context,uint8_t *bytes){
+    struct dbt_ertm_channel *e=context;e->manager->hooks.release(e->manager->hooks.context,bytes);
+}
+static void ertm_sdu(void *context,const uint8_t *bytes,uint16_t size){
+    struct dbt_ertm_channel *e=context;dbt_channels_t *m=e->manager;
+    if(m->hooks.data){m->in_callback=true;m->hooks.data(m->hooks.context,e->channel,bytes,size);m->in_callback=false;}
 }
 
 static dbt_channel_t *find(dbt_channels_t *manager, uint16_t handle, uint16_t cid) {
@@ -94,11 +135,24 @@ static void finish(dbt_channels_t *manager, dbt_channel_t *channel, dbt_channel_
     /* Keep the snapshot useful to the event consumer, then make the slot free. */
     notify(manager, channel, opened ? DBT_CH_EVENT_CLOSED : DBT_CH_EVENT_FAILED, reason, result);
     le_dispose(manager,channel);
+    ertm_dispose(manager,channel);
     zero(channel, sizeof(*channel));
 }
 static void maybe_open(dbt_channels_t *manager, dbt_channel_t *channel) {
     if (channel->state != DBT_CH_CONFIGURING || !channel->connection_ready ||
         !channel->local_configured || !channel->peer_configured || channel->request_code != 0) return;
+    if(channel->ertm && !channel->ertm->initialized){
+        struct dbt_ertm_channel *e=channel->ertm;
+        const dbt_link_t *link=dbt_acl_find(manager->acl,channel->handle);
+        if(!link || link->generation!=channel->link_generation || !authorized(manager,link,channel->psm,channel->security)){
+            ertm_fault(manager,channel);return;
+        }
+        dbt_ertm_hooks_t hooks={e,ertm_allocate,ertm_release,ertm_sdu};
+        if(dbt_ertm_engine_init(&e->engine,hooks,channel->local_cid,channel->remote_cid,e->local,e->peer,true)!=DBT_OK){
+            ertm_fault(manager,channel);return;
+        }
+        e->initialized=true;
+    }
     bool reconfigured = channel->reconfiguring;
     channel->state = DBT_CH_OPEN;
     channel->opened_once = true;
@@ -109,8 +163,23 @@ static bool live_link(const dbt_channels_t *manager, uint16_t handle, uint32_t g
     const dbt_link_t *link = dbt_acl_find(manager->acl, handle);
     return link && link->generation == generation;
 }
+static dbt_signal_link_t *signal_link(dbt_channels_t *manager,uint16_t handle,uint32_t generation) {
+    for(unsigned i=0;i<DBT_MAX_LINKS;++i) {
+        dbt_signal_link_t *state=&manager->links[i];
+        if(state->used && state->handle==handle && state->generation==generation)return state;
+    }
+    return 0;
+}
 static bool tx_valid(const dbt_channels_t *manager, const dbt_signal_tx_t *tx) {
     if (!tx->valid || !live_link(manager, tx->handle, tx->generation)) return false;
+    if (tx->effect == TX_FEATURES) {
+        for(unsigned i=0;i<DBT_MAX_LINKS;++i) {
+            const dbt_signal_link_t *s=&manager->links[i];
+            if(s->used && s->handle==tx->handle && s->generation==tx->generation)
+                return s->feature_state==FEATURES_QUEUED && s->feature_id==tx->bytes[1];
+        }
+        return false;
+    }
     if (tx->serial == 0) return true;
     const dbt_channel_t *channel = dbt_channels_find(manager, tx->handle, tx->local_cid);
     if (!channel || channel->serial != tx->serial) return false;
@@ -189,7 +258,8 @@ static uint8_t request_id(dbt_channels_t *manager, const dbt_link_t *link) {
     }
     for (unsigned attempt = 0; attempt < 255; ++attempt) {
         if (++state->next_id == 0) ++state->next_id;
-        bool busy = false;
+        bool busy = (state->feature_state==FEATURES_QUEUED || state->feature_state==FEATURES_SENT) &&
+                    state->feature_id==state->next_id;
         for (unsigned i = 0; i < DBT_CHANNEL_LIMIT; ++i) {
             dbt_channel_t *channel = &manager->channels[i];
             if (channel->state != DBT_CH_FREE && channel->handle == link->handle && channel->link_generation == link->generation &&
@@ -199,14 +269,47 @@ static uint8_t request_id(dbt_channels_t *manager, const dbt_link_t *link) {
     }
     return 0;
 }
+dbt_result_t dbt_channels_discover_features(dbt_channels_t *manager,uint16_t handle,uint32_t now) {
+    if(!manager || manager->in_callback)return DBT_INVALID;
+    const dbt_link_t *link=dbt_acl_find(manager->acl,handle);
+    if(!link || link->kind!=DBT_LINK_CLASSIC)return DBT_UNSUPPORTED;
+    dbt_signal_link_t *state=signal_link(manager,handle,link->generation);
+    if(state && state->feature_state!=FEATURES_UNKNOWN)
+        return state->feature_state==FEATURES_UNAVAILABLE?DBT_UNSUPPORTED:DBT_OK;
+    uint8_t id=request_id(manager,link);
+    if(!id)return DBT_BUSY;
+    state=signal_link(manager,handle,link->generation);
+    uint8_t body[2]={2,0};
+    dbt_result_t result=enqueue(manager,link,1,0x0a,id,body,2,0,TX_FEATURES,0);
+    if(result!=DBT_OK)return result;
+    state->feature_id=id;state->feature_state=FEATURES_QUEUED;state->feature_deadline=now+manager->rtx_ms;
+    return DBT_OK;
+}
+dbt_result_t dbt_channels_peer_features(const dbt_channels_t *manager,uint16_t handle,uint32_t *mask) {
+    if(!manager || !mask || manager->in_callback)return DBT_INVALID;
+    const dbt_link_t *link=dbt_acl_find(manager->acl,handle);
+    if(!link || link->kind!=DBT_LINK_CLASSIC)return DBT_UNSUPPORTED;
+    for(unsigned i=0;i<DBT_MAX_LINKS;++i) {
+        const dbt_signal_link_t *s=&manager->links[i];
+        if(!s->used || s->handle!=handle || s->generation!=link->generation)continue;
+        if(s->feature_state==FEATURES_READY){*mask=s->feature_mask;return DBT_OK;}
+        return s->feature_state==FEATURES_UNAVAILABLE?DBT_UNSUPPORTED:DBT_BUSY;
+    }
+    return DBT_BUSY;
+}
 static dbt_result_t queue_request(dbt_channels_t *manager, dbt_channel_t *channel, uint8_t code, bool null_config) {
     const dbt_link_t *link = dbt_acl_find(manager->acl, channel->handle);
     if (!link || link->generation != channel->link_generation) return DBT_INVALID;
-    uint8_t body[10]; uint16_t size = 4;
+    uint8_t body[19]; uint16_t size = 4;
     if (code == CONNECTION_REQUEST) { put16(body, channel->psm); put16(body + 2, channel->local_cid); }
     else if (code == CONFIG_REQUEST) {
         put16(body, channel->remote_cid); put16(body + 2, 0);
         if (!null_config) { body[4] = 1; body[5] = 2; put16(body + 6, channel->rx_mtu); size = 8; }
+        if(!null_config && channel->ertm){
+            const dbt_ertm_parameters_t *p=&channel->ertm->local;
+            body[8]=4;body[9]=9;body[10]=3;body[11]=p->window;body[12]=p->max_transmit;
+            put16(body+13,0);put16(body+15,0);put16(body+17,p->mps);size=19;
+        }
     } else if(code==LE_CONNECT_REQUEST){
         if(!channel->le)return DBT_INVALID;
         put16(body,channel->psm);put16(body+2,channel->local_cid);put16(body+4,channel->rx_mtu);
@@ -220,6 +323,12 @@ static dbt_result_t queue_request(dbt_channels_t *manager, dbt_channel_t *channe
         channel->deadline = manager->now_ms + manager->rtx_ms;
     }
     return result;
+}
+static void ertm_fault(dbt_channels_t *m,dbt_channel_t *c){
+    if(!c->ertm || c->state==DBT_CH_DISCONNECTING)return;
+    if(c->ertm->initialized)(void)dbt_ertm_engine_close(&c->ertm->engine);
+    c->request_code=0;c->request_sent=false;c->state=DBT_CH_DISCONNECTING;c->deadline=m->now_ms+m->rtx_ms;
+    (void)queue_request(m,c,DISCONNECT_REQUEST,false);
 }
 static bool le_selection_valid(const dbt_channels_t *m,const dbt_le_service_t *s){
     return s && s->spsm && s->spsm<=255 && s->receive.mtu>=23 && s->receive.mtu<=m->maximum_mtu &&
@@ -316,6 +425,7 @@ void dbt_channels_clear(dbt_channels_t *m){
     if(!m || m->in_callback)return;
     for(unsigned i=0;i<DBT_CHANNEL_LIMIT;++i)if(m->channels[i].state!=DBT_CH_FREE)finish(m,&m->channels[i],DBT_CH_REASON_PROTOCOL,0);
     m->tx_count=m->rx_count=0;m->tx_locked=m->rx_deferred=false;
+    zero(m->links,sizeof(m->links));
 }
 static dbt_result_t reject(dbt_channels_t *manager, const dbt_link_t *link, uint16_t cid,
                             uint8_t id, uint16_t reason, uint16_t local, uint16_t remote) {
@@ -356,6 +466,22 @@ dbt_result_t dbt_channels_register(dbt_channels_t *manager, dbt_service_t servic
     copy(empty, &service, sizeof(service));
     return DBT_OK;
 }
+static bool ertm_policy_valid(const dbt_channels_t *manager,dbt_ertm_parameters_t receive){
+    return manager && manager->hooks.allocate && manager->hooks.release && receive.mtu>=48 &&
+       receive.mtu<=manager->maximum_mtu && receive.window && receive.window<=63 &&
+       receive.mps>=48 && receive.mps<=DBT_ERTM_MAX_MPS &&
+       (uint32_t)receive.mps+6u<=manager->maximum_mtu && receive.retransmission_ms>=2000 && receive.monitor_ms>=12000;
+}
+dbt_result_t dbt_channels_require_ertm(dbt_channels_t *manager,uint16_t psm,dbt_ertm_parameters_t receive){
+    if(!manager || manager->in_callback || !ertm_policy_valid(manager,receive))return DBT_INVALID;
+    for(unsigned i=0;i<DBT_CHANNEL_LIMIT;++i)
+        if(manager->channels[i].state!=DBT_CH_FREE && manager->channels[i].psm==psm)return DBT_BUSY;
+    for(unsigned i=0;i<DBT_SERVICE_LIMIT;++i)if(manager->services[i].psm==psm){
+        if(receive.mtu!=manager->services[i].rx_mtu)return DBT_INVALID;
+        manager->ertm_services[i]=receive;manager->ertm_enabled=true;return DBT_OK;
+    }
+    return DBT_INVALID;
+}
 dbt_result_t dbt_channels_open(dbt_channels_t *manager, uint16_t handle, uint16_t psm, uint16_t mtu,
                                uint16_t minimum, dbt_security_t security, uint32_t now, uint16_t *local_cid) {
     if (!manager || !local_cid || manager->in_callback || !psm_valid(psm) || minimum < 48 ||
@@ -379,6 +505,17 @@ dbt_result_t dbt_channels_open(dbt_channels_t *manager, uint16_t handle, uint16_
     *local_cid = channel->local_cid;
     return DBT_OK;
 }
+dbt_result_t dbt_channels_open_ertm(dbt_channels_t *m,uint16_t handle,uint16_t psm,uint16_t minimum,
+    dbt_security_t security,dbt_ertm_parameters_t local,uint32_t now,uint16_t *cid){
+    if(!m || m->in_callback || !cid || !ertm_policy_valid(m,local))return DBT_INVALID;
+    struct dbt_ertm_channel *e=(struct dbt_ertm_channel *)m->hooks.allocate(m->hooks.context,sizeof(*e));
+    if(!e)return DBT_NO_SPACE;
+    if((uintptr_t)e%_Alignof(struct dbt_ertm_channel)){m->hooks.release(m->hooks.context,(uint8_t *)e);return DBT_NO_SPACE;}
+    dbt_result_t result=dbt_channels_open(m,handle,psm,local.mtu,minimum,security,now,cid);
+    if(result!=DBT_OK){m->hooks.release(m->hooks.context,(uint8_t *)e);return result;}
+    dbt_channel_t *c=find(m,handle,*cid);zero(e,sizeof(*e));e->manager=m;e->channel=c;e->local=local;c->ertm=e;
+    m->ertm_enabled=true;return DBT_OK;
+}
 dbt_result_t dbt_channels_close(dbt_channels_t *manager, uint16_t handle, uint16_t cid, uint32_t now) {
     if (!manager || manager->in_callback) return DBT_INVALID;
     dbt_channel_t *channel = find(manager, handle, cid);
@@ -389,7 +526,11 @@ dbt_result_t dbt_channels_close(dbt_channels_t *manager, uint16_t handle, uint16
     if (manager->tx_count == DBT_SIGNAL_TX_SLOTS) return DBT_BUSY;
     channel->request_code = 0; manager->now_ms = now;
     dbt_result_t result = queue_request(manager, channel, DISCONNECT_REQUEST, false);
-    if (result == DBT_OK){channel->state=DBT_CH_DISCONNECTING;if(channel->le)dbt_credit_close(&channel->le->engine);}
+    if (result == DBT_OK){
+        channel->state=DBT_CH_DISCONNECTING;
+        if(channel->le)dbt_credit_close(&channel->le->engine);
+        if(channel->ertm && channel->ertm->initialized)(void)dbt_ertm_engine_close(&channel->ertm->engine);
+    }
     return result;
 }
 
@@ -440,6 +581,14 @@ dbt_result_t dbt_channels_receive(dbt_channels_t *manager, uint16_t handle, uint
             if(channel->le){
                 if(!le_data_allowed(manager,channel,link)){le_fault(manager,channel);return DBT_OK;}
                 if(dbt_credit_receive(&channel->le->engine,data,size)!=DBT_OK)le_fault(manager,channel);
+                return DBT_OK;
+            }
+            if(channel->ertm){
+                if(!channel->ertm->initialized || !authorized(manager,link,channel->psm,channel->security)){
+                    ertm_fault(manager,channel);return DBT_OK;
+                }
+                if(dbt_ertm_engine_receive(&channel->ertm->engine,data,size,manager->now_ms)!=DBT_OK)
+                    ertm_fault(manager,channel);
                 return DBT_OK;
             }
             if(size>channel->rx_mtu){++manager->oversized_dynamic_pdus;return DBT_OK;}
@@ -510,11 +659,15 @@ static dbt_result_t connection_request(dbt_channels_t *manager, const dbt_link_t
         else {
             channel = allocate_channel(manager, link, psm, service->rx_mtu, service->minimum_mtu, service->security);
             if (!channel) result = 4;
+            else if(manager->ertm_services[service-manager->services].window &&
+                    !ertm_construct(manager,channel,manager->ertm_services[service-manager->services])){
+                zero(channel,sizeof(*channel));channel=0;result=4;
+            }
             else { channel->remote_cid = peer; channel->incoming_connect_id = command[1]; channel->state = DBT_CH_CONFIGURING;
                 if(!authorized(manager,link,psm,service->security)) {
                     dbt_result_t progress=security_request(manager,link,psm,service->security,true);
                     if(progress==DBT_BUSY || progress==DBT_OK){channel->state=DBT_CH_SECURING;channel->security_incoming=true;channel->deadline=manager->now_ms+manager->ertx_ms;}
-                    else{zero(channel,sizeof(*channel));channel=0;result=3;}
+                    else{ertm_dispose(manager,channel);zero(channel,sizeof(*channel));channel=0;result=3;}
                 }
             }
         }
@@ -622,6 +775,61 @@ static bool parse_options(const uint8_t *data, uint16_t size, uint16_t minimum, 
     }
     return true;
 }
+/* Required ERTM deliberately uses the default 16-bit FCS. Unknown mandatory
+ * options and continuation are refused, so no partial or asymmetric mode can
+ * reach OPEN. Timers in requests must be zero; response timers are the peer's
+ * actual sender settings and do not replace our own local sender timers. */
+static bool ertm_options(const uint8_t *data,uint16_t size,bool response,
+                         uint16_t initial_mtu,dbt_ertm_parameters_t *value){
+    bool rfc=false,mtu=false,fcs=false;value->mtu=initial_mtu;
+    for(unsigned at=0;at<size;){
+        if(size-at<2)return false;
+        unsigned type=data[at],length=data[at+1],end=at+2u+length;
+        if(end>size)return false;
+        const uint8_t *p=data+at+2;
+        if(type&0x80u){at=end;continue;}
+        if((type&0x7fu)==1){
+            if(mtu || length!=2)return false;
+            mtu=true;value->mtu=dbt_read_le16(p);
+            if(value->mtu<48)return false;
+        }else if((type&0x7fu)==4){
+            if(rfc || length!=9 || p[0]!=3 || !p[1] || p[1]>63)return false;
+            rfc=true;value->window=p[1];value->max_transmit=p[2];
+            value->retransmission_ms=dbt_read_le16(p+3);value->monitor_ms=dbt_read_le16(p+5);value->mps=dbt_read_le16(p+7);
+            if(value->mps<48 || value->mps>DBT_ERTM_MAX_MPS ||
+               (!response && (value->retransmission_ms || value->monitor_ms)) ||
+               (response && (value->retransmission_ms<2000 || value->monitor_ms<12000)))return false;
+        }else if((type&0x7fu)==5){
+            if(fcs || length!=1 || p[0]>1)return false;
+            fcs=true;
+        }else if(!(type&0x80u))return false;
+        at=end;
+    }
+    return rfc;
+}
+static dbt_result_t ertm_config_request(dbt_channels_t *m,const dbt_link_t *link,dbt_channel_t *c,
+                                         const uint8_t *command,uint16_t size){
+    uint32_t features=0;
+    dbt_result_t discovery=dbt_channels_peer_features(m,link->handle,&features);
+    if(discovery==DBT_BUSY)return DBT_BUSY;
+    if(discovery!=DBT_OK || !(features&8u))return DBT_UNSUPPORTED;
+    dbt_ertm_parameters_t peer={0};
+    bool accepted=dbt_read_le16(command+6)==0 && ertm_options(command+8,(uint16_t)(size-8),false,c->tx_mtu,&peer);
+    if(accepted && peer.mtu<c->minimum_mtu)accepted=false;
+    uint8_t body[21]={0};put16(body,c->remote_cid);put16(body+2,0);
+    if(!accepted){ertm_fault(m,c);return DBT_OK;}
+    peer.mtu=smaller(peer.mtu,m->maximum_mtu);
+    if(peer.mps>m->maximum_mtu-6u)peer.mps=(uint16_t)(m->maximum_mtu-6u);
+    body[6]=1;body[7]=2;put16(body+8,peer.mtu);
+    body[10]=4;body[11]=9;body[12]=3;body[13]=peer.window;body[14]=peer.max_transmit;
+    put16(body+15,c->ertm->local.retransmission_ms);put16(body+17,c->ertm->local.monitor_ms);put16(body+19,peer.mps);
+    dbt_signal_tx_t *slot=0;dbt_result_t result=enqueue(m,link,1,CONFIG_RESPONSE,command[1],body,21,c,TX_CONFIG_ACCEPT,&slot);
+    if(result!=DBT_OK)return result;
+    ++c->config_epoch;slot->config_epoch=c->config_epoch;slot->peer_mtu=peer.mtu;c->ertm->staged_peer=peer;
+    c->cached_request_size=(uint8_t)size;copy(c->cached_request,command,size);
+    c->cached_reply_size=slot->size;copy(c->cached_reply,slot->bytes,slot->size);
+    return DBT_OK;
+}
 static dbt_result_t config_request(dbt_channels_t *manager, const dbt_link_t *link, const uint8_t *command, uint16_t size) {
     uint16_t local = dbt_read_le16(command + 4), flags = dbt_read_le16(command + 6);
     dbt_channel_t *channel = find(manager, link->handle, local);
@@ -633,6 +841,10 @@ static dbt_result_t config_request(dbt_channels_t *manager, const dbt_link_t *li
                                       channel->cached_reply[8] == 0 && channel->cached_reply[6] == 0 && !channel->incoming_failed ? TX_CONFIG_ACCEPT : TX_PLAIN, &slot);
         if (slot) { slot->config_epoch = channel->config_epoch; slot->peer_mtu = channel->peer_mtu_staged; }
         return result;
+    }
+    if(channel->ertm){
+        if(channel->opened_once){ertm_fault(manager,channel);return DBT_OK;} /* Reconfiguration is not yet supported. */
+        return ertm_config_request(manager,link,channel,command,size);
     }
     if (channel->state == DBT_CH_OPEN && manager->hooks.tx_idle) {
         manager->in_callback = true;
@@ -676,6 +888,19 @@ static void config_response(dbt_channels_t *manager, const dbt_link_t *link, con
     dbt_channel_t *channel = by_request(manager, link->handle, link->generation, CONFIG_REQUEST, command[1]);
     if (!channel || dbt_read_le16(command + 4) != channel->local_cid) { ++manager->unknown_responses; return; }
     uint16_t flags = dbt_read_le16(command + 6), result = dbt_read_le16(command + 8);
+    if(channel->ertm){
+        if(result==4 && !flags){pending(manager,channel);return;}
+        dbt_ertm_parameters_t accepted={0};
+        if(result || flags || !ertm_options(command+10,(uint16_t)(size-10),true,channel->rx_mtu,&accepted) ||
+           accepted.mtu<channel->minimum_mtu || accepted.mtu>channel->rx_mtu ||
+           accepted.window>channel->ertm->local.window || accepted.mps>channel->ertm->local.mps){
+            ertm_fault(manager,channel);return;
+        }
+        channel->ertm->local.mtu=accepted.mtu;channel->ertm->local.mps=accepted.mps;
+        channel->ertm->local.window=accepted.window;channel->rx_mtu=accepted.mtu;
+        channel->request_code=0;channel->request_sent=false;channel->local_configured=true;
+        channel->deadline=manager->now_ms+manager->rtx_ms;maybe_open(manager,channel);return;
+    }
     options_t options;
     if ((flags & ~1u) || !parse_options(command + 10, size - 10u, channel->minimum_mtu, channel->rx_mtu, &options, true) ||
         (options.mtu_seen && (options.mtu < channel->minimum_mtu || options.mtu > channel->rx_mtu))) {
@@ -759,7 +984,12 @@ static dbt_result_t process_command(dbt_channels_t *manager, const dbt_link_t *l
         code!=LE_CONNECT_REQUEST && code!=LE_CONNECT_RESPONSE && code!=LE_CREDITS)return reject(manager,link,cid,id,0,0,0);
     if (link->kind == DBT_LINK_CLASSIC && (code == 0x12 || code == 0x13 || code==LE_CONNECT_REQUEST || code==LE_CONNECT_RESPONSE || code==LE_CREDITS)) return reject(manager, link, cid, id, 0, 0, 0);
     switch (code) {
-    case 1:
+    case 1: {
+        dbt_signal_link_t *state=signal_link(manager,link->handle,link->generation);
+        if(state && state->feature_state==FEATURES_SENT && state->feature_id==id) {
+            state->feature_state=FEATURES_UNAVAILABLE;
+            return DBT_OK;
+        }
         for (unsigned i = 0; i < DBT_CHANNEL_LIMIT; ++i) {
             dbt_channel_t *channel = &manager->channels[i];
             if (channel->state != DBT_CH_FREE && channel->handle == link->handle && channel->link_generation == link->generation &&
@@ -768,6 +998,7 @@ static dbt_result_t process_command(dbt_channels_t *manager, const dbt_link_t *l
             }
         }
         return DBT_OK;
+    }
     case CONNECTION_REQUEST: return connection_request(manager, link, command);
     case CONNECTION_RESPONSE: connection_response(manager, link, command); return DBT_OK;
     case CONFIG_REQUEST: return config_request(manager, link, command, size);
@@ -798,11 +1029,27 @@ static dbt_result_t process_command(dbt_channels_t *manager, const dbt_link_t *l
         return DBT_OK;
     }
     case 8: return enqueue(manager, link, 1, 9, id, body, size - 4u, 0, TX_PLAIN, 0);
-    case 9: case 0x0b: case 0x13: ++manager->unknown_responses; return DBT_OK;
+    case 9: case 0x13: ++manager->unknown_responses; return DBT_OK;
+    case 0x0b: {
+        dbt_signal_link_t *state=signal_link(manager,link->handle,link->generation);
+        if(!state || state->feature_state!=FEATURES_SENT || state->feature_id!=id || dbt_read_le16(body)!=2) {
+            ++manager->unknown_responses;return DBT_OK;
+        }
+        uint16_t result=dbt_read_le16(body+2);
+        if(result==0 && size==12) {
+            state->feature_mask=(uint32_t)body[4]|((uint32_t)body[5]<<8)|((uint32_t)body[6]<<16)|((uint32_t)body[7]<<24);
+            state->feature_state=FEATURES_READY;
+        } else state->feature_state=FEATURES_UNAVAILABLE;
+        return DBT_OK;
+    }
     case 0x0a: {
         uint16_t type = dbt_read_le16(body); uint8_t response[12]; uint16_t length = 4;
         zero(response, sizeof(response)); put16(response, type);
-        if (type == 2) { response[4] = 0x80; length = 8; } /* Fixed-channel discovery, no ERTM/streaming. */
+        if (type == 2) {
+            response[4] = 0x80;
+            if(manager->ertm_enabled)response[4]|=0x28; /* ERTM and FCS option. */
+            length = 8;
+        }
         else if (type == 3) {
             for (unsigned i = 0; i < 8; ++i) response[4 + i] = (uint8_t)(manager->fixed_mask[DBT_LINK_CLASSIC] >> (8u * i));
             length = 12;
@@ -832,6 +1079,11 @@ static dbt_result_t process_command(dbt_channels_t *manager, const dbt_link_t *l
 uint16_t dbt_channels_poll(dbt_channels_t *manager, uint32_t now, uint16_t budget) {
     if (!manager || manager->in_callback) return 0;
     manager->now_ms = now; prune_tx(manager);
+    for(unsigned i=0;i<DBT_MAX_LINKS;++i) {
+        dbt_signal_link_t *state=&manager->links[i];
+        if(state->used && (state->feature_state==FEATURES_QUEUED || state->feature_state==FEATURES_SENT) &&
+           due(now,state->feature_deadline))state->feature_state=FEATURES_UNAVAILABLE;
+    }
     uint16_t processed = 0; unsigned deferred = 0;
     manager->rx_deferred = false;
     while (processed < budget && manager->rx_count && manager->tx_count < DBT_SIGNAL_TX_SLOTS) {
@@ -865,8 +1117,24 @@ uint16_t dbt_channels_poll(dbt_channels_t *manager, uint32_t now, uint16_t budge
         const dbt_link_t *link = dbt_acl_find(manager->acl, channel->handle);
         if (!link || link->generation != channel->link_generation) { finish(manager, channel, DBT_CH_REASON_LINK_LOST, 0); continue; }
         if(channel->le && channel->state==DBT_CH_OPEN && !le_data_allowed(manager,channel,link))le_fault(manager,channel);
+        if(channel->ertm && channel->ertm->initialized && channel->state==DBT_CH_OPEN){
+            if(!authorized(manager,link,channel->psm,channel->security))ertm_fault(manager,channel);
+            else {dbt_ertm_engine_poll(&channel->ertm->engine,now);if(channel->ertm->engine.failed)ertm_fault(manager,channel);}
+        }
         if(channel->le && channel->le->faulted && channel->state==DBT_CH_DISCONNECTING && !channel->request_code)
             (void)queue_request(manager,channel,DISCONNECT_REQUEST,false);
+        if(channel->ertm && channel->state==DBT_CH_DISCONNECTING && !channel->request_code)
+            (void)queue_request(manager,channel,DISCONNECT_REQUEST,false);
+        if(channel->ertm && channel->state==DBT_CH_CONFIGURING && channel->connection_ready){
+            uint32_t features=0;
+            if(!channel->ertm->feature_started){
+                dbt_result_t start=dbt_channels_discover_features(manager,channel->handle,now);
+                if(start==DBT_OK)channel->ertm->feature_started=true;
+                else if(start!=DBT_BUSY)ertm_fault(manager,channel);
+            }
+            dbt_result_t feature=dbt_channels_peer_features(manager,channel->handle,&features);
+            if(feature==DBT_UNSUPPORTED || (feature==DBT_OK && !(features&8u)))ertm_fault(manager,channel);
+        }
         if(channel->state==DBT_CH_SECURING) {
             bool allowed=authorized(manager,link,channel->psm,channel->security);
             dbt_result_t progress=allowed?DBT_OK:security_request(manager,link,channel->psm,channel->security,false);
@@ -898,8 +1166,11 @@ uint16_t dbt_channels_poll(dbt_channels_t *manager, uint32_t now, uint16_t budge
     prune_tx(manager);
     for (unsigned i = 0; i < DBT_CHANNEL_LIMIT && manager->tx_count < DBT_SIGNAL_TX_SLOTS; ++i) {
         dbt_channel_t *channel = &manager->channels[i];
-        if (channel->state == DBT_CH_CONFIGURING && channel->connection_ready && !channel->local_configured && !channel->request_code)
-            (void)queue_request(manager, channel, CONFIG_REQUEST, channel->response_more);
+        if (channel->state == DBT_CH_CONFIGURING && channel->connection_ready && !channel->local_configured && !channel->request_code){
+            uint32_t features=0;
+            if(!channel->ertm || (dbt_channels_peer_features(manager,channel->handle,&features)==DBT_OK && (features&8u)))
+                (void)queue_request(manager, channel, CONFIG_REQUEST, channel->response_more);
+        }
     }
     return processed;
 }
@@ -946,6 +1217,13 @@ dbt_result_t dbt_channels_tx_commit(dbt_channels_t *manager, uint32_t now) {
     copy(&snapshot, &manager->tx[manager->tx_head], sizeof(snapshot));
     pop_tx(manager); manager->now_ms = now;
     if (!tx_valid(manager, &snapshot)) return DBT_OK;
+    if(snapshot.effect==TX_FEATURES) {
+        dbt_signal_link_t *state=signal_link(manager,snapshot.handle,snapshot.generation);
+        if(state && state->feature_state==FEATURES_QUEUED && state->feature_id==snapshot.bytes[1]) {
+            state->feature_state=FEATURES_SENT;state->feature_deadline=now+manager->rtx_ms;
+        }
+        return DBT_OK;
+    }
     dbt_channel_t *channel = snapshot.serial ? find(manager, snapshot.handle, snapshot.local_cid) : 0;
     if (!channel) return DBT_OK;
     if(snapshot.effect==TX_SECURITY_PENDING && channel->state==DBT_CH_SECURING) {
@@ -965,9 +1243,10 @@ dbt_result_t dbt_channels_tx_commit(dbt_channels_t *manager, uint32_t now) {
     } else if (snapshot.effect == TX_CONNECTION_ACCEPT && !channel->connection_ready) {
         channel->connection_ready = true; channel->deadline = now + manager->rtx_ms;
         channel->config_limit = now + 300000u;
-        (void)queue_request(manager, channel, CONFIG_REQUEST, false);
+        if(!channel->ertm)(void)queue_request(manager, channel, CONFIG_REQUEST, false);
     } else if (snapshot.effect == TX_CONFIG_ACCEPT && snapshot.config_epoch == channel->config_epoch) {
         channel->peer_configured = true; channel->tx_mtu = snapshot.peer_mtu;
+        if(channel->ertm)channel->ertm->peer=channel->ertm->staged_peer;
         maybe_open(manager, channel);
     }
     return DBT_OK;
@@ -975,6 +1254,10 @@ dbt_result_t dbt_channels_tx_commit(dbt_channels_t *manager, uint32_t now) {
 dbt_result_t dbt_channels_tx_cancel(dbt_channels_t *manager) {
     if (!manager || manager->in_callback || !manager->tx_count || !manager->tx_locked) return DBT_INVALID;
     dbt_signal_tx_t *slot = &manager->tx[manager->tx_head];
+    if(slot->effect==TX_FEATURES) {
+        dbt_signal_link_t *state=signal_link(manager,slot->handle,slot->generation);
+        if(state && state->feature_id==slot->bytes[1])state->feature_state=FEATURES_UNAVAILABLE;
+    }
     dbt_channel_t *channel = slot->serial ? find(manager, slot->handle, slot->local_cid) : 0;
     if (channel && channel->serial == slot->serial) finish(manager, channel, DBT_CH_REASON_LOCAL_TIMEOUT, 0);
     pop_tx(manager);
@@ -997,7 +1280,7 @@ dbt_result_t dbt_channels_prepare_data(dbt_channels_t *manager, uint16_t handle,
     dbt_channel_t *channel = find(manager, handle, cid);
     const dbt_link_t *link = dbt_acl_find(manager->acl, handle);
     if (!channel || !link || link->generation != channel->link_generation)return DBT_BUSY;
-    if(channel->le)return DBT_UNSUPPORTED;
+    if(channel->le || channel->ertm)return DBT_UNSUPPORTED;
     bool transmitting=channel->state==DBT_CH_OPEN ||
         (channel->state==DBT_CH_CONFIGURING && channel->opened_once && channel->reconfiguring);
     if(!transmitting)return DBT_BUSY;
@@ -1005,12 +1288,83 @@ dbt_result_t dbt_channels_prepare_data(dbt_channels_t *manager, uint16_t handle,
     if (size > channel->tx_mtu) return DBT_NO_SPACE;
     return dbt_l2cap_tx_begin(tx, link, channel->remote_cid, data, size);
 }
+dbt_result_t dbt_channels_ertm_begin(dbt_channels_t *m,uint16_t handle,uint16_t cid,const uint8_t *bytes,uint16_t size){
+    if(!m || m->in_callback)return DBT_INVALID;
+    dbt_channel_t *c=find(m,handle,cid);const dbt_link_t *link=dbt_acl_find(m->acl,handle);
+    if(!c || !c->ertm || !c->ertm->initialized || c->state!=DBT_CH_OPEN || !link ||
+       c->link_generation!=link->generation || !authorized(m,link,c->psm,c->security))return DBT_BUSY;
+    return dbt_ertm_engine_send(&c->ertm->engine,bytes,size);
+}
+dbt_result_t dbt_channels_ertm_frame(dbt_channels_t *m,uint16_t handle,dbt_l2cap_tx_t *frame,uint16_t *cid){
+    if(!m || m->in_callback || !frame || !cid)return DBT_INVALID;
+    const dbt_link_t *link=dbt_acl_find(m->acl,handle);if(!link)return DBT_INVALID;
+    for(unsigned n=0;n<DBT_CHANNEL_LIMIT;++n){
+        unsigned i=(m->ertm_cursor+n)%DBT_CHANNEL_LIMIT;
+        dbt_channel_t *c=&m->channels[i];
+        if(c->handle!=handle || c->link_generation!=link->generation || c->state!=DBT_CH_OPEN ||
+           !c->ertm || !c->ertm->initialized || !authorized(m,link,c->psm,c->security))continue;
+        struct dbt_ertm_channel *e=c->ertm;dbt_ertm_frame_t view;
+        dbt_result_t result=dbt_ertm_engine_view(&e->engine,&view);
+        if(result==DBT_EMPTY)continue;
+        if(result!=DBT_OK){ertm_fault(m,c);continue;}
+        uint16_t cap=(uint16_t)(e->peer.mps+6u),written=0;
+        if(!e->encoded)e->encoded=m->hooks.allocate(m->hooks.context,cap);
+        if(!e->encoded){(void)dbt_ertm_engine_cancel_frame(&e->engine);ertm_fault(m,c);return DBT_NO_SPACE;}
+        result=dbt_ertm_engine_peek(&e->engine,e->encoded,cap,&written);
+        if(result!=DBT_OK){(void)dbt_ertm_engine_cancel_frame(&e->engine);ertm_fault(m,c);return result;}
+        result=dbt_l2cap_tx_begin(frame,link,c->remote_cid,e->encoded,written);
+        if(result!=DBT_OK){(void)dbt_ertm_engine_cancel_frame(&e->engine);return result;}
+        *cid=c->local_cid;m->ertm_cursor=(uint8_t)((i+1u)%DBT_CHANNEL_LIMIT);return DBT_OK;
+    }
+    return DBT_EMPTY;
+}
+dbt_result_t dbt_channels_ertm_commit(dbt_channels_t *m,uint16_t handle,uint16_t cid,uint32_t now){
+    if(!m || m->in_callback)return DBT_INVALID;
+    dbt_channel_t *c=find(m,handle,cid);if(!c || !c->ertm || !c->ertm->initialized)return DBT_INVALID;
+    struct dbt_ertm_channel *e=c->ertm;dbt_result_t result=dbt_ertm_engine_commit(&e->engine,now);
+    if(e->encoded){m->hooks.release(m->hooks.context,e->encoded);e->encoded=0;}
+    if(result!=DBT_OK)ertm_fault(m,c);
+    return result;
+}
+dbt_result_t dbt_channels_ertm_cancel(dbt_channels_t *m,uint16_t handle,uint16_t cid){
+    if(!m || m->in_callback)return DBT_INVALID;
+    dbt_channel_t *c=find(m,handle,cid);if(!c || !c->ertm || !c->ertm->initialized)return DBT_INVALID;
+    struct dbt_ertm_channel *e=c->ertm;dbt_result_t result=dbt_ertm_engine_cancel_frame(&e->engine);
+    if(e->encoded){m->hooks.release(m->hooks.context,e->encoded);e->encoded=0;}
+    return result;
+}
+bool dbt_channels_ertm_sdu_active(const dbt_channels_t *m,uint16_t handle,uint16_t cid){
+    if(!m)return false;
+    const dbt_channel_t *c=dbt_channels_find(m,handle,cid);
+    return c && c->ertm && c->ertm->initialized && c->ertm->engine.tx_active;
+}
+bool dbt_channels_ertm_ready(const dbt_channels_t *m,uint16_t handle,uint32_t now){
+    if(!m)return false;
+    for(unsigned i=0;i<DBT_CHANNEL_LIMIT;++i){
+        const dbt_channel_t *c=&m->channels[i];
+        if(c->handle==handle && c->state==DBT_CH_OPEN && c->ertm && c->ertm->initialized &&
+           dbt_ertm_engine_wait_ms(&c->ertm->engine,now)==0)return true;
+    }
+    return false;
+}
 uint32_t dbt_channels_wait_ms(const dbt_channels_t *manager, uint32_t now) {
     if (!manager) return UINT32_MAX;
     if (manager->rx_count && !manager->rx_deferred && manager->tx_count < DBT_SIGNAL_TX_SLOTS) return 0;
     uint32_t wait = UINT32_MAX;
+    for(unsigned i=0;i<DBT_MAX_LINKS;++i) {
+        const dbt_signal_link_t *state=&manager->links[i];
+        if(!state->used || !live_link(manager,state->handle,state->generation) ||
+           (state->feature_state!=FEATURES_QUEUED && state->feature_state!=FEATURES_SENT))continue;
+        if(due(now,state->feature_deadline))return 0;
+        uint32_t remaining=state->feature_deadline-now;if(remaining<wait)wait=remaining;
+    }
     for (unsigned i = 0; i < DBT_CHANNEL_LIMIT; ++i) {
         const dbt_channel_t *channel = &manager->channels[i];
+        if(channel->ertm && channel->ertm->initialized && channel->state==DBT_CH_OPEN){
+            const dbt_ertm_engine_t *e=&channel->ertm->engine;
+            if(e->retrans_timer){if(due(now,e->retrans_at))return 0;uint32_t n=e->retrans_at-now;if(n<wait)wait=n;}
+            if(e->monitor_timer){if(due(now,e->monitor_at))return 0;uint32_t n=e->monitor_at-now;if(n<wait)wait=n;}
+        }
         if (channel->state == DBT_CH_FREE || channel->state == DBT_CH_OPEN) continue;
         if(channel->state==DBT_CH_SECURING && due(now,channel->deadline) && channel->security_incoming && manager->tx_count==DBT_SIGNAL_TX_SLOTS)continue;
         if (due(now, channel->deadline)) return 0;

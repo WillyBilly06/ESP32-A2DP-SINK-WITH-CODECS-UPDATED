@@ -1,6 +1,53 @@
 # Current project progress
 
-Updated 2026-10-29. Goal **active and incomplete**.
+Updated 2026-10-29. The independent-host goal is **active and incomplete**.
+The current authoritative scope, feature inventory and evidence boundaries are
+in [FEATURE_MATRIX.md](FEATURE_MATRIX.md). In particular, the owned probe is
+not yet a replacement for the Bluedroid product application, and the full set
+of controller-supported protocol/profile roles and product services is not
+implemented or qualified.
+
+The user has reserved the ESP32 for other work: all further tests must be local
+and off-board, and the deliverable is a flashable ESP32 artifact. No further
+flash, reset, serial reconnect or Bluetooth connection is authorized until the
+user releases the [hardware hold](../_build/hardware/HARDWARE_HOLD.json).
+Local compilation, host tests and artifact creation do not establish a new
+on-device result.
+
+The last recorded owned image, SHA-256
+`06ea0f6e4a2859d64108caa235f505b70b64e152fcabbddc6ebe2ab554774085`,
+passed image readback but **failed** its pre-controller codec check: 19 of 37
+selected configurations passed, five failed comparison (Opus case 2 and four
+AAC cases), and 13 later Opus cases were not run. The 19 passes include one
+SBC, six aptX, six LDAC, four LHDC and two Opus cases. The controller was not
+enabled. [Qualification receipt](../_build/hardware/COM6-owned-first-qualification.json)
+and [capture](../_build/hardware/COM6-owned-first-qualification.txt) preserve
+this failed evidence. This is not Bluetooth, playback or current-device-state
+evidence. The subsequently corrected AAC and exact Opus arithmetic-profile
+oracles have local evidence only; neither is physically confirmed. The next
+local candidate must have its own source-matched build and test receipt.
+
+The source now includes opt-in ERTM runtime integration, an AVRCP control
+attachment, LE SMP attachment, and real SBC/AAC/aptX/Opus/LDAC/LHDC worker
+adapters with bounded offline fixtures. These advances have distinct local
+evidence and limitations, not complete profile/product coverage. Product BLE
+control/meter providers, OTA, LED/encoder/sound integration, AVRCP browsing,
+RFCOMM/HFP and further profile roles remain open. Preserve immediate NVS
+commit on every EQ change, including during playback. No equivalent-feature
+resource, performance, continuous-playback or coexistence claim is supported.
+
+---
+
+# Historical status snapshot â€” superseded by the current section
+
+The material below preserves earlier context and measurements. It predates the
+later ERTM/SMP/AVRCP and codec integration and the failed image above. Statements
+about what was current, active on the board, not yet implemented, or pending
+at that time are historical; consult the current matrix and individual
+source-hashed receipts for present status. The older 166-group evidence is
+associated with its recorded source snapshot, not automatically the present tree.
+
+Historical snapshot dated 2026-10-29. Goal **active and incomplete**.
 
 Current phase: source audit, owned fixes and offline verification before any new
 Bluetooth connection test. [L2CAP comparison](L2CAP_COMPARISON.md) records Basic
@@ -257,3 +304,15 @@ and product GATT integration; SDP client/AVDTP/A2DP/AVRCP; app handoff and live
 coexistence. Flash-stall analysis preserving immediate NVS, LHDC A2DP integration,
 and remaining codec work are still required. No full-stack speed/memory superiority
 or production release readiness is established. See [release gates](RELEASE_READINESS.md).
+
+## Latest local candidate checkpoint
+
+The off-board candidate is 1,019,680 bytes, SHA-256
+`4ac970772b158c3e80e9dd9d19f076ed456b383eda793e54f6664296ef313092`.
+Its ESP32 checksum, appended digest, supported revision range and fit within the
+previously admitted 2.5 MiB OTA slot pass local validation. It is configured for
+240 MHz, matching the product baseline. Current Windows core tests pass 166/166;
+the host boot check passes 37 codec configurations. Host stack/time are mocked.
+The candidate is not flashed or RF-qualified. BLE EQ/control now has startup
+NVS reads, immediate commit providers, typed DSP publication and meter wiring;
+other product providers remain missing. See LOCAL_CANDIDATE_EVIDENCE.json.

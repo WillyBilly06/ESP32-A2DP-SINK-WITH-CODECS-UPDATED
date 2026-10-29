@@ -136,8 +136,10 @@ def build(output):
     else:
         args += ["-shared", "-fPIC"]
     args += [str(path) for path in sources] + ["-o", str(output)]
+    dependencies = sources + sorted((ROOT / "include").glob("*.h")) + list((ROOT / "codecs/common").glob("*.h")) + list((ROOT / "codecs/aac").glob("*.h")) + list((ROOT.parent / "bt_audio_sink/main/dsp").glob("fixed_dsp.*")) + [ROOT.parent / "bt_audio_sink/main/dsp/fixed_dsp_tables.inc"]
+    snapshot = {path: (hashlib.sha256(path.read_bytes()).hexdigest(), path.stat().st_mtime_ns) for path in dependencies}
     subprocess.run(args, check=True, cwd=ROOT)
-    return sources
+    return sources, snapshot
 
 
 def concurrent_stress(lib, count=20000):
@@ -260,7 +262,7 @@ def main():
     output_dir.relative_to(ROOT / "_build")
     output_dir.mkdir(parents=True, exist_ok=True)
     output = output_dir / ("native_bt_tests.dll" if os.name == "nt" else "native_bt_tests.so")
-    sources = build(output)
+    sources, compiled_snapshot = build(output)
     lib = ctypes.CDLL(str(output))
     results = []
     for name in TESTS:
@@ -283,17 +285,17 @@ def main():
         results.append({"name": "audio_three_owners_and_controls", "passed": False, "error": str(error)})
     lib.test_host_bytes.restype = ctypes.c_uint32
     lib.test_queue_bytes.restype = ctypes.c_uint32
+    for path, (digest, modified) in compiled_snapshot.items():
+        if hashlib.sha256(path.read_bytes()).hexdigest() != digest or path.stat().st_mtime_ns != modified:
+            raise RuntimeError("Source changed during compile/test; refusing ambiguous receipt: " + str(path))
     report = {
         "scope": "native C behavioral tests only; no firmware or RF validation",
+        "compile_and_test_source_stability_checked": True,
         "passed": all(item["passed"] for item in results),
         "host_bytes_native_abi": lib.test_host_bytes(),
         "queue_bytes_native_abi": lib.test_queue_bytes(),
         "tests": results,
-        "source_sha256": {str(Path(os.path.relpath(path, ROOT))): hashlib.sha256(path.read_bytes()).hexdigest()
-                          for path in sources + sorted((ROOT / "include").glob("*.h")) +
-                          list((ROOT / "codecs/common").glob("*.h")) + list((ROOT / "codecs/aac").glob("*.h")) +
-                          list((ROOT.parent / "bt_audio_sink/main/dsp").glob("fixed_dsp.*")) +
-                          [ROOT.parent / "bt_audio_sink/main/dsp/fixed_dsp_tables.inc"]},
+        "source_sha256": {str(Path(os.path.relpath(path, ROOT))): digest for path, (digest, _) in compiled_snapshot.items()},
     }
     (output_dir / "results.json").write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
     print(f"{sum(item['passed'] for item in results)}/{len(results)} passed; host object {report['host_bytes_native_abi']} bytes (native ABI)")
