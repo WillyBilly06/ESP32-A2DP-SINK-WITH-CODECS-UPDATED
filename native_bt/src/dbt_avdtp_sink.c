@@ -339,7 +339,9 @@ uint32_t dbt_avdtp_sink_wait_ms(const dbt_avdtp_sink_t *s,uint32_t now) {
     const dbt_sink_pending_t *p=&s->pending;
     if(p->used && !p->done){
         if(!p->attempted)return 0;
-        uint32_t next=until(now,p->deadline);if(next<wait)wait=next;
+        if(!(s->retiring && s->failed && due(now,p->deadline))){
+            uint32_t next=until(now,p->deadline);if(next<wait)wait=next;
+        }
     }
     bool media_wait=(s->state==DBT_STREAM_OPEN && !s->media_binding) ||
         ((s->state==DBT_STREAM_CLOSING || s->state==DBT_STREAM_ABORTING) && s->media_binding);

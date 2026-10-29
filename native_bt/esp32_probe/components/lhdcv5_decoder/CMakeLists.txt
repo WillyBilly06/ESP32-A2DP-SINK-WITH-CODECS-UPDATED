@@ -1,3 +1,7 @@
+if(CMAKE_BUILD_EARLY_EXPANSION)
+    idf_component_register(PRIV_REQUIRES log esp_common esp_timer heap freertos)
+    return()
+endif()
 if(NOT DBT_PROBE_LHDC_BUILD)
     idf_component_register()
     return()

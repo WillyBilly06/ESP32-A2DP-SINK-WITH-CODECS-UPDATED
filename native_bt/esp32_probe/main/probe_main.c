@@ -1,6 +1,9 @@
 #include <inttypes.h>
 #include <stdio.h>
 #include "dbt_gap.h"
+#ifdef DBT_PROBE_AUDIO_TEST
+#include "probe_audio.h"
+#endif
 #ifdef DBT_PROBE_GATT_TEST
 #include "probe_gatt.h"
 #endif
@@ -131,8 +134,14 @@ static void profile_channel(void *context, dbt_channel_event_t event, const dbt_
                             dbt_channel_reason_t reason, uint16_t result) {
     probe_echo_event(context, event, channel, reason, result);
     probe_sdp_event(event, channel);
+#ifdef DBT_PROBE_AUDIO_TEST
+    probe_audio_event(event,channel);
+#endif
 }
 static void profile_data(void *context, const dbt_channel_t *channel, const uint8_t *data, uint16_t size) {
+#ifdef DBT_PROBE_AUDIO_TEST
+    if(channel->psm==0x19){probe_audio_receive(channel,data,size);return;}
+#endif
     if (channel->psm != 1) { probe_echo_data(context, channel, data, size); return; }
     if (probe_sdp_receive(channel, data, size) != DBT_OK) {
         /* Invalid/pipelined SDP is terminated explicitly, never silently lost. */
@@ -161,6 +170,9 @@ void app_main(void) {
     hooks.channels.security_request=probe_security_request;
     hooks.channels.event=profile_channel;
     hooks.channels.data=profile_data;
+#ifdef DBT_PROBE_AUDIO_TEST
+    hooks.channels.accept=probe_audio_accept;
+#endif
 #endif
     if (dbt_runtime_init(&runtime, transport, hooks, 4096, 2000) != DBT_OK) {
         ESP_LOGE(tag, "core initialization failed");
@@ -234,7 +246,11 @@ void app_main(void) {
         }
 #ifdef DBT_PROBE_CLASSIC_SECURITY_TEST
         if(runtime.ready && !echo_initialized) {
-            if(probe_echo_init(&runtime,&gap)!=DBT_OK || probe_sdp_init(&runtime)!=DBT_OK)
+            if(probe_echo_init(&runtime,&gap)!=DBT_OK || probe_sdp_init(&runtime)!=DBT_OK
+#ifdef DBT_PROBE_AUDIO_TEST
+               || probe_audio_init(&runtime,owner)!=DBT_OK
+#endif
+              )
                 dbt_runtime_abort(&runtime,DBT_FAULT_BAD_RESPONSE);
             else {
                 echo_initialized=true;
@@ -247,6 +263,9 @@ void app_main(void) {
         probe_security_poll(now);
         if(echo_initialized) {
             probe_echo_poll();
+#ifdef DBT_PROBE_AUDIO_TEST
+            probe_audio_poll(now);
+#endif
             if(probe_sdp_poll()!=DBT_OK)dbt_runtime_abort(&runtime,DBT_FAULT_BAD_RESPONSE);
         }
 #endif
@@ -323,6 +342,10 @@ void app_main(void) {
         if(echo_wait<wait)wait=echo_wait;
         uint32_t sdp_wait=probe_sdp_wait_ms();
         if(sdp_wait<wait)wait=sdp_wait;
+#ifdef DBT_PROBE_AUDIO_TEST
+        uint32_t audio_wait=probe_audio_wait_ms(now_ms());
+        if(audio_wait<wait)wait=audio_wait;
+#endif
 #endif
         if (wait == 0) continue;
         TickType_t ticks = portMAX_DELAY;

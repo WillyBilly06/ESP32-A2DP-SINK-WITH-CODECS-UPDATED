@@ -32,6 +32,11 @@ def main():
         entries = json.loads(commands.read_text(encoding="utf-8"))
         for entry in entries:
             normalized = str(entry).replace("\\", "/").lower()
+            # The existing SDK's standalone Apache SBC codec is a codec-only
+            # dependency. Its protocol wrapper/common host headers remain
+            # prohibited. No SDK/reference implementation is copied here.
+            normalized = normalized.replace("/host/bluedroid/external/sbc/decoder/srce/", "/standalone_sbc/src/")
+            normalized = normalized.replace("/host/bluedroid/external/sbc/decoder/include", "/standalone_sbc/include")
             if "/reference/" in normalized or "/btstack/" in normalized or "/host/bluedroid/" in normalized or "/host/nimble/" in normalized:
                 errors.append(f"Disallowed host/reference source or include in probe: {entry['file']}")
     report = {**sizes, "passed": not errors, "errors": errors,

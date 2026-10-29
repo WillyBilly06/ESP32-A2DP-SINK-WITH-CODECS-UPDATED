@@ -65,7 +65,7 @@ documents this event/state-machine organization and configurable memory pools.
 | ATT and GATT server | `src/ble/att_db.c`, `src/ble/att_dispatch.c`, `src/ble/att_server.c` | MTU, attribute permissions/security, errors, reads/writes, prepare/execute, per-link CCCD, notify/indicate confirmation, service changes | Owned LE ATT server/bearer implemented and diagnostic RF read/write/notify run passed; product control/OTA binding, real bonds, robust caching and advanced features pending |
 | GATT client | `src/ble/gatt_client.c` | Discovery, procedures, reliable writes, notification subscriptions, timers | Pending; module must be available without allocating unused connection state |
 | SDP | `src/classic/sdp_server.c`, `src/classic/sdp_client.c` | Records, data elements, continuation tokens, bounds, service discovery | Owned server and Basic runtime bridge; Linux queries and BlueZ sdptool browse passed. Client and product audio records pending |
-| AVDTP and A2DP | `src/classic/avdtp.c`, `src/classic/avdtp_sink.c`, `src/classic/a2dp_sink.c` | Endpoint/CIE negotiation, transactions, signaling fragmentation, stream lifecycle, media framing and codec worker handoff | Owned signaling, sink endpoint/control state, SBC selection validation and asynchronous worker contract host-tested, including paired media channels/RTP. ESP32 archive compiled; actual decoder/media manager integration and playback pending. Preserve SBC/AAC/aptX/aptX-HD/aptX-LL/LDAC/Opus and add LHDC V5 |
+| AVDTP and A2DP | `src/classic/avdtp.c`, `src/classic/avdtp_sink.c`, `src/classic/a2dp_sink.c` | Endpoint/CIE negotiation, transactions, signaling fragmentation, stream lifecycle, media framing and codec worker handoff | Owned signaling/sink/media manager and actual SBC worker; finite direct RF run decodes PCM with concurrent ATT. Audio Sink SDP, product DSP/I2S/Firefox output and other codec integration remain pending. Preserve SBC/AAC/aptX/aptX-HD/aptX-LL/LDAC/Opus and add LHDC V5 |
 | AVCTP and AVRCP | `src/classic/avrcp.c`, controller/target/browsing modules | Transaction labels, pass-through, metadata, volume, notification registration, browsing | Pending |
 | RFCOMM and serial | `src/classic/rfcomm.c`, `src/classic/spp_server.c` | Multiplexing, credits, framing, control and channel lifecycle | Pending |
 | Voice and other profiles | `src/classic/hfp*.c`, `hsp*.c`, `hid*.c`, `bnep.c`, `pan.c`, `obex*.c`, `goep*.c`, `pbap*.c`, `src/mesh/` | Explicit profile/role matrix, negotiated limits and interoperability; SCO/eSCO routing needs its own controller configuration | Pending. Probe has zero synchronous connections; a shared FIFO SCO frame reservation only satisfies controller buffer setup, not voice/profile coverage |
@@ -162,7 +162,7 @@ insufficient evidence of codec playback or Classic/BLE coexistence.
 
 ## Current lower-layer evidence
 
-- 130 native groups pass on Windows/Linux, including paired runtime channel setup,
+- 136 native groups pass on Windows/Linux, including paired runtime channel setup,
   fragmented transfer, disconnect, separate Classic/LE credit stalls and 20,000
   variable-length packets over two concurrent threads. ASan/UBSan passes on Linux.
 - ESP32 probe links with controller-only host selection and dual-mode controller

@@ -4,6 +4,7 @@ idf_component_register(
          "../../../src/dbt_avdtp_caps.c"
          "../../../src/dbt_avdtp_sink.c"
          "../../../src/dbt_a2dp_sbc.c"
+         "../../../src/dbt_a2dp_acceptor.c" "../../../src/dbt_sbc_media.c"
     INCLUDE_DIRS "../../../include"
 )
 target_compile_options(${COMPONENT_LIB} PRIVATE -std=c11 -Wall -Wextra -Werror)

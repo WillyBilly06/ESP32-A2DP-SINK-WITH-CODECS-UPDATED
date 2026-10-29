@@ -85,6 +85,10 @@ TESTS = [
     "a2dp_sbc_selection_errors_and_all_fields", "avdtp_sink_generated_requests_leave_no_allocations",
     "avdtp_sink_paired_runtime_media_channels_and_ble",
     "avdtp_sink_abort_supersedes_pending_worker_safely",
+    "sbc_golden_crc_and_negotiated_format", "sbc_packet_atomic_validation_and_timestamps",
+    "sbc_fragment_lifecycle_sequence_wrap_and_lazy_storage", "sbc_fragment_errors_deadlines_and_oom",
+    "sbc_generated_inputs_keep_output_and_allocations_bounded",
+    "a2dp_acceptor_admission_routing_and_retirement",
 ]
 
 

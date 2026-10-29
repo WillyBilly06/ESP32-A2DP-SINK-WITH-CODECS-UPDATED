@@ -36,8 +36,9 @@ it does not publish or replace the locally modified Bluedroid audio application.
 | Classic security | Owned SSP/PIN/passkey/OOB policy, key lifecycle, encryption/key-size qualification, asynchronous durable store/delete and pending L2CAP security; live Just Works pairing and encrypted 16-byte-key channel passed | Linux diagnostic bond later disappeared; durable reconnect interoperability and other pairing methods need qualification. BLE SMP remains pending |
 | ATT/GATT server | Owned LE ATT server and runtime bridge; discovery, reads/blobs/multiple, MTU 517, writes/commands, prepare/execute/cancel, per-client CCCDs, security policy, notify/indicate, deferred worker completion | Product command/OTA binding, real security/bond store, GATT client/EATT/signed writes/robust caching pending |
 | SDP server | Immutable flash database, UUID aliases, all three server transactions, bounded continuation, streaming response slices and lazy runtime bridge; Linux verifier and BlueZ sdptool passed | SDP client and audio service records pending; discovery does not implement the advertised product profiles |
-| AVDTP sink/control | Signaling, sink endpoint/configuration lifecycle, SBC selection validator, asynchronous worker receipts/drain, media gates and delay reporting; paired runtime opens distinct signaling/media channels and routes fragmented RTP with BLE traffic | Test worker only; ESP32 archive compiled, probe does not link/use it. Real decoder worker, production PSM/media manager and audio integration pending |
-| Tests | 130 groups pass on Windows/Linux, including 10,240 generated ATT inputs, 8192 generated SDP inputs, security/key lifecycle tests, exact 1021-byte interleaved fragments, receive-credit/SCO framing, AVDTP sink/runtime/generated-input tests and 20,000 concurrent FIFO packets; Linux ASan/UBSan passes | Host behavior and memory safety; separate limited RF evidence below |
+| AVDTP sink/control | Owned signaling/sink, encrypted PSM/media manager, SBC configuration/frame validation and actual lazy decoder worker. ESP32 diagnostic decoded 8000 frames while kernel ATT traffic stayed active | PCM counter consumer only; no Audio Sink SDP/I2S/Firefox/acoustic qualification. Other codec workers and product integration pending |
+| Tests | 136 groups pass on Windows/Linux, including 10,240 generated ATT inputs, 8192 generated SDP inputs, security/key lifecycle, receive-credit/SCO, SBC CRC/fragment and acceptor/runtime tests plus 20,000 concurrent FIFO packets; Linux ASan/UBSan passes | Host behavior and memory safety; separate finite RF evidence |
+| SBC decoder/worker | Actual 44.1/48 kHz mono/stereo frames produce PCM identical to the standalone reference; fragments, OOM/retry and no-overlap reopen pass. ASan/UBSan and TSan pass; actual two-thread worker processes 500 packets per vector | SDK codec only, owned wrapper/scheduler; full application output/timing and broad SBC conformance pending |
 | Integer DSP | Flash coefficient tables for 13 rates; Q4.28 coefficients/Q5.27 headroom, fractional error carry, 20 ms ramps, render-owned histories, atomic controls | Embedded CPU and audible tests pending |
 | DSP numerical tests | 36 cases at 44.1/48/96/192 kHz; max magnitude error ~0.00000145 dB against the coefficient response; native state 1128 bytes | Not ESP32 timing or acoustic proof |
 | C++ integration | Actual DSP/storage headers: normal, ASan/UBSan and ThreadSanitizer pass with concurrent control/render/meter requests | NVS is mocked; no physical power-loss test |
@@ -59,14 +60,15 @@ measurements of the selected path, not total codec RAM or embedded performance.
 GAP initiator/discovery procedures and recovery; broader receive-flow interoperability;
 L2CAP modes beyond Basic; further Classic security interoperability and BLE SMP/bonding/privacy;
 product ATT/GATT integration, GATT client/advanced features; SDP client;
-AVDTP production media manager/decoder integration, remaining codec negotiation and A2DP/AVRCP; remaining profiles; complete app migration; concurrent Classic/BLE
+DSP/I2S application handoff, honest audio SDP/delay integration, remaining codec negotiation and A2DP/AVRCP parity; remaining profiles; complete app migration; sustained Classic/BLE
 hardware validation; equivalent-feature memory/CPU/latency comparisons.
 
 AAC and Opus lifetime changes are implemented with native PCM/allocation checks;
 embedded contiguous-space and switch-peak validation remain necessary. Opus retains
 fragment assembly storage only after fragmentation is observed, reuses it for a
 fragmented stream, and frees it on unfragmented input/reconfiguration/cleanup.
-LDAC/aptX/SBC optimization and their decode-vector benchmarks remain pending.
+SBC now has lazy negotiated-channel state and actual PCM/allocation checks; further
+SBC CPU/conformance work and LDAC/aptX optimization/benchmarks remain pending.
 
 Immediate NVS remains mandatory. I2S DMA is currently 3 x 128 stereo frames and
 the I2S ISR IRAM-safe option is disabled. Flash/cache interruption is a separate
@@ -214,8 +216,14 @@ Remote test sources reuse `~/.cache/native_bt/`; no SDK/media/credentials upload
 SSH dependencies are confined to `_build/python_deps`; compiler cache writes are
 disabled in build wrappers. Latest generated size ~365 MiB plus ~71 MiB reference.
 
-Latest focus: receive flow, SCO HCI framing, Classic procedure ownership and
-simultaneous Classic/LE diagnostics.
+Latest focus: native encrypted AVDTP media-channel ownership, SBC frame validation,
+lazy codec state and an actual asynchronous decoder worker. The finite 48 kHz
+stereo RF diagnostic decoded 8000 frames / 4,096,000 PCM bytes with the expected
+rolling fingerprint during 166 ATT writes, 16 readbacks and 166 notifications.
+No worker drops/resets were recorded and requested worker allocations returned
+from 8114 bytes to zero. This is a counter consumer, not I2S/Firefox/acoustic
+evidence; the generic large-payload dual-mode failure remains unresolved.
+See [SBC pipeline evidence](SBC_PIPELINE.md) for firmware binding and exact scope.
 The controller-only
 probe defaults to configuring the controller with advertising and Classic scan
 disabled. `build_probe.ps1 -WithGatt` opts into diagnostic LE advertising; it is

@@ -60,6 +60,10 @@ typedef struct {
     /* True only when policy accepts and the controller update was queued. */
     bool (*le_parameters)(void *context, const dbt_link_t *link, uint16_t minimum,
                           uint16_t maximum, uint16_t latency, uint16_t timeout);
+    /* New incoming Classic channel only, after duplicate/CID checks and before
+     * allocation/security work. Pure bounded admission policy, no mutations of
+     * this manager. It does not replace authorization or encryption checks. */
+    bool (*accept)(void *context, const dbt_link_t *link, uint16_t psm);
 } dbt_channel_hooks_t;
 
 typedef struct {

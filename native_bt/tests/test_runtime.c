@@ -3,6 +3,7 @@
 #include "dbt_sdp_bearer.h"
 #include "dbt_avdtp_bearer.h"
 #include "dbt_avdtp_sink.h"
+#include "dbt_a2dp_acceptor.h"
 #ifdef _WIN32
 #define EXPORT __declspec(dllexport)
 #else
@@ -36,6 +37,8 @@ static bool sink_runtime_enabled,sink_job_pending,sink_close_pending;
 static uint32_t sink_job_token,sink_media_serial;
 static uint16_t sink_media_cid;
 static unsigned sink_media_calls;
+static dbt_a2dp_acceptor_t acceptor;
+static bool acceptor_enabled;
 static void zero(void *data, unsigned size) { uint8_t *p=data; for(unsigned i=0;i<size;++i)p[i]=0; }
 static void copy(uint8_t *out,const uint8_t *in,unsigned size){for(unsigned i=0;i<size;++i)out[i]=in[i];}
 static void w16(uint8_t *p,uint16_t v){p[0]=(uint8_t)v;p[1]=(uint8_t)(v>>8);}
@@ -59,6 +62,11 @@ static void link_change(void *context,const dbt_link_change_t *change){(void)cha
 static void channel(void *context,dbt_channel_event_t kind,const dbt_channel_t *snapshot,dbt_channel_reason_t reason,uint16_t result){
     peer_t *peer=context;(void)reason;(void)result;
     if(kind==DBT_CH_EVENT_OPEN){++peer->opens;peer->cid=snapshot->local_cid;}
+    if(acceptor_enabled && peer==&peers[1] && snapshot->psm==0x19){
+        dbt_result_t status=dbt_a2dp_acceptor_event(&acceptor,kind,snapshot);
+        if(status!=DBT_OK && status!=DBT_EMPTY)++avdtp_errors;
+        return;
+    }
     if(avdtp_enabled)dbt_avdtp_bearer_event(&avdtp_bearers[peer==&peers[1]],kind,snapshot);
     if(sink_runtime_enabled && peer==&peers[1] && snapshot->psm==0x19 && snapshot->local_cid!=avdtp_bearers[1].cid){
         if(kind==DBT_CH_EVENT_OPEN){
@@ -70,6 +78,11 @@ static void channel(void *context,dbt_channel_event_t kind,const dbt_channel_t *
     }
 }
 static void data(void *context,const dbt_channel_t *snapshot,const uint8_t *bytes,uint16_t size){
+    if(acceptor_enabled && context==&peers[1] && snapshot->psm==0x19){
+        dbt_result_t result=dbt_a2dp_acceptor_receive(&acceptor,snapshot,bytes,size);
+        if(result!=DBT_OK && result!=DBT_EMPTY)++avdtp_errors;
+        return;
+    }
     if(sink_runtime_enabled && context==&peers[1] && snapshot->local_cid==sink_media_cid){
         if(dbt_avdtp_sink_media_receive(&runtime_sink,snapshot->serial,bytes,size)!=DBT_OK)++avdtp_errors;
         return;
@@ -124,6 +137,7 @@ static void controller(peer_t *peer){
 static int fixture(unsigned index){
     avdtp_enabled=false;
     sink_runtime_enabled=false;
+    acceptor_enabled=false;
     peer_t *peer=&peers[index];zero(peer,sizeof(*peer));peer->ready=peer->accept=true;
     dbt_transport_t transport={peer,can_send,send};dbt_runtime_hooks_t hooks={0};
     hooks.context=peer;hooks.allocate=allocate;hooks.release=release;hooks.link=link_change;
@@ -320,6 +334,72 @@ EXPORT int test_avdtp_sink_paired_runtime_media_channels_and_ble(void){
     CHECK(dbt_avdtp_sink_shutdown(&runtime_sink,clock_ms)==DBT_OK);
     for(unsigned i=0;i<2;++i)CHECK(peers[i].allocated==peers[i].released && !peers[i].integrity_errors);
     sink_runtime_enabled=avdtp_enabled=false;return 0;
+}
+static bool accept_profile(void *context,const dbt_link_t *link,uint16_t psm){
+    return context!=&peers[1] || psm!=0x19 || dbt_a2dp_acceptor_accept(&acceptor,link);
+}
+static int acceptor_fixture(void){
+    clock_ms=0;int result=fixture(0);if(result)return result;result=fixture(1);if(result)return result;
+    avdtp_errors=0;zero(avdtp_commands,sizeof(avdtp_commands));zero(avdtp_responses,sizeof(avdtp_responses));
+    for(unsigned i=0;i<2;++i){
+        add_link(&peers[i],1,false);add_link(&peers[i],2,true);
+        uint8_t encrypted[]={0,1,0,1};CHECK(event(&peers[i],8,encrypted,sizeof(encrypted))==DBT_OK);
+        dbt_runtime_poll(&peers[i].runtime,++clock_ms,8,0);
+        CHECK(dbt_channels_register_fixed(&peers[i].runtime.channels,DBT_LINK_LE,4)==DBT_OK);
+    }
+    static const uint8_t caps[]={1,0,7,6,0,0,0xff,0xff,2,53,8,0};
+    static const dbt_avdtp_endpoint_t endpoint={caps,sizeof(caps),1,dbt_a2dp_sbc_validate};
+    dbt_avdtp_sink_hooks_t hooks={&peers[1],allocate,release,sink_work,sink_event,sink_media};
+    CHECK(dbt_a2dp_acceptor_init(&acceptor,&peers[1].runtime,hooks,&endpoint,1,672,128,5000,1000,2000)==DBT_OK);
+    acceptor_enabled=true;sink_job_pending=false;sink_close_pending=false;sink_media_calls=0;
+    peers[1].runtime.hooks.channels.accept=accept_profile;
+    uint16_t cid=0;CHECK(dbt_channels_open(&peers[0].runtime.channels,1,0x19,672,335,DBT_SECURITY_ENCRYPTED,clock_ms,&cid)==DBT_OK);
+    pump(50);CHECK(acceptor.active && acceptor.signaling.serial && !avdtp_errors);
+    const dbt_channel_t *channel=dbt_channels_find(&peers[0].runtime.channels,1,cid);CHECK(channel);
+    dbt_avdtp_hooks_t signal_hooks={&peers[0],allocate,release,avdtp_command_received,avdtp_response_received,0,0};
+    CHECK(dbt_avdtp_init(&avdtp_signals[0],signal_hooks,channel->serial,channel->rx_mtu,channel->tx_mtu,1024,1000,2000)==DBT_OK);
+    CHECK(dbt_avdtp_bearer_init(&avdtp_bearers[0],&peers[0].runtime,&avdtp_signals[0],channel)==DBT_OK);
+    avdtp_enabled=true;return 0;
+}
+static bool acceptor_steps(unsigned rounds,bool worker_ready){
+    for(unsigned i=0;i<rounds;++i){
+        pump(1);
+        if(dbt_a2dp_acceptor_poll(&acceptor,clock_ms)!=DBT_OK)return false;
+        if(sink_job_pending && worker_ready){
+            sink_job_pending=false;
+            if(dbt_a2dp_acceptor_complete(&acceptor,acceptor.sink.binding,sink_job_token,DBT_SINK_WORK_READY,clock_ms)!=DBT_OK)return false;
+        }
+        if(avdtp_bearers[0].attached && dbt_avdtp_bearer_poll(&avdtp_bearers[0],clock_ms)!=DBT_OK)return false;
+    }
+    return true;
+}
+EXPORT int test_a2dp_acceptor_admission_routing_and_retirement(void){
+    int result=acceptor_fixture();if(result)return result;uint16_t rejected=0;
+    /* A media channel before Open is refused, without replacing signaling. */
+    CHECK(dbt_channels_open(&peers[0].runtime.channels,1,0x19,672,335,DBT_SECURITY_ENCRYPTED,clock_ms,&rejected)==DBT_OK);
+    CHECK(acceptor_steps(30,true) && !dbt_channels_find(&peers[0].runtime.channels,1,rejected));
+    CHECK(acceptor.active && !acceptor.media.serial && acceptor.sink.state==DBT_STREAM_IDLE);
+    uint8_t configuration[]={4,8,1,0,7,6,0,0,0x21,0x15,2,53,8,0},label=0,seid=4;
+    CHECK(dbt_avdtp_command(&avdtp_signals[0],3,configuration,sizeof(configuration),clock_ms,&label)==DBT_OK);
+    CHECK(acceptor_steps(20,true) && acceptor.sink.state==DBT_STREAM_CONFIGURED);
+    CHECK(dbt_avdtp_command(&avdtp_signals[0],6,&seid,1,clock_ms,&label)==DBT_OK);
+    CHECK(acceptor_steps(20,true) && acceptor.sink.state==DBT_STREAM_OPEN);
+    uint16_t cid=0;CHECK(dbt_channels_open(&peers[0].runtime.channels,1,0x19,672,335,DBT_SECURITY_ENCRYPTED,clock_ms,&cid)==DBT_OK);
+    CHECK(acceptor_steps(40,true) && acceptor.media.serial);
+    CHECK(dbt_channels_open(&peers[0].runtime.channels,1,0x19,672,335,DBT_SECURITY_ENCRYPTED,clock_ms,&rejected)==DBT_OK);
+    CHECK(acceptor_steps(30,true) && !dbt_channels_find(&peers[0].runtime.channels,1,rejected));
+    CHECK(dbt_avdtp_command(&avdtp_signals[0],7,&seid,1,clock_ms,&label)==DBT_OK);
+    CHECK(acceptor_steps(20,true) && acceptor.sink.state==DBT_STREAM_STREAMING);
+    uint8_t rtp[193];zero(rtp,sizeof(rtp));rtp[0]=0x80;rtp[1]=96;rtp[2]=0x12;rtp[3]=0x34;rtp[7]=rtp[11]=rtp[12]=1;
+    for(unsigned i=13;i<sizeof(rtp);++i)rtp[i]=(uint8_t)((i-12u)*31u);
+    CHECK(dbt_runtime_send(&peers[0].runtime,1,cid,rtp,sizeof(rtp),tx_done,0)==DBT_OK);
+    CHECK(acceptor_steps(30,true) && sink_media_calls==1 && !avdtp_errors);
+    CHECK(dbt_a2dp_acceptor_stop(&acceptor,clock_ms)==DBT_BUSY);
+    CHECK(acceptor_steps(60,false) && acceptor.active && acceptor.draining && sink_job_pending && acceptor.sink.retiring);
+    CHECK(!dbt_a2dp_acceptor_accept(&acceptor,&peers[1].runtime.acl.links[0]));
+    CHECK(acceptor_steps(3,true) && !acceptor.active && dbt_a2dp_acceptor_stop(&acceptor,clock_ms)==DBT_OK);
+    for(unsigned i=0;i<2;++i)CHECK(peers[i].allocated==peers[i].released && !peers[i].integrity_errors);
+    acceptor_enabled=avdtp_enabled=false;return 0;
 }
 EXPORT int test_commands_copy_credit_status_and_rejection(void){
     clock_ms=0;int r=fixture(0);if(r)return r;peer_t *p=&peers[0];dbt_host_t *host=&p->runtime.host;

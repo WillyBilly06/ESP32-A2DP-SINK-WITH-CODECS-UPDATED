@@ -2,8 +2,9 @@
 
 This is the transport/control foundation for the independent audio profile. It
 now has an [audio sink acceptor](AVDTP_SINK.md) with endpoint state, asynchronous
-worker gates and SBC configuration validation. Actual decoder/media-worker
-integration and playback remain pending.
+worker gates and SBC configuration validation. Its [SBC worker](SBC_PIPELINE.md)
+now decodes through actual runtime media channels in a restricted RF diagnostic;
+product DSP/I2S output and playback integration remain pending.
 The Bluedroid application remains the running audio firmware.
 
 ## Interfaces and ownership
@@ -64,7 +65,7 @@ payload headers and frame reassembly remain the profile/codec adapter's job.
 
 ## Evidence and remaining work
 
-130 native groups pass on Windows and Linux, with Linux ASan/UBSan and 20,000
+136 native groups pass on Windows and Linux, with Linux ASan/UBSan and 20,000
 concurrent FIFO packets. Fifteen new AVDTP groups cover copied controls, label
 reuse, fragmented duplex traffic, allocation failures/retry, malformed sequences,
 partial Abort, response lengths, timeout/wraparound and pinned cleanup, capability
@@ -73,18 +74,18 @@ exchange a 193-byte signaling body through a 48-byte L2CAP MTU and 27-byte HCI
 MTU, while a separate BLE bearer progresses with Classic credits stalled.
 This is a host simulation; it does not resolve the recorded RF corruption.
 
-All five transport/sink/SBC-validation source units compile into the ESP32 component archive. They are
-currently unreferenced by the controller probe and linker garbage collection
-excludes them from its final image. `measure_avdtp_target.py` reports target ABI
-sizes and that distinction in `_build/host/avdtp_target.json`. There is no new
-AVDTP hardware/playback evidence and no additional board flash for this work.
+The audio diagnostic now links the owned transport/sink/manager and standalone SBC
+decoder, with boot/readback and finite RF PCM-counter evidence. Default controller
+probes do not activate these profiles. `measure_avdtp_target.py` reports exact target
+ABI/linkage in `_build/host/avdtp_target.json`; [SBC pipeline evidence](SBC_PIPELINE.md)
+keeps this limited RF result distinct from product playback qualification.
 The target ABI measurement is 164 bytes per signaling instance plus 24 bytes per
 runtime adapter. The complete sink including signaling measures 284 bytes. This excludes active dynamic buffers and all future profile,
 codec, worker and controller state; it is not total stack RAM or a comparison
 against an equivalent feature set.
 
-Next layers must integrate the sink with the production transport manager and
-decoder worker, complete queued/pinned and outgoing Abort recovery, add audio
+Next layers must integrate the worker with the actual DSP/I2S application,
+complete queued/pinned and outgoing Abort recovery, add audio
 profile discovery and qualify external peer interoperability. SBC/AAC/aptX variants,
 LDAC/Opus/LHDC V5 negotiation and playback all remain in scope.
 

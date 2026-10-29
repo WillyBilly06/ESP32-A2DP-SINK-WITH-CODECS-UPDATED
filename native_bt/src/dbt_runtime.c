@@ -42,6 +42,10 @@ static dbt_result_t request_security(void *context,const dbt_link_t *link,uint16
     dbt_runtime_t *runtime=context;dbt_channel_hooks_t *hooks=&runtime->hooks.channels;
     return hooks->security_request?hooks->security_request(hooks->context,link,psm,security,start):DBT_UNSUPPORTED;
 }
+static bool accept_channel(void *context,const dbt_link_t *link,uint16_t psm) {
+    dbt_runtime_t *runtime=context;dbt_channel_hooks_t *hooks=&runtime->hooks.channels;
+    return !hooks->accept || hooks->accept(hooks->context,link,psm);
+}
 static void event(void *context, dbt_channel_event_t kind, const dbt_channel_t *channel,
                    dbt_channel_reason_t reason, uint16_t result) {
     dbt_runtime_t *runtime = context;
@@ -77,6 +81,7 @@ static bool initialize_layers(dbt_runtime_t *runtime) {
     dbt_channel_hooks_t hooks = {0};
     hooks.context = runtime; hooks.authorize = authorize; hooks.tx_idle = tx_idle;
     hooks.security_request=request_security;
+    hooks.accept=accept_channel;
     hooks.event = event; hooks.data = data; hooks.fixed_data = fixed; hooks.le_parameters = parameters;
     if (dbt_acl_init(&runtime->acl, &runtime->host.controller) != DBT_OK ||
         dbt_channels_init(&runtime->channels, &runtime->acl, hooks, runtime->maximum_mtu, 1000, 60000) != DBT_OK) {

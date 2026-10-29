@@ -336,6 +336,13 @@ malformed:
     return DBT_INVALID;
 }
 
+static bool accept_incoming(dbt_channels_t *manager,const dbt_link_t *link,uint16_t psm){
+    if(!manager->hooks.accept)return true;
+    manager->in_callback=true;
+    bool accepted=manager->hooks.accept(manager->hooks.context,link,psm);
+    manager->in_callback=false;
+    return accepted;
+}
 static dbt_result_t connection_request(dbt_channels_t *manager, const dbt_link_t *link, const uint8_t *command) {
     uint16_t psm = dbt_read_le16(command + 4), peer = dbt_read_le16(command + 6);
     dbt_channel_t *existing = by_remote(manager, link->handle, link->generation, peer);
@@ -346,6 +353,7 @@ static dbt_result_t connection_request(dbt_channels_t *manager, const dbt_link_t
         if (!service || !psm_valid(psm)) result = 2;
         else if (peer < 0x0040) result = 6;
         else if (existing) result = 7;
+        else if (!accept_incoming(manager,link,psm)) result = 4;
         else {
             channel = allocate_channel(manager, link, psm, service->rx_mtu, service->minimum_mtu, service->security);
             if (!channel) result = 4;

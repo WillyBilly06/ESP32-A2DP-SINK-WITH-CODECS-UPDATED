@@ -26,7 +26,7 @@ runtime admission or cancellation; disconnect cleanup returns their storage.
 
 Eleven added host groups cover the core and actual paired-runtime bridge, including
 8192 generated requests, UUID aliases, golden wire responses, continuation, OOM,
-credit stalls and disconnect. The expanded 130-group suite passes on Windows/Linux and Linux
+credit stalls and disconnect. The expanded 136-group suite passes on Windows/Linux and Linux
 ASan/UBSan, with 20,000 concurrent ingress packets.
 
 On ESP32, 24 Linux request/response transactions passed, including five transactions

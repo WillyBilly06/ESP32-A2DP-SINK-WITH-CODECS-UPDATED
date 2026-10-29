@@ -40,8 +40,9 @@ and acknowledge DROP only after all earlier work and resources are drained. A
 rejected reconfiguration guarantees the old configuration is still usable. If a
 worker cannot restore it after an allocation/initialization failure, it must report
 Fatal, causing explicit channel shutdown rather than a false usable state.
-These are integration contracts, currently exercised with test providers; actual
-codec construction, peak heap and audio timing remain unqualified.
+The [SBC worker](SBC_PIPELINE.md) now implements this contract with an actual
+standalone decoder, allocation/PCM tests and finite RF counter evidence. Product
+audio output, other codec workers, full peak heap and audio timing remain unqualified.
 
 An Abort for the same SEP may supersede a pending worker operation before a response
 has been queued. Its old receipt becomes stale, the worker's copied input remains
@@ -77,7 +78,7 @@ may complete cleanup; a timeout alone never asserts that decoder memory is freed
 
 ## Current evidence
 
-130 total groups pass on Windows/Linux, including Linux ASan/UBSan and 20,000
+136 total groups pass on Windows/Linux, including Linux ASan/UBSan and 20,000
 concurrent ingress packets. Fourteen groups added for this layer exercise lifecycle
 ordering, lazy allocation/OOM, rollback/fatal results, stale receipts, aborted work,
 ordered command lists, delay reporting, media gates, cleanup and generated requests.
@@ -90,15 +91,16 @@ RTP packet through a 27-byte HCI MTU, suspend and close. The test worker is expl
 simulated. A separate BLE bearer progresses while Classic response credits stall;
 the sink does not enter Streaming until those response bytes are admitted.
 
-The five AVDTP/SBC-validation units compile into the ESP32 archive. They remain
-unreferenced by the controller probe and are excluded from its final image. Target
+The optional SBC diagnostic now links these units and the actual decoder worker;
+it passed a finite direct AVDTP/SBC-to-PCM counter run with BLE traffic. Target
 metadata measures 164 bytes for signaling, 284 for the complete sink including that
 signaling, and 24 for a runtime adapter. These are not additive twice and exclude
 all active buffers, decoder/worker/controller memory and the rest of the host.
-There is no new RF, decoded audio, I2S or acoustic evidence for this layer.
+See [SBC pipeline evidence](SBC_PIPELINE.md) for the RF decoded-PCM count/fingerprint.
+I2S, Firefox playback and acoustic evidence remain absent.
 
-Next work is the production PSM/media manager, native decoder worker and actual SBC
-frame path, audio SDP records, then other codec validators/adapters and AVRCP. The
+Next work is DSP/I2S application handoff, audio SDP/delay integration, then other
+codec validators/adapters and AVRCP. The
 existing long-run Classic/BLE corruption remains a release blocker.
 
 Wire/state requirements were checked against the Bluetooth SIG

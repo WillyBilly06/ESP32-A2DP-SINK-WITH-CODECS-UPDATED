@@ -9,9 +9,11 @@ Classic security and an SDP server, with an isolated ESP-IDF 5.5.2 probe.
 Controller-to-host ACL credits and bounded SCO HCI framing are also implemented;
 voice connection/profile ownership remains pending.
 Owned AVDTP signaling, capability validation and an RTP media-header view are
-implemented alongside an asynchronous sink acceptor and SBC configuration
-validator. Production media/decoder integration and playback remain pending.
+implemented alongside an asynchronous sink acceptor, runtime media manager and
+actual SBC decoder worker. A restricted RF diagnostic passes SBC-to-PCM counters
+with concurrent LE ATT traffic. Product DSP/I2S/Firefox playback remains pending.
 See [AVDTP scope](docs/AVDTP.md) and [sink lifecycle](docs/AVDTP_SINK.md).
+See [SBC pipeline evidence](docs/SBC_PIPELINE.md) for the exact workload and limits.
 This is **not yet a complete Bluetooth host or a product audio
 firmware replacement**. The staged audio application still uses Bluedroid and
 includes the separately requested integer DSP and codec-memory changes.
@@ -60,7 +62,7 @@ Classic credits while LE data/control continue. `dbt_gap` has explicit incoming
 admission and security-owner hooks; no bonding/security/profile implementation is
 implied by enabling SSP in the controller.
 
-There are 130 native groups, including the concurrent queue test. Run
+There are 136 native groups, including the concurrent queue test. Run
 `python native_bt/tools/test_stack_linux.py --host HOST --user USER` for Linux
 normal/ASan/UBSan checks; the password prompt is session-only. The default probe
 does not require the separate LHDC checkout. `build_probe.ps1 -WithLhdc` enables
@@ -84,6 +86,13 @@ FIFO. See [receive flow and hardware limits](docs/RX_FLOW.md). A short concurren
 run passed; the longer untraced workload still failed. The default probe has no
 per-packet ingress fingerprints; `-TraceIngress` enables the bounded diagnostic
 snapshots. `-WithoutRxFlow` is an explicit diagnostic comparison option.
+
+`-WithSbc` compiles the standalone SDK codec and owned lazy worker without the
+Bluedroid host. `-WithAudioProbe -WithGatt -WithClassicSecurity -TestPeer <address>`
+adds the restricted direct-AVDTP diagnostic. It hashes PCM and has no I2S output
+or Audio Sink SDP advertisement. The finite 48 kHz stereo test decoded 8000 frames
+while 166 ATT writes/notifications completed; this does not qualify other codecs,
+Firefox playback or resolve the large-payload generic dual-mode failure.
 
 See [release gates](docs/RELEASE_READINESS.md) before publishing a replacement
 firmware. This milestone remains an incomplete development implementation.
