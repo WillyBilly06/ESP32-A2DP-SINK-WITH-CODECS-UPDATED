@@ -2,6 +2,7 @@
 #include "dbt_att_bearer.h"
 #include "dbt_sdp_bearer.h"
 #include "dbt_avdtp_bearer.h"
+#include "dbt_avdtp_sink.h"
 #ifdef _WIN32
 #define EXPORT __declspec(dllexport)
 #else
@@ -30,6 +31,11 @@ static dbt_avdtp_t avdtp_signals[2];
 static dbt_avdtp_bearer_t avdtp_bearers[2];
 static bool avdtp_enabled;
 static unsigned avdtp_errors, avdtp_commands[2], avdtp_responses[2];
+static dbt_avdtp_sink_t runtime_sink;
+static bool sink_runtime_enabled,sink_job_pending,sink_close_pending;
+static uint32_t sink_job_token,sink_media_serial;
+static uint16_t sink_media_cid;
+static unsigned sink_media_calls;
 static void zero(void *data, unsigned size) { uint8_t *p=data; for(unsigned i=0;i<size;++i)p[i]=0; }
 static void copy(uint8_t *out,const uint8_t *in,unsigned size){for(unsigned i=0;i<size;++i)out[i]=in[i];}
 static void w16(uint8_t *p,uint16_t v){p[0]=(uint8_t)v;p[1]=(uint8_t)(v>>8);}
@@ -54,8 +60,20 @@ static void channel(void *context,dbt_channel_event_t kind,const dbt_channel_t *
     peer_t *peer=context;(void)reason;(void)result;
     if(kind==DBT_CH_EVENT_OPEN){++peer->opens;peer->cid=snapshot->local_cid;}
     if(avdtp_enabled)dbt_avdtp_bearer_event(&avdtp_bearers[peer==&peers[1]],kind,snapshot);
+    if(sink_runtime_enabled && peer==&peers[1] && snapshot->psm==0x19 && snapshot->local_cid!=avdtp_bearers[1].cid){
+        if(kind==DBT_CH_EVENT_OPEN){
+            sink_media_cid=snapshot->local_cid;sink_media_serial=snapshot->serial;
+            if(dbt_avdtp_sink_media_open(&runtime_sink,sink_media_serial,clock_ms)!=DBT_OK)++avdtp_errors;
+        }else if(kind==DBT_CH_EVENT_CLOSED || kind==DBT_CH_EVENT_FAILED){
+            if(dbt_avdtp_sink_media_closed(&runtime_sink,snapshot->serial)!=DBT_OK)++avdtp_errors;
+        }
+    }
 }
 static void data(void *context,const dbt_channel_t *snapshot,const uint8_t *bytes,uint16_t size){
+    if(sink_runtime_enabled && context==&peers[1] && snapshot->local_cid==sink_media_cid){
+        if(dbt_avdtp_sink_media_receive(&runtime_sink,snapshot->serial,bytes,size)!=DBT_OK)++avdtp_errors;
+        return;
+    }
     if(avdtp_enabled){
         dbt_result_t result=dbt_avdtp_bearer_receive(&avdtp_bearers[context==&peers[1]],snapshot,bytes,size);
         if(result!=DBT_OK && result!=DBT_EMPTY)++avdtp_errors;
@@ -105,6 +123,7 @@ static void controller(peer_t *peer){
 }
 static int fixture(unsigned index){
     avdtp_enabled=false;
+    sink_runtime_enabled=false;
     peer_t *peer=&peers[index];zero(peer,sizeof(*peer));peer->ready=peer->accept=true;
     dbt_transport_t transport={peer,can_send,send};dbt_runtime_hooks_t hooks={0};
     hooks.context=peer;hooks.allocate=allocate;hooks.release=release;hooks.link=link_change;
@@ -151,26 +170,27 @@ static void avdtp_response_received(void *context,dbt_avdtp_outcome_t outcome,
         peer->received_size=message->size;copy(peer->received,message->data,message->size);
     }
 }
-static int avdtp_fixture(void){
+static int avdtp_fixture_with_mtu(uint16_t mtu){
     clock_ms=0;int result=fixture(0);if(result)return result;result=fixture(1);if(result)return result;
     avdtp_errors=0;zero(avdtp_commands,sizeof(avdtp_commands));zero(avdtp_responses,sizeof(avdtp_responses));
     for(unsigned i=0;i<2;++i){add_link(&peers[i],1,false);add_link(&peers[i],2,true);
         CHECK(dbt_channels_register_fixed(&peers[i].runtime.channels,DBT_LINK_LE,4)==DBT_OK);}
-    dbt_service_t service={0x19,48,48,DBT_SECURITY_NONE};
+    dbt_service_t service={0x19,mtu,48,DBT_SECURITY_NONE};
     CHECK(dbt_channels_register(&peers[1].runtime.channels,service)==DBT_OK);
     uint16_t cid=0;
-    CHECK(dbt_channels_open(&peers[0].runtime.channels,1,0x19,48,48,DBT_SECURITY_NONE,clock_ms,&cid)==DBT_OK);
+    CHECK(dbt_channels_open(&peers[0].runtime.channels,1,0x19,mtu,48,DBT_SECURITY_NONE,clock_ms,&cid)==DBT_OK);
     pump(70);
     for(unsigned i=0;i<2;++i){
         peer_t *peer=&peers[i];
         const dbt_channel_t *current=dbt_channels_find(&peer->runtime.channels,1,peer->cid);
         CHECK(current && current->state==DBT_CH_OPEN);
-        dbt_avdtp_hooks_t hooks={peer,allocate,release,avdtp_command_received,avdtp_response_received,0};
-        CHECK(dbt_avdtp_init(&avdtp_signals[i],hooks,current->serial,48,48,1024,1000,2000)==DBT_OK);
+        dbt_avdtp_hooks_t hooks={peer,allocate,release,avdtp_command_received,avdtp_response_received,0,0};
+        CHECK(dbt_avdtp_init(&avdtp_signals[i],hooks,current->serial,current->rx_mtu,current->tx_mtu,1024,1000,2000)==DBT_OK);
         CHECK(dbt_avdtp_bearer_init(&avdtp_bearers[i],&peer->runtime,&avdtp_signals[i],current)==DBT_OK);
     }
     avdtp_enabled=true;return 0;
 }
+static int avdtp_fixture(void){return avdtp_fixture_with_mtu(48);}
 EXPORT int test_avdtp_runtime_fragmentation_credit_stall_and_ble(void){
     int result=avdtp_fixture();if(result)return result;
     uint8_t body[193],label=0;for(unsigned i=0;i<sizeof(body);++i)body[i]=(uint8_t)(i*31u+7u);
@@ -226,6 +246,80 @@ EXPORT int test_avdtp_runtime_reconfigured_mtu_fails_closed(void){
     CHECK(!avdtp_bearers[0].attached && !avdtp_signals[0].binding);
     CHECK(dbt_avdtp_bearer_clear(&avdtp_bearers[1])==DBT_OK);
     avdtp_enabled=false;return 0;
+}
+static dbt_result_t sink_work(void *context,const dbt_sink_job_t *job){
+    (void)context;if(sink_job_pending)return DBT_BUSY;
+    sink_job_pending=true;sink_job_token=job->token;return DBT_OK;
+}
+static void sink_event(void *context,dbt_sink_event_t kind,dbt_stream_state_t state){
+    (void)context;(void)state;
+    if(kind==DBT_SINK_CLOSE_MEDIA)sink_close_pending=true;
+    if(kind==DBT_SINK_FAULT)++avdtp_errors;
+}
+static dbt_result_t sink_media(void *context,const dbt_avdtp_media_t *media){
+    (void)context;
+    if(media->size!=181 || media->sequence!=0x1234 || media->payload[0]!=1)return DBT_INVALID;
+    for(unsigned i=1;i<media->size;++i)if(media->payload[i]!=(uint8_t)(i*31u))return DBT_INVALID;
+    ++sink_media_calls;return DBT_OK;
+}
+static bool sink_steps(unsigned rounds,bool worker_ready){
+    for(unsigned i=0;i<rounds;++i){
+        pump(1);
+        if(dbt_avdtp_sink_poll(&runtime_sink,clock_ms)!=DBT_OK)return false;
+        if(sink_job_pending && worker_ready){
+            sink_job_pending=false;
+            if(dbt_avdtp_sink_complete(&runtime_sink,runtime_sink.binding,sink_job_token,
+                                       DBT_SINK_WORK_READY,clock_ms)!=DBT_OK)return false;
+        }
+        if(dbt_avdtp_bearer_poll(&avdtp_bearers[0],clock_ms)!=DBT_OK ||
+           dbt_avdtp_bearer_poll(&avdtp_bearers[1],clock_ms)!=DBT_OK)return false;
+        if(sink_close_pending){
+            sink_close_pending=false;
+            if(dbt_channels_close(&peers[1].runtime.channels,1,sink_media_cid,clock_ms)!=DBT_OK)return false;
+        }
+    }
+    return true;
+}
+EXPORT int test_avdtp_sink_paired_runtime_media_channels_and_ble(void){
+    int result=avdtp_fixture_with_mtu(335);if(result)return result;
+    CHECK(dbt_avdtp_bearer_clear(&avdtp_bearers[1])==DBT_OK);
+    static const uint8_t caps[]={1,0,7,6,0,0,0xff,0xff,2,53,8,0};
+    static const dbt_avdtp_endpoint_t endpoint={caps,sizeof(caps),1,dbt_a2dp_sbc_validate};
+    dbt_avdtp_sink_hooks_t hooks={&peers[1],allocate,release,sink_work,sink_event,sink_media};
+    const dbt_channel_t *signaling=dbt_channels_find(&peers[1].runtime.channels,1,peers[1].cid);
+    CHECK(signaling);
+    CHECK(dbt_avdtp_sink_init(&runtime_sink,hooks,&endpoint,1,signaling->serial,signaling->rx_mtu,signaling->tx_mtu,128,5000,1000,2000)==DBT_OK);
+    CHECK(dbt_avdtp_bearer_init(&avdtp_bearers[1],&peers[1].runtime,&runtime_sink.signal,signaling)==DBT_OK);
+    sink_runtime_enabled=true;sink_job_pending=sink_close_pending=false;sink_media_calls=0;sink_media_cid=0;
+    uint8_t configuration[]={4,8,1,0,7,6,0,0,0x21,0x15,2,53,8,0},label=0,seid=4;
+    CHECK(dbt_avdtp_command(&avdtp_signals[0],3,configuration,sizeof(configuration),clock_ms,&label)==DBT_OK);
+    CHECK(sink_steps(20,true) && runtime_sink.state==DBT_STREAM_CONFIGURED && avdtp_responses[0]==1);
+    CHECK(dbt_avdtp_command(&avdtp_signals[0],6,&seid,1,clock_ms,&label)==DBT_OK);
+    CHECK(sink_steps(20,true) && runtime_sink.state==DBT_STREAM_OPEN && avdtp_responses[0]==2);
+    uint16_t remote_media_cid=0;
+    CHECK(dbt_channels_open(&peers[0].runtime.channels,1,0x19,335,48,DBT_SECURITY_NONE,clock_ms,&remote_media_cid)==DBT_OK);
+    CHECK(sink_steps(40,true) && runtime_sink.media_binding && sink_media_cid);
+    CHECK(dbt_avdtp_command(&avdtp_signals[0],7,&seid,1,clock_ms,&label)==DBT_OK);
+    CHECK(sink_steps(10,false) && sink_job_pending && runtime_sink.state==DBT_STREAM_OPEN);
+    uint8_t ble[100];zero(ble,sizeof(ble));ble[0]=0x81;unsigned fixed_before=peers[1].fixed_calls;
+    peers[1].runtime.acl.pools[0].available=0;
+    CHECK(dbt_runtime_send_fixed(&peers[0].runtime,2,4,ble,sizeof(ble),tx_done,0)==DBT_OK);
+    CHECK(sink_steps(20,true) && peers[1].fixed_calls==fixed_before+1 && runtime_sink.state==DBT_STREAM_OPEN);
+    peers[1].runtime.acl.pools[0].available=2;
+    CHECK(sink_steps(20,true) && runtime_sink.state==DBT_STREAM_STREAMING && avdtp_responses[0]==3);
+    uint8_t rtp[193];zero(rtp,sizeof(rtp));rtp[0]=0x80;rtp[1]=96;rtp[2]=0x12;rtp[3]=0x34;rtp[7]=rtp[11]=rtp[12]=1;
+    for(unsigned i=13;i<sizeof(rtp);++i)rtp[i]=(uint8_t)((i-12u)*31u);
+    CHECK(dbt_runtime_send(&peers[0].runtime,1,remote_media_cid,rtp,sizeof(rtp),tx_done,0)==DBT_OK);
+    CHECK(sink_steps(30,true) && sink_media_calls==1 && runtime_sink.media_packets==1);
+    CHECK(dbt_avdtp_command(&avdtp_signals[0],9,&seid,1,clock_ms,&label)==DBT_OK);
+    CHECK(sink_steps(20,true) && runtime_sink.state==DBT_STREAM_OPEN);
+    CHECK(dbt_avdtp_command(&avdtp_signals[0],8,&seid,1,clock_ms,&label)==DBT_OK);
+    CHECK(sink_steps(30,true) && runtime_sink.state==DBT_STREAM_IDLE && !avdtp_errors);
+    CHECK(dbt_avdtp_bearer_clear(&avdtp_bearers[0])==DBT_OK);
+    CHECK(dbt_avdtp_bearer_clear(&avdtp_bearers[1])==DBT_OK);
+    CHECK(dbt_avdtp_sink_shutdown(&runtime_sink,clock_ms)==DBT_OK);
+    for(unsigned i=0;i<2;++i)CHECK(peers[i].allocated==peers[i].released && !peers[i].integrity_errors);
+    sink_runtime_enabled=avdtp_enabled=false;return 0;
 }
 EXPORT int test_commands_copy_credit_status_and_rejection(void){
     clock_ms=0;int r=fixture(0);if(r)return r;peer_t *p=&peers[0];dbt_host_t *host=&p->runtime.host;

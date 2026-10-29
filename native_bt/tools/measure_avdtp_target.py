@@ -16,17 +16,18 @@ def main():
     build = ROOT / "_build/esp32"
     rows = json.loads((build / "compile_commands.json").read_text())
     units = {Path(row["file"]).stem: row for row in rows
-             if Path(row["file"]).stem in ["dbt_avdtp", "dbt_avdtp_bearer", "dbt_avdtp_caps"]}
-    assert len(units) == 3, "Build the probe's complete AVDTP library first"
+             if Path(row["file"]).stem in ["dbt_avdtp", "dbt_avdtp_bearer", "dbt_avdtp_caps",
+                                           "dbt_avdtp_sink", "dbt_a2dp_sbc"]}
+    assert len(units) == 5, "Build the probe's complete AVDTP/sink library first"
     row = units["dbt_avdtp"]
     compiler = Path(re.match(r'^\s*("[^"]+"|\S+)', row["command"])[1].strip('"'))
     assert compiler.name in ["xtensa-esp32-elf-gcc", "xtensa-esp32-elf-gcc.exe"]
     nm = compiler.with_name(compiler.name.replace("gcc", "nm"))
     destination = ROOT / "_build/host"
     source, obj = destination / "avdtp_abi.c", destination / "avdtp_abi.o"
-    types = {"signal": "dbt_avdtp_t", "bearer": "dbt_avdtp_bearer_t",
+    types = {"signal": "dbt_avdtp_t", "sink_including_signal": "dbt_avdtp_sink_t", "bearer": "dbt_avdtp_bearer_t",
              "capabilities": "dbt_avdtp_caps_t", "media_view": "dbt_avdtp_media_t"}
-    source.write_text('#include "dbt_avdtp_bearer.h"\n#include "dbt_avdtp_caps.h"\n' +
+    source.write_text('#include "dbt_avdtp_bearer.h"\n#include "dbt_avdtp_sink.h"\n' +
         "".join("const unsigned char measure_"+name+"[sizeof("+ctype+")]={0};\n"
                 for name, ctype in types.items()))
     subprocess.run([str(compiler), "-std=c11", "-Os", "-Wall", "-Wextra", "-Werror",
@@ -44,7 +45,7 @@ def main():
         original = Path(unit["file"])
         assert path.stat().st_mtime_ns >= original.stat().st_mtime_ns, name + " object is stale"
         symbols = subprocess.check_output([str(nm), "--defined-only", str(path)], text=True)
-        assert "dbt_avdtp_" in symbols
+        assert "dbt_avdtp_" in symbols or "dbt_a2dp_sbc_validate" in symbols
         objects[name] = sha(path)
     elf = build / "native_bt_probe.elf"
     linked = subprocess.check_output([str(nm), "--defined-only", str(elf)], text=True)

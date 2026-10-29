@@ -37,6 +37,11 @@ typedef struct {
     /* Full response admitted to L2CAP/HCI; never proof of peer receipt. */
     void (*responded)(void *context, uint8_t label, uint8_t signal,
                       dbt_avdtp_type_t type);
+    /* Optional owner policy for an Abort received while a prior remote command
+     * awaits its worker and has no response queued/pinned. True must invalidate
+     * old application work for the same SEP before the Abort command callback.
+     * Return false without changing state for unrelated/invalid Abort requests. */
+    bool (*interrupt)(void *context, const dbt_avdtp_message_t *abort_command);
 } dbt_avdtp_hooks_t;
 
 typedef struct {
@@ -52,7 +57,7 @@ typedef struct {
     dbt_avdtp_hooks_t hooks;
     dbt_avdtp_tx_t tx[2]; /* local command and remote response */
     uint8_t *rx, *packet;
-    uint32_t binding, rx_deadline, remote_deadline, transmit_ms, response_ms;
+    uint32_t binding, now_ms, rx_deadline, remote_deadline, transmit_ms, response_ms;
     uint32_t discarded;
     uint16_t rx_size, rx_capacity, rx_packet_size, packet_size;
     uint16_t tx_mtu, rx_mtu, maximum_message;
@@ -77,6 +82,10 @@ dbt_result_t dbt_avdtp_command(dbt_avdtp_t *signal, uint8_t command,
     const uint8_t *body, uint16_t size, uint32_t now_ms, uint8_t *label);
 dbt_result_t dbt_avdtp_respond(dbt_avdtp_t *signal, uint8_t label, uint8_t command,
     dbt_avdtp_type_t type, const uint8_t *body, uint16_t size, uint32_t now_ms);
+/* Invalid Abort SEIDs require no response. Retire that exact remote Abort only,
+ * without leaving an unanswered-command timer or fabricating an Abort Reject.
+ * Permitted from the command callback before a response has been queued. */
+dbt_result_t dbt_avdtp_ignore_abort(dbt_avdtp_t *signal, uint8_t label);
 
 /* Exactly one complete signaling L2CAP SDU, not an ACL fragment. Stale binding
  * and unmatched responses return EMPTY. INVALID means malformed/discarded;

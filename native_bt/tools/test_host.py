@@ -77,6 +77,14 @@ TESTS = [
     "avdtp_reply_lengths_and_fragment_capacity", "avdtp_simultaneous_local_and_remote_transactions",
     "avdtp_capabilities_configuration_and_alternatives", "avdtp_capability_format_errors_and_generated_tlvs",
     "avdtp_runtime_reconfigured_mtu_fails_closed",
+    "avdtp_sink_discovery_flash_caps_and_validation", "avdtp_sink_configuration_worker_and_admission_order",
+    "avdtp_sink_start_suspend_close_and_media_gate", "avdtp_sink_ordered_list_prefix_and_rejection",
+    "avdtp_sink_reconfigure_rollback_and_fatal_cleanup", "avdtp_sink_disconnect_waits_for_worker_drop",
+    "avdtp_sink_abort_idle_invalid_and_active", "avdtp_sink_oom_refusal_and_resource_rejection",
+    "avdtp_sink_deadlines_media_wrap_and_late_receipts", "avdtp_sink_delay_reporting_and_close_deadline",
+    "a2dp_sbc_selection_errors_and_all_fields", "avdtp_sink_generated_requests_leave_no_allocations",
+    "avdtp_sink_paired_runtime_media_channels_and_ble",
+    "avdtp_sink_abort_supersedes_pending_worker_safely",
 ]
 
 

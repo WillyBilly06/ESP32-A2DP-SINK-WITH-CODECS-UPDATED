@@ -124,6 +124,12 @@ static bool reply_length(const dbt_avdtp_message_t *m) {
     default: return m->size == 0;
     }
 }
+dbt_result_t dbt_avdtp_ignore_abort(dbt_avdtp_t *s,uint8_t label) {
+    if(!s || !s->binding || s->failed || !s->remote_pending || s->remote_label!=label ||
+       s->remote_signal!=DBT_AVDTP_ABORT || s->tx[1].used)return DBT_INVALID;
+    s->remote_pending=false;
+    return DBT_OK;
+}
 static dbt_result_t dispatch(dbt_avdtp_t *s, const dbt_avdtp_message_t *m, uint32_t now) {
     if (m->type != DBT_AVDTP_COMMAND) {
         const dbt_avdtp_tx_t *t = &s->tx[0];
@@ -138,7 +144,14 @@ static dbt_result_t dispatch(dbt_avdtp_t *s, const dbt_avdtp_message_t *m, uint3
         finish(s, DBT_AVDTP_RESPONSE, m);
         return DBT_OK;
     }
-    if (s->remote_pending) return DBT_BUSY;
+    if (s->remote_pending) {
+        if(m->signal!=DBT_AVDTP_ABORT || s->tx[1].used || !s->hooks.interrupt)return DBT_BUSY;
+        s->in_callback=true;
+        bool accepted=s->hooks.interrupt(s->hooks.context,m);
+        s->in_callback=false;
+        if(!accepted)return DBT_BUSY;
+        s->remote_pending=false;
+    }
     s->remote_pending = true;
     s->remote_label = m->label;
     s->remote_signal = m->signal;
@@ -301,6 +314,7 @@ dbt_result_t dbt_avdtp_tx_cancel(dbt_avdtp_t *s) {
 
 dbt_result_t dbt_avdtp_poll(dbt_avdtp_t *s, uint32_t now) {
     if (!s || !s->binding || s->in_callback || s->failed) return DBT_INVALID;
+    s->now_ms = now;
     if ((s->rx && due(now, s->rx_deadline)) ||
         (s->remote_pending && !s->tx[1].used && due(now, s->remote_deadline)) ||
         (s->tx[0].used && due(now, s->tx[0].deadline)) ||

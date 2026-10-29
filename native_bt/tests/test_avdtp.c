@@ -59,7 +59,7 @@ static void responded(void *context,uint8_t label,uint8_t signal,dbt_avdtp_type_
     test_peer_t *p=context;(void)label;(void)signal;(void)type;++p->responded;
 }
 static dbt_avdtp_hooks_t hooks(test_peer_t *p) {
-    dbt_avdtp_hooks_t result={p,allocate,release,command,complete,responded};return result;
+    dbt_avdtp_hooks_t result={p,allocate,release,command,complete,responded,0};return result;
 }
 static bool fixture(test_peer_t *p,uint16_t mtu) {
     zero(p,sizeof(*p));return dbt_avdtp_init(&p->signal,hooks(p),123,mtu,mtu,2048,1000,2000)==DBT_OK;
