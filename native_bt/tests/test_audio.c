@@ -21,23 +21,29 @@ static fixed_dsp_t reference;
 static uint32_t storage[2][2048];
 static bool used[2];
 static unsigned allocations,releases,errors,fail_call;
+static bool unaligned_input;
 static uint8_t *allocate(void *context,uint32_t bytes){
     (void)context;++allocations;if(fail_call==allocations || bytes>sizeof(storage[0]))return 0;
-    for(unsigned i=0;i<2;++i)if(!used[i]){used[i]=true;return (uint8_t *)storage[i];}
+    for(unsigned i=0;i<2;++i)if(!used[i]){
+        unsigned offset=unaligned_input && !i?1u:0u;if(bytes>sizeof(storage[i])-offset)return 0;
+        used[i]=true;return (uint8_t *)storage[i]+offset;
+    }
     return 0;
 }
 static void release(void *context,uint8_t *bytes){
     (void)context;
-    for(unsigned i=0;i<2;++i)if(bytes==(uint8_t *)storage[i]){if(!used[i])++errors;used[i]=false;++releases;return;}
+    for(unsigned i=0;i<2;++i)if(bytes==(uint8_t *)storage[i]+(unaligned_input && !i?1u:0u)){if(!used[i])++errors;used[i]=false;++releases;return;}
     ++errors;
 }
-static bool fixture(dbt_pcm_format_t format,uint8_t channels){
+static bool fixture_aligned(dbt_pcm_format_t format,uint8_t channels,bool unaligned){
     used[0]=used[1]=false;allocations=releases=errors=fail_call=0;
+    unaligned_input=unaligned;
     dbt_audio_memory_t memory={0,allocate,release};
     if(dbt_audio_init(&audio,memory)!=DBT_OK)return false;
     dbt_audio_config_t config={48000,256,512,128,format,channels,false};
     return dbt_audio_open(&audio,config)==DBT_OK;
 }
+static bool fixture(dbt_pcm_format_t format,uint8_t channels){return fixture_aligned(format,channels,false);}
 static void put(uint8_t *p,int32_t value,unsigned width){for(unsigned i=0;i<width;++i)p[i]=(uint8_t)((uint32_t)value>>(i*8));}
 /* Model the measured ESP32 constraint: plenty of total SRAM, but no allocation
  * above 32 KiB. No allocator fallback/retry is permitted. */
@@ -127,8 +133,8 @@ EXPORT int test_audio_paged_render_matches_small_ring(void){
 }
 EXPORT int test_audio_formats_match_integer_dsp_reference(void){
     static uint8_t input[256*8];static int32_t output[512];
-    for(unsigned width=2;width<=4;++width)for(unsigned channels=1;channels<=2;++channels){
-        CHECK(fixture((dbt_pcm_format_t)width,(uint8_t)channels));
+    for(unsigned width=2;width<=4;++width)for(unsigned channels=1;channels<=2;++channels)for(unsigned unaligned=0;unaligned<2;++unaligned){
+        CHECK(fixture_aligned((dbt_pcm_format_t)width,(uint8_t)channels,unaligned!=0));
         CHECK(dbt_audio_controls(&audio,2,-1,3,64,FDSP_BYPASS)==DBT_OK);
         CHECK(fixed_dsp_init(&reference,48000,90,500,512));fixed_dsp_controls(&reference,0,0,0,0,0,true);
         fixed_dsp_controls(&reference,2,-1,3,64,FDSP_BYPASS,false);

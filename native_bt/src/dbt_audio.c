@@ -194,6 +194,11 @@ static void controls(dbt_audio_t *a){
 }
 static int32_t sample(const dbt_audio_t *a,uint32_t index,unsigned channel){
     const uint8_t *p=a->input.bytes+(index&a->input.mask)*a->input.stride+channel*(unsigned)a->config.format;
+#if defined(__BYTE_ORDER__) && __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+    if(a->config.format==DBT_PCM_S32_LE && !((uintptr_t)p&3u)){
+        int32_t value;__builtin_memcpy(&value,__builtin_assume_aligned(p,4),sizeof(value));return value;
+    }
+#endif
     uint32_t value=(uint32_t)p[0]|((uint32_t)p[1]<<8);
     if(a->config.format==DBT_PCM_S16_LE)return (int32_t)(int16_t)value*65536;
     value|=(uint32_t)p[2]<<16;
@@ -254,7 +259,11 @@ uint32_t dbt_audio_render(dbt_audio_t *a,uint32_t budget){
             dbt_resampler_filter(&a->resampler,left,right,a->fraction,&filtered_left,&filtered_right);
             for(unsigned i=0;i<consumed;i++){
                 int32_t history_left,history_right;
-                if(in!=end){history_left=sample(a,in,0);history_right=sample(a,in,a->config.channels==1?0:1);++in;}
+                if(in!=end){
+                    if(!i){history_left=left;history_right=right;}
+                    else {history_left=sample(a,in,0);history_right=sample(a,in,a->config.channels==1?0:1);}
+                    ++in;
+                }
                 else {uint8_t index=(uint8_t)((a->resampler.next-1u)&(DBT_RESAMPLER_HISTORY-1u));
                     history_left=a->resampler.history[0][index];history_right=a->resampler.history[1][index];--a->drain_remaining;}
                 dbt_resampler_push(&a->resampler,history_left,history_right);

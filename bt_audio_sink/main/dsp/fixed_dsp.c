@@ -147,6 +147,30 @@ static inline int32_t blend(int32_t left, int32_t right, int32_t fraction) {
     return clamp32((int64_t)left + (((int64_t)right - left) * fraction >> 31));
 }
 
+#if FDSP_PROVEN_SUM_ENABLED && !defined(FIXED_DSP_DISABLE_STEREO_FUSION)
+/* Internal callers pass distinct local samples and channel-history objects.
+ * Load each shared coefficient once; preserve separate exact sums/fractions. */
+static inline void filter_stereo(const int32_t *restrict c,
+                                fdsp_history_t *restrict a,fdsp_history_t *restrict b,
+                                int32_t *restrict left,int32_t *restrict right){
+    int32_t x=*left,y=*right,l,r;
+    if(c[0]==COEFF_ONE && !c[1] && !c[2] && !c[3] && !c[4]){
+        l=x;r=y;a->fraction=b->fraction=0;
+    }else{
+        int64_t sl=a->fraction,sr=b->fraction;int32_t coefficient;
+#define PAIR_TERM(index,av,bv,operation) do {coefficient=c[index];sl operation (int64_t)coefficient*(av);sr operation (int64_t)coefficient*(bv);}while(0)
+        PAIR_TERM(0,x,y,+=);PAIR_TERM(1,a->x1,b->x1,+=);PAIR_TERM(2,a->x2,b->x2,+=);
+        PAIR_TERM(3,a->y1,b->y1,-=);PAIR_TERM(4,a->y2,b->y2,-=);
+#undef PAIR_TERM
+        int64_t il=sl>>28,ir=sr>>28;l=clamp32(il);r=clamp32(ir);
+        a->fraction=(int64_t)l==il?(uint32_t)((uint64_t)sl&0x0fffffffu):0;
+        b->fraction=(int64_t)r==ir?(uint32_t)((uint64_t)sr&0x0fffffffu):0;
+    }
+    a->x2=a->x1;a->x1=x;a->y2=a->y1;a->y1=l;
+    b->x2=b->x1;b->x1=y;b->y2=b->y1;b->y1=r;*left=l;*right=r;
+}
+#endif
+
 void fixed_dsp_zero_analysis(fixed_dsp_t *dsp) {
     dsp->analysis_sum = 0;
     dsp->analysis_count = dsp->window_count = 0;
@@ -272,15 +296,23 @@ void DSP_HOT fixed_dsp_process(fixed_dsp_t *dsp, int32_t *left, int32_t *right) 
     int32_t l = *left >> 4, r = *right >> 4;
     FIXED_DSP_STAGE_MARK(2);
     for (unsigned i = 0; i < 4; ++i) {
+#if FDSP_PROVEN_SUM_ENABLED && !defined(FIXED_DSP_DISABLE_STEREO_FUSION)
+        filter_stereo(dsp->filters[i].value,&dsp->channel_history[i][0],&dsp->channel_history[i][1],&l,&r);
+#else
         l = filter(dsp->filters[i].value, &dsp->channel_history[i][0], l);
         r = filter(dsp->filters[i].value, &dsp->channel_history[i][1], r);
+#endif
     }
     FIXED_DSP_STAGE_MARK(3);
     int32_t lp = filter(dsp->cross_coefficients[0], &dsp->cross_history[0], l);
     int32_t hp = filter(dsp->cross_coefficients[1], &dsp->cross_history[1], r);
     lp = filter(dsp->filters[4].value, &dsp->boost_history[2], lp);
+#if FDSP_PROVEN_SUM_ENABLED && !defined(FIXED_DSP_DISABLE_STEREO_FUSION)
+    filter_stereo(dsp->filters[4].value,&dsp->boost_history[0],&dsp->boost_history[1],&l,&r);
+#else
     l = filter(dsp->filters[4].value, &dsp->boost_history[0], l);
     r = filter(dsp->filters[4].value, &dsp->boost_history[1], r);
+#endif
     lp = clamp32(((int64_t)lp * 189246996) >> 27); /* 1.41 crossover makeup */
     hp = clamp32(((int64_t)hp * 189246996) >> 27);
     FIXED_DSP_STAGE_MARK(4);

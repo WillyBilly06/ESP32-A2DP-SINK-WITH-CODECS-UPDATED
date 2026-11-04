@@ -17,11 +17,13 @@ main=OUT/'main.c'
 main.write_text('''#include <stdio.h>
 int test_audio_paged_ring_capacity_wrap_mix_and_oom(void);
 int test_audio_paged_render_matches_small_ring(void);
+int test_audio_formats_match_integer_dsp_reference(void);
 int main(void){
     int a=test_audio_paged_ring_capacity_wrap_mix_and_oom();
     int b=test_audio_paged_render_matches_small_ring();
-    printf("paged ring capacity/OOM/wrap/mix=%d render comparison=%d\\n",a,b);
-    return a||b;
+    int c=test_audio_formats_match_integer_dsp_reference();
+    printf("paged ring capacity/OOM/wrap/mix=%d render comparison=%d aligned/unaligned formats=%d\\n",a,b,c);
+    return a||b||c;
 }
 ''')
 sources=[ROOT/'tests/test_audio.c',ROOT/'src/dbt_audio.c',ROOT/'src/dbt_resampler.c',ROOT.parent/'bt_audio_sink/main/dsp/fixed_dsp.c',main]

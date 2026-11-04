@@ -34,7 +34,25 @@ void dbt_resampler_filter(dbt_resampler_t *s,int32_t left,int32_t right,uint32_t
     const int32_t *first=s->taps==96?coefficients_96[p]:s->taps==48?coefficients_48[p]:coefficients_24[p];
     const int32_t *next=s->taps==96?coefficients_96[p+1u]:s->taps==48?coefficients_48[p+1u]:coefficients_24[p+1u];
     int64_t l=0,r=0;
-    for(unsigned k=0;k<s->taps;++k){
+    if(s->count>=s->taps){
+        int32_t coefficient=first[0];
+        if(remainder)coefficient=(int32_t)((int64_t)coefficient+(((int64_t)next[0]-first[0])*remainder)/33554432ll);
+        l=(int64_t)left*coefficient;r=(int64_t)right*coefficient;
+        unsigned index=(s->next-1u)&(DBT_RESAMPLER_HISTORY-1u);
+        if(!remainder){
+            for(unsigned k=1;k<s->taps;++k){
+                int32_t c=first[k];
+                l+=(int64_t)s->history[0][index]*c;r+=(int64_t)s->history[1][index]*c;
+                index=(index-1u)&(DBT_RESAMPLER_HISTORY-1u);
+            }
+        }else{
+            for(unsigned k=1;k<s->taps;++k){
+                int32_t c=(int32_t)((int64_t)first[k]+(((int64_t)next[k]-first[k])*remainder)/33554432ll);
+                l+=(int64_t)s->history[0][index]*c;r+=(int64_t)s->history[1][index]*c;
+                index=(index-1u)&(DBT_RESAMPLER_HISTORY-1u);
+            }
+        }
+    }else for(unsigned k=0;k<s->taps;++k){
         int32_t coefficient=first[k];
         if(remainder)coefficient=(int32_t)((int64_t)coefficient+(((int64_t)next[k]-first[k])*remainder)/33554432ll);
         unsigned index=(s->next-k)&(DBT_RESAMPLER_HISTORY-1u);
