@@ -266,8 +266,8 @@ def main():
         controller.hard_reset();rebooted=True
         if args.press_pairing_button:
             button_hold=PairingButtonHold(controller._port);report['pairing_button_fixture']=button_hold.report
-        boot=bytearray();deadline=time.monotonic()+(25 if args.codec_only else args.rf_seconds if args.finite_rf else 15)
-        boot_limit=1048576 if args.finite_rf else 65536
+        boot=bytearray();deadline=time.monotonic()+(35 if args.codec_only else args.rf_seconds if args.finite_rf else 15)
+        boot_limit=1048576 if args.finite_rf else 131072 if args.codec_only else 65536
         controller._port.timeout=0.2
         live_path=destination.with_name(destination.name+'-live.txt')
         with live_path.open('w',encoding='utf-8') as live:

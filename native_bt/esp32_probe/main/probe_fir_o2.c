@@ -1,3 +1,4 @@
+#define DBT_RESAMPLER_FORCE_UNFOLDED_ZERO 1
 #define dbt_resampler_init probe_fir_o2_init
 #define dbt_resampler_push probe_fir_o2_push
 #define dbt_resampler_filter probe_fir_o2_filter

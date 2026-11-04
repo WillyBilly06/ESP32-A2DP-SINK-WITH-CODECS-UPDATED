@@ -10,7 +10,11 @@ STUB=OUT/'stubs';(STUB/'freertos').mkdir(parents=True,exist_ok=True)
 main=OUT/'main.c';main.write_text('''#include <stdint.h>
 #include <stdlib.h>
 #include <time.h>
+#include <string.h>
+#include "dbt_resampler.h"
 #include "probe_fir_compare.h"
+void probe_fir_o3_filter(dbt_resampler_t *,int32_t,int32_t,uint32_t,int32_t *,int32_t *);
+void probe_fir_fold_filter(dbt_resampler_t *,int32_t,int32_t,uint32_t,int32_t *,int32_t *);
 static uint32_t cycles;
 uint32_t esp_cpu_get_cycle_count(void){return ++cycles;}
 int64_t esp_timer_get_time(void){return (int64_t)clock()*1000000/CLOCKS_PER_SEC;}
@@ -18,7 +22,12 @@ void *heap_caps_aligned_alloc(size_t a,size_t n,unsigned f){(void)a;(void)f;retu
 void heap_caps_free(void *p){free(p);}
 void vTaskDelay(unsigned n){(void)n;}
 unsigned uxTaskGetStackHighWaterMark(void *t){(void)t;return 8192;}
-int main(void){return probe_fir_compare()?0:1;}
+int main(void){
+ dbt_resampler_t a={0},b={0};int32_t al=1,ar=2,bl=1,br=2;
+ probe_fir_o3_filter(&a,123,-456,0,&al,&ar);probe_fir_fold_filter(&b,123,-456,0,&bl,&br);
+ if(al!=bl || ar!=br || memcmp(&a,&b,sizeof a))return 2;
+ return probe_fir_compare()?0:1;
+}
 ''')
 env=os.environ.copy()
 if os.name=='nt':
@@ -32,7 +41,7 @@ if not cache:
 assert cache,'ccache required';env.pop('CCACHE_DISABLE',None)
 base=[cache,cc,'-std=c11','-g','-Wall','-Wextra','-Werror','-fsanitize=address,undefined','-fno-sanitize-recover=all','-fno-omit-frame-pointer','-I'+str(STUB),'-I'+str(ROOT/'esp32_probe/main'),'-I'+str(ROOT/'include')]
 if os.name=='nt':base+=['-fms-runtime-lib=dll','-D_DLL']
-sources=[(ROOT/'esp32_probe/main/probe_fir_wide.c','-O3'),(ROOT/'esp32_probe/main/probe_fir_os.c','-Os'),(ROOT/'esp32_probe/main/probe_fir_o2.c','-O2'),(ROOT/'esp32_probe/main/probe_fir_o3.c','-O3'),(ROOT/'esp32_probe/main/probe_fir_compare.c','-O2'),(ROOT/'esp32_probe/main/probe_diagnostic_stats.c','-O2'),(main,'-O2')]
+sources=[(ROOT/'esp32_probe/main/probe_fir_wide.c','-O3'),(ROOT/'esp32_probe/main/probe_fir_os.c','-Os'),(ROOT/'esp32_probe/main/probe_fir_o2.c','-O2'),(ROOT/'esp32_probe/main/probe_fir_o3.c','-O3'),(ROOT/'esp32_probe/main/probe_fir_fold.c','-O3'),(ROOT/'esp32_probe/main/probe_fir_compare.c','-O2'),(ROOT/'esp32_probe/main/probe_diagnostic_stats.c','-O2'),(main,'-O2')]
 tracked=[p for p,_ in sources]+list(STUB.rglob('*.h'))+[ROOT/'src/dbt_resampler.c',ROOT/'src/dbt_resampler_coeffs.inc',ROOT/'include/dbt_resampler.h',ROOT/'esp32_probe/main/probe_fir_compare.h',ROOT/'esp32_probe/main/probe_diagnostic_stats.h',pathlib.Path(__file__).resolve()]
 before={str(p):hashlib.sha256(p.read_bytes()).hexdigest() for p in tracked};objects=[];commands=[]
 report_path=OUT/'results.json';report_path.write_text(json.dumps({'passed':False,'state':'building','hardware_accessed':False})+'\n')
@@ -47,11 +56,11 @@ if os.name=='nt':
 result=subprocess.run([str(exe)],check=True,env=env,timeout=60,capture_output=True,text=True)
 events=[json.loads(x) for x in result.stdout.splitlines() if x.startswith('{')]
 rows=[e for e in events if e['probe']=='fir_variant_case'];summary=[e for e in events if e['probe']=='fir_variant_summary']
-assert len(rows)==108 and all(e['equivalent'] for e in rows) and summary[-1]['passed'] and summary[-1]['cases']==27
+assert len(rows)==135 and all(e['equivalent'] for e in rows) and summary[-1]['passed'] and summary[-1]['cases']==27
 for rate in (48000,96000,192000):
     for ppm in (0,500,-500):
         group=[e for e in rows if e['rate']==rate and e['ppm']==ppm]
-        assert len(group)==12 and len({e['pcm_hash'] for e in group})==1
+        assert len(group)==15 and len({e['pcm_hash'] for e in group})==1
 assert all(hashlib.sha256(pathlib.Path(p).read_bytes()).hexdigest()==digest for p,digest in before.items())
-report_path.write_text(json.dumps({'passed':True,'case_groups':27,'variant_rows':108,'variants':['O3_wide_reference','Os','O2','O3'],'sanitizers':['address','undefined'],'scope':'host actual runner and output/full-state equivalence against original wide-delta arithmetic; clocks/RTOS/heap are stubs, no target performance evidence','commands':commands,'sources':before,'hardware_accessed':False},indent=2)+'\n')
-print('PASS 27 four-way FIR case groups, 0/+500/-500 ppm, all samples/state match original wide arithmetic; host ASan/UBSan only')
+report_path.write_text(json.dumps({'passed':True,'case_groups':27,'variant_rows':135,'variants':['O3_wide_reference','Os','O2','O3','O3_folded_zero'],'sanitizers':['address','undefined'],'scope':'host actual runner and output/full-state equivalence against original wide-delta and checked-unfolded arithmetic; clocks/RTOS/heap are stubs, no target performance evidence','commands':commands,'sources':before,'hardware_accessed':False},indent=2)+'\n')
+print('PASS 27 five-way FIR case groups, 0/+500/-500 ppm, all samples/state match original and checked-unfolded arithmetic; host ASan/UBSan only')

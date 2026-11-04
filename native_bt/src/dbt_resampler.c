@@ -38,11 +38,42 @@ static inline __attribute__((always_inline)) int32_t coefficient_at(int32_t firs
     return (int32_t)((int64_t)first+(((int64_t)next-first)*remainder)/33554432ll);
 #endif
 }
+#if defined(DBT_RESAMPLER_ZERO_PHASE_SYMMETRIC) && DBT_RESAMPLER_ZERO_PHASE_SYMMETRIC && !defined(DBT_RESAMPLER_FORCE_UNFOLDED_ZERO) && !defined(DBT_RESAMPLER_FORCE_WIDE_DELTA)
+#define DBT_RESAMPLER_FOLDED_ZERO_ENABLED 1
+static __attribute__((noinline)) void folded_zero(const dbt_resampler_t *s,const int32_t *coefficients,int32_t *left,int32_t *right){
+    /* Complete history only. The generated row is symmetric around taps/2-1,
+     * with current-input and final two coefficients zero. Pair sums retain
+     * 33 signed bits. The original absolute-sum bound also bounds every folded
+     * partial sum, so regrouping cannot overflow or alter rounding. */
+    unsigned middle=s->taps/2u-1u;
+    unsigned near=(s->next-1u)&(DBT_RESAMPLER_HISTORY-1u);
+    unsigned far=(s->next-(s->taps-3u))&(DBT_RESAMPLER_HISTORY-1u);
+    int64_t l=0,r=0;
+    for(unsigned k=1;k<middle;++k){
+        int32_t c=coefficients[k];
+        int64_t pair_l=(int64_t)s->history[0][near]+s->history[0][far];
+        int64_t pair_r=(int64_t)s->history[1][near]+s->history[1][far];
+        l+=pair_l*c;r+=pair_r*c;
+        near=(near-1u)&(DBT_RESAMPLER_HISTORY-1u);
+        far=(far+1u)&(DBT_RESAMPLER_HISTORY-1u);
+    }
+    l+=(int64_t)s->history[0][near]*coefficients[middle];
+    r+=(int64_t)s->history[1][near]*coefficients[middle];
+    *left=saturated(l);*right=saturated(r);
+}
+#else
+#define DBT_RESAMPLER_FOLDED_ZERO_ENABLED 0
+#endif
 void dbt_resampler_filter(dbt_resampler_t *s,int32_t left,int32_t right,uint32_t phase,int32_t *out_left,int32_t *out_right){
     if(!s || !out_left || !out_right)return;
     if(!s->primed){s->first[0]=left;s->first[1]=right;s->primed=true;}
     uint8_t p=(uint8_t)(phase>>25);uint32_t remainder=phase&0x1ffffffu;
     const int32_t *first=s->taps==96?coefficients_96[p]:s->taps==48?coefficients_48[p]:coefficients_24[p];
+#if DBT_RESAMPLER_FOLDED_ZERO_ENABLED
+    if(!phase && s->count>=s->taps && (s->taps==24u || s->taps==48u || s->taps==96u)){
+        folded_zero(s,first,out_left,out_right);return;
+    }
+#endif
     const int32_t *next=s->taps==96?coefficients_96[p+1u]:s->taps==48?coefficients_48[p+1u]:coefficients_24[p+1u];
     int64_t l=0,r=0;
     if(s->count>=s->taps){

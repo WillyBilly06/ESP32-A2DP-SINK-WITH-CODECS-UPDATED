@@ -4,11 +4,14 @@ ROOT=pathlib.Path(__file__).resolve().parents[1]
 OUT=ROOT/'_build/resampler_exact';OUT.mkdir(exist_ok=True)
 coefficient_text=(ROOT/'src/dbt_resampler_coeffs.inc').read_text()
 claimed_delta=int(re.search(r'#define DBT_RESAMPLER_ADJACENT_DELTA_MAX (\d+)u',coefficient_text).group(1))
-actual_delta=0;interpolation_checks=0
+claimed_fold=int(re.search(r'#define DBT_RESAMPLER_ZERO_PHASE_SYMMETRIC (\d+)',coefficient_text).group(1))
+actual_delta=0;interpolation_checks=0;actual_fold=True
 for taps in (24,48,96):
     body=re.search(r'coefficients_'+str(taps)+r'\[129\]\['+str(taps)+r'\] = \{(.*?)\n\};',coefficient_text,re.S).group(1)
     rows=[list(map(int,re.findall(r'-?\d+',line))) for line in body.splitlines() if '{' in line]
     assert len(rows)==129 and all(len(row)==taps for row in rows)
+    middle=taps//2-1
+    actual_fold=actual_fold and rows[0][0]==0 and rows[0][-2:]==[0,0] and all(rows[0][k]==rows[0][2*middle-k] for k in range(1,middle))
     for phase in range(128):
         for first,next_value in zip(rows[phase],rows[phase+1]):
             delta=next_value-first;actual_delta=max(actual_delta,abs(delta))
@@ -18,6 +21,7 @@ for taps in (24,48,96):
                 assert -(1<<31)<=delta<(1<<31) and min(first,next_value)<=result<=max(first,next_value)
                 assert -(1<<31)<=result<(1<<31);interpolation_checks+=1
 assert actual_delta==claimed_delta and claimed_delta<1<<31
+assert bool(claimed_fold)==actual_fold
 main=OUT/'oracle.c'
 main.write_text(r'''#include "dbt_resampler.h"
 #include <limits.h>
@@ -69,11 +73,11 @@ if os.name=='nt':
     resource=pathlib.Path(subprocess.check_output([cc,'-print-resource-dir'],text=True).strip())
     runtime=resource/'lib/windows/clang_rt.asan_dynamic-x86_64.dll';shutil.copy2(runtime,OUT/runtime.name)
 commands=[]
-for mode,flags in (('checked_delta',[]),('wide_reference',['-DDBT_RESAMPLER_FORCE_WIDE_DELTA=1'])):
+for mode,flags in (('folded_zero',[]),('checked_unfolded',['-DDBT_RESAMPLER_FORCE_UNFOLDED_ZERO=1']),('wide_reference',['-DDBT_RESAMPLER_FORCE_WIDE_DELTA=1'])):
     exe=OUT/(mode+('.exe' if os.name=='nt' else ''))
     args=[cc,'-std=c11','-O3','-g','-Wall','-Wextra','-Werror','-fsanitize=address,undefined','-fno-sanitize-recover=all','-fno-omit-frame-pointer',*flags,'-I'+str(ROOT/'include'),str(ROOT/'src/dbt_resampler.c'),str(main),'-o',str(exe)]
     if os.name=='nt':args+=['-fms-runtime-lib=dll','-D_DLL','-Wl,/NODEFAULTLIB:libcmt']
     subprocess.run(args,check=True,env=env);commands.append(args)
     subprocess.run([str(exe)],check=True,env=env,timeout=60)
 assert all(hashlib.sha256(pathlib.Path(p).read_bytes()).hexdigest()==digest for p,digest in before.items())
-report_path.write_text(json.dumps({'passed':True,'cases_per_mode':150000,'modes':['checked_delta','wide_reference'],'adjacent_delta_bound':claimed_delta,'coefficient_checks':interpolation_checks,'oracle':'128-bit integer convolution/interpolation','optimization':'O3','sanitizers':['address','undefined'],'scope':'full output/state and table-domain arithmetic proof, all tap lengths across zero/bank-aligned/max/random phases and priming/history states; host only','sources':before,'commands':commands,'hardware_accessed':False},indent=2)+'\n')
+report_path.write_text(json.dumps({'passed':True,'cases_per_mode':150000,'modes':['folded_zero','checked_unfolded','wide_reference'],'adjacent_delta_bound':claimed_delta,'zero_phase_symmetry_verified':actual_fold,'coefficient_checks':interpolation_checks,'oracle':'128-bit integer convolution/interpolation','optimization':'O3','sanitizers':['address','undefined'],'scope':'full output/state and table-domain arithmetic proof, all tap lengths across zero/bank-aligned/max/random phases and priming/history states; host only','sources':before,'commands':commands,'hardware_accessed':False},indent=2)+'\n')
