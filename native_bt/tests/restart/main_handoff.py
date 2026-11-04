@@ -7,7 +7,10 @@ m=re.search(r'static void product_restart_step\(uint32_t now\)\{.*?\n\}',s,re.S)
 source=r'''#include <stdbool.h>
 #include <stdint.h>
 #include <assert.h>
+#include <setjmp.h>
 static bool product_runtime_ready,fenced,active,quiescent,approve;
+static bool dispatch_pending,dispatch_failed,admission_fail;
+static unsigned parks;static jmp_buf parked;
 static unsigned resets,cancels,revokes,checks;static bool passed_q;
 static struct {bool failed;} product_restart;static int product_runtime;
 static bool probe_gatt_restart_fenced(void){return fenced;}
@@ -16,7 +19,10 @@ static bool probe_restart_quiescent(void *s,uint32_t n){(void)s;(void)n;return q
 static void probe_restart_cancel(void *s,uint32_t n){(void)s;(void)n;cancels++;active=false;}
 static void probe_gatt_restart_cancel(void){revokes++;fenced=false;}
 static bool probe_product_runtime_restart_ready(void *s,uint32_t n,bool q){(void)s;(void)n;checks++;passed_q=q;return approve;}
-static void product_restart_now(void){resets++;}
+static bool probe_reset_dispatch_failed(void){return dispatch_failed;}
+static bool probe_reset_dispatch_pending(void){return dispatch_pending;}
+static bool product_restart_now(void){if(admission_fail)return false;resets++;dispatch_pending=true;return true;}
+static _Noreturn void owner_fault_park(const char *why){(void)why;parks++;longjmp(parked,1);}
 '''+m.group(0)+r'''
 int main(void){
  product_runtime_ready=true;fenced=active=approve=true;
@@ -26,6 +32,11 @@ int main(void){
  product_restart.failed=false;fenced=false;active=true;product_restart_step(4);assert(cancels==2 && !resets);
  fenced=active=quiescent=approve=true;product_restart_step(5);assert(resets==1 && checks==3);
  product_runtime_ready=false;product_restart_step(6);assert(resets==1 && checks==3);
+ product_runtime_ready=true;product_restart_step(7);assert(resets==1 && checks==3);
+ dispatch_pending=false;admission_fail=true;
+ if(!setjmp(parked)){product_restart_step(8);assert(0);}assert(parks==1 && resets==1 && checks==4);
+ admission_fail=false;dispatch_failed=true;
+ if(!setjmp(parked)){product_restart_step(9);assert(0);}assert(parks==2 && resets==1 && checks==4);
  return 0;
 }
 '''

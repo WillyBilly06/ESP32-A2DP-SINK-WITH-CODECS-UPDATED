@@ -35,6 +35,7 @@
 #ifdef DBT_PROBE_PRODUCT_SECURITY
 #include "probe_admission.h"
 #include "probe_restart.h"
+#include "probe_reset_dispatch.h"
 #endif
 #endif
 #ifdef DBT_PROBE_AVRCP
@@ -209,9 +210,11 @@ static dbt_result_t product_ota_prepare(void *ctx,const dbt_ble_control_peer_t *
     if(ctx!=&product_runtime || !probe_product_runtime_ota_valid(ctx,peer,epoch))return DBT_INVALID;
     return probe_restart_prepare(&product_restart,epoch,now_ms());
 }
-static _Noreturn void product_restart_now(void){esp_restart();}
+static bool product_restart_now(void){return probe_reset_dispatch_request();}
 static void product_restart_step(uint32_t now){
     if(!product_runtime_ready)return;
+    if(probe_reset_dispatch_failed())owner_fault_park("restart timer dispatch failure");
+    if(probe_reset_dispatch_pending())return;
     if(!probe_gatt_restart_fenced()){
         if(probe_restart_active(&product_restart))probe_restart_cancel(&product_restart,now);
         return;
@@ -219,7 +222,7 @@ static void product_restart_step(uint32_t now){
     bool quiescent=probe_restart_active(&product_restart) && probe_restart_quiescent(&product_restart,now);
     if(product_restart.failed){probe_gatt_restart_cancel();probe_restart_cancel(&product_restart,now);return;}
     bool approved=probe_product_runtime_restart_ready(&product_runtime,now,quiescent);
-    if(quiescent && approved)product_restart_now();
+    if(quiescent && approved && !product_restart_now())owner_fault_park("restart timer admission failure");
 }
 #endif
 static bool product_mux_worker_poll(void *ctx,bool retiring){
@@ -538,6 +541,9 @@ static void confirm_owned_boot(void *unused){
 void app_main(void) {
     owner = xTaskGetCurrentTaskHandle();
     vTaskPrioritySet(owner, 6);
+#ifdef DBT_PROBE_PRODUCT_SECURITY
+    if(!probe_reset_dispatch_init(owner))owner_fault_park("core-0 restart timer initialization");
+#endif
     dbt_transport_t transport = { 0, transport_ready, transport_send };
     dbt_runtime_hooks_t hooks = {0};
     hooks.allocate = allocate_rx; hooks.release = release_rx; hooks.packet = observe;

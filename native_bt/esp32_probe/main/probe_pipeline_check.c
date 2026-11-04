@@ -1,7 +1,9 @@
 /* Actual decoder/worker/DSP/I2S, synthetic loss-free 5 ms input. No controller,
  * filesystem or NVS. This is not RF/coexistence or analog-quality evidence. */
 #include "probe_pipeline_check.h"
-#ifdef DBT_AUDIO_STAGE_PROFILE
+#ifdef DBT_PROBE_FIR_COMPILER_CHECK
+#include "probe_fir_compare.h"
+#elif defined(DBT_AUDIO_STAGE_PROFILE)
 #include "probe_dsp_compare.h"
 #endif
 #include "probe_output.h"
@@ -209,7 +211,9 @@ static void run(void *unused){
     printf("{\"probe\":\"target_pipeline_selftest\",\"passed\":%s,\"configured\":%s,\"started\":%s,\"stream_result\":%u,\"correctness\":%s,\"continuity\":%s,\"rate\":192000,\"sample_depth\":24,\"channels\":2,\"encoded_payload_bps\":1001600,\"packets\":%u,\"completed_packets\":%u,\"sample_frames\":%u,\"pcm_hash\":%u,\"synthetic_source\":true,\"integer_dsp\":true,\"i2s_test\":true,\"rf_test\":false,\"production_qualified\":false}\n",
         pipeline.passed?"true":"false",configured?"true":"false",started?"true":"false",(unsigned)start_result,
         correctness?"true":"false",continuity?"true":"false",supplied,completed,(unsigned)pipeline.frames,(unsigned)pipeline.hash);
-#ifdef DBT_AUDIO_STAGE_PROFILE
+#ifdef DBT_PROBE_FIR_COMPILER_CHECK
+    if(reclaimed && !probe_fir_compare())pipeline.passed=false;
+#elif defined(DBT_AUDIO_STAGE_PROFILE)
     if(reclaimed && !probe_dsp_compare())pipeline.passed=false;
 #endif
     atomic_store_explicit(&pipeline.done,true,memory_order_release);xTaskNotifyGive(pipeline.owner);
@@ -221,7 +225,12 @@ bool probe_pipeline_check(void){
     pipeline.owner=xTaskGetCurrentTaskHandle();
     atomic_init(&pipeline.done,false);
     if(xTaskCreatePinnedToCore(run,"pipeline_check",8192,NULL,5,NULL,1)!=pdPASS)return false;
-    int64_t deadline=esp_timer_get_time()+10000000;
+    int64_t deadline=esp_timer_get_time()+
+#ifdef DBT_PROBE_FIR_COMPILER_CHECK
+        15000000;
+#else
+        10000000;
+#endif
     while(!atomic_load_explicit(&pipeline.done,memory_order_acquire)){
         int64_t remaining=deadline-esp_timer_get_time();if(remaining<=0)return false;
         TickType_t ticks=pdMS_TO_TICKS((uint32_t)((remaining+999)/1000));

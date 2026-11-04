@@ -31,7 +31,15 @@ dsp_profile=bool(build_status.get('dsp_stage_profile'))
 assert ('DBT_PROBE_DSP_STAGE_PROFILE:BOOL=ON' in cache)==dsp_profile
 assert bool(re.search(r'(?:^|\s)-DDBT_DSP_STAGE_PROFILE=1(?:\s|$)',main_command))==dsp_profile
 if dsp_profile:assert audio_profile
-if audio_profile:
+fir_check=bool(build_status.get('fir_compiler_check'))
+assert ('DBT_PROBE_FIR_COMPILER_CHECK:BOOL=ON' in cache)==fir_check
+assert bool(re.search(r'(?:^|\s)-DDBT_PROBE_FIR_COMPILER_CHECK=1(?:\s|$)',main_command))==fir_check
+if fir_check:assert audio_profile and not dsp_profile
+if fir_check:
+    for variant,optimization in (('os','-Os'),('o2','-O2'),('o3','-O3')):
+        variant_command=next(e['command'] for e in commands if Path(e['file']).name==f'probe_fir_{variant}.c')
+        assert re.findall(r'(?:^|\s)(-O\S+)',variant_command)[-1]==optimization
+elif audio_profile:
     assert pipeline
     for variant,optimization in (('os','-Os'),('profile','-Os') if dsp_profile else ('o3','-O3')):
         variant_command=next(entry['command'] for entry in commands if Path(entry['file']).name==f'probe_dsp_{variant}.c')
@@ -69,6 +77,9 @@ assert '#define CONFIG_BT_CONTROLLER_ONLY 1' in config
 assert '#define CONFIG_BTDM_CTRL_MODE_BTDM 1' in config
 assert '#define CONFIG_BT_BLUEDROID_ENABLED 1' not in config
 assert '#define CONFIG_BOOTLOADER_APP_ANTI_ROLLBACK 1' not in config
+if product_security:
+    assert '#define CONFIG_ESP_TIMER_TASK_AFFINITY_CPU0 1' in config
+    assert any(Path(e['file']).name=='probe_reset_dispatch.c' for e in commands)
 receipt=json.loads((ROOT/'_build/hardware/COM6-original-flash.json').read_text())
 slot=next(x for x in receipt['partitions'] if x['name']=='ota_1')
 assert slot['offset']==0x390000 and slot['size']==0x280000 and len(blob)<=slot['size']

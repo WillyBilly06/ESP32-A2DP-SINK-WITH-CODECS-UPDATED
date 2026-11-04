@@ -14,6 +14,7 @@ try:
         '-I'+str(root/'tests/ble_control/shim'),'-I'+str(root/'include'),'-I'+str(root/'esp32_probe/main'),'-I'+str(root.parent/'bt_audio_sink/main/dsp'),
         str(root/'tests/restart/coordinator.c'),str(root/'esp32_probe/main/probe_restart.c'),'-o',str(exe)],check=True,env=env)
     subprocess.run([str(exe)],check=True,env=env)
-    (out/'results.json').write_text(json.dumps({'passed':True,'scope':'real coordinator with subsystem/transport shims; no SDK scheduling/controller/hardware proof','gate_cases':7,'pending_work_cases':12,'epoch_timeout_fault_and_cancel':True,'hardware_accessed':False},indent=2)+'\n',encoding='utf-8')
+    subprocess.run([sys.executable,str(root/'tests/restart/main_handoff.py')],check=True)
+    (out/'results.json').write_text(json.dumps({'passed':True,'scope':'real coordinator and production owner handoff with subsystem/transport shims; no SDK scheduling/controller/hardware proof','gate_cases':7,'pending_work_cases':12,'owner_dispatch_admission_fault_and_pending':True,'epoch_timeout_fault_and_cancel':True,'hardware_accessed':False},indent=2)+'\n',encoding='utf-8')
     print('PASS restart epoch, producer fences, pending work, loans, fault, wrap-timeout and cancel')
 finally:subprocess.run(check,check=True)

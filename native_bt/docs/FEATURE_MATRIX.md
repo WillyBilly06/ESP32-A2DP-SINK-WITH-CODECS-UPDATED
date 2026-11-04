@@ -1,11 +1,14 @@
 # Independent host and product feature matrix
 
-Updated 2026-11-03. **The goal remains active and incomplete.** The user now
-requires all further testing to be local and off-board, with a flashable ESP32
-artifact; the ESP32 is reserved for other work. The active
-[`HARDWARE_HOLD.json`](../_build/hardware/HARDWARE_HOLD.json) forbids further
-flash, reset, serial reconnect or Bluetooth connections until the user releases
-the hold. No new device result is implied by a local build.
+Updated 2026-11-04. **The goal remains active and incomplete.** COM6 was
+explicitly released for flashing, serial and Bluetooth testing in this chat;
+COM7 and other boards are not authorized. Only the DAC is attached. The released
+1.0.4-idf6.1 Bluedroid image remains the preserved fallback in ota0. Recent
+6.1 codec/kernel diagnostics are controller-off observations, not qualification
+of the complete custom host. See [current integration](IDF61_RESTART.md),
+[released-feature inventory](IDF61_FEATURE_INVENTORY.md) and the dated target
+receipts. Historical hardware-hold statements below are superseded by this
+explicit COM6 release; their old observations keep their original image scope.
 
 The target is the existing dual-mode ESP32 controller plus an independently
 authored host. BTstack is a pinned reference only. `bt_audio_sink/` is the
@@ -19,11 +22,11 @@ execution were present in the failed image with SHA-256
 `06ea0f6e4a2859d64108caa235f505b70b64e152fcabbddc6ebe2ab554774085`, ELF
 `7729026d18419445e8e28c329d37792070d3b5c4235158def13f603beeec66e7`.
 The ELF symbol inventory does not prove the feature ran. Earlier hardware
-observations are explicitly separate images. Current local candidate **LC** is image `cee7b037abf0fd42d209d89cc40a89497657ea25d3783884002bfcbe0cfb68aa`
+observations are explicitly separate images. Historical local candidate **LC** is image `cee7b037abf0fd42d209d89cc40a89497657ea25d3783884002bfcbe0cfb68aa`
 with all six codec families, SMP/GATT/AVRCP, product IO/security and RFCOMM echo enabled. Its current
 source/configuration hashes, linked symbols, image checks and static sizes are
 recorded in [LOCAL_CANDIDATE_EVIDENCE.json](LOCAL_CANDIDATE_EVIDENCE.json).
-LC has not been flashed or run on hardware. Historical observations below keep
+That LC image was not flashed or run on hardware; it is not the current 6.1 build. Historical observations below keep
 their original scope; LC linkage never upgrades an old observation.
 
 ## Controller and protocol coverage
@@ -109,7 +112,7 @@ six LDAC and four LHDC cases passed, in addition to Opus cases 0/1. Controller
 enable was stopped. These are finite on-device decode-check observations, not
 Bluetooth playback or current-device-state evidence. The Opus profile and AAC
 oracle corrections were made afterward and require separate confirmation; the
-hardware hold prohibits collecting it now.
+later [6.1 codec checks](IDF61_TARGET_CODECS_2026_11_04.md) passed all 37 configurations on their identified isolated image. This does not qualify RF playback.
 
 Earlier records include a finite SBC/ATT diagnostic and a 22.119-second
 Firefox/ATT overlap with zero recorded decode/output counter faults, but the
@@ -121,13 +124,12 @@ an earlier source snapshot; its source hashes must be checked before applying
 that receipt to the changed tree.
 
 To complete the goal, finish the missing protocol and product providers; run
-source-matched local tests and produce a verified flashable artifact; and, only
-after the user explicitly releases the hardware hold, qualify security,
+source-matched local tests and produce a verified flashable artifact; and, on the released COM6 target, qualify security,
 interoperability, audio, power-loss persistence, continuous Classic/LE
 coexistence and codec switching. Compare memory, CPU and latency against the
 baseline with matching enabled features and workloads. There is currently no
 evidence to claim faster, smaller, stable or equivalent production behavior.
 
-Current local candidate: see [LOCAL_CANDIDATE_EVIDENCE.json](LOCAL_CANDIDATE_EVIDENCE.json), image `cee7b037abf0fd42d209d89cc40a89497657ea25d3783884002bfcbe0cfb68aa`. COM6 is the user-confirmed 8 MB target. The image fits its preserved ota_1 layout; hardware hold remains active.
+Historical local candidate: see [LOCAL_CANDIDATE_EVIDENCE.json](LOCAL_CANDIDATE_EVIDENCE.json), image `cee7b037abf0fd42d209d89cc40a89497657ea25d3783884002bfcbe0cfb68aa`. COM6 is the user-confirmed 8 MB target. The image fits its preserved ota_1 layout; COM6 hold was later released; no current RF qualification follows from this historical receipt.
 
 Historical matched-source placement comparison: [IRAM_PLACEMENT.md](IRAM_PLACEMENT.md) records an earlier equal-feature, same-C-source static comparison saving 7,064 bytes of IRAM. The current expanded product retains the task-only placement setting; its separate linked size is in the current receipt. It does not establish runtime heap or speed superiority. Optional clean-NACK input startup and persistent owner fault parking are also local-only changes.
