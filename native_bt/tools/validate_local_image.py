@@ -14,6 +14,16 @@ pipeline=bool(build_status.get('pipeline_diagnostic'))
 entry_name='probe_codec_diagnostic.c' if diagnostic else 'probe_main.c'
 main_command=next(entry['command'] for entry in commands if Path(entry['file']).name==entry_name)
 cache=(a.image.parent/'CMakeCache.txt').read_text()
+decoder_core=build_status.get('decoder_core',1)
+assert type(decoder_core) is int and decoder_core in (0,1)
+core_option=re.search(r'^DBT_PROBE_DECODER_CORE:STRING=([01])$',cache,re.M)
+if core_option:
+    assert int(core_option.group(1))==decoder_core, 'Decoder affinity receipt/cache mismatch'
+    for entry in commands:
+        if Path(entry['file']).name=='probe_audio.c':
+            assert re.search(r'(?:^|\s)-DDBT_PROBE_DECODER_CORE='+str(decoder_core)+r'(?:\s|$)',entry['command']), 'Decoder affinity was not actually compiled'
+else:
+    assert decoder_core==1, 'Missing explicit decoder affinity'
 rf_diagnostic=bool(build_status.get('rf_protocol_diagnostic'))
 assert ('DBT_PROBE_RF_PROTOCOL_DIAGNOSTIC:BOOL=ON' in cache)==rf_diagnostic
 assert bool(re.search(r'(?:^|\s)-DDBT_PROBE_RF_PROTOCOL_DIAGNOSTIC=1(?:\s|$)',main_command))==rf_diagnostic

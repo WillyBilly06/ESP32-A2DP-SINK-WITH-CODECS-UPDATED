@@ -1,4 +1,4 @@
-param([switch]$RfProtocolDiagnostic,[switch]$FirCompilerCheck,[switch]$DspStageProfile,[switch]$AudioStageProfile,[switch]$PipelineDiagnostic,[switch]$AsyncAudio,[switch]$DeferredCodecCheck,[switch]$LhdcStageProfile,[switch]$LhdcMaximumCheck,[switch]$CodecDiagnosticOnly,[switch]$WithProductIo,[switch]$WithProductSecurity,[switch]$WithRfcomm,[switch]$WithLhdc,[switch]$WithOpus,[switch]$WithAac,[switch]$WithAptx,[switch]$WithLdac,[switch]$WithSmp,[switch]$WithAvrcp,[switch]$WithSbc,[switch]$WithAudioProbe,[switch]$WithAudioOutput,[switch]$WithGatt,[switch]$WithClassicSecurity,[switch]$TraceIngress,[switch]$WithoutRxFlow,[switch]$KeepOwned=$true,[string]$TestPeer='',[string]$LhdcSourceDir='')
+param([ValidateSet(0,1)][int]$DecoderCore=1,[switch]$RfProtocolDiagnostic,[switch]$FirCompilerCheck,[switch]$DspStageProfile,[switch]$AudioStageProfile,[switch]$PipelineDiagnostic,[switch]$AsyncAudio,[switch]$DeferredCodecCheck,[switch]$LhdcStageProfile,[switch]$LhdcMaximumCheck,[switch]$CodecDiagnosticOnly,[switch]$WithProductIo,[switch]$WithProductSecurity,[switch]$WithRfcomm,[switch]$WithLhdc,[switch]$WithOpus,[switch]$WithAac,[switch]$WithAptx,[switch]$WithLdac,[switch]$WithSmp,[switch]$WithAvrcp,[switch]$WithSbc,[switch]$WithAudioProbe,[switch]$WithAudioOutput,[switch]$WithGatt,[switch]$WithClassicSecurity,[switch]$TraceIngress,[switch]$WithoutRxFlow,[switch]$KeepOwned=$true,[string]$TestPeer='',[string]$LhdcSourceDir='')
 $ErrorActionPreference = 'Stop'
 if ($RfProtocolDiagnostic) {
     if (-not $WithProductIo -or $AsyncAudio -or $CodecDiagnosticOnly -or $PipelineDiagnostic) { throw 'RF protocol diagnostic requires -WithProductIo, excludes async output/other diagnostics, and never keeps the image active' }
@@ -106,6 +106,7 @@ $idfArguments += "-DDBT_PROBE_CODEC_DIAGNOSTIC_ONLY=$codecDiagnosticBuild"
 $idfArguments += "-DDBT_PROBE_DEFERRED_CODEC_CHECK=$deferredCodecBuild"
 $idfArguments += "-DDBT_PROBE_ASYNC_AUDIO=$asyncAudioBuild"
 $idfArguments += "-DDBT_PROBE_RF_PROTOCOL_DIAGNOSTIC=$rfDiagnosticBuild"
+$idfArguments += "-DDBT_PROBE_DECODER_CORE=$DecoderCore"
 $idfArguments += "-DDBT_PROBE_LHDC_MAX_CHECK=$lhdcMaxBuild"
 $idfArguments += "-DDBT_PROBE_LHDC_STAGE_PROFILE=$lhdcStageBuild"
 $sourceManifestPath=Join-Path $buildRoot 'local-build-sources.json'
@@ -135,6 +136,7 @@ $buildReceipt.codec_diagnostic_only=[bool]$CodecDiagnosticOnly
 $buildReceipt.deferred_codec_check=[bool]$DeferredCodecCheck
 $buildReceipt.async_audio=[bool]$AsyncAudio
 $buildReceipt.rf_protocol_diagnostic=[bool]$RfProtocolDiagnostic
+$buildReceipt.decoder_core=$DecoderCore
 $buildReceipt.lhdc_maximum_check=[bool]$LhdcMaximumCheck
 $buildReceipt.lhdc_stage_profile=[bool]$LhdcStageProfile
 if ($buildReceipt.passed) {

@@ -57,6 +57,12 @@
 #include "esp_timer.h"
 #include <inttypes.h>
 #include <stdio.h>
+#ifndef DBT_PROBE_DECODER_CORE
+#define DBT_PROBE_DECODER_CORE 1
+#endif
+#if DBT_PROBE_DECODER_CORE != 0 && DBT_PROBE_DECODER_CORE != 1
+#error "Decoder core must be exactly 0 or 1"
+#endif
 
 /* Test-only isolation, never an alternative product audio path. Decoder/RTP,
  * endpoints and product security are unchanged. Product IO/sounds remain;
@@ -498,13 +504,14 @@ dbt_result_t probe_audio_init(dbt_runtime_t *runtime,TaskHandle_t host_owner){
     dbt_avdtp_sink_hooks_t client={&worker,allocate,release,dbt_codec_worker_submit,sink_event,dbt_codec_worker_media};
     result=dbt_a2dp_acceptor_init(&profile,runtime,client,endpoints,(uint8_t)(sizeof(endpoints)/sizeof(endpoints[0])),PROBE_A2DP_RX_MTU,64,5000,2000,5000);
     if(result!=DBT_OK)return result;
-    if(xTaskCreatePinnedToCore(decode_loop,"native_decoder",8192,0,5,&decoder_task,1)!=pdPASS)return DBT_NO_SPACE;
+    if(xTaskCreatePinnedToCore(decode_loop,"native_decoder",8192,0,5,&decoder_task,DBT_PROBE_DECODER_CORE)!=pdPASS)return DBT_NO_SPACE;
 #ifdef DBT_PROBE_AUDIO_OUTPUT
     result=probe_audio_output_bootstrap();
     if(result!=DBT_OK){vTaskDelete(decoder_task);decoder_task=0;return result;}
 #endif
     if(xTaskCreatePinnedToCore(log_loop,"native_pcm_log",4096,0,1,&logger_task,0)!=pdPASS){vTaskDelete(decoder_task);decoder_task=0;return DBT_NO_SPACE;}
     initialized=true;
+    printf("{\"probe\":\"scheduler_layout\",\"decoder_core\":%u,\"decoder_priority\":5,\"renderer_core\":0,\"renderer_priority\":6,\"logger_core\":0,\"logger_priority\":1}\n",(unsigned)DBT_PROBE_DECODER_CORE);
     printf("{\"probe\":\"sbc_probe_ready\",\"psm\":25,\"mtu\":%u,\"worker_bytes\":%u,\"profile_bytes\":%u,\"decoder_stack\":8192,"
            "\"logger_stack\":4096,\"codecs\":" AUDIO_CODECS_JSON ",\"diagnostic_only\":true,\"audio_sink_sdp_advertised\":" AUDIO_SDP_JSON ",\"i2s_output\":" AUDIO_OUTPUT_JSON ",\"rf_protocol_diagnostic\":" AUDIO_RF_DIAG_JSON "}\n",
            (unsigned)PROBE_A2DP_RX_MTU,(unsigned)sizeof(worker),(unsigned)sizeof(profile));

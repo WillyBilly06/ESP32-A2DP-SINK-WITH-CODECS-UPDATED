@@ -102,5 +102,8 @@ full={x:'ON' for x in ('RF_PROTOCOL_DIAGNOSTIC','PRODUCT_IO','PRODUCT_SECURITY',
 for change in ({},{'ASYNC_AUDIO':'ON'},{'KEEP_OWNED_ACTIVE':'ON'},{'PRODUCT_SECURITY':'OFF'},{'CODEC_DIAGNOSTIC_ONLY':'ON'}):
  options=full|change;result=subprocess.run([cmake,*[f'-DDBT_PROBE_{k}={v}' for k,v in options.items()],'-P',str(cmake_file)],env=env,capture_output=True,text=True)
  assert (result.returncode==0)==(not change),result.stdout+result.stderr
+for core in ('0','1','2','-1','01',''):
+ result=subprocess.run([cmake,*[f'-DDBT_PROBE_{k}={v}' for k,v in full.items()],f'-DDBT_PROBE_DECODER_CORE={core}','-P',str(cmake_file)],env=env,capture_output=True,text=True)
+ assert (result.returncode==0)==(core in ('0','1')),result.stdout+result.stderr
 (OUT/'results.json').write_text(json.dumps({'passed':True,'callback_modes':3,'format_rate_cases_per_mode':24,'source_guards_rejected':5,'cmake_configurations':5,'pcm_digests':digests,'source_sha256':hashlib.sha256(source.read_bytes()).hexdigest(),'scope':'actual PCM/stream callbacks, ASan/UBSan and actual pre-IDF CMake guards; normal forwarding/backpressure preserved, checksum mode omits I2S calls; host only, no RF/DAC or full application proof','hardware_accessed':False},indent=2)+'\n')
 print('PASS RF protocol isolation: actual callbacks, identical PCM accounting, normal backpressure, source/CMake mode rejection; host only')

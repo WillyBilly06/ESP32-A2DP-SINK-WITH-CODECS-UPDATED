@@ -96,6 +96,7 @@ if(DBT_PROBE_SBC_BUILD OR DBT_PROBE_OPUS_BUILD OR DBT_PROBE_AAC_BUILD OR DBT_PRO
 endif()
 idf_component_register(SRCS ${probe_sources} INCLUDE_DIRS "." PRIV_REQUIRES ${probe_dependencies})
 idf_component_optional_requires(PRIVATE sbc_decoder lhdcv5_decoder esp_driver_i2s opus_decoder codec_core app_update mbedtls esp_hw_support aac_decoder aptx_decoder ldac_decoder spiffs esp_driver_spi esp_driver_gpio driver)
+target_compile_definitions(${COMPONENT_LIB} PRIVATE DBT_PROBE_DECODER_CORE=${DBT_PROBE_DECODER_CORE})
 if(DBT_PROBE_PRODUCT_SECURITY)
     target_compile_definitions(${COMPONENT_LIB} PRIVATE DBT_PROBE_PRODUCT_SECURITY=1)
 endif()
