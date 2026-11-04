@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: CC0-1.0
 import hashlib
 import logging
-from typing import Callable
+from collections.abc import Callable
 
 import pytest
 from pytest_embedded_idf.dut import IdfDut
@@ -25,7 +25,7 @@ def test_hello_world_linux(dut: IdfDut) -> None:
 
 
 @pytest.mark.host_test
-@pytest.mark.macos_shell
+@pytest.mark.macos
 @idf_parametrize('target', ['linux'], indirect=['target'])
 def test_hello_world_macos(dut: IdfDut) -> None:
     dut.expect('Hello world!')
@@ -45,7 +45,6 @@ def verify_elf_sha256_embedding(app: QemuApp, sha256_reported: str) -> None:
         raise ValueError('ELF file SHA256 mismatch')
 
 
-@pytest.mark.host_test
 @pytest.mark.qemu
 @idf_parametrize('target', ['esp32', 'esp32c3'], indirect=['target'])
 def test_hello_world_host(app: QemuApp, dut: QemuDut) -> None:

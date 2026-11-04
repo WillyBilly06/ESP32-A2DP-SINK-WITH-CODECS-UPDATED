@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2020-2025 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2020-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -14,7 +14,12 @@
 #include "riscv/csr.h"
 #include "riscv/interrupt.h"
 #include "riscv/csr_pie.h"
+#include "riscv/csr_dsp.h"
 #include "sdkconfig.h"
+
+#if __riscv_zcmp && SOC_CPU_ZCMP_WORKAROUND
+#include "esp_private/interrupt_clic.h"
+#endif
 
 #if CONFIG_SECURE_ENABLE_TEE && !NON_OS_BUILD
 #include "secure_service_num.h"
@@ -101,6 +106,17 @@ FORCE_INLINE_ATTR void *rv_utils_get_sp(void)
     return sp;
 }
 
+/* Switch the stack pointer to a new address.
+ *
+ * Unlike the Xtensa SET_STACK, no window register management is required on
+ * RISC-V; a plain register move is sufficient.  The "memory" clobber prevents
+ * the compiler from reordering any accesses across the switch.
+ */
+FORCE_INLINE_ATTR void rv_utils_set_sp(void *new_sp)
+{
+    asm volatile ("mv sp, %0" :: "r"(new_sp) : "memory");
+}
+
 FORCE_INLINE_ATTR uint32_t __attribute__((always_inline)) rv_utils_get_cycle_count(void)
 {
 #if !SOC_CPU_HAS_CSR_PC
@@ -131,6 +147,18 @@ FORCE_INLINE_ATTR void __attribute__((always_inline)) rv_utils_set_cycle_count(u
 #endif
 }
 
+FORCE_INLINE_ATTR void rv_utils_set_threadptr(void *ptr)
+{
+    asm volatile("mv tp, %0" :: "r"(ptr));
+}
+
+FORCE_INLINE_ATTR void *rv_utils_get_threadptr(void)
+{
+    void *thread_ptr;
+    asm volatile("mv %0, tp" : "=r"(thread_ptr));
+    return thread_ptr;
+}
+
 /* ------------------------------------------------- CPU Interrupts ----------------------------------------------------
  *
  * ------------------------------------------------------------------------------------------------------------------ */
@@ -154,15 +182,50 @@ FORCE_INLINE_ATTR void rv_utils_set_xtvec(uint32_t xtvec_val)
 
 // ------------------ Interrupt Control --------------------
 
+#if __riscv_zcmp && SOC_CPU_ZCMP_WORKAROUND
+
+extern uint32_t g_xintthresh[SOC_CPU_CORES_NUM];
+
+FORCE_INLINE_ATTR void rv_utils_xintthres_raise(void)
+{
+    /**
+     * Make sure NOT to use `g_xintthresh[rv_utils_get_core_id()] = rv_utils_set_intlevel_regval(0xff);`
+     * since that statement would let the compiler first calculate the offset in `g_xintthresh` array
+     * before setting the interrupt threshold, which may lead to a race condition if an interrupt occurs in between.
+     */
+    uint32_t threshold = rv_utils_set_intlevel_regval(0xff);
+    g_xintthresh[rv_utils_get_core_id()] = threshold;
+}
+
+FORCE_INLINE_ATTR void rv_utils_xintthres_lower(void)
+{
+    rv_utils_restore_intlevel_regval(g_xintthresh[rv_utils_get_core_id()]);
+}
+
+#else
+
+FORCE_INLINE_ATTR void rv_utils_xintthres_raise(void)
+{
+}
+
+FORCE_INLINE_ATTR void rv_utils_xintthres_lower(void)
+{
+}
+
+#endif // __riscv_zcmp && SOC_CPU_ZCMP_WORKAROUND
+
+
 FORCE_INLINE_ATTR void rv_utils_intr_enable(uint32_t intr_mask)
 {
 #if CONFIG_SECURE_ENABLE_TEE && !NON_OS_BUILD
     esp_tee_intr_sec_srv_cb(2, SS_RV_UTILS_INTR_ENABLE, intr_mask);
 #else
     // Disable all interrupts to make updating of the interrupt mask atomic.
+    rv_utils_xintthres_raise();
     unsigned old_mstatus = RV_CLEAR_CSR(mstatus, MSTATUS_MIE);
     esprv_int_enable(intr_mask);
     RV_SET_CSR(mstatus, old_mstatus & MSTATUS_MIE);
+    rv_utils_xintthres_lower();
 #endif
 }
 
@@ -172,9 +235,11 @@ FORCE_INLINE_ATTR void rv_utils_intr_disable(uint32_t intr_mask)
     esp_tee_intr_sec_srv_cb(2, SS_RV_UTILS_INTR_DISABLE, intr_mask);
 #else
     // Disable all interrupts to make updating of the interrupt mask atomic.
+    rv_utils_xintthres_raise();
     unsigned old_mstatus = RV_CLEAR_CSR(mstatus, MSTATUS_MIE);
     esprv_int_disable(intr_mask);
     RV_SET_CSR(mstatus, old_mstatus & MSTATUS_MIE);
+    rv_utils_xintthres_lower();
 #endif
 }
 
@@ -185,10 +250,12 @@ FORCE_INLINE_ATTR void rv_utils_intr_global_enable(void)
 #else
     RV_SET_CSR(mstatus, MSTATUS_MIE);
 #endif
+    rv_utils_xintthres_lower();
 }
 
 FORCE_INLINE_ATTR void rv_utils_intr_global_disable(void)
 {
+    rv_utils_xintthres_raise();
 #if CONFIG_SECURE_ENABLE_TEE
     if (IS_PRV_M_MODE()) {
         RV_CLEAR_CSR(mstatus, MSTATUS_MIE);
@@ -238,10 +305,13 @@ FORCE_INLINE_ATTR void rv_utils_intr_set_threshold(int priority_threshold)
 
 #if SOC_CPU_HAS_FPU
 
-FORCE_INLINE_ATTR bool rv_utils_enable_fpu(void)
+FORCE_INLINE_ATTR void rv_utils_enable_fpu(void)
 {
-    /* Set mstatus[14:13] to 0b01 to start the floating-point unit initialization */
+    /* Set mstatus[14:13] to 0b01 to enable the floating-point unit */
     RV_SET_CSR(mstatus, CSR_MSTATUS_FPU_ENA);
+}
+
+FORCE_INLINE_ATTR bool rv_utils_clear_fpu(void) {
     /* On the ESP32-P4, the FPU can be used directly after setting `mstatus` bit 13.
      * Since the interrupt handler expects the FPU states to be either 0b10 or 0b11,
      * let's write the FPU CSR and clear the dirty bit afterwards. */
@@ -279,7 +349,27 @@ FORCE_INLINE_ATTR void rv_utils_disable_pie(void)
     RV_WRITE_CSR(CSR_PIE_STATE_REG, 0);
 }
 
-#endif /* SOC_CPU_HAS_FPU */
+#endif /* SOC_CPU_HAS_PIE */
+
+
+/* ------------------------------------------------- DSP Related ----------------------------------------------------
+ *
+ * ------------------------------------------------------------------------------------------------------------------ */
+
+#if SOC_CPU_HAS_DSP
+
+FORCE_INLINE_ATTR void rv_utils_enable_dsp(void)
+{
+    RV_WRITE_CSR(CSR_DSP_STATE_REG, 1);
+}
+
+
+FORCE_INLINE_ATTR void rv_utils_disable_dsp(void)
+{
+    RV_WRITE_CSR(CSR_DSP_STATE_REG, 0);
+}
+
+#endif /* SOC_CPU_HAS_DSP */
 
 
 

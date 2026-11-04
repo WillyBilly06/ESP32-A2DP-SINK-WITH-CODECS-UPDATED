@@ -1,8 +1,6 @@
 LED Control (LEDC)
 ==================
 
-{IDF_TARGET_LEDC_MAX_FADE_RANGE_NUM: default="1", esp32c6="16", esp32h2="16", esp32p4="16", esp32c5="16", esp32c61="16"}
-
 :link_to_translation:`zh_CN:[中文]`
 
 Introduction
@@ -169,7 +167,7 @@ The source clock can also limit the PWM frequency. The higher the source clock f
          - 48 MHz
          - Dynamic Frequency Scaling compatible
 
-.. only:: esp32c6 or esp32c61 or esp32p4
+.. only:: esp32c6 or esp32c61 or esp32p4 or esp32s31
 
     .. list-table:: Characteristics of {IDF_TARGET_NAME} LEDC source clocks
        :widths: 15 15 30
@@ -202,6 +200,25 @@ The source clock can also limit the PWM frequency. The higher the source clock f
          - /
        * - RC_FAST_CLK
          - ~ 8 MHz
+         - Dynamic Frequency Scaling compatible, Light-sleep compatible
+       * - XTAL_CLK
+         - 32 MHz
+         - Dynamic Frequency Scaling compatible
+
+.. only:: esp32h21 or esp32h4
+
+    .. list-table:: Characteristics of {IDF_TARGET_NAME} LEDC source clocks
+       :widths: 15 15 30
+       :header-rows: 1
+
+       * - Clock name
+         - Clock freq
+         - Clock capabilities
+       * - PLL_96M_CLK
+         - 96 MHz
+         - /
+       * - RC_FAST_CLK
+         - ~ 20 MHz
          - Dynamic Frequency Scaling compatible, Light-sleep compatible
        * - XTAL_CLK
          - 32 MHz
@@ -295,7 +312,7 @@ The LEDC hardware provides the means to gradually transition from one duty cycle
 
 .. only:: SOC_LEDC_GAMMA_CURVE_FADE_SUPPORTED
 
-    On {IDF_TARGET_NAME}, the hardware additionally allows to perform up to {IDF_TARGET_LEDC_MAX_FADE_RANGE_NUM} consecutive linear fades without CPU intervention. This feature can be useful if you want to do a fade with gamma correction.
+    On {IDF_TARGET_NAME}, the hardware additionally allows to perform consecutive linear fades without CPU intervention. This feature can be useful if you want to do a fade with gamma correction.
 
     The luminance perceived by human eyes does not have a linear relationship with the PWM duty cycle. In order to make human feel the LED is dimming or lighting linearly, the change in duty cycle should be non-linear, which is the so-called gamma correction. The LED controller can simulate a gamma curve fading by piecewise linear approximation. :cpp:func:`ledc_fill_multi_fade_param_list` is a function that can help to construct the parameters for the piecewise linear fades. First, you need to allocate a memory block for saving the fade parameters, then by providing start/end PWM duty cycle values, gamma correction function, and the total number of desired linear segments to the helper function, it will fill the calculation results into the allocated space. You can also construct the array of :cpp:type:`ledc_fade_param_config_t` manually. Once the fade parameter structs are prepared, a consecutive fading can be configured by passing the pointer to the prepared :cpp:type:`ledc_fade_param_config_t` list and the total number of fade ranges to :cpp:func:`ledc_set_multi_fade`.
 
@@ -335,14 +352,21 @@ There are several individual timer-specific functions that can be used to change
 
 The first function is called "behind the scenes" by :cpp:func:`ledc_timer_config` to provide a startup of a timer after it is configured.
 
+.. only:: SOC_LEDC_SUPPORT_ETM and SOC_ETM_SUPPORTED
 
-Use Interrupts
-^^^^^^^^^^^^^^
+    LEDC's ETM Events and Tasks
+    ---------------------------
 
-When configuring an LEDC channel, one of the parameters selected within :cpp:type:`ledc_channel_config_t` is :cpp:type:`ledc_intr_type_t` which triggers an interrupt on fade completion.
+    LEDC can generate various events that can be connected to the :doc:`ETM </api-reference/peripherals/etm>` module. Timer's supported events are listed in :cpp:type:`ledc_timer_etm_event_type_t`, and channel's supported events are listed in :cpp:type:`ledc_channel_etm_event_type_t`. Users can create an ``ETM event`` handle by calling :cpp:func:`ledc_timer_new_etm_event` or :cpp:func:`ledc_channel_new_etm_event` respectively.
+    LEDC also supports some tasks that can be triggered by other events and executed automatically. Timer's supported tasks are listed in :cpp:type:`ledc_timer_etm_task_type_t`, and channel's supported tasks are listed in :cpp:type:`ledc_channel_etm_task_type_t`. Users can create an ``ETM task`` handle by calling :cpp:func:`ledc_timer_new_etm_task` or :cpp:func:`ledc_channel_new_etm_task` respectively.
 
-For registration of a handler to address this interrupt, call :cpp:func:`ledc_isr_register`.
+    Some useful applications of ETM with LEDC are:
 
+        * To generate a PWM signal with certain number of pulses
+        * To synchronize the PWM period with an external signal
+        * To start / stop the PWM signal output or a fading without CPU intervention
+
+    For how to connect the LEDC events and tasks to the ETM channel, please refer to the :doc:`ETM </api-reference/peripherals/etm>` documentation.
 
 Power Management
 ----------------
@@ -407,6 +431,7 @@ Application Example
     * :example:`peripherals/ledc/ledc_basic` demonstrates how to use the LEDC to generate a PWM signal in LOW SPEED mode.
     * :example:`peripherals/ledc/ledc_fade` demonstrates how to control the intensity of LEDs using the LEDC fade functionality.
     :SOC_LEDC_GAMMA_CURVE_FADE_SUPPORTED: * :example:`peripherals/ledc/ledc_gamma_curve_fade` demonstrates how to use the LEDC for color control of RGB LEDs with gamma correction.
+    :SOC_LEDC_SUPPORT_ETM and SOC_ETM_SUPPORTED: * :example:`peripherals/ledc/ledc_dimmer` demonstrates how to use the LEDC and ETM to generate TRIAC gate trigger pulses that are synchronized to the mains zero‑cross.
 
 
 API Reference
@@ -414,3 +439,7 @@ API Reference
 
 .. include-build-file:: inc/ledc.inc
 .. include-build-file:: inc/ledc_types.inc
+
+.. only:: SOC_LEDC_SUPPORT_ETM and SOC_ETM_SUPPORTED
+
+    .. include-build-file:: inc/ledc_etm.inc

@@ -11,9 +11,9 @@
  * example of good general usage.
  */
 
-
 #include "mbedtls/build_info.h"
 
+#include <limits.h>
 #include <stdlib.h>
 #if defined(MBEDTLS_PLATFORM_C)
 #include "mbedtls/platform.h"
@@ -49,11 +49,6 @@ int main(void)
 /* For select() */
 #if (defined(_WIN32) || defined(_WIN32_WCE)) && !defined(EFIX64) && \
     !defined(EFI32)
-
-#if defined(_MSC_VER)
-#pragma warning(disable : 5105) // warning inside winbase.h in C11 mode
-#endif
-
 #include <winsock2.h>
 #include <windows.h>
 #if defined(_MSC_VER)
@@ -365,7 +360,9 @@ static unsigned elapsed_time(void)
         return 0;
     }
 
-    return mbedtls_timing_get_timer(&hires, 0);
+    /* Wraps after ~49.7 days (assuming 32-bit int).
+     * Don't run udp_proxy that long! */
+    return (unsigned) mbedtls_timing_get_timer(&hires, 0);
 }
 
 typedef struct {

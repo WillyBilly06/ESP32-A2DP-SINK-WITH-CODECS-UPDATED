@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2020-2025 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2020-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -7,12 +7,13 @@
 #include "sdkconfig.h"
 #include "bootloader_console.h"
 #include "soc/soc_caps.h"
-#include "soc/uart_periph.h"
-#include "soc/uart_channel.h"
+#include "hal/uart_periph.h"
+#include "soc/uart_pins.h"
 #include "soc/io_mux_reg.h"
 #include "soc/gpio_sig_map.h"
 #include "soc/rtc.h"
 #include "hal/gpio_ll.h"
+#include "hal/uart_ll.h"
 #if CONFIG_IDF_TARGET_ESP32S2
 #include "esp32s2/rom/usb/cdc_acm.h"
 #include "esp32s2/rom/usb/usb_common.h"
@@ -21,16 +22,16 @@
 #include "hal/usb_wrap_ll.h"
 #endif
 #include "esp_rom_gpio.h"
-#include "esp_rom_uart.h"
+#include "esp_rom_serial_output.h"
 #include "esp_rom_sys.h"
 #include "esp_rom_caps.h"
 
 static void __attribute__((unused)) release_default_console_io(void)
 {
     // Default console is UART0 with TX and RX on their IOMUX pins
-    gpio_ll_output_disable(&GPIO, UART_NUM_0_TXD_DIRECT_GPIO_NUM);
+    gpio_ll_output_disable(&GPIO, U0TXD_GPIO_NUM);
     gpio_ll_func_sel(&GPIO, U0TXD_GPIO_NUM, PIN_FUNC_GPIO); // Set TX pin to GPIO function to truly disable output
-    esp_rom_gpio_connect_in_signal(GPIO_MATRIX_CONST_ONE_INPUT, UART_PERIPH_SIGNAL(UART_NUM_0, SOC_UART_RX_PIN_IDX), 0);
+    esp_rom_gpio_connect_in_signal(GPIO_MATRIX_CONST_ONE_INPUT, UART_PERIPH_SIGNAL(UART_NUM_0, SOC_UART_PERIPH_SIGNAL_RX), 0);
 }
 
 #ifdef CONFIG_ESP_CONSOLE_NONE
@@ -59,21 +60,22 @@ void bootloader_console_init(void)
 
 #if CONFIG_ESP_CONSOLE_UART_CUSTOM
     // Some constants to make the following code less upper-case
-    const int uart_tx_gpio = (CONFIG_ESP_CONSOLE_UART_TX_GPIO >= 0) ? CONFIG_ESP_CONSOLE_UART_TX_GPIO : UART_NUM_0_TXD_DIRECT_GPIO_NUM;
-    const int uart_rx_gpio = (CONFIG_ESP_CONSOLE_UART_RX_GPIO >= 0) ? CONFIG_ESP_CONSOLE_UART_RX_GPIO : UART_NUM_0_RXD_DIRECT_GPIO_NUM;
+    const int uart_tx_gpio = (CONFIG_ESP_CONSOLE_UART_TX_GPIO >= 0) ? CONFIG_ESP_CONSOLE_UART_TX_GPIO : U0TXD_GPIO_NUM;
+    const int uart_rx_gpio = (CONFIG_ESP_CONSOLE_UART_RX_GPIO >= 0) ? CONFIG_ESP_CONSOLE_UART_RX_GPIO : U0RXD_GPIO_NUM;
 
-    // Switch to the new UART (this just changes UART number used for esp_rom_printf in ROM code).
-    esp_rom_output_set_as_console(uart_num);
+    // Switch to the new UART
+    esp_rom_output_set_as_console(uart_num); // changes UART number used for esp_rom_printf in ROM code
+    esp_rom_output_switch_buffer(uart_num);
 
     // If console is attached to UART1 or if non-default pins are used,
     // need to reconfigure pins using GPIO matrix
     if (uart_num != 0 ||
-            uart_tx_gpio != UART_NUM_0_TXD_DIRECT_GPIO_NUM ||
-            uart_rx_gpio != UART_NUM_0_RXD_DIRECT_GPIO_NUM) {
+            uart_tx_gpio != U0TXD_GPIO_NUM ||
+            uart_rx_gpio != U0RXD_GPIO_NUM) {
         release_default_console_io();
         // Route GPIO signals to/from pins
-        const uint32_t tx_idx = UART_PERIPH_SIGNAL(uart_num, SOC_UART_TX_PIN_IDX);
-        const uint32_t rx_idx = UART_PERIPH_SIGNAL(uart_num, SOC_UART_RX_PIN_IDX);
+        const uint32_t tx_idx = UART_PERIPH_SIGNAL(uart_num, SOC_UART_PERIPH_SIGNAL_TX);
+        const uint32_t rx_idx = UART_PERIPH_SIGNAL(uart_num, SOC_UART_PERIPH_SIGNAL_RX);
         gpio_ll_func_sel(&GPIO, uart_rx_gpio, PIN_FUNC_GPIO);
         gpio_ll_input_enable(&GPIO, uart_rx_gpio);
         esp_rom_gpio_pad_pullup_only(uart_rx_gpio);
@@ -100,7 +102,7 @@ void bootloader_console_init(void)
 #if ESP_ROM_UART_CLK_IS_XTAL
     clock_hz = (uint32_t)rtc_clk_xtal_freq_get() * MHZ; // From esp32-s3 on, UART clk source is selected to XTAL in ROM
 #endif
-    esp_rom_uart_set_clock_baudrate(uart_num, clock_hz, CONFIG_ESP_CONSOLE_UART_BAUDRATE);
+    _uart_ll_set_baudrate(UART_LL_GET_HW(uart_num), CONFIG_ESP_CONSOLE_UART_BAUDRATE, clock_hz);
 }
 #endif // CONFIG_ESP_CONSOLE_UART
 

@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2024-2025 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2024-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -23,19 +23,19 @@
 #include "hal/key_mgr_types.h"
 #endif /* SOC_KEY_MANAGER_SUPPORT_KEY_DEPLOYMENT */
 
-#if SOC_ECDSA_SUPPORTED
+#if SOC_ECDSA_P192_CURVE_DEFAULT_DISABLED
 #include "hal/ecdsa_ll.h"
-#endif
+#endif /* SOC_ECDSA_P192_CURVE_DEFAULT_DISABLED */
 
 __attribute__((unused)) static const char *TAG = "esp_security";
 
+#if SOC_KEY_MANAGER_SUPPORT_KEY_DEPLOYMENT
 static void esp_key_mgr_init(void)
 {
     // The following code initializes the key manager.
     // When Flash Encryption is already enabled, Key Manager is initialized by the
     // ROM, and when Flash Encryption is enabled during boot up, Key Manager is
     // initialized by the bootloader.
-#if SOC_KEY_MANAGER_SUPPORT_KEY_DEPLOYMENT
     if (!efuse_hal_flash_encryption_enabled()) {
         // Enable key manager clock
         key_mgr_ll_power_up();
@@ -48,10 +48,10 @@ static void esp_key_mgr_init(void)
         };
 
         // Force Key Manager to use eFuse key by-default for an XTS-AES operation.
-        key_mgr_ll_set_key_usage(ESP_KEY_MGR_XTS_AES_128_KEY, ESP_KEY_MGR_USE_EFUSE_KEY);
+        key_mgr_ll_set_key_usage(ESP_KEY_MGR_FLASH_XTS_AES_KEY, ESP_KEY_MGR_USE_EFUSE_KEY);
     }
-#endif /* SOC_KEY_MANAGER_SUPPORT_KEY_DEPLOYMENT */
 }
+#endif /* SOC_KEY_MANAGER_SUPPORT_KEY_DEPLOYMENT */
 
 ESP_SYSTEM_INIT_FN(esp_security_init, SECONDARY, BIT(0), 103)
 {
@@ -66,7 +66,11 @@ ESP_SYSTEM_INIT_FN(esp_security_init, SECONDARY, BIT(0), 103)
 #endif
 
     esp_crypto_clk_init();
+
+#if SOC_KEY_MANAGER_SUPPORT_KEY_DEPLOYMENT
     esp_key_mgr_init();
+#endif
+
 #if CONFIG_ESP_CRYPTO_DPA_PROTECTION_AT_STARTUP
     esp_crypto_dpa_protection_startup();
 #endif
@@ -111,14 +115,14 @@ ESP_SYSTEM_INIT_FN(esp_security_init, SECONDARY, BIT(0), 103)
 #endif
 
 #if !CONFIG_SECURE_BOOT_SKIP_WRITE_PROTECTION_SCA
-// C5
-#if SOC_ECDSA_SUPPORT_CURVE_P384 && !CONFIG_SECURE_BOOT_ECDSA_KEY_LEN_384_BITS && !CONFIG_IDF_TARGET_ESP32P4
+#if SOC_EFUSE_SECURE_BOOT_P384_WR_DIS && !CONFIG_SECURE_BOOT_ECDSA_KEY_LEN_384_BITS
     // Since SECURE_BOOT_SHA384_EN, XTS_DPA_PSEUDO_LEVEL, and ECC_FORCE_CONST_TIME share the
     // same write-protection bit, these efuses should only be write-protected after all of
     // them have been programmed.
-    // Note: ESP32-P4 lacks WR_DIS_SECURE_BOOT_SHA384_EN bit, so it relies on software protection
-    // in the efuse write APIs (see esp_efuse_api.c) to prevent unauthorized programming of
-    // SECURE_BOOT_SHA384_EN when Secure Boot using SHA-256 is enabled.
+    // Note: targets without SOC_EFUSE_SECURE_BOOT_P384_WR_DIS (e.g. ESP32-P4, ESP32-S31) lack
+    // the WR_DIS_SECURE_BOOT_SHA384_EN bit and rely on software protection in the efuse write
+    // APIs (see esp_efuse_api.c) to prevent unauthorized programming of SECURE_BOOT_SHA384_EN
+    // when Secure Boot using SHA-256 is enabled.
     err = esp_efuse_write_field_bit(ESP_EFUSE_WR_DIS_SECURE_BOOT_SHA384_EN);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "Failed to write protect the SECURE_BOOT_SHA384_EN efuse bit.");

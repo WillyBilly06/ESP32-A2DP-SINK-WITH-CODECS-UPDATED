@@ -256,6 +256,19 @@ tGATT_STATUS gap_read_attr_value (UINT16 handle, tGATT_VALUE *p_value, BOOLEAN i
                 UINT8_TO_STREAM(p, p_db_attr->attr_value.addr_resolution);
                 p_value->len = 1;
                 break;
+#if (BT_GATTS_SECURITY_LEVELS_CHAR == TRUE)
+            case GATT_UUID_GAP_GATT_SECURITY_LEVELS:
+                UINT16_TO_STREAM(p, p_db_attr->attr_value.security_level);
+                p_value->len = 2;
+                break;
+#endif // (BT_GATTS_SECURITY_LEVELS_CHAR == TRUE)
+#if (BT_GATTS_KEY_MATERIAL_CHAR == TRUE)
+            case GATT_UUID_GAP_KEY_MATERIAL:
+                ARRAY_TO_STREAM(p, p_db_attr->attr_value.key_material.session_key, GAP_KEY_MATERIAL_SESSION_KEY_SIZE);
+                ARRAY_TO_STREAM(p, p_db_attr->attr_value.key_material.iv, GAP_KEY_MATERIAL_IV_SIZE);
+                p_value->len = GAP_KEY_MATERIAL_SIZE;
+                break;
+#endif // (BT_GATTS_KEY_MATERIAL_CHAR == TRUE)
             }
             return GATT_SUCCESS;
         }
@@ -302,6 +315,9 @@ UINT8 gap_proc_write_req( tGATTS_REQ_TYPE type, tGATT_WRITE_REQ *p_data)
             switch (p_db_attr->uuid) {
                 #if (GATTS_DEVICE_NAME_WRITABLE == TRUE)
                 case GATT_UUID_GAP_DEVICE_NAME: {
+                    if (p_data->len > BD_NAME_LEN) {
+                        return GATT_INVALID_ATTR_LEN;
+                    }
                     UINT8 *p_val = p_data->value;
                     p_val[p_data->len] = '\0';
                     BTM_SetLocalDeviceName((char *)p_val, BT_DEVICE_TYPE_BLE);
@@ -464,6 +480,31 @@ void gap_attr_db_init(void)
     p_db_attr->attr_value.addr_resolution = 0;
     p_db_attr++;
 
+#if (BT_GATTS_SECURITY_LEVELS_CHAR == TRUE)
+    /* Add LE Security Levels Characteristic */
+    uuid.len = LEN_UUID_16;
+    uuid.uu.uuid16 = p_db_attr->uuid = GATT_UUID_GAP_GATT_SECURITY_LEVELS;
+    p_db_attr->handle = GATTS_AddCharacteristic(service_handle, &uuid,
+                        GATT_PERM_READ, GATT_CHAR_PROP_BIT_READ,
+                        NULL, NULL);
+    p_db_attr->attr_value.security_level = 0x0101;
+    p_db_attr++;
+#endif // (BT_GATTS_SECURITY_LEVELS_CHAR == TRUE)
+
+#if (BT_GATTS_KEY_MATERIAL_CHAR == TRUE)
+    /* Add Encrypted Data Key Material Characteristic
+     * Per Bluetooth spec: readable only when authenticated and authorized,
+     * requires encrypted link to read.
+     */
+    uuid.len = LEN_UUID_16;
+    uuid.uu.uuid16 = p_db_attr->uuid = GATT_UUID_GAP_KEY_MATERIAL;
+    p_db_attr->handle = GATTS_AddCharacteristic(service_handle, &uuid,
+                        GATT_PERM_READ_ENCRYPTED, GATT_CHAR_PROP_BIT_READ,
+                        NULL, NULL);
+    memset(&p_db_attr->attr_value.key_material, 0, sizeof(tGAP_BLE_KEY_MATERIAL));
+    p_db_attr++;
+#endif // (BT_GATTS_KEY_MATERIAL_CHAR == TRUE)
+
     /* start service now */
     memset (&app_uuid.uu.uuid128, 0x81, LEN_UUID_128);
 
@@ -495,6 +536,11 @@ void GAP_BleAttrDBUpdate(UINT16 attr_uuid, tGAP_BLE_ATTR_VALUE *p_value)
 
     GAP_TRACE_EVENT("GAP_BleAttrDBUpdate attr_uuid=0x%04x\n", attr_uuid);
 
+    if (p_value == NULL) {
+        GAP_TRACE_ERROR("GAP_BleAttrDBUpdate: NULL pointer parameter");
+        return;
+    }
+
     for (i = 0; i < GAP_MAX_CHAR_NUM; i ++, p_db_attr ++) {
         if (p_db_attr->uuid == attr_uuid) {
             GAP_TRACE_EVENT("Found attr_uuid=0x%04x\n", attr_uuid);
@@ -516,6 +562,19 @@ void GAP_BleAttrDBUpdate(UINT16 attr_uuid, tGAP_BLE_ATTR_VALUE *p_value)
             case GATT_UUID_GAP_CENTRAL_ADDR_RESOL:
                 p_db_attr->attr_value.addr_resolution = p_value->addr_resolution;
                 break;
+
+#if (BT_GATTS_SECURITY_LEVELS_CHAR == TRUE)
+            case GATT_UUID_GAP_GATT_SECURITY_LEVELS:
+                p_db_attr->attr_value.security_level = p_value->security_level;
+                break;
+#endif // (BT_GATTS_SECURITY_LEVELS_CHAR == TRUE)
+
+#if (BT_GATTS_KEY_MATERIAL_CHAR == TRUE)
+            case GATT_UUID_GAP_KEY_MATERIAL:
+                memcpy(&p_db_attr->attr_value.key_material, &p_value->key_material,
+                       sizeof(tGAP_BLE_KEY_MATERIAL));
+                break;
+#endif // (BT_GATTS_KEY_MATERIAL_CHAR == TRUE)
 
             }
             break;
@@ -719,6 +778,7 @@ BOOLEAN gap_ble_accept_cl_operation(BD_ADDR peer_bda, UINT16 uuid, tGAP_BLE_CMPL
 {
     tGAP_CLCB *p_clcb;
     BOOLEAN started = FALSE;
+    BOOLEAN is_new_clcb = FALSE;
 
     if (p_cback == NULL && uuid != GATT_UUID_GAP_PREF_CONN_PARAM) {
         return (started);
@@ -729,6 +789,7 @@ BOOLEAN gap_ble_accept_cl_operation(BD_ADDR peer_bda, UINT16 uuid, tGAP_BLE_CMPL
             GAP_TRACE_ERROR("gap_ble_accept_cl_operation max connection reached");
             return started;
         }
+        is_new_clcb = TRUE;
     }
 
     GAP_TRACE_EVENT ("%s() - BDA: %08x%04x  cl_op_uuid: 0x%04x",
@@ -741,12 +802,26 @@ BOOLEAN gap_ble_accept_cl_operation(BD_ADDR peer_bda, UINT16 uuid, tGAP_BLE_CMPL
     }
 
     /* hold the link here */
-    if (!GATT_Connect(gap_cb.gatt_if, p_clcb->bda, BLE_ADDR_UNKNOWN_TYPE, TRUE, BT_TRANSPORT_LE, FALSE)) {
+    if (!GATT_Connect(gap_cb.gatt_if, p_clcb->bda, BLE_ADDR_UNKNOWN_TYPE, TRUE, BT_TRANSPORT_LE, FALSE, FALSE, 0xFF, 0xFF)) {
+        if (is_new_clcb) {
+            gap_ble_dealloc_clcb(p_clcb);
+        }
         return started;
     }
 
     /* enqueue the request */
-    gap_ble_enqueue_request(p_clcb, uuid, p_cback);
+    if (gap_ble_enqueue_request(p_clcb, uuid, p_cback) == FALSE) {
+        GAP_TRACE_ERROR("gap_ble_accept_cl_operation enqueue request failed");
+        if (is_new_clcb) {
+            if (p_clcb->connected) {
+                GATT_Disconnect(p_clcb->conn_id);
+            } else {
+                GATT_CancelConnect(gap_cb.gatt_if, p_clcb->bda, TRUE);
+            }
+            gap_ble_dealloc_clcb(p_clcb);
+        }
+        return started;
+    }
 
     if (p_clcb->connected && p_clcb->cl_op_uuid == 0) {
         started = gap_ble_send_cl_read_request(p_clcb);

@@ -1,7 +1,7 @@
 /**
  * SPDX-FileCopyrightText: 2022-2025 Espressif Systems (Shanghai) CO LTD
  *
- *  SPDX-License-Identifier: Apache-2.0
+ *  SPDX-License-Identifier: Apache-2.0 OR MIT
  */
 #pragma once
 
@@ -741,10 +741,10 @@ typedef union {
          *  This register stores the Xon flow control char.
          */
         uint32_t xon_character:8;
-        /** xoff_threshold : R/W; bitpos: [15:8]; default: 19;
+        /** xoff_character : R/W; bitpos: [15:8]; default: 19;
          *  This register stores the Xoff flow control char.
          */
-        uint32_t xoff_threshold:8;
+        uint32_t xoff_character:8;
         /** xon_xoff_still_send : R/W; bitpos: [16]; default: 0;
          *  In software flow control mode, UART Tx is disabled once UART Rx receives XOFF. In
          *  this status, UART Tx can not transmit XOFF even the received data number is larger

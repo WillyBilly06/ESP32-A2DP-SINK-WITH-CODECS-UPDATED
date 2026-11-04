@@ -3,10 +3,9 @@
 # This script runs tests before and after a PR and analyzes the results in
 # order to highlight any difference in the set of tests skipped.
 #
-# It can be used to check the first testing criterion mentioned in strategy.md,
-# end of section "Supporting builds with drivers without the software
-# implementation", namely: the sets of tests skipped in the default config and
-# the full config must be the same before and after the PR.
+# It can be used to check for unintended consequences when making non-trivial
+# changes to compile time guards: the sets of tests skipped in the default
+# config and the full config must be the same before and after the PR.
 #
 # USAGE:
 # - First, commit any uncommited changes. (Also, see warning below.)
@@ -27,7 +26,7 @@ set -eu
 
 cleanup() {
     make clean
-    git checkout -- include/mbedtls/mbedtls_config.h include/psa/crypto_config.h
+    git checkout -- include/mbedtls/mbedtls_config.h tf-psa-crypto/include/psa/crypto_config.h
 }
 
 record() {

@@ -16,7 +16,6 @@
  #include "driver/gpio.h"
  #include "esp_heap_caps.h"
  #include "esp_rom_sys.h"
- #include "driver/i2s.h"
  #include "nvs_flash.h"
  #include "esp_timer.h"
  #include "esp_log.h"
@@ -145,9 +144,7 @@
      g_dsp.setChannelFlip(b & 0x02);
      g_dsp.setBypass(b & 0x04);
      g_settings.saveControl(b & 0x01, b & 0x02, b & 0x04);
-     if (notifyBle) {
-         g_ble.updateControl(getControlByte());
-     }
+     g_ble.updateControl(getControlByte(), notifyBle);
  }
  
  // Heap logging helper for init stages
@@ -165,9 +162,7 @@
  static void applyEq(int8_t bass, int8_t mid, int8_t treble, bool notifyBle = true) {
      g_dsp.setEQ(bass, mid, treble, g_sampleRate);
      g_settings.saveEQ(bass, mid, treble);
-     if (notifyBle) {
-         g_ble.updateEq(bass, mid, treble);
-     }
+     g_ble.updateEq(bass, mid, treble, notifyBle);
      
      // Sync encoder controller if encoders are enabled
      #ifdef CONFIG_ENCODER_ENABLE
@@ -381,7 +376,8 @@
  static void onBleName(const char* name, size_t len) {
      g_settings.saveDeviceName(name);
      // Update Classic Bluetooth (A2DP) device name
-     esp_bt_dev_set_device_name(name);
+     esp_bt_gap_set_device_name(name);
+     g_ble.updateName(name);
      // BLE advertising name is updated by ble_gatt
      ESP_LOGI(TAG, "BLE name changed: %s", name);
  }
@@ -390,6 +386,7 @@
  static void onBleLedEffect(uint8_t effectId) {
      LedController::getInstance().setEffect(effectId);
      g_settings.saveLedEffect(effectId);
+     g_ble.updateLedEffect(effectId, false);
      // Don't notify back - command came from phone
      
      // Sync encoder controller's effect value
@@ -435,6 +432,8 @@
      
      // Pass to LED controller (handles brightness + ambient effect settings)
      LedController::getInstance().setLedSettings(reordered, 10);
+     g_ble.updateLed(reordered, 10, false);
+     g_settings.saveLedEffect(effectId);
      
      // Also set the effect
      LedController::getInstance().setEffect(effectId);
@@ -458,6 +457,7 @@
      uint8_t brightness255 = brightness100to255(brightness100);
      
      LedController::getInstance().setBrightness(brightness255, true);  // Save to NVS
+     g_ble.updateLedBrightness(brightness255, false);
      
      // Sync encoder controller's brightness value (using internal 0-255)
      #ifdef CONFIG_ENCODER_ENABLE
@@ -471,6 +471,36 @@
  
  static volatile uint32_t g_otaReceived = 0;
  static volatile uint32_t g_otaTotalSize = 0;
+ static esp_timer_handle_t g_otaRestartTimer = nullptr;
+
+ static bool scheduleOtaRestart() {
+     if (!g_otaRestartTimer) {
+         esp_timer_create_args_t args = {};
+         args.callback = [](void*) {
+             ESP_LOGI(TAG, "OTA reboot on core %d", xPortGetCoreID());
+             esp_restart();
+         };
+         args.name = "ota_restart";
+         if (esp_timer_create(&args, &g_otaRestartTimer) != ESP_OK) return false;
+     }
+     // Return to the Bluetooth task so it can transmit COMPLETE and the ATT
+     // response before rebooting. Delaying in the GATT callback blocks both.
+     return esp_timer_start_once(g_otaRestartTimer, 750000) == ESP_OK;
+ }
+
+ static void abortOtaSession() {
+     g_update.abort();
+     g_otaActive = false;
+     g_otaReceived = 0;
+     g_otaTotalSize = 0;
+     g_otaCheckPassedTime = 0;
+     if (g_otaRestartTimer) esp_timer_stop(g_otaRestartTimer);
+     #ifdef CONFIG_LED_MATRIX_ENABLE
+     LedController::getInstance().setOtaMode(false);
+     #endif
+     g_i2s.start();
+     g_a2dp.set_output_active(true);
+ }
  
  // Parse OTA control command - supports both binary and ASCII protocols
  // Binary: 0x01 + 4-byte size (BEGIN), 0x03 (END), 0x04 (ABORT)
@@ -508,11 +538,7 @@
          if (!g_update.begin(size)) {
              ESP_LOGE(TAG, "OTA begin failed: %s", g_update.errorString());
              g_ble.notifyOtaCtrl("BEGIN_ERR");
-             g_otaActive = false;
-             #ifdef CONFIG_LED_MATRIX_ENABLE
-             LedController::getInstance().setOtaMode(false);
-             #endif
-             g_i2s.start();
+             abortOtaSession();
          } else {
              ESP_LOGI(TAG, "OTA begin OK, waiting for data...");
              g_ble.notifyOtaCtrl("BEGIN_OK");
@@ -545,14 +571,13 @@
              ESP_LOGW(TAG, "OTA incomplete: missing %u bytes", (unsigned)(g_otaTotalSize - g_otaReceived));
          }
          
-         if (g_update.end(true)) {
+         if (g_update.end() && scheduleOtaRestart()) {
              g_ble.notifyOtaCtrl("END_OK");
              ESP_LOGI(TAG, "OTA complete, restarting...");
-             vTaskDelay(pdMS_TO_TICKS(500));
-             esp_restart();
          } else {
              ESP_LOGE(TAG, "OTA end failed: %s", g_update.errorString());
              g_ble.notifyOtaCtrl("END_ERR");
+             abortOtaSession();
          }
          g_otaActive = false;
          return;
@@ -587,14 +612,13 @@
                  if (g_otaActive && g_otaCheckPassedTime > 0) {
                      ESP_LOGW(TAG, "OTA: No END received after CHECK passed, auto-finalizing...");
                      
-                     if (g_update.end(true)) {
+                     if (g_update.end() && scheduleOtaRestart()) {
                          ESP_LOGI(TAG, "OTA auto-finalize complete, rebooting in 1s");
                          g_ble.notifyOtaCtrl("END_OK");
-                         vTaskDelay(pdMS_TO_TICKS(1000));
-                         esp_restart();
                      } else {
                          ESP_LOGE(TAG, "OTA auto-finalize failed: %s", g_update.errorString());
                          g_ble.notifyOtaCtrl("END_ERR");
+                         abortOtaSession();
                      }
                      g_otaActive = false;
                      g_otaCheckPassedTime = 0;
@@ -613,8 +637,7 @@
      
      if (data[0] == 'A' && len >= 5 && memcmp(data, "ABORT", 5) == 0) {
          ESP_LOGW(TAG, "OTA ABORT (ASCII)");
-         g_otaActive = false;
-         g_otaReceived = 0;
+         abortOtaSession();
          g_ble.notifyOtaCtrl("ABORT_OK");
          return;
      }
@@ -644,11 +667,7 @@
          if (!g_update.begin(size)) {
              ESP_LOGE(TAG, "OTA begin failed: %s", g_update.errorString());
              g_ble.notifyOtaCtrl("BEGIN_ERR");
-             g_otaActive = false;
-             #ifdef CONFIG_LED_MATRIX_ENABLE
-             LedController::getInstance().setOtaMode(false);
-             #endif
-             g_i2s.start();
+             abortOtaSession();
          } else {
              ESP_LOGI(TAG, "OTA begin OK, waiting for data...");
              g_ble.notifyOtaCtrl("BEGIN_OK");
@@ -673,34 +692,37 @@
              ESP_LOGW(TAG, "OTA incomplete: missing %u bytes", (unsigned)(g_otaTotalSize - g_otaReceived));
          }
          
-         if (g_update.end(true)) {
+         if (g_update.end() && scheduleOtaRestart()) {
              g_ble.notifyOtaCtrl("END_OK");
              ESP_LOGI(TAG, "OTA complete, restarting...");
-             vTaskDelay(pdMS_TO_TICKS(500));
-             esp_restart();
          } else {
              ESP_LOGE(TAG, "OTA end failed: %s", g_update.errorString());
              g_ble.notifyOtaCtrl("END_ERR");
+             abortOtaSession();
          }
          g_otaActive = false;
      } else if (cmd == 0x04) { // ABORT
          ESP_LOGW(TAG, "OTA ABORT (binary)");
-         g_otaActive = false;
-         g_otaReceived = 0;
+         abortOtaSession();
      } else {
          ESP_LOGW(TAG, "OTA CTRL unknown cmd: 0x%02X (char='%c')", cmd, (cmd >= 32 && cmd < 127) ? cmd : '?');
      }
  }
  
- static void onBleOtaData(const uint8_t* data, size_t len) {
-     if (!g_otaActive || len == 0) return;
+ static bool onBleOtaData(const uint8_t* data, size_t len) {
+     if (!g_otaActive || len == 0) return false;
      
      // Ignore 1-byte flush packets (used by Android to sync at end)
-     if (len == 1) return;
+     if (len == 1) return true;
      
      // Direct write - rely on BLE ACK for ordering
-     g_update.write(data, len);
-     g_otaReceived += len;
+     size_t accepted = g_update.write(data, len);
+     if (accepted != len) {
+         ESP_LOGE(TAG, "OTA write failed: %s", g_update.errorString());
+         abortOtaSession();
+         return false;
+     }
+     g_otaReceived += accepted;
      
      // Calculate and update progress
      uint8_t pct = (g_otaTotalSize > 0) ? (uint8_t)((uint64_t)g_otaReceived * 100 / g_otaTotalSize) : 0;
@@ -716,6 +738,7 @@
          ESP_LOGI(TAG, "OTA: %3u%% (%u / %u bytes)", pct, (unsigned)g_otaReceived, (unsigned)g_otaTotalSize);
          lastPctLogged = pct;
      }
+     return true;
  }
  
  // Unified OTA callback - handles all OTA commands from ble_unified protocol
@@ -739,7 +762,9 @@
          case 0x21: {  // OTA_DATA - [seq, data...]
              // Skip sequence byte if present, write raw data
              if (len > 1) {
-                 onBleOtaData(data + 1, len - 1);
+                 if (!onBleOtaData(data + 1, len - 1)) {
+                     g_ble.sendOtaFailed(BleError::OTA_WRITE_FAIL);
+                 }
              }
              break;
          }
@@ -1072,6 +1097,7 @@
      // Send result notification using proper unified protocol response
      if (result == 0) {
          ESP_LOGI(TAG, "Sound save complete, sending SOUND_COMPLETE (0x32)");
+         g_ble.updateSoundStatus(g_sound.getStatus());
          g_ble.sendSoundComplete();
      } else {
          ESP_LOGI(TAG, "Sound save failed, sending SOUND_FAILED with error: 0x%02X", result);

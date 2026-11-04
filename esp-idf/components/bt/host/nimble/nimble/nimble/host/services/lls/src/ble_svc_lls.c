@@ -22,6 +22,7 @@
 #include "sysinit/sysinit.h"
 #include "host/ble_hs.h"
 #include "services/lls/ble_svc_lls.h"
+#include "host/ble_hs_log.h"
 
 #if MYNEWT_VAL(BLE_GATTS) && CONFIG_BT_NIMBLE_LLS_SERVICE
 /* Callback function */
@@ -41,21 +42,27 @@ static int
 ble_svc_lls_access(uint16_t conn_handle, uint16_t attr_handle,
                    struct ble_gatt_access_ctxt *ctxt, void *arg);
 
+static const ble_uuid16_t uuid_svc_lls = BLE_UUID16_INIT(BLE_SVC_LLS_UUID16);
+static const ble_uuid16_t uuid_chr_alert_level = BLE_UUID16_INIT(BLE_SVC_LLS_CHR_UUID16_ALERT_LEVEL);
+
+static const struct ble_gatt_chr_def lls_characteristics[] = {
+    {
+         /*** Characteristic: Alert Level. */
+        .uuid = &uuid_chr_alert_level.u,
+        .access_cb = ble_svc_lls_access,
+        .flags = BLE_GATT_CHR_F_READ | BLE_GATT_CHR_F_WRITE,
+    }, {
+        0, /* No more characteristics in this service. */
+    },
+};
+
 static const struct ble_gatt_svc_def ble_svc_lls_defs[] = {
     {
-        /*** Service: Link Loss Service (LLS). */
+         /*** Service: Link Loss Service (LLS). */
         .type = BLE_GATT_SVC_TYPE_PRIMARY,
-        .uuid = BLE_UUID16_DECLARE(BLE_SVC_LLS_UUID16),
-        .characteristics = (struct ble_gatt_chr_def[]) { {
-            /*** Characteristic: Alert Level. */
-            .uuid = BLE_UUID16_DECLARE(BLE_SVC_LLS_CHR_UUID16_ALERT_LEVEL),
-            .access_cb = ble_svc_lls_access,
-            .flags = BLE_GATT_CHR_F_READ | BLE_GATT_CHR_F_WRITE,
-        }, {
-            0, /* No more characteristics in this service. */
-        } },
+        .uuid = &uuid_svc_lls.u,
+        .characteristics = lls_characteristics,
     },
-
     {
         0, /* No more services. */
     },
@@ -94,8 +101,10 @@ static int
 ble_svc_lls_access(uint16_t conn_handle, uint16_t attr_handle,
                    struct ble_gatt_access_ctxt *ctxt, void *arg)
 {
-    assert(ctxt->chr == &ble_svc_lls_defs[0].characteristics[0]);
     int rc;
+
+    assert(ctxt->chr == &ble_svc_lls_defs[0].characteristics[0]);
+
     switch (ctxt->op) {
     case BLE_GATT_ACCESS_OP_READ_CHR:
         rc = os_mbuf_append(ctxt->om, &ble_svc_lls_alert_level,
@@ -103,10 +112,17 @@ ble_svc_lls_access(uint16_t conn_handle, uint16_t attr_handle,
         return rc == 0 ? 0 : BLE_ATT_ERR_INSUFFICIENT_RES;
 
     case BLE_GATT_ACCESS_OP_WRITE_CHR:
+        uint8_t level;
         rc = ble_svc_lls_chr_write(ctxt->om,
-                                   sizeof ble_svc_lls_alert_level,
-                                   sizeof ble_svc_lls_alert_level,
-                                   &ble_svc_lls_alert_level, NULL);
+                                   sizeof level,
+                                   sizeof level,
+                                   &level, NULL);
+        if (rc == 0) {
+            if (level > BLE_SVC_LLS_ALERT_LEVEL_HIGH_ALERT) {
+                return BLE_ATT_ERR_VALUE_NOT_ALLOWED;
+            }
+            ble_svc_lls_alert_level = level;
+        }
         return rc;
 
     default:
@@ -161,11 +177,11 @@ int
 ble_svc_lls_alert_level_set(uint8_t alert_level)
 {
     if (alert_level > BLE_SVC_LLS_ALERT_LEVEL_HIGH_ALERT) {
+        BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_EINVAL);
         return BLE_HS_EINVAL;
     }
 
-    memcpy(&ble_svc_lls_alert_level, &alert_level,
-           sizeof alert_level);
+    ble_svc_lls_alert_level = alert_level;
 
     return 0;
 }
@@ -177,7 +193,7 @@ ble_svc_lls_set_cb(ble_svc_lls_event_fn *cb)
 }
 
 /**
- * Initialize the IAS package.
+ * Initialize the LLS package.
  */
 void
 ble_svc_lls_init(void)
@@ -192,5 +208,7 @@ ble_svc_lls_init(void)
 
     rc = ble_gatts_add_svcs(ble_svc_lls_defs);
     SYSINIT_PANIC_ASSERT(rc == 0);
+
+    ble_svc_lls_alert_level = BLE_SVC_LLS_ALERT_LEVEL_NO_ALERT;
 }
 #endif

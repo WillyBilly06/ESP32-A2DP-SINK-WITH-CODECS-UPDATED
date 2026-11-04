@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2015-2025 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2015-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -10,6 +10,7 @@
 #include "freertos/FreeRTOS.h"
 #include "sdkconfig.h"
 #include "esp_err.h"
+#include "esp_key_config.h"
 #include <sys/socket.h>
 
 #ifdef __cplusplus
@@ -39,6 +40,8 @@ typedef enum {
     HTTP_EVENT_HEADER_SENT = HTTP_EVENT_HEADERS_SENT, /*!< This header has been kept for backward compatibility
                                                            and will be deprecated in future versions esp-idf */
     HTTP_EVENT_ON_HEADER,       /*!< Occurs when receiving each header sent from the server */
+    HTTP_EVENT_ON_HEADERS_COMPLETE, /*!< Occurs when all headers are received on the client side */
+    HTTP_EVENT_ON_STATUS_CODE,  /*!< Occurs when receiving the HTTP status code from the server */
     HTTP_EVENT_ON_DATA,         /*!< Occurs when receiving data from the server, possibly multiple portions of the packet */
     HTTP_EVENT_ON_FINISH,       /*!< Occurs when complete data is received */
     HTTP_EVENT_DISCONNECTED,    /*!< The connection has been disconnected */
@@ -155,6 +158,22 @@ typedef enum {
 } esp_http_client_tls_dyn_buf_strategy_t;
 
 /**
+ * @brief HTTP Client states
+ */
+typedef enum {
+    HTTP_STATE_UNINIT = 0,              /*!< HTTP client uninitialized */
+    HTTP_STATE_INIT,                    /*!< HTTP client initialized */
+    HTTP_STATE_CONNECTING,              /*!< HTTP client connecting to server */
+    HTTP_STATE_CONNECTED,               /*!< HTTP client connected to server */
+    HTTP_STATE_REQ_COMPLETE_HEADER,     /*!< HTTP request headers sent */
+    HTTP_STATE_REQ_COMPLETE_DATA,       /*!< HTTP request data sent */
+    HTTP_STATE_RES_COMPLETE_HEADER,     /*!< HTTP response headers received */
+    HTTP_STATE_RES_ON_DATA_START,       /*!< HTTP response data started */
+    HTTP_STATE_RES_COMPLETE_DATA,       /*!< HTTP response data completed */
+    HTTP_STATE_CLOSE                    /*!< HTTP client connection closed */
+} esp_http_state_t;
+
+/**
  * @brief HTTP configuration
  */
 typedef struct {
@@ -182,6 +201,7 @@ typedef struct {
                                                      DER Certificate - Length of the buffer pointed to by client_cert_der. Should be the length of the certificate. */
     const char                  *client_key_pem;     /*!< SSL client key, PEM format as string, if the server requires to verify client */
     size_t                      client_key_len;      /*!< Length of the buffer pointed to by client_key_pem. May be 0 for null-terminated pem */
+    const esp_key_config_t      *client_key;         /*!< Unified client key configuration. Takes precedence over client_key_pem when set */
     const char                  *client_key_password;      /*!< Client key decryption password string */
     size_t                      client_key_password_len;   /*!< String length of the password pointed to by client_key_password */
     esp_http_client_proto_ver_t tls_version;         /*!< TLS protocol version of the connection, e.g., TLS 1.2, TLS 1.3 (default - no preference) */
@@ -193,7 +213,7 @@ typedef struct {
 #endif
     const char                  *user_agent;         /*!< The User Agent string to send with HTTP requests */
     esp_http_client_method_t    method;                   /*!< HTTP Method */
-    int                         timeout_ms;               /*!< Network timeout in milliseconds */
+    int                         timeout_ms;               /*!< Network timeout in milliseconds. 0 defaults to 5 seconds */
     bool                        disable_auto_redirect;    /*!< Disable HTTP automatic redirects */
     int                         max_redirection_count;    /*!< Max number of redirections on receiving HTTP redirect status code, using default value if zero*/
     int                         max_authorization_retries;    /*!< Max connection retries on receiving HTTP unauthorized status code, using default value if zero. Disables authorization retry if -1*/
@@ -219,9 +239,6 @@ typedef struct {
     const char                  **alpn_protos;       /*!< Application protocols required for HTTP2. If HTTP2/ALPN support is required, a list of protocols that should be negotiated. The format is length followed by protocol
                                                      name. For the most common cases the following is ok: const char **alpn_protos = { "h2", NULL }; - where 'h2' is the protocol name */
 #endif
-#if CONFIG_ESP_TLS_USE_SECURE_ELEMENT
-    bool use_secure_element;                /*!< Enable this option to use secure element */
-#endif
 #if CONFIG_ESP_TLS_USE_DS_PERIPHERAL
     void *ds_data;                          /*!< Pointer for digital signature peripheral context, see ESP-TLS Documentation for more details */
 #endif
@@ -244,6 +261,7 @@ typedef struct {
 typedef enum {
     /* 2xx - Success */
     HttpStatus_Ok                = 200,
+    HttpStatus_PartialContent    = 206,
 
     /* 3xx - Redirection */
     HttpStatus_MultipleChoices   = 300,
@@ -278,6 +296,8 @@ typedef enum {
 #define ESP_ERR_HTTP_RANGE_NOT_SATISFIABLE (ESP_ERR_HTTP_BASE + 10) /*!< HTTP 416 Range Not Satisfiable, requested range in header is incorrect */
 #define ESP_ERR_HTTP_READ_TIMEOUT       (ESP_ERR_HTTP_BASE + 11)    /*!< HTTP data read timeout */
 #define ESP_ERR_HTTP_INCOMPLETE_DATA    (ESP_ERR_HTTP_BASE + 12)    /*!< Incomplete data received, less than Content-Length or last chunk */
+#define ESP_ERR_HTTP_REDIRECT_DOWNGRADE (ESP_ERR_HTTP_BASE + 13)   /*!< HTTPS origin redirected to a non-HTTPS scheme (downgrade blocked) */
+#define ESP_ERR_HTTP_HEADER_TOO_LONG    (ESP_ERR_HTTP_BASE + 14)   /*!< A single request header is larger than buffer_size_tx and cannot be sent (only when CONFIG_ESP_HTTP_CLIENT_STRICT_HEADER_BUFFER is enabled) */
 
 /**
  * @brief      Start a HTTP session
@@ -348,6 +368,8 @@ esp_err_t esp_http_client_prepare(esp_http_client_handle_t client);
  *  - ESP_OK on successful
  *  - ESP_FAIL on error
  *  - ESP_ERR_HTTP_WRITE_DATA if write operation fails
+ *  - ESP_ERR_HTTP_HEADER_TOO_LONG if a single request header is larger than buffer_size_tx
+ *    (only when CONFIG_ESP_HTTP_CLIENT_STRICT_HEADER_BUFFER is enabled)
  */
 esp_err_t esp_http_client_request_send(esp_http_client_handle_t client, int write_len);
 
@@ -377,7 +399,8 @@ esp_err_t esp_http_client_set_url(esp_http_client_handle_t client, const char *u
 
 /**
  * @brief      Set post data, this function must be called before `esp_http_client_perform`.
- *             Note: The data parameter passed to this function is a pointer and this function will not copy the data
+ *             Note: Post data persists between requests and must be cleared manually.
+ *             To avoid post data carryover, set the post data to NULL before starting any subsequent requests.
  *
  * @param[in]  client  The esp_http_client handle
  * @param[in]  data    post data pointer
@@ -424,10 +447,36 @@ esp_err_t esp_http_client_set_header(esp_http_client_handle_t client, const char
  * @param[out] value   The header value
  *
  * @return
- *     - ESP_OK
- *     - ESP_FAIL
+ *     - ESP_OK: Header found
+ *     - ESP_ERR_INVALID_ARG: Invalid arguments
+ *     - ESP_ERR_NOT_FOUND: Header not found
  */
 esp_err_t esp_http_client_get_header(esp_http_client_handle_t client, const char *key, char **value);
+
+#if CONFIG_ESP_HTTP_CLIENT_SAVE_RESPONSE_HEADERS || __DOXYGEN__
+/**
+ * @brief Get a response header value by key
+ *        The value parameter will be set to NULL if there is no header which is same as
+ *        the key specified, otherwise the address of header value will be assigned to value parameter.
+ *        This function must be called after `esp_http_client_init`.
+ *
+ * @note Limitations:
+ *       - Only first CONFIG_ESP_HTTP_CLIENT_MAX_SAVED_RESPONSE_HEADERS (default: 10) headers are saved
+ *       - Headers exceeding CONFIG_ESP_HTTP_CLIENT_MAX_RESPONSE_HEADER_SIZE (default: 128) bytes are discarded
+ *       - Multi-value headers (e.g., Set-Cookie) only retain the last value
+ *       - Headers are case-insensitive for lookup but case-preserving for storage
+ *
+ * @param[in]  client  The esp_http_client handle
+ * @param[in]  key     The header key
+ * @param[out] value   Pointer to store the header value. This pointer should not be freed by the user.
+ *
+ * @return
+ *     - ESP_OK: Header found
+ *     - ESP_ERR_INVALID_ARG: Invalid arguments
+ *     - ESP_ERR_NOT_FOUND: Header not found
+ */
+esp_err_t esp_http_client_get_response_header(esp_http_client_handle_t client, const char *key, char **value);
+#endif // CONFIG_ESP_HTTP_CLIENT_SAVE_RESPONSE_HEADERS || __DOXYGEN__
 
 /**
  * @brief      Get http request username.
@@ -526,6 +575,18 @@ esp_err_t esp_http_client_get_user_data(esp_http_client_handle_t client, void **
 esp_err_t esp_http_client_set_user_data(esp_http_client_handle_t client, void *data);
 
 /**
+ * @brief      Set the event handler for the client
+ *
+ * @param[in]  client  The esp_http_client handle
+ * @param[in]  event_handler     The event handler
+ *
+ * @return
+ *     - ESP_OK
+ *     - ESP_ERR_INVALID_ARG
+ */
+esp_err_t esp_http_client_set_event_handler(esp_http_client_handle_t client, http_event_handle_cb event_handler);
+
+/**
  * @brief      Get HTTP client session errno
  *
  * @param[in]  client  The esp_http_client handle
@@ -605,25 +666,70 @@ esp_err_t esp_http_client_delete_all_headers(esp_http_client_handle_t client);
  *
  * @param[in]  client     The esp_http_client handle
  * @param[in]  write_len  HTTP Content length need to write to the server
+ *                        - If write_len >= 0: Sets Content-Length header with the specified value; use esp_http_client_write() for the body.
+ *                        - If write_len = -1: Enables chunked transfer encoding (Transfer-Encoding: chunked); use
+ *                          esp_http_client_chunk_write_begin() / esp_http_client_write() / esp_http_client_chunk_write_end() for each chunk.
+ *                          Pass last_chunk=true in esp_http_client_chunk_write_end() for the final chunk to send the terminator.
  *
  * @return
  *  - ESP_OK
  *  - ESP_FAIL
+ *  - ESP_ERR_HTTP_CONNECTING if timed-out before connection is made
  */
 esp_err_t esp_http_client_open(esp_http_client_handle_t client, int write_len);
 
 /**
  * @brief     This function will write data to the HTTP connection previously opened by esp_http_client_open()
  *
- * @param[in]  client  The esp_http_client handle
- * @param      buffer  The buffer
- * @param[in]  len     This value must not be larger than the write_len parameter provided to esp_http_client_open()
+ * @param[in]  client  The esp_http_client handle (must not be NULL)
+ * @param      buffer  The buffer (may be NULL only if len is 0)
+ * @param[in]  len     Length of data to write. Value must not be larger than write_len passed to esp_http_client_open()
  *
  * @return
  *     - (-1) if any errors
- *     - Length of data written
+ *     - Length of data written on success
+ *
+ * @note      When esp_http_client_open() was called with write_len = -1 (chunked encoding), wrap each chunk with
+ *            esp_http_client_chunk_write_begin() and esp_http_client_chunk_write_end(). Pass last_chunk=true in
+ *            esp_http_client_chunk_write_end() for the final chunk.
  */
 int esp_http_client_write(esp_http_client_handle_t client, const char *buffer, int len);
+
+/**
+ * @brief     Begin writing a chunk in chunked transfer encoding mode.
+ *
+ * Sends the chunk header (<hex-size>\\r\\n) per RFC 7230. After this call, use esp_http_client_write()
+ * to send the chunk body data, then call esp_http_client_chunk_write_end() to finish the chunk.
+ * For normal (non-chunked) write operations this API is not used.
+ *
+ * @pre Transfer-Encoding: chunked header must be set and esp_http_client_open() called with write_len = -1.
+ *
+ * @param[in]  client  The esp_http_client handle (must not be NULL)
+ * @param[in]  len     Length of the chunk body that will follow (must be > 0)
+ *
+ * @return
+ *     - 0 on success
+ *     - -1 on failure (NULL client, invalid state, len <= 0, or transport write error)
+ */
+int esp_http_client_chunk_write_begin(esp_http_client_handle_t client, const int len);
+
+/**
+ * @brief     End writing a chunk in chunked transfer encoding mode.
+ *
+ * Sends the chunk trailer (\\r\\n) per RFC 7230 to complete a chunk started by esp_http_client_chunk_write_begin().
+ * When last_chunk is true, also sends the final terminator (0\\r\\n\\r\\n) to signal end of chunked body.
+ * For normal (non-chunked) write operations this API is not used.
+ *
+ * @pre A chunk must have been started with esp_http_client_chunk_write_begin().
+ *
+ * @param[in]  client      The esp_http_client handle (must not be NULL)
+ * @param[in]  last_chunk  If true, sends the final chunk terminator (0\\r\\n\\r\\n) after the chunk trailer
+ *
+ * @return
+ *     - 0 on success
+ *     - -1 on failure (NULL client, invalid state, or transport write error)
+ */
+int esp_http_client_chunk_write_end(esp_http_client_handle_t client, bool last_chunk);
 
 /**
  * @brief      This function need to call after esp_http_client_open, it will read from http stream, process all receive headers
@@ -631,7 +737,7 @@ int esp_http_client_write(esp_http_client_handle_t client, const char *buffer, i
  * @param[in]  client  The esp_http_client handle
  *
  * @return
- *     - (0) if stream doesn't contain content-length header, or chunked encoding (checked by `esp_http_client_is_chunked` response)
+ *     - (0) if stream doesn't contain content-length header, or chunked encoding (checked by `esp_http_client_is_chunked_response`)
  *     - (-1: ESP_FAIL) if any errors
  *     - (-ESP_ERR_HTTP_EAGAIN = -0x7007) if call is timed-out before any data was ready
  *     - Download data length defined by content-length header
@@ -685,6 +791,21 @@ int esp_http_client_get_status_code(esp_http_client_handle_t client);
  */
 int64_t esp_http_client_get_content_length(esp_http_client_handle_t client);
 
+#if CONFIG_ESP_HTTP_CLIENT_ENABLE_GET_CONTENT_RANGE || __DOXYGEN__
+/**
+ * @brief      Get http response content range (from header Content-Range)
+ *             The returned value is valid only if this function is invoked after
+ *             a successful call to `esp_http_client_perform`.
+ *             Content-Range is set to -1 if parsing fails or if the Content-Range header is not present.
+ *
+ * @param[in]  client  The esp_http_client handle
+ *
+ * @return
+ *     - Content-Range value as bytes
+ */
+int64_t esp_http_client_get_content_range(esp_http_client_handle_t client);
+#endif
+
 /**
  * @brief      Close http connection, still kept all http request resources
  *
@@ -695,6 +816,19 @@ int64_t esp_http_client_get_content_length(esp_http_client_handle_t client);
  *     - ESP_FAIL
  */
 esp_err_t esp_http_client_close(esp_http_client_handle_t client);
+
+/**
+ * @brief      Clear cached response buffer (e.g. data received during fetch headers).
+ *             Use this when reusing the same client handle for a new request after
+ *             closing the connection, so the next request does not see stale data.
+ *
+ * @param[in]  client  The esp_http_client handle
+ *
+ * @return
+ *     - ESP_OK
+ *     - ESP_ERR_INVALID_ARG if client is NULL
+ */
+esp_err_t esp_http_client_clear_response_buffer(esp_http_client_handle_t client);
 
 /**
  * @brief      This function must be the last function to call for an session.
@@ -849,6 +983,15 @@ esp_err_t esp_http_client_get_url(esp_http_client_handle_t client, char *url, co
 esp_err_t esp_http_client_get_chunk_length(esp_http_client_handle_t client, int *len);
 
 /**
+ * @brief      Get the current state of the HTTP client
+ *
+ * @param[in]  client  The HTTP client handle
+ *
+ * @return     Current state of the HTTP client
+ */
+esp_http_state_t esp_http_client_get_state(esp_http_client_handle_t client);
+
+/**
  * @brief      Check if persistent connection is supported by the server
  *
  * @param[in]  client  The HTTP client handle
@@ -856,6 +999,17 @@ esp_err_t esp_http_client_get_chunk_length(esp_http_client_handle_t client, int 
  * @return     true if persistent connection is supported, false otherwise
  */
 bool esp_http_client_is_persistent_connection(esp_http_client_handle_t client);
+
+/**
+ * @brief       Get the socket from the underlying transport
+ *
+ * @param client The HTTP client handle
+ *
+ * @return
+ *     - -1 if the client is NULL or the transport is not initialized
+ *     - The socket file descriptor if successful
+ */
+int esp_http_client_get_socket(esp_http_client_handle_t client);
 
 #ifdef __cplusplus
 }

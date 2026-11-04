@@ -13,26 +13,9 @@ ESP-IDF 是乐鑫官方推出的物联网开发框架，支持 Windows、Linux �
 
 # ESP-IDF 与乐鑫芯片
 
-下表总结了乐鑫芯片在 ESP-IDF 各版本中的支持状态，其中 ![alt text][supported] 代表已支持，![alt text][preview] 代表目前处于预览支持状态。预览支持状态通常有时间限制，而且仅适用于测试版芯片。请确保使用与芯片相匹配的 ESP-IDF 版本。
+![芯片支持](https://dl.espressif.com/dl/esp-idf/chip-support.svg?v=1)
 
-芯片         |          v5.1          |          v5.2          |          v5.3          |          v5.4          |          v5.5          |                                                                           |
-|:----------- | :--------------------: | :--------------------: | :--------------------: | :--------------------: |  :--------------------: |:------------------------------------------------------------------------ |
-|ESP32        |![alt text][supported] | ![alt text][supported] | ![alt text][supported] | ![alt text][supported] |![alt text][supported] |                                                              |
-|ESP32-S2     |![alt text][supported] | ![alt text][supported] | ![alt text][supported] | ![alt text][supported] | ![alt text][supported] |                                                              |
-|ESP32-C3     |![alt text][supported] | ![alt text][supported] | ![alt text][supported] | ![alt text][supported] | ![alt text][supported] |                                                              |
-|ESP32-S3     |![alt text][supported] | ![alt text][supported] | ![alt text][supported] | ![alt text][supported] |![alt text][supported] | [芯片发布公告](https://www.espressif.com/zh-hans/news/ESP32_S3)           |
-|ESP32-C2     |![alt text][supported] | ![alt text][supported] | ![alt text][supported] | ![alt text][supported] |![alt text][supported] | [芯片发布公告](https://www.espressif.com/zh-hans/news/ESP32-C2)           |
-|ESP32-C6     |![alt text][supported] | ![alt text][supported] | ![alt text][supported] | ![alt text][supported] |![alt text][supported] | [芯片发布公告](https://www.espressif.com/zh-hans/news/ESP32_C6)           |
-|ESP32-H2     |![alt text][supported] | ![alt text][supported] | ![alt text][supported] | ![alt text][supported] |![alt text][supported] | [芯片发布公告](https://www.espressif.com/zh-hans/news/ESP32_H2)           |
-|ESP32-P4     |                         |                        | ![alt text][supported] | ![alt text][supported] |![alt text][supported] | [芯片发布公告](https://www.espressif.com/zh-hans/news/ESP32-P4)           |
-|ESP32-C5       |                        |                        |                   |                        |![alt text][supported] | 自 v5.5.1 开始，[芯片发布公告](https://www.espressif.com/zh-hans/news/ESP32-C5)           |
-|ESP32-C61      |                       |                        |                    |                        |![alt text][supported] | 自 v5.5.1 开始，[芯片发布公告](https://www.espressif.com/zh-hans/products/socs/esp32-c61) |
-
-
-[supported]: https://img.shields.io/badge/-%E6%94%AF%E6%8C%81-green "supported"
-[preview]: https://img.shields.io/badge/-%E9%A2%84%E8%A7%88-orange "preview"
-
-每款乐鑫芯片都可能有不同版本。建议参考 [ESP-IDF 版本与乐鑫芯片版本兼容性](https://github.com/espressif/esp-idf/blob/master/COMPATIBILITY_CN.md)，了解 ESP-IDF 版本与各芯片版本之间的兼容性。
+请参考 [ESP-IDF 版本与乐鑫芯片版本兼容性](https://github.com/espressif/esp-idf/blob/master/COMPATIBILITY_CN.md) 了解 ESP-IDF 版本与芯片版本之间的兼容性详情。
 
 对于 2016 年之前发布的乐鑫芯片（包括 ESP8266 和 ESP8285），请参考 [RTOS SDK](https://github.com/espressif/ESP8266_RTOS_SDK)。
 
@@ -83,7 +66,7 @@ ESP-IDF 中的子模块采用相对路径（[详见 .gitmodules 文件](.gitmodu
 
 ## 烧写项目
 
-当构建结束，终端会打印出一条命令行，告知如何使用 esptool.py 工具烧写项目到芯片中。但你也可以运行下面这条命令来自动烧写：
+当构建结束，终端会打印出一条命令行，告知如何使用 `esptool` 工具烧写项目到芯片中。但你也可以运行下面这条命令来自动烧写：
 
 `idf.py -p PORT flash`
 

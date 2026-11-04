@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2020-2025 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2020-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -407,6 +407,21 @@ int esp_mbedtls_add_rx_buffer(mbedtls_ssl_context *ssl)
     in_msglen = ssl->MBEDTLS_PRIVATE(in_msglen);
     buffer_len = tx_buffer_len(ssl, in_msglen);
 
+#if defined(MBEDTLS_SSL_PROTO_TLS1_3)
+    /* In TLS 1.3 middlebox-compat mode (RFC 8446 D.4) a 1-byte dummy CCS
+     * record may precede a handshake record. mbedtls silently skips the CCS
+     * and, in the same read loop, reads the (larger) record that follows into
+     * this same RX buffer. The header peek above only saw the 1-byte CCS, so
+     * whenever the peeked record is such a CCS, size for the max record
+     * instead to avoid overflowing the buffer when the next record is read. */
+    if (ssl->MBEDTLS_PRIVATE(tls_version) == MBEDTLS_SSL_VERSION_TLS1_3 &&
+        ssl->MBEDTLS_PRIVATE(in_msgtype) == MBEDTLS_SSL_MSG_CHANGE_CIPHER_SPEC) {
+        buffer_len = tx_buffer_len(ssl, MBEDTLS_SSL_IN_CONTENT_LEN);
+        ESP_LOGV(TAG, "TLS 1.3 CCS peeked: allocating max RX buffer %d bytes",
+                 buffer_len);
+    }
+#endif
+
     ESP_LOGV(TAG, "message length is %d RX buffer length should be %d left is %d",
                 (int)in_msglen, (int)buffer_len, (int)ssl->MBEDTLS_PRIVATE(in_left));
 
@@ -523,15 +538,6 @@ size_t esp_mbedtls_get_crt_size(mbedtls_x509_crt *cert, size_t *num)
 }
 
 #ifdef CONFIG_MBEDTLS_DYNAMIC_FREE_CONFIG_DATA
-void esp_mbedtls_free_dhm(mbedtls_ssl_context *ssl)
-{
-#ifdef CONFIG_MBEDTLS_DHM_C
-    const mbedtls_ssl_config *conf = mbedtls_ssl_context_get_config(ssl);
-    mbedtls_mpi_free((mbedtls_mpi *)&conf->MBEDTLS_PRIVATE(dhm_P));
-    mbedtls_mpi_free((mbedtls_mpi *)&conf->MBEDTLS_PRIVATE(dhm_G));
-#endif /* CONFIG_MBEDTLS_DHM_C */
-}
-
 void esp_mbedtls_free_keycert(mbedtls_ssl_context *ssl)
 {
     mbedtls_ssl_config *conf = (mbedtls_ssl_config * )mbedtls_ssl_context_get_config(ssl);

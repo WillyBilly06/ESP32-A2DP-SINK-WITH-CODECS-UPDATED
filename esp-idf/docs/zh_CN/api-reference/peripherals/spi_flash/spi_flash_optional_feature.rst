@@ -11,6 +11,8 @@ flash 的可选功能
 
 - :ref:`high-performance-mode`
 
+- :ref:`deep-power-down-mode`
+
 - :ref:`32-bit-flash-doc`
 
 - :ref:`oct-flash-doc`
@@ -32,15 +34,13 @@ flash 的可选功能
 自动挂起和恢复
 --------------
 
-目前仅有 ESP32-S3、ESP32-C2、ESP32-C3、ESP32-C6 及 ESP32-H2 支持此功能。
-
-未来 ESP32-P4 可能会添加此功能。
+乐鑫芯片除 ESP32、ESP32-S2 外，均支持此功能。
 
 .. only:: SOC_SPI_MEM_SUPPORT_AUTO_SUSPEND
 
     支持此功能的 flash 芯片列表：
 
-    1. XM25QxxC 系列
+    1. XM25xxD 系列
     2. GD25QxxE 系列
     3. FM25Q32
 
@@ -137,6 +137,18 @@ QSPI flash 芯片的高性能模式
     3. XM25QH64C (ID: 0x204017)
     4. XM25QH128C (ID: 0x204018)
 
+.. _deep-power-down-mode:
+
+SPI flash 芯片的深度掉电模式
+----------------------------------
+
+目前仅有 ESP32-H21， ESP32-H4 和 ESP32-P4（版本小于v3） 支持此功能。
+
+其他 ESP32 系列芯片暂未支持此功能。若你有相关需求，可向乐鑫（Espressif）官方提出申请。
+
+深度掉电模式是大多数 SPI flash 芯片均支持的一种电源模式，相较于 standby 模式（保持片选信号有效），SPI flash 在此模式下的功耗表现更优，这能使电流降低约 10 uA。
+
+若你计划在 ESP32-H21 或 ESP32-H4 上使用其他型号的闪存芯片，或是在开发其他 ESP32 系列芯片的相关项目，请务必查阅对应的 SPI flash 数据手册，或直接向我们咨询。
 
 .. _32-bit-flash-doc:
 

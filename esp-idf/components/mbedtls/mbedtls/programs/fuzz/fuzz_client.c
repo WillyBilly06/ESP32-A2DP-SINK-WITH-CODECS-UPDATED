@@ -1,16 +1,12 @@
 #include "mbedtls/ssl.h"
-#include "mbedtls/entropy.h"
-#include "mbedtls/ctr_drbg.h"
 #include "test/certs.h"
-#include "common.h"
+#include "fuzz_common.h"
 #include <string.h>
 #include <stdlib.h>
 #include <stdint.h>
 
 
-#if defined(MBEDTLS_SSL_CLI_C) && \
-    defined(MBEDTLS_ENTROPY_C) && \
-    defined(MBEDTLS_CTR_DRBG_C)
+#if defined(MBEDTLS_SSL_CLI_C)
 static int initialized = 0;
 #if defined(MBEDTLS_X509_CRT_PARSE_C) && defined(MBEDTLS_PEM_PARSE_C)
 static mbedtls_x509_crt cacert;
@@ -27,20 +23,16 @@ const char psk_id[] = "Client_identity";
 #endif
 
 const char *pers = "fuzz_client";
-#endif /* MBEDTLS_SSL_CLI_C && MBEDTLS_ENTROPY_C && MBEDTLS_CTR_DRBG_C */
+#endif /* MBEDTLS_SSL_CLI_C */
 
 
 int LLVMFuzzerTestOneInput(const uint8_t *Data, size_t Size)
 {
-#if defined(MBEDTLS_SSL_CLI_C) && \
-    defined(MBEDTLS_ENTROPY_C) && \
-    defined(MBEDTLS_CTR_DRBG_C)
+#if defined(MBEDTLS_SSL_CLI_C)
     int ret;
     size_t len;
     mbedtls_ssl_context ssl;
     mbedtls_ssl_config conf;
-    mbedtls_ctr_drbg_context ctr_drbg;
-    mbedtls_entropy_context entropy;
     unsigned char buf[4096];
     fuzzBufferOffset_t biomemfuzz;
     uint16_t options;
@@ -73,18 +65,9 @@ int LLVMFuzzerTestOneInput(const uint8_t *Data, size_t Size)
 
     mbedtls_ssl_init(&ssl);
     mbedtls_ssl_config_init(&conf);
-    mbedtls_ctr_drbg_init(&ctr_drbg);
-    mbedtls_entropy_init(&entropy);
 
-#if defined(MBEDTLS_USE_PSA_CRYPTO)
     psa_status_t status = psa_crypto_init();
     if (status != PSA_SUCCESS) {
-        goto exit;
-    }
-#endif /* MBEDTLS_USE_PSA_CRYPTO */
-
-    if (mbedtls_ctr_drbg_seed(&ctr_drbg, dummy_entropy, &entropy,
-                              (const unsigned char *) pers, strlen(pers)) != 0) {
         goto exit;
     }
 
@@ -137,10 +120,7 @@ int LLVMFuzzerTestOneInput(const uint8_t *Data, size_t Size)
     }
 #endif
     //There may be other options to add :
-    // mbedtls_ssl_conf_cert_profile, mbedtls_ssl_conf_sig_hashes
-
-    srand(1);
-    mbedtls_ssl_conf_rng(&conf, dummy_random, &ctr_drbg);
+    // mbedtls_ssl_conf_cert_profile
 
     if (mbedtls_ssl_setup(&ssl, &conf) != 0) {
         goto exit;
@@ -176,18 +156,14 @@ int LLVMFuzzerTestOneInput(const uint8_t *Data, size_t Size)
     }
 
 exit:
-    mbedtls_entropy_free(&entropy);
-    mbedtls_ctr_drbg_free(&ctr_drbg);
     mbedtls_ssl_config_free(&conf);
     mbedtls_ssl_free(&ssl);
-#if defined(MBEDTLS_USE_PSA_CRYPTO)
     mbedtls_psa_crypto_free();
-#endif /* MBEDTLS_USE_PSA_CRYPTO */
 
 #else
     (void) Data;
     (void) Size;
-#endif /* MBEDTLS_SSL_CLI_C && MBEDTLS_ENTROPY_C && MBEDTLS_CTR_DRBG_C */
+#endif /* MBEDTLS_SSL_CLI_C */
 
     return 0;
 }

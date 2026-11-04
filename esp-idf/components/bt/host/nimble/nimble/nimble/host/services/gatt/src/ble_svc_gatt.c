@@ -22,6 +22,7 @@
 #include "sysinit/sysinit.h"
 #include "host/ble_hs.h"
 #include "services/gatt/ble_svc_gatt.h"
+#include "host/ble_hs_log.h"
 
 #if MYNEWT_VAL(BLE_GATTS)
 #if MYNEWT_VAL(BLE_GATT_CACHING)
@@ -37,7 +38,7 @@ static uint16_t ble_svc_gatt_end_handle;
 #define BLE_SVC_GATT_SRV_SUP_FEAT_EATT_BIT      (0x00)
 
 /* Client supported features */
-#define BLE_SVC_GATT_CLI_SUP_FEAT_ROBUST_CATCHING_BIT   (0x00)
+#define BLE_SVC_GATT_CLI_SUP_FEAT_ROBUST_CACHING_BIT   (0x00)
 #define BLE_SVC_GATT_CLI_SUP_FEAT_EATT_BIT              (0x01)
 #define BLE_SVC_GATT_CLI_SUP_FEAT_MULT_NTF_BIT          (0x02)
 
@@ -56,24 +57,28 @@ static int
 ble_svc_gatt_cl_sup_feat_access(uint16_t conn_handle, uint16_t attr_handle,
                                 struct ble_gatt_access_ctxt *ctxt, void *arg);
 
-static const struct ble_gatt_svc_def ble_svc_gatt_defs[] = {
-    {
-        /*** Service: GATT */
-        .type = BLE_GATT_SVC_TYPE_PRIMARY,
-        .uuid = BLE_UUID16_DECLARE(BLE_GATT_SVC_UUID16),
-        .characteristics = (struct ble_gatt_chr_def[]) { {
-            .uuid = BLE_UUID16_DECLARE(BLE_SVC_GATT_CHR_SERVICE_CHANGED_UUID16),
+static const ble_uuid16_t uuid_svc_gatt = BLE_UUID16_INIT(BLE_GATT_SVC_UUID16);
+static const ble_uuid16_t uuid_chr_svc_change = BLE_UUID16_INIT(BLE_SVC_GATT_CHR_SERVICE_CHANGED_UUID16);
+static const ble_uuid16_t uuid_chr_svr_supp_feat = BLE_UUID16_INIT(BLE_SVC_GATT_CHR_SERVER_SUPPORTED_FEAT_UUID16);
+static const ble_uuid16_t uuid_chr_cli_supp_feat = BLE_UUID16_INIT(BLE_SVC_GATT_CHR_CLIENT_SUPPORTED_FEAT_UUID16);
+#if MYNEWT_VAL(BLE_GATT_CACHING)
+static const ble_uuid16_t uuid_chr_db_hash = BLE_UUID16_INIT(BLE_SVC_GATT_CHR_DATABASE_HASH_UUID16);
+#endif
+
+static const struct ble_gatt_chr_def gatt_characteristics[] = {
+        {
+            .uuid = &uuid_chr_svc_change.u,
             .access_cb = ble_svc_gatt_access,
             .val_handle = &ble_svc_gatt_changed_val_handle,
             .flags = BLE_GATT_CHR_F_INDICATE,
         },
         {
-            .uuid = BLE_UUID16_DECLARE(BLE_SVC_GATT_CHR_SERVER_SUPPORTED_FEAT_UUID16),
+            .uuid = &uuid_chr_svr_supp_feat.u,
             .access_cb = ble_svc_gatt_srv_sup_feat_access,
             .flags = BLE_GATT_CHR_F_READ,
         },
         {
-            .uuid = BLE_UUID16_DECLARE(BLE_SVC_GATT_CHR_CLIENT_SUPPORTED_FEAT_UUID16),
+            .uuid = &uuid_chr_cli_supp_feat.u,
             .access_cb = ble_svc_gatt_cl_sup_feat_access,
 #if MYNEWT_VAL(BLE_GATT_CACHING)
             .val_handle = &ble_svc_gatt_client_supp_feature_handle,
@@ -82,7 +87,7 @@ static const struct ble_gatt_svc_def ble_svc_gatt_defs[] = {
         },
 #if MYNEWT_VAL(BLE_GATT_CACHING)
         {
-            .uuid = BLE_UUID16_DECLARE(BLE_SVC_GATT_CHR_DATABASE_HASH_UUID16),
+            .uuid = &uuid_chr_db_hash.u,
             .access_cb = ble_svc_gatt_access,
             .val_handle = &ble_svc_gatt_db_hash_handle,
             .flags = BLE_GATT_CHR_F_READ,
@@ -90,9 +95,16 @@ static const struct ble_gatt_svc_def ble_svc_gatt_defs[] = {
 #endif
         {
             0, /* No more characteristics in this service. */
-        } },
-    },
+        }
+};
 
+static const struct ble_gatt_svc_def ble_svc_gatt_defs[] = {
+    {
+        /*** Service: GATT */
+        .type = BLE_GATT_SVC_TYPE_PRIMARY,
+        .uuid = &uuid_svc_gatt.u,
+        .characteristics = gatt_characteristics,
+    },
     {
         0, /* No more services. */
     },
@@ -102,13 +114,15 @@ static int
 ble_svc_gatt_srv_sup_feat_access(uint16_t conn_handle, uint16_t attr_handle,
                                  struct ble_gatt_access_ctxt *ctxt, void *arg)
 {
+    int rc;
+
     if (ctxt->op != BLE_GATT_ACCESS_OP_READ_CHR) {
         return BLE_ATT_ERR_WRITE_NOT_PERMITTED;
     }
 
-    os_mbuf_append(ctxt->om, &ble_svc_gatt_local_srv_sup_feat, sizeof(ble_svc_gatt_local_srv_sup_feat));
+    rc = os_mbuf_append(ctxt->om, &ble_svc_gatt_local_srv_sup_feat, sizeof(ble_svc_gatt_local_srv_sup_feat));
 
-    return 0;
+    return rc == 0 ? 0 : BLE_ATT_ERR_INSUFFICIENT_RES;
 }
 
 static int
@@ -123,7 +137,10 @@ ble_svc_gatt_cl_sup_feat_access(uint16_t conn_handle, uint16_t attr_handle,
         if (rc != 0) {
             return BLE_ATT_ERR_UNLIKELY;
         }
-        os_mbuf_append(ctxt->om, &supported_feat, sizeof(supported_feat));
+        rc = os_mbuf_append(ctxt->om, &supported_feat, sizeof(supported_feat));
+        if (rc != 0) {
+            return BLE_ATT_ERR_UNLIKELY;
+        }
         return 0;
     }
     if (ctxt->op == BLE_GATT_ACCESS_OP_WRITE_CHR) {
@@ -150,7 +167,7 @@ ble_svc_gatt_access(uint16_t conn_handle, uint16_t attr_handle,
 
     u8p = os_mbuf_extend(ctxt->om, 4);
     if (u8p == NULL) {
-        return BLE_HS_ENOMEM;
+        return BLE_ATT_ERR_INSUFFICIENT_RES;
     }
 
 
@@ -161,23 +178,22 @@ ble_svc_gatt_access(uint16_t conn_handle, uint16_t attr_handle,
 #else
     int rc;
 
-    if(ctxt->chr == &ble_svc_gatt_defs[0].characteristics[0]){
+    if (ctxt->chr == &ble_svc_gatt_defs[0].characteristics[0]) {
         u8p = os_mbuf_extend(ctxt->om, 4);
         if (u8p == NULL) {
-            return BLE_HS_ENOMEM;
+            return BLE_ATT_ERR_INSUFFICIENT_RES;
         }
         put_le16(u8p + 0, ble_svc_gatt_start_handle);
         put_le16(u8p + 2, ble_svc_gatt_end_handle);
-    }
-    if (attr_handle == ble_svc_gatt_db_hash_handle) {
+    } else if (attr_handle == ble_svc_gatt_db_hash_handle) {
         assert(ctxt->op == BLE_GATT_ACCESS_OP_READ_CHR);
         uint8_t database_hash[16] = {0};
         rc = ble_gatts_calculate_hash(database_hash);
-        if(rc != 0) {
+        if (rc != 0) {
             return BLE_ATT_ERR_UNLIKELY;
         }
         rc = os_mbuf_append(ctxt->om, database_hash, sizeof(database_hash));
-        if(rc != 0) {
+        if (rc != 0) {
             return BLE_ATT_ERR_UNLIKELY;
         }
     }
@@ -208,14 +224,14 @@ ble_svc_gatt_changed(uint16_t start_handle, uint16_t end_handle)
 }
 
 #if MYNEWT_VAL(BLE_GATT_CACHING)
-uint16_t ble_svc_gatt_changed_handle() {
+uint16_t ble_svc_gatt_changed_handle(void) {
     return ble_svc_gatt_changed_val_handle;
 }
 
-uint16_t ble_svc_gatt_hash_handle() {
+uint16_t ble_svc_gatt_hash_handle(void) {
     return ble_svc_gatt_db_hash_handle;
 }
-uint16_t ble_svc_gatt_csf_handle() {
+uint16_t ble_svc_gatt_csf_handle(void) {
     return ble_svc_gatt_client_supp_feature_handle;
 }
 #endif
@@ -247,7 +263,7 @@ ble_svc_gatt_init(void)
     }
 
     if (MYNEWT_VAL(BLE_GATT_CACHING) > 0) {
-        ble_svc_gatt_local_cl_sup_feat |= (1 << BLE_SVC_GATT_CLI_SUP_FEAT_ROBUST_CATCHING_BIT);
+        ble_svc_gatt_local_cl_sup_feat |= (1 << BLE_SVC_GATT_CLI_SUP_FEAT_ROBUST_CACHING_BIT);
     }
 }
 

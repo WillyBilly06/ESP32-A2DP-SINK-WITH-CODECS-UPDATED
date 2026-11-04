@@ -22,6 +22,7 @@
 #include "sysinit/sysinit.h"
 #include "host/ble_hs.h"
 #include "services/ias/ble_svc_ias.h"
+#include "host/ble_hs_log.h"
 
 #if MYNEWT_VAL(BLE_GATTS) && CONFIG_BT_NIMBLE_IAS_SERVICE
 /* Callback function */
@@ -41,23 +42,28 @@ static int
 ble_svc_ias_access(uint16_t conn_handle, uint16_t attr_handle,
                    struct ble_gatt_access_ctxt *ctxt, void *arg);
 
+static const ble_uuid16_t uuid_svc_ias = BLE_UUID16_INIT(BLE_SVC_IAS_UUID16);
+static const ble_uuid16_t uuid_chr_alert_level = BLE_UUID16_INIT(BLE_SVC_IAS_CHR_UUID16_ALERT_LEVEL);
+
+static const struct ble_gatt_chr_def alert_characteristics[] =  {
+    {
+        /*** Characteristic: Alert Level. */
+        .uuid = &uuid_chr_alert_level.u,
+        .access_cb = ble_svc_ias_access,
+        .flags = BLE_GATT_CHR_F_WRITE_NO_RSP,
+    }, {
+        0,
+    }
+};
+
 static const struct ble_gatt_svc_def ble_svc_ias_defs[] = {
     {
         /*** Service: Immediate Alert Service (IAS). */
         .type = BLE_GATT_SVC_TYPE_PRIMARY,
-        .uuid = BLE_UUID16_DECLARE(BLE_SVC_IAS_UUID16),
-        .characteristics = (struct ble_gatt_chr_def[]) { {
-            /*** Characteristic: Alert Level. */
-            .uuid = BLE_UUID16_DECLARE(BLE_SVC_IAS_CHR_UUID16_ALERT_LEVEL),
-            .access_cb = ble_svc_ias_access,
-            .flags = BLE_GATT_CHR_F_WRITE_NO_RSP,
-        }, {
-            0, /* No more characteristics in this service. */
-        } },
-    },
-
-    {
-        0, /* No more services. */
+        .uuid = &uuid_svc_ias.u,
+        .characteristics = alert_characteristics,
+    }, {
+        0, /* No more characteristics in this service. */
     },
 };
 
@@ -100,15 +106,24 @@ ble_svc_ias_access(uint16_t conn_handle, uint16_t attr_handle,
 
     switch (ctxt->op) {
     case BLE_GATT_ACCESS_OP_WRITE_CHR:
-        rc = ble_svc_ias_chr_write(ctxt->om,
-                                   sizeof ble_svc_ias_alert_level,
-                                   sizeof ble_svc_ias_alert_level,
-                                   &ble_svc_ias_alert_level, NULL);
-	/* Call the IAS event function */
-	if (ble_svc_ias_cb_fn) {
-		ble_svc_ias_cb_fn(ble_svc_ias_alert_level);
-	}
-        return rc;
+        {
+            uint8_t alert_level;
+            rc = ble_svc_ias_chr_write(ctxt->om,
+                                       sizeof alert_level,
+                                       sizeof alert_level,
+                                       &alert_level, NULL);
+            if (rc != 0) {
+                return rc;
+            }
+            if (alert_level > BLE_SVC_IAS_ALERT_LEVEL_HIGH_ALERT) {
+                return BLE_ATT_ERR_VALUE_NOT_ALLOWED;
+            }
+            ble_svc_ias_alert_level = alert_level;
+            if (ble_svc_ias_cb_fn) {
+                ble_svc_ias_cb_fn(ble_svc_ias_alert_level);
+            }
+        }
+        return 0;
 
     default:
         assert(0);

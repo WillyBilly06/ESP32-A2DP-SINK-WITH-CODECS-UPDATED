@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2022-2025 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2022-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -11,9 +11,11 @@
 #include "soc/spi_mem_c_reg.h"
 #include "soc/spi_mem_s_reg.h"
 #include "soc/ext_mem_defs.h"
+#include "soc/soc_caps.h"
 #include "hal/assert.h"
 #include "hal/mmu_types.h"
 #include "hal/efuse_ll.h"
+#include "esp_fault.h"
 
 
 #ifdef __cplusplus
@@ -289,7 +291,36 @@ __attribute__((always_inline)) static inline void mmu_ll_write_entry(uint32_t mm
 
     REG_WRITE(index_reg, entry_id);
     REG_WRITE(content_reg, mmu_val);
+
+    // Anti-FI check to confirm the encryption status for PSRAM entry.
+    // This avoids a potential FI attacks to keep PSRAM unencrypted and
+    // hence read out plaintext in execute from PSRAM model.
+    if (mmu_ll_cache_encryption_enabled() && target == MMU_TARGET_PSRAM0) {
+        ESP_FAULT_ASSERT(REG_READ(content_reg) & SOC_MMU_PSRAM_SENSITIVE);
+    } else {
+        ESP_FAULT_ASSERT(!(mmu_ll_cache_encryption_enabled() && target == MMU_TARGET_PSRAM0));
+    }
 }
+
+#if SOC_PSRAM_ENCRYPTION_PAGE_CONFIGURABLE
+/**
+ * Write a PSRAM MMU entry without the SENSITIVE bit, used only for the
+ * carved-out unencrypted region (see CONFIG_SPIRAM_ENC_EXEMPT).
+ *
+ * No anti-FI check: the SENSITIVE bit is intentionally clear, and an FI flip
+ * that sets it would force decryption of plaintext data (garbage, fails safe).
+ */
+__attribute__((always_inline)) static inline void mmu_ll_write_entry_no_enc(uint32_t mmu_id, uint32_t entry_id, uint32_t mmu_val)
+{
+    HAL_ASSERT(mmu_id == MMU_LL_PSRAM_MMU_ID);
+
+    mmu_val |= SOC_MMU_PSRAM_VALID;
+    mmu_val |= SOC_MMU_ACCESS_PSRAM;
+
+    REG_WRITE(SPI_MEM_S_MMU_ITEM_INDEX_REG, entry_id);
+    REG_WRITE(SPI_MEM_S_MMU_ITEM_CONTENT_REG, mmu_val);
+}
+#endif
 
 /**
  * Read the raw value from MMU table

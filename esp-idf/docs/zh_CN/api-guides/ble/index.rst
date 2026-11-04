@@ -14,6 +14,7 @@
    ble-feature-support-status
    ble-qualification
    低功耗模式介绍 <../low-power-mode/low-power-mode-ble>
+   ble-multiconnection-guide
 
 **********
 快速入门
@@ -45,3 +46,4 @@
 
    :SOC_BLE_MESH_SUPPORTED: ../esp-ble-mesh/ble-mesh-index
    :SOC_BLUFI_SUPPORTED: blufi
+   :SOC_BLE_AUDIO_SUPPORTED: ../esp-ble-audio/ble-audio-index

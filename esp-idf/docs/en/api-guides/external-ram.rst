@@ -11,7 +11,7 @@ Introduction
 
 {IDF_TARGET_PSRAM_VADDR_SIZE:default="Value not updated", esp32="4 MB", esp32s2="10.5 MB", esp32s3="32 MB", esp32p4="64 MB"}
 
-{IDF_TARGET_NAME} has a few hundred kilobytes of internal RAM, residing on the same die as the rest of the chip components. It can be insufficient for some purposes, so {IDF_TARGET_NAME} has the ability to use up to {IDF_TARGET_PSRAM_VADDR_SIZE} of virtual addresses for external PSRAM (Psuedostatic RAM) memory. The external memory is incorporated in the memory map and, with certain restrictions, is usable in the same way as internal data RAM.
+{IDF_TARGET_NAME} has a few hundred kilobytes of internal RAM, residing on the same die as the rest of the chip components. It can be insufficient for some purposes, so {IDF_TARGET_NAME} has the ability to use up to {IDF_TARGET_PSRAM_VADDR_SIZE} of virtual addresses for external PSRAM (pseudo-static RAM) memory. The external memory is incorporated in the memory map and, with certain restrictions, is usable in the same way as internal data RAM.
 
 .. only:: esp32s3
 
@@ -24,9 +24,13 @@ Hardware
 
 .. note::
 
-    .. only:: esp32 or esp32s2 or esp32s3
+    .. only:: esp32
 
         Some PSRAM chips are 1.8 V devices and some are 3.3 V. The working voltage of the PSRAM chip must match the working voltage of the flash component. Consult the datasheet for your PSRAM chip and {IDF_TARGET_NAME} device to find out the working voltages. For a 1.8 V PSRAM chip, make sure to either set the MTDI pin to a high signal level on boot-up, or program {IDF_TARGET_NAME} eFuses to always use the VDD_SIO level of 1.8 V. Not doing this can damage the PSRAM and/or flash chip.
+
+    .. only:: esp32s2 or esp32s3
+
+        Some PSRAM chips are 1.8 V devices and some are 3.3 V. The working voltage of the PSRAM chip must match the working voltage of the flash component. Consult the datasheet for your PSRAM chip and {IDF_TARGET_NAME} device to find out the working voltages. For a 1.8 V PSRAM chip, make sure to either set the GPIO45 strapping pin to a high signal level on boot-up, or program {IDF_TARGET_NAME} eFuses to always use the VDD_SPI level of 1.8 V. Not doing this can damage the PSRAM and/or flash chip.
 
     .. only:: esp32p4
 
@@ -83,11 +87,13 @@ It is recommended to access the PSRAM by ESP-IDF heap memory allocator (see next
 Add External RAM to the Capability Allocator
 --------------------------------------------
 
-Select this option by choosing ``Make RAM allocatable using heap_caps_malloc(..., MALLOC_CAP_SPIRAM)`` from :ref:`CONFIG_SPIRAM_USE`.
+Select this option by choosing ``Add RAM to heap_caps allocator (malloc() stays internal by default)`` from :ref:`CONFIG_SPIRAM_USE`.
 
-When enabled, memory is mapped to data virtual address space and also added to the :doc:`capabilities-based heap memory allocator </api-reference/system/mem_alloc>` using ``MALLOC_CAP_SPIRAM``.
+When enabled, memory is mapped to data virtual address space and also added to the :doc:`capabilities-based heap memory allocator </api-reference/system/mem_alloc>` using ``MALLOC_CAP_SPIRAM``. Since this memory is also tagged with ``MALLOC_CAP_DEFAULT``, calls such as ``heap_caps_malloc(size, MALLOC_CAP_DEFAULT)`` can still return PSRAM pointers.
 
-To allocate memory from external RAM, a program should call ``heap_caps_malloc(size, MALLOC_CAP_SPIRAM)``. After use, this memory can be freed by calling the normal ``free()`` function.
+To explicitly allocate memory from external RAM, a program should call ``heap_caps_malloc(size, MALLOC_CAP_SPIRAM)``. After use, this memory can be freed by calling the normal ``free()`` function.
+
+In this mode, standard ``malloc()`` does not allocate from external RAM by default because it uses a separate default allocation policy.
 
 .. _external_ram_config_malloc:
 
@@ -108,7 +114,14 @@ An additional configuration item, :ref:`CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL`, ca
 
 If a suitable block of preferred internal/external memory is not available, the allocator will try the other type of memory.
 
-Because some buffers can only be allocated in internal memory, a second configuration item :ref:`CONFIG_SPIRAM_MALLOC_RESERVE_INTERNAL` defines a pool of internal memory which is reserved for *only* explicitly internal allocations (such as memory for DMA use). Regular ``malloc()`` will not allocate from this pool. The :ref:`MALLOC_CAP_DMA <dma-capable-memory>` and ``MALLOC_CAP_INTERNAL`` flags can be used to allocate memory from this pool.
+Because some buffers can only be allocated in internal memory, a second configuration item :ref:`CONFIG_SPIRAM_MALLOC_RESERVE_INTERNAL` reserves a pool of internal DMA-capable memory at startup (in ``main_task``, after PSRAM is initialized). The pool is malloc from the regular internal heaps and re-registered as separate heap pool.
+
+The reserved pool uses the heap capability priority mechanism:
+
+- **Medium priority** — ``MALLOC_CAP_DMA | MALLOC_CAP_INTERNAL``: explicit ``heap_caps_malloc()`` requests with these flags are preferentially served from this pool.
+- **Low priority** — ``MALLOC_CAP_DEFAULT``: ``malloc()`` may use the pool only after other internal heaps with higher-priority ``MALLOC_CAP_DEFAULT`` are exhausted.
+
+Therefore, under normal conditions ``malloc()`` does not allocate from this pool, but it can fall back to it as a last resort before allocation fails entirely.
 
 .. _external_ram_config_bss:
 
@@ -238,6 +251,38 @@ By default, failure to initialize external RAM will cause the ESP-IDF startup to
     It is possible to enable automatic encryption for data stored in external RAM. When this is enabled any data read and written through the cache will automatically be encrypted or decrypted by the external memory encryption hardware.
 
     This feature is enabled whenever flash encryption is enabled. For more information on how to enable and how it works see :doc:`Flash Encryption </security/flash-encryption>`.
+
+    .. only:: SOC_PSRAM_ENCRYPTION_PAGE_CONFIGURABLE
+
+        On {IDF_TARGET_NAME}, PSRAM encryption can be controlled on a per-MMU-page basis, allowing individual PSRAM pages to be selectively encrypted or left unencrypted. However, in the default configuration, all PSRAM pages are encrypted when flash encryption is enabled.
+
+        Reserving an Unencrypted PSRAM Region
+        -------------------------------------
+
+        Enabling :ref:`CONFIG_SPIRAM_ENC_EXEMPT` reserves a region at the upper end of PSRAM (highest physical addresses; sized by :ref:`CONFIG_SPIRAM_ENC_EXEMPT_SIZE`, in KB, rounded up to the MMU page size) that is mapped without encryption. This region is registered as a separate heap pool reachable only via the ``MALLOC_CAP_SPIRAM_NO_ENC`` capability. The rest of PSRAM (and flash) remains encrypted.
+
+        .. warning::
+
+            Memory allocated with ``MALLOC_CAP_SPIRAM_NO_ENC`` is stored as plaintext in PSRAM and can be observed by an attacker with physical access to the PSRAM interface. Never place TLS state, keys, or other secrets in this region.
+
+        Typical use case: PSRAM encryption imposes alignment constraints on buffers that some DMA engines (for example, 2D-DMA) cannot satisfy. Buffers that need to be DMA-accessed from such engines can be allocated from this unencrypted region:
+
+        .. code-block:: c
+
+            #if CONFIG_SPIRAM_ENC_EXEMPT
+            uint32_t caps = MALLOC_CAP_SPIRAM_NO_ENC;
+            #else
+            uint32_t caps = MALLOC_CAP_SPIRAM;
+            #endif
+            uint8_t *buf = heap_caps_malloc(buf_size, caps);
+
+        ``MALLOC_CAP_SPIRAM_NO_ENC`` must be requested explicitly. It is intentionally not combined with ``MALLOC_CAP_SPIRAM`` or ``MALLOC_CAP_DEFAULT``, so ordinary SPIRAM/heap allocations cannot accidentally land in the unencrypted region.
+
+        To verify after the fact that a buffer was allocated from the unencrypted carve-out (for example after a ``heap_caps_malloc_prefer()`` call that may have fallen back to encrypted PSRAM), use ``esp_psram_ptr_is_no_enc()``.
+
+    .. only:: SOC_PSRAM_ENCRYPTION_SEPARATE_KEY
+
+        On {IDF_TARGET_NAME}, PSRAM encryption can use an independent encryption key. If the PSRAM encryption key is not programmed, the flash encryption key will be used as the PSRAM encryption key.
 
 
 .. only:: esp32

@@ -25,8 +25,6 @@ int main(void)
 #include "mbedtls/net_sockets.h"
 #include "mbedtls/debug.h"
 #include "mbedtls/ssl.h"
-#include "mbedtls/entropy.h"
-#include "mbedtls/ctr_drbg.h"
 #include "mbedtls/error.h"
 #include "test/certs.h"
 
@@ -56,10 +54,7 @@ int main(void)
     mbedtls_net_context server_fd;
     uint32_t flags;
     unsigned char buf[1024];
-    const char *pers = "ssl_client1";
 
-    mbedtls_entropy_context entropy;
-    mbedtls_ctr_drbg_context ctr_drbg;
     mbedtls_ssl_context ssl;
     mbedtls_ssl_config conf;
     mbedtls_x509_crt cacert;
@@ -75,28 +70,17 @@ int main(void)
     mbedtls_ssl_init(&ssl);
     mbedtls_ssl_config_init(&conf);
     mbedtls_x509_crt_init(&cacert);
-    mbedtls_ctr_drbg_init(&ctr_drbg);
-    mbedtls_entropy_init(&entropy);
 
-#if defined(MBEDTLS_USE_PSA_CRYPTO)
     psa_status_t status = psa_crypto_init();
     if (status != PSA_SUCCESS) {
         mbedtls_fprintf(stderr, "Failed to initialize PSA Crypto implementation: %d\n",
                         (int) status);
         goto exit;
     }
-#endif /* MBEDTLS_USE_PSA_CRYPTO */
 
     mbedtls_printf("\n  . Seeding the random number generator...");
     fflush(stdout);
 
-
-    if ((ret = mbedtls_ctr_drbg_seed(&ctr_drbg, mbedtls_entropy_func, &entropy,
-                                     (const unsigned char *) pers,
-                                     strlen(pers))) != 0) {
-        mbedtls_printf(" failed\n  ! mbedtls_ctr_drbg_seed returned %d\n", ret);
-        goto exit;
-    }
 
     mbedtls_printf(" ok\n");
 
@@ -150,7 +134,6 @@ int main(void)
      * but makes interop easier in this simplified example */
     mbedtls_ssl_conf_authmode(&conf, MBEDTLS_SSL_VERIFY_OPTIONAL);
     mbedtls_ssl_conf_ca_chain(&conf, &cacert, NULL);
-    mbedtls_ssl_conf_rng(&conf, mbedtls_ctr_drbg_random, &ctr_drbg);
     mbedtls_ssl_conf_dbg(&conf, my_debug, stdout);
 
     if ((ret = mbedtls_ssl_setup(&ssl, &conf)) != 0) {
@@ -277,11 +260,7 @@ exit:
     mbedtls_x509_crt_free(&cacert);
     mbedtls_ssl_free(&ssl);
     mbedtls_ssl_config_free(&conf);
-    mbedtls_ctr_drbg_free(&ctr_drbg);
-    mbedtls_entropy_free(&entropy);
-#if defined(MBEDTLS_USE_PSA_CRYPTO)
     mbedtls_psa_crypto_free();
-#endif /* MBEDTLS_USE_PSA_CRYPTO */
 
     mbedtls_exit(exit_code);
 }

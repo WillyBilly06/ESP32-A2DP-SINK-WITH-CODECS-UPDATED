@@ -166,6 +166,11 @@ BT_HDR *attp_build_read_by_type_value_cmd (UINT16 payload_size, tGATT_FIND_TYPE_
     UINT8       *p;
     UINT16      len = p_value_type->value_len;
 
+    if (payload_size < GATT_DEF_BLE_MTU_SIZE) {
+        // never build packet smaller than default MTU size
+        return NULL;
+    }
+
     if ((p_buf = (BT_HDR *)osi_malloc((UINT16)(sizeof(BT_HDR) + payload_size + L2CAP_MIN_OFFSET))) != NULL) {
         p = (UINT8 *)(p_buf + 1) + L2CAP_MIN_OFFSET;
 
@@ -200,7 +205,8 @@ BT_HDR *attp_build_read_by_type_value_cmd (UINT16 payload_size, tGATT_FIND_TYPE_
 BT_HDR *attp_build_read_multi_cmd(UINT8 op_code, UINT16 payload_size, UINT16 num_handle, UINT16 *p_handle)
 {
     BT_HDR      *p_buf = NULL;
-    UINT8       *p, i = 0;
+    UINT8       *p;
+    UINT16      i = 0;
 
     if ((p_buf = (BT_HDR *)osi_malloc((UINT16)(sizeof(BT_HDR) + num_handle * 2 + 1 + L2CAP_MIN_OFFSET))) != NULL) {
         p = (UINT8 *)(p_buf + 1) + L2CAP_MIN_OFFSET;
@@ -384,6 +390,18 @@ tGATT_STATUS attp_send_msg_to_l2cap(tGATT_TCB *p_tcb, BT_HDR *p_toL2CAP)
 
 
     if (p_tcb->att_lcid == L2CAP_ATT_CID) {
+        /* L2CA_SendFixedChnlData() silently drops (osi_free) the buffer when the
+         * ATT fixed channel is already in cong_sent state, yet still returns
+         * L2CAP_DW_CONGESTED. Without distinguishing this from the post-enqueue
+         * congestion case, the upper layer would treat a dropped PDU as "sent"
+         * and wait for a response that never arrives. Detect the drop path
+         * up-front, release the buffer here and surface it as GATT_BUSY so that
+         * callers go through their failure path instead. */
+        if (L2CA_CheckIsCongest(L2CAP_ATT_CID, p_tcb->peer_bda)) {
+            GATT_TRACE_WARNING("ATT fixed channel already congested, drop PDU");
+            osi_free(p_toL2CAP);
+            return GATT_BUSY;
+        }
         l2cap_ret = L2CA_SendFixedChnlData (L2CAP_ATT_CID, p_tcb->peer_bda, p_toL2CAP);
     } else {
 #if (CLASSIC_BT_INCLUDED == TRUE)
@@ -394,10 +412,11 @@ tGATT_STATUS attp_send_msg_to_l2cap(tGATT_TCB *p_tcb, BT_HDR *p_toL2CAP)
     }
 
     if (l2cap_ret == L2CAP_DW_FAILED) {
-        GATT_TRACE_DEBUG("ATT   failed to pass msg:0x%0x to L2CAP",
-                         *((UINT8 *)(p_toL2CAP + 1) + p_toL2CAP->offset));
+        GATT_TRACE_DEBUG("ATT failed to pass msg to L2CAP");
         return GATT_INTERNAL_ERROR;
     } else if (l2cap_ret == L2CAP_DW_CONGESTED) {
+        /* Buffer was enqueued by L2CAP before congestion was reported;
+         * L2CAP retains ownership of it. */
         GATT_TRACE_DEBUG("ATT congested, message accepted");
         return GATT_CONGESTED;
     }
@@ -494,7 +513,7 @@ BT_HDR *attp_build_sr_msg(tGATT_TCB *p_tcb, UINT8 op_code, tGATT_SR_MSG *p_msg)
 ** Description      This function sends the server response or indication message
 **                  to client.
 **
-** Parameter        p_tcb: pointer to the connection  control block.
+** Parameter        p_tcb: pointer to the connection control block.
 **                  p_msg: pointer to message parameters structure.
 **
 ** Returns          GATT_SUCCESS if successfully sent; otherwise error code.
@@ -660,7 +679,7 @@ tGATT_STATUS attp_send_cl_msg (tGATT_TCB *p_tcb, UINT16 clcb_idx, UINT8 op_code,
         if (p_cmd != NULL) {
             status = attp_cl_send_cmd(p_tcb, clcb_idx, op_code, p_cmd);
         }
-
+        GATT_TRACE_DEBUG("%s opcode=%x status=%x", __func__, op_code, status);
     } else {
         GATT_TRACE_ERROR("Peer device not connected");
     }

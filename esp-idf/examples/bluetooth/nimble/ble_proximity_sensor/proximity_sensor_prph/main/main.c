@@ -14,14 +14,15 @@
 #include "host/util/util.h"
 #include "console/console.h"
 #include "services/gap/ble_svc_gap.h"
+#include "services/gatt/ble_svc_gatt.h"
 #include "ble_prox_prph.h"
 
 #if CONFIG_EXAMPLE_EXTENDED_ADV
 static uint8_t ext_adv_pattern_1[] = {
-    0x02, 0x01, 0x06,
-    0x03, 0x03, 0xab, 0xcd,
-    0x03, 0x03, 0x18, 0x03,
-    0x13, 0X09, 'n', 'i', 'm', 'b', 'l', 'e', '-', 'p', 'r', 'o', 'x', '-', 'p', 'r', 'p', 'h', '-', 'e',
+    0x02, BLE_HS_ADV_TYPE_FLAGS, 0x06,
+    0x03, BLE_HS_ADV_TYPE_COMP_UUIDS16, 0xab, 0xcd,
+    0x03, BLE_HS_ADV_TYPE_COMP_UUIDS16, 0x18, 0x03,
+    0x13, BLE_HS_ADV_TYPE_COMP_NAME, 'n', 'i', 'm', 'b', 'l', 'e', '-', 'p', 'r', 'o', 'x', '-', 'p', 'r', 'p', 'h', '-', 'e',
 };
 #endif
 
@@ -299,6 +300,9 @@ void app_main(void)
 
     ble_hs_cfg.sm_sc = 1;
     ble_hs_cfg.sm_mitm = 1;
+
+    ble_svc_gap_init();
+    ble_svc_gatt_init();
 
     int rc;
     /* Set the default device name */

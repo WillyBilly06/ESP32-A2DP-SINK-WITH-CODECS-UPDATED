@@ -136,6 +136,32 @@ void net_buf_simple_clone(const struct os_mbuf *original,
 int
 bt_encrypt_be(const uint8_t *key, const uint8_t *plaintext, uint8_t *enc_data)
 {
+#if CONFIG_MBEDTLS_VER_4_X_SUPPORT
+    psa_status_t status;
+    psa_key_attributes_t attributes = PSA_KEY_ATTRIBUTES_INIT;
+    psa_key_id_t key_id = 0;
+    psa_algorithm_t alg = PSA_ALG_ECB_NO_PADDING;
+    psa_set_key_algorithm(&attributes, alg);
+    psa_set_key_type(&attributes, PSA_KEY_TYPE_AES);
+    psa_set_key_bits(&attributes, 128);
+    psa_set_key_usage_flags(&attributes, PSA_KEY_USAGE_ENCRYPT);
+
+    status = psa_import_key(&attributes, key, 16, &key_id);
+    if (status != PSA_SUCCESS) {
+        BT_ERR("psa_import_key failed with status %d", status);
+        return -EINVAL;
+    }
+
+    size_t output_len = 0;
+    status = psa_cipher_encrypt(key_id, alg, plaintext, 16, enc_data, 16, &output_len);
+    if (status != PSA_SUCCESS || output_len != 16) {
+        BT_ERR("psa_cipher_encrypt failed with status %d", status);
+        psa_destroy_key(key_id);
+        return -EINVAL;
+    }
+
+    psa_destroy_key(key_id);
+#else
     mbedtls_aes_context s = {0};
     mbedtls_aes_init(&s);
 
@@ -150,6 +176,7 @@ bt_encrypt_be(const uint8_t *key, const uint8_t *plaintext, uint8_t *enc_data)
     }
 
     mbedtls_aes_free(&s);
+#endif // CONFIG_MBEDTLS_VER_4_X_SUPPORT
     return 0;
 }
 

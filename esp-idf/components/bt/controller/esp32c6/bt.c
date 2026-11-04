@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2015-2025 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2015-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -34,8 +34,8 @@
 #include "os/endian.h"
 
 #include "esp_bt.h"
-#include "esp_intr_alloc.h"
 #include "ble_priv.h"
+#include "esp_intr_alloc.h"
 #include "esp_sleep.h"
 #include "esp_pm.h"
 #ifdef CONFIG_ESP_PHY_ENABLED
@@ -48,6 +48,7 @@
 #if CONFIG_FREERTOS_USE_TICKLESS_IDLE
 #include "esp_private/sleep_modem.h"
 #include "esp_private/sleep_retention.h"
+#include "esp_private/pm_impl.h"
 #endif // CONFIG_FREERTOS_USE_TICKLESS_IDLE
 
 #include "freertos/FreeRTOS.h"
@@ -66,10 +67,6 @@
 #if CONFIG_BT_BLE_LOG_SPI_OUT_ENABLED
 #include "ble_log/ble_log_spi_out.h"
 #endif // CONFIG_BT_BLE_LOG_SPI_OUT_ENABLED
-
-#if CONFIG_BT_BLE_LOG_UHCI_OUT_ENABLED
-#include "ble_log/ble_log_uhci_out.h"
-#endif // CONFIG_BT_BLE_LOG_UHCI_OUT_ENABLED
 #endif /* CONFIG_BT_LE_CONTROLLER_LOG_MODE_BLE_LOG_V2 */
 
 /* Macro definition
@@ -133,7 +130,6 @@ typedef union {
     };
     uint32_t val;
 } bt_wakeup_params_t;
-
 /* External functions or variables
  ************************************************************************
  */
@@ -167,7 +163,7 @@ extern void esp_unregister_npl_funcs (void);
 extern void npl_freertos_mempool_deinit(void);
 extern uint32_t r_os_cputime_get32(void);
 extern uint32_t r_os_cputime_ticks_to_usecs(uint32_t ticks);
-extern void r_ble_lll_rfmgmt_set_sleep_cb(void *s_cb, void *w_cb, void *s_arg,
+extern void r_ble_lll_sleep_set_sleep_cb(void *s_cb, void *w_cb, void *s_arg,
                                           void *w_arg, uint32_t us_to_enabled);
 extern void r_ble_rtc_wake_up_state_clr(void);
 extern int os_msys_init(void);
@@ -177,6 +173,7 @@ extern void esp_ble_controller_flash_only_param_config(void);
 #endif // CONFIG_BT_CTRL_RUN_IN_FLASH_ONLY
 #if CONFIG_FREERTOS_USE_TICKLESS_IDLE
 extern sleep_retention_entries_config_t *r_esp_ble_mac_retention_link_get(uint8_t *size, uint8_t extra);
+extern bool r_ble_lll_sleep_should_skip_light_sleep_check(void);
 extern void r_esp_ble_set_wakeup_overhead(uint32_t overhead);
 #endif /* CONFIG_FREERTOS_USE_TICKLESS_IDLE */
 #if CONFIG_BT_LE_LL_PEER_SCA_SET_ENABLE
@@ -192,6 +189,7 @@ extern int r_ble_get_npl_element_info(esp_bt_controller_config_t *cfg, ble_npl_c
 extern char *ble_controller_get_compile_version(void);
 extern int esp_ble_register_bb_funcs(void);
 extern void esp_ble_unregister_bb_funcs(void);
+extern bool esp_ble_controller_lib_check(void);
 extern uint32_t _bt_bss_start;
 extern uint32_t _bt_bss_end;
 extern uint32_t _bt_controller_bss_start;
@@ -222,9 +220,9 @@ static int esp_ecc_gen_dh_key(const uint8_t *peer_pub_key_x, const uint8_t *peer
                               const uint8_t *our_priv_key, uint8_t *out_dhkey);
 #if CONFIG_BT_LE_CONTROLLER_LOG_ENABLED
 #if !CONFIG_BT_LE_CONTROLLER_LOG_MODE_BLE_LOG_V2
-#if !CONFIG_BT_LE_CONTROLLER_LOG_SPI_OUT_ENABLED && !CONFIG_BT_LE_CONTROLLER_LOG_UHCI_OUT_ENABLED
+#if !CONFIG_BT_LE_CONTROLLER_LOG_SPI_OUT_ENABLED
 static void esp_bt_controller_log_interface(uint32_t len, const uint8_t *addr, uint32_t len_append, const uint8_t *addr_append, uint32_t flag);
-#endif // !CONFIG_BT_LE_CONTROLLER_LOG_SPI_OUT_ENABLED && !CONFIG_BT_LE_CONTROLLER_LOG_UHCI_OUT_ENABLED
+#endif // !CONFIG_BT_LE_CONTROLLER_LOG_SPI_OUT_ENABLED
 #if CONFIG_BT_LE_CONTROLLER_LOG_STORAGE_ENABLE
 static void esp_bt_ctrl_log_partition_get_and_erase_first_block(void);
 #endif // CONFIG_BT_LE_CONTROLLER_LOG_STORAGE_ENABLE
@@ -233,6 +231,11 @@ static void esp_bt_ctrl_log_partition_get_and_erase_first_block(void);
 #if CONFIG_FREERTOS_USE_TICKLESS_IDLE
 static bool esp_bt_check_wakeup_by_bt(void);
 #endif // CONFIG_FREERTOS_USE_TICKLESS_IDLE
+
+#if (CONFIG_BT_CONTROLLER_ONLY) && (CONFIG_BT_LE_SM_SC) && (!CONFIG_BT_SMP_CRYPTO_STACK_MBEDTLS)
+#include "tinycrypt/ecc.h"
+static int ecc_rand_func(uint8_t *dst, unsigned int len);
+#endif // (CONFIG_BT_CONTROLLER_ONLY) && (CONFIG_BT_LE_SM_SC) && (!CONFIG_BT_SMP_CRYPTO_STACK_MBEDTLS)
 /* Local variable definition
  ***************************************************************************
  */
@@ -293,18 +296,8 @@ esp_err_t esp_bt_controller_log_init(void)
     }
 #endif // CONFIG_BT_BLE_LOG_SPI_OUT_ENABLED
 
-#if CONFIG_BT_BLE_LOG_UHCI_OUT_ENABLED
-    if (ble_log_uhci_out_init() != 0) {
-        goto uhci_out_init_failed;
-    }
-#endif // CONFIG_BT_BLE_LOG_UHCI_OUT_ENABLED
-
 #if CONFIG_BT_LE_CONTROLLER_LOG_SPI_OUT_ENABLED
     if (r_ble_log_init_simple(ble_log_spi_out_ll_write, ble_log_spi_out_ll_log_ev_proc) != 0) {
-        goto log_init_failed;
-    }
-#elif CONFIG_BT_LE_CONTROLLER_LOG_UHCI_OUT_ENABLED
-    if (r_ble_log_init_simple(ble_log_uhci_out_ll_write, ble_log_uhci_out_ll_log_ev_proc) != 0) {
         goto log_init_failed;
     }
 #else
@@ -337,8 +330,6 @@ esp_err_t esp_bt_controller_log_init(void)
 ctrl_level_init_failed:
 #if CONFIG_BT_LE_CONTROLLER_LOG_SPI_OUT_ENABLED
     r_ble_log_deinit_simple();
-#elif CONFIG_BT_LE_CONTROLLER_LOG_UHCI_OUT_ENABLED
-    r_ble_log_deinit_simple();
 #else
     r_ble_log_deinit_async();
 #endif
@@ -347,10 +338,6 @@ log_init_failed:
     ble_log_spi_out_deinit();
 spi_out_init_failed:
 #endif // CONFIG_BT_BLE_LOG_SPI_OUT_ENABLED
-#if CONFIG_BT_BLE_LOG_UHCI_OUT_ENABLED
-    ble_log_uhci_out_deinit();
-uhci_out_init_failed:
-#endif // CONFIG_BT_BLE_LOG_UHCI_OUT_ENABLED
     return ESP_FAIL;
 }
 
@@ -360,13 +347,7 @@ void esp_bt_controller_log_deinit(void)
     ble_log_spi_out_deinit();
 #endif // CONFIG_BT_BLE_LOG_SPI_OUT_ENABLED
 
-#if CONFIG_BT_BLE_LOG_UHCI_OUT_ENABLED
-    ble_log_uhci_out_deinit();
-#endif // CONFIG_BT_BLE_LOG_UHCI_OUT_ENABLED
-
 #if CONFIG_BT_LE_CONTROLLER_LOG_SPI_OUT_ENABLED
-    r_ble_log_deinit_simple();
-#elif CONFIG_BT_LE_CONTROLLER_LOG_UHCI_OUT_ENABLED
     r_ble_log_deinit_simple();
 #else
     r_ble_log_deinit_async();
@@ -456,7 +437,7 @@ void esp_bt_read_ctrl_log_from_flash(bool output)
 
     print_len = 0;
     max_print_len = 4096;
-    err = esp_partition_mmap(log_partition, 0, MAX_STORAGE_SIZE, ESP_PARTITION_MMAP_DATA, &mapped_ptr, &mmap_handle);
+    err = esp_partition_mmap(log_partition, 0, MAX_STORAGE_SIZE, ESP_PARTITION_MMAP_DATA | ESP_PARTITION_MMAP_BLOCKS_WRITE, &mapped_ptr, &mmap_handle);
     if (err != ESP_OK) {
         ESP_LOGE("FLASH", "Mmap failed: %s", esp_err_to_name(err));
         return;
@@ -816,20 +797,45 @@ static esp_err_t sleep_modem_ble_mac_modem_state_init(uint8_t extra)
     int retention_args = extra;
     sleep_retention_module_init_param_t init_param = {
         .cbs     = { .create = { .handle = sleep_modem_ble_mac_retention_init, .arg = &retention_args } },
+        .attribute = SLEEP_RETENTION_MODULE_ATTR_ATTACH,
         .depends = RETENTION_MODULE_BITMAP_INIT(BT_BB)
     };
     esp_err_t err = sleep_retention_module_init(SLEEP_RETENTION_MODULE_BLE_MAC, &init_param);
-    if (err == ESP_OK) {
-        err = sleep_retention_module_allocate(SLEEP_RETENTION_MODULE_BLE_MAC);
+    if (err != ESP_OK) {
+        ESP_LOGE(NIMBLE_PORT_LOG_TAG, "BT sleep retention init error");
+        return err;
+    }
+
+    err = sleep_retention_module_allocate(SLEEP_RETENTION_MODULE_BLE_MAC);
+    if (err != ESP_OK) {
+        ESP_LOGE(NIMBLE_PORT_LOG_TAG, "BT sleep retention allocate error");
+        return err;
+    }
+
+    err = sleep_retention_module_attach(SLEEP_RETENTION_MODULE_BLE_MAC);
+    if (err != ESP_OK) {
+        ESP_LOGE(NIMBLE_PORT_LOG_TAG, "BT sleep retention attach error");
     }
     return err;
 }
 
 static void sleep_modem_ble_mac_modem_state_deinit(void)
 {
-    esp_err_t err = sleep_retention_module_free(SLEEP_RETENTION_MODULE_BLE_MAC);
-    if (err == ESP_OK) {
-        err = sleep_retention_module_deinit(SLEEP_RETENTION_MODULE_BLE_MAC);
+    esp_err_t err = sleep_retention_module_detach(SLEEP_RETENTION_MODULE_BLE_MAC);
+    if (err != ESP_OK) {
+        ESP_LOGE(NIMBLE_PORT_LOG_TAG, "BT sleep retention detach error");
+        assert(err == ESP_OK);
+    }
+
+    err = sleep_retention_module_free(SLEEP_RETENTION_MODULE_BLE_MAC);
+    if (err != ESP_OK) {
+        ESP_LOGE(NIMBLE_PORT_LOG_TAG, "BT sleep retention free error");
+        assert(err == ESP_OK);
+    }
+
+    err = sleep_retention_module_deinit(SLEEP_RETENTION_MODULE_BLE_MAC);
+    if (err != ESP_OK) {
+        ESP_LOGE(NIMBLE_PORT_LOG_TAG, "BT sleep retention deinit error");
         assert(err == ESP_OK);
     }
 }
@@ -848,16 +854,16 @@ esp_err_t controller_sleep_init(void)
 #ifdef CONFIG_BT_LE_SLEEP_ENABLE
     ESP_LOGW(NIMBLE_PORT_LOG_TAG, "BLE modem sleep is enabled");
 #if CONFIG_FREERTOS_USE_TICKLESS_IDLE
-    r_ble_lll_rfmgmt_set_sleep_cb(controller_sleep_cb, controller_wakeup_cb, 0, 0,
+    r_ble_lll_sleep_set_sleep_cb(controller_sleep_cb, controller_wakeup_cb, 0, 0,
                                 BLE_RTC_DELAY_US_LIGHT_SLEEP);
 #else
-    r_ble_lll_rfmgmt_set_sleep_cb(controller_sleep_cb, controller_wakeup_cb, 0, 0,
+    r_ble_lll_sleep_set_sleep_cb(controller_sleep_cb, controller_wakeup_cb, 0, 0,
                                 BLE_RTC_DELAY_US_MODEM_SLEEP);
 #endif /* FREERTOS_USE_TICKLESS_IDLE */
 #endif // CONFIG_BT_LE_SLEEP_ENABLE
 
 #ifdef CONFIG_PM_ENABLE
-    rc = esp_pm_lock_create(ESP_PM_CPU_FREQ_MAX, 0, "bt", &s_pm_lock);
+    rc = esp_pm_lock_create(ESP_PM_APB_FREQ_MAX, 0, "bt", &s_pm_lock);
     if (rc != ESP_OK) {
         goto error;
     }
@@ -878,6 +884,12 @@ esp_err_t controller_sleep_init(void)
     esp_sleep_enable_bt_wakeup();
     ESP_LOGW(NIMBLE_PORT_LOG_TAG, "Enable light sleep, the wake up source is BLE timer");
 
+    rc = esp_pm_register_skip_light_sleep_callback(r_ble_lll_sleep_should_skip_light_sleep_check);
+    if (rc != ESP_OK) {
+        ESP_LOGE(NIMBLE_PORT_LOG_TAG, "Should skip cb register error");
+        goto error;
+    }
+
     rc = esp_pm_register_inform_out_light_sleep_overhead_callback(sleep_modem_light_sleep_overhead_set);
     if (rc != ESP_OK) {
         goto error;
@@ -894,6 +906,7 @@ esp_err_t controller_sleep_init(void)
 error:
 #endif // CONFIG_PM_ENABLE
 #if CONFIG_BT_LE_SLEEP_ENABLE && CONFIG_FREERTOS_USE_TICKLESS_IDLE
+    esp_pm_unregister_skip_light_sleep_callback(r_ble_lll_sleep_should_skip_light_sleep_check);
 #if SOC_PM_RETENTION_HAS_CLOCK_BUG && CONFIG_MAC_BB_PD
     sleep_modem_unregister_mac_bb_module_prepare_callback(sleep_modem_mac_bb_power_down_prepare,
                                                      sleep_modem_mac_bb_power_up_prepare);
@@ -915,6 +928,7 @@ error:
 void controller_sleep_deinit(void)
 {
 #if CONFIG_BT_LE_SLEEP_ENABLE && CONFIG_FREERTOS_USE_TICKLESS_IDLE
+    esp_pm_unregister_skip_light_sleep_callback(r_ble_lll_sleep_should_skip_light_sleep_check);
 #if SOC_PM_RETENTION_HAS_CLOCK_BUG && CONFIG_MAC_BB_PD
     sleep_modem_unregister_mac_bb_module_prepare_callback(sleep_modem_mac_bb_power_down_prepare,
                                                      sleep_modem_mac_bb_power_up_prepare);
@@ -1055,6 +1069,7 @@ static void ble_rtc_clk_init(esp_bt_controller_config_t *cfg)
     esp_bt_rtc_slow_clk_select(s_bt_lpclk_src);
 }
 
+
 esp_err_t esp_bt_controller_init(esp_bt_controller_config_t *cfg)
 {
     uint8_t mac[6];
@@ -1101,12 +1116,6 @@ esp_err_t esp_bt_controller_init(esp_bt_controller_config_t *cfg)
         goto free_mem;
     }
 
-#if CONFIG_BT_NIMBLE_ENABLED
-    /* ble_npl_eventq_init() needs to use npl functions in rom and
-     * must be called after esp_bt_controller_init().
-     */
-    ble_npl_eventq_init(nimble_port_get_dflt_eventq());
-#endif // CONFIG_BT_NIMBLE_ENABLED
     /* Enable BT-related clocks */
     modem_clock_module_enable(PERIPH_BT_MODULE);
     modem_clock_module_mac_reset(PERIPH_BT_MODULE);
@@ -1191,6 +1200,13 @@ esp_err_t esp_bt_controller_init(esp_bt_controller_config_t *cfg)
         goto free_controller;
     }
 
+    if (!esp_ble_controller_lib_check()) {
+        ESP_LOGW(NIMBLE_PORT_LOG_TAG, "Controller lib version mismatch!");
+    }
+
+#if (CONFIG_BT_CONTROLLER_ONLY) && (CONFIG_BT_LE_SM_SC) && (!CONFIG_BT_SMP_CRYPTO_STACK_MBEDTLS)
+    uECC_set_rng(ecc_rand_func);
+#endif // (CONFIG_BT_CONTROLLER_ONLY) && (CONFIG_BT_LE_SM_SC) && (!CONFIG_BT_SMP_CRYPTO_STACK_MBEDTLS)
     return ESP_OK;
 free_controller:
     hci_transport_deinit();
@@ -1206,9 +1222,7 @@ modem_deint:
     esp_phy_modem_deinit();
     modem_clock_deselect_lp_clock_source(PERIPH_BT_MODULE);
     modem_clock_module_disable(PERIPH_BT_MODULE);
-#if CONFIG_BT_NIMBLE_ENABLED
-    ble_npl_eventq_deinit(nimble_port_get_dflt_eventq());
-#endif // CONFIG_BT_NIMBLE_ENABLED
+
 free_mem:
     npl_freertos_mempool_deinit();
     esp_unregister_npl_funcs();
@@ -1240,11 +1254,6 @@ esp_err_t esp_bt_controller_deinit(void)
 #if CONFIG_BT_LE_CONTROLLER_LOG_ENABLED
     esp_bt_controller_log_deinit();
 #endif // CONFIG_BT_LE_CONTROLLER_LOG_ENABLED
-
-#if CONFIG_BT_NIMBLE_ENABLED
-    /* De-initialize default event queue */
-    ble_npl_eventq_deinit(nimble_port_get_dflt_eventq());
-#endif // CONFIG_BT_NIMBLE_ENABLED
 
     esp_unregister_npl_funcs();
 
@@ -1443,7 +1452,6 @@ esp_err_t esp_bt_mem_release(esp_bt_mode_t mode)
     return ret;
 }
 
-
 esp_bt_controller_status_t esp_bt_controller_get_status(void)
 {
     return ble_controller_status;
@@ -1591,7 +1599,7 @@ void esp_ble_controller_log_dump_all(bool output)
     ble_log_dump_to_console();
 }
 #else /* !CONFIG_BT_LE_CONTROLLER_LOG_MODE_BLE_LOG_V2 */
-#if !CONFIG_BT_LE_CONTROLLER_LOG_SPI_OUT_ENABLED && !CONFIG_BT_LE_CONTROLLER_LOG_UHCI_OUT_ENABLED
+#if !CONFIG_BT_LE_CONTROLLER_LOG_SPI_OUT_ENABLED
 static void esp_bt_controller_log_interface(uint32_t len, const uint8_t *addr, uint32_t len_append, const uint8_t *addr_append, uint32_t flag)
 {
     bool end = (flag & BIT(BLE_LOG_INTERFACE_FLAG_END));
@@ -1613,7 +1621,7 @@ static void esp_bt_controller_log_interface(uint32_t len, const uint8_t *addr, u
     portEXIT_CRITICAL_SAFE(&spinlock);
 #endif // CONFIG_BT_LE_CONTROLLER_LOG_STORAGE_ENABLE
 }
-#endif // !CONFIG_BT_LE_CONTROLLER_LOG_SPI_OUT_ENABLED && !CONFIG_BT_LE_CONTROLLER_LOG_UHCI_OUT_ENABLED
+#endif // !CONFIG_BT_LE_CONTROLLER_LOG_SPI_OUT_ENABLED
 
 void esp_ble_controller_log_dump_all(bool output)
 {
@@ -1621,13 +1629,9 @@ void esp_ble_controller_log_dump_all(bool output)
     ble_log_spi_out_dump_all();
 #endif // CONFIG_BT_BLE_LOG_SPI_OUT_ENABLED
 
-#if CONFIG_BT_BLE_LOG_UHCI_OUT_ENABLED
-    ble_log_uhci_out_dump_all();
-#endif // CONFIG_BT_BLE_LOG_UHCI_OUT_ENABLED
-
 #if CONFIG_BT_LE_CONTROLLER_LOG_STORAGE_ENABLE
     esp_bt_read_ctrl_log_from_flash(output);
-#elif !CONFIG_BT_LE_CONTROLLER_LOG_SPI_OUT_ENABLED && !CONFIG_BT_LE_CONTROLLER_LOG_UHCI_OUT_ENABLED
+#elif !CONFIG_BT_LE_CONTROLLER_LOG_SPI_OUT_ENABLED
     portMUX_TYPE spinlock = portMUX_INITIALIZER_UNLOCKED;
     portENTER_CRITICAL_SAFE(&spinlock);
     esp_panic_handler_feed_wdts();
@@ -1643,29 +1647,42 @@ void esp_ble_controller_log_dump_all(bool output)
 #if (!CONFIG_BT_NIMBLE_ENABLED) && (CONFIG_BT_CONTROLLER_ENABLED)
 #if CONFIG_BT_LE_SM_LEGACY || CONFIG_BT_LE_SM_SC
 #define BLE_SM_KEY_ERR 0x17
-#if CONFIG_BT_LE_CRYPTO_STACK_MBEDTLS
-#include "mbedtls/aes.h"
+#define BLE_PUB_KEY_LEN 65
+#if CONFIG_BT_SMP_CRYPTO_STACK_MBEDTLS
 #if CONFIG_BT_LE_SM_SC
-#include "mbedtls/cipher.h"
-#include "mbedtls/entropy.h"
-#include "mbedtls/ctr_drbg.h"
-#include "mbedtls/cmac.h"
-#include "mbedtls/ecdh.h"
-#include "mbedtls/ecp.h"
-
-static mbedtls_ecp_keypair keypair;
+#include "psa/crypto.h"
+static const char *TAG_SM_ALG = "ble_sm_alg";
 #endif // CONFIG_BT_LE_SM_SC
-
 #else
 #include "tinycrypt/aes.h"
 #include "tinycrypt/constants.h"
 #include "tinycrypt/utils.h"
-
 #if CONFIG_BT_LE_SM_SC
 #include "tinycrypt/cmac_mode.h"
 #include "tinycrypt/ecc_dh.h"
+
+#if CONFIG_BT_CONTROLLER_ONLY
+/* Used by uECC to get random data */
+static int ecc_rand_func(uint8_t *dst, unsigned int len)
+{
+    int offset_cnt = 0;
+    uint8_t *u8ptr = dst;
+    uint64_t random64 = 0;
+
+    while(len > 0) {
+        random64 = (uint64_t)esp_random();
+        random64 = (random64 << 32)| (uint64_t)esp_random();;
+        offset_cnt = len < sizeof(uint64_t) ? len : sizeof(uint64_t);
+        memcpy(u8ptr, &random64, offset_cnt);
+        len -= offset_cnt;
+        u8ptr += offset_cnt;
+    }
+
+    return 1;
+}
+#endif // CONFIG_BT_CONTROLLER_ONLY
 #endif // CONFIG_BT_LE_SM_SC
-#endif // CONFIG_BT_LE_CRYPTO_STACK_MBEDTLS
+#endif // CONFIG_BT_SMP_CRYPTO_STACK_MBEDTLS
 
 /* Based on Core Specification 4.2 Vol 3. Part H 2.3.5.6.1 */
 static const uint8_t ble_sm_alg_dbg_priv_key[32] = {
@@ -1678,143 +1695,113 @@ int ble_sm_alg_gen_dhkey(const uint8_t *peer_pub_key_x, const uint8_t *peer_pub_
                          const uint8_t *our_priv_key, uint8_t *out_dhkey)
 {
     uint8_t dh[32];
-    uint8_t pk[64];
+    uint8_t pk[BLE_PUB_KEY_LEN];
     uint8_t priv[32];
     int rc = BLE_SM_KEY_ERR;
 
-    swap_buf(pk, peer_pub_key_x, 32);
-    swap_buf(&pk[32], peer_pub_key_y, 32);
     swap_buf(priv, our_priv_key, 32);
 
-#if CONFIG_BT_LE_CRYPTO_STACK_MBEDTLS
-    struct mbedtls_ecp_point pt = {0}, Q = {0};
-    mbedtls_mpi z = {0}, d = {0};
-    mbedtls_ctr_drbg_context ctr_drbg = {0};
-    mbedtls_entropy_context entropy = {0};
+#if CONFIG_BT_SMP_CRYPTO_STACK_MBEDTLS
+    // PSA/mbedTLS expects 65 bytes: 0x04 prefix + X (32 bytes) + Y (32 bytes)
+    pk[0] = 0x04; // Uncompressed format for public key
+    swap_buf(&pk[1], peer_pub_key_x, 32);
+    swap_buf(&pk[33], peer_pub_key_y, 32);
 
-    uint8_t pub[65] = {0};
-    /* Hardcoded first byte of pub key for MBEDTLS_ECP_PF_UNCOMPRESSED */
-    pub[0] = 0x04;
-    memcpy(&pub[1], pk, 64);
-
-    /* Initialize the required structures here */
-    mbedtls_ecp_point_init(&pt);
-    mbedtls_ecp_point_init(&Q);
-    mbedtls_ctr_drbg_init(&ctr_drbg);
-    mbedtls_entropy_init(&entropy);
-    mbedtls_mpi_init(&d);
-    mbedtls_mpi_init(&z);
-
-    /* Below 3 steps are to validate public key on curve secp256r1 */
-    if (mbedtls_ecp_group_load(&keypair.MBEDTLS_PRIVATE(grp), MBEDTLS_ECP_DP_SECP256R1) != 0) {
+    psa_key_id_t key_id = 0;
+    psa_status_t status;
+    psa_key_attributes_t key_attributes = PSA_KEY_ATTRIBUTES_INIT;
+    psa_set_key_type(&key_attributes, PSA_KEY_TYPE_ECC_KEY_PAIR(PSA_ECC_FAMILY_SECP_R1));
+    psa_set_key_bits(&key_attributes, 256);
+    psa_set_key_algorithm(&key_attributes, PSA_ALG_ECDH);
+    psa_set_key_usage_flags(&key_attributes, PSA_KEY_USAGE_DERIVE);
+    status = psa_import_key(&key_attributes, priv, 32, &key_id);
+    if (status != PSA_SUCCESS) {
+        ESP_LOGE(TAG_SM_ALG, "Failed to import key: %d", status);
+        goto exit;
+    }
+    psa_reset_key_attributes(&key_attributes);
+    size_t output_len = 0;
+    status = psa_raw_key_agreement(PSA_ALG_ECDH, key_id, pk, BLE_PUB_KEY_LEN, dh, sizeof(dh), &output_len);
+    if (status != PSA_SUCCESS) {
+        ESP_LOGE(TAG_SM_ALG, "Failed to perform raw key agreement: %d", status);
         goto exit;
     }
 
-    if (mbedtls_ecp_point_read_binary(&keypair.MBEDTLS_PRIVATE(grp), &pt, pub, 65) != 0) {
+    if (output_len != 32) {
+        ESP_LOGE(TAG_SM_ALG, "Unexpected output length: %zu", output_len);
         goto exit;
     }
-
-    if (mbedtls_ecp_check_pubkey(&keypair.MBEDTLS_PRIVATE(grp), &pt) != 0) {
-        goto exit;
-    }
-
-    /* Set PRNG */
-    if ((rc = mbedtls_ctr_drbg_seed(&ctr_drbg, mbedtls_entropy_func, &entropy, NULL, 0)) != 0) {
-        goto exit;
-    }
-
-    /* Prepare point Q from pub key */
-    if (mbedtls_ecp_point_read_binary(&keypair.MBEDTLS_PRIVATE(grp), &Q, pub, 65) != 0) {
-        goto exit;
-    }
-
-    if (mbedtls_mpi_read_binary(&d, priv, 32) != 0) {
-        goto exit;
-    }
-
-    rc = mbedtls_ecdh_compute_shared(&keypair.MBEDTLS_PRIVATE(grp), &z, &Q, &d,
-                                     mbedtls_ctr_drbg_random, &ctr_drbg);
-    if (rc != 0) {
-        goto exit;
-    }
-
-    rc = mbedtls_mpi_write_binary(&z, dh, 32);
-    if (rc != 0) {
-        goto exit;
-    }
+    rc = 0;
 
 exit:
-    mbedtls_ecp_point_free(&pt);
-    mbedtls_mpi_free(&z);
-    mbedtls_mpi_free(&d);
-    mbedtls_ecp_point_free(&Q);
-    mbedtls_entropy_free(&entropy);
-    mbedtls_ctr_drbg_free(&ctr_drbg);
+    if (key_id != 0) {
+        psa_destroy_key(key_id);
+    }
     if (rc != 0) {
         return BLE_SM_KEY_ERR;
     }
 
 #else
+    // TinyCrypt/uECC expects 64 bytes: X (32 bytes) + Y (32 bytes), no prefix
+    swap_buf(pk, peer_pub_key_x, 32);
+    swap_buf(&pk[32], peer_pub_key_y, 32);
+
     if (uECC_valid_public_key(pk, &curve_secp256r1) < 0) {
         return BLE_SM_KEY_ERR;
     }
 
-    rc = uECC_shared_secret(pk, priv, dh, &curve_secp256r1);
+    rc = uECC_shared_secret(pk, priv, dh, uECC_secp256r1());
     if (rc == TC_CRYPTO_FAIL) {
         return BLE_SM_KEY_ERR;
     }
-#endif // CONFIG_BT_LE_CRYPTO_STACK_MBEDTLS
+#endif // CONFIG_BT_SMP_CRYPTO_STACK_MBEDTLS
 
     swap_buf(out_dhkey, dh, 32);
     return 0;
 }
 
-#if CONFIG_BT_LE_CRYPTO_STACK_MBEDTLS
+#if CONFIG_BT_SMP_CRYPTO_STACK_MBEDTLS
 static int mbedtls_gen_keypair(uint8_t *public_key, uint8_t *private_key)
 {
     int rc = BLE_SM_KEY_ERR;
-    mbedtls_entropy_context entropy = {0};
-    mbedtls_ctr_drbg_context ctr_drbg = {0};
+    psa_status_t status;
+    psa_key_id_t key_id = 0;
+    psa_key_attributes_t key_attributes = PSA_KEY_ATTRIBUTES_INIT;
+    psa_algorithm_t alg = PSA_ALG_ECDH;
+    psa_key_type_t key_type = PSA_KEY_TYPE_ECC_KEY_PAIR(PSA_ECC_FAMILY_SECP_R1);
+    psa_key_usage_t key_usage = PSA_KEY_USAGE_DERIVE | PSA_KEY_USAGE_EXPORT;
 
-    mbedtls_entropy_init(&entropy);
-    mbedtls_ctr_drbg_init(&ctr_drbg);
-    mbedtls_ecp_keypair_init(&keypair);
-
-    if ((rc = mbedtls_ctr_drbg_seed(&ctr_drbg, mbedtls_entropy_func, &entropy,
-                                    NULL, 0)) != 0) {
+    psa_set_key_type(&key_attributes, key_type);
+    psa_set_key_bits(&key_attributes, 256);
+    psa_set_key_algorithm(&key_attributes, alg);
+    psa_set_key_usage_flags(&key_attributes, key_usage);
+    status = psa_generate_key(&key_attributes, &key_id);
+    if (status != PSA_SUCCESS) {
         goto exit;
     }
-
-    if ((rc = mbedtls_ecp_gen_key(MBEDTLS_ECP_DP_SECP256R1, &keypair,
-                                  mbedtls_ctr_drbg_random, &ctr_drbg)) != 0) {
-        goto exit;
-    }
-
-    if ((rc = mbedtls_mpi_write_binary(&keypair.MBEDTLS_PRIVATE(d), private_key, 32)) != 0) {
-        goto exit;
-    }
+    psa_reset_key_attributes(&key_attributes);
 
     size_t olen = 0;
-    uint8_t pub[65] = {0};
-
-    if ((rc = mbedtls_ecp_point_write_binary(&keypair.MBEDTLS_PRIVATE(grp), &keypair.MBEDTLS_PRIVATE(Q), MBEDTLS_ECP_PF_UNCOMPRESSED,
-              &olen, pub, 65)) != 0) {
+    status = psa_export_public_key(key_id, public_key, BLE_PUB_KEY_LEN, &olen);
+    if (status != PSA_SUCCESS || olen != BLE_PUB_KEY_LEN) {
         goto exit;
     }
 
-    memcpy(public_key, &pub[1], 64);
+    status = psa_export_key(key_id, private_key, 32, &olen);
+    if (status != PSA_SUCCESS || olen != 32) {
+        goto exit;
+    }
 
+    psa_destroy_key(key_id);
+    rc = 0;
 exit:
-    mbedtls_ctr_drbg_free(&ctr_drbg);
-    mbedtls_entropy_free(&entropy);
     if (rc != 0) {
-        mbedtls_ecp_keypair_free(&keypair);
         return BLE_SM_KEY_ERR;
     }
 
     return 0;
 }
-#endif  // CONFIG_BT_LE_CRYPTO_STACK_MBEDTLS
+#endif  // CONFIG_BT_SMP_CRYPTO_STACK_MBEDTLS
 
 /**
  * pub: 64 bytes
@@ -1827,23 +1814,31 @@ int ble_sm_alg_gen_key_pair(uint8_t *pub, uint8_t *priv)
     swap_buf(&pub[32], &ble_sm_alg_dbg_pub_key[32], 32);
     swap_buf(priv, ble_sm_alg_dbg_priv_key, 32);
 #else
-    uint8_t pk[64];
+    uint8_t pk[BLE_PUB_KEY_LEN];
 
     do {
-#if CONFIG_BT_LE_CRYPTO_STACK_MBEDTLS
+#if CONFIG_BT_SMP_CRYPTO_STACK_MBEDTLS
         if (mbedtls_gen_keypair(pk, priv) != 0) {
             return BLE_SM_KEY_ERR;
         }
 #else
-        if (uECC_make_key(pk, priv, &curve_secp256r1) != TC_CRYPTO_SUCCESS) {
+        if (uECC_make_key(pk, priv, uECC_secp256r1()) != TC_CRYPTO_SUCCESS) {
             return BLE_SM_KEY_ERR;
         }
-#endif  // CONFIG_BT_LE_CRYPTO_STACK_MBEDTLS
+#endif  // CONFIG_BT_SMP_CRYPTO_STACK_MBEDTLS
         /* Make sure generated key isn't debug key. */
     } while (memcmp(priv, ble_sm_alg_dbg_priv_key, 32) == 0);
 
+#if CONFIG_BT_SMP_CRYPTO_STACK_MBEDTLS
+    // PSA returns 65 bytes: 0x04 prefix + X (32 bytes) + Y (32 bytes)
+    // Skip the 0x04 prefix when copying to pub
+    swap_buf(pub, &pk[1], 32);
+    swap_buf(&pub[32], &pk[33], 32);
+#else
+    // tinycrypt returns 64 bytes: X (32 bytes) + Y (32 bytes), no prefix
     swap_buf(pub, pk, 32);
     swap_buf(&pub[32], &pk[32], 32);
+#endif
     swap_in_place(priv, 32);
 #endif // CONFIG_BT_LE_SM_SC_DEBUG_KEYS
     return 0;
@@ -1851,7 +1846,6 @@ int ble_sm_alg_gen_key_pair(uint8_t *pub, uint8_t *priv)
 
 #endif // CONFIG_BT_LE_SM_LEGACY || CONFIG_BT_LE_SM_SC
 #endif // (!CONFIG_BT_NIMBLE_ENABLED) && (CONFIG_BT_CONTROLLER_ENABLED)
-
 #if CONFIG_BT_LE_DEBUG_REMAIN_SCENE_ENABLED
 #include "esp_gdbstub.h"
 #endif // CONFIG_BT_LE_DEBUG_REMAIN_SCENE_ENABLED

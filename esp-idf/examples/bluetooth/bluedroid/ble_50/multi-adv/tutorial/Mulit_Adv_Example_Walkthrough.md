@@ -1,12 +1,12 @@
 # Multi Adv Example Walkthrough
 
-## introduction
+## Introduction
 
 In this document, we review the Multi Adv example code which implements a Bluetooth Low Energy (BLE5.0) Multi adv profile on the ESP32C3. This example is designed around two Application Profiles and a series of events that are handled in order to execute a sequence of configuration steps, such as defining extended advertising parameters with all phy 1M,2M and coded and Ext adv data.
 
 ## Includes
 
-First, let’s take a look at the include
+First, let's take a look at the include
 
 ```c
 #include <stdio.h>
@@ -66,7 +66,8 @@ void app_main(void)
         return;
     }
 
-    ret = esp_bluedroid_init();
+    esp_bluedroid_config_t cfg = BT_BLUEDROID_INIT_CONFIG_DEFAULT();
+    ret = esp_bluedroid_init_with_cfg(&cfg);
     if (ret) {
         ESP_LOGE(LOG_TAG, "%s init bluetooth failed: %s", __func__, esp_err_to_name(ret));
         return;
@@ -145,7 +146,7 @@ There are four Bluetooth modes supported:
 After the initialization of the BT controller, the Bluedroid stack, which includes the common definitions and APIs for both BT Classic and BLE, is initialized and enabled by using:
 
 ```c
-ret = esp_bluedroid_init();
+ret = esp_bluedroid_init_with_cfg(&cfg);
 ret = esp_bluedroid_enable();
 ```
 The Bluetooth stack is up and running at this point in the program flow, however the functionality of the application has not been defined yet. The functionality is defined by reacting to events
@@ -162,7 +163,7 @@ shed to the application from the BLE stack.
 
 The register application event is the first one that is triggered during the lifetime of the program, this example uses the Profile A GATT event handle to configure the advertising parameters upon registration. This example has the option to use both standard Bluetooth Core Specification advertising parameters or a customized raw buffer. The option can be selected with the `CONFIG_SET_RAW_ADV_DATA` define. The raw advertising data can be used to implement iBeacons, Eddystone or other proprietary, and custom frame types such as the ones used for Indoor Location Services that are different from the standard specifications.
 
-The function is used to configure different types of extended advertisement types and legacy adv with 1M,2M and coded phy in esp_ble_gap_ext_adv_set_params , esp_ble_gap_ext_adv_set_rand_addr and esp_ble_gap_config_ext_adv_data_raw. Respective structure of each one of them mentioned below with one example:
+The function is used to configure different types of extended advertisement types and legacy adv with 1M,2M and coded phy in esp_ble_gap_ext_adv_set_params, esp_ble_gap_ext_adv_set_rand_addr and esp_ble_gap_config_ext_adv_data_raw. Respective structure of each one of them mentioned below with one example:
 
 ```c
 /**
@@ -268,7 +269,7 @@ rt.status);
 }
 
 ```
-## Default config
+## Default Config
 
 This example by default  configured with
 1M phy extend adv, Connectable advertising

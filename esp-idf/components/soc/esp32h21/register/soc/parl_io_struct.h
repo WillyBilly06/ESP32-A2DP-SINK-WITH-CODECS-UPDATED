@@ -1,7 +1,7 @@
 /**
- * SPDX-FileCopyrightText: 2024 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2025 Espressif Systems (Shanghai) CO LTD
  *
- *  SPDX-License-Identifier: Apache-2.0
+ *  SPDX-License-Identifier: Apache-2.0 OR MIT
  */
 #pragma once
 
@@ -468,7 +468,7 @@ typedef union {
 } parl_io_version_reg_t;
 
 
-typedef struct {
+typedef struct parl_io_dev_t {
     volatile parl_io_rx_mode_cfg_reg_t io_rx_mode_cfg;
     volatile parl_io_rx_data_cfg_reg_t io_rx_data_cfg;
     volatile parl_io_rx_genrl_cfg_reg_t io_rx_genrl_cfg;

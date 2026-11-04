@@ -14,6 +14,10 @@ To ensure security, the EAT is cryptographically protected. The remote relying p
 
   - Support for Attestation can be toggled using the option :ref:`CONFIG_SECURE_TEE_ATTESTATION` (enabled by default).
 
+  - The attestation signing key (identified by :ref:`CONFIG_SECURE_TEE_ATT_KEY_STR_ID`) is owned exclusively by the TEE. When the TEE generates this key, it is marked with the ``SEC_STORAGE_FLAG_TEE_ONLY`` flag, and the REE is denied any access to it through the secure service interface - it cannot use the key for signing, regenerate it, or clear it. This ensures that the attestation evidence can only ever be signed from within the TEE.
+
+  - In addition, the reserved key ID is treated as TEE-owned even before the key exists, which prevents the REE from "squatting" the ID with a key of its own before the TEE provisions it. If the key is pre-provisioned as part of an NVS image (see :doc:`Secure Storage <tee-sec-storage>`), it **must** be generated with the ``--tee-only`` flag of the :component_file:`esp_tee_sec_stg_keygen.py<esp_tee/scripts/esp_tee_sec_stg_keygen/esp_tee_sec_stg_keygen.py>`  tool.
+
 Attestation Flow
 ----------------
 
@@ -101,12 +105,18 @@ EAT: Claim Table
     * - **Claim**
       - **Description**
       - **Comments**
-    * - Nonce
-      - For protection from Reply Attack. If attestation is initiated by the device, it provides the nonce as part of the attestation request to the Relying Party.
+    * - Authentication Challenge
+      - Challenge data provided by the caller to protect against replay attacks. This is typically a cryptographic nonce (random value) or a hash of data that includes a nonce. When using a data hash, the caller must ensure replay protection by incorporating a nonce into the hashed data.
       -
     * - Client ID
       - Relying Party identification
       -
+    * - Chip ID
+      - SoC chip identifier
+      -
+    * - UEID
+      - Universal Entity Identifiers, factory-burnt in eFuse
+      - Device MAC address and the Optional Unique ID from eFuse
     * - Device ID
       - Device identification (should be unique)
       - SHA256 digest of the device MAC address
@@ -176,9 +186,14 @@ Sample EAT in JSON format
       "key_id": "tee_att_key0"
     },
     "eat": {
-      "nonce": -1582119980,
+      "auth_challenge":"dcb9b53143ad6b081dad1a05c7ebda4e314d388762215799cf24ed52e9387678",
       "client_id": 262974944,
+      "chip_id": 13,
       "device_ver": 1,
+      "ueid": {
+        "mac": "d885ac67c978",
+        "optional_id": "94fa4d7e305682714d48e7bbd710c961"
+      },
       "device_id": "e8cddb2a7f9a5a7c61735d6dda26e4bd153c6d772a9be6f26bd321dfe25e0ac8",
       "instance_id": "1adba85e0df997fd961f25a9e312430cef162b5c69466cd5b172f1e65ac7360c",
       "psa_cert_ref": "0716053550477-10100",
@@ -253,8 +268,4 @@ The :example:`tee_attestation <security/tee/tee_attestation>` example demonstrat
 API Reference
 -------------
 
-.. note::
-
-    To use the TEE Attestation APIs in your project, ensure that the :component:`tee_attestation <esp_tee/subproject/components/tee_attestation>` component is listed as a local dependency in the component manager manifest file `idf_component.yml <https://docs.espressif.com/projects/idf-component-manager/en/latest/reference/manifest_file.html>`_. Refer to the :example:`tee_attestation <security/tee/tee_attestation>` example for guidance.
-
-.. include-build-file:: inc/esp_tee_attestation.inc
+.. include-build-file:: inc/initial_attestation.inc

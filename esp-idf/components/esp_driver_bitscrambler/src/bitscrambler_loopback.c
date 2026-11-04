@@ -41,19 +41,19 @@ _Static_assert(offsetof(bitscrambler_loopback_t, bs) == 0, "bs needs to be 1st m
 static void bitscrambler_loopback_free(bitscrambler_loopback_t *bsl);
 static esp_err_t bitscrambler_loopback_cleanup(bitscrambler_handle_t bs, void* user_ctx);
 
-static esp_err_t new_dma_channel(const gdma_channel_alloc_config_t *cfg, gdma_channel_handle_t *handle, int bus)
+static esp_err_t new_dma_channel(const gdma_channel_alloc_config_t *cfg, gdma_channel_handle_t *tx_handle, gdma_channel_handle_t *rx_handle, int bus)
 {
     esp_err_t ret = ESP_OK;
     //Note that there are chips that do not have SOC_GDMA_BUS_* defined, but those chips also do
     //not have a BitScrambler.
 #ifdef SOC_GDMA_BUS_AHB
-    if (bus == SOC_GDMA_BUS_AHB || bus == SOC_GDMA_BUS_ANY) {
-        ESP_RETURN_ON_ERROR(gdma_new_ahb_channel(cfg, handle), TAG, "alloc AHB DMA channel failed");
+    if (bus == SOC_GDMA_BUS_AHB) {
+        ESP_RETURN_ON_ERROR(gdma_new_ahb_channel(cfg, tx_handle, rx_handle), TAG, "alloc AHB DMA channel failed");
     }
 #endif
 #ifdef SOC_GDMA_BUS_AXI
     if (bus == SOC_GDMA_BUS_AXI) {
-        ESP_RETURN_ON_ERROR(gdma_new_axi_channel(cfg, handle), TAG, "alloc AXI DMA channel failed");
+        ESP_RETURN_ON_ERROR(gdma_new_axi_channel(cfg, tx_handle, rx_handle), TAG, "alloc AXI DMA channel failed");
     }
 #endif
     return ret;
@@ -115,16 +115,8 @@ esp_err_t bitscrambler_loopback_create(bitscrambler_handle_t *handle, int attach
     ESP_GOTO_ON_ERROR(gdma_new_link_list(&dma_link_cfg, &bs->rx_link_list), err, TAG, "failed to create RX link list");
 
     // create TX channel and RX channel, they should reside in the same DMA pair
-    gdma_channel_alloc_config_t tx_alloc_config = {
-        .direction = GDMA_CHANNEL_DIRECTION_TX,
-        .flags.reserve_sibling = 1,
-    };
-    ESP_GOTO_ON_ERROR(new_dma_channel(&tx_alloc_config, &bs->tx_channel, bus), err, TAG, "failed to create GDMA TX channel");
-    gdma_channel_alloc_config_t rx_alloc_config = {
-        .direction = GDMA_CHANNEL_DIRECTION_RX,
-        .sibling_chan = bs->tx_channel,
-    };
-    ESP_GOTO_ON_ERROR(new_dma_channel(&rx_alloc_config, &bs->rx_channel, bus), err, TAG, "failed to create GDMA RX channel");
+    gdma_channel_alloc_config_t alloc_config = {0};
+    ESP_GOTO_ON_ERROR(new_dma_channel(&alloc_config, &bs->tx_channel, &bs->rx_channel, bus), err, TAG, "failed to create GDMA channels");
 
     gdma_connect(bs->rx_channel, g_bitscrambler_periph_desc[attach_to].dma_trigger);
     gdma_connect(bs->tx_channel, g_bitscrambler_periph_desc[attach_to].dma_trigger);
@@ -209,19 +201,14 @@ esp_err_t bitscrambler_loopback_run(bitscrambler_handle_t bs, void *buffer_in, s
         return ESP_ERR_INVALID_SIZE;
     }
 
-    int int_mem_cache_line_size = cache_hal_get_cache_line_size(CACHE_LL_LEVEL_INT_MEM, CACHE_TYPE_DATA);
-    int ext_mem_cache_line_size = cache_hal_get_cache_line_size(CACHE_LL_LEVEL_EXT_MEM, CACHE_TYPE_DATA);
-
-    bool need_cache_sync = esp_ptr_internal(buffer_in) ? (int_mem_cache_line_size > 0) : (ext_mem_cache_line_size > 0);
-    if (need_cache_sync) {
+    if (esp_cache_get_line_size_by_addr(buffer_in) > 0) {
         //Note: we add the ESP_CACHE_MSYNC_FLAG_UNALIGNED flag for now as otherwise esp_cache_msync will complain about
         //the size not being aligned... we miss out on a check to see if the address is aligned this way. This needs to
         //be improved, but potentially needs a fix in esp_cache_msync not to check the size.
         ESP_RETURN_ON_ERROR(esp_cache_msync(buffer_in, length_bytes_in, ESP_CACHE_MSYNC_FLAG_DIR_C2M | ESP_CACHE_MSYNC_FLAG_UNALIGNED),
                             TAG, "failed in cache sync for input buffer");
     }
-    need_cache_sync = esp_ptr_internal(buffer_out) ? (int_mem_cache_line_size > 0) : (ext_mem_cache_line_size > 0);
-    if (need_cache_sync) {
+    if (esp_cache_get_line_size_by_addr(buffer_out) > 0) {
         ESP_RETURN_ON_ERROR(esp_cache_msync(buffer_out, length_bytes_out, ESP_CACHE_MSYNC_FLAG_DIR_M2C),
                             TAG, "failed in cache sync for output buffer");
     }
@@ -237,7 +224,7 @@ esp_err_t bitscrambler_loopback_run(bitscrambler_handle_t bs, void *buffer_in, s
         .length = length_bytes_in,
         .flags = {
             .mark_eof = true,
-            .mark_final = true,
+            .mark_final = GDMA_FINAL_LINK_TO_NULL,
         }
     };
     gdma_link_mount_buffers(bsl->tx_link_list, 0, &in_buf_mount_config, 1, NULL);
@@ -247,7 +234,7 @@ esp_err_t bitscrambler_loopback_run(bitscrambler_handle_t bs, void *buffer_in, s
         .length = length_bytes_out,
         .flags = {
             .mark_eof = false,
-            .mark_final = true,
+            .mark_final = GDMA_FINAL_LINK_TO_NULL,
         }
     };
     gdma_link_mount_buffers(bsl->rx_link_list, 0, &out_buf_mount_config, 1, NULL);

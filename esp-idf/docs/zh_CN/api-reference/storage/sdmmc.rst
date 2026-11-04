@@ -9,7 +9,7 @@ SD/SDIO/MMC 驱动程序
 SD/SDIO/MMC 驱动支持 SD 存储器、SDIO 卡和 eMMC 芯片。这是一个协议层驱动 (:component_file:`sdmmc/include/sdmmc_cmd.h`)，可以与以下驱动配合使用：
 
 .. list::
-    :SOC_SDMMC_HOST_SUPPORTED: - SDMMC 主机驱动 (:component_file:`esp_driver_sdmmc/include/driver/sdmmc_host.h`)，详情请参阅 :doc:`SDMMC Host API <../peripherals/sdmmc_host>`。
+    :SOC_SDMMC_HOST_SUPPORTED: - SDMMC 主机驱动 (:component_file:`esp_driver_sdmmc/legacy/include/driver/sdmmc_host.h`)，详情请参阅 :doc:`SDMMC Host API <../peripherals/sdmmc_host>`。
     :SOC_GPSPI_SUPPORTED: - SDSPI 主机驱动 (:component_file:`esp_driver_sdspi/include/driver/sdspi_host.h`)，详情请参阅 :doc:`SD SPI Host API <../peripherals/sdspi_host>`。
 
 协议层与主机层
@@ -55,6 +55,19 @@ SD/SDIO/MMC 驱动支持 SD 存储器、SDIO 卡和 eMMC 芯片。这是一个�
     - 读取或写入卡的扇区，请分别调用 :cpp:func:`sdmmc_read_sectors` 和 :cpp:func:`sdmmc_write_sectors`，并将参数 ``card`` （指向卡信息结构的指针）传递给函数。
 
     - 如果不再使用该卡，请调用主机驱动函数，例如 ``sdmmc_host_deinit`` 或 ``sdspi_host_deinit``，以禁用SDMMC 主机外设或 SDSPI 主机外设，并释放驱动程序分配的资源。
+
+未对齐 buffer 性能
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+当传递给 :cpp:func:`sdmmc_read_sectors` 或 :cpp:func:`sdmmc_write_sectors` 的 buffer 不支持 DMA（例如，分配在 PSRAM 中）时，驱动会通过一个临时的支持 DMA 的 buffer 来复制数据。默认情况下，该操作会使用单块传输命令一次传输一个块。
+
+若要在此场景下提升吞吐量，可将 :cpp:member:`sdmmc_host_t::unaligned_multi_block_rw_max_chunk_size` 字段设置为大于 1 的值。驱动将启用多块传输命令 (CMD18/CMD25)，从而显著降低传输开销，但堆内存占用会相应增加（buffer 大小 = N × 块大小，其中 N 为配置值，块大小通常为 512 字节）。当该字段为 0（默认值）时，驱动回退至单块传输模式（等效于 1）。建议将大于 1 的配置值设置为块大小的整数倍（如 2、4、8、16 或 32）以获得最佳性能。
+
+.. note::
+
+    如果你的 SD 卡或配置不支持多块读写命令（CMD18 和 CMD25），请将该选项值保持为 0 或 1。
+
+或者，可以通过 :cpp:member:`sdmmc_host_t::dma_aligned_buffer` 字段提供一个预先分配的、支持 DMA 的 buffer。这样可以避免每次传输时都分配堆内存，驱动也能在多次传输间复用该 buffer。该 buffer 的大小必须至少为一个扇区（通常为 512 字节），理想情况下应为扇区大小的整数倍。
 
 .. only:: not SOC_SDMMC_HOST_SUPPORTED
 
@@ -109,9 +122,9 @@ SD/SDIO/MMC 驱动支持 SD 存储器、SDIO 卡和 eMMC 芯片。这是一个�
 
     如果需要应用程序保持等待直至发生 SDIO 中断，请使用 :cpp:func:`sdmmc_io_wait_int` 函数。
 
-    .. only:: esp32
+    .. only:: SOC_SDMMC_HOST_SUPPORTED and SOC_SDIO_SLAVE_SUPPORTED
 
-        如果需要与 ESP32 的 SDIO 从设备通信，请使用 ESSL 组件（ESP 串行从设备链接）。请参阅 :doc:`/api-reference/protocols/esp_serial_slave_link` 和示例 :example:`peripherals/sdio/host`。
+        如果需要与 ESP32 的 SDIO 从设备通信，请使用 `ESSL <https://components.espressif.com/components/espressif/esp_serial_slave_link>`_ 组件（ESP 串行从设备链接）。请参阅示例 :example:`peripherals/sdio/host`。
 
     复合卡（存储 + IO）
     ^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -129,5 +142,7 @@ API 参考
 -------------
 
 .. include-build-file:: inc/sdmmc_cmd.inc
+
+.. include-build-file:: inc/sd_protocol_types.inc
 
 .. include-build-file:: inc/sdmmc_types.inc

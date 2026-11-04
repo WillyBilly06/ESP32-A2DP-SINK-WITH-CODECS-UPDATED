@@ -36,6 +36,8 @@
 static const char *bind_interface_name = EXAMPLE_NETIF_DESC_ETH;
 #elif CONFIG_EXAMPLE_FIRMWARE_UPGRADE_BIND_IF_STA
 static const char *bind_interface_name = EXAMPLE_NETIF_DESC_STA;
+#elif CONFIG_EXAMPLE_FIRMWARE_UPGRADE_BIND_IF_THREAD
+static const char *bind_interface_name = EXAMPLE_NETIF_DESC_THREAD;
 #endif
 #endif
 
@@ -60,6 +62,9 @@ esp_err_t _http_event_handler(esp_http_client_event_t *evt)
     case HTTP_EVENT_ON_HEADER:
         ESP_LOGD(TAG, "HTTP_EVENT_ON_HEADER, key=%s, value=%s", evt->header_key, evt->header_value);
         break;
+    case HTTP_EVENT_ON_HEADERS_COMPLETE:
+        ESP_LOGD(TAG, "HTTP_EVENT_ON_HEADERS_COMPLETE");
+        break;
     case HTTP_EVENT_ON_DATA:
         ESP_LOGD(TAG, "HTTP_EVENT_ON_DATA, len=%d", evt->data_len);
         break;
@@ -71,6 +76,8 @@ esp_err_t _http_event_handler(esp_http_client_event_t *evt)
         break;
     case HTTP_EVENT_REDIRECT:
         ESP_LOGD(TAG, "HTTP_EVENT_REDIRECT");
+        break;
+    default:
         break;
     }
     return ESP_OK;

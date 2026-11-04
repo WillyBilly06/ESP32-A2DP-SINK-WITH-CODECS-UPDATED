@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2020-2025 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2020-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -40,7 +40,11 @@
 
 #ifdef SOC_KEY_MANAGER_DS_KEY_DEPLOY
 #include "hal/key_mgr_hal.h"
+#include "hal/key_mgr_ll.h"
 #endif
+#include "esp_log.h"
+
+#define TAG "esp_ds"
 
 /**
  * The vtask delay \c esp_ds_sign() is using while waiting for completion of the signing operation.
@@ -202,11 +206,16 @@ esp_err_t esp_ds_finish_sign(void *signature, esp_ds_context_t *esp_ds_ctx)
     return return_value;
 }
 
-esp_err_t esp_ds_encrypt_params(esp_ds_data_t *data,
-                                const void *iv,
-                                const esp_ds_p_data_t *p_data,
-                                const void *key)
+static esp_err_t ds_encrypt_params_using_key_type(esp_ds_data_t *data,
+                                                  const void *iv,
+                                                  const esp_ds_p_data_t *p_data,
+                                                  const void *key,
+                                                  esp_ds_key_type_t key_type)
 {
+    if (key_type >= ESP_DS_KEY_MAX) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
     // p_data has to be valid, in internal memory and word aligned
     if (!p_data) {
         return ESP_ERR_INVALID_ARG;
@@ -222,7 +231,7 @@ esp_err_t esp_ds_encrypt_params(esp_ds_data_t *data,
     ets_ds_data_t *ds_data = (ets_ds_data_t *) data;
     const ets_ds_p_data_t *ds_plain_data = (const ets_ds_p_data_t *) p_data;
 
-    ets_ds_result_t ets_result = ets_ds_encrypt_params(ds_data, iv, ds_plain_data, key, ETS_DS_KEY_HMAC);
+    ets_ds_result_t ets_result = ets_ds_encrypt_params(ds_data, iv, ds_plain_data, key, (ets_ds_key_t) key_type);
 
     if (ets_result == ETS_DS_INVALID_PARAM) {
         result = ESP_ERR_INVALID_ARG;
@@ -255,10 +264,22 @@ static void ds_acquire_enable(void)
     esp_crypto_sha_enable_periph_clk(true);
     esp_crypto_mpi_enable_periph_clk(true);
     esp_crypto_ds_enable_periph_clk(true);
+
+#if SOC_KEY_MANAGER_DS_KEY_DEPLOY
+    /*  Key Manager holds the key usage selector register(efuse vs own key).
+        Thus, we need to enable the Key Manager peripheral clock to ensure
+        that the key usage selector register is properly set.
+     */
+    esp_crypto_key_mgr_enable_periph_clk(true);
+#endif /* SOC_KEY_MANAGER_DS_KEY_DEPLOY */
 }
 
 static void ds_disable_release(void)
 {
+#if SOC_KEY_MANAGER_DS_KEY_DEPLOY
+    esp_crypto_key_mgr_enable_periph_clk(false);
+#endif /* SOC_KEY_MANAGER_DS_KEY_DEPLOY */
+
     esp_crypto_ds_enable_periph_clk(false);
     esp_crypto_mpi_enable_periph_clk(false);
     esp_crypto_sha_enable_periph_clk(false);
@@ -327,10 +348,17 @@ esp_err_t esp_ds_start_sign(const void *message,
 
 #if SOC_KEY_MANAGER_DS_KEY_DEPLOY
     if (key_id == HMAC_KEY_KM) {
+        if (!key_mgr_ll_is_supported()) {
+            ESP_LOGE(TAG, "HMAC_KEY_KM requested but Key Manager peripheral is not supported on this chip");
+            ds_disable_release();
+            return ESP_ERR_NOT_SUPPORTED;
+        }
         key_mgr_hal_set_key_usage(ESP_KEY_MGR_DS_KEY, ESP_KEY_MGR_USE_OWN_KEY);
         ds_hal_set_key_source(DS_KEY_SOURCE_KEY_MGR);
     } else {
-        key_mgr_hal_set_key_usage(ESP_KEY_MGR_DS_KEY, ESP_KEY_MGR_USE_EFUSE_KEY);
+        if (key_mgr_ll_is_supported()) {
+            key_mgr_hal_set_key_usage(ESP_KEY_MGR_DS_KEY, ESP_KEY_MGR_USE_EFUSE_KEY);
+        }
         ds_hal_set_key_source(DS_KEY_SOURCE_EFUSE);
 #endif
         // initiate hmac
@@ -383,6 +411,14 @@ bool esp_ds_is_busy(void)
     return ds_hal_busy();
 }
 
+static void esp_ds_zeroize(void *buf, size_t len)
+{
+    volatile uint8_t *p = (volatile uint8_t *)buf;
+    for (size_t i = 0; i < len; i++) {
+        *p++ = 0;
+    }
+}
+
 esp_err_t esp_ds_finish_sign(void *signature, esp_ds_context_t *esp_ds_ctx)
 {
     if (!signature || !esp_ds_ctx) {
@@ -399,10 +435,12 @@ esp_err_t esp_ds_finish_sign(void *signature, esp_ds_context_t *esp_ds_ctx)
     esp_err_t return_value = ESP_OK;
 
     if (sig_check_result == DS_SIGNATURE_MD_FAIL || sig_check_result == DS_SIGNATURE_PADDING_AND_MD_FAIL) {
+        esp_ds_zeroize(signature, rsa_len);
         return_value = ESP_ERR_HW_CRYPTO_DS_INVALID_DIGEST;
     }
 
     if (sig_check_result == DS_SIGNATURE_PADDING_FAIL) {
+        esp_ds_zeroize(signature, rsa_len);
         return_value = ESP_ERR_HW_CRYPTO_DS_INVALID_PADDING;
     }
 
@@ -418,18 +456,23 @@ esp_err_t esp_ds_finish_sign(void *signature, esp_ds_context_t *esp_ds_ctx)
     return return_value;
 }
 
-esp_err_t esp_ds_encrypt_params(esp_ds_data_t *data,
-                                const void *iv,
-                                const esp_ds_p_data_t *p_data,
-                                const void *key)
+static esp_err_t ds_encrypt_params_using_key_type(esp_ds_data_t *data,
+                                                  const void *iv,
+                                                  const esp_ds_p_data_t *p_data,
+                                                  const void *key,
+                                                  esp_ds_key_type_t key_type)
 {
+    if (key_type >= ESP_DS_KEY_MAX) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
     if (!p_data) {
         return ESP_ERR_INVALID_ARG;
     }
 
     esp_err_t result = ESP_OK;
 
-    // The `esp_ds_encrypt_params` operation does not use the Digital Signature peripheral,
+    // The `esp_ds_encrypt_params_using_key_type` operation does not use the Digital Signature peripheral,
     // but just the AES and SHA peripherals, so acquiring locks just for these peripherals
     // would be enough rather than acquiring a lock for the Digital Signature peripheral.
     esp_crypto_sha_aes_lock_acquire();
@@ -441,7 +484,7 @@ esp_err_t esp_ds_encrypt_params(esp_ds_data_t *data,
     ets_ds_data_t *ds_data = (ets_ds_data_t *) data;
     const ets_ds_p_data_t *ds_plain_data = (const ets_ds_p_data_t *) p_data;
 
-    ets_ds_result_t ets_result = ets_ds_encrypt_params(ds_data, iv, ds_plain_data, key, ETS_DS_KEY_HMAC);
+    ets_ds_result_t ets_result = ets_ds_encrypt_params(ds_data, iv, ds_plain_data, key, (ets_ds_key_t) key_type);
 
     if (ets_result == ETS_DS_INVALID_PARAM) {
         result = ESP_ERR_INVALID_ARG;
@@ -456,3 +499,20 @@ esp_err_t esp_ds_encrypt_params(esp_ds_data_t *data,
     return result;
 }
 #endif
+
+esp_err_t esp_ds_encrypt_params_using_key_type(esp_ds_data_t *data,
+                                               const void *iv,
+                                               const esp_ds_p_data_t *p_data,
+                                               const void *key,
+                                               esp_ds_key_type_t key_type)
+{
+    return ds_encrypt_params_using_key_type(data, iv, p_data, key, key_type);
+}
+
+esp_err_t esp_ds_encrypt_params(esp_ds_data_t *data,
+                                const void *iv,
+                                const esp_ds_p_data_t *p_data,
+                                const void *key)
+{
+    return ds_encrypt_params_using_key_type(data, iv, p_data, key, ESP_DS_KEY_HMAC);
+}

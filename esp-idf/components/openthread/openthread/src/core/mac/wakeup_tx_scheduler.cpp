@@ -80,7 +80,6 @@ void WakeupTxScheduler::RequestWakeupFrameTransmission(void) { Get<Mac::Mac>().R
 Mac::TxFrame *WakeupTxScheduler::PrepareWakeupFrame(Mac::TxFrames &aTxFrames)
 {
     Mac::TxFrame      *frame = nullptr;
-    Mac::Address       target;
     Mac::Address       source;
     uint32_t           radioTxDelay;
     uint32_t           rendezvousTimeUs;
@@ -89,7 +88,6 @@ Mac::TxFrame *WakeupTxScheduler::PrepareWakeupFrame(Mac::TxFrames &aTxFrames)
 
     VerifyOrExit(mIsRunning);
 
-    target.SetExtended(mWakeupRequest.GetExtAddress());
     source.SetExtended(Get<Mac::Mac>().GetExtAddress());
     VerifyOrExit(mTxTimeUs >= nowUs);
     radioTxDelay = mTxTimeUs - nowUs;
@@ -100,8 +98,9 @@ Mac::TxFrame *WakeupTxScheduler::PrepareWakeupFrame(Mac::TxFrames &aTxFrames)
     frame = &aTxFrames.GetTxFrame();
 #endif
 
-    VerifyOrExit(frame->GenerateWakeupFrame(Get<Mac::Mac>().GetPanId(), target, source) == kErrorNone, frame = nullptr);
-    frame->SetTxDelayBaseTime(static_cast<uint32_t>(Get<Radio>().GetNow()));
+    VerifyOrExit(frame->GenerateWakeupFrame(Get<Mac::Mac>().GetPanId(), mWakeupRequest, source) == kErrorNone,
+                 frame = nullptr);
+    frame->SetTxDelayBaseTime(Get<Radio>().GetNowAsRadioTime32());
     frame->SetTxDelay(radioTxDelay);
     frame->SetCsmaCaEnabled(kWakeupFrameTxCca);
     frame->SetMaxCsmaBackoffs(0);
@@ -113,9 +112,9 @@ Mac::TxFrame *WakeupTxScheduler::PrepareWakeupFrame(Mac::TxFrames &aTxFrames)
     rendezvousTimeUs = mIntervalUs;
     rendezvousTimeUs += (mIntervalUs - (kWakeupFrameLength + kParentRequestLength) * kOctetDuration) / 2;
 
-    frame->GetRendezvousTimeIe()->SetRendezvousTime(ClampToUint16(rendezvousTimeUs / kUsPerTenSymbols));
+    frame->Find<Mac::RendezvousTimeIe>()->SetRendezvousTime(ClampToUint16(rendezvousTimeUs / kUsPerTenSymbols));
 
-    connectionIe = frame->GetConnectionIe();
+    connectionIe = frame->Find<Mac::ConnectionIe>();
     connectionIe->SetRetryInterval(kConnectionRetryInterval);
     connectionIe->SetRetryCount(kConnectionRetryCount);
 

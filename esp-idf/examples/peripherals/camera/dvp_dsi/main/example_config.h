@@ -13,6 +13,8 @@ extern "C" {
 #endif
 
 #define EXAMPLE_RGB565_BITS_PER_PIXEL      (16)
+#define EXAMPLE_RGB565_BYTES_PER_PIXEL     (EXAMPLE_RGB565_BITS_PER_PIXEL / 8)
+
 #define EXAMPLE_DVP_CAM_XCLK_FREQ_HZ       (20000000)
 #define EXAMPLE_DVP_CAM_DATA_WIDTH         (8)
 
@@ -36,6 +38,7 @@ extern "C" {
 #define EXAMPLE_DVP_CAM_HSYNC_IO           (-1)
 
 #else
+
 #define EXAMPLE_DVP_CAM_SCCB_SCL_IO        (33)
 #define EXAMPLE_DVP_CAM_SCCB_SDA_IO        (32)
 
@@ -58,13 +61,13 @@ extern "C" {
 #if CONFIG_EXAMPLE_CAM_HRES_640
 
 #if CONFIG_EXAMPLE_CAM_VRES_480
-#define EXAMPLE_CAM_FORMAT                     "DVP_8bit_20Minput_RGB565_640x480_6fps"
+#define EXAMPLE_CAM_FORMAT                     "DVP_8bit_20Minput_RGB565_LE_640x480_6fps"
 #endif
 
 #elif CONFIG_EXAMPLE_CAM_HRES_240
 
 #if CONFIG_EXAMPLE_CAM_VRES_240
-#define EXAMPLE_CAM_FORMAT                     "DVP_8bit_20Minput_RGB565_240x240_25fps"
+#define EXAMPLE_CAM_FORMAT                     "DVP_8bit_20Minput_RGB565_LE_240x240_25fps"
 #endif
 
 #endif

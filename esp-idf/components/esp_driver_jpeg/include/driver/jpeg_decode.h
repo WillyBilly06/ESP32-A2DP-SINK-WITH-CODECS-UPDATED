@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2024 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2024-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -29,7 +29,12 @@ typedef struct {
  */
 typedef struct {
     int intr_priority;                    /*!< JPEG interrupt priority, if set to 0, driver will select the default priority (1,2,3). */
-    int timeout_ms;                  /*!< JPEG timeout threshold for handling a picture, should larger than valid decode time in ms. For example, for 30fps decode, this value must larger than 34. -1 means wait forever */
+    int timeout_ms;                       /*!< JPEG timeout threshold for handling a picture, should larger than valid decode time in ms. For example, for 30fps decode, this value must larger than 34. -1 means wait forever */
+    struct {
+        uint32_t allow_pd:               1;   /*!< If set, the driver will backup/restore the JPEG registers before/after entering/exist sleep mode.
+                                                   By this approach, the system can power off JPEG's power domain.
+                                                   This can save power, but at the expense of more RAM being consumed */
+    } flags;                              /*!< JPEG engine configuration flags */
 } jpeg_decode_engine_cfg_t;
 
 /**
@@ -92,7 +97,9 @@ esp_err_t jpeg_decoder_get_info(const uint8_t *bit_stream, uint32_t stream_size,
  * returned through the `out_size` pointer.
  *
  * @note 1.Please make sure that the content of `bit_stream` pointer cannot be modified until this function returns.
- *       2.Please note that the output size of image is always the multiple of 16 depends on protocol of JPEG.
+ *       2.For JPEGs encoded with YUV420 or YUV422 sampling, the decoded output dimensions can be padded
+ *         to 16-pixel boundaries by the JPEG block layout. Make sure `decode_outbuf` is large enough for
+ *         that padded output size, not only for the visible width and height.
  *
  * @param[in] decoder_engine Handle of the JPEG decoder instance to use for processing.
  * @param[in] decode_cfg Config structure of decoder.

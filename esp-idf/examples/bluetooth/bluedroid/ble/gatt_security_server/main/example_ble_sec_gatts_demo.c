@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2021-2024 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2021-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Unlicense OR CC0-1.0
  */
@@ -49,8 +49,8 @@ static uint8_t sec_service_uuid[16] = {
 static esp_ble_adv_data_t heart_rate_adv_config = {
     .set_scan_rsp = false,
     .include_txpower = true,
-    .min_interval = 0x0006, //slave connection min interval, Time = min_interval * 1.25 msec
-    .max_interval = 0x0010, //slave connection max interval, Time = max_interval * 1.25 msec
+    .min_interval = ESP_BLE_GAP_CONN_ITVL_MS(7.5), //slave connection min interval
+    .max_interval = ESP_BLE_GAP_CONN_ITVL_MS(20), //slave connection max interval
     .appearance = 0x00,
     .manufacturer_len = 0, //TEST_MANUFACTURER_DATA_LEN,
     .p_manufacturer_data =  NULL, //&test_manufacturer[0],
@@ -69,8 +69,8 @@ static esp_ble_adv_data_t heart_rate_scan_rsp_config = {
 };
 
 static esp_ble_adv_params_t heart_rate_adv_params = {
-    .adv_int_min        = 0x100,
-    .adv_int_max        = 0x100,
+    .adv_int_min        = ESP_BLE_GAP_ADV_ITVL_MS(160),
+    .adv_int_max        = ESP_BLE_GAP_ADV_ITVL_MS(160),
     .adv_type           = ADV_TYPE_IND,
     .own_addr_type      = BLE_ADDR_TYPE_RPA_PUBLIC,
     .channel_map        = ADV_CHNL_ALL,
@@ -178,9 +178,9 @@ static const esp_gatts_attr_db_t heart_rate_gatt_db[HRS_IDX_NB] =
       sizeof(uint8_t), sizeof(heart_ctrl_point), (uint8_t *)heart_ctrl_point}},
 };
 
-static char *esp_key_type_to_str(esp_ble_key_type_t key_type)
+static const char *esp_key_type_to_str(esp_ble_key_type_t key_type)
 {
-   char *key_str = NULL;
+   const char *key_str = NULL;
    switch(key_type) {
     case ESP_LE_KEY_NONE:
         key_str = "ESP_LE_KEY_NONE";
@@ -257,12 +257,16 @@ static char *esp_auth_req_to_str(esp_ble_auth_req_t auth_req)
 static void show_bonded_devices(void)
 {
     int dev_num = esp_ble_get_bond_device_num();
+    if (dev_num < 0) {
+        ESP_LOGE(GATTS_TABLE_TAG, "Get bond device num failed (stack may be disabled), ret %d", dev_num);
+        return;
+    }
     if (dev_num == 0) {
         ESP_LOGI(GATTS_TABLE_TAG, "Bonded devices number zero\n");
         return;
     }
 
-    esp_ble_bond_dev_t *dev_list = (esp_ble_bond_dev_t *)malloc(sizeof(esp_ble_bond_dev_t) * dev_num);
+    esp_ble_bond_dev_t *dev_list = (esp_ble_bond_dev_t *)malloc(sizeof(esp_ble_bond_dev_t) * (size_t)dev_num);
     if (!dev_list) {
         ESP_LOGI(GATTS_TABLE_TAG, "malloc failed, return\n");
         return;
@@ -280,12 +284,16 @@ static void show_bonded_devices(void)
 static void __attribute__((unused)) remove_all_bonded_devices(void)
 {
     int dev_num = esp_ble_get_bond_device_num();
+    if (dev_num < 0) {
+        ESP_LOGE(GATTS_TABLE_TAG, "Get bond device num failed (stack may be disabled), ret %d", dev_num);
+        return;
+    }
     if (dev_num == 0) {
         ESP_LOGI(GATTS_TABLE_TAG, "Bonded devices number zero\n");
         return;
     }
 
-    esp_ble_bond_dev_t *dev_list = (esp_ble_bond_dev_t *)malloc(sizeof(esp_ble_bond_dev_t) * dev_num);
+    esp_ble_bond_dev_t *dev_list = (esp_ble_bond_dev_t *)malloc(sizeof(esp_ble_bond_dev_t) * (size_t)dev_num);
     if (!dev_list) {
         ESP_LOGI(GATTS_TABLE_TAG, "malloc failed, return\n");
         return;
@@ -461,7 +469,7 @@ static void gatts_profile_event_handler(esp_gatts_cb_event_t event,
         case ESP_GATTS_CONGEST_EVT:
             break;
         case ESP_GATTS_CREAT_ATTR_TAB_EVT: {
-            if (param->create.status == ESP_GATT_OK){
+            if (param->add_attr_tab.status == ESP_GATT_OK){
                 if(param->add_attr_tab.num_handle == HRS_IDX_NB) {
                     ESP_LOGI(GATTS_TABLE_TAG, "Attribute table create successfully, num_handle %x", param->add_attr_tab.num_handle);
                     memcpy(heart_rate_handle_table, param->add_attr_tab.handles,
@@ -472,7 +480,7 @@ static void gatts_profile_event_handler(esp_gatts_cb_event_t event,
                          param->add_attr_tab.num_handle, HRS_IDX_NB);
                 }
             }else{
-                ESP_LOGE(GATTS_TABLE_TAG, "Attribute table create failed, error code = %x", param->create.status);
+                ESP_LOGE(GATTS_TABLE_TAG, "Attribute table create failed, error code = %x", param->add_attr_tab.status);
             }
         break;
     }
@@ -543,7 +551,8 @@ void app_main(void)
 
     ESP_LOGI(GATTS_TABLE_TAG, "%s init bluetooth", __func__);
 
-    ret = esp_bluedroid_init();
+    esp_bluedroid_config_t cfg = BT_BLUEDROID_INIT_CONFIG_DEFAULT();
+    ret = esp_bluedroid_init_with_cfg(&cfg);
     if (ret) {
         ESP_LOGE(GATTS_TABLE_TAG, "%s init bluetooth failed: %s", __func__, esp_err_to_name(ret));
         return;

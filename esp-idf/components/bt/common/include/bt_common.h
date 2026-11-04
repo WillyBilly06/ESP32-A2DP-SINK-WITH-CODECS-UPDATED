@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2015-2025 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2015-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -61,6 +61,22 @@
 #define HEAP_MEMORY_DEBUG   FALSE
 #endif
 
+#if UC_BT_BLUEDROID_MEM_STATS
+#define HEAP_MEMORY_STATS   TRUE
+#else
+#define HEAP_MEMORY_STATS   FALSE
+#endif
+
+#if UC_BT_BLUEDROID_THREAD_DEBUG
+#define OSI_THREAD_DEBUG    TRUE
+#else
+#define OSI_THREAD_DEBUG    FALSE
+#endif
+
+#define OSI_THREAD_BLOCK_TIME UC_BT_BLUEDROID_THREAD_BLOCK_TIME
+
+#define OSI_THREAD_BLOCK_MSG UC_BT_BLUEDROID_THREAD_BLOCK_MSG
+
 #ifndef BT_BLE_DYNAMIC_ENV_MEMORY
 #define BT_BLE_DYNAMIC_ENV_MEMORY  FALSE
 #endif
@@ -84,6 +100,13 @@
 #define BT_HCI_LOG_INCLUDED  FALSE
 #endif
 
+// HCI INSIGHTS LOG
+#if UC_BT_HCI_LOG_INSIGHTS_ENABLE
+#define BT_HCI_INSIGHTS_INCLUDED  UC_BT_HCI_LOG_INSIGHTS_ENABLE
+#else
+#define BT_HCI_INSIGHTS_INCLUDED  FALSE
+#endif
+
 // HCI LOG TO SPI
 #if UC_BT_BLE_LOG_SPI_OUT_HCI_ENABLED
 #define BT_BLE_LOG_SPI_OUT_HCI_ENABLED  UC_BT_BLE_LOG_SPI_OUT_HCI_ENABLED
@@ -101,10 +124,10 @@
 #if UC_BT_HCI_LOG_DATA_BUFFER_SIZE
 #define HCI_LOG_DATA_BUFFER_SIZE  UC_BT_HCI_LOG_DATA_BUFFER_SIZE
 #else
-#define HCI_BUFFER_SIZE  (5)
+#define HCI_LOG_DATA_BUFFER_SIZE  (5)
 #endif
 
-#if UC_BT_HCI_ADV_BUFFER_SIZE
+#if UC_BT_HCI_LOG_ADV_BUFFER_SIZE
 #define HCI_LOG_ADV_BUFFER_SIZE  UC_BT_HCI_LOG_ADV_BUFFER_SIZE
 #else
 #define HCI_LOG_ADV_BUFFER_SIZE  (5)
@@ -141,7 +164,9 @@
 #define LOG_LOCAL_LEVEL_MAPPING LOG_LOCAL_LEVEL
 #endif
 
+#ifndef MAX
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
+#endif
 
 #define BT_LOG_LEVEL_CHECK(LAYER, LEVEL) (MAX(LAYER##_INITIAL_TRACE_LEVEL, LOG_LOCAL_LEVEL_MAPPING) >= BT_TRACE_LEVEL_##LEVEL)
 
@@ -258,5 +283,9 @@ typedef struct {
 /* Common Bluetooth field definitions */
 #define BD_ADDR_LEN     6                   /* Device address length */
 typedef UINT8 BD_ADDR[BD_ADDR_LEN];         /* Device address */
+
+#if (BT_HCI_LOG_INCLUDED == TRUE) && BT_HCI_INSIGHTS_INCLUDED
+void bt_hci_log_record_insights(uint8_t data_type, const uint8_t *data, uint16_t data_len);
+#endif
 
 #endif /* _BT_COMMON_H_ */

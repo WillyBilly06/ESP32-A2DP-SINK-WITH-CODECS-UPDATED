@@ -645,7 +645,6 @@ void radioSendMessage(otInstance *aInstance)
     {
         uint64_t sfdTxTime = otPlatTimeGet();
 
-        sRadioContext.mCslPresent = sTransmitFrame.mInfo.mTxInfo.mCslPresent;
         otEXPECT(otMacFrameProcessTxSfd(&sTransmitFrame, sfdTxTime, &sRadioContext) == OT_ERROR_NONE);
     }
 
@@ -1042,7 +1041,7 @@ exit:
 }
 #endif
 
-uint64_t otPlatRadioGetNow(otInstance *aInstance)
+otRadioTime64 otPlatRadioGetNow(otInstance *aInstance)
 {
     OT_UNUSED_VARIABLE(aInstance);
 
@@ -1061,10 +1060,7 @@ static uint8_t generateAckIeData(uint8_t                   *aLinkMetricsIeData,
     uint8_t offset = 0;
 
 #if OPENTHREAD_CONFIG_MAC_CSL_RECEIVER_ENABLE
-    sRadioContext.mCslPresent =
-        (sRadioContext.mCslPeriod > 0) && otMacFrameSrcAddrMatchCslReceiverPeer(aReceivedFrame, &sRadioContext);
-
-    if (sRadioContext.mCslPresent)
+    if ((sRadioContext.mCslPeriod > 0) && otMacFrameSrcAddrMatchCslReceiverPeer(aReceivedFrame, &sRadioContext))
     {
         offset += otMacFrameGenerateCslIeTemplate(sAckIeData);
     }
@@ -1113,7 +1109,7 @@ otError otPlatRadioResetCsl(otInstance *aInstance)
     return OT_ERROR_NONE;
 }
 
-void otPlatRadioUpdateCslSampleTime(otInstance *aInstance, uint32_t aCslSampleTime)
+void otPlatRadioUpdateCslSampleTime(otInstance *aInstance, otRadioTime32 aCslSampleTime)
 {
     OT_UNUSED_VARIABLE(aInstance);
 

@@ -41,14 +41,14 @@ check_lib_reversion:
     - GIT_COMMIT_ID=`git log --pretty="%s" -1 | grep -o '([0-9a-f]*)' | tail -1 | cut -c 2-8`
     - echo "GIT_COMMIT_ID is "$GIT_COMMIT_ID
     - test $(echo -n $GIT_COMMIT_ID | wc -c) -eq 7
-    - for dir in esp32 esp32s2 esp32s3 esp32c3 esp32c2 esp32c6 esp32h2 esp32c5 esp32c61; do grep $GIT_COMMIT_ID $dir/libcoexist.a; done;
-    - for dir in esp32 esp32s2 esp32s3 esp32c3 esp32c2 esp32c6 esp32h2 esp32c5 esp32c61; do grep $GIT_COMMIT_ID-remote $dir/libcoexist.a; done;
-    - for dir in esp32 esp32s2 esp32s3 esp32c3 esp32c2 esp32c6 esp32h2 esp32c5 esp32c61; do test $(grep $GIT_COMMIT_ID-dirty $dir/*.a | wc -l) -eq 0; done;
-    - for dir in esp32c3 esp32c2 esp32c6 esp32h2 esp32c5 esp32c61; do test $(riscv32-esp-elf-nm $dir/*.a | grep -w printf | wc -l) -eq 0; done;
-    - for dir in esp32c3 esp32c2 esp32c6 esp32h2 esp32c5 esp32c61; do test $(riscv32-esp-elf-nm $dir/*.a | grep -w ets_printf | wc -l) -eq 0; done;
+    - for dir in esp32 esp32s2 esp32s3 esp32c3 esp32c2 esp32c6 esp32h2 esp32c5 esp32c61 esp32s31 esp32h4 esp32h21; do grep $GIT_COMMIT_ID $dir/libcoexist.a; done;
+    - for dir in esp32 esp32s2 esp32s3 esp32c3 esp32c2 esp32c6 esp32h2 esp32c5 esp32c61 esp32s31 esp32h4 esp32h21; do grep $GIT_COMMIT_ID-remote $dir/libcoexist.a; done;
+    - for dir in esp32 esp32s2 esp32s3 esp32c3 esp32c2 esp32c6 esp32h2 esp32c5 esp32c61 esp32s31 esp32h4 esp32h21; do test $(grep $GIT_COMMIT_ID-dirty $dir/*.a | wc -l) -eq 0; done;
+    - for dir in esp32c3 esp32c2 esp32c6 esp32h2 esp32c5 esp32c61 esp32s31 esp32h4 esp32h21; do test $(riscv32-esp-elf-nm $dir/*.a | grep -w printf | wc -l) -eq 0; done;
+    - for dir in esp32c3 esp32c2 esp32c6 esp32h2 esp32c5 esp32c61 esp32s31 esp32h4 esp32h21; do test $(riscv32-esp-elf-nm $dir/*.a | grep -w ets_printf | wc -l) -eq 0; done;
     - for dir in esp32 esp32s2 esp32s3; do test $(xtensa-esp32-elf-nm $dir/*.a | grep -w printf | wc -l) -eq 0; done;
     - for dir in esp32 esp32s2 esp32s3; do test $(xtensa-esp32-elf-nm $dir/*.a | grep -w ets_printf | wc -l) -eq 0; done;
-    - for dir in esp32 esp32s2 esp32s3 esp32c3 esp32c2 esp32c6 esp32h2 esp32c5 esp32c61; do cd $dir; for filename in *; do if [[ -x "$file" ]]; then echo "Execute permissions for $dir/$filename";  exit 1; fi; done; cd .. ; done
+    - for dir in esp32 esp32s2 esp32s3 esp32c3 esp32c2 esp32c6 esp32h2 esp32c5 esp32c61 esp32s31 esp32h4 esp32h21; do cd $dir; for filename in *; do if [[ -x "$file" ]]; then echo "Execute permissions for $dir/$filename";  exit 1; fi; done; cd .. ; done
 
 include:
      - 'tools/ci/config/build.yml'

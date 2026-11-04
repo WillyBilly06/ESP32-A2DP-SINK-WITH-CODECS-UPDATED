@@ -20,6 +20,7 @@
 #include "host/ble_store.h"
 #include "ble_hs_priv.h"
 #include "ble_hs_resolv_priv.h"
+#include "host/ble_hs_log.h"
 
 struct ble_store_util_peer_set {
     ble_addr_t *peer_id_addrs;
@@ -28,6 +29,19 @@ struct ble_store_util_peer_set {
     int status;
 };
 
+#if NIMBLE_BLE_CONNECT && MYNEWT_VAL(BLE_HOST_BASED_PRIVACY)
+static int
+ble_store_util_lock_owned_by_cur_task(void)
+{
+#if MYNEWT_VAL(BLE_HS_DEBUG)
+    return ble_hs_locked_by_cur_task();
+#else
+    return 0;
+#endif
+}
+#endif
+
+#if NIMBLE_BLE_CONNECT
 static int
 ble_store_util_iter_unique_peer(int obj_type,
                                 union ble_store_value *val,
@@ -44,9 +58,28 @@ ble_store_util_iter_unique_peer(int obj_type,
 
     set = arg;
 
-    /* Do nothing if this peer is a duplicate. */
+    ble_addr_t peer_addr;
+    switch (obj_type) {
+    case BLE_STORE_OBJ_TYPE_OUR_SEC:
+    case BLE_STORE_OBJ_TYPE_PEER_SEC:
+        peer_addr = val->sec.peer_addr;
+        break;
+#if MYNEWT_VAL(ENC_ADV_DATA)
+    case BLE_STORE_OBJ_TYPE_ENC_ADV_DATA:
+        peer_addr = val->ead.peer_addr;
+        break;
+#endif
+    case BLE_STORE_OBJ_TYPE_LOCAL_IRK:
+        peer_addr = val->local_irk.addr;
+        break;
+    default:
+        BLE_HS_DBG_ASSERT(0);
+        BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_EINVAL);
+        return BLE_HS_EINVAL;
+    }
+    /* Use peer_addr in loop and assignment */
     for (i = 0; i < set->num_peers; i++) {
-        if (ble_addr_cmp(set->peer_id_addrs + i, &val->sec.peer_addr) == 0) {
+        if (ble_addr_cmp(set->peer_id_addrs + i, &peer_addr) == 0) {
             return 0;
         }
     }
@@ -54,14 +87,16 @@ ble_store_util_iter_unique_peer(int obj_type,
     if (set->num_peers >= set->max_peers) {
         /* Overflow; abort the iterate procedure. */
         set->status = BLE_HS_ENOMEM;
-        return 1;
+        BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_ENOMEM);
+        return BLE_HS_ENOMEM;
     }
 
-    set->peer_id_addrs[set->num_peers] = val->sec.peer_addr;
+    set->peer_id_addrs[set->num_peers] = peer_addr;
     set->num_peers++;
 
     return 0;
 }
+#endif
 
 /**
  * Retrieves the set of peer addresses for which a bond has been established.
@@ -81,6 +116,9 @@ int
 ble_store_util_bonded_peers(ble_addr_t *out_peer_id_addrs, int *out_num_peers,
                             int max_peers)
 {
+#if NIMBLE_BLE_CONNECT
+    BLE_HS_DBG_ASSERT(out_num_peers != NULL);
+
     struct ble_store_util_peer_set set = {
         .peer_id_addrs = out_peer_id_addrs,
         .num_peers = 0,
@@ -97,7 +135,16 @@ ble_store_util_bonded_peers(ble_addr_t *out_peer_id_addrs, int *out_num_peers,
     }
 
     *out_num_peers = set.num_peers;
+
+    /* This holds the status of the operation */
+    if (set.status != 0) {
+        return set.status;
+    }
+
     return 0;
+#else
+    return BLE_HS_ENOTSUP;
+#endif
 }
 
 /**
@@ -112,6 +159,8 @@ ble_store_util_bonded_peers(ble_addr_t *out_peer_id_addrs, int *out_num_peers,
 int
 ble_store_util_delete_peer(const ble_addr_t *peer_id_addr)
 {
+#if NIMBLE_BLE_CONNECT
+
     union ble_store_key key;
     int rc;
 
@@ -163,8 +212,14 @@ ble_store_util_delete_peer(const ble_addr_t *peer_id_addr)
     }
 
 #if MYNEWT_VAL(BLE_HOST_BASED_PRIVACY)
-    struct ble_hs_dev_records *peer_rec =
-                              ble_rpa_find_peer_dev_rec(key.sec.peer_addr.val);
+    struct ble_hs_dev_records *peer_rec;
+    int needs_unlock;
+
+    needs_unlock = !ble_store_util_lock_owned_by_cur_task();
+    if (needs_unlock) {
+        ble_hs_lock();
+    }
+    peer_rec = ble_rpa_find_peer_dev_rec(peer_id_addr->val);
 
     if (peer_rec != NULL) {
         rc = ble_hs_resolv_list_rmv(peer_rec->peer_sec.peer_addr.type,
@@ -176,12 +231,21 @@ ble_store_util_delete_peer(const ble_addr_t *peer_id_addr)
 
         rc = ble_rpa_remove_peer_dev_rec(peer_rec);
         if (rc != 0) {
+            if (needs_unlock) {
+                ble_hs_unlock();
+            }
             return rc;
         }
+    }
+    if (needs_unlock) {
+        ble_hs_unlock();
     }
 #endif
 
     return 0;
+#else
+    return BLE_HS_ENOTSUP;
+#endif
 }
 
 /**
@@ -196,6 +260,8 @@ ble_store_util_delete_peer(const ble_addr_t *peer_id_addr)
 int
 ble_store_util_delete_all(int type, const union ble_store_key *key)
 {
+#if NIMBLE_BLE_CONNECT
+
     int rc;
 
     do {
@@ -207,8 +273,12 @@ ble_store_util_delete_all(int type, const union ble_store_key *key)
     }
 
     return 0;
+#else
+    return BLE_HS_ENOTSUP;
+#endif
 }
 
+#if NIMBLE_BLE_CONNECT
 static int
 ble_store_util_iter_count(int obj_type,
                           union ble_store_value *val,
@@ -221,11 +291,16 @@ ble_store_util_iter_count(int obj_type,
 
     return 0;
 }
+#endif
 
 int
 ble_store_util_count(int type, int *out_count)
 {
+#if NIMBLE_BLE_CONNECT
+
     int rc;
+
+    BLE_HS_DBG_ASSERT(out_count != NULL);
 
     *out_count = 0;
     rc = ble_store_iterate(type,
@@ -236,11 +311,15 @@ ble_store_util_count(int type, int *out_count)
     }
 
     return 0;
+#else
+    return BLE_HS_ENOTSUP;
+#endif
 }
 
 int
 ble_store_util_delete_oldest_peer(void)
 {
+#if NIMBLE_BLE_CONNECT
 #if MYNEWT_VAL(BLE_STORE_MAX_BONDS)
     ble_addr_t peer_id_addrs[MYNEWT_VAL(BLE_STORE_MAX_BONDS)];
     int num_peers;
@@ -263,6 +342,9 @@ ble_store_util_delete_oldest_peer(void)
     }
 #endif
     return 0;
+#else
+    return BLE_HS_ENOTSUP;
+#endif
 }
 
 #if MYNEWT_VAL(ENC_ADV_DATA)
@@ -284,6 +366,10 @@ int
 ble_store_util_ead_peers(ble_addr_t *out_peer_id_addrs, int *out_num_peers,
                          int max_peers)
 {
+#if NIMBLE_BLE_CONNECT
+
+   BLE_HS_DBG_ASSERT(out_num_peers != NULL);
+
    struct ble_store_util_peer_set set = {
        .peer_id_addrs = out_peer_id_addrs,
        .num_peers = 0,
@@ -299,14 +385,23 @@ ble_store_util_ead_peers(ble_addr_t *out_peer_id_addrs, int *out_num_peers,
        return rc;
    }
 
+   if (set.status != 0 && set.status != BLE_HS_ENOMEM) {
+       return set.status;
+   }
+
    *out_num_peers = set.num_peers;
    return 0;
+#else
+    return BLE_HS_ENOTSUP;
+#endif
 }
 
 
 int
 ble_store_util_delete_ead_oldest_peer(void)
 {
+#if NIMBLE_BLE_CONNECT
+
    ble_addr_t peer_id_addrs[MYNEWT_VAL(BLE_STORE_MAX_EADS)];
    int num_peers;
    int rc;
@@ -331,6 +426,9 @@ ble_store_util_delete_ead_oldest_peer(void)
    }
 
    return 0;
+#else
+    return BLE_HS_ENOTSUP;
+#endif
 }
 #endif
 
@@ -354,14 +452,16 @@ ble_store_util_status_rr(struct ble_store_status_event *event, void *arg)
         case BLE_STORE_OBJ_TYPE_PEER_ADDR:
             return ble_gap_unpair_oldest_peer();
         case BLE_STORE_OBJ_TYPE_CCCD:
-        case BLE_STORE_OBJ_TYPE_CSFC:
             /* Try unpairing oldest peer except current peer */
             return ble_gap_unpair_oldest_except(&event->overflow.value->cccd.peer_addr);
+        case BLE_STORE_OBJ_TYPE_CSFC:
+            return ble_gap_unpair_oldest_except(&event->overflow.value->csfc.peer_addr);
 #if MYNEWT_VAL(ENC_ADV_DATA)
         case BLE_STORE_OBJ_TYPE_ENC_ADV_DATA:
             return ble_store_util_delete_ead_oldest_peer();
 #endif
         default:
+            BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_EUNKNOWN);
             return BLE_HS_EUNKNOWN;
         }
 
@@ -372,6 +472,7 @@ ble_store_util_status_rr(struct ble_store_status_event *event, void *arg)
         return 0;
 
     default:
+        BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_EUNKNOWN);
         return BLE_HS_EUNKNOWN;
     }
 }

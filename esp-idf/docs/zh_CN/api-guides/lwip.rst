@@ -27,6 +27,8 @@ ESP-IDF 间接支持以下常见的 lwIP 应用程序 API：
 - 动态主机设置协议 (DHCP) 服务器和客户端，由 :doc:`/api-reference/network/esp_netif` 功能间接支持。
 - 域名系统 (DNS)；获取 DHCP 地址时，可以自动分配 DNS 服务器，也可以通过 :doc:`/api-reference/network/esp_netif` API 手动配置。
 
+  关于 DNS over HTTPS，请参阅示例 :example:`protocols/dns_over_https`。
+
 .. note::
 
     lwIP 中的 DNS 服务器配置为全局配置，而非针对特定接口的配置。如需同时使用不同 DNS 服务器的多个网络接口，在从一个接口获取 DHCP 租约时，请注意避免意外覆盖另一个接口的 DNS 设置。
@@ -37,6 +39,17 @@ ESP-IDF 间接支持以下常见的 lwIP 应用程序 API：
 - NetBIOS 查找，由标准的 lwIP API 支持，:example:`protocols/http_server/restful_server` 示例中提供了使用 NetBIOS 在局域网中查找主机的选项。
 - mDNS 与 lwIP 的默认 mDNS 使用不同实现方式，请参阅 :doc:`/api-reference/protocols/mdns`。但启用 :ref:`CONFIG_LWIP_DNS_SUPPORT_MDNS_QUERIES` 设置项后，lwIP 可以使用 ``gethostbyname()`` 等标准 API 和 ``hostname.local`` 约定查找 mDNS 主机。
 - lwIP 中的 PPP 实现可用于在 ESP-IDF 中创建 PPPoS（串行 PPP）接口。请参阅 :doc:`/api-reference/network/esp_netif` 组件文档，使用 :component_file:`esp_netif/include/esp_netif_defaults.h` 中定义的 ``ESP_NETIF_DEFAULT_PPP()`` 宏创建并配置 PPP 网络接口。:component_file:`esp_netif/include/esp_netif_ppp.h` 中提供了其他的运行时设置。PPPoS 接口通常用于与 NBIoT/GSM/LTE 调制解调器交互。`esp_modem <https://components.espressif.com/component/espressif/esp_modem>`_ 仓库还支持更多应用层友好的 API，该仓库内部使用了上述 PPP lwIP 模块。
+
+DHCP 地址冲突检测
+-------------------------------
+
+通常情况下，DHCP 服务器在提供选定的 IPv4 地址前，会验证该地址在网络上的唯一性。然而，有些服务器（包括 ESP-IDF 中的 DHCP 服务器）为了简化操作并加快地址分配速度，默认情况下不会进行这种验证。
+
+为避免潜在的 IP 地址冲突与连接问题，ESP-IDF 的 DHCP 客户端提供了多种选项，可在绑定 IPv4 地址前对服务器分配的地址进行验证（参见 :ref:`CONFIG_LWIP_DHCP_CHECKS_OFFERED_ADDRESS`）：
+
+- **简单 ARP 检测，默认选项** (``CONFIG_LWIP_DHCP_DOES_ARP_CHECK``)：发送两个 ARP 探测，只有当分配的 IP 的回复来自与接口 MAC 不同的 MAC 地址时才拒绝该分配。这种方式速度快约 1-2 秒，可避免 AP 在 ARP 回复中回显客户端 MAC 的网络中出现误判冲突。**如果遇到 DHCP DECLINE 循环，即分配 IP 的 ARP 回复显示接口自身的 MAC 时，请使用此选项。**
+- **地址冲突检测 (ACD)** (``CONFIG_LWIP_DHCP_DOES_ACD_CHECK``)：使用上游 lwIP ACD （符合 RFC 5227 标准）来探测或宣告地址。某些接入点会使用客户端自身的 MAC 地址来响应 ARP 探测；上游行为会将探测期间收到的任何匹配发送方 IP 视为冲突，这可能导致在此类网络上反复出现 DHCP DECLINE。**只有在需要完全符合 RFC 5227 标准，并了解某些接入点的潜在问题时，才使用此选项。**
+- **无冲突检测** (``CONFIG_LWIP_DHCP_DOES_NOT_CHECK_OFFERED_IP``)：不进行额外检查直接绑定地址。**当不需要冲突检测时，使用此选项可获得最大兼容性。**
 
 BSD 套接字 API
 -----------------
@@ -64,6 +77,10 @@ BSD 套接字的相关参考资料十分丰富，包括但不限于：
 
 - :example:`protocols/sockets/tcp_client` 演示了如何创建一个 TCP 客户端，该客户端使用预定义的 IP 地址和端口连接到服务器。
 
+- :example:`protocols/sockets/tcp_transport_client` 演示了如何使用 ``tcp_transport`` 组件创建 TCP 客户端，并支持可选 SOCKS 代理。
+
+- :example:`protocols/http_request` 演示了如何基于 BSD 套接字 API，通过纯 TCP 套接字发起最小化的 HTTP 请求。
+
 - :example:`protocols/sockets/tcp_client_multi_net` 演示了如何同时使用以太网和 Wi-Fi 接口连接，在每个接口上创建一个 TCP 客户端，并发送一个简单的 HTTP 请求和响应。
 
 - :example:`protocols/sockets/udp_server` 演示了如何创建一个 UDP 服务器，该服务器可以接收客户端的连接请求和数据。
@@ -71,6 +88,12 @@ BSD 套接字的相关参考资料十分丰富，包括但不限于：
 - :example:`protocols/sockets/udp_client` 演示了如何创建一个 UDP 客户端，该客户端使用预定义的 IP 地址和端口连接到服务器。
 
 - :example:`protocols/sockets/udp_multicast` 演示了如何通过 BSD 风格的套接字接口使用 IPV4 和 IPV6 的 UDP 组播功能。
+
+:doc:`以太网驱动 </api-reference/network/esp_eth>` 通过 EMAC 连接的接口，提供了相同的 BSD 套接字和 TCP/IP 路径。请参考以下应用示例：
+
+- :example:`ethernet/basic`，用于驱动上电、``esp_netif``、DHCP 以及基本 IP 连通性。
+- :example:`ethernet/iperf`，用于在以太网上测量 TCP/UDP 吞吐量。
+- :example:`ethernet/ptp`，用于以太网上的 IEEE 1588/PTP 时间同步。
 
 支持的函数
 ^^^^^^^^^^^^^^^^^^^
@@ -173,7 +196,7 @@ BSD 套接字的相关参考资料十分丰富，包括但不限于：
 套接字错误原因代码
 ++++++++++++++++++++++++
 
-以下是常见错误代码列表。获取标准 POSIX/C 错误代码的详细列表，请参阅 `newlib errno.h <https://github.com/espressif/newlib-esp32/blob/master/newlib/libc/include/sys/errno.h>`_ 和特定平台扩展 :component_file:`newlib/platform_include/sys/errno.h`。
+以下是常见错误代码列表。获取标准 POSIX/C 错误代码的详细列表，请参阅 `newlib errno.h <https://github.com/espressif/newlib-esp32/blob/master/newlib/libc/include/sys/errno.h>`_ 和特定平台扩展 :component_file:`esp_libc/platform_include/sys/errno.h`。
 
 .. list-table::
     :header-rows: 1
@@ -507,6 +530,12 @@ ESP-IDF 提供了其他可覆盖的 lwIP 钩子，例如：
 
 另一种方法是在头文件中定义函数式宏，该头文件将预先包含在 lwIP 钩子文件中，请参考 :ref:`lwip-custom-hooks`。
 
+网络接口回调
+-----------------
+
+- 状态回调 (:ref:`CONFIG_LWIP_NETIF_STATUS_CALLBACK`)：启用 `netif_set_status_callback()`，在接口上下线以及 IPv4/IPv6 地址发生变化时通知。
+- 链路回调 (:ref:`CONFIG_LWIP_NETIF_LINK_CALLBACK`)：启用 `netif_set_link_callback()`，在物理链路上下线时通知。该回调由驱动或虚拟接口调用 `netif_set_link_up()` / `netif_set_link_down()` 触发。可与 `LWIP_NETIF_EXT_STATUS_CALLBACK` 配合使用，以获取更丰富的事件通知。
+
 .. _lwip-limitations:
 
 限制
@@ -542,7 +571,7 @@ ESP-IDF 中 lwIP 的 ``getaddrinfo()`` 系统调用在使用 ``AF_UNSPEC`` 时�
 最大吞吐量
 ^^^^^^^^^^^^^^^^^^
 
-乐鑫使用 iperf 测试应用程序 https://iperf.fr/ 测试了 ESP-IDF 的 TCP/IP 吞吐量。关于实际测试和优化配置的更多信息，请参考 :ref:`improve-network-speed`。
+乐鑫使用 iperf 测试应用程序 https://iperf.fr/ 测试了 ESP-IDF 的 TCP/IP 吞吐量。关于实际测试和优化配置的更多信息，请参考 :ref:`improve-network-speed`。可参考的 iperf 示例工程 :example:`wifi/iperf` 和 :example:`ethernet/iperf`。
 
 .. important::
 

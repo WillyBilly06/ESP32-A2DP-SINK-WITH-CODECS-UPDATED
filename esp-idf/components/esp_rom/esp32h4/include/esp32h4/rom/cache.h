@@ -13,8 +13,6 @@
 extern "C" {
 #endif
 
-//TODO: [ESP32H4] IDF-12289 inherit from verification branch, need check
-
 /** \defgroup cache_apis, cache operation related apis
   * @brief cache apis
   */
@@ -164,7 +162,7 @@ extern const struct cache_internal_stub_table* rom_cache_internal_table_ptr;
 #define CACHE_MAP_ICACHE0 BIT(0)
 #define CACHE_MAP_ICACHE1 BIT(1)
 #define CACHE_MAP_DCACHE  BIT(4)
-#define CACHE_MAP_ALL     (CACHE_MAP_ICACHE0 | CACHE_MAP_ICACHE1 | CACHE_MAP_DCACHE)
+#define CACHE_MAP_MASK    (CACHE_MAP_ICACHE0 | CACHE_MAP_ICACHE1 | CACHE_MAP_DCACHE)
 
 // keep the software flag same as map value
 #define CACHE_AUTOLOAD_ICACHE0_FLAG BIT(0)

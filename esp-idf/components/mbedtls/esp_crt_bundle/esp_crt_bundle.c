@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2018-2024 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2018-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -14,6 +14,11 @@
 #include "mbedtls/pk.h"
 #include "mbedtls/oid.h"
 #include "mbedtls/asn1.h"
+
+#include "sdkconfig.h"
+
+#include "psa/crypto.h"
+#include "mbedtls/psa_util.h"
 
 /*
     Format of certificate bundle:
@@ -54,7 +59,9 @@ static const char *TAG = "esp-x509-crt-bundle";
 
 /* a dummy certificate so that
  * cacert_ptr passes non-NULL check during handshake */
+#if !defined(CONFIG_MBEDTLS_CERTIFICATE_BUNDLE_CROSS_SIGNED_VERIFY)
 static const mbedtls_x509_crt s_dummy_crt;
+#endif // CONFIG_MBEDTLS_CERTIFICATE_BUNDLE_CROSS_SIGNED_VERIFY
 
 extern const uint8_t x509_crt_imported_bundle_bin_start[] asm("_binary_x509_crt_bundle_start");
 extern const uint8_t x509_crt_imported_bundle_bin_end[]   asm("_binary_x509_crt_bundle_end");
@@ -94,9 +101,11 @@ static const uint8_t* esp_crt_get_key(const cert_t cert)
     return esp_crt_get_name(cert) + esp_crt_get_name_len(cert);
 }
 
-static uint16_t esp_crt_get_len(const cert_t cert)
+static uint32_t esp_crt_get_len(const cert_t cert)
 {
-    return CRT_HEADER_SIZE + esp_crt_get_name_len(cert) + esp_crt_get_key_len(cert);
+    /* Widened to uint32_t: name_len and key_len are each uint16_t, so their sum plus the
+     * header can exceed UINT16_MAX and would otherwise wrap, under-reporting the cert size. */
+    return (uint32_t)CRT_HEADER_SIZE + (uint32_t)esp_crt_get_name_len(cert) + (uint32_t)esp_crt_get_key_len(cert);
 }
 
 static uint32_t esp_crt_get_cert_offset(const bundle_t bundle, const uint32_t index)
@@ -127,6 +136,10 @@ static int esp_crt_check_signature(const mbedtls_x509_crt* child, const uint8_t*
     int ret = 0;
     mbedtls_pk_context pubkey;
     const mbedtls_md_info_t *md_info;
+    psa_key_id_t key_id = 0;
+    psa_status_t status;
+    psa_key_attributes_t key_attr = PSA_KEY_ATTRIBUTES_INIT;
+    bool key_imported = false;
 
     mbedtls_pk_init(&pubkey);
 
@@ -135,37 +148,125 @@ static int esp_crt_check_signature(const mbedtls_x509_crt* child, const uint8_t*
         goto cleanup;
     }
 
-    // Fast check to avoid expensive computations when not necessary
-    if (unlikely(!mbedtls_pk_can_do(&pubkey, child->MBEDTLS_PRIVATE(sig_pk)))) {
-        ESP_LOGE(TAG, "Unsuitable public key");
-        ret = MBEDTLS_ERR_PK_TYPE_MISMATCH;
-        goto cleanup;
-    }
-
+    // Get the message digest info for the hash algorithm used in the certificate
+    // We need to know this BEFORE importing the key so we can set the correct algorithm
     md_info = mbedtls_md_info_from_type(child->MBEDTLS_PRIVATE(sig_md));
-
     if (unlikely(md_info == NULL)) {
-        ESP_LOGE(TAG, "Unknown message digest");
+        ESP_LOGE(TAG, "Unknown message digest type: %d", child->MBEDTLS_PRIVATE(sig_md));
         ret = MBEDTLS_ERR_X509_FEATURE_UNAVAILABLE;
         goto cleanup;
     }
 
+    // Map mbedTLS MD type to PSA hash algorithm
+    psa_algorithm_t psa_hash_alg;
+    switch (child->MBEDTLS_PRIVATE(sig_md)) {
+        case MBEDTLS_MD_SHA256:
+            psa_hash_alg = PSA_ALG_SHA_256;
+            break;
+        case MBEDTLS_MD_SHA384:
+            psa_hash_alg = PSA_ALG_SHA_384;
+            break;
+        case MBEDTLS_MD_SHA512:
+            psa_hash_alg = PSA_ALG_SHA_512;
+            break;
+        case MBEDTLS_MD_SHA1:
+            psa_hash_alg = PSA_ALG_SHA_1;
+            break;
+        default:
+            ESP_LOGE(TAG, "Unsupported hash algorithm: %d", child->MBEDTLS_PRIVATE(sig_md));
+            ret = MBEDTLS_ERR_X509_FEATURE_UNAVAILABLE;
+            goto cleanup;
+    }
+
+    // Get the appropriate key attributes for signature verification
+    ret = mbedtls_pk_get_psa_attributes(&pubkey, PSA_KEY_USAGE_VERIFY_HASH, &key_attr);
+    if (unlikely(ret != 0)) {
+        ESP_LOGE(TAG, "Failed to get PSA key attributes with error 0x%x", -ret);
+        goto cleanup;
+    }
+
+    // Determine the PSA algorithm based on the key type and hash type
+    // We need to set this BEFORE importing the key
+    psa_algorithm_t psa_alg;
+    psa_key_type_t key_type = psa_get_key_type(&key_attr);
+
+    ESP_LOGD(TAG, "Key type: 0x%x, Hash alg: 0x%x",
+             (unsigned int)key_type, (unsigned int)psa_hash_alg);
+
+    if (PSA_KEY_TYPE_IS_RSA(key_type)) {
+        // For RSA keys, use PKCS#1 v1.5 with the specific hash algorithm
+        psa_alg = PSA_ALG_RSA_PKCS1V15_SIGN(psa_hash_alg);
+        ESP_LOGD(TAG, "Using RSA PKCS1V15 SIGN algorithm with hash");
+    } else if (PSA_KEY_TYPE_IS_ECC(key_type)) {
+        // For ECC keys, use ECDSA_ANY which works with psa_verify_hash
+        // and doesn't constrain the hash length
+        psa_alg = PSA_ALG_ECDSA_ANY;
+        ESP_LOGD(TAG, "Using ECDSA_ANY algorithm (no hash constraint)");
+    } else {
+        ESP_LOGE(TAG, "Unsupported key type: 0x%x", (unsigned int)key_type);
+        ret = MBEDTLS_ERR_PK_TYPE_MISMATCH;
+        goto cleanup;
+    }
+
+    // Override the algorithm in key attributes with the specific hash algorithm
+    // This is required because PSA_ALG_ANY_HASH wildcard doesn't work for verification
+    psa_set_key_algorithm(&key_attr, psa_alg);
+
+    // Import the public key into PSA
+    ret = mbedtls_pk_import_into_psa(&pubkey, &key_attr, &key_id);
+    if (unlikely(ret != 0)) {
+        ESP_LOGE(TAG, "Failed to import key into PSA with error 0x%x", -ret);
+        goto cleanup;
+    }
+    key_imported = true;
+
     unsigned char hash[MBEDTLS_MD_MAX_SIZE];
     const unsigned char md_size = mbedtls_md_get_size(md_info);
 
-    if ((ret = mbedtls_md(md_info, child->tbs.p, child->tbs.len, hash)) != 0) {
-        ESP_LOGE(TAG, "MD failed with error 0x%x", -ret);
+    size_t hash_len = 0;
+    status = psa_hash_compute(psa_hash_alg, child->tbs.p, child->tbs.len, hash, sizeof(hash), &hash_len);
+
+    unsigned char *sig_ptr = child->MBEDTLS_PRIVATE(sig).p;
+    size_t sig_len = child->MBEDTLS_PRIVATE(sig).len;
+    unsigned char raw_sig[MBEDTLS_ECDSA_MAX_LEN];
+
+    if (PSA_KEY_TYPE_IS_ECC(key_type)) {
+        // Convert DER-encoded ECDSA signature to raw (r||s) format for PSA
+        // Get the key size in bits from PSA attributes
+        size_t key_bits = psa_get_key_bits(&key_attr);
+        ret = mbedtls_ecdsa_der_to_raw(key_bits,
+                                       child->MBEDTLS_PRIVATE(sig).p,
+                                       child->MBEDTLS_PRIVATE(sig).len,
+                                       raw_sig, sizeof(raw_sig), &sig_len);
+        if (ret != 0) {
+            ESP_LOGE(TAG, "Failed to convert ECDSA signature to raw format: 0x%x (returned %d)", -ret, ret);
+            ret = MBEDTLS_ERR_X509_INVALID_SIGNATURE;
+            goto cleanup;
+        }
+        sig_ptr = raw_sig;
+        ESP_LOGD(TAG, "Converted DER signature (len=%zu) to raw format (len=%zu) for %zu-bit key",
+                 child->MBEDTLS_PRIVATE(sig).len, sig_len, key_bits);
+    }
+
+    // Verify the signature using PSA with the correct algorithm
+    ESP_LOGD(TAG, "Verifying signature: alg=0x%08x, hash_len=%d, sig_len=%zu",
+             (unsigned int)psa_alg, md_size, sig_len);
+    status = psa_verify_hash(key_id, psa_alg, hash, md_size, sig_ptr, sig_len);
+    if (status != PSA_SUCCESS) {
+        ESP_LOGE(TAG, "PSA signature verification failed with error 0x%x (decimal: %d)",
+                 (unsigned int)status, (int)status);
+        ret = MBEDTLS_ERR_X509_INVALID_SIGNATURE;
         goto cleanup;
     }
 
-    if (unlikely((ret = mbedtls_pk_verify_ext(child->MBEDTLS_PRIVATE(sig_pk), child->MBEDTLS_PRIVATE(sig_opts), &pubkey,
-                                              child->MBEDTLS_PRIVATE(sig_md), hash, md_size,
-                                              child->MBEDTLS_PRIVATE(sig).p, child->MBEDTLS_PRIVATE(sig).len)) != 0)) {
-        ESP_LOGE(TAG, "PK verify failed with error 0x%x", -ret);
-        goto cleanup;
-    }
+    ret = 0;
+    ESP_LOGD(TAG, "Certificate signature verified successfully");
 
 cleanup:
+    if (key_imported) {
+        psa_destroy_key(key_id);
+    }
+    psa_reset_key_attributes(&key_attr);
     mbedtls_pk_free(&pubkey);
     return ret;
 }
@@ -217,14 +318,38 @@ int esp_crt_verify_callback(void *buf, mbedtls_x509_crt* const crt, const int de
 {
     const mbedtls_x509_crt* const child = crt;
 
-    /* It's OK for a trusted cert to have a weak signature hash alg.
-       as we already trust this certificate */
+#if defined(CONFIG_MBEDTLS_CERTIFICATE_BUNDLE_CROSS_SIGNED_VERIFY)
+    /* When cross-signed verification is enabled, the CA callback provides a
+     * synthetic bundle root containing only the subject name and public key.
+     * It has no meaningful validity window, so mbedtls may set EXPIRED/FUTURE
+     * on this generated cert. Clear those flags only for this synthetic bundle
+     * root so that cross-signed verification can continue.
+     *
+     * Real certificates must keep their time-based verification result and
+     * should not proceed to additional bundle signature checks once they are
+     * marked expired or not-yet-valid. */
+    const uint32_t time_flags = *flags &
+        (MBEDTLS_X509_BADCERT_EXPIRED | MBEDTLS_X509_BADCERT_FUTURE);
+    if (time_flags && s_crt_bundle != NULL && child->raw.p == NULL &&
+        child->valid_from.year == 0 && child->valid_to.year == 0) {
+        cert_t cert = esp_crt_find_cert(child->subject_raw.p,
+                                        child->subject_raw.len);
+        if (cert != NULL) {
+            *flags &= ~(MBEDTLS_X509_BADCERT_EXPIRED |
+                         MBEDTLS_X509_BADCERT_FUTURE);
+        }
+    }
+#endif /* CONFIG_MBEDTLS_CERTIFICATE_BUNDLE_CROSS_SIGNED_VERIFY */
+
+    /* It's OK for a trusted bundle cert to have a weak signature hash alg,
+     * as we already trust this certificate. Do not ignore EXPIRED/FUTURE here:
+     * real certificates must fail on validity checks, and only the synthetic
+     * cross-signed bundle root has those flags cleared above. */
     uint32_t flags_filtered = *flags & ~(MBEDTLS_X509_BADCERT_BAD_MD);
 
     if (flags_filtered != MBEDTLS_X509_BADCERT_NOT_TRUSTED) {
         return 0;
     }
-
 
     if (unlikely(s_crt_bundle == NULL)) {
         ESP_LOGE(TAG, "No certificates in bundle");
@@ -241,6 +366,10 @@ int esp_crt_verify_callback(void *buf, mbedtls_x509_crt* const crt, const int de
 
         if (likely(ret == 0)) {
             ESP_LOGI(TAG, "Certificate validated");
+            /* Bundle trust and signature verification succeeded. Real
+             * certificates with EXPIRED/FUTURE return earlier, and the
+             * synthetic cross-signed bundle root has those flags cleared
+             * above, so clear the remaining verification flags here. */
             *flags = 0;
             return 0;
         } else {
@@ -301,6 +430,11 @@ static bool esp_crt_check_bundle(const uint8_t* const x509_bundle, const size_t 
         return false;
     }
 
+    if (unlikely(num_certs == 0)) {
+        // No certificates: the loops below compute num_certs - 1, which would underflow.
+        return false;
+    }
+
     // Check all offsets for consistency with certificate data
     for (uint32_t i = 0; i < num_certs - 1; ++i) {
         const uint32_t off = offsets[i];
@@ -311,6 +445,17 @@ static bool esp_crt_check_bundle(const uint8_t* const x509_bundle, const size_t 
         if (unlikely(offsets[i + 1] != expected_next_offset || expected_next_offset >= bundle_size)) {
             return false;
         }
+    }
+
+    // The loop above stops at num_certs - 1, so the final certificate's extent is never
+    // validated; check it explicitly so its key data cannot run past the bundle (CWE-125).
+    const uint32_t last_off = offsets[num_certs - 1];
+    if (unlikely(last_off >= bundle_size)) {
+        return false;
+    }
+    const uint32_t last_len = esp_crt_get_len(x509_bundle + last_off);
+    if (unlikely((uint64_t)last_off + last_len > bundle_size)) {
+        return false;
     }
 
     // All checks passed.
@@ -330,12 +475,114 @@ static esp_err_t esp_crt_bundle_init(const uint8_t* const x509_bundle, const siz
     }
 }
 
+#if defined(CONFIG_MBEDTLS_CERTIFICATE_BUNDLE_CROSS_SIGNED_VERIFY)
+/* Reference ASN1 named data by pointing into src's buffers.
+ * The src data must outlive dst. */
+static int esp_crt_ref_asn1(const mbedtls_asn1_named_data *src,
+                             mbedtls_asn1_named_data *dst)
+{
+    if (src == NULL || dst == NULL) {
+        return -1;
+    }
+
+    dst->oid.tag = src->oid.tag;
+    dst->oid.len = src->oid.len;
+    dst->oid.p = src->oid.p;
+    dst->val.tag = src->val.tag;
+    dst->val.len = src->val.len;
+    dst->val.p = src->val.p;
+    dst->next_merged = src->next_merged;
+    return 0;
+}
+
+static int esp_crt_ca_cb_callback(void *ctx, mbedtls_x509_crt const *child, mbedtls_x509_crt **candidate_cas)
+{
+    if (unlikely(s_crt_bundle == NULL)) {
+        ESP_LOGE(TAG, "No certificates in bundle");
+        return MBEDTLS_ERR_X509_FATAL_ERROR;
+    }
+
+    ESP_LOGD(TAG, "%" PRIu16 " certificates in bundle", (uint16_t)esp_crt_get_certcount(s_crt_bundle));
+
+    cert_t cert = esp_crt_find_cert(child->issuer_raw.p, child->issuer_raw.len);
+
+    if (likely(cert == NULL)) {
+        *candidate_cas = NULL;
+        return 0;
+    }
+    // If we found a matching certificate, we need to allocate a new
+    // mbedtls_x509_crt structure and copy the certificate data into it.
+    mbedtls_x509_crt *new_cert = calloc(1, sizeof(mbedtls_x509_crt));
+    if (unlikely(new_cert == NULL)) {
+        ESP_LOGE(TAG, "Failed to allocate memory for new certificate");
+        return MBEDTLS_ERR_X509_ALLOC_FAILED;
+    }
+    mbedtls_x509_crt_init(new_cert);
+
+    new_cert->MBEDTLS_PRIVATE(ca_istrue) = true;
+    new_cert->version = 3;
+
+    const uint8_t *cert_name = esp_crt_get_name(cert);
+    uint16_t cert_name_len = esp_crt_get_name_len(cert);
+    /* Point into persistent bundle data */
+    new_cert->subject_raw.tag = MBEDTLS_ASN1_CONSTRUCTED | MBEDTLS_ASN1_SEQUENCE;
+    new_cert->subject_raw.len = cert_name_len;
+    new_cert->subject_raw.p = (unsigned char *)cert_name;
+
+    const uint8_t *cert_key = esp_crt_get_key(cert);
+    uint16_t cert_key_len = esp_crt_get_key_len(cert);
+    // Set the public key in the new certificate
+    mbedtls_pk_init(&new_cert->pk);
+    // Use mbedtls_pk_parse_public_key() instead of deprecated mbedtls_pk_parse_subpubkey()
+    int ret = mbedtls_pk_parse_public_key(&new_cert->pk, cert_key, cert_key_len);
+    if (ret != 0) {
+        ESP_LOGE(TAG, "Failed to parse public key from certificate: %d", ret);
+        mbedtls_x509_crt_free(new_cert);
+        free(new_cert);
+        return ret;
+    }
+
+    /* Populate parent->subject by referencing child->issuer data */
+    const mbedtls_asn1_named_data *child_issuer = &child->issuer;
+    mbedtls_asn1_named_data *parent_subject = &new_cert->subject;
+    if (esp_crt_ref_asn1(child_issuer, parent_subject) != 0) {
+        ESP_LOGE(TAG, "Failed to reference ASN.1 data");
+        mbedtls_x509_crt_free(new_cert);
+        free(new_cert);
+        return MBEDTLS_ERR_X509_ALLOC_FAILED;
+    }
+
+    child_issuer = child_issuer->next;
+    while (child_issuer != NULL) {
+        parent_subject->next = calloc(1, sizeof(mbedtls_asn1_named_data));
+        if (parent_subject->next == NULL) {
+            ESP_LOGE(TAG, "Failed to allocate memory for subject node");
+            mbedtls_x509_crt_free(new_cert);
+            free(new_cert);
+            return MBEDTLS_ERR_X509_ALLOC_FAILED;
+        }
+        parent_subject = parent_subject->next;
+        if (esp_crt_ref_asn1(child_issuer, parent_subject) != 0) {
+            ESP_LOGE(TAG, "Failed to reference ASN.1 data");
+            mbedtls_x509_crt_free(new_cert);
+            free(new_cert);
+            return MBEDTLS_ERR_X509_ALLOC_FAILED;
+        }
+        child_issuer = child_issuer->next;
+    }
+
+    // Set the parsed certificate as the candidate CA
+    *candidate_cas = new_cert;
+    return 0;
+}
+#endif /* CONFIG_MBEDTLS_CERTIFICATE_BUNDLE_CROSS_SIGNED_VERIFY */
+
 esp_err_t esp_crt_bundle_attach(void *conf)
 {
     esp_err_t ret = ESP_OK;
     // If no bundle has been set by the user then use the bundle embedded in the binary
     if (s_crt_bundle == NULL) {
-        ret = esp_crt_bundle_init(x509_crt_imported_bundle_bin_start, x509_crt_imported_bundle_bin_end - x509_crt_imported_bundle_bin_start);
+        ret = esp_crt_bundle_init(x509_crt_imported_bundle_bin_start, (uintptr_t)x509_crt_imported_bundle_bin_end - (uintptr_t)x509_crt_imported_bundle_bin_start);
     }
 
     if (unlikely(ret != ESP_OK)) {
@@ -349,8 +596,12 @@ esp_err_t esp_crt_bundle_attach(void *conf)
          * cacert_ptr passes non-NULL check during handshake
          */
         mbedtls_ssl_config *ssl_conf = (mbedtls_ssl_config *)conf;
-        mbedtls_ssl_conf_ca_chain(ssl_conf, (mbedtls_x509_crt*)&s_dummy_crt, NULL);
         mbedtls_ssl_conf_verify(ssl_conf, esp_crt_verify_callback, NULL);
+#if defined(CONFIG_MBEDTLS_CERTIFICATE_BUNDLE_CROSS_SIGNED_VERIFY)
+        mbedtls_ssl_conf_ca_cb(ssl_conf, esp_crt_ca_cb_callback, NULL);
+#else
+        mbedtls_ssl_conf_ca_chain(ssl_conf, (mbedtls_x509_crt*)&s_dummy_crt, NULL);
+#endif /* CONFIG_MBEDTLS_CERTIFICATE_BUNDLE_CROSS_SIGNED_VERIFY */
     }
 
     return ret;
@@ -361,6 +612,11 @@ void esp_crt_bundle_detach(mbedtls_ssl_config *conf)
     s_crt_bundle = NULL;
     if (conf) {
         mbedtls_ssl_conf_verify(conf, NULL, NULL);
+#if defined(CONFIG_MBEDTLS_CERTIFICATE_BUNDLE_CROSS_SIGNED_VERIFY)
+        mbedtls_ssl_conf_ca_cb(conf, NULL, NULL);
+#else
+        mbedtls_ssl_conf_ca_chain(conf, NULL, NULL);
+#endif /* CONFIG_MBEDTLS_CERTIFICATE_BUNDLE_CROSS_SIGNED_VERIFY */
     }
 }
 
@@ -371,5 +627,9 @@ esp_err_t esp_crt_bundle_set(const uint8_t *x509_bundle, size_t bundle_size)
 
 bool esp_crt_bundle_in_use(const mbedtls_x509_crt* ca_chain)
 {
+#if defined(CONFIG_MBEDTLS_CERTIFICATE_BUNDLE_CROSS_SIGNED_VERIFY)
+    return false; // Cross-signed verification does not use the dummy certificate
+#else
     return ((ca_chain == &s_dummy_crt) ? true : false);
+#endif // CONFIG_MBEDTLS_CERTIFICATE_BUNDLE_CROSS_SIGNED_VERIFY
 }

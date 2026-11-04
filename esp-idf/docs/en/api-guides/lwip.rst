@@ -27,6 +27,8 @@ Some common lwIP app APIs are supported indirectly by ESP-IDF:
 - Dynamic Host Configuration Protocol (DHCP) Server & Client are supported indirectly via the :doc:`/api-reference/network/esp_netif` functionality.
 - Domain Name System (DNS) is supported in lwIP; DNS servers could be assigned automatically when acquiring a DHCP address, or manually configured using the :doc:`/api-reference/network/esp_netif` API.
 
+  For DNS over HTTPS, see :example:`protocols/dns_over_https`.
+
 .. note::
 
     DNS server configuration in lwIP is global, not interface-specific. If you are using multiple network interfaces with distinct DNS servers, exercise caution to prevent inadvertent overwrites of one interface's DNS settings when acquiring a DHCP lease from another interface.
@@ -37,6 +39,17 @@ Some common lwIP app APIs are supported indirectly by ESP-IDF:
 - NetBIOS lookup is available using the standard lwIP API. :example:`protocols/http_server/restful_server` has the option to demonstrate using NetBIOS to look up a host on the LAN.
 - mDNS uses a different implementation to the lwIP default mDNS, see :doc:`/api-reference/protocols/mdns`. But lwIP can look up mDNS hosts using standard APIs such as ``gethostbyname()`` and the convention ``hostname.local``, provided the :ref:`CONFIG_LWIP_DNS_SUPPORT_MDNS_QUERIES` setting is enabled.
 - The PPP implementation in lwIP can be used to create PPPoS (PPP over serial) interface in ESP-IDF. Please refer to the documentation of the :doc:`/api-reference/network/esp_netif` component to create and configure a PPP network interface, by means of the ``ESP_NETIF_DEFAULT_PPP()`` macro defined in :component_file:`esp_netif/include/esp_netif_defaults.h`. Additional runtime settings are provided via :component_file:`esp_netif/include/esp_netif_ppp.h`. PPPoS interfaces are typically used to interact with NBIoT/GSM/LTE modems. More application-level friendly API is supported by the `esp_modem <https://components.espressif.com/component/espressif/esp_modem>`_ library, which uses this PPP lwIP module behind the scenes.
+
+DHCP Address Conflict Detection
+-------------------------------
+
+Usually, DHCP servers verify that a selected IPv4 address is unique on the network before offering it. However, some, including the DHCP server in ESP-IDF, do not perform verification by default to simplify operation and speed up address assignment.
+
+If you want to avoid any possible IP address conflicts and connectivity issues, the ESP-IDF DHCP client provides several options to validate the offered IPv4 address before binding it (see :ref:`CONFIG_LWIP_DHCP_CHECKS_OFFERED_ADDRESS`):
+
+- **Simple ARP check, default option** (``CONFIG_LWIP_DHCP_DOES_ARP_CHECK``): Sends two ARP probes and only declines the offer if a reply for the offered IP comes from a different MAC address than the interface MAC. This is fast (about 1–2 seconds) and avoids false conflicts on networks where the AP echoes the client's MAC in ARP replies. **Use this option if you encounter DHCP DECLINE loops where the ARP reply for the offered IP advertises the interface's own MAC.**
+- **Address Conflict Detection (ACD)** (``CONFIG_LWIP_DHCP_DOES_ACD_CHECK``): Uses upstream lwIP ACD per RFC 5227 to probe/announce addresses. Some access points respond to ARP probes with the client's own MAC for the offered IP; upstream behavior treats any matching sender IP during PROBING as a conflict, which can cause repeated DHCP DECLINEs on such networks. **Use this option only if you need full RFC 5227 compliance and are aware of the potential issues with certain access points.**
+- **No conflict detection** (``CONFIG_LWIP_DHCP_DOES_NOT_CHECK_OFFERED_IP``): Binds the address without additional checks. **Use this option for maximum compatibility when conflict detection is not required.**
 
 BSD Sockets API
 ---------------
@@ -64,6 +77,10 @@ A number of ESP-IDF examples show how to use the BSD Sockets APIs:
 
 - :example:`protocols/sockets/tcp_client` demonstrates how to create a TCP client that connects to a server using a predefined IP address and port.
 
+- :example:`protocols/sockets/tcp_transport_client` demonstrates how to create a TCP client with the ``tcp_transport`` component, including optional SOCKS proxy support.
+
+- :example:`protocols/http_request` demonstrates a minimal HTTP request over a plain TCP socket using the BSD Sockets API.
+
 - :example:`protocols/sockets/tcp_client_multi_net` demonstrates how to use Ethernet and Wi-Fi interfaces together, connect to both simultaneously, create a TCP client for each interface, and send a basic HTTP request and response.
 
 - :example:`protocols/sockets/udp_server` demonstrates how to create a UDP server that receives client connection requests and data.
@@ -71,6 +88,12 @@ A number of ESP-IDF examples show how to use the BSD Sockets APIs:
 - :example:`protocols/sockets/udp_client` demonstrates how to create a UDP client that connects to a server using a predefined IP address and port.
 
 - :example:`protocols/sockets/udp_multicast` demonstrates how to use the IPV4 and IPV6 UDP multicast features via the BSD-style sockets interface.
+
+The :doc:`Ethernet driver </api-reference/network/esp_eth>` shows the same BSD socket and TCP/IP path over an EMAC-attached interface. Use these reference applications:
+
+- :example:`ethernet/basic` for driver bring-up, ``esp_netif``, DHCP, and basic IP connectivity.
+- :example:`ethernet/iperf` for TCP/UDP throughput measurement on Ethernet.
+- :example:`ethernet/ptp` for IEEE 1588/PTP time synchronization over Ethernet.
 
 Supported Functions
 ^^^^^^^^^^^^^^^^^^^
@@ -173,7 +196,7 @@ Example:
 Socket Error Reason Code
 ++++++++++++++++++++++++
 
-Below is a list of common error codes. For a more detailed list of standard POSIX/C error codes, please see `newlib errno.h <https://github.com/espressif/newlib-esp32/blob/master/newlib/libc/include/sys/errno.h>`_ and the platform-specific extensions :component_file:`newlib/platform_include/sys/errno.h`.
+Below is a list of common error codes. For a more detailed list of standard POSIX/C error codes, please see `newlib errno.h <https://github.com/espressif/newlib-esp32/blob/master/newlib/libc/include/sys/errno.h>`_ and the platform-specific extensions :component_file:`esp_libc/platform_include/sys/errno.h`.
 
 .. list-table::
     :header-rows: 1
@@ -507,6 +530,12 @@ This approach may not work for function-like macros, as there is no guarantee th
 
 Alternatively, you can define your function-like macro in a header file which will be pre-included as an lwIP hook file, see :ref:`lwip-custom-hooks`.
 
+Network Interface Callbacks
+---------------------------
+
+- Status Callback (:ref:`CONFIG_LWIP_NETIF_STATUS_CALLBACK`): Enables `netif_set_status_callback()` to notify when an interface comes up/down and when IPv4/IPv6 addresses change.
+- Link Callback (:ref:`CONFIG_LWIP_NETIF_LINK_CALLBACK`): Enables `netif_set_link_callback()` to notify when the physical link goes up/down. The callback is triggered by `netif_set_link_up()` / `netif_set_link_down()` calls in drivers or virtual interfaces. Can be used alongside `LWIP_NETIF_EXT_STATUS_CALLBACK` for richer eventing.
+
 .. _lwip-limitations:
 
 Limitations
@@ -542,7 +571,7 @@ TCP/IP performance is a complex subject, and performance can be optimized toward
 Maximum Throughput
 ^^^^^^^^^^^^^^^^^^
 
-Espressif tests ESP-IDF TCP/IP throughput using the iperf test application: https://iperf.fr/, please refer to :ref:`improve-network-speed` for more details about the actual testing and using the optimized configuration.
+Espressif tests ESP-IDF TCP/IP throughput using the iperf test application: https://iperf.fr/, please refer to :ref:`improve-network-speed` for more details about the actual testing and using the optimized configuration. Reference iperf example projects are :example:`wifi/iperf` and :example:`ethernet/iperf`.
 
 .. important::
 

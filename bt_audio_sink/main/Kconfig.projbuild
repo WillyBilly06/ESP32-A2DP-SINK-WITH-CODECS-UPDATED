@@ -143,11 +143,6 @@ menu "A2DP DSP BLE Configuration"
             help
                 Default name for Bluetooth advertising.
 
-        config FIRMWARE_VERSION
-            string "Firmware version"
-            default "1.0.3"
-            help
-                Firmware version string reported via BLE.
     endmenu
 
     menu "Audio Buffer Configuration"

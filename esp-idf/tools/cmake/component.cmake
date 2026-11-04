@@ -97,9 +97,9 @@ endmacro()
 #
 function(__component_dir_quick_check var component_dir)
     set(res 1)
-    get_filename_component(abs_dir ${component_dir} ABSOLUTE)
+    get_filename_component(abs_dir "${component_dir}" ABSOLUTE)
 
-    get_filename_component(base_dir ${abs_dir} NAME)
+    get_filename_component(base_dir "${abs_dir}" NAME)
     string(SUBSTRING "${base_dir}" 0 1 first_char)
 
     # Check the component directory contains a CMakeLists.txt file
@@ -149,8 +149,8 @@ function(__component_add component_dir prefix component_source)
     # so later in the build, these component targets actually contain the properties meant for the
     # corresponding component library.
     idf_build_get_property(component_targets __COMPONENT_TARGETS)
-    get_filename_component(abs_dir ${component_dir} ABSOLUTE)
-    get_filename_component(base_dir ${abs_dir} NAME)
+    get_filename_component(abs_dir "${component_dir}" ABSOLUTE)
+    get_filename_component(base_dir "${abs_dir}" NAME)
 
     if(NOT EXISTS "${abs_dir}/CMakeLists.txt")
         message(FATAL_ERROR "Directory '${component_dir}' does not contain a component.")
@@ -167,6 +167,8 @@ function(__component_add component_dir prefix component_source)
     if(NOT component_target IN_LIST component_targets)
         if(NOT TARGET ${component_target})
             add_library(${component_target} STATIC IMPORTED)
+            # Set the IMPORTED_LOCATION property to avoid errors on IDE codemodel queries with CMake >=4.2
+            set_property(TARGET ${component_target} PROPERTY IMPORTED_LOCATION "${CMAKE_CURRENT_BINARY_DIR}/dummy.a")
         endif()
         idf_build_set_property(__COMPONENT_TARGETS ${component_target} APPEND)
     else()
@@ -205,7 +207,7 @@ endfunction()
 # Given a component directory, get the requirements by expanding it early. The expansion is performed
 # using a separate CMake script (the expansion is performed in a separate instance of CMake in scripting mode).
 #
-function(__component_get_requirements)
+function(__component_get_requirements use_sdk_json)
     idf_build_get_property(idf_path IDF_PATH)
 
     idf_build_get_property(build_dir BUILD_DIR)
@@ -243,8 +245,8 @@ function(__component_get_requirements)
             "idf_component_manager.prepare_components"
             "--project_dir=${project_dir}"
             "--lock_path=${DEPENDENCIES_LOCK}"
-            "--sdkconfig_json_file=${build_dir}/config/sdkconfig.json"
             "--interface_version=${component_manager_interface_version}"
+            "--use_sdk_json=${use_sdk_json}"
             "inject_requirements"
             "--idf_path=${idf_path}"
             "--build_dir=${build_dir}"
@@ -275,15 +277,15 @@ macro(__component_add_sources sources)
             message(WARNING "SRCS and SRC_DIRS are both specified; ignoring SRC_DIRS.")
         endif()
         foreach(src ${__SRCS})
-            get_filename_component(src "${src}" ABSOLUTE BASE_DIR ${COMPONENT_DIR})
-            list(APPEND sources ${src})
+            get_filename_component(src "${src}" ABSOLUTE BASE_DIR "${COMPONENT_DIR}")
+            list(APPEND sources "${src}")
         endforeach()
     else()
         if(__SRC_DIRS)
             foreach(dir ${__SRC_DIRS})
-                get_filename_component(abs_dir ${dir} ABSOLUTE BASE_DIR ${COMPONENT_DIR})
+                get_filename_component(abs_dir "${dir}" ABSOLUTE BASE_DIR "${COMPONENT_DIR}")
 
-                if(NOT IS_DIRECTORY ${abs_dir})
+                if(NOT IS_DIRECTORY "${abs_dir}")
                     message(FATAL_ERROR "SRC_DIRS entry '${dir}' does not exist.")
                 endif()
 
@@ -292,7 +294,7 @@ macro(__component_add_sources sources)
 
                 if(dir_sources)
                     foreach(src ${dir_sources})
-                        get_filename_component(src "${src}" ABSOLUTE BASE_DIR ${COMPONENT_DIR})
+                        get_filename_component(src "${src}" ABSOLUTE BASE_DIR "${COMPONENT_DIR}")
                         list(APPEND sources "${src}")
                     endforeach()
                 else()
@@ -314,11 +316,11 @@ endmacro()
 
 macro(__component_add_include_dirs lib dirs type)
     foreach(dir ${dirs})
-        get_filename_component(_dir ${dir} ABSOLUTE BASE_DIR ${CMAKE_CURRENT_LIST_DIR})
-        if(NOT IS_DIRECTORY ${_dir})
+        get_filename_component(_dir "${dir}" ABSOLUTE BASE_DIR "${CMAKE_CURRENT_LIST_DIR}")
+        if(NOT IS_DIRECTORY "${_dir}")
             message(FATAL_ERROR "Include directory '${_dir}' is not a directory.")
         endif()
-        target_include_directories(${lib} ${type} ${_dir})
+        target_include_directories(${lib} ${type} "${_dir}")
     endforeach()
 endmacro()
 

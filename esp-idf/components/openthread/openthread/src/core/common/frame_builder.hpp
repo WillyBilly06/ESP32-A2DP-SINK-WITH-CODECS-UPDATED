@@ -31,11 +31,12 @@
  *  This file defines OpenThread `FrameBuilder` class.
  */
 
-#ifndef FRAME_BUILDER_HPP_
-#define FRAME_BUILDER_HPP_
+#ifndef OT_CORE_COMMON_FRAME_BUILDER_HPP_
+#define OT_CORE_COMMON_FRAME_BUILDER_HPP_
 
 #include "openthread-core-config.h"
 
+#include "common/encoding.hpp"
 #include "common/error.hpp"
 #include "common/type_traits.hpp"
 #include "mac/mac_types.hpp"
@@ -119,44 +120,19 @@ public:
     Error AppendUint8(uint8_t aUint8);
 
     /**
-     * Appends an `uint16_t` value assuming big endian encoding to the `FrameBuilder`.
+     * Appends an integer value with a specified encoding to the `FrameBuilder`.
      *
-     * @param[in] aUint16    The `uint16_t` value to append.
+     * The value is converted to the specified @p kEncoding byte order before being appended.
      *
-     * @retval kErrorNone    Successfully appended the value.
-     * @retval kErrorNoBufs  Insufficient available buffers.
-     */
-    Error AppendBigEndianUint16(uint16_t aUint16);
-
-    /**
-     * Appends an `uint32_t` value assuming big endian encoding to the `FrameBuilder`.
+     * @tparam  kEncoding  The encoding to use (big or little endian).
+     * @tparam  UintType   The unsigned integer type.
      *
-     * @param[in] aUint32    The `uint32_t` value to append.
+     * @param[in] aUint      The integer value to append.
      *
      * @retval kErrorNone    Successfully appended the value.
      * @retval kErrorNoBufs  Insufficient available buffers.
      */
-    Error AppendBigEndianUint32(uint32_t aUint32);
-
-    /**
-     * Appends an `uint16_t` value assuming little endian encoding to the `FrameBuilder`.
-     *
-     * @param[in] aUint16    The `uint16_t` value to append.
-     *
-     * @retval kErrorNone    Successfully appended the value.
-     * @retval kErrorNoBufs  Insufficient available buffers.
-     */
-    Error AppendLittleEndianUint16(uint16_t aUint16);
-
-    /**
-     * Appends an `uint32_t` value assuming little endian encoding to the `FrameBuilder`.
-     *
-     * @param[in] aUint32    The `uint32_t` value to append.
-     *
-     * @retval kErrorNone    Successfully appended the value.
-     * @retval kErrorNoBufs  Insufficient available buffers.
-     */
-    Error AppendLittleEndianUint32(uint32_t aUint32);
+    template <Encoding kEncoding, typename UintType> Error AppendUint(UintType aUint);
 
     /**
      * Appends bytes from a given buffer to the `FrameBuilder`.
@@ -321,6 +297,25 @@ public:
      */
     void RemoveBytes(uint16_t aOffset, uint16_t aLength);
 
+    /**
+     * Reads a pointer to a previously appended object in the `FrameBuilder` at a given byte offset.
+     *
+     * This method does not perform any bounds checking. The caller MUST ensure the object of type `ObjectType`
+     * fits within the previously appended content.
+     *
+     * @tparam ObjectType  The object type to read.
+     *
+     * @param[in] aOffset  The byte offset where the object starts.
+     *
+     * @returns A pointer to the `ObjectType` at @p aOffset.
+     */
+    template <typename ObjectType> ObjectType *Read(uint16_t aOffset)
+    {
+        static_assert(!TypeTraits::IsPointer<ObjectType>::kValue, "ObjectType must not be a pointer");
+
+        return reinterpret_cast<ObjectType *>(mBuffer + aOffset);
+    }
+
 private:
     uint8_t *mBuffer;
     uint16_t mLength;
@@ -329,4 +324,4 @@ private:
 
 } // namespace ot
 
-#endif // FRAME_BUILDER_HPP_
+#endif // OT_CORE_COMMON_FRAME_BUILDER_HPP_

@@ -47,9 +47,9 @@ Icmp::Icmp(Instance &aInstance)
 {
 }
 
-Message *Icmp::NewMessage(void) { return Get<Ip6>().NewMessage(sizeof(Header)); }
-
 Error Icmp::RegisterHandler(Handler &aHandler) { return mHandlers.Add(aHandler); }
+
+Error Icmp::UnregisterHandler(Handler &aHandler) { return mHandlers.Remove(aHandler); }
 
 Error Icmp::SendEchoRequest(Message &aMessage, const MessageInfo &aMessageInfo, uint16_t aIdentifier)
 {
@@ -74,7 +74,10 @@ exit:
     return error;
 }
 
-Error Icmp::SendError(Header::Type aType, Header::Code aCode, const MessageInfo &aMessageInfo, const Message &aMessage)
+Error Icmp::SendError(Icmp6Header::Type  aType,
+                      Icmp6Header::Code  aCode,
+                      const MessageInfo &aMessageInfo,
+                      const Message     &aMessage)
 {
     Error   error;
     Headers headers;
@@ -86,7 +89,10 @@ exit:
     return error;
 }
 
-Error Icmp::SendError(Header::Type aType, Header::Code aCode, const MessageInfo &aMessageInfo, const Headers &aHeaders)
+Error Icmp::SendError(Icmp6Header::Type  aType,
+                      Icmp6Header::Code  aCode,
+                      const MessageInfo &aMessageInfo,
+                      const Headers     &aHeaders)
 {
     Error             error = kErrorNone;
     MessageInfo       messageInfoLocal;
@@ -101,7 +107,7 @@ Error Icmp::SendError(Header::Type aType, Header::Code aCode, const MessageInfo 
 
     messageInfoLocal = aMessageInfo;
 
-    VerifyOrExit((message = Get<Ip6>().NewMessage(0, settings)) != nullptr, error = kErrorNoBufs);
+    VerifyOrExit((message = Get<Ip6>().NewMessage(settings)) != nullptr, error = kErrorNoBufs);
 
     // Prepare the ICMPv6 error message. We only include the IPv6 header
     // of the original message causing the error.
@@ -187,7 +193,7 @@ Error Icmp::HandleEchoRequest(Message &aRequestMessage, const MessageInfo &aMess
     icmp6Header.Clear();
     icmp6Header.SetType(Header::kTypeEchoReply);
 
-    if ((replyMessage = Get<Ip6>().NewMessage(0)) == nullptr)
+    if ((replyMessage = Get<Ip6>().NewMessage()) == nullptr)
     {
         LogDebg("Failed to allocate a new message");
         ExitNow();

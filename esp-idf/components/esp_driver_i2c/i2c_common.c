@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2023-2025 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2023-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -18,15 +18,14 @@
 #include "esp_pm.h"
 #include "freertos/FreeRTOS.h"
 #include "hal/i2c_hal.h"
-#include "hal/gpio_hal.h"
 #include "esp_private/periph_ctrl.h"
 #include "esp_rom_gpio.h"
 #include "i2c_private.h"
 #include "driver/gpio.h"
 #include "soc/clk_tree_defs.h"
-#include "soc/i2c_periph.h"
+#include "hal/i2c_periph.h"
 #include "esp_clk_tree.h"
-#include "clk_ctrl_os.h"
+#include "esp_private/esp_clk_tree_common.h"
 #include "esp_private/gpio.h"
 #include "esp_private/esp_gpio_reserve.h"
 #if SOC_LP_I2C_SUPPORTED
@@ -114,21 +113,21 @@ static esp_err_t s_i2c_bus_handle_acquire(i2c_port_num_t port_num, i2c_bus_handl
 
             // Enable the I2C module
             if (!bus->is_lp_i2c) {
-                I2C_RCC_ATOMIC() {
+                PERIPH_RCC_ATOMIC() {
                     i2c_ll_enable_bus_clock(bus->port_num, true);
                     i2c_ll_reset_register(bus->port_num);
                 }
             }
 #if SOC_LP_I2C_SUPPORTED
             else {
-                LP_I2C_BUS_CLK_ATOMIC() {
+                PERIPH_RCC_ATOMIC() {
                     lp_i2c_ll_enable_bus_clock(bus->port_num - SOC_HP_I2C_NUM, true);
                     lp_i2c_ll_reset_register(bus->port_num - SOC_HP_I2C_NUM);
                 }
             }
 #endif
 
-            I2C_CLOCK_SRC_ATOMIC() {
+            PERIPH_RCC_ATOMIC() {
                 i2c_hal_init(&bus->hal, port_num);
             }
         }
@@ -191,15 +190,27 @@ esp_err_t i2c_acquire_bus_handle(i2c_port_num_t port_num, i2c_bus_handle_t *i2c_
 
 esp_err_t i2c_release_bus_handle(i2c_bus_handle_t i2c_bus)
 {
+    esp_err_t ret = ESP_OK;
     int port_num = i2c_bus->port_num;
     i2c_clock_source_t clk_src = i2c_bus->clk_src;
     bool do_deinitialize = false;
     _lock_acquire(&s_i2c_platform.mutex);
     if (s_i2c_platform.buses[port_num]) {
-        s_i2c_platform.count[port_num]--;
-        if (s_i2c_platform.count[port_num] == 0) {
+        if (s_i2c_platform.count[port_num] > 1) {
+            s_i2c_platform.count[port_num]--;
+        } else {
             do_deinitialize = true;
-            s_i2c_platform.buses[port_num] = NULL;
+            if (i2c_bus->intr_handle) {
+                ESP_GOTO_ON_ERROR(esp_intr_free(i2c_bus->intr_handle), err, TAG, "delete interrupt service failed");
+                i2c_bus->intr_handle = NULL;
+            }
+#if CONFIG_PM_ENABLE
+            if (i2c_bus->pm_lock) {
+                esp_pm_lock_delete(i2c_bus->pm_lock);
+                i2c_bus->pm_lock = NULL;
+            }
+#endif
+            esp_clk_tree_enable_src(clk_src, false);
 #if I2C_USE_RETENTION_LINK
             if (i2c_bus->is_lp_i2c == false) {
                 if (i2c_bus->retention_link_created) {
@@ -208,21 +219,17 @@ esp_err_t i2c_release_bus_handle(i2c_bus_handle_t i2c_bus)
                 sleep_retention_module_deinit(i2c_regs_retention[port_num].module_id);
             }
 #endif
-            if (i2c_bus->intr_handle) {
-                ESP_RETURN_ON_ERROR(esp_intr_free(i2c_bus->intr_handle), TAG, "delete interrupt service failed");
-            }
-            if (i2c_bus->pm_lock) {
-                ESP_RETURN_ON_ERROR(esp_pm_lock_delete(i2c_bus->pm_lock), TAG, "delete pm_lock failed");
-            }
+            s_i2c_platform.count[port_num] = 0;
+            s_i2c_platform.buses[port_num] = NULL;
             // Disable I2C module
             if (!i2c_bus->is_lp_i2c) {
-                I2C_RCC_ATOMIC() {
+                PERIPH_RCC_ATOMIC() {
                     i2c_ll_enable_bus_clock(port_num, false);
                 }
             }
 #if SOC_LP_I2C_SUPPORTED
             else {
-                LP_I2C_BUS_CLK_ATOMIC() {
+                PERIPH_RCC_ATOMIC() {
                     lp_i2c_ll_enable_bus_clock(port_num - SOC_HP_I2C_NUM, false);
                 }
             }
@@ -232,22 +239,14 @@ esp_err_t i2c_release_bus_handle(i2c_bus_handle_t i2c_bus)
     }
     _lock_release(&s_i2c_platform.mutex);
 
-    switch (clk_src) {
-#if SOC_I2C_SUPPORT_RTC
-    case I2C_CLK_SRC_RC_FAST:
-        periph_rtc_dig_clk8m_disable();
-        break;
-#endif // SOC_I2C_SUPPORT_RTC
-    default:
-        break;
-    }
-
     if (do_deinitialize) {
         ESP_LOGD(TAG, "delete bus %d", port_num);
     }
-
-    ESP_RETURN_ON_FALSE(s_i2c_platform.count[port_num] == 0, ESP_ERR_INVALID_STATE, TAG, "Bus not freed entirely");
     return ESP_OK;
+
+err:
+    _lock_release(&s_i2c_platform.mutex);
+    return ret;
 }
 
 esp_err_t i2c_select_periph_clock(i2c_bus_handle_t handle, soc_module_clk_t clk_src)
@@ -267,14 +266,7 @@ esp_err_t i2c_select_periph_clock(i2c_bus_handle_t handle, soc_module_clk_t clk_
     ESP_RETURN_ON_FALSE(!clock_selection_conflict, ESP_ERR_INVALID_STATE, TAG,
                         "group clock conflict, already is %d but attempt to %d", handle->clk_src, clk_src);
 
-    // TODO: [clk_tree] to use a generic clock enable/disable or acquire/release function for all clock source
-#if SOC_I2C_SUPPORT_RTC
-    if (clk_src == (soc_module_clk_t)I2C_CLK_SRC_RC_FAST) {
-        // RC_FAST clock is not enabled automatically on start up, we enable it here manually.
-        // Note there's a ref count in the enable/disable function, we must call them in pair in the driver.
-        periph_rtc_dig_clk8m_enable();
-    }
-#endif // SOC_I2C_SUPPORT_RTC
+    ESP_RETURN_ON_ERROR(esp_clk_tree_enable_src(clk_src, true), TAG, "clock source clock enable failed");
 
     ESP_RETURN_ON_ERROR(esp_clk_tree_src_get_freq_hz(clk_src, ESP_CLK_TREE_SRC_FREQ_PRECISION_APPROX, &periph_src_clk_hz), TAG, "i2c get clock frequency error");
 
@@ -306,8 +298,7 @@ esp_err_t i2c_select_periph_clock(i2c_bus_handle_t handle, soc_module_clk_t clk_
     }
 
     if (need_pm_lock) {
-        sprintf(handle->pm_lock_name, "I2C_%d", handle->port_num); // e.g. PORT_0
-        ret  = esp_pm_lock_create(pm_lock_type, 0, handle->pm_lock_name, &handle->pm_lock);
+        ret  = esp_pm_lock_create(pm_lock_type, 0, i2c_periph_signal[handle->port_num].module_name, &handle->pm_lock);
         ESP_RETURN_ON_ERROR(ret, TAG, "create pm lock failed");
     }
 #endif // CONFIG_PM_ENABLE
@@ -396,10 +387,10 @@ static esp_err_t s_lp_i2c_pins_config(i2c_bus_handle_t handle)
         rtc_gpio_pullup_dis(handle->sda_num);
     }
 #if !SOC_LP_GPIO_MATRIX_SUPPORTED
-    rtc_gpio_iomux_func_sel(handle->sda_num, i2c_periph_signal[port_id].iomux_func);
+    rtc_gpio_iomux_input(handle->sda_num, i2c_periph_signal[port_id].iomux_func, i2c_periph_signal[port_id].sda_in_sig);
 #else
-    lp_gpio_connect_out_signal(handle->sda_num, i2c_periph_signal[port_id].sda_out_sig, 0, 0);
-    lp_gpio_connect_in_signal(handle->sda_num, i2c_periph_signal[port_id].sda_in_sig, 0);
+    lp_gpio_matrix_output(handle->sda_num, i2c_periph_signal[port_id].sda_out_sig, 0, 0);
+    lp_gpio_matrix_input(handle->sda_num, i2c_periph_signal[port_id].sda_in_sig, 0);
 #endif
 
     rtc_gpio_init(handle->scl_num);
@@ -411,10 +402,10 @@ static esp_err_t s_lp_i2c_pins_config(i2c_bus_handle_t handle)
         rtc_gpio_pullup_dis(handle->scl_num);
     }
 #if !SOC_LP_GPIO_MATRIX_SUPPORTED
-    rtc_gpio_iomux_func_sel(handle->scl_num, i2c_periph_signal[port_id].iomux_func);
+    rtc_gpio_iomux_input(handle->scl_num, i2c_periph_signal[port_id].iomux_func, i2c_periph_signal[port_id].scl_in_sig);
 #else
-    lp_gpio_connect_out_signal(handle->scl_num, i2c_periph_signal[port_id].scl_out_sig, 0, 0);
-    lp_gpio_connect_in_signal(handle->scl_num, i2c_periph_signal[port_id].scl_in_sig, 0);
+    lp_gpio_matrix_output(handle->scl_num, i2c_periph_signal[port_id].scl_out_sig, 0, 0);
+    lp_gpio_matrix_input(handle->scl_num, i2c_periph_signal[port_id].scl_in_sig, 0);
 #endif
 
     return ESP_OK;
@@ -459,8 +450,8 @@ esp_err_t i2c_common_deinit_pins(i2c_bus_handle_t handle)
         ESP_RETURN_ON_ERROR(rtc_gpio_deinit(handle->sda_num), TAG, "deinit rtc gpio failed");
         ESP_RETURN_ON_ERROR(rtc_gpio_deinit(handle->scl_num), TAG, "deinit rtc gpio failed");
 #if SOC_LP_GPIO_MATRIX_SUPPORTED
-        ESP_RETURN_ON_ERROR(lp_gpio_connect_in_signal(LP_GPIO_MATRIX_CONST_ZERO_INPUT, i2c_periph_signal[port_id].scl_in_sig, 0), TAG, "failed to connect lp gpio to zero");
-        ESP_RETURN_ON_ERROR(lp_gpio_connect_in_signal(LP_GPIO_MATRIX_CONST_ZERO_INPUT, i2c_periph_signal[port_id].sda_in_sig, 0), TAG, "failed to connect lp gpio to zero");
+        ESP_RETURN_ON_ERROR(lp_gpio_matrix_input(LP_GPIO_MATRIX_CONST_ZERO_INPUT, i2c_periph_signal[port_id].scl_in_sig, 0), TAG, "failed to connect lp gpio to zero");
+        ESP_RETURN_ON_ERROR(lp_gpio_matrix_input(LP_GPIO_MATRIX_CONST_ZERO_INPUT, i2c_periph_signal[port_id].sda_in_sig, 0), TAG, "failed to connect lp gpio to zero");
 #endif
     }
 #endif

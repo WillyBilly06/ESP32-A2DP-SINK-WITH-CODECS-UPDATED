@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2021-2024 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2021-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Unlicense OR CC0-1.0
  */
@@ -15,6 +15,7 @@
 ****************************************************************************/
 
 #include <stdint.h>
+#include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -57,8 +58,8 @@ static esp_ble_scan_params_t ble_scan_params = {
     .scan_type              = BLE_SCAN_TYPE_ACTIVE,
     .own_addr_type          = BLE_ADDR_TYPE_RPA_PUBLIC,
     .scan_filter_policy     = BLE_SCAN_FILTER_ALLOW_ALL,
-    .scan_interval          = 0x50,
-    .scan_window            = 0x30,
+    .scan_interval          = ESP_BLE_GAP_SCAN_ITVL_MS(50),
+    .scan_window            = ESP_BLE_GAP_SCAN_WIN_MS(30),
     .scan_duplicate         = BLE_SCAN_DUPLICATE_DISABLE
 };
 
@@ -177,6 +178,7 @@ static void gattc_profile_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
     case ESP_GATTC_OPEN_EVT:
         if (param->open.status != ESP_GATT_OK){
             ESP_LOGE(GATTC_TAG, "Open failed, status %x", p_data->open.status);
+            connect = false;
             break;
         }
         ESP_LOGI(GATTC_TAG, "Open successfully, MTU %d", p_data->open.mtu);
@@ -559,7 +561,8 @@ void app_main(void)
         return;
     }
 
-    ret = esp_bluedroid_init();
+    esp_bluedroid_config_t cfg = BT_BLUEDROID_INIT_CONFIG_DEFAULT();
+    ret = esp_bluedroid_init_with_cfg(&cfg);
     if (ret) {
         ESP_LOGE(GATTC_TAG, "%s init bluetooth failed: %s", __func__, esp_err_to_name(ret));
         return;

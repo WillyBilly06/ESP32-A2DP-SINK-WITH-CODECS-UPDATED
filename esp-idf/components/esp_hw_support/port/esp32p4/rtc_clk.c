@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2022-2025 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2022-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -22,15 +22,15 @@
 #include "hal/gpio_ll.h"
 #include "soc/io_mux_reg.h"
 #include "esp_private/sleep_event.h"
-#include "esp_private/regi2c_ctrl.h"
+#include "esp_attr.h"
 
-static const char *TAG = "rtc_clk";
+ESP_HW_LOG_ATTR_TAG(TAG, "rtc_clk");
 
 // CPLL frequency option, in 360/400MHz. Zero if CPLL is not enabled.
 static int s_cur_cpll_freq = 0;
 
 // MPLL frequency option, 400MHz. Zero if MPLL is not enabled.
-static TCM_DRAM_ATTR uint32_t s_cur_mpll_freq = 0;
+static SPM_DRAM_ATTR uint32_t s_cur_mpll_freq = 0;
 
 void rtc_clk_32k_enable(bool enable)
 {
@@ -159,13 +159,13 @@ static void rtc_clk_cpll_configure(soc_xtal_freq_t xtal_freq, int cpll_freq)
     /* Analog part */
     ANALOG_CLOCK_ENABLE();
     /* CPLL CALIBRATION START */
-    regi2c_ctrl_ll_cpll_calibration_start();
+    clk_ll_cpll_calibration_start();
     clk_ll_cpll_set_config(cpll_freq, xtal_freq);
     /* WAIT CALIBRATION DONE */
-    while(!regi2c_ctrl_ll_cpll_calibration_is_done());
+    while(!clk_ll_cpll_calibration_is_done());
     esp_rom_delay_us(10); // wait for true stop
     /* CPLL CALIBRATION STOP */
-    regi2c_ctrl_ll_cpll_calibration_stop();
+    clk_ll_cpll_calibration_stop();
     ANALOG_CLOCK_DISABLE();
 
     s_cur_cpll_freq = cpll_freq;
@@ -179,7 +179,7 @@ static void rtc_clk_cpll_configure(soc_xtal_freq_t xtal_freq, int cpll_freq)
  * If to_default is set, then will configure CPU - MEM - SYS - APB frequencies back to power-on reset configuration (40 - 20 - 20 - 10)
  * If to_default is not set, then will configure to 40 - 40 - 40 - 40
  */
-static void rtc_clk_cpu_freq_to_xtal(int cpu_freq, int div, bool to_default)
+static FORCE_IRAM_ATTR void rtc_clk_cpu_freq_to_xtal(int cpu_freq, int div, bool to_default)
 {
     // let f_cpu = f_mem = f_sys = f_apb
     uint32_t mem_divider = 1;
@@ -203,7 +203,7 @@ static void rtc_clk_cpu_freq_to_xtal(int cpu_freq, int div, bool to_default)
     esp_rom_set_cpu_ticks_per_us(cpu_freq);
 }
 
-static void rtc_clk_cpu_freq_to_8m(void)
+static void rtc_clk_cpu_freq_to_rc_fast(void)
 {
     // let f_cpu = f_mem = f_sys = f_apb
     clk_ll_cpu_set_divider(1, 0, 0);
@@ -420,7 +420,7 @@ void rtc_clk_cpu_freq_set_config(const rtc_cpu_freq_config_t *config)
         rtc_clk_cpu_freq_to_cpll_mhz(config->freq_mhz, (hal_utils_clk_div_t *)&config->div);
         rtc_clk_set_cpu_switch_to_pll(SLEEP_EVENT_HW_PLL_EN_STOP);
     } else if (config->source == SOC_CPU_CLK_SRC_RC_FAST) {
-        rtc_clk_cpu_freq_to_8m();
+        rtc_clk_cpu_freq_to_rc_fast();
         if (old_cpu_clk_src == SOC_CPU_CLK_SRC_CPLL) {
             rtc_clk_cpll_disable();
         }
@@ -479,7 +479,7 @@ void rtc_clk_cpu_freq_set_config_fast(const rtc_cpu_freq_config_t *config)
                s_cur_cpll_freq == config->source_freq_mhz) {
         rtc_clk_cpu_freq_to_cpll_mhz(config->freq_mhz, (hal_utils_clk_div_t *)&config->div);
     } else if (config->source == SOC_CPU_CLK_SRC_RC_FAST) {
-        rtc_clk_cpu_freq_to_8m();
+        rtc_clk_cpu_freq_to_rc_fast();
     } else {
         /* fallback */
         rtc_clk_cpu_freq_set_config(config);
@@ -494,7 +494,7 @@ void rtc_clk_cpu_freq_set_xtal(void)
     rtc_clk_cpll_disable();
 }
 
-void rtc_clk_cpu_set_to_default_config(void)
+FORCE_IRAM_ATTR void rtc_clk_cpu_set_to_default_config(void)
 {
     int freq_mhz = (int)rtc_clk_xtal_freq_get();
 
@@ -509,7 +509,7 @@ void rtc_clk_cpu_freq_set_xtal_for_sleep(void)
     s_cur_cpll_freq = 0; // no disable PLL, but set freq to 0 to trigger a PLL calibration after wake-up from sleep
 }
 
-soc_xtal_freq_t rtc_clk_xtal_freq_get(void)
+FORCE_IRAM_ATTR soc_xtal_freq_t rtc_clk_xtal_freq_get(void)
 {
     uint32_t xtal_freq_mhz = clk_ll_xtal_load_freq_mhz();
     if (xtal_freq_mhz == 0) {
@@ -642,13 +642,13 @@ bool rtc_dig_8m_enabled(void)
 }
 
 //------------------------------------MPLL-------------------------------------//
-TCM_IRAM_ATTR void rtc_clk_mpll_disable(void)
+SPM_IRAM_ATTR void rtc_clk_mpll_disable(void)
 {
     clk_ll_mpll_disable();
     s_cur_mpll_freq = 0;
 }
 
-TCM_IRAM_ATTR void rtc_clk_mpll_enable(void)
+SPM_IRAM_ATTR void rtc_clk_mpll_enable(void)
 {
     clk_ll_mpll_enable();
 }
@@ -660,30 +660,23 @@ void rtc_clk_mpll_configure(uint32_t xtal_freq, uint32_t mpll_freq, bool thread_
         _regi2c_ctrl_ll_master_enable_clock(true);
     } else {
         ANALOG_CLOCK_ENABLE();
-#if !BOOTLOADER_BUILD
-        regi2c_enter_critical();
-#endif
     }
-    /* MPLL calibration start */
-    regi2c_ctrl_ll_mpll_calibration_start();
-    clk_ll_mpll_set_config(mpll_freq, xtal_freq);
-    /* wait calibration done */
-    while(!regi2c_ctrl_ll_mpll_calibration_is_done());
-    /* MPLL calibration stop */
-    regi2c_ctrl_ll_mpll_calibration_stop();
+
+#if CONFIG_ESP32P4_SELECTS_REV_LESS_V3
+    clk_ll_mpll_set_config_v1(mpll_freq, xtal_freq);
+#else
+    clk_ll_mpll_set_config_v3(mpll_freq, xtal_freq);
+#endif
 
     if (thread_safe) {
         _regi2c_ctrl_ll_master_enable_clock(false);
     } else {
-#if !BOOTLOADER_BUILD
-        regi2c_exit_critical();
-#endif
         ANALOG_CLOCK_DISABLE();
     }
     s_cur_mpll_freq = mpll_freq;
 }
 
-TCM_IRAM_ATTR uint32_t rtc_clk_mpll_get_freq(void)
+SPM_IRAM_ATTR uint32_t rtc_clk_mpll_get_freq(void)
 {
     return s_cur_mpll_freq;
 }

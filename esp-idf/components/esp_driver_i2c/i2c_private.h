@@ -25,23 +25,6 @@
 extern "C" {
 #endif
 
-#if SOC_PERIPH_CLK_CTRL_SHARED
-#define I2C_CLOCK_SRC_ATOMIC() PERIPH_RCC_ATOMIC()
-#else
-#define I2C_CLOCK_SRC_ATOMIC()
-#endif
-
-#if !SOC_RCC_IS_INDEPENDENT
-#define I2C_RCC_ATOMIC() PERIPH_RCC_ATOMIC()
-#else
-#define I2C_RCC_ATOMIC()
-#endif
-
-#if SOC_LP_I2C_SUPPORTED
-#define LP_I2C_SRC_CLK_ATOMIC()    PERIPH_RCC_ATOMIC()
-#define LP_I2C_BUS_CLK_ATOMIC()    PERIPH_RCC_ATOMIC()
-#endif
-
 #ifdef CONFIG_I2C_MASTER_ISR_HANDLER_IN_IRAM
 #define I2C_MASTER_ISR_ATTR IRAM_ATTR
 #else
@@ -66,8 +49,7 @@ extern "C" {
 
 #define I2C_ALLOW_INTR_PRIORITY_MASK ESP_INTR_FLAG_LOWMED
 
-#define I2C_PM_LOCK_NAME_LEN_MAX 16
-#define I2C_STATIC_OPERATION_ARRAY_MAX SOC_I2C_CMD_REG_NUM
+#define I2C_STATIC_OPERATION_ARRAY_MAX I2C_LL_GET(CMD_REG_NUM)
 
 #define I2C_TRANS_READ_COMMAND(ack_value)    {.ack_val = (ack_value), .op_code = I2C_LL_CMD_READ}
 #define I2C_TRANS_WRITE_COMMAND(ack_check)   {.ack_en = (ack_check), .op_code = I2C_LL_CMD_WRITE}
@@ -116,9 +98,8 @@ struct i2c_bus_t {
     int scl_num; // SCL pin number
     bool pull_up_enable; // Enable pull-ups
     intr_handle_t intr_handle; // I2C interrupt handle
-    esp_pm_lock_handle_t pm_lock; // power manage lock
 #if CONFIG_PM_ENABLE
-    char pm_lock_name[I2C_PM_LOCK_NAME_LEN_MAX]; // pm lock name
+    esp_pm_lock_handle_t pm_lock; // power manage lock
 #endif
     i2c_bus_mode_t bus_mode; // I2C bus mode
 #if SOC_I2C_SUPPORT_SLEEP_RETENTION
@@ -159,7 +140,6 @@ struct i2c_master_bus_t {
     size_t queue_size;                                               // I2C transaction queue size.
     size_t num_trans_inflight;                                       // Indicates the number of transactions that are undergoing but not recycled to ready_queue
     size_t num_trans_inqueue;                                        // Indicates the number of transaction in queue transaction.
-    void* queues_storage;                                            // storage of transaction queues
     bool sent_all;                                                   // true if the queue transaction is sent
     bool in_progress;                                                // true if current transaction is in progress
     bool trans_finish;                                               // true if current command has been sent out.
@@ -195,27 +175,6 @@ typedef struct {
     uint32_t rcv_fifo_cnt;      // receive fifo count.
 } i2c_slave_receive_t;
 
-#if !CONFIG_I2C_ENABLE_SLAVE_DRIVER_VERSION_2
-
-struct i2c_slave_dev_t {
-    i2c_bus_t *base;                            // bus base class
-    SemaphoreHandle_t slv_rx_mux;               // Mutex for slave rx direction
-    SemaphoreHandle_t slv_tx_mux;               // Mutex for slave tx direction
-    RingbufHandle_t rx_ring_buf;                // Handle for rx ringbuffer
-    RingbufHandle_t tx_ring_buf;                // Handle for tx ringbuffer
-    uint8_t data_buf[SOC_I2C_FIFO_LEN];         // Data buffer for slave
-    uint32_t trans_data_length;                 // Send data length
-    i2c_slave_event_callbacks_t callbacks;      // I2C slave callbacks
-    void *user_ctx;                             // Callback user context
-    i2c_slave_fifo_mode_t fifo_mode;            // Slave fifo mode.
-    QueueHandle_t slv_evt_queue;                // Event Queue used in slave nonfifo mode.
-    i2c_slave_evt_t slave_evt;                  // Slave event structure.
-    i2c_slave_receive_t receive_desc;           // Slave receive descriptor
-    uint32_t already_receive_len;               // Data length already received in ISR.
-};
-
-#else // CONFIG_I2C_ENABLE_SLAVE_DRIVER_VERSION_2
-
 struct i2c_slave_dev_t {
     i2c_bus_t *base;                                  // bus base class
     SemaphoreHandle_t operation_mux;                  // Mux for i2c slave operation
@@ -227,8 +186,6 @@ struct i2c_slave_dev_t {
     uint32_t rx_data_count;                           // receive data count
     i2c_slave_receive_t receive_desc;                 // slave receive descriptor
 };
-
-#endif // CONFIG_I2C_ENABLE_SLAVE_DRIVER_VERSION_2
 
 /**
  * @brief Acquire I2C bus handle

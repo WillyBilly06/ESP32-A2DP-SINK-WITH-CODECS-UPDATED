@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2023-2025 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2023-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Unlicense OR CC0-1.0
  */
@@ -8,7 +8,7 @@
 #include "unity_test_utils.h"
 #include "test_utils.h"
 #include "esp_sleep.h"
-#include "driver/rtc_io.h"
+#include "soc/soc_caps.h"
 #include "driver/gpio.h"
 #include "hal/gpio_ll.h"
 #include "esp_console.h"
@@ -16,7 +16,7 @@
 #include "argtable3/argtable3.h"
 #include "esp_log.h"
 
-static const char* TAG = "io_wakeup_test";
+ESP_LOG_ATTR_TAG(TAG, "io_wakeup_test");
 
 typedef enum {
     IO_WAKEUP_LEVEL_LOW = 0,
@@ -85,7 +85,7 @@ static struct {
 static int process_ext1_wakeup(int argc, char **argv)
 {
     int nerrors = arg_parse(argc, argv, (void **) &ext1_wakeup_args);
-    int io_wakeup_num = 0, io_wakeup_level = 0;
+    int io_wakeup_num = 0, io_wakeup_type = 0;
     if (nerrors != 0) {
         arg_print_errors(stderr, ext1_wakeup_args.end, argv[0]);
         return 1;
@@ -101,21 +101,21 @@ static int process_ext1_wakeup(int argc, char **argv)
 
     if (ext1_wakeup_args.mode->count) {
         if (ext1_wakeup_args.mode->count == 1) {
-            io_wakeup_level = ext1_wakeup_args.mode->ival[0];
+            io_wakeup_type = ext1_wakeup_args.mode->ival[0];
         } else {
             ESP_LOGE(TAG, "no valid arguments");
             return 1;
         }
     }
-    ESP_LOGI(TAG, "io_wakeup_level = %d\n", io_wakeup_level);
+    ESP_LOGI(TAG, "io_wakeup_type = %d\n", io_wakeup_type);
 
     if (ext1_wakeup_args.disable->count) {
         ESP_ERROR_CHECK(esp_sleep_disable_ext1_wakeup_io(1ULL << io_wakeup_num));
     } else {
 #if CONFIG_IDF_TARGET_ESP32
-        ESP_ERROR_CHECK(esp_sleep_enable_ext1_wakeup_io(1ULL << io_wakeup_num, io_wakeup_level == 0 ? ESP_EXT1_WAKEUP_ALL_LOW : ESP_EXT1_WAKEUP_ANY_HIGH));
+        ESP_ERROR_CHECK(esp_sleep_enable_ext1_wakeup_io(1ULL << io_wakeup_num, io_wakeup_type == 0 ? ESP_EXT1_WAKEUP_ALL_LOW : ESP_EXT1_WAKEUP_ANY_HIGH));
 #else
-        ESP_ERROR_CHECK(esp_sleep_enable_ext1_wakeup_io(1ULL << io_wakeup_num, io_wakeup_level == 0 ? ESP_EXT1_WAKEUP_ANY_LOW : ESP_EXT1_WAKEUP_ANY_HIGH));
+        ESP_ERROR_CHECK(esp_sleep_enable_ext1_wakeup_io(1ULL << io_wakeup_num, io_wakeup_type == 0 ? ESP_EXT1_WAKEUP_ANY_LOW : ESP_EXT1_WAKEUP_ANY_HIGH));
 #endif
     }
     return 0;
@@ -142,7 +142,7 @@ static void register_ext1_wakeup(void)
 }
 #endif
 
-#if SOC_GPIO_SUPPORT_DEEPSLEEP_WAKEUP
+#if SOC_GPIO_SUPPORT_HP_PERIPH_PD_SLEEP_WAKEUP
 static struct {
     struct arg_int *pin;
     struct arg_int *level;
@@ -152,7 +152,7 @@ static struct {
 static int process_rtcio_wakeup(int argc, char **argv)
 {
     int nerrors = arg_parse(argc, argv, (void **) &rtcio_wakeup_args);
-    int io_wakeup_num = 0, io_wakeup_level = 0;
+    int io_wakeup_num = 0, io_wakeup_type = 0;
     if (nerrors != 0) {
         arg_print_errors(stderr, rtcio_wakeup_args.end, argv[0]);
         return 1;
@@ -168,28 +168,28 @@ static int process_rtcio_wakeup(int argc, char **argv)
 
     if (rtcio_wakeup_args.level->count) {
         if (rtcio_wakeup_args.level->count == 1) {
-            io_wakeup_level = rtcio_wakeup_args.level->ival[0];
+            io_wakeup_type = rtcio_wakeup_args.level->ival[0];
         } else {
             ESP_LOGE(TAG, "no valid arguments");
             return 1;
         }
     }
-    ESP_LOGI(TAG, "io_wakeup_level = %d\n", io_wakeup_level);
+    ESP_LOGI(TAG, "io_wakeup_type = %d\n", io_wakeup_type);
 
     if (rtcio_wakeup_args.disable->count) {
-        ESP_ERROR_CHECK(gpio_deep_sleep_wakeup_disable(io_wakeup_num));
+        ESP_ERROR_CHECK(gpio_wakeup_disable_on_hp_periph_powerdown_sleep(io_wakeup_num));
     } else {
         gpio_config_t config = {
             .pin_bit_mask = BIT64(io_wakeup_num),
             .mode = GPIO_MODE_INPUT,
-            .pull_down_en = false,
-            .pull_up_en = false,
+            .pull_down_en = GPIO_PULLDOWN_DISABLE,
+            .pull_up_en = GPIO_PULLUP_DISABLE,
             .intr_type = GPIO_INTR_DISABLE
         };
         ESP_ERROR_CHECK(gpio_config(&config));
 
-        /* Enable wake up from GPIO */
-        ESP_ERROR_CHECK(esp_deep_sleep_enable_gpio_wakeup(BIT64(io_wakeup_num), io_wakeup_level));
+        esp_sleep_gpio_wake_up_mode_t mode = (esp_sleep_gpio_wake_up_mode_t)io_wakeup_type;
+        ESP_ERROR_CHECK(esp_sleep_enable_gpio_wakeup_on_hp_periph_powerdown(BIT64(io_wakeup_num), mode));
     }
 
     return 0;
@@ -200,7 +200,12 @@ static void register_rtcio_wakeup(void)
     rtcio_wakeup_args.pin =
         arg_int0("p", "pin", "<pin>", "configure the rtcio wakeup pin num");
     rtcio_wakeup_args.level =
-        arg_int0("l", "level", "<level>", "configure the rtcio wakeup level");
+        arg_int0("l", "level", "<mode>",
+                 "esp_sleep_gpio_wake_up_mode_t: 0=LOW, 1=HIGH"
+#if SOC_RTC_GPIO_EDGE_WAKEUP_SUPPORTED
+                 ", 2=POSEDGE, 3=NEGEDGE, 4=ANYEDGE"
+#endif
+        );
     rtcio_wakeup_args.disable =
         arg_lit0("d", "disable", "disable the rtcio wakeup on certain pin");
     rtcio_wakeup_args.end = arg_end(4);
@@ -226,7 +231,7 @@ static struct {
 static int process_gpio_wakeup(int argc, char **argv)
 {
     int nerrors = arg_parse(argc, argv, (void **) &gpio_wakeup_args);
-    int io_wakeup_num = 0, io_wakeup_level = 0;
+    int io_wakeup_num = 0, io_wakeup_type = 0;
     if (nerrors != 0) {
         arg_print_errors(stderr, gpio_wakeup_args.end, argv[0]);
         return 1;
@@ -242,13 +247,13 @@ static int process_gpio_wakeup(int argc, char **argv)
 
     if (gpio_wakeup_args.level->count) {
         if (gpio_wakeup_args.level->count == 1) {
-            io_wakeup_level = gpio_wakeup_args.level->ival[0];
+            io_wakeup_type = gpio_wakeup_args.level->ival[0];
         } else {
             ESP_LOGE(TAG, "no valid arguments");
             return 1;
         }
     }
-    ESP_LOGI(TAG, "io_wakeup_level = %d\n", io_wakeup_level);
+    ESP_LOGI(TAG, "io_wakeup_type = %d\n", io_wakeup_type);
 
     if (gpio_wakeup_args.disable->count) {
         ESP_ERROR_CHECK(gpio_wakeup_disable(io_wakeup_num));
@@ -257,14 +262,14 @@ static int process_gpio_wakeup(int argc, char **argv)
         gpio_config_t config = {
             .pin_bit_mask = BIT64(io_wakeup_num),
             .mode = GPIO_MODE_INPUT,
-            .pull_down_en = false,
-            .pull_up_en = false,
-            .intr_type = (io_wakeup_level == 0) ? GPIO_INTR_LOW_LEVEL : GPIO_INTR_HIGH_LEVEL
+            .pull_down_en = GPIO_PULLDOWN_DISABLE,
+            .pull_up_en = GPIO_PULLUP_DISABLE,
+            .intr_type = (io_wakeup_type == 0) ? GPIO_INTR_LOW_LEVEL : GPIO_INTR_HIGH_LEVEL
         };
         ESP_ERROR_CHECK(gpio_config(&config));
 
         /* Enable wake up from GPIO */
-        ESP_ERROR_CHECK(gpio_wakeup_enable(io_wakeup_num, io_wakeup_level == 0 ? GPIO_INTR_LOW_LEVEL : GPIO_INTR_HIGH_LEVEL));
+        ESP_ERROR_CHECK(gpio_wakeup_enable(io_wakeup_num, io_wakeup_type == 0 ? GPIO_INTR_LOW_LEVEL : GPIO_INTR_HIGH_LEVEL));
         ESP_ERROR_CHECK(esp_sleep_enable_gpio_wakeup());
     }
 
@@ -362,8 +367,13 @@ static int process_get_wakeup_cause(int argc, char **argv)
         return 1;
     }
 
-    switch (esp_sleep_get_wakeup_cause()) {
-    case ESP_SLEEP_WAKEUP_EXT1: {
+    uint32_t causes = esp_sleep_get_wakeup_causes();
+    if (causes & BIT(ESP_SLEEP_WAKEUP_UNDEFINED)) {
+        printf("Wakeup cause err\n");
+        return 0;
+    }
+
+    if (causes & BIT(ESP_SLEEP_WAKEUP_EXT1)) {
 #if SOC_PM_SUPPORT_EXT1_WAKEUP && SOC_RTCIO_PIN_COUNT > 0
         uint64_t wakeup_pin_mask = esp_sleep_get_ext1_wakeup_status();
         if (wakeup_pin_mask != 0) {
@@ -374,14 +384,14 @@ static int process_get_wakeup_cause(int argc, char **argv)
         {
             printf("Wake up from EXT1 triggered, but unknown wake-up IO\n");
         }
-        break;
     }
-    case ESP_SLEEP_WAKEUP_GPIO: {
+
+    if (causes & BIT(ESP_SLEEP_WAKEUP_GPIO)) {
         if (esp_reset_reason() == ESP_RST_DEEPSLEEP) {
-#if SOC_GPIO_SUPPORT_DEEPSLEEP_WAKEUP
-            uint64_t wakeup_pin_mask = esp_sleep_get_gpio_wakeup_status();
-            if (wakeup_pin_mask != 0) {
-                int pin = __builtin_ffsll(wakeup_pin_mask) - 1;
+#if SOC_GPIO_SUPPORT_HP_PERIPH_PD_SLEEP_WAKEUP
+            uint64_t wakeup_channel_mask = esp_sleep_get_gpio_wakeup_status();
+            if (wakeup_channel_mask != 0) {
+                int pin = esp_sleep_wakeup_io_bit2num((uint32_t)__builtin_ctzll(wakeup_channel_mask));
                 printf("Wake up from GPIO at IO%d\n", pin);
             } else {
                 printf("Wake up from GPIO triggered, but unknown wake-up IO\n");
@@ -409,11 +419,6 @@ static int process_get_wakeup_cause(int argc, char **argv)
             gpio_ll_clear_intr_status(&GPIO, 0xFFFFFFFF);
             gpio_ll_clear_intr_status_high(&GPIO, 0xFFFFFFFF);
         }
-        break;
-    }
-    default: {
-        printf("Wakeup cause err\n");
-    }
     }
     return 0;
 }
@@ -440,7 +445,7 @@ void register_io_wakeup_cmd(void)
 #endif
     register_gpio_control();
     register_gpio_wakeup();
-#if SOC_GPIO_SUPPORT_DEEPSLEEP_WAKEUP
+#if SOC_GPIO_SUPPORT_HP_PERIPH_PD_SLEEP_WAKEUP
     register_rtcio_wakeup();
 #endif
     register_get_wakeup_cause();

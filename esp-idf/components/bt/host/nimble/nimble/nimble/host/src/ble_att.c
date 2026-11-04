@@ -21,6 +21,7 @@
 #include <errno.h>
 #include "ble_hs_priv.h"
 #include "host/ble_att.h"
+#include "host/ble_hs_log.h"
 
 #if NIMBLE_BLE_CONNECT
 
@@ -28,20 +29,16 @@
 #define min(a, b) ((a) < (b) ? (a) : (b))
 #endif
 
-#ifndef max
-#define max(a, b) ((a) > (b) ? (a) : (b))
-#endif
-
 static uint16_t ble_att_preferred_mtu_val;
 
-/** Dispatch table for incoming ATT requests.  Sorted by op code. */
+/** Dispatch table for incoming ATT requests. */
 typedef int ble_att_rx_fn(uint16_t conn_handle, uint16_t cid, struct os_mbuf **om);
 struct ble_att_rx_dispatch_entry {
     uint8_t bde_op;
     ble_att_rx_fn *bde_fn;
 };
 
-/** Dispatch table for incoming ATT commands.  Must be ordered by op code. */
+/** Dispatch table for incoming ATT commands.*/
 static const struct ble_att_rx_dispatch_entry ble_att_rx_dispatch[] = {
 #if MYNEWT_VAL(BLE_GATTC)
     { BLE_ATT_OP_ERROR_RSP,            ble_att_clt_rx_error },
@@ -76,7 +73,9 @@ static const struct ble_att_rx_dispatch_entry ble_att_rx_dispatch[] = {
     { BLE_ATT_OP_INDICATE_RSP,         ble_att_clt_rx_indicate },
     { BLE_ATT_OP_READ_MULT_VAR_REQ,    ble_att_svr_rx_read_mult_var },
     { BLE_ATT_OP_WRITE_CMD,            ble_att_svr_rx_write_no_rsp },
+#if MYNEWT_VAL(BLE_ATT_SVR_SIGNED_WRITE)
     { BLE_ATT_OP_SIGNED_WRITE_CMD,     ble_att_svr_rx_signed_write },
+#endif
 #endif
 };
 
@@ -141,15 +140,21 @@ STATS_NAME_START(ble_att_stats)
     STATS_NAME(ble_att_stats, multi_notify_req_tx)
     STATS_NAME(ble_att_stats, write_cmd_rx)
     STATS_NAME(ble_att_stats, write_cmd_tx)
+    STATS_NAME(ble_att_stats, read_mult_var_req_rx)
+    STATS_NAME(ble_att_stats, read_mult_var_req_tx)
+    STATS_NAME(ble_att_stats, read_mult_var_rsp_rx)
+    STATS_NAME(ble_att_stats, read_mult_var_rsp_tx)
+    STATS_NAME(ble_att_stats, signed_write_cmd_rx)
+    STATS_NAME(ble_att_stats, signed_write_cmd_tx)
 STATS_NAME_END(ble_att_stats)
 
 static const struct ble_att_rx_dispatch_entry *
 ble_att_rx_dispatch_entry_find(uint8_t op)
 {
     const struct ble_att_rx_dispatch_entry *entry;
-    unsigned int i;
+    int i;
 
-    for (i = 0; i < BLE_ATT_RX_DISPATCH_SZ; i++) {
+    for (i = 0; i < (int)BLE_ATT_RX_DISPATCH_SZ; i++) {
         entry = ble_att_rx_dispatch + i;
         if (entry->bde_op == op) {
             return entry;
@@ -291,6 +296,18 @@ ble_att_inc_tx_stat(uint8_t att_op)
         STATS_INC(ble_att_stats, write_cmd_tx);
         break;
 
+    case BLE_ATT_OP_READ_MULT_VAR_REQ:
+        STATS_INC(ble_att_stats, read_mult_var_req_tx);
+        break;
+
+    case BLE_ATT_OP_READ_MULT_VAR_RSP:
+        STATS_INC(ble_att_stats, read_mult_var_rsp_tx);
+        break;
+
+    case BLE_ATT_OP_SIGNED_WRITE_CMD:
+        STATS_INC(ble_att_stats, signed_write_cmd_tx);
+        break;
+
     default:
         break;
     }
@@ -412,6 +429,18 @@ ble_att_inc_rx_stat(uint8_t att_op)
         STATS_INC(ble_att_stats, write_cmd_rx);
         break;
 
+    case BLE_ATT_OP_READ_MULT_VAR_REQ:
+        STATS_INC(ble_att_stats, read_mult_var_req_rx);
+        break;
+
+    case BLE_ATT_OP_READ_MULT_VAR_RSP:
+        STATS_INC(ble_att_stats, read_mult_var_rsp_rx);
+        break;
+
+    case BLE_ATT_OP_SIGNED_WRITE_CMD:
+        STATS_INC(ble_att_stats, signed_write_cmd_rx);
+        break;
+
     default:
         break;
     }
@@ -504,17 +533,28 @@ static void
 ble_att_rx_handle_unknown_request(uint8_t op, uint16_t conn_handle,
                                   uint16_t cid, struct os_mbuf **om)
 {
+    /* Guard against NULL or already-freed mbuf */
+    if (om == NULL || *om == NULL) {
+        return;
+    }
+
     /* If this is command (bit6 is set to 1), do nothing */
     if (op & 0x40) {
+        BLE_HS_LOG(INFO, "ATT command discarded (no response required); "
+                   "op=0x%02x conn_handle=0x%04x cid=0x%04x\n",
+                   op, conn_handle, cid);
         return;
     }
 #if MYNEWT_VAL(BLE_GATTS)
     os_mbuf_adj(*om, OS_MBUF_PKTLEN(*om));
-    ble_att_svr_tx_error_rsp(conn_handle, cid, *om, op, 0,
-                             BLE_ATT_ERR_REQ_NOT_SUPPORTED);
-#endif
-
+    if (ble_att_svr_tx_error_rsp(conn_handle, cid, *om, op, 0,
+                                 BLE_ATT_ERR_REQ_NOT_SUPPORTED) == 0) {
+        *om = NULL;
+    }
+#else
+    os_mbuf_free_chain(*om);
     *om = NULL;
+#endif
 }
 
 static void
@@ -556,6 +596,8 @@ ble_att_rx_extended(uint16_t conn_handle, uint16_t cid, struct os_mbuf **om)
 
     entry = ble_att_rx_dispatch_entry_find(op);
     if (entry == NULL) {
+        BLE_HS_LOG(INFO, "ATT handler not found; op=0x%02x conn_handle=0x%04x "
+                   "cid=0x%04x; packet dropped\n", op, conn_handle, cid);
         ble_att_rx_handle_unknown_request(op, conn_handle, cid, om);
         return BLE_HS_ENOTSUP;
     }
@@ -577,16 +619,23 @@ ble_att_rx_extended(uint16_t conn_handle, uint16_t cid, struct os_mbuf **om)
 }
 
 static int
-ble_att_rx(struct ble_l2cap_chan *chan)
+ble_att_rx(struct ble_l2cap_chan *chan, struct os_mbuf **om)
 {
     uint16_t conn_handle;
 
+    /* Validate mbuf in release builds */
+    if (om == NULL || *om == NULL) {
+        BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_EINVAL);
+        return BLE_HS_EINVAL;
+    }
+
     conn_handle = ble_l2cap_get_conn_handle(chan);
     if (conn_handle == BLE_HS_CONN_HANDLE_NONE) {
+        BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_ENOTCONN);
         return BLE_HS_ENOTCONN;
     }
 
-    return ble_att_rx_extended(conn_handle, chan->scid, &chan->rx_buf);
+    return ble_att_rx_extended(conn_handle, chan->scid, om);
 }
 
 uint16_t
@@ -603,9 +652,11 @@ ble_att_set_preferred_mtu(uint16_t mtu)
     int i;
 
     if (mtu < BLE_ATT_MTU_DFLT) {
+        BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_EINVAL);
         return BLE_HS_EINVAL;
     }
     if (mtu > BLE_ATT_MTU_MAX) {
+        BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_EINVAL);
         return BLE_HS_EINVAL;
     }
 
@@ -720,16 +771,19 @@ int
 ble_att_set_default_bearer_using_cid(uint16_t conn_handle, uint16_t cid) {
 #if MYNEWT_VAL(BLE_EATT_CHAN_NUM) > 0
     struct ble_hs_conn * conn;
+    int rc;
 
     ble_hs_lock();
     conn = ble_hs_conn_find(conn_handle);
+    if (conn == NULL) {
+        rc = BLE_HS_ENOTCONN;
+    } else {
+        conn->default_cid = cid;
+        rc = 0;
+    }
     ble_hs_unlock();
 
-    if (conn == NULL) {
-        return BLE_HS_ENOTCONN;
-    }
-    conn->default_cid = cid;
-    return 0;
+    return rc;
 #endif
     return BLE_HS_ENOTSUP;
 }
@@ -738,12 +792,16 @@ uint16_t
 ble_att_get_default_bearer_cid(uint16_t conn_handle) {
 #if MYNEWT_VAL(BLE_EATT_CHAN_NUM) > 0
     struct ble_hs_conn * conn;
+    uint16_t default_cid = 0;
 
+    ble_hs_lock_nested();
     conn = ble_hs_conn_find(conn_handle);
-    if (conn == NULL) {
-        return 0;
+    if (conn != NULL) {
+        default_cid = conn->default_cid;
     }
-    return conn->default_cid;
+    ble_hs_unlock_nested();
+
+    return default_cid;
 #endif
     return 0;
 }
@@ -759,12 +817,23 @@ ble_att_init(void)
         STATS_HDR(ble_att_stats), STATS_SIZE_INIT_PARMS(ble_att_stats,
         STATS_SIZE_32), STATS_NAME_INIT_PARMS(ble_att_stats), "ble_att");
     if (rc != 0) {
+        BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_EOS);
         return BLE_HS_EOS;
     }
 
-    ble_eatt_init(ble_att_rx_extended);
+    rc = ble_eatt_init(ble_att_rx_extended);
+    if (rc != 0) {
+        return rc;
+    }
 
     return 0;
 }
+
+#if MYNEWT_VAL(BLE_STATIC_TO_DYNAMIC)
+void ble_att_deinit(void)
+{
+    ble_eatt_deinit();
+}
+#endif
 
 #endif

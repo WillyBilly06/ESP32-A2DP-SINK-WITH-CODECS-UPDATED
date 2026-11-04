@@ -176,17 +176,17 @@ static void test_temperature_sensor_sleep_retention(bool allow_pd)
     esp_sleep_context_t sleep_ctx;
     esp_sleep_set_sleep_context(&sleep_ctx);
 
-#if ESP_SLEEP_POWER_DOWN_CPU
+#if CONFIG_PM_ESP_SLEEP_POWER_DOWN_CPU
     TEST_ESP_OK(sleep_cpu_configure(true));
 #endif
     TEST_ESP_OK(esp_sleep_enable_timer_wakeup(2 * 1000 * 1000));
     TEST_ESP_OK(esp_light_sleep_start());
-#if ESP_SLEEP_POWER_DOWN_CPU
+#if CONFIG_PM_ESP_SLEEP_POWER_DOWN_CPU
     TEST_ESP_OK(sleep_cpu_configure(false));
 #endif
     printf("check if the sleep happened as expected\r\n");
     TEST_ASSERT_EQUAL(0, sleep_ctx.sleep_request_result);
-#if SOC_TEMPERATURE_SENSOR_UNDER_PD_TOP_DOMAIN && !SOC_PM_TOP_PD_NOT_ALLOWED
+#if SOC_TEMPERATURE_SENSOR_UNDER_PD_TOP_DOMAIN
     // check if the power domain also is powered down
     TEST_ASSERT_EQUAL(allow_pd ? PMU_SLEEP_PD_TOP : 0, (sleep_ctx.sleep_flags) & PMU_SLEEP_PD_TOP);
 #elif CONFIG_IDF_TARGET_ESP32P4

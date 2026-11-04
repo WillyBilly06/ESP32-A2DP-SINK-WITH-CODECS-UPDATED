@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2015-2025 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2015-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -19,17 +19,6 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-#define GPIO_PIN_COUNT                      (SOC_GPIO_PIN_COUNT)
-/// Check whether it is a valid GPIO number
-#define GPIO_IS_VALID_GPIO(gpio_num)        ((gpio_num >= 0) && \
-                                              (((1ULL << (gpio_num)) & SOC_GPIO_VALID_GPIO_MASK) != 0))
-/// Check whether it can be a valid GPIO number of output mode
-#define GPIO_IS_VALID_OUTPUT_GPIO(gpio_num) ((gpio_num >= 0) && \
-                                              (((1ULL << (gpio_num)) & SOC_GPIO_VALID_OUTPUT_GPIO_MASK) != 0))
-/// Check whether it can be a valid digital I/O pad
-#define GPIO_IS_VALID_DIGITAL_IO_PAD(gpio_num) ((gpio_num >= 0) && \
-                                                 (((1ULL << (gpio_num)) & SOC_GPIO_VALID_DIGITAL_IO_PAD_MASK) != 0))
 
 typedef intr_handle_t gpio_isr_handle_t;
 
@@ -99,7 +88,7 @@ esp_err_t gpio_set_intr_type(gpio_num_t gpio_num, gpio_int_type_t intr_type);
  *
  * @note ESP32: Please do not use the interrupt of GPIO36 and GPIO39 when using ADC or Wi-Fi and Bluetooth with sleep mode enabled.
  *       Please refer to the comments of `adc1_get_raw`.
- *       Please refer to Section 3.11 of <a href="https://espressif.com/sites/default/files/documentation/eco_and_workarounds_for_bugs_in_esp32_en.pdf">ESP32 ECO and Workarounds for Bugs</a> for the description of this issue.
+ *       Please refer to GPIO-3.11 of <a href="https://espressif.com/sites/default/files/documentation/eco_and_workarounds_for_bugs_in_esp32_en.pdf">ESP32 ECO and Workarounds for Bugs</a> for the description of this issue.
 
  *
  * @param  gpio_num GPIO number. If you want to enable an interrupt on e.g. GPIO16, gpio_num should be GPIO_NUM_16 (16);
@@ -293,6 +282,50 @@ esp_err_t gpio_pulldown_en(gpio_num_t gpio_num);
 esp_err_t gpio_pulldown_dis(gpio_num_t gpio_num);
 
 /**
+ * @brief Enable output for an IO (as a simple GPIO output)
+ *
+ * @param gpio_num GPIO number
+ *
+ * @return
+ *      - ESP_OK Success
+ *      - ESP_ERR_INVALID_ARG GPIO number error
+ */
+esp_err_t gpio_output_enable(gpio_num_t gpio_num);
+
+/**
+ * @brief Disable output for an IO
+ *
+ * @param gpio_num GPIO number
+ *
+ * @return
+ *      - ESP_OK Success
+ *      - ESP_ERR_INVALID_ARG GPIO number error
+ */
+esp_err_t gpio_output_disable(gpio_num_t gpio_num);
+
+/**
+ * @brief Enable open-drain for an IO
+ *
+ * @param gpio_num GPIO number
+ *
+ * @return
+ *      - ESP_OK Success
+ *      - ESP_ERR_INVALID_ARG GPIO number error
+ */
+esp_err_t gpio_od_enable(gpio_num_t gpio_num);
+
+/**
+ * @brief Disable open-drain for an IO
+ *
+ * @param gpio_num GPIO number
+ *
+ * @return
+ *      - ESP_OK Success
+ *      - ESP_ERR_INVALID_ARG GPIO number error
+ */
+esp_err_t gpio_od_disable(gpio_num_t gpio_num);
+
+/**
   * @brief Install the GPIO driver's ETS_GPIO_INTR_SOURCE ISR handler service, which allows per-pin GPIO interrupt handlers.
   *
   * This function is incompatible with gpio_isr_register() - if that function is used, a single global ISR is registered for all GPIO interrupts. If this function is used, the ISR service provides a global GPIO ISR and individual pin handlers are registered via the gpio_isr_handler_add() function.
@@ -311,8 +344,11 @@ esp_err_t gpio_install_isr_service(int intr_alloc_flags);
 
 /**
   * @brief Uninstall the driver's GPIO ISR service, freeing related resources.
+  *
+  * @return
+  *     - ESP_OK Success
   */
-void gpio_uninstall_isr_service(void);
+esp_err_t gpio_uninstall_isr_service(void);
 
 /**
   * @brief Add ISR handler for the corresponding GPIO pin.
@@ -455,22 +491,6 @@ void gpio_deep_sleep_hold_en(void);
 void gpio_deep_sleep_hold_dis(void);
 #endif //!SOC_GPIO_SUPPORT_HOLD_SINGLE_IO_IN_DSLP
 
-/**
-  * @brief Set pad input to a peripheral signal through the IOMUX.
-  * @param gpio_num GPIO number of the pad.
-  * @param signal_idx Peripheral signal id to input. One of the ``*_IN_IDX`` signals in ``soc/gpio_sig_map.h``.
-  */
-void gpio_iomux_in(uint32_t gpio_num, uint32_t signal_idx) __attribute__((deprecated("Please use `gpio_iomux_input` instead")));
-
-/**
-  * @brief Set peripheral output to an GPIO pad through the IOMUX.
-  * @param gpio_num gpio_num GPIO number of the pad.
-  * @param func The function number of the peripheral pin to output pin.
-  *        One of the ``FUNC_X_*`` of specified pin (X) in ``soc/io_mux_reg.h``.
-  * @param out_en_inv True if the output enable needs to be inverted, otherwise False.
-  */
-void gpio_iomux_out(uint8_t gpio_num, int func, bool out_en_inv) __attribute__((deprecated("Please use `gpio_iomux_output` instead")));
-
 #if SOC_GPIO_SUPPORT_FORCE_HOLD
 /**
   * @brief Force hold all digital and rtc gpio pads.
@@ -545,17 +565,20 @@ esp_err_t gpio_sleep_set_direction(gpio_num_t gpio_num, gpio_mode_t mode);
  */
 esp_err_t gpio_sleep_set_pull_mode(gpio_num_t gpio_num, gpio_pull_mode_t pull);
 
-#if SOC_GPIO_SUPPORT_DEEPSLEEP_WAKEUP
+#if SOC_GPIO_SUPPORT_HP_PERIPH_PD_SLEEP_WAKEUP
 
-#define GPIO_IS_DEEP_SLEEP_WAKEUP_VALID_GPIO(gpio_num)    ((gpio_num >= 0) && \
-                                                          (((1ULL << (gpio_num)) & SOC_GPIO_DEEP_SLEEP_WAKE_VALID_GPIO_MASK) != 0))
+#define GPIO_IS_HP_PERIPH_PD_WAKEUP_VALID_IO(gpio_num)    ((gpio_num >= 0) && \
+                                                      (((1ULL << (gpio_num)) & SOC_GPIO_HP_PERIPH_PD_SLEEP_WAKEABLE_MASK) != 0))
 
 /**
- * @brief Enable GPIO deep-sleep wake-up function.
+ * @brief Enable GPIO wake-up function on peripheral powerdowned sleep (including deepsleep and peripheral powerdowned lightsleep).
  *
  * @param gpio_num GPIO number.
  *
- * @param intr_type GPIO wake-up type. Only GPIO_INTR_LOW_LEVEL or GPIO_INTR_HIGH_LEVEL can be used.
+ * @param intr_type GPIO wake-up type.
+ *                  - Always supported: GPIO_INTR_LOW_LEVEL, GPIO_INTR_HIGH_LEVEL
+ *                  - If SOC_RTC_GPIO_EDGE_WAKEUP_SUPPORTED:
+ *                        GPIO_INTR_POSEDGE, GPIO_INTR_NEGEDGE, GPIO_INTR_ANYEDGE
  *
  * @note Called by the SDK. User shouldn't call this directly in the APP.
  *
@@ -563,10 +586,10 @@ esp_err_t gpio_sleep_set_pull_mode(gpio_num_t gpio_num, gpio_pull_mode_t pull);
  *     - ESP_OK Success
  *     - ESP_ERR_INVALID_ARG Parameter error
  */
-esp_err_t gpio_deep_sleep_wakeup_enable(gpio_num_t gpio_num, gpio_int_type_t intr_type);
+esp_err_t gpio_wakeup_enable_on_hp_periph_powerdown_sleep(gpio_num_t gpio_num, gpio_int_type_t intr_type);
 
 /**
- * @brief Disable GPIO deep-sleep wake-up function.
+ * @brief Disable GPIO peripheral powerdowned sleep (including deepsleep and peripheral powerdowned lightsleep) wake-up function.
  *
  * @param gpio_num GPIO number
  *
@@ -574,9 +597,9 @@ esp_err_t gpio_deep_sleep_wakeup_enable(gpio_num_t gpio_num, gpio_int_type_t int
  *     - ESP_OK Success
  *     - ESP_ERR_INVALID_ARG Parameter error
  */
-esp_err_t gpio_deep_sleep_wakeup_disable(gpio_num_t gpio_num);
+esp_err_t gpio_wakeup_disable_on_hp_periph_powerdown_sleep(gpio_num_t gpio_num);
 
-#endif //SOC_GPIO_SUPPORT_DEEPSLEEP_WAKEUP
+#endif //SOC_GPIO_SUPPORT_HP_PERIPH_PD_SLEEP_WAKEUP
 
 /**
  * @brief Dump IO configuration information to console

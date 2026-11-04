@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2022-2024 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2022-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -11,7 +11,6 @@
 #include "soc/soc.h"
 #include "heap_memory_layout.h"
 #include "esp_heap_caps.h"
-
 
 /**
  * @brief Memory type descriptors. These describe the capabilities of a type of memory in the SoC.
@@ -32,7 +31,7 @@ enum {
 };
 
 /* COMMON_CAPS is the set of attributes common to all types of memory on this chip */
-#ifdef CONFIG_ESP_SYSTEM_PMP_IDRAM_SPLIT
+#ifdef CONFIG_ESP_SYSTEM_MEMPROT
 #define ESP32H21_MEM_COMMON_CAPS (MALLOC_CAP_DEFAULT | MALLOC_CAP_INTERNAL | MALLOC_CAP_32BIT | MALLOC_CAP_8BIT)
 #else
 #define ESP32H21_MEM_COMMON_CAPS (MALLOC_CAP_DEFAULT | MALLOC_CAP_INTERNAL | MALLOC_CAP_32BIT | MALLOC_CAP_8BIT | MALLOC_CAP_EXEC)
@@ -73,7 +72,7 @@ const soc_memory_region_t soc_memory_regions[] = {
     { 0x40840000,           APP_USABLE_DRAM_END-0x40840000,             SOC_MEMORY_TYPE_RAM,    0x40840000,             false}, //D/IRAM level 4
     { APP_USABLE_DRAM_END,  (SOC_DIRAM_DRAM_HIGH-APP_USABLE_DRAM_END),  SOC_MEMORY_TYPE_RAM,    APP_USABLE_DRAM_END,    true},  //D/IRAM level 4
 #ifdef CONFIG_ESP_SYSTEM_ALLOW_RTC_FAST_MEM_AS_HEAP
-    { 0x50000000,           0x1000,                                     SOC_MEMORY_TYPE_RTCRAM, 0,                      false}, //Fast RTC memory
+    { 0x50000000,           (SOC_RTC_DATA_HIGH - SOC_RTC_DATA_LOW),     SOC_MEMORY_TYPE_RTCRAM, 0,                      false}, //Fast RTC memory
 #endif
 };
 

@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2024-2025 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2024-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -39,7 +39,7 @@ enum {
 };
 
 /* COMMON_CAPS is the set of attributes common to all types of memory on this chip */
-#ifdef CONFIG_ESP_SYSTEM_PMP_IDRAM_SPLIT
+#ifdef CONFIG_ESP_SYSTEM_MEMPROT
 #define ESP32C5_MEM_COMMON_CAPS (MALLOC_CAP_DEFAULT | MALLOC_CAP_INTERNAL | MALLOC_CAP_32BIT | MALLOC_CAP_8BIT)
 #else
 #define ESP32C5_MEM_COMMON_CAPS (MALLOC_CAP_DEFAULT | MALLOC_CAP_INTERNAL | MALLOC_CAP_32BIT | MALLOC_CAP_8BIT | MALLOC_CAP_EXEC)
@@ -102,10 +102,16 @@ SOC_RESERVE_MEMORY_REGION((intptr_t)&_data_start, (intptr_t)&_heap_start, dram_d
 // Target has a shared D/IRAM virtual address, no need to calculate I_D_OFFSET like previous chips
 SOC_RESERVE_MEMORY_REGION((intptr_t)&_iram_start, (intptr_t)&_iram_end, iram_code);
 
+#if CONFIG_ULP_COPROC_RUN_FROM_HP_MEM
+extern uint32_t _ulp_hp_mem_resv_start;
+extern uint32_t _ulp_hp_mem_resv_end;
+SOC_RESERVE_MEMORY_REGION((intptr_t)&_ulp_hp_mem_resv_start, (intptr_t)&_ulp_hp_mem_resv_end, ulp_hp_mem);
+#endif
+
 /* NOTE: When ESP-TEE is enabled, the start of the internal SRAM
-* is used by the TEE and is protected from any REE access using
-* memory protection mechanisms employed by ESP-TEE.
-*/
+ * is used by the TEE and is protected from any REE access using
+ * memory protection mechanisms employed by ESP-TEE.
+ */
 #if CONFIG_SECURE_ENABLE_TEE
 SOC_RESERVE_MEMORY_REGION((intptr_t)SRAM_DIRAM_TEE_ORG, (intptr_t)(SRAM_DIRAM_TEE_END), tee_diram);
 #endif

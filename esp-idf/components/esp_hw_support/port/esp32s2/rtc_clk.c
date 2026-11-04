@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2015-2025 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2015-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -25,15 +25,16 @@
 #include "esp_private/systimer.h"
 #include "hal/systimer_ll.h"
 #endif
+#include "esp_attr.h"
 
-static const char *TAG = "rtc_clk";
+ESP_HW_LOG_ATTR_TAG(TAG, "rtc_clk");
 
 // Current PLL frequency, in MHZ (320 or 480). Zero if PLL is not enabled.
 // On the ESP32-S2, 480MHz PLL is enabled at reset.
 static uint32_t s_cur_pll_freq = CLK_LL_PLL_480M_FREQ_MHZ;
 
 static void rtc_clk_cpu_freq_to_xtal(int freq, int div);
-static void rtc_clk_cpu_freq_to_8m(void);
+static void rtc_clk_cpu_freq_to_rc_fast(void);
 
 void rtc_clk_32k_enable(bool enable)
 {
@@ -376,7 +377,7 @@ void rtc_clk_cpu_freq_set_config(const rtc_cpu_freq_config_t* config)
         rtc_clk_bbpll_configure((soc_xtal_freq_t)CLK_LL_XTAL_FREQ_MHZ, config->source_freq_mhz);
         rtc_clk_cpu_freq_to_pll_mhz(config->freq_mhz);
     } else if (config->source == SOC_CPU_CLK_SRC_RC_FAST) {
-        rtc_clk_cpu_freq_to_8m();
+        rtc_clk_cpu_freq_to_rc_fast();
     }
 }
 
@@ -445,7 +446,7 @@ void rtc_clk_cpu_freq_set_xtal(void)
     /* BBPLL is kept enabled */
 }
 
-void rtc_clk_cpu_set_to_default_config(void)
+FORCE_IRAM_ATTR void rtc_clk_cpu_set_to_default_config(void)
 {
     rtc_clk_cpu_freq_to_xtal(CLK_LL_XTAL_FREQ_MHZ, 1);
 }
@@ -460,7 +461,7 @@ void rtc_clk_cpu_freq_set_xtal_for_sleep(void)
  * Must satisfy: cpu_freq = XTAL_FREQ / div.
  * Does not disable the PLL.
  */
-static void rtc_clk_cpu_freq_to_xtal(int cpu_freq, int div)
+static FORCE_IRAM_ATTR void rtc_clk_cpu_freq_to_xtal(int cpu_freq, int div)
 {
     rtc_cpu_freq_config_t cur_config;
     rtc_clk_cpu_freq_get_config(&cur_config);
@@ -488,7 +489,7 @@ static void rtc_clk_cpu_freq_to_xtal(int cpu_freq, int div)
     }
 }
 
-static void rtc_clk_cpu_freq_to_8m(void)
+static void rtc_clk_cpu_freq_to_rc_fast(void)
 {
     assert(0 && "LDO dbias need to modified");
     esp_rom_set_cpu_ticks_per_us(8);

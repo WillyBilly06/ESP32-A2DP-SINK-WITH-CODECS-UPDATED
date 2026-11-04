@@ -7,7 +7,6 @@
 
 #include <stddef.h>
 #include <stdint.h>
-#include <stdbool.h>
 #include "hal/assert.h"
 #include "soc/hp_system_struct.h"
 #include "soc/pcr_struct.h"

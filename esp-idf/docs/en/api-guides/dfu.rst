@@ -17,6 +17,8 @@ Device Firmware Upgrade via USB
 
     However, you can permanently switch the internal USB PHY to work with USB OTG peripheral instead of USB_SERIAL_JTAG by burning the ``USB_PHY_SEL`` eFuse. See *{IDF_TARGET_NAME} Technical Reference Manual* [`PDF <{IDF_TARGET_TRM_EN_URL}>`__] for more details about USB_SERIAL_JTAG and USB OTG.
 
+    For a practical example of USB OTG implementation, refer to the `ESP32-S3-USB-OTG <https://documentation.espressif.com/esp-dev-kits/en/latest/esp32s3/esp32-s3-usb-otg/index.html>`_ development board, which is specifically designed for USB OTG applications.
+
 Device Firmware Upgrade (DFU) is a mechanism for upgrading the firmware of {IDF_TARGET_NAME} directly via the Universal Serial Bus (USB). However, enabling Secure Boot or flash encryption disables the USB-OTG USB stack in the ROM, disallowing updates via the serial emulation or DFU on that port.
 
 - :ref:`get-started-get-prerequisites` of the Getting Started Guide introduces the software requirements of DFU.
@@ -27,7 +29,7 @@ Device Firmware Upgrade (DFU) is a mechanism for upgrading the firmware of {IDF_
 USB Connection
 --------------
 
-.. only:: esp32p4
+.. only:: esp32p4 or esp32s31
 
     {IDF_TARGET_NAME} routes the USB D+ and D- signals to their dedicated pins. For USB device functionality, these pins must be connected to the USB bus (e.g., via a Micro-B port, USB-C port, or directly to standard-A plug).
 
@@ -159,7 +161,7 @@ Common Errors and Known Issues
 
 - The reason for ``No DFU capable USB device available`` could be that the USB driver was not properly installed on Windows (see :ref:`api_guide_dfu_flash_win`), udev rule was not setup on Linux (see :ref:`api_guide_dfu_flash_udev`) or the device is not in bootloader mode.
 
-- Flashing with ``dfu-util`` on Windows fails on the first attempt with error ``Lost device after RESET?``. Please retry the flashing and it should succeed the next time.
+- Flashing with ``dfu-util`` on Windows or macOS may fail on the first attempt with error ``Lost device after RESET?``. ``idf.py dfu-flash`` retries once automatically. If flashing still fails, run ``idf.py dfu-flash`` again manually.
 
 
 .. only:: SOC_SUPPORTS_SECURE_DL_MODE

@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2025 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2025-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -11,36 +11,62 @@
 #include "ble_log.h"
 #include "ble_log_lbm.h"
 #include "ble_log_rt.h"
+#include "esp_log.h"
 
 #if CONFIG_SOC_ESP_NIMBLE_CONTROLLER
+#if CONFIG_BT_DUAL_MODE_ARCH
+#include "ble_mbuf.h"
+#define BLE_MBUF_COPY(buf, off, len, dst) ble_mbuf_copydata((struct ble_mbuf *)(buf), off, len, dst)
+#else
 #include "os/os_mbuf.h"
+#define BLE_MBUF_COPY(buf, off, len, dst) os_mbuf_copydata((struct os_mbuf *)(buf), off, len, dst)
+#endif // CONFIG_BT_DUAL_MODE_ARCH
 #endif /* CONFIG_SOC_ESP_NIMBLE_CONTROLLER */
 
 /* VARIABLE */
-BLE_LOG_STATIC volatile uint32_t lbm_ref_count = 0;
-BLE_LOG_STATIC bool lbm_inited = false;
-BLE_LOG_STATIC bool lbm_enabled = false;
-BLE_LOG_STATIC ble_log_lbm_ctx_t *lbm_ctx = NULL;
-BLE_LOG_STATIC ble_log_stat_mgr_t *stat_mgr_ctx[BLE_LOG_SRC_MAX] = {0};
+#define TAG "ble_log"
+#define BLE_LOG_LBM_WAIT_TIMEOUT_MS (1000)
+
+BLE_LOG_STATIC BLE_LOG_DRAM_ATTR volatile uint32_t lbm_ref_count = 0;
+BLE_LOG_STATIC BLE_LOG_DRAM_ATTR bool lbm_inited = false;
+BLE_LOG_STATIC BLE_LOG_DRAM_ATTR bool lbm_enabled = false;
+BLE_LOG_STATIC volatile bool flush_in_progress = false;
+BLE_LOG_STATIC BLE_LOG_DRAM_ATTR ble_log_lbm_ctx_t *lbm_ctx = NULL;
+BLE_LOG_STATIC BLE_LOG_DRAM_ATTR ble_log_stat_mgr_t *stat_mgr_ctx[BLE_LOG_SRC_MAX] = {0};
 
 /* PRIVATE FUNCTION DECLARATION */
-BLE_LOG_STATIC ble_log_lbm_t *ble_log_lbm_acquire(void);
+BLE_LOG_STATIC
+bool ble_log_lbm_acquire_trans(size_t log_len, ble_log_lbm_t **out_lbm,
+                               ble_log_prph_trans_t ***out_trans);
 BLE_LOG_STATIC void ble_log_lbm_release(ble_log_lbm_t *lbm);
+BLE_LOG_STATIC
+ble_log_prph_trans_t **ble_log_lbm_get_trans(ble_log_lbm_t *lbm, size_t log_len);
+BLE_LOG_STATIC bool ble_log_lbm_flush_all_trans(void);
+BLE_LOG_STATIC void ble_log_lbm_reset_stats(void);
 BLE_LOG_STATIC
 void ble_log_lbm_write_trans(ble_log_prph_trans_t **trans, ble_log_src_t src_code,
                              const uint8_t *addr, uint16_t len,
                              const uint8_t *addr_append, uint16_t len_append, bool omdata);
-#if CONFIG_BLE_LOG_ENH_STAT_ENABLED
+BLE_LOG_STATIC
+bool ble_log_write_hex_core(ble_log_src_t src_code, const uint8_t *addr, size_t len);
+#if BLE_LOG_UART_REDIR_ENABLED
+BLE_LOG_STATIC
+void ble_log_lbm_stream_seal(ble_log_prph_trans_t **trans, ble_log_src_t src_code);
+#endif /* BLE_LOG_UART_REDIR_ENABLED */
 BLE_LOG_STATIC void ble_log_stat_mgr_update(ble_log_src_t src_code, uint32_t len, bool lost);
-#endif /* CONFIG_BLE_LOG_ENH_STAT_ENABLED */
 
 /* ------------------------- */
 /*     PRIVATE INTERFACE     */
 /* ------------------------- */
 BLE_LOG_IRAM_ATTR BLE_LOG_STATIC
-ble_log_lbm_t *ble_log_lbm_acquire(void)
+bool ble_log_lbm_acquire_trans(size_t log_len, ble_log_lbm_t **out_lbm,
+                               ble_log_prph_trans_t ***out_trans)
 {
-    ble_log_lbm_t *lbm = NULL;
+    *out_lbm = NULL;
+    *out_trans = NULL;
+
+    ble_log_lbm_t *lbm;
+    ble_log_prph_trans_t **trans;
     ble_log_lbm_t *atomic_pool;
     ble_log_lbm_t *spin_lbm;
     int atomic_pool_size;
@@ -55,18 +81,32 @@ ble_log_lbm_t *ble_log_lbm_acquire(void)
         atomic_pool_size = BLE_LOG_LBM_ATOMIC_TASK_CNT;
     }
 
-    /* Try to acquire atomic LBM first */
+    /* Try each atomic LBM: acquire lock, check buffer, fallback on failure */
     for (int i = 0; i < atomic_pool_size; i++) {
         lbm = &atomic_pool[i];
         if (ble_log_cas_acquire(&(lbm->atomic_lock))) {
-            return lbm;
+            trans = ble_log_lbm_get_trans(lbm, log_len);
+            if (trans) {
+                *out_lbm = lbm;
+                *out_trans = trans;
+                return true;
+            }
+            ble_log_cas_release(&(lbm->atomic_lock));
         }
     }
 
-    /* Fallback to spinlock LBM */
+    /* Last resort: spinlock LBM */
     lbm = spin_lbm;
     BLE_LOG_ACQUIRE_SPIN_LOCK(&(lbm->spin_lock));
-    return lbm;
+    trans = ble_log_lbm_get_trans(lbm, log_len);
+    if (trans) {
+        *out_lbm = lbm;
+        *out_trans = trans;
+        return true;
+    }
+    BLE_LOG_RELEASE_SPIN_LOCK(&(lbm->spin_lock));
+
+    return false;
 }
 
 BLE_LOG_IRAM_ATTR BLE_LOG_STATIC
@@ -83,6 +123,66 @@ void ble_log_lbm_release(ble_log_lbm_t *lbm)
     default:
         break;
     }
+}
+
+BLE_LOG_STATIC bool ble_log_lbm_flush_all_trans(void)
+{
+    ble_log_lbm_t *lbm;
+    ble_log_prph_trans_t **trans;
+    bool in_progress;
+    TickType_t start_tick = xTaskGetTickCount();
+
+    /* Queue transports with logs */
+    for (int i = 0; i < BLE_LOG_LBM_CNT; i++) {
+        lbm = &(lbm_ctx->lbm_pool[i]);
+        int trans_idx = lbm->trans_idx;
+        for (int j = 0; j < BLE_LOG_TRANS_BUF_CNT; j++) {
+            trans = &(lbm->trans[trans_idx]);
+            if (!__atomic_load_n(&(*trans)->prph_owned, __ATOMIC_ACQUIRE) &&
+                (*trans)->pos) {
+                ble_log_rt_queue_trans(trans);
+            }
+            trans_idx = (trans_idx + 1) & (BLE_LOG_TRANS_BUF_CNT - 1);
+        }
+    }
+
+    /* Wait for transportation to finish */
+    do {
+        in_progress = false;
+        for (int i = 0; i < BLE_LOG_LBM_CNT; i++) {
+            lbm = &(lbm_ctx->lbm_pool[i]);
+            for (int j = 0; j < BLE_LOG_TRANS_BUF_CNT; j++) {
+                trans = &(lbm->trans[j]);
+                in_progress |= __atomic_load_n(&(*trans)->prph_owned, __ATOMIC_ACQUIRE);
+            }
+        }
+        if (in_progress) {
+            if ((xTaskGetTickCount() - start_tick) >=
+                pdMS_TO_TICKS(BLE_LOG_LBM_WAIT_TIMEOUT_MS)) {
+                ESP_LOGE(TAG, "Timed out waiting for BLE Log transports");
+                return false;
+            }
+            vTaskDelay(1);
+        }
+    } while (in_progress);
+
+    return true;
+}
+
+BLE_LOG_STATIC void ble_log_lbm_reset_stats(void)
+{
+    ble_log_lbm_t *lbm;
+
+    for (int i = 0; i < BLE_LOG_SRC_MAX; i++) {
+        BLE_LOG_MEMSET(stat_mgr_ctx[i], 0, sizeof(ble_log_stat_mgr_t));
+    }
+
+    for (int i = 0; i < BLE_LOG_LBM_CNT; i++) {
+        lbm = &(lbm_ctx->lbm_pool[i]);
+        __atomic_store_n(&lbm->trans_inflight, 0, __ATOMIC_RELAXED);
+        __atomic_store_n(&lbm->trans_inflight_peak, 0, __ATOMIC_RELAXED);
+    }
+    ble_log_prph_reset_util_counters();
 }
 
 BLE_LOG_IRAM_ATTR BLE_LOG_STATIC
@@ -108,8 +208,7 @@ void ble_log_lbm_write_trans(ble_log_prph_trans_t **trans, ble_log_src_t src_cod
     if (len_append) {
 #if CONFIG_SOC_ESP_NIMBLE_CONTROLLER
         if (omdata) {
-            os_mbuf_copydata((struct os_mbuf *)addr_append, 0,
-                             len_append, buf + BLE_LOG_FRAME_HEAD_LEN + len);
+            BLE_MBUF_COPY(addr_append, 0, len_append, buf + BLE_LOG_FRAME_HEAD_LEN + len);
         }
         else
 #endif /* CONFIG_SOC_ESP_NIMBLE_CONTROLLER */
@@ -119,22 +218,13 @@ void ble_log_lbm_write_trans(ble_log_prph_trans_t **trans, ble_log_src_t src_cod
     }
 
     /* Data integrity check */
-#if CONFIG_BLE_LOG_PAYLOAD_CHECKSUM_ENABLED
     uint32_t checksum = ble_log_fast_checksum((const uint8_t *)buf, BLE_LOG_FRAME_HEAD_LEN + payload_len);
-#else /* !CONFIG_BLE_LOG_PAYLOAD_CHECKSUM_ENABLED */
-    /* Note:
-     * Minimum data integrity check is still required for log parsing reliability,
-     * which can be achieved by validating the checksum of frame head only */
-    uint32_t checksum = ble_log_fast_checksum((const uint8_t *)buf, BLE_LOG_FRAME_HEAD_LEN);
-#endif /* CONFIG_BLE_LOG_PAYLOAD_CHECKSUM_ENABLED */
     BLE_LOG_MEMCPY(buf + BLE_LOG_FRAME_HEAD_LEN + payload_len, &checksum, BLE_LOG_FRAME_TAIL_LEN);
 
     /* Update peripheral transport */
     (*trans)->pos += payload_len + BLE_LOG_FRAME_OVERHEAD;
 
-#if CONFIG_BLE_LOG_ENH_STAT_ENABLED
     ble_log_stat_mgr_update(src_code, payload_len, false);
-#endif /* CONFIG_BLE_LOG_ENH_STAT_ENABLED */
 
     /* Queue trans if full */
     if (BLE_LOG_TRANS_FREE_SPACE((*trans)) <= BLE_LOG_FRAME_OVERHEAD) {
@@ -142,24 +232,79 @@ void ble_log_lbm_write_trans(ble_log_prph_trans_t **trans, ble_log_src_t src_cod
     }
 }
 
-#if CONFIG_BLE_LOG_ENH_STAT_ENABLED
+#if BLE_LOG_UART_REDIR_ENABLED
+BLE_LOG_IRAM_ATTR BLE_LOG_STATIC
+void ble_log_lbm_stream_seal(ble_log_prph_trans_t **trans, ble_log_src_t src_code)
+{
+    if ((*trans)->pos <= BLE_LOG_FRAME_HEAD_LEN) {
+        return;
+    }
+
+    uint16_t payload_len = (*trans)->pos - BLE_LOG_FRAME_HEAD_LEN;
+    ble_log_stat_mgr_t *stat_mgr = stat_mgr_ctx[src_code];
+    uint32_t frame_sn = BLE_LOG_GET_FRAME_SN(&(stat_mgr->frame_sn));
+    ble_log_frame_head_t frame_head = {
+        .length = payload_len,
+        .frame_meta = BLE_LOG_MAKE_FRAME_META(src_code, frame_sn),
+    };
+    BLE_LOG_MEMCPY((*trans)->buf, &frame_head, BLE_LOG_FRAME_HEAD_LEN);
+
+    uint32_t checksum = ble_log_fast_checksum((*trans)->buf, (*trans)->pos);
+    BLE_LOG_MEMCPY((*trans)->buf + (*trans)->pos, &checksum, BLE_LOG_FRAME_TAIL_LEN);
+    (*trans)->pos += BLE_LOG_FRAME_TAIL_LEN;
+
+    ble_log_stat_mgr_update(src_code, payload_len, false);
+
+    ble_log_rt_queue_trans(trans);
+}
+#endif /* BLE_LOG_UART_REDIR_ENABLED */
+
 BLE_LOG_IRAM_ATTR BLE_LOG_STATIC
 void ble_log_stat_mgr_update(ble_log_src_t src_code, uint32_t len, bool lost)
 {
     /* Get statistic manager by source code */
     ble_log_stat_mgr_t *stat_mgr = stat_mgr_ctx[src_code];
 
-    /* Update statistics */
+    /* Update aligned counters */
     uint32_t bytes_cnt = len + BLE_LOG_FRAME_OVERHEAD;
     if (lost) {
-        stat_mgr->enh_stat.lost_frame_cnt++;
-        stat_mgr->enh_stat.lost_bytes_cnt += bytes_cnt;
+        BLE_LOG_GET_FRAME_SN(&(stat_mgr->frame_sn));  /* consume SN for loss detection */
+        __atomic_fetch_add(&stat_mgr->lost_frame_cnt, 1, __ATOMIC_RELAXED);
+        __atomic_fetch_add(&stat_mgr->lost_bytes_cnt, bytes_cnt, __ATOMIC_RELAXED);
     } else {
-        stat_mgr->enh_stat.written_frame_cnt++;
-        stat_mgr->enh_stat.written_bytes_cnt += bytes_cnt;
+        __atomic_fetch_add(&stat_mgr->written_frame_cnt, 1, __ATOMIC_RELAXED);
+        __atomic_fetch_add(&stat_mgr->written_bytes_cnt, bytes_cnt, __ATOMIC_RELAXED);
     }
 }
-#endif /* CONFIG_BLE_LOG_ENH_STAT_ENABLED */
+
+BLE_LOG_IRAM_ATTR BLE_LOG_STATIC
+bool ble_log_write_hex_core(ble_log_src_t src_code, const uint8_t *addr, size_t len)
+{
+    /* Get transport from the best available pool */
+    size_t payload_len = len + sizeof(uint32_t);
+    ble_log_lbm_t *lbm;
+    ble_log_prph_trans_t **trans;
+    if (!ble_log_lbm_acquire_trans(payload_len, &lbm, &trans)) {
+        goto failed;
+    }
+
+    /* Write transport */
+    uint32_t os_ts = pdTICKS_TO_MS(BLE_LOG_IN_ISR()?
+                                   xTaskGetTickCountFromISR():
+                                   xTaskGetTickCount());
+    ble_log_lbm_write_trans(trans, src_code, (const uint8_t *)&os_ts,
+                            sizeof(uint32_t), addr, len, false);
+
+    /* Release */
+    ble_log_lbm_release(lbm);
+    return true;
+
+failed:
+    if (lbm_inited) {
+        ble_log_stat_mgr_update(src_code, payload_len, true);
+    }
+    return false;
+}
 
 /* -------------------------- */
 /*     INTERNAL INTERFACE     */
@@ -182,11 +327,12 @@ bool ble_log_lbm_init(void)
     ble_log_lbm_t *lbm;
     for (int i = 0; i < BLE_LOG_LBM_COMMON_CNT; i++) {
         lbm = &(lbm_ctx->lbm_common_pool[i]);
-        for (int j = 0; j < BLE_LOG_TRANS_PING_PONG_BUF_CNT; j++) {
+        for (int j = 0; j < BLE_LOG_TRANS_BUF_CNT; j++) {
             if (!ble_log_prph_trans_init(&(lbm->trans[j]),
-                                         CONFIG_BLE_LOG_LBM_TRANS_SIZE)) {
+                                         BLE_LOG_TRANS_SIZE)) {
                 goto exit;
             }
+            lbm->trans[j]->owner = (void *)lbm;
         }
     }
 
@@ -198,16 +344,18 @@ bool ble_log_lbm_init(void)
     /* Initialize lock types for spin pool */
     for (int i = 0; i < BLE_LOG_LBM_SPIN_MAX; i++) {
         lbm_ctx->spin_pool[i].lock_type = BLE_LOG_LBM_LOCK_SPIN;
+        portMUX_INITIALIZE(&(lbm_ctx->spin_pool[i].spin_lock));
     }
 
 #if CONFIG_BLE_LOG_LL_ENABLED
     for (int i = 0; i < BLE_LOG_LBM_LL_MAX; i++) {
         lbm = &(lbm_ctx->lbm_ll_pool[i]);
-        for (int j = 0; j < BLE_LOG_TRANS_PING_PONG_BUF_CNT; j++) {
+        for (int j = 0; j < BLE_LOG_TRANS_BUF_CNT; j++) {
             if (!ble_log_prph_trans_init(&(lbm->trans[j]),
-                                         CONFIG_BLE_LOG_LBM_LL_TRANS_SIZE)) {
+                                         BLE_LOG_TRANS_LL_SIZE)) {
                 goto exit;
             }
+            lbm->trans[j]->owner = (void *)lbm;
         }
     }
 
@@ -224,11 +372,6 @@ bool ble_log_lbm_init(void)
             goto exit;
         }
         BLE_LOG_MEMSET(stat_mgr_ctx[i], 0, sizeof(ble_log_stat_mgr_t));
-
-#if CONFIG_BLE_LOG_ENH_STAT_ENABLED
-        stat_mgr_ctx[i]->enh_stat.int_src_code = BLE_LOG_INT_SRC_ENH_STAT;
-        stat_mgr_ctx[i]->enh_stat.src_code = i;
-#endif /* CONFIG_BLE_LOG_ENH_STAT_ENABLED */
     }
 
     /* Initialization done */
@@ -249,10 +392,15 @@ void ble_log_lbm_deinit(void)
     lbm_enabled = false;
 
     /* Disable module and wait for all references to be released */
-    uint32_t time_waited = 0;
-    while (lbm_ref_count > 0) {
-        vTaskDelay(pdMS_TO_TICKS(1));
-        BLE_LOG_ASSERT(time_waited++ < 1000);
+    TickType_t start_tick = xTaskGetTickCount();
+    while (__atomic_load_n(&lbm_ref_count, __ATOMIC_ACQUIRE) > 0) {
+        if ((xTaskGetTickCount() - start_tick) >=
+            pdMS_TO_TICKS(BLE_LOG_LBM_WAIT_TIMEOUT_MS)) {
+            ESP_LOGE(TAG, "Timed out waiting for BLE Log references during deinit");
+        }
+        BLE_LOG_ASSERT((xTaskGetTickCount() - start_tick) <
+                       pdMS_TO_TICKS(BLE_LOG_LBM_WAIT_TIMEOUT_MS));
+        vTaskDelay(1);
     }
 
     /* Release statistic manager context */
@@ -269,7 +417,7 @@ void ble_log_lbm_deinit(void)
         ble_log_lbm_t *lbm;
         for (int i = 0; i < BLE_LOG_LBM_CNT; i++) {
             lbm = &(lbm_ctx->lbm_pool[i]);
-            for (int j = 0; j < BLE_LOG_TRANS_PING_PONG_BUF_CNT; j++) {
+            for (int j = 0; j < BLE_LOG_TRANS_BUF_CNT; j++) {
                 ble_log_prph_trans_deinit(&(lbm->trans[j]));
             }
         }
@@ -280,18 +428,14 @@ void ble_log_lbm_deinit(void)
     }
 }
 
-/* Note:
- * The function below should be private, but when UART redirection is required,
- * it would be a waste to implement get transport function again, thus
- * make it available internally */
-BLE_LOG_IRAM_ATTR
+BLE_LOG_IRAM_ATTR BLE_LOG_STATIC
 ble_log_prph_trans_t **ble_log_lbm_get_trans(ble_log_lbm_t *lbm, size_t log_len)
 {
     /* Check if available buffer can contain incoming log */
     ble_log_prph_trans_t **trans;
-    for (int i = 0; i < BLE_LOG_TRANS_PING_PONG_BUF_CNT; i++) {
+    for (int i = 0; i < BLE_LOG_TRANS_BUF_CNT; i++) {
         trans = &(lbm->trans[lbm->trans_idx]);
-        if (!(*trans)->prph_owned) {
+        if (!__atomic_load_n(&(*trans)->prph_owned, __ATOMIC_ACQUIRE)) {
             /* Return if there's enough free space in current transport */
             if (BLE_LOG_TRANS_FREE_SPACE((*trans)) >= (log_len + BLE_LOG_FRAME_OVERHEAD)) {
                 return trans;
@@ -304,14 +448,13 @@ ble_log_prph_trans_t **ble_log_lbm_get_trans(ble_log_lbm_t *lbm, size_t log_len)
         }
 
         /* Current transport unavailable, switch to the other */
-        lbm->trans_idx = !lbm->trans_idx;
+        lbm->trans_idx = (lbm->trans_idx + 1) & (BLE_LOG_TRANS_BUF_CNT - 1);
     }
 
-    /* Both ping-pong buffers are unavailable */
+    /* All buffers are unavailable */
     return NULL;
 }
 
-#if CONFIG_BLE_LOG_ENH_STAT_ENABLED
 void ble_log_write_enh_stat(void)
 {
     BLE_LOG_REF_COUNT_ACQUIRE(&lbm_ref_count);
@@ -319,15 +462,179 @@ void ble_log_write_enh_stat(void)
         goto deref;
     }
 
+    /* Snapshot all sources under one critical section so the set of
+     * counters is mutually consistent, then write outside the lock. */
+    ble_log_enh_stat_t snapshots[BLE_LOG_SRC_MAX];
     for (int i = 0; i < BLE_LOG_SRC_MAX; i++) {
-        ble_log_enh_stat_t *enh_stat = &(stat_mgr_ctx[i]->enh_stat);
-        ble_log_write_hex(BLE_LOG_SRC_INTERNAL, (const uint8_t *)enh_stat, sizeof(ble_log_enh_stat_t));
+        snapshots[i].int_src_code = BLE_LOG_INT_SRC_ENH_STAT;
+        snapshots[i].src_code     = i;
+    }
+    BLE_LOG_ENTER_CRITICAL();
+    for (int i = 0; i < BLE_LOG_SRC_MAX; i++) {
+        BLE_LOG_MEMCPY(&snapshots[i].written_frame_cnt,
+                       &stat_mgr_ctx[i]->written_frame_cnt,
+                       4 * sizeof(uint32_t));
+    }
+    BLE_LOG_EXIT_CRITICAL();
+
+    for (int i = 0; i < BLE_LOG_SRC_MAX; i++) {
+        ble_log_write_hex(BLE_LOG_SRC_INTERNAL, (const uint8_t *)&snapshots[i], sizeof(ble_log_enh_stat_t));
     }
 
 deref:
     BLE_LOG_REF_COUNT_RELEASE(&lbm_ref_count);
 }
-#endif /* CONFIG_BLE_LOG_ENH_STAT_ENABLED */
+
+#if BLE_LOG_UART_REDIR_ENABLED
+/* ------------------------------------------------- */
+/*     STREAM WRITE INTERFACE                        */
+/*                                                   */
+/* Stream mode appends raw data into a transport     */
+/* buffer with deferred frame encapsulation:         */
+/*   - Header space is reserved on first write       */
+/*   - Data is memcpy'd after the reserved header    */
+/*   - Header and checksum are filled in at seal     */
+/*                                                   */
+/* get_trans(lbm, 0) reuse safety:                   */
+/*                                                   */
+/* get_trans auto-queues a buffer raw (no seal) when */
+/* free_space < log_len + FRAME_OVERHEAD.  With      */
+/* log_len = 0, this triggers at free_space < 10.    */
+/*                                                   */
+/* To prevent unsealed stream data from being sent   */
+/* raw, stream_write auto-seals at free_space <= 10. */
+/* This guarantees that any unsealed stream buffer   */
+/* seen by get_trans always has free_space > 10,     */
+/* so get_trans returns it directly without queuing.  */
+/* ------------------------------------------------- */
+BLE_LOG_IRAM_ATTR
+void ble_log_lbm_stream_write(ble_log_lbm_t *lbm, ble_log_src_t src_code,
+                               const uint8_t *data, size_t len)
+{
+    while (len > 0) {
+        ble_log_prph_trans_t **trans = ble_log_lbm_get_trans(lbm, 0);
+        if (!trans) {
+            ble_log_stat_mgr_update(src_code, len, true);
+            return;
+        }
+
+        if ((*trans)->pos == 0) {
+            (*trans)->pos = BLE_LOG_FRAME_HEAD_LEN;
+        }
+
+        uint16_t available = BLE_LOG_TRANS_FREE_SPACE((*trans));
+        if (available <= BLE_LOG_FRAME_TAIL_LEN) {
+            ble_log_lbm_stream_seal(trans, src_code);
+            continue;
+        }
+        available -= BLE_LOG_FRAME_TAIL_LEN;
+
+        size_t to_write = (len < available) ? len : available;
+        BLE_LOG_MEMCPY((*trans)->buf + (*trans)->pos, data, to_write);
+        (*trans)->pos += to_write;
+        data += to_write;
+        len -= to_write;
+
+        if (BLE_LOG_TRANS_FREE_SPACE((*trans)) <= BLE_LOG_FRAME_OVERHEAD) {
+            ble_log_lbm_stream_seal(trans, src_code);
+        }
+    }
+}
+
+BLE_LOG_IRAM_ATTR
+void ble_log_lbm_stream_flush(ble_log_lbm_t *lbm, ble_log_src_t src_code)
+{
+    int trans_idx = lbm->trans_idx;
+    for (int i = 0; i < BLE_LOG_TRANS_BUF_CNT; i++) {
+        ble_log_prph_trans_t **trans = &(lbm->trans[trans_idx]);
+        if (!__atomic_load_n(&(*trans)->prph_owned, __ATOMIC_ACQUIRE) &&
+            (*trans)->pos > BLE_LOG_FRAME_HEAD_LEN) {
+            ble_log_lbm_stream_seal(trans, src_code);
+        }
+        trans_idx = (trans_idx + 1) & (BLE_LOG_TRANS_BUF_CNT - 1);
+    }
+}
+#endif /* BLE_LOG_UART_REDIR_ENABLED */
+
+BLE_LOG_STATIC void ble_log_emit_buf_util(ble_log_lbm_t *lbm, uint8_t lbm_id)
+{
+    ble_log_buf_util_t util = {
+        .int_src_code   = BLE_LOG_INT_SRC_BUF_UTIL,
+        .lbm_id         = lbm_id,
+        .trans_cnt      = BLE_LOG_TRANS_BUF_CNT,
+        .inflight_peak  = (uint8_t)__atomic_load_n(
+                              &lbm->trans_inflight_peak, __ATOMIC_RELAXED),
+    };
+    ble_log_write_hex(BLE_LOG_SRC_INTERNAL,
+                      (const uint8_t *)&util, sizeof(ble_log_buf_util_t));
+}
+
+void ble_log_write_buf_util(void)
+{
+    BLE_LOG_REF_COUNT_ACQUIRE(&lbm_ref_count);
+    if (!lbm_enabled) {
+        goto deref;
+    }
+
+    ble_log_emit_buf_util(&lbm_ctx->spin_task,
+        BLE_LOG_BUF_UTIL_MAKE_ID(BLE_LOG_BUF_UTIL_POOL_COMMON_TASK, 0));
+    for (int i = 0; i < BLE_LOG_LBM_ATOMIC_TASK_CNT; i++) {
+        ble_log_emit_buf_util(&lbm_ctx->atomic_pool_task[i],
+            BLE_LOG_BUF_UTIL_MAKE_ID(BLE_LOG_BUF_UTIL_POOL_COMMON_TASK, 1 + i));
+    }
+
+    ble_log_emit_buf_util(&lbm_ctx->spin_isr,
+        BLE_LOG_BUF_UTIL_MAKE_ID(BLE_LOG_BUF_UTIL_POOL_COMMON_ISR, 0));
+    for (int i = 0; i < BLE_LOG_LBM_ATOMIC_ISR_CNT; i++) {
+        ble_log_emit_buf_util(&lbm_ctx->atomic_pool_isr[i],
+            BLE_LOG_BUF_UTIL_MAKE_ID(BLE_LOG_BUF_UTIL_POOL_COMMON_ISR, 1 + i));
+    }
+
+#if CONFIG_BLE_LOG_LL_ENABLED
+    ble_log_emit_buf_util(&lbm_ctx->lbm_ll_task,
+        BLE_LOG_BUF_UTIL_MAKE_ID(BLE_LOG_BUF_UTIL_POOL_LL, 0));
+    ble_log_emit_buf_util(&lbm_ctx->lbm_ll_hci,
+        BLE_LOG_BUF_UTIL_MAKE_ID(BLE_LOG_BUF_UTIL_POOL_LL, 1));
+#endif
+
+#if BLE_LOG_UART_REDIR_ENABLED
+    ble_log_lbm_t *redir_lbm = ble_log_prph_get_redir_lbm();
+    if (redir_lbm) {
+        ble_log_emit_buf_util(redir_lbm,
+            BLE_LOG_BUF_UTIL_MAKE_ID(BLE_LOG_BUF_UTIL_POOL_REDIR, 0));
+    }
+#endif
+
+deref:
+    BLE_LOG_REF_COUNT_RELEASE(&lbm_ref_count);
+}
+
+void ble_log_write_final_stat(void)
+{
+    BLE_LOG_REF_COUNT_ACQUIRE(&lbm_ref_count);
+    if (!lbm_inited) {
+        goto deref;
+    }
+
+    ble_log_final_stat_t final_stat;
+    final_stat.int_src_code = BLE_LOG_INT_SRC_FINAL_STAT;
+    final_stat.src_cnt = BLE_LOG_SRC_MAX;
+
+    BLE_LOG_ENTER_CRITICAL();
+    for (int i = 0; i < BLE_LOG_SRC_MAX; i++) {
+        ble_log_final_stat_entry_t *entry = &final_stat.entries[i];
+        entry->src_code = i;
+        BLE_LOG_MEMCPY(&entry->written_frame_cnt,
+                       &stat_mgr_ctx[i]->written_frame_cnt,
+                       4 * sizeof(uint32_t));
+    }
+    BLE_LOG_EXIT_CRITICAL();
+
+    ble_log_write_internal((const uint8_t *)&final_stat, sizeof(final_stat));
+
+deref:
+    BLE_LOG_REF_COUNT_RELEASE(&lbm_ref_count);
+}
 
 /* ------------------------ */
 /*     PUBLIC INTERFACE     */
@@ -343,15 +650,19 @@ bool ble_log_enable(bool enable)
 
 void ble_log_flush(void)
 {
+    /* Prevent concurrent flush — two concurrent callers would deadlock on
+     * the ref_count spin-wait (both hold a ref, both wait for ref_count <= 1).
+     * Second caller returns immediately instead of deadlocking. */
+    if (__atomic_test_and_set(&flush_in_progress, __ATOMIC_ACQUIRE)) {
+        return;
+    }
+
     BLE_LOG_REF_COUNT_ACQUIRE(&lbm_ref_count);
     if (!lbm_inited) {
         goto deref;
     }
-
-#if CONFIG_BLE_LOG_ENH_STAT_ENABLED
-    /* Write enhanced statistics before module disable */
     ble_log_write_enh_stat();
-#endif /* CONFIG_BLE_LOG_ENH_STAT_ENABLED */
+    ble_log_write_buf_util();
 
     /* Write BLE Log flush log */
     ble_log_info_t ble_log_info = {
@@ -362,101 +673,67 @@ void ble_log_flush(void)
 
     /* Disable module and wait for all other references to release */
     bool lbm_enabled_copy = lbm_enabled;
+
     lbm_enabled = false;
-    uint32_t time_waited = 0;
-    while (lbm_ref_count > 1) {
-        vTaskDelay(pdMS_TO_TICKS(1));
-        BLE_LOG_ASSERT(time_waited++ < 1000);
+    TickType_t start_tick = xTaskGetTickCount();
+    while (__atomic_load_n(&lbm_ref_count, __ATOMIC_ACQUIRE) > 1) {
+        if ((xTaskGetTickCount() - start_tick) >=
+            pdMS_TO_TICKS(BLE_LOG_LBM_WAIT_TIMEOUT_MS)) {
+            ESP_LOGE(TAG, "Timed out waiting for BLE Log writers");
+            goto fail;
+        }
+        vTaskDelay(1);
     }
 
-    /* Queue transports with logs */
-    ble_log_lbm_t *lbm;
-    ble_log_prph_trans_t **trans;
-
-    /* Flush pools */
-    for (int i = 0; i < BLE_LOG_LBM_CNT; i++) {
-        lbm = &(lbm_ctx->lbm_pool[i]);
-        int trans_idx = lbm->trans_idx;
-        for (int j = 0; j < BLE_LOG_TRANS_PING_PONG_BUF_CNT; j++) {
-            trans = &(lbm->trans[trans_idx]);
-            if (!(*trans)->prph_owned && (*trans)->pos) {
-                ble_log_rt_queue_trans(trans);
-            }
-            trans_idx = !trans_idx;
-        }
+    if (!ble_log_lbm_flush_all_trans()) {
+        goto fail;
     }
 
-    /* Wait for transportation to finish */
-    time_waited = 0;
-    bool in_progress;
-    do {
-        in_progress = false;
-        for (int i = 0; i < BLE_LOG_LBM_CNT; i++) {
-            lbm = &(lbm_ctx->lbm_pool[i]);
-            for (int j = 0; j < BLE_LOG_TRANS_PING_PONG_BUF_CNT; j++) {
-                trans = &(lbm->trans[j]);
-                in_progress |= (*trans)->prph_owned;
-            }
-        }
-        if (in_progress) {
-            vTaskDelay(pdMS_TO_TICKS(1));
-            BLE_LOG_ASSERT(time_waited++ < 1000);
-        }
-    } while (in_progress);
+    ble_log_write_final_stat();
 
-    /* Reset statistics manager after all operations complete */
-    for (int i = 0; i < BLE_LOG_SRC_MAX; i++) {
-        BLE_LOG_MEMSET(stat_mgr_ctx[i], 0, sizeof(ble_log_stat_mgr_t));
-#if CONFIG_BLE_LOG_ENH_STAT_ENABLED
-        /* Reinitialize enhanced statistics fields */
-        stat_mgr_ctx[i]->enh_stat.int_src_code = BLE_LOG_INT_SRC_ENH_STAT;
-        stat_mgr_ctx[i]->enh_stat.src_code = i;
-#endif /* CONFIG_BLE_LOG_ENH_STAT_ENABLED */
+    if (!ble_log_lbm_flush_all_trans()) {
+        goto fail;
     }
+    ble_log_lbm_reset_stats();
 
-    /* Resume enable status */
+fail:
+    /* Resume enable status after a completed or failed flush. */
     lbm_enabled = lbm_enabled_copy;
-
 deref:
     BLE_LOG_REF_COUNT_RELEASE(&lbm_ref_count);
+    __atomic_clear(&flush_in_progress, __ATOMIC_RELEASE);
 }
 
+BLE_LOG_IRAM_ATTR
 bool ble_log_write_hex(ble_log_src_t src_code, const uint8_t *addr, size_t len)
 {
+    bool ret = false;
+
     BLE_LOG_REF_COUNT_ACQUIRE(&lbm_ref_count);
-    size_t payload_len = len + sizeof(uint32_t);
     if (!lbm_enabled) {
         goto exit;
     }
 
-    /* Get transport */
-    ble_log_lbm_t *lbm = ble_log_lbm_acquire();
-    ble_log_prph_trans_t **trans = ble_log_lbm_get_trans(lbm, payload_len);
-    if (!trans) {
-        ble_log_lbm_release(lbm);
+    ret = ble_log_write_hex_core(src_code, addr, len);
+exit:
+    BLE_LOG_REF_COUNT_RELEASE(&lbm_ref_count);
+    return ret;
+}
+
+BLE_LOG_IRAM_ATTR
+bool ble_log_write_internal(const uint8_t *addr, size_t len)
+{
+    bool ret = false;
+
+    BLE_LOG_REF_COUNT_ACQUIRE(&lbm_ref_count);
+    if (!lbm_inited) {
         goto exit;
     }
 
-    /* Write transport */
-    uint32_t os_ts = pdTICKS_TO_MS(BLE_LOG_IN_ISR()?
-                                   xTaskGetTickCountFromISR():
-                                   xTaskGetTickCount());
-    ble_log_lbm_write_trans(trans, src_code, (const uint8_t *)&os_ts,
-                            sizeof(uint32_t), addr, len, false);
-
-    /* Release */
-    ble_log_lbm_release(lbm);
-    BLE_LOG_REF_COUNT_RELEASE(&lbm_ref_count);
-    return true;
-
+    ret = ble_log_write_hex_core(BLE_LOG_SRC_INTERNAL, addr, len);
 exit:
-#if CONFIG_BLE_LOG_ENH_STAT_ENABLED
-    if (lbm_inited) {
-        ble_log_stat_mgr_update(src_code, payload_len, true);
-    }
-#endif /* CONFIG_BLE_LOG_ENH_STAT_ENABLED */
     BLE_LOG_REF_COUNT_RELEASE(&lbm_ref_count);
-    return false;
+    return ret;
 }
 
 #if CONFIG_BLE_LOG_LL_ENABLED
@@ -465,10 +742,12 @@ void ble_log_write_hex_ll(uint32_t len, const uint8_t *addr,
                           uint32_t len_append, const uint8_t *addr_append, uint32_t flag)
 {
     BLE_LOG_REF_COUNT_ACQUIRE(&lbm_ref_count);
-    size_t payload_len = len + len_append;
+    if (!lbm_enabled) {
+        goto exit;
+    }
 
-    /* Source code shall be determined before LBM enable status check */
-    ble_log_src_t src_code;
+    /* Source code shall be determined before LBM determination */
+    ble_log_src_t src_code = BLE_LOG_SRC_MAX;
     bool use_ll_task = false;
     if (flag & BIT(BLE_LOG_LL_FLAG_ISR)) {
         src_code = BLE_LOG_SRC_LL_ISR;
@@ -482,24 +761,36 @@ void ble_log_write_hex_ll(uint32_t len, const uint8_t *addr,
     }
     bool omdata = flag & BIT(BLE_LOG_LL_FLAG_OMDATA);
 
-    if (!lbm_enabled) {
-        goto exit;
-    }
-
-    /* Determine LBM by flag */
+    /* Determine LBM and get transport */
     ble_log_lbm_t *lbm;
-    if (BLE_LOG_IN_ISR()) {
-        /* Reuse common LBM acquire logic */
-        lbm = ble_log_lbm_acquire();
-    } else {
-        lbm = (use_ll_task)? &(lbm_ctx->lbm_ll_task): &(lbm_ctx->lbm_ll_hci);
-    }
+    ble_log_prph_trans_t **trans;
+    size_t payload_len;
 
-    /* Get transport */
-    ble_log_prph_trans_t **trans = ble_log_lbm_get_trans(lbm, payload_len);
-    if (!trans) {
-        ble_log_lbm_release(lbm);
-        goto exit;
+    if (BLE_LOG_IN_ISR()) {
+        /* os_mbuf_copydata is in flash and not safe to call from ISR */
+        omdata = false;
+
+        payload_len = len + len_append;
+        if (!ble_log_lbm_acquire_trans(payload_len, &lbm, &trans)) {
+            goto failed;
+        }
+    } else {
+        if (use_ll_task) {
+            lbm = &(lbm_ctx->lbm_ll_task);
+        } else {
+            lbm = &(lbm_ctx->lbm_ll_hci);
+#if CONFIG_BLE_LOG_LL_HCI_LOG_PAYLOAD_LEN_LIMIT_ENABLED
+            if (len_append > CONFIG_BLE_LOG_LL_HCI_LOG_PAYLOAD_LEN_LIMIT) {
+                len_append = CONFIG_BLE_LOG_LL_HCI_LOG_PAYLOAD_LEN_LIMIT;
+            }
+#endif /* CONFIG_BLE_LOG_LL_HCI_LOG_PAYLOAD_LEN_LIMIT_ENABLED */
+        }
+        payload_len = len + len_append;
+        trans = ble_log_lbm_get_trans(lbm, payload_len);
+        if (!trans) {
+            /* LL pools use LOCK_NONE, release is no-op */
+            goto failed;
+        }
     }
 
     /* Write transport */
@@ -509,12 +800,11 @@ void ble_log_write_hex_ll(uint32_t len, const uint8_t *addr,
     BLE_LOG_REF_COUNT_RELEASE(&lbm_ref_count);
     return;
 
-exit:
-#if CONFIG_BLE_LOG_ENH_STAT_ENABLED
+failed:
     if (lbm_inited) {
         ble_log_stat_mgr_update(src_code, payload_len, true);
     }
-#endif /* CONFIG_BLE_LOG_ENH_STAT_ENABLED */
+exit:
     BLE_LOG_REF_COUNT_RELEASE(&lbm_ref_count);
     return;
 }
@@ -535,7 +825,7 @@ void ble_log_dump_to_console(void)
     for (int i = 0; i < BLE_LOG_LBM_CNT; i++) {
         lbm = &(lbm_ctx->lbm_pool[i]);
         trans_idx = lbm->trans_idx;
-        for (int j = 0; j < BLE_LOG_TRANS_PING_PONG_BUF_CNT; j++) {
+        for (int j = 0; j < BLE_LOG_TRANS_BUF_CNT; j++) {
             trans = lbm->trans[trans_idx];
             BLE_LOG_FEED_WDT();
 
@@ -545,7 +835,7 @@ void ble_log_dump_to_console(void)
                     BLE_LOG_FEED_WDT();
                 }
             }
-            trans_idx = !trans_idx;
+            trans_idx = (trans_idx + 1) & (BLE_LOG_TRANS_BUF_CNT - 1);
         }
     }
     BLE_LOG_CONSOLE("\n:BLE_LOG_DUMP_END]\n\n");

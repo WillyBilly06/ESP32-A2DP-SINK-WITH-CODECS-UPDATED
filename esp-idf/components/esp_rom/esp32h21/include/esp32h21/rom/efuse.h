@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2024 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2024-2025 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -13,8 +13,6 @@ extern "C" {
 #include <stdint.h>
 #include <stddef.h>
 #include <stdbool.h>
-
-//TODO: [ESP32H21] IDF-11556
 
 /** \defgroup efuse_APIs efuse APIs
   * @brief     ESP32H21 efuse read/write APIs
@@ -273,6 +271,16 @@ int ets_jtag_enable_temporarily(const uint8_t *jtag_hmac_key, ets_efuse_block_t 
   * @return unsigned char: Crc value.
   */
 unsigned char esp_crc8(unsigned char const *p, unsigned int len);
+
+/**
+  * @brief  Read if usb print in ROM disabled by efuse
+  *
+  *
+  * @return
+  * - 0 for enable.
+  * - 1 for disable.
+  */
+uint32_t ets_efuse_usb_print_is_disabled(void);
 
 /**
   * @}

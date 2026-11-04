@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2019-2025 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2019-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -18,6 +18,7 @@
 #include "esp32s3/rom/cache.h"
 #include "soc/gpio_periph.h"
 #include "soc/io_mux_reg.h"
+#include "soc/spi_pins.h"
 #include "soc/syscon_reg.h"
 #include "esp_private/spi_flash_os.h"
 #include "esp_private/mspi_timing_tuning.h"
@@ -341,8 +342,8 @@ esp_err_t esp_psram_impl_enable(void)
     s_set_psram_cs_timing();
     s_configure_psram_ecc();
 
-    //enter MSPI slow mode to init PSRAM device registers
-    mspi_timing_enter_low_speed_mode(true);
+    //enter MSPI slow mode to init PSRAM device registers (early init: see mspi_timing_enter_low_speed_early)
+    mspi_timing_enter_low_speed_early();
 
     //set to variable dummy mode
     SET_PERI_REG_MASK(SPI_MEM_DDR_REG(1), SPI_MEM_SPI_FMEM_VAR_DUMMY);
@@ -377,7 +378,7 @@ esp_err_t esp_psram_impl_enable(void)
     //Do PSRAM timing tuning, we use SPI1 to do the tuning, and set the SPI0 PSRAM timing related registers accordingly
     mspi_timing_psram_tuning();
     //Back to the high speed mode. Flash/PSRAM clocks are set to the clock that user selected. SPI0/1 registers are all set correctly
-    mspi_timing_enter_high_speed_mode(true);
+    mspi_timing_enter_high_speed_early();
 
     /**
      * Tuning may change SPI1 regs, whereas legacy spi_flash APIs rely on these regs.
@@ -454,4 +455,18 @@ esp_err_t esp_psram_impl_get_available_size(uint32_t *out_size_bytes)
     *out_size_bytes = s_psram_size;
 #endif
     return (s_psram_size ? ESP_OK : ESP_ERR_INVALID_STATE);
+}
+
+/******************************* Halfsleep Mode *******************************/
+// This PSRAM supports halfsleep mode, but not implemented yet
+PSRAM_HALFSLEEP_SLEEP_CODE_ATTR void esp_psram_impl_enter_halfsleep_mode(void)
+{
+}
+
+PSRAM_HALFSLEEP_SLEEP_CODE_ATTR void esp_psram_impl_exit_halfsleep_mode(void)
+{
+}
+
+PSRAM_HALFSLEEP_RESUME_CODE_ATTR void esp_psram_impl_resume_from_halfsleep_mode(uint32_t slowclk_period)
+{
 }

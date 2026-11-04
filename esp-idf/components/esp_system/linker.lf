@@ -8,9 +8,9 @@ entries:
         cache_err_int (noflash)
         reset_reason:esp_reset_reason_get_hint (noflash)
         if ESP_SYSTEM_HW_STACK_GUARD = y:
-            hw_stack_guard:esp_hw_stack_guard_get_bounds (noflash)
-            hw_stack_guard:esp_hw_stack_guard_get_fired_cpu (noflash)
-            hw_stack_guard:esp_hw_stack_guard_get_pc (noflash)
+            debug_assist:esp_hw_stack_guard_get_bounds (noflash)
+            debug_assist:esp_hw_stack_guard_get_fired_cpu (noflash)
+            debug_assist:esp_hw_stack_guard_get_pc (noflash)
 
     # These functions are called when the cache is disabled
     system_internal:esp_restart_noos (noflash)
@@ -34,25 +34,11 @@ entries:
         if COMPILER_STACK_CHECK = y:
             stack_check:__stack_chk_fail (noflash)
 
-        if ESP_CONSOLE_USB_CDC_SUPPORT_ETS_PRINTF:
-            usb_console:esp_usb_console_write_char (noflash)
-            usb_console:esp_usb_console_write_buf (noflash)
-            usb_console:esp_usb_console_flush_internal (noflash)
-            usb_console:esp_usb_console_osglue_wait_proc (noflash)
-            usb_console:esp_usb_console_osglue_dis_int (noflash)
-            usb_console:esp_usb_console_osglue_ena_int (noflash)
-            usb_console:esp_usb_console_interrupt (noflash)
-            usb_console:esp_usb_console_poll_interrupts (noflash)
-            usb_console:esp_usb_console_cdc_acm_cb (noflash)
-            usb_console:esp_usb_console_dfu_detach_cb (noflash)
-            usb_console:esp_usb_console_before_restart (noflash)
-            usb_console:esp_usb_console_on_restart_timeout (noflash)
-
     if APP_BUILD_TYPE_RAM = n:
         image_process (noflash)
 
 [mapping:esp_system_hal]
-archive: libhal.a
+archive: libesp_hal_uart.a
 entries:
     if ESP_PANIC_HANDLER_IRAM = y:
         uart_hal_iram (noflash)

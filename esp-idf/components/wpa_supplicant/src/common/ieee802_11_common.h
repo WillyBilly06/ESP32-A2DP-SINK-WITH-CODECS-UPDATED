@@ -48,10 +48,48 @@ struct oper_class_map {
 extern const struct oper_class_map global_op_class[];
 extern size_t global_op_class_size;
 
+/* Parsed Information Elements */
+struct ieee802_11_elems {
+	const u8 *rsn_ie;
+	u8 rsn_ie_len;
+	const u8 *rsnxe;
+	u8 rsnxe_len;
+#ifdef CONFIG_RRM
+	const u8 *rrm_enabled;
+	u8 rrm_enabled_len;
+#endif
+#ifdef CONFIG_WNM
+	const u8 *ext_capab;
+	u8 ext_capab_len;
+#endif
+#ifdef CONFIG_SAE_PK
+	const u8 *fils_pk;
+	u8 fils_pk_len;
+	const u8 *fils_key_confirm;
+	u8 fils_key_confirm_len;
+	const u8 *sae_pk;
+	u8 sae_pk_len;
+#endif
+#ifdef CONFIG_PASN
+	const u8 *pasn_encrypted_data;
+	const u8 *pasn_params;
+	u8 pasn_encrypted_data_len;
+	u8 pasn_params_len;
+#endif
+    const u8 *wrapped_data;
+	size_t wrapped_data_len;
+	const u8 *mic;
+	u8 mic_len;
+};
+
+typedef enum { ParseOK = 0, ParseUnknown = 1, ParseFailed = -1 } ParseRes;
+
 int ieee802_11_parse_candidate_list(const char *pos, u8 *nei_rep,
 				    size_t nei_rep_len);
 const u8 * get_ie(const u8 *ies, size_t len, u8 eid);
-int ieee802_11_parse_elems(struct wpa_supplicant *wpa_s, const u8 *start, size_t len);
+ParseRes ieee802_11_parse_elems(const u8 *start, size_t len,
+				struct ieee802_11_elems *elems,
+				int show_errors);
 int ieee802_11_ext_capab(const u8 *ie, unsigned int capab);
 const u8 * get_vendor_ie(const u8 *ies, size_t len, u32 vendor_type);
 size_t mbo_add_ie(u8 *buf, size_t len, const u8 *attr, size_t attr_len);
@@ -59,4 +97,8 @@ u8 get_operating_class(u8 chan, int sec_channel);
 int ieee802_11_ie_count(const u8 *ies, size_t ies_len);
 struct wpabuf * ieee802_11_vendor_ie_concat(const u8 *ies, size_t ies_len,
 					    u32 oui_type);
+bool ieee802_11_rsnx_capab_len(const u8 *rsnxe, size_t rsnxe_len,
+			       unsigned int capab);
+bool ieee802_11_rsnx_capab(const u8 *rsnxe, unsigned int capab);
+struct wpabuf * ieee802_11_defrag(const u8 *data, size_t len, bool ext_elem);
 #endif /* IEEE802_11_COMMON_H */

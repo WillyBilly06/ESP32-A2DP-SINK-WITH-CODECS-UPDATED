@@ -19,7 +19,8 @@
 #define SO_SUFFIX ".so"
 #endif
 
-#define CRYPTO_SO_FILENAME "libmbedcrypto" SO_SUFFIX
+#define MBEDCRYPTO_SO_FILENAME "libmbedcrypto" SO_SUFFIX
+#define TFPSACRYPTO_SO_FILENAME "libtfpsacrypto" SO_SUFFIX
 #define X509_SO_FILENAME "libmbedx509" SO_SUFFIX
 #define TLS_SO_FILENAME "libmbedtls" SO_SUFFIX
 
@@ -80,26 +81,58 @@ int main(void)
 #endif  /* MBEDTLS_X509_CRT_PARSE_C */
 
 #if defined(MBEDTLS_MD_C)
-    void *crypto_so = dlopen(CRYPTO_SO_FILENAME, RTLD_NOW);
-    CHECK_DLERROR("dlopen", CRYPTO_SO_FILENAME);
+    const char *crypto_so_filename = NULL;
+    void *crypto_so = dlopen(TFPSACRYPTO_SO_FILENAME, RTLD_NOW);
+    if (dlerror() == NULL) {
+        crypto_so_filename = TFPSACRYPTO_SO_FILENAME;
+    } else {
+        crypto_so = dlopen(MBEDCRYPTO_SO_FILENAME, RTLD_NOW);
+        CHECK_DLERROR("dlopen", MBEDCRYPTO_SO_FILENAME);
+        crypto_so_filename = MBEDCRYPTO_SO_FILENAME;
+    }
 #pragma GCC diagnostic push
     /* dlsym() returns an object pointer which is meant to be used as a
      * function pointer. This has undefined behavior in standard C, so
      * "gcc -std=c99 -pedantic" complains about it, but it is perfectly
      * fine on platforms that have dlsym(). */
 #pragma GCC diagnostic ignored "-Wpedantic"
-    const int *(*md_list)(void) =
-        dlsym(crypto_so, "mbedtls_md_list");
+    psa_status_t (*dyn_psa_crypto_init)(void) =
+        dlsym(crypto_so, "psa_crypto_init");
+    psa_status_t (*dyn_psa_hash_compute)(psa_algorithm_t, const uint8_t *, size_t, uint8_t *,
+                                         size_t, size_t *) =
+        dlsym(crypto_so, "psa_hash_compute");
+
 #pragma GCC diagnostic pop
-    CHECK_DLERROR("dlsym", "mbedtls_md_list");
-    const int *mds = md_list();
-    for (n = 0; mds[n] != 0; n++) {/* nothing to do, we're just counting */
-        ;
+    /* Demonstrate hashing a message with PSA Crypto */
+
+    CHECK_DLERROR("dlsym", "psa_crypto_init");
+    CHECK_DLERROR("dlsym", "psa_hash_compute");
+
+    psa_status_t status = dyn_psa_crypto_init();
+    if (status != PSA_SUCCESS) {
+        mbedtls_fprintf(stderr, "psa_crypto_init failed: %d\n", (int) status);
+        mbedtls_exit(MBEDTLS_EXIT_FAILURE);
     }
-    mbedtls_printf("dlopen(%s): %u hashes\n",
-                   CRYPTO_SO_FILENAME, n);
+
+    const uint8_t input[] = "hello world";
+    uint8_t hash[32]; // Buffer to hold the output hash
+    size_t hash_len = 0;
+
+    status = dyn_psa_hash_compute(PSA_ALG_SHA_256,
+                                  input, sizeof(input) - 1,
+                                  hash, sizeof(hash),
+                                  &hash_len);
+    if (status != PSA_SUCCESS) {
+        mbedtls_fprintf(stderr, "psa_hash_compute failed: %d\n", (int) status);
+        mbedtls_exit(MBEDTLS_EXIT_FAILURE);
+    }
+
+    mbedtls_printf("dlopen(%s): psa_hash_compute succeeded. SHA-256 output length: %zu\n",
+                   crypto_so_filename, hash_len);
+
+
     dlclose(crypto_so);
-    CHECK_DLERROR("dlclose", CRYPTO_SO_FILENAME);
+    CHECK_DLERROR("dlclose", crypto_so_filename);
 #endif  /* MBEDTLS_MD_C */
 
     return 0;

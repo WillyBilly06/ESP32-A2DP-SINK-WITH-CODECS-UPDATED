@@ -62,15 +62,15 @@ void AVCT_Register(UINT16 mtu, UINT16 mtu_br, UINT8 sec_mask)
 
     AVCT_TRACE_API("AVCT_Register");
 
+    /* initialize AVCTP data structures */
+    memset(&avct_cb, 0, sizeof(tAVCT_CB));
+
     /* register PSM with L2CAP */
     L2CA_Register(AVCT_PSM, (tL2CAP_APPL_INFO *) &avct_l2c_appl);
 
     /* set security level */
     BTM_SetSecurityLevel(TRUE, "", BTM_SEC_SERVICE_AVCTP, sec_mask, AVCT_PSM, 0, 0);
     BTM_SetSecurityLevel(FALSE, "", BTM_SEC_SERVICE_AVCTP, sec_mask, AVCT_PSM, 0, 0);
-
-    /* initialize AVCTP data structures */
-    memset(&avct_cb, 0, sizeof(tAVCT_CB));
 
 #if (AVCT_BROWSE_INCLUDED == TRUE)
     /* Include the browsing channel which uses eFCR */
@@ -118,6 +118,9 @@ void AVCT_Deregister(void)
 
     /* deregister PSM with L2CAP */
     L2CA_Deregister(AVCT_PSM);
+#if (AVCT_BROWSE_INCLUDED == TRUE)
+    L2CA_Deregister(AVCT_BR_PSM);
+#endif
 }
 
 /*******************************************************************************
@@ -141,6 +144,10 @@ UINT16 AVCT_CreateConn(UINT8 *p_handle, tAVCT_CC *p_cc, BD_ADDR peer_addr)
     UINT16      result = AVCT_SUCCESS;
     tAVCT_CCB   *p_ccb;
     tAVCT_LCB   *p_lcb;
+
+    if (p_cc == NULL || p_handle == NULL) {
+        return AVCT_BAD_HANDLE;
+    }
 
     AVCT_TRACE_API("AVCT_CreateConn: %d, control:%d", p_cc->role, p_cc->control);
 
@@ -169,9 +176,14 @@ UINT16 AVCT_CreateConn(UINT8 *p_handle, tAVCT_CC *p_cc, BD_ADDR peer_addr)
 
             if (result == AVCT_SUCCESS) {
                 /* bind lcb to ccb */
+                tAVCT_LCB_EVT evt;
                 p_ccb->p_lcb = p_lcb;
                 AVCT_TRACE_DEBUG("ch_state: %d", p_lcb->ch_state);
-                avct_lcb_event(p_lcb, AVCT_LCB_UL_BIND_EVT, (tAVCT_LCB_EVT *) &p_ccb);
+                evt.p_ccb = p_ccb;
+                avct_lcb_event(p_lcb, AVCT_LCB_UL_BIND_EVT, &evt);
+                if (!p_ccb->allocated) {
+                    result = AVCT_NOT_OPEN;
+                }
             }
         }
     }
@@ -208,7 +220,9 @@ UINT16 AVCT_RemoveConn(UINT8 handle)
     }
     /* send unbind event to lcb */
     else {
-        avct_lcb_event(p_ccb->p_lcb, AVCT_LCB_UL_UNBIND_EVT, (tAVCT_LCB_EVT *) &p_ccb);
+        tAVCT_LCB_EVT evt;
+        evt.p_ccb = p_ccb;
+        avct_lcb_event(p_ccb->p_lcb, AVCT_LCB_UL_UNBIND_EVT, &evt);
     }
     return result;
 }
@@ -234,7 +248,7 @@ UINT16 AVCT_CreateBrowse (UINT8 handle, UINT8 role)
 #if (AVCT_BROWSE_INCLUDED == TRUE)
     UINT16      result = AVCT_SUCCESS;
     tAVCT_CCB   *p_ccb;
-    tAVCT_BCB   *p_bcb;
+    tAVCT_BCB   *p_bcb = NULL;
     int         index;
 
     AVCT_TRACE_API("AVCT_CreateBrowse: %d", role);
@@ -428,7 +442,12 @@ UINT16 AVCT_MsgReq(UINT8 handle, UINT8 label, UINT8 cr, BT_HDR *p_msg)
                 osi_free(p_msg);
             } else {
                 p_ccb->p_bcb = avct_bcb_by_lcb(p_ccb->p_lcb);
-                avct_bcb_event(p_ccb->p_bcb, AVCT_LCB_UL_MSG_EVT, (tAVCT_LCB_EVT *) &ul_msg);
+                if (p_ccb->p_bcb == NULL) {
+                    result = AVCT_BAD_HANDLE;
+                    osi_free(p_msg);
+                } else {
+                    avct_bcb_event(p_ccb->p_bcb, AVCT_LCB_UL_MSG_EVT, (tAVCT_LCB_EVT *) &ul_msg);
+                }
             }
         }
         /* send msg event to lcb */

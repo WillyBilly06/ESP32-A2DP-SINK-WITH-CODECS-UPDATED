@@ -326,12 +326,10 @@ void Link::ProcessReceivedPacket(Packet &aPacket, const Ip6::SockAddr &aSockAddr
 
     if (type != Header::kTypeAck)
     {
-        // No need to check state or channel for a TREL ack packet.
-        // Note that TREL ack may be received much later than the tx
-        // and device can be on a different rx channel.
+        // We do not check the radio state for a TREL ACK packet, as it
+        // can be received much later than the transmission.
 
         VerifyOrExit((mState == kStateReceive) || (mState == kStateTransmit));
-        VerifyOrExit(aPacket.GetHeader().GetChannel() == mRxChannel);
     }
 
     if (mPanId != Mac::kPanIdBroadcast)
@@ -369,6 +367,14 @@ void Link::ProcessReceivedPacket(Packet &aPacket, const Ip6::SockAddr &aSockAddr
     {
         SendAck(aPacket);
     }
+
+    // Drop the packet if there is a channel mismatch. We perform this
+    // check after all other validations to ensure we still `SendAck()`.
+    // TREL ACKs are used to monitor the TREL link status between peers
+    // and should be sent even if the packet is sent on a different
+    // channel (e.g., an MLE Announce message).
+
+    VerifyOrExit(aPacket.GetHeader().GetChannel() == mRxChannel);
 
     mRxFrame.mPsdu    = aPacket.GetPayload();
     mRxFrame.mLength  = aPacket.GetPayloadLength();
@@ -510,23 +516,15 @@ void Link::HandleNotifierEvents(Events aEvents)
 
 const char *Link::StateToString(State aState)
 {
-    static const char *const kStateStrings[] = {
-        "Disabled", // (0) kStateDisabled
-        "Sleep",    // (1) kStateSleep
-        "Receive",  // (2) kStateReceive
-        "Transmit", // (3) kStateTransmit
-    };
+#define StateMapList(_)           \
+    _(kStateDisabled, "Disabled") \
+    _(kStateSleep, "Sleep")       \
+    _(kStateReceive, "Receive")   \
+    _(kStateTransmit, "Transmit")
 
-    struct EnumCheck
-    {
-        InitEnumValidatorCounter();
-        ValidateNextEnum(kStateDisabled);
-        ValidateNextEnum(kStateSleep);
-        ValidateNextEnum(kStateReceive);
-        ValidateNextEnum(kStateTransmit);
-    };
+    DefineEnumStringArray(StateMapList);
 
-    return kStateStrings[aState];
+    return kStrings[aState];
 }
 
 // LCOV_EXCL_STOP

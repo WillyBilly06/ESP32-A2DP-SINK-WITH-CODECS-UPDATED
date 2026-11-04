@@ -31,6 +31,9 @@
 #include "port_systick.h"
 #include "portmacro.h"
 #include "esp_memory_utils.h"
+#if CONFIG_FREERTOS_RUN_TIME_STATS_USING_ESP_TIMER
+#include "esp_timer.h"
+#endif
 #ifdef CONFIG_FREERTOS_SYSTICK_USES_SYSTIMER
 #include "soc/periph_defs.h"
 #include "soc/system_reg.h"
@@ -60,6 +63,9 @@ _Static_assert(offsetof( StaticTask_t, pxDummy8 ) == PORT_OFFSET_PX_END_OF_STACK
 
 BaseType_t uxSchedulerRunning = 0;  // Duplicate of xSchedulerRunning, accessible to port files
 volatile UBaseType_t uxInterruptNesting = 0;
+#if configNUM_CORES > 1
+volatile unsigned port_uxCoreStartupDone[portNUM_PROCESSORS] = {0};  // Indicates whether the core has completed its startup sequence
+#endif
 portMUX_TYPE port_xTaskLock = portMUX_INITIALIZER_UNLOCKED;
 portMUX_TYPE port_xISRLock = portMUX_INITIALIZER_UNLOCKED;
 volatile BaseType_t xPortSwitchFlag = 0;
@@ -185,12 +191,12 @@ void vPortAssertIfInISR(void)
 // ------------------ Critical Sections --------------------
 
 #if ( configNUMBER_OF_CORES > 1 )
-void IRAM_ATTR vPortTakeLock( portMUX_TYPE *lock )
+void vPortTakeLock( portMUX_TYPE *lock )
 {
     spinlock_acquire( lock, portMUX_NO_TIMEOUT);
 }
 
-void IRAM_ATTR vPortReleaseLock( portMUX_TYPE *lock )
+void vPortReleaseLock( portMUX_TYPE *lock )
 {
     spinlock_release( lock );
 }
@@ -270,16 +276,6 @@ void vPortTCBPreDeleteHook( void *pxTCB )
         vTaskPreDeletionHook( pxTCB );
     #endif /* CONFIG_FREERTOS_TASK_PRE_DELETION_HOOK */
 
-    #if ( CONFIG_FREERTOS_ENABLE_STATIC_TASK_CLEAN_UP )
-        /*
-         * If the user is using the legacy task pre-deletion hook, call it.
-         * Todo: Will be removed in IDF-8097
-         */
-        #warning "CONFIG_FREERTOS_ENABLE_STATIC_TASK_CLEAN_UP is deprecated. Use CONFIG_FREERTOS_TASK_PRE_DELETION_HOOK instead."
-        extern void vPortCleanUpTCB( void * pxTCB );
-        vPortCleanUpTCB( pxTCB );
-    #endif /* CONFIG_FREERTOS_ENABLE_STATIC_TASK_CLEAN_UP */
-
     #if ( CONFIG_FREERTOS_TLSP_DELETION_CALLBACKS )
         /* Call TLS pointers deletion callbacks */
         vPortTLSPointersDelCb( pxTCB );
@@ -298,7 +294,9 @@ BaseType_t xPortStartScheduler(void)
     uxInterruptNesting = 0;
     port_uxCriticalNestingIDF = 0;
     uxSchedulerRunning = 0;
-
+#if configNUM_CORES > 1
+    port_uxCoreStartupDone[xPortGetCoreID()] = 0;
+#endif
     /* Setup the hardware to generate the tick. */
     vPortSetupTimer();
 
@@ -526,3 +524,18 @@ void vApplicationPassiveIdleHook( void )
     esp_vApplicationIdleHook(); //Run IDF style hooks
 }
 #endif // CONFIG_FREERTOS_USE_PASSIVE_IDLE_HOOK
+
+/* ------------------------------------------------ Run Time Stats ------------------------------------------------- */
+
+#if ( CONFIG_FREERTOS_GENERATE_RUN_TIME_STATS )
+
+configRUN_TIME_COUNTER_TYPE xPortGetRunTimeCounterValue( void )
+{
+#ifdef CONFIG_FREERTOS_RUN_TIME_STATS_USING_ESP_TIMER
+    return (configRUN_TIME_COUNTER_TYPE) esp_timer_get_time();
+#else
+    return 0;
+#endif // CONFIG_FREERTOS_RUN_TIME_STATS_USING_ESP_TIMER
+}
+
+#endif /* CONFIG_FREERTOS_GENERATE_RUN_TIME_STATS */

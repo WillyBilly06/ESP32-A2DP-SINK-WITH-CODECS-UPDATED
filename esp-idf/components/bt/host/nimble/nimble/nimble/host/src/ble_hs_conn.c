@@ -24,13 +24,22 @@
 #include "host/ble_hs_id.h"
 #include "ble_hs_priv.h"
 #include "ble_hs_resolv_priv.h"
+#include "esp_nimble_mem.h"
+#include "host/ble_hs_log.h"
 
 /** At least three channels required per connection (sig, att, sm). */
 #define BLE_HS_CONN_MIN_CHANS       3
 
 static SLIST_HEAD(, ble_hs_conn) ble_hs_conns;
-static struct os_mempool ble_hs_conn_pool;
 
+#if MYNEWT_VAL(BLE_STATIC_TO_DYNAMIC)
+static struct {
+    struct os_mempool pool;
+    os_membuf_t *elem_mem;
+} *ble_hs_conn_ctx;
+#define ble_hs_conn_pool      (ble_hs_conn_ctx->pool)
+#define ble_hs_conn_elem_mem  (ble_hs_conn_ctx->elem_mem)
+#else
 #if MYNEWT_VAL(MP_RUNTIME_ALLOC)
 static os_membuf_t *ble_hs_conn_elem_mem = NULL;
 #else
@@ -39,8 +48,28 @@ static os_membuf_t ble_hs_conn_elem_mem[
                     sizeof (struct ble_hs_conn))
 ];
 #endif
+static struct os_mempool ble_hs_conn_pool;
+#endif
 
 static const uint8_t ble_hs_conn_null_addr[6];
+
+#if MYNEWT_VAL(BLE_STATIC_TO_DYNAMIC)
+static int
+ble_hs_conn_ensure_ctx(void)
+{
+    if (ble_hs_conn_ctx != NULL) {
+        return 0;
+    }
+
+    ble_hs_conn_ctx = nimble_platform_mem_calloc(1, sizeof(*ble_hs_conn_ctx));
+    if (ble_hs_conn_ctx == NULL) {
+        BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_ENOMEM);
+        return BLE_HS_ENOMEM;
+    }
+
+    return 0;
+}
+#endif
 
 int
 ble_hs_conn_can_alloc(void)
@@ -49,15 +78,22 @@ ble_hs_conn_can_alloc(void)
     return 0;
 #endif
 
-#if MYNEWT_VAL(BLE_GATTS) 
-   return ble_hs_conn_pool.mp_num_free >= 1 &&
-          ble_l2cap_chan_pool.mp_num_free >= BLE_HS_CONN_MIN_CHANS &&
-          ble_gatts_conn_can_alloc();
+    int result;
+
+    ble_hs_lock_nested();
+
+#if MYNEWT_VAL(BLE_GATTS)
+    result = ble_hs_conn_pool.mp_num_free >= 1 &&
+             ble_l2cap_chan_pool.mp_num_free >= BLE_HS_CONN_MIN_CHANS &&
+             ble_gatts_conn_can_alloc();
 #else
-   return ble_hs_conn_pool.mp_num_free >= 1 &&
-          ble_l2cap_chan_pool.mp_num_free >= BLE_HS_CONN_MIN_CHANS;
+    result = ble_hs_conn_pool.mp_num_free >= 1 &&
+             ble_l2cap_chan_pool.mp_num_free >= BLE_HS_CONN_MIN_CHANS;
 #endif
-	   
+
+    ble_hs_unlock_nested();
+
+    return result;
 }
 
 struct ble_l2cap_chan *
@@ -103,7 +139,7 @@ bool
 ble_hs_conn_chan_exist(struct ble_hs_conn *conn, struct ble_l2cap_chan *chan)
 {
 #if !NIMBLE_BLE_CONNECT
-    return NULL;
+    return false;
 #endif
 
     struct ble_l2cap_chan *tmp;
@@ -153,11 +189,16 @@ ble_hs_conn_alloc(uint16_t conn_handle)
 {
 #if !NIMBLE_BLE_CONNECT
     return NULL;
-#endif
-
+#else
     struct ble_l2cap_chan *chan;
     struct ble_hs_conn *conn;
     int rc;
+
+#if MYNEWT_VAL(BLE_STATIC_TO_DYNAMIC)
+    if (ble_hs_conn_ctx == NULL) {
+        return NULL;
+    }
+#endif
 
     conn = os_memblock_get(&ble_hs_conn_pool);
     if (conn == NULL) {
@@ -174,6 +215,7 @@ ble_hs_conn_alloc(uint16_t conn_handle)
     }
     rc = ble_hs_conn_chan_insert(conn, chan);
     if (rc != 0) {
+        ble_l2cap_chan_free(conn, chan);
         goto err;
     }
 
@@ -183,6 +225,7 @@ ble_hs_conn_alloc(uint16_t conn_handle)
     }
     rc = ble_hs_conn_chan_insert(conn, chan);
     if (rc != 0) {
+        ble_l2cap_chan_free(conn, chan);
         goto err;
     }
 
@@ -195,6 +238,7 @@ ble_hs_conn_alloc(uint16_t conn_handle)
     }
     rc = ble_hs_conn_chan_insert(conn, chan);
     if (rc != 0) {
+        ble_l2cap_chan_free(conn, chan);
         goto err;
     }
 #if MYNEWT_VAL(BLE_GATTS)
@@ -214,13 +258,14 @@ ble_hs_conn_alloc(uint16_t conn_handle)
 err:
     ble_hs_conn_free(conn);
     return NULL;
+#endif
 }
 
 void
 ble_hs_conn_delete_chan(struct ble_hs_conn *conn, struct ble_l2cap_chan *chan)
 {
-    if (conn->bhc_rx_chan == chan) {
-        conn->bhc_rx_chan = NULL;
+    if (chan == NULL) {
+        return;
     }
 
     SLIST_REMOVE(&conn->bhc_channels, chan, ble_l2cap_chan, next);
@@ -256,6 +301,9 @@ ble_hs_conn_free(struct ble_hs_conn *conn)
         return;
     }
 
+    os_mbuf_free_chain(conn->rx_frags);
+    conn->rx_frags = NULL;
+
 #if MYNEWT_VAL(BLE_GATTS)
     ble_att_svr_prep_clear(&conn->bhc_att_svr.basc_prep_list);
 #endif
@@ -269,10 +317,23 @@ ble_hs_conn_free(struct ble_hs_conn *conn)
         os_mbuf_free_chain(OS_MBUF_PKTHDR_TO_MBUF(omp));
     }
 
+    /* Clear ATT TX queue */
+    while ((omp = STAILQ_FIRST(&conn->att_tx_q)) != NULL) {
+        STAILQ_REMOVE_HEAD(&conn->att_tx_q, omp_next);
+        os_mbuf_free_chain(OS_MBUF_PKTHDR_TO_MBUF(omp));
+    }
+
 #if MYNEWT_VAL(BLE_HS_DEBUG)
     memset(conn, 0xff, sizeof *conn);
 #endif
+
+#if MYNEWT_VAL(BLE_STATIC_TO_DYNAMIC)
+    if (ble_hs_conn_ctx == NULL) {
+        return;
+    }
+#endif
     rc = os_memblock_put(&ble_hs_conn_pool, conn);
+
     BLE_HS_DBG_ASSERT_EVAL(rc == 0);
 
     STATS_INC(ble_hs_stats, conn_delete);
@@ -426,7 +487,6 @@ ble_hs_conn_addrs(const struct ble_hs_conn *conn,
 {
     const uint8_t *our_id_addr_val;
     int rc;
-
     /* Determine our address information. */
     addrs->our_id_addr.type =
         ble_hs_misc_own_addr_type_to_id(conn->bhc_our_addr_type);
@@ -440,12 +500,20 @@ ble_hs_conn_addrs(const struct ble_hs_conn *conn,
             addrs->our_id_addr.type == BLE_ADDR_RANDOM) {
         our_id_addr_val = conn->bhc_our_rnd_addr;
     } else {
+        ble_hs_lock_nested();
         rc = ble_hs_id_addr(addrs->our_id_addr.type, &our_id_addr_val, NULL);
-        assert(rc == 0);
+        ble_hs_unlock_nested();
+        if (rc != 0) {
+            return;
+        }
     }
 #else
+    ble_hs_lock_nested();
     rc = ble_hs_id_addr(addrs->our_id_addr.type, &our_id_addr_val, NULL);
-    assert(rc == 0);
+    ble_hs_unlock_nested();
+    if (rc != 0) {
+        return;
+    }
 #endif
 
     memcpy(addrs->our_id_addr.val, our_id_addr_val, 6);
@@ -467,23 +535,27 @@ ble_hs_conn_addrs(const struct ble_hs_conn *conn,
     memcpy(bhc_peer_addr.val, conn->bhc_peer_addr.val, BLE_DEV_ADDR_LEN);
 
     struct ble_hs_resolv_entry *rl = NULL;
+    ble_hs_lock_nested();
     rl = ble_hs_resolv_list_find(bhc_peer_addr.val);
     if (rl != NULL) {
         memcpy(addrs->peer_id_addr.val, rl->rl_identity_addr, BLE_DEV_ADDR_LEN);
         addrs->peer_id_addr.type = rl->rl_addr_type;
 
         if (ble_host_rpa_enabled()) {
-            uint8_t *local_id = NULL;
-            ble_hs_id_addr(BLE_ADDR_PUBLIC, (const uint8_t **) &local_id, NULL);
+            const uint8_t *local_id = NULL;
+            rc = ble_hs_id_addr(BLE_ADDR_PUBLIC, &local_id, NULL);
 
             /* RL is present: populate our id addr with public ID */
-            memcpy(addrs->our_id_addr.val, local_id, BLE_DEV_ADDR_LEN);
-            addrs->our_id_addr.type = BLE_ADDR_PUBLIC;
-            BLE_HS_LOG(DEBUG, "Revised our id addr:\n");
-            ble_hs_log_flat_buf(our_id_addr_val, BLE_DEV_ADDR_LEN);
-            BLE_HS_LOG(DEBUG, "\n");
+            if (rc == 0 && local_id != NULL) {
+                memcpy(addrs->our_id_addr.val, local_id, BLE_DEV_ADDR_LEN);
+                addrs->our_id_addr.type = BLE_ADDR_PUBLIC;
+                BLE_HS_LOG(DEBUG, "Revised our id addr:\n");
+                ble_hs_log_flat_buf(local_id, BLE_DEV_ADDR_LEN);
+                BLE_HS_LOG(DEBUG, "\n");
+            }
         }
     }
+    ble_hs_unlock_nested();
 #endif
     switch (conn->bhc_peer_addr.type) {
     case BLE_ADDR_PUBLIC:
@@ -517,10 +589,9 @@ ble_hs_conn_timer(void)
 #endif
 
     struct ble_hs_conn *conn;
+    struct ble_hs_conn *tmp;
     ble_npl_time_t now = ble_npl_time_get();
     int32_t next_exp_in = BLE_HS_FOREVER;
-    int32_t next_exp_in_new;
-    bool next_exp_in_updated;
     int32_t time_diff;
 
     ble_hs_lock();
@@ -530,17 +601,16 @@ ble_hs_conn_timer(void)
      *    so connection is disconnected.
      * 2. Otherwise, determine when the next timeout will occur.
      */
-    SLIST_FOREACH(conn, &ble_hs_conns, bhc_next) {
+    SLIST_FOREACH_SAFE(conn, &ble_hs_conns, bhc_next, tmp) {
         if (!(conn->bhc_flags & BLE_HS_CONN_F_TERMINATING)) {
-            next_exp_in_updated = false;
 
 #if MYNEWT_VAL(BLE_L2CAP_RX_FRAG_TIMEOUT) != 0
             /* Check each connection's rx fragment timer.  If too much time
              * passes after a partial packet is received, the connection is
              * terminated.
              */
-            if (conn->bhc_rx_chan != NULL) {
-                time_diff = conn->bhc_rx_timeout - now;
+            if (conn->rx_len) {
+                time_diff = conn->rx_frag_tmo - now;
 
                 if (time_diff <= 0) {
                     /* ACL reassembly has timed out.*/
@@ -550,8 +620,7 @@ ble_hs_conn_timer(void)
 
                 /* Determine if this connection is the soonest to time out. */
                 if (time_diff < next_exp_in) {
-                    next_exp_in_new = time_diff;
-                    next_exp_in_updated = true;
+                    next_exp_in = time_diff;
                 }
             }
 #endif
@@ -570,14 +639,9 @@ ble_hs_conn_timer(void)
 
             /* Determine if this connection is the soonest to time out. */
             if (time_diff < next_exp_in) {
-                next_exp_in_new = time_diff;
-                next_exp_in_updated = true;
+                next_exp_in = time_diff;
             }
 #endif
-
-            if (next_exp_in_updated) {
-                next_exp_in = next_exp_in_new;
-            }
         }
     }
 
@@ -591,10 +655,46 @@ ble_hs_conn_init(void)
 {
     int rc;
 
+#if MYNEWT_VAL(BLE_STATIC_TO_DYNAMIC)
+    rc = ble_hs_conn_ensure_ctx();
+    if (rc != 0) {
+        return rc;
+    }
+
+#if !MYNEWT_VAL(MP_RUNTIME_ALLOC)
+    size_t elem_mem_size = OS_MEMPOOL_SIZE(MYNEWT_VAL(BLE_MAX_CONNECTIONS), sizeof(struct ble_hs_conn));
+
+    if (!ble_hs_conn_elem_mem && elem_mem_size != 0) {
+        ble_hs_conn_elem_mem = (os_membuf_t *)nimble_platform_mem_calloc(1,elem_mem_size * sizeof(os_membuf_t));
+
+        if (!ble_hs_conn_elem_mem) {
+            nimble_platform_mem_free(ble_hs_conn_ctx);
+            ble_hs_conn_ctx = NULL;
+            BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_ENOMEM);
+            return BLE_HS_ENOMEM;
+        }
+    }
+#endif
+    memset(&ble_hs_conn_pool, 0, sizeof(ble_hs_conn_pool));
+#endif
     rc = os_mempool_init(&ble_hs_conn_pool, MYNEWT_VAL(BLE_MAX_CONNECTIONS),
                          sizeof (struct ble_hs_conn),
                          ble_hs_conn_elem_mem, "ble_hs_conn_pool");
+
     if (rc != 0) {
+#if MYNEWT_VAL(BLE_STATIC_TO_DYNAMIC)
+#if !MYNEWT_VAL(MP_RUNTIME_ALLOC)
+        nimble_platform_mem_free(ble_hs_conn_elem_mem);
+        ble_hs_conn_elem_mem = NULL;
+#endif
+        os_mempool_unregister(&ble_hs_conn_pool);
+        if (ble_hs_conn_ctx) {
+            nimble_platform_mem_free(ble_hs_conn_ctx);
+            ble_hs_conn_ctx = NULL;
+        }
+        memset(&ble_hs_conn_pool, 0, sizeof(ble_hs_conn_pool));
+#endif
+        BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_EOS);
         return BLE_HS_EOS;
     }
 
@@ -602,3 +702,24 @@ ble_hs_conn_init(void)
 
     return 0;
 }
+
+#if MYNEWT_VAL(BLE_STATIC_TO_DYNAMIC)
+void
+ble_hs_conn_deinit(void)
+{
+    if (ble_hs_conn_ctx == NULL) {
+        return;
+    }
+
+#if !MYNEWT_VAL(MP_RUNTIME_ALLOC)
+    if (ble_hs_conn_elem_mem) {
+        nimble_platform_mem_free(ble_hs_conn_elem_mem);
+        ble_hs_conn_elem_mem = NULL;
+    }
+#endif
+    os_mempool_unregister(&ble_hs_conn_pool);
+    memset(&ble_hs_conn_pool, 0, sizeof(ble_hs_conn_pool));
+    nimble_platform_mem_free(ble_hs_conn_ctx);
+    ble_hs_conn_ctx = NULL;
+}
+#endif

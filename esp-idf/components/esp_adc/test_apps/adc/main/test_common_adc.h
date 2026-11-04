@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2015-2025 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2015-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -42,7 +42,7 @@ extern "C" {
 
 #elif CONFIG_IDF_TARGET_ESP32S2
 #define ADC_TEST_LOW_VAL         0
-#define ADC_TEST_LOW_THRESH      35
+#define ADC_TEST_LOW_THRESH      80
 
 #define ADC_TEST_HIGH_VAL        8191
 #define ADC_TEST_HIGH_VAL_DMA    4095
@@ -66,7 +66,7 @@ extern "C" {
 
 #elif CONFIG_IDF_TARGET_ESP32C2
 #define ADC_TEST_LOW_VAL         0
-#define ADC_TEST_LOW_THRESH      15
+#define ADC_TEST_LOW_THRESH      30
 
 #define ADC_TEST_HIGH_VAL        3400
 #define ADC_TEST_HIGH_THRESH     200
@@ -111,7 +111,28 @@ extern "C" {
 #define ADC_TEST_HIGH_VAL_DMA    4095
 #define ADC_TEST_HIGH_THRESH     200
 
+#elif CONFIG_IDF_TARGET_ESP32H4
+#define ADC_TEST_LOW_VAL         2100
+#define ADC_TEST_LOW_THRESH      200
+
+#define ADC_TEST_HIGH_VAL        4095
+#define ADC_TEST_HIGH_VAL_DMA    4095
+#define ADC_TEST_HIGH_THRESH     200
+
+#elif CONFIG_IDF_TARGET_ESP32S31
+#define ADC_TEST_LOW_VAL         2196
+#define ADC_TEST_LOW_THRESH      100
+
+#define ADC_TEST_HIGH_VAL        4393
+#define ADC_TEST_HIGH_VAL_DMA    4393
+#define ADC_TEST_HIGH_THRESH     100
+
 #endif
+
+/**
+ * Loose threshold used in noisy scenarios (e.g. ADC reading while WiFi is on),
+ */
+#define ADC_TEST_LOOSE_THRESH    200
 
 /*---------------------------------------------------------------
         ADC Attenuation
@@ -119,9 +140,18 @@ extern "C" {
 #if CONFIG_IDF_TARGET_ESP32C2
 #define TEST_ATTEN_NUMS                 2
 extern adc_atten_t g_test_atten[TEST_ATTEN_NUMS];
+#elif CONFIG_IDF_TARGET_ESP32S31
+#define TEST_ATTEN_NUMS                 1
+extern adc_atten_t g_test_atten[TEST_ATTEN_NUMS];
 #else
 #define TEST_ATTEN_NUMS                 4
 extern adc_atten_t g_test_atten[TEST_ATTEN_NUMS];
+#endif
+
+#if SOC_ADC_ATTEN_NUM <= 1
+#define TEST_ADC_DRIVER_DEFAULT_ATTEN    ADC_ATTEN_DB_0
+#else
+#define TEST_ADC_DRIVER_DEFAULT_ATTEN    ADC_ATTEN_DB_12
 #endif
 
 /*---------------------------------------------------------------
@@ -179,6 +209,18 @@ void test_adc_set_io_level(adc_unit_t unit, adc_channel_t channel, bool level);
  * @param[in] channel   ADC channel
  */
 void test_adc_set_io_middle(adc_unit_t unit, adc_channel_t channel);
+
+/**
+ * @brief Assert ADC raw value against test expectation
+ *
+ * @param[in] unit          ADC unit
+ * @param[in] channel       ADC channel
+ * @param[in] level         IO level. True: high; False: low
+ * @param[in] raw           ADC raw value
+ * @param[in] dma_mode      Whether to use DMA-mode high-level expectation
+ * @param[in] loose_thresh  When true, use for noisy scenarios such as ADC reading while WiFi is on.
+ */
+void test_assert_adc_raw(adc_unit_t unit, adc_channel_t channel, bool level, int raw, bool dma_mode, bool loose_thresh);
 
 #ifdef __cplusplus
 }

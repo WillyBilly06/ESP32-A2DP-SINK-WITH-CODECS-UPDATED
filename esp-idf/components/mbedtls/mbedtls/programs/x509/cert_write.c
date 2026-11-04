@@ -5,6 +5,17 @@
  *  SPDX-License-Identifier: Apache-2.0 OR GPL-2.0-or-later
  */
 
+/* Tell MSVC that we're ok with using classic C functions even
+ * when an `_s` variant exist. For most functions, the improvements
+ * of the `_s` variants are of limited usefulness and not worth
+ * the portability headaches.
+ */
+#if defined(_MSC_VER) && !defined(_CRT_SECURE_NO_DEPRECATE)
+#define _CRT_SECURE_NO_DEPRECATE 1
+#endif
+
+#define MBEDTLS_DECLARE_PRIVATE_IDENTIFIERS
+
 #include "mbedtls/build_info.h"
 
 #include "mbedtls/platform.h"
@@ -13,14 +24,12 @@
 
 #if !defined(MBEDTLS_X509_CRT_WRITE_C) || \
     !defined(MBEDTLS_X509_CRT_PARSE_C) || !defined(MBEDTLS_FS_IO) || \
-    !defined(MBEDTLS_ENTROPY_C) || !defined(MBEDTLS_CTR_DRBG_C) || \
-    !defined(MBEDTLS_ERROR_C) || !defined(MBEDTLS_MD_CAN_SHA256) || \
+    !defined(MBEDTLS_ERROR_C) || !defined(PSA_WANT_ALG_SHA_256) || \
     !defined(MBEDTLS_PEM_WRITE_C) || !defined(MBEDTLS_MD_C)
 int main(void)
 {
     mbedtls_printf("MBEDTLS_X509_CRT_WRITE_C and/or MBEDTLS_X509_CRT_PARSE_C and/or "
-                   "MBEDTLS_FS_IO and/or MBEDTLS_MD_CAN_SHA256 and/or "
-                   "MBEDTLS_ENTROPY_C and/or MBEDTLS_CTR_DRBG_C and/or "
+                   "MBEDTLS_FS_IO and/or PSA_WANT_ALG_SHA_256 and/or "
                    "MBEDTLS_ERROR_C not defined.\n");
     mbedtls_exit(0);
 }
@@ -29,8 +38,6 @@ int main(void)
 #include "mbedtls/x509_crt.h"
 #include "mbedtls/x509_csr.h"
 #include "mbedtls/oid.h"
-#include "mbedtls/entropy.h"
-#include "mbedtls/ctr_drbg.h"
 #include "mbedtls/error.h"
 #include "test/helpers.h"
 
@@ -204,9 +211,7 @@ struct options {
     int format;                 /* format                               */
 } opt;
 
-static int write_certificate(mbedtls_x509write_cert *crt, const char *output_file,
-                             int (*f_rng)(void *, unsigned char *, size_t),
-                             void *p_rng)
+static int write_certificate(mbedtls_x509write_cert *crt, const char *output_file)
 {
     int ret;
     FILE *f;
@@ -216,8 +221,7 @@ static int write_certificate(mbedtls_x509write_cert *crt, const char *output_fil
 
     memset(output_buf, 0, 4096);
     if (opt.format == FORMAT_DER) {
-        ret = mbedtls_x509write_crt_der(crt, output_buf, 4096,
-                                        f_rng, p_rng);
+        ret = mbedtls_x509write_crt_der(crt, output_buf, 4096);
         if (ret < 0) {
             return ret;
         }
@@ -225,8 +229,7 @@ static int write_certificate(mbedtls_x509write_cert *crt, const char *output_fil
         len = ret;
         output_start = output_buf + 4096 - len;
     } else {
-        ret = mbedtls_x509write_crt_pem(crt, output_buf, 4096,
-                                        f_rng, p_rng);
+        ret = mbedtls_x509write_crt_pem(crt, output_buf, 4096);
         if (ret < 0) {
             return ret;
         }
@@ -308,9 +311,6 @@ int main(int argc, char *argv[])
     unsigned char serial[MBEDTLS_X509_RFC5280_MAX_SERIAL_LEN];
     size_t serial_len;
     mbedtls_asn1_sequence *ext_key_usage;
-    mbedtls_entropy_context entropy;
-    mbedtls_ctr_drbg_context ctr_drbg;
-    const char *pers = "crt example app";
     mbedtls_x509_san_list *cur, *prev;
     uint8_t ip[4] = { 0 };
     /*
@@ -319,8 +319,6 @@ int main(int argc, char *argv[])
     mbedtls_x509write_crt_init(&crt);
     mbedtls_pk_init(&loaded_issuer_key);
     mbedtls_pk_init(&loaded_subject_key);
-    mbedtls_ctr_drbg_init(&ctr_drbg);
-    mbedtls_entropy_init(&entropy);
 #if defined(MBEDTLS_X509_CSR_PARSE_C)
     mbedtls_x509_csr_init(&csr);
 #endif
@@ -328,14 +326,12 @@ int main(int argc, char *argv[])
     memset(buf, 0, sizeof(buf));
     memset(serial, 0, sizeof(serial));
 
-#if defined(MBEDTLS_USE_PSA_CRYPTO)
     psa_status_t status = psa_crypto_init();
     if (status != PSA_SUCCESS) {
         mbedtls_fprintf(stderr, "Failed to initialize PSA Crypto implementation: %d\n",
                         (int) status);
         goto exit;
     }
-#endif /* MBEDTLS_USE_PSA_CRYPTO */
 
     if (argc < 2) {
 usage:
@@ -685,15 +681,6 @@ usage:
     mbedtls_printf("  . Seeding the random number generator...");
     fflush(stdout);
 
-    if ((ret = mbedtls_ctr_drbg_seed(&ctr_drbg, mbedtls_entropy_func, &entropy,
-                                     (const unsigned char *) pers,
-                                     strlen(pers))) != 0) {
-        mbedtls_strerror(ret, buf, sizeof(buf));
-        mbedtls_printf(" failed\n  !  mbedtls_ctr_drbg_seed returned %d - %s\n",
-                       ret, buf);
-        goto exit;
-    }
-
     mbedtls_printf(" ok\n");
 
     // Parse serial to MPI
@@ -787,7 +774,7 @@ usage:
         fflush(stdout);
 
         ret = mbedtls_pk_parse_keyfile(&loaded_subject_key, opt.subject_key,
-                                       opt.subject_pwd, mbedtls_ctr_drbg_random, &ctr_drbg);
+                                       opt.subject_pwd);
         if (ret != 0) {
             mbedtls_strerror(ret, buf, sizeof(buf));
             mbedtls_printf(" failed\n  !  mbedtls_pk_parse_keyfile "
@@ -802,7 +789,7 @@ usage:
     fflush(stdout);
 
     ret = mbedtls_pk_parse_keyfile(&loaded_issuer_key, opt.issuer_key,
-                                   opt.issuer_pwd, mbedtls_ctr_drbg_random, &ctr_drbg);
+                                   opt.issuer_pwd);
     if (ret != 0) {
         mbedtls_strerror(ret, buf, sizeof(buf));
         mbedtls_printf(" failed\n  !  mbedtls_pk_parse_keyfile "
@@ -813,8 +800,7 @@ usage:
     // Check if key and issuer certificate match
     //
     if (strlen(opt.issuer_crt)) {
-        if (mbedtls_pk_check_pair(&issuer_crt.pk, issuer_key,
-                                  mbedtls_ctr_drbg_random, &ctr_drbg) != 0) {
+        if (mbedtls_pk_check_pair(&issuer_crt.pk, issuer_key) != 0) {
             mbedtls_printf(" failed\n  !  issuer_key does not match "
                            "issuer certificate\n\n");
             goto exit;
@@ -889,7 +875,7 @@ usage:
         mbedtls_printf(" ok\n");
     }
 
-#if defined(MBEDTLS_MD_CAN_SHA1)
+#if defined(PSA_WANT_ALG_SHA_1)
     if (opt.version == MBEDTLS_X509_CRT_VERSION_3 &&
         opt.subject_identifier != 0) {
         mbedtls_printf("  . Adding the Subject Key Identifier ...");
@@ -923,7 +909,7 @@ usage:
 
         mbedtls_printf(" ok\n");
     }
-#endif /* MBEDTLS_MD_CAN_SHA1 */
+#endif /* PSA_WANT_ALG_SHA_1 */
 
     if (opt.version == MBEDTLS_X509_CRT_VERSION_3 &&
         opt.key_usage != 0) {
@@ -991,8 +977,7 @@ usage:
     mbedtls_printf("  . Writing the certificate...");
     fflush(stdout);
 
-    if ((ret = write_certificate(&crt, opt.output_file,
-                                 mbedtls_ctr_drbg_random, &ctr_drbg)) != 0) {
+    if ((ret = write_certificate(&crt, opt.output_file)) != 0) {
         mbedtls_strerror(ret, buf, sizeof(buf));
         mbedtls_printf(" failed\n  !  write_certificate -0x%04x - %s\n\n",
                        (unsigned int) -ret, buf);
@@ -1028,14 +1013,10 @@ exit:
     mbedtls_x509write_crt_free(&crt);
     mbedtls_pk_free(&loaded_subject_key);
     mbedtls_pk_free(&loaded_issuer_key);
-    mbedtls_ctr_drbg_free(&ctr_drbg);
-    mbedtls_entropy_free(&entropy);
-#if defined(MBEDTLS_USE_PSA_CRYPTO)
     mbedtls_psa_crypto_free();
-#endif /* MBEDTLS_USE_PSA_CRYPTO */
 
     mbedtls_exit(exit_code);
 }
 #endif /* MBEDTLS_X509_CRT_WRITE_C && MBEDTLS_X509_CRT_PARSE_C &&
-          MBEDTLS_FS_IO && MBEDTLS_ENTROPY_C && MBEDTLS_CTR_DRBG_C &&
+          MBEDTLS_FS_IO
           MBEDTLS_ERROR_C && MBEDTLS_PEM_WRITE_C */

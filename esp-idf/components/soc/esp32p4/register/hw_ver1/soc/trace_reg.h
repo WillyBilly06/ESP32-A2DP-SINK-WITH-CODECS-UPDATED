@@ -1,15 +1,16 @@
 /**
- * SPDX-FileCopyrightText: 2023-2024 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2023-2025 Espressif Systems (Shanghai) CO LTD
  *
- *  SPDX-License-Identifier: Apache-2.0
+ *  SPDX-License-Identifier: Apache-2.0 OR MIT
  */
 #pragma once
 
-#include <stdint.h>
 #include "soc/soc.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+#define REG_TRACE_BASE(i)                       (DR_REG_TRACE_BASE + (i) * 0x1000)
 
 /** TRACE_MEM_START_ADDR_REG register
  *  mem start addr

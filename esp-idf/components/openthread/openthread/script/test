@@ -68,6 +68,9 @@ readonly VERBOSE
 BORDER_ROUTING="${BORDER_ROUTING:-1}"
 readonly BORDER_ROUTING
 
+DISCOVERY_PROXY="${DISCOVERY_PROXY:-1}"
+readonly DISCOVERY_PROXY
+
 NAT64="${NAT64:-0}"
 readonly NAT64
 
@@ -122,7 +125,6 @@ build_simulation()
     fi
 
     if [[ ${version} != "1.1" ]]; then
-        options+=("-DOT_DUA=ON")
         options+=("-DOT_MLR=ON")
     fi
 
@@ -161,20 +163,11 @@ build_simulation()
 
     OT_CMAKE_BUILD_DIR="${OT_BUILDDIR}/openthread-simulation-${version}" "${OT_SRCDIR}"/script/cmake-build simulation "${options[@]}"
 
-    if [[ ${VIRTUAL_TIME} == 1 ]] && [[ ${OT_NODE_TYPE} == rcp* ]]; then
-        OT_CMAKE_NINJA_TARGET=ot-rcp OT_CMAKE_BUILD_DIR="${OT_BUILDDIR}/openthread-simulation-${version}" "${OT_SRCDIR}"/script/cmake-build simulation "${options[@]}" "-DOT_SIMULATION_VIRTUAL_TIME_UART=ON"
-    fi
-
     if [[ ${version} != "1.1" && ${INTER_OP_BBR} == 1 ]]; then
 
         options+=("-DOT_BACKBONE_ROUTER=ON")
 
         OT_CMAKE_BUILD_DIR="${OT_BUILDDIR}/openthread-simulation-${version}-bbr" "${OT_SRCDIR}"/script/cmake-build simulation "${options[@]}"
-
-        if [[ ${VIRTUAL_TIME} == 1 ]] && [[ ${OT_NODE_TYPE} == rcp* ]]; then
-            OT_CMAKE_NINJA_TARGET=ot-rcp OT_CMAKE_BUILD_DIR="${OT_BUILDDIR}/openthread-simulation-${version}-bbr" "${OT_SRCDIR}"/script/cmake-build simulation "${options[@]}" "-DOT_SIMULATION_VIRTUAL_TIME_UART=ON"
-        fi
-
     fi
 }
 
@@ -190,7 +183,6 @@ build_posix()
     )
 
     if [[ ${version} != "1.1" ]]; then
-        options+=("-DOT_DUA=ON")
         options+=("-DOT_MLR=ON")
         options+=("-DOT_LINK_METRICS_INITIATOR=ON")
         options+=("-DOT_LINK_METRICS_SUBJECT=ON")
@@ -323,7 +315,7 @@ do_cert_suite()
     sudo modprobe ip6table_filter
 
     mkdir -p ot_testing
-    ./tests/scripts/thread-cert/run_cert_suite.py --run-directory ot_testing --multiply "${MULTIPLY:-1}" "$@"
+    ./tests/scripts/thread-cert/run_cert_suite.py --run-directory ot_testing --multiply "${MULTIPLY:-1}" --timeout "${TEST_TIMEOUT:-0}" "$@"
     exit 0
 }
 
@@ -352,19 +344,17 @@ do_build_otbr_docker()
         "-DOT_ANYCAST_LOCATOR=ON"
         "-DOT_COVERAGE=ON"
         "-DOT_DNS_CLIENT=ON"
-        "-DOT_DUA=ON"
         "-DOT_MLR=ON"
         "-DOT_NETDATA_PUBLISHER=ON"
         "-DOT_SLAAC=ON"
         "-DOT_SRP_CLIENT=ON"
         "-DOT_FULL_LOGS=ON"
         "-DOT_UPTIME=ON"
-        "-DOTBR_DNS_UPSTREAM_QUERY=ON"
-        "-DOTBR_DUA_ROUTING=ON"
         "-DOTBR_DHCP6_PD=ON"
     )
     local args=(
         "BORDER_ROUTING=${BORDER_ROUTING}"
+        "DISCOVERY_PROXY=${DISCOVERY_PROXY}"
         "INFRA_IF_NAME=eth0"
         "BACKBONE_ROUTER=1"
         "REFERENCE_DEVICE=1"
@@ -401,7 +391,7 @@ do_build_otbr_docker()
 
     (
         if [[ -z ${LOCAL_OTBR_DIR} ]]; then
-            ./script/git-tool clone https://github.com/openthread/ot-br-posix.git --depth 1 "${otbrdir}"
+            ./script/git-tool clone https://github.com/openthread/ot-br-posix.git --depth 1 --recurse-submodules --shallow-submodules "${otbrdir}"
         else
             rsync -r \
                 --exclude=third_party/openthread/repo \

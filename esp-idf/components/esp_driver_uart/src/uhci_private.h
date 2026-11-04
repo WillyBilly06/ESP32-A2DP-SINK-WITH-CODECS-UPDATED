@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2025 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2025-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -14,6 +14,7 @@
 #include "esp_private/periph_ctrl.h"
 #include "esp_pm.h"
 #include "sdkconfig.h"
+#include "driver/uhci.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -32,21 +33,10 @@ typedef struct uhci_controller_t uhci_controller_t;
 #define UHCI_MEM_ALLOC_CAPS     (MALLOC_CAP_DEFAULT)
 #endif
 
-#if SOC_PERIPH_CLK_CTRL_SHARED
-#define UHCI_CLOCK_SRC_ATOMIC() PERIPH_RCC_ATOMIC()
-#else
-#define UHCI_CLOCK_SRC_ATOMIC()
-#endif
-
-#if !SOC_RCC_IS_INDEPENDENT
-#define UHCI_RCC_ATOMIC() PERIPH_RCC_ATOMIC()
-#else
-#define UHCI_RCC_ATOMIC()
-#endif
-
 typedef struct {
-    void *buffer;               // buffer for saving the received symbols
-    size_t buffer_size;         // size of the buffer, in bytes
+    size_t total_size;                      // sum of all buffer segment sizes in this transaction, in bytes
+    size_t buf_info_count;                  // number of valid entries in buf_info actually used by the current transaction
+    uhci_transmit_buffer_info_t buf_info[]; // flexible array member, storage for this transaction's buffer segments. Its capacity is tx_dir.max_buf_count.
 } uhci_transaction_desc_t;
 
 typedef enum {
@@ -54,6 +44,7 @@ typedef enum {
     UHCI_TX_FSM_ENABLE,      /**< FSM is enabling the UHCI system. */
     UHCI_TX_FSM_RUN_WAIT,    /**< FSM is waiting to transition to the running state. */
     UHCI_TX_FSM_RUN,         /**< FSM is in the running state, actively handling UHCI operations. */
+    UHCI_TX_FSM_DELETE,      /**< FSM is claimed by uhci_del_controller() for teardown, no new transaction is accepted. */
 } uhci_tx_fsm_t;
 
 typedef enum {
@@ -68,6 +59,7 @@ typedef enum {
     UHCI_RX_FSM_ENABLE,      /**< FSM is enabling the UHCI system. */
     UHCI_RX_FSM_RUN_WAIT,    /**< FSM is waiting to transition to the running state. */
     UHCI_RX_FSM_RUN,         /**< FSM is in the running state, actively handling UHCI operations. */
+    UHCI_RX_FSM_DELETE,      /**< FSM is claimed by uhci_del_controller() for teardown, no new transaction is accepted. */
 } uhci_rx_fsm_t;
 
 typedef struct {
@@ -81,6 +73,9 @@ typedef struct {
     size_t int_mem_align;                               // Alignment for internal memory
     size_t ext_mem_align;                               // Alignment for external memory
     atomic_int num_trans_inflight;                      // Indicates the number of transactions that are undergoing but not recycled to ready_queue
+    size_t max_transmit_size;                           // per-transaction max total size in bytes, from config->max_transmit_size; the DMA node pool is sized for this
+    size_t max_buf_count;                               // per-transaction max buffer segment count, from config->max_transmit_buffer_count (at least 1)
+    gdma_buffer_mount_config_t *mount_configs;          // scratch array (capacity max_buf_count) reused by every transmit to mount buffer segments; avoids a VLA in ISR context
 } uhci_tx_dir;
 
 typedef struct {
@@ -105,8 +100,10 @@ struct uhci_controller_t {
     void *user_data;                                    // user data
     size_t int_mem_cache_line_size;                     // internal memory cache line size
     size_t ext_mem_cache_line_size;                     // external memory cache line size
+#if CONFIG_PM_ENABLE
     esp_pm_lock_handle_t pm_lock;                       // power management lock
     char pm_lock_name[UHCI_PM_LOCK_NAME_LEN_MAX];       // pm lock name
+#endif
 };
 
 #ifdef __cplusplus

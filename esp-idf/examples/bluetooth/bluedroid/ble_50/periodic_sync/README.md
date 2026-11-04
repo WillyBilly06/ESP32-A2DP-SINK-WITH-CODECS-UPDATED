@@ -1,5 +1,5 @@
-| Supported Targets | ESP32-C2 | ESP32-C3 | ESP32-C5 | ESP32-C6 | ESP32-C61 | ESP32-H2 | ESP32-S3 |
-| ----------------- | -------- | -------- | -------- | -------- | --------- | -------- | -------- |
+| Supported Targets | ESP32-C2 | ESP32-C3 | ESP32-C5 | ESP32-C6 | ESP32-C61 | ESP32-H2 | ESP32-H21 | ESP32-H4 | ESP32-S3 | ESP32-S31 |
+| ----------------- | -------- | -------- | -------- | -------- | --------- | -------- | --------- | -------- | -------- | --------- |
 
 # ESP-IDF Periodic Sync Example
 
@@ -7,7 +7,7 @@ This example supports the periodic extended scan to scan the extended advertisem
 
 To test this demo, we can run the [periodic_adv_demo](../periodic_adv), which can start extended advertisement with supported param.
 
-Please, check this [tutorial](tutorial/Periodic_Sync_Example_Walkthrough.md) for more information about this example.
+Please check this [tutorial](tutorial/Periodic_Sync_Example_Walkthrough.md) for more information about this example.
 
 ## How to Use Example
 

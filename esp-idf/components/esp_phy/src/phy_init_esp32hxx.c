@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2015-2025 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2015-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -9,12 +9,17 @@
 #include "esp_phy_init.h"
 #include "esp_private/phy.h"
 #include "esp_timer.h"
+#include "esp_private/periph_ctrl.h"
 
 #if SOC_MODEM_CLOCK_IS_INDEPENDENT
 #include "esp_private/esp_modem_clock.h"
 #endif
+#include "phy_init_deps.h"
 
-#define PHY_ENABLE_VERSION_PRINT 1
+#ifndef PHY_INIT_MODEM_CLOCK_REQUIRED_BITS
+#warning "PHY_INIT_MODEM_CLOCK_REQUIRED_BITS not defined; using default value 0"
+#define PHY_INIT_MODEM_CLOCK_REQUIRED_BITS 0
+#endif
 
 static DRAM_ATTR portMUX_TYPE s_phy_int_mux = portMUX_INITIALIZER_UNLOCKED;
 
@@ -106,9 +111,16 @@ void esp_phy_enable(esp_phy_modem_t modem)
 #if SOC_MODEM_CLOCK_IS_INDEPENDENT
         modem_clock_module_enable(PERIPH_PHY_MODULE);
 #endif
+        phy_module_enable();
+        assert(phy_module_has_clock_bits(PHY_INIT_MODEM_CLOCK_REQUIRED_BITS));
         if (!s_phy_is_enabled) {
             register_chipv7_phy(NULL, NULL, PHY_RF_CAL_FULL);
+#if CONFIG_ESP_PHY_ENABLE_VERSION_PRINT
             phy_version_print();
+#endif
+#if CONFIG_ESP_PHY_PLL_TRACK_TEMP_DEBUG
+            phy_track_temp_debug(CONFIG_ESP_PHY_PLL_TRACK_TEMP_DEBUG_FLAG, CONFIG_ESP_PHY_PLL_TRACK_TEMP_DELTA);
+#endif
             s_phy_is_enabled = true;
         } else {
             phy_wakeup_init();
@@ -116,6 +128,7 @@ void esp_phy_enable(esp_phy_modem_t modem)
 #if !CONFIG_ESP_PHY_DISABLE_PLL_TRACK
         phy_track_pll_init();
 #endif
+        phy_module_disable();
     }
     phy_set_modem_flag(modem);
     // Immediately track pll when phy enabled.
@@ -143,6 +156,7 @@ void esp_phy_disable(esp_phy_modem_t modem)
 #endif
         phy_close_rf();
         phy_xpd_tsens();
+        phy_wait_freq_hw_hop_done();
 #if SOC_MODEM_CLOCK_IS_INDEPENDENT
         modem_clock_module_disable(PERIPH_PHY_MODULE);
 #endif

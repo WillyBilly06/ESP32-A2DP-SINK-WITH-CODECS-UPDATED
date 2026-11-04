@@ -1,34 +1,33 @@
-# SPDX-FileCopyrightText: 2024-2025 Espressif Systems (Shanghai) CO LTD
+# SPDX-FileCopyrightText: 2024-2026 Espressif Systems (Shanghai) CO LTD
 # SPDX-License-Identifier: Apache-2.0
 import sys
 import uuid
 from typing import Any
-from typing import Dict
-from typing import Optional
-from typing import Tuple
 
-import click
+from rich_click import Context
+
 from idf_py_actions.tools import PropertyDict
 from idf_py_actions.tools import RunTool
 from idf_py_actions.tools import yellow_print
 
 
-def diag(action: str,
-         ctx: click.core.Context,
-         args: PropertyDict,
-         debug: bool,
-         log_prefix: bool,
-         force: bool,
-         no_color: bool,
-         zip_directory: Optional[str],
-         list_recipes: bool,
-         check_recipes: bool,
-         cmdl_recipes: Tuple,
-         cmdl_tags: Tuple,
-         purge_file: Optional[str],
-         append: bool,
-         output: Optional[str]) -> None:
-
+def diag(
+    action: str,
+    ctx: Context,
+    args: PropertyDict,
+    debug: bool,
+    log_prefix: bool,
+    force: bool,
+    no_color: bool,
+    zip_directory: str | None,
+    list_recipes: bool,
+    check_recipes: bool,
+    cmdl_recipes: tuple,
+    cmdl_tags: tuple,
+    purge_file: str | None,
+    append: bool,
+    output: str | None,
+) -> None:
     diag_args: list = [sys.executable, '-m', 'esp_idf_diag']
 
     def add_common_arguments(diag_args: list) -> None:
@@ -100,6 +99,15 @@ def diag(action: str,
             diag_args += ['--force']
         if purge_file:
             diag_args += ['--purge', purge_file]
+        if args.port:
+            diag_args += ['--port', args.port]
+        else:
+            yellow_print(
+                'The target serial port is not specified, so '
+                'autodetection will be used. To set it manually, use '
+                'the "--port" option. Example: "idf.py --port '
+                '/dev/ttyUSB0 diag".'
+            )
 
     try:
         RunTool('idf_diag', diag_args, args.project_dir, hints=not args.no_hints)()
@@ -108,18 +116,16 @@ def diag(action: str,
 
     if command == 'create':
         yellow_print(
-            (
-                f'Please make sure to thoroughly check it for any sensitive '
-                f'information before sharing and remove files you do not want '
-                f'to share. Kindly include any additional files you find '
-                f'relevant that were not automatically added. Please archive '
-                f'the contents of the final report directory using the command:\n'
-                f'"idf.py diag --zip {output}".'
-            )
+            f'Please make sure to thoroughly check it for any sensitive '
+            f'information before sharing and remove files you do not want '
+            f'to share. Kindly include any additional files you find '
+            f'relevant that were not automatically added. Please archive '
+            f'the contents of the final report directory using the command:\n'
+            f'"idf.py diag --zip {output}".'
         )
 
 
-def action_extensions(base_actions: Dict, project_path: str) -> Any:
+def action_extensions(base_actions: dict, project_path: str) -> Any:
     return {
         'actions': {
             'diag': {
@@ -161,24 +167,30 @@ def action_extensions(base_actions: Dict, project_path: str) -> Any:
                         'multiple': True,
                         'metavar': 'RECIPE',
                         'type': str,
-                        'help': ('Recipe to use. This option can be specified multiple times. '
-                                 'By default, all built-in recipes are used. RECIPE refers to '
-                                 'the recipe file path or the file name stem for built-in recipes.'),
+                        'help': (
+                            'Recipe to use. This option can be specified multiple times. '
+                            'By default, all built-in recipes are used. RECIPE refers to '
+                            'the recipe file path or the file name stem for built-in recipes.'
+                        ),
                     },
                     {
                         'names': ['-t', '--tag', 'cmdl_tags'],
                         'multiple': True,
                         'metavar': 'TAG',
                         'type': str,
-                        'help': ('Consider only recipes containing TAG. This option can be specified '
-                                 'multiple times. By default, all recipes are used. Use -l/--list-recipes '
-                                 'option to see recipe TAG information.'),
+                        'help': (
+                            'Consider only recipes containing TAG. This option can be specified '
+                            'multiple times. By default, all recipes are used. Use -l/--list-recipes '
+                            'option to see recipe TAG information.'
+                        ),
                     },
                     {
                         'names': ['-a', '--append'],
                         'is_flag': True,
-                        'help': ('Use recipes specified with the -r/--recipe option in '
-                                 'combination with the built-in recipes.'),
+                        'help': (
+                            'Use recipes specified with the -r/--recipe option in '
+                            'combination with the built-in recipes.'
+                        ),
                     },
                     {
                         'names': ['-f', '--force'],
@@ -189,16 +201,18 @@ def action_extensions(base_actions: Dict, project_path: str) -> Any:
                         'names': ['-o', '--output'],
                         'metavar': 'PATH',
                         'type': str,
-                        'help': ('Diagnostic report directory PATH or zip file archive PATH. '
-                                 'If not specified, the report-UUID is used as the report directory, '
-                                 'and the report directory specified with the --zip option with a zip '
-                                 'extension is used for the zip file archive.')
+                        'help': (
+                            'Diagnostic report directory PATH or zip file archive PATH. '
+                            'If not specified, the report-UUID is used as the report directory, '
+                            'and the report directory specified with the --zip option with a zip '
+                            'extension is used for the zip file archive.'
+                        ),
                     },
                     {
                         'names': ['-p', '--purge', 'purge_file'],
                         'metavar': 'PATH',
                         'type': str,
-                        'help': ('Use a custom purge file to remove sensitive information from the report.')
+                        'help': ('Use a custom purge file to remove sensitive information from the report.'),
                     },
                 ],
             },

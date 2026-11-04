@@ -21,6 +21,7 @@
 
 #include "os/mynewt.h"
 #include "ble_hs_priv.h"
+#include "host/ble_hs_log.h"
 
 static struct ble_hs_stop_listener ble_hs_shutdown_stop_listener;
 
@@ -30,7 +31,14 @@ static struct ble_hs_stop_listener ble_hs_shutdown_stop_listener;
 static void
 ble_hs_shutdown_stop_cb(int status, void *arg)
 {
+    (void)arg;
+
     SYSDOWN_ASSERT_ACTIVE();
+
+    if (status != 0) {
+        BLE_HS_LOG(ERROR, "ble_hs_shutdown: stop completed with error; "
+                          "status=%d\n", status);
+    }
 
     /* Indicate to sysdown that the host is fully shut down. */
     sysdown_release();
@@ -40,6 +48,8 @@ int
 ble_hs_shutdown(int reason)
 {
     int rc;
+
+    (void)reason;
 
     /* Ensure this function only gets called by sysdown. */
     SYSDOWN_ASSERT_ACTIVE();
@@ -54,6 +64,7 @@ ble_hs_shutdown(int reason)
 
     case BLE_HS_EBUSY:
         /* Already stopping.  Wait for result to be reported asynchronously. */
+        /* Note: ble_hs_stop() currently remaps EBUSY to 0 internally; kept here for robustness if the API changes. */
         return SYSDOWN_IN_PROGRESS;
 
     case BLE_HS_EALREADY:
@@ -61,8 +72,13 @@ ble_hs_shutdown(int reason)
         return SYSDOWN_COMPLETE;
 
     default:
+        /* If ble_hs_stop() failed after initiating the stop procedure, the
+         * callback has already been (or will be) called, so we must return
+         * SYSDOWN_IN_PROGRESS to remain consistent with the sysdown_release()
+         * call.
+         */
         BLE_HS_LOG(ERROR, "ble_hs_shutdown: failed to stop host; rc=%d\n", rc);
-        return SYSDOWN_COMPLETE;
+        return SYSDOWN_IN_PROGRESS;
     }
 }
 

@@ -1,48 +1,20 @@
 /*
- * SPDX-FileCopyrightText: 2021-2024 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2021-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <stdlib.h>
-#include <string.h>
-#include <sys/cdefs.h>
-#include <sys/param.h>
-#include <sys/queue.h>
-#include "sdkconfig.h"
-#if CONFIG_LCD_ENABLE_DEBUG_LOG
-// The local log level must be defined before including esp_log.h
-// Set the maximum log level for this source file
-#define LOG_LOCAL_LEVEL ESP_LOG_DEBUG
-#endif
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
-#include "freertos/queue.h"
-#include "esp_attr.h"
-#include "esp_check.h"
-#include "esp_pm.h"
-#include "esp_lcd_panel_io_interface.h"
-#include "esp_lcd_panel_io.h"
-#include "esp_rom_gpio.h"
-#include "soc/soc_caps.h"
-#include "esp_clk_tree.h"
-#include "esp_memory_utils.h"
-#include "esp_cache.h"
-#include "driver/gpio.h"
-#include "esp_private/esp_clk_tree_common.h"
-#include "esp_private/gpio.h"
+#include "i80_io_priv.h"
 #include "esp_private/gdma.h"
-#include "esp_private/gdma_link.h"
-#include "esp_private/esp_dma_utils.h"
-#include "esp_private/periph_ctrl.h"
-#include "esp_lcd_common.h"
-#include "soc/lcd_periph.h"
-#include "soc/io_mux_reg.h"
-#include "soc/gpio_sig_map.h"
 #include "hal/lcd_ll.h"
 #include "hal/lcd_hal.h"
 #include "hal/cache_ll.h"
 #include "hal/cache_hal.h"
+#include "esp_private/sleep_retention.h"
+#include "esp_sleep.h"
+
+// Use retention link only when the target supports sleep retention is enabled
+#define I80_USE_RETENTION_LINK  (SOC_LCDCAM_LCD_SUPPORT_SLEEP_RETENTION && CONFIG_PM_POWER_DOWN_PERIPHERAL_IN_LIGHT_SLEEP)
 
 #if defined(SOC_GDMA_TRIG_PERIPH_LCD0_BUS) && (SOC_GDMA_TRIG_PERIPH_LCD0_BUS == SOC_GDMA_BUS_AHB)
 #define LCD_GDMA_NEW_CHANNEL gdma_new_ahb_channel
@@ -54,17 +26,20 @@
 #error "Unsupported GDMA bus type for LCD i80"
 #endif
 
-#if SOC_NON_CACHEABLE_OFFSET
-#define LCD_CACHE_ADDR_TO_NON_CACHE_ADDR(addr) ((addr) + SOC_NON_CACHEABLE_OFFSET)
+#if SOC_NON_CACHEABLE_OFFSET_SRAM
+#define LCD_SRAM_CACHE_ADDR_TO_NON_CACHE_ADDR(addr) ((addr) + SOC_NON_CACHEABLE_OFFSET_SRAM)
 #else
-#define LCD_CACHE_ADDR_TO_NON_CACHE_ADDR(addr) (addr)
+#define LCD_SRAM_CACHE_ADDR_TO_NON_CACHE_ADDR(addr) (addr)
 #endif
-
-static const char *TAG = "lcd_panel.io.i80";
 
 typedef struct esp_lcd_i80_bus_t esp_lcd_i80_bus_t;
 typedef struct lcd_panel_io_i80_t lcd_panel_io_i80_t;
 typedef struct lcd_i80_trans_descriptor_t lcd_i80_trans_descriptor_t;
+
+#if I80_USE_RETENTION_LINK
+static esp_err_t lcd_i80_create_sleep_retention_link_cb(void *arg);
+static void lcd_i80_create_retention_module(esp_lcd_i80_bus_t *bus);
+#endif // I80_USE_RETENTION_LINK
 
 static esp_err_t panel_io_i80_tx_param(esp_lcd_panel_io_t *io, int lcd_cmd, const void *param, size_t param_size);
 static esp_err_t panel_io_i80_tx_color(esp_lcd_panel_io_t *io, int lcd_cmd, const void *color, size_t color_size);
@@ -84,10 +59,13 @@ struct esp_lcd_i80_bus_t {
     lcd_hal_context_t hal; // Hal object
     size_t bus_width;      // Number of data lines
     intr_handle_t intr;    // LCD peripheral interrupt handle
+#if CONFIG_PM_ENABLE
     esp_pm_lock_handle_t pm_lock; // Power management lock
+#endif
     uint8_t *format_buffer;  // The driver allocates an internal buffer for DMA to do data format transformer
     uint8_t *format_buffer_nc; // Non-cacheable version of format buffer
     size_t resolution_hz;    // LCD_CLK resolution, determined by selected clock source
+    soc_module_clk_t clk_src; // peripheral clock source, SOC_MOD_CLK_INVALID if not enabled
     size_t max_transfer_bytes; // Maximum number of bytes that can be transferred in one transaction
     gdma_channel_handle_t dma_chan; // DMA channel handle
     gdma_link_list_handle_t dma_link; // DMA link list handle
@@ -114,7 +92,7 @@ struct lcd_i80_trans_descriptor_t {
 struct lcd_panel_io_i80_t {
     esp_lcd_panel_io_t base;   // Base class of generic lcd panel io
     esp_lcd_i80_bus_t *bus;    // Which bus the device is attached to
-    int cs_gpio_num;           // GPIO used for CS line
+    gpio_num_t cs_gpio_num;    // GPIO used for CS line
     unsigned int pclk_hz;      // PCLK clock frequency
     size_t clock_prescale;     // Prescaler coefficient, determined by user's configured PCLK frequency
     QueueHandle_t trans_queue; // Transaction queue, transactions in this queue are pending for scheduler to dispatch
@@ -144,20 +122,25 @@ struct lcd_panel_io_i80_t {
 
 esp_err_t esp_lcd_new_i80_bus(const esp_lcd_i80_bus_config_t *bus_config, esp_lcd_i80_bus_handle_t *ret_bus)
 {
-#if CONFIG_LCD_ENABLE_DEBUG_LOG
-    esp_log_level_set(TAG, ESP_LOG_DEBUG);
-#endif
     esp_err_t ret = ESP_OK;
     esp_lcd_i80_bus_t *bus = NULL;
     ESP_RETURN_ON_FALSE(bus_config && ret_bus, ESP_ERR_INVALID_ARG, TAG, "invalid argument");
     // although LCD_CAM can support up to 24 data lines, we restrict users to only use 8 or 16 bit width
     ESP_RETURN_ON_FALSE(bus_config->bus_width == 8 || bus_config->bus_width == 16, ESP_ERR_INVALID_ARG,
                         TAG, "invalid bus width:%d", bus_config->bus_width);
+#if !SOC_LCDCAM_LCD_SUPPORT_SLEEP_RETENTION
+    ESP_RETURN_ON_FALSE(bus_config->flags.allow_pd == 0, ESP_ERR_NOT_SUPPORTED, TAG, "register back up is not supported");
+#if SOC_PM_SUPPORT_TOP_PD
+    esp_sleep_pd_config(ESP_PD_DOMAIN_TOP, ESP_PD_OPTION_ON); //IDF-15652
+#endif
+#endif // SOC_LCDCAM_LCD_SUPPORT_SLEEP_RETENTION
+
     // allocate i80 bus memory
     bus = heap_caps_calloc(1, sizeof(esp_lcd_i80_bus_t), LCD_I80_MEM_ALLOC_CAPS);
     ESP_GOTO_ON_FALSE(bus, ESP_ERR_NO_MEM, err, TAG, "no mem for i80 bus");
     bus->bus_width = bus_config->bus_width;
     bus->bus_id = -1;
+    bus->clk_src = SOC_MOD_CLK_INVALID;
     // allocate the format buffer from internal memory, with DMA capability
     bus->format_buffer = heap_caps_calloc(1, LCD_I80_IO_FORMAT_BUF_SIZE,
                                           MALLOC_CAP_8BIT | MALLOC_CAP_INTERNAL | MALLOC_CAP_DMA);
@@ -167,33 +150,59 @@ esp_err_t esp_lcd_new_i80_bus(const esp_lcd_i80_bus_config_t *bus_config, esp_lc
         esp_cache_msync(bus->format_buffer, LCD_I80_IO_FORMAT_BUF_SIZE,
                         ESP_CACHE_MSYNC_FLAG_DIR_C2M | ESP_CACHE_MSYNC_FLAG_UNALIGNED);
     }
-    bus->format_buffer_nc = LCD_CACHE_ADDR_TO_NON_CACHE_ADDR(bus->format_buffer);
+    bus->format_buffer_nc = LCD_SRAM_CACHE_ADDR_TO_NON_CACHE_ADDR(bus->format_buffer);
     // register to platform
     int bus_id = lcd_com_register_device(LCD_COM_DEVICE_TYPE_I80, bus);
     ESP_GOTO_ON_FALSE(bus_id >= 0, ESP_ERR_NOT_FOUND, err, TAG, "no free i80 bus slot");
     bus->bus_id = bus_id;
     // enable APB to access LCD registers
-    PERIPH_RCC_ACQUIRE_ATOMIC(lcd_periph_i80_signals.buses[bus_id].module, ref_count) {
+    PERIPH_RCC_ACQUIRE_ATOMIC(soc_lcd_i80_signals[bus_id].module, ref_count) {
         if (ref_count == 0) {
             lcd_ll_enable_bus_clock(bus_id, true);
             lcd_ll_reset_register(bus_id);
         }
     }
+#if I80_USE_RETENTION_LINK
+    // no need to acquire mutex, because the bus is exclusive
+    sleep_retention_module_t module_id = soc_i80_lcd_retention_info[bus_id].retention_module;
+    sleep_retention_module_init_param_t init_param = {
+        .cbs = {
+            .create = {
+                .handle = lcd_i80_create_sleep_retention_link_cb,
+                .arg = bus,
+            },
+        },
+        .attribute = SLEEP_RETENTION_MODULE_ATTR_ATTACH,
+        .depends = RETENTION_MODULE_BITMAP_INIT(CLOCK_SYSTEM)
+    };
+    if (sleep_retention_module_init(module_id, &init_param) != ESP_OK) {
+        // even though the sleep retention module init failed, LCD driver should still work, so just warning here
+        ESP_LOGW(TAG, "init sleep retention failed, power domain may be turned off during sleep");
+    }
+    if (bus_config->flags.allow_pd) {
+        lcd_i80_create_retention_module(bus);
+    }
+#endif // I80_USE_RETENTION_LINK
     // initialize HAL layer, so we can call LL APIs later
     lcd_hal_init(&bus->hal, bus_id);
-    LCD_CLOCK_SRC_ATOMIC() {
+    PERIPH_RCC_ATOMIC() {
         lcd_ll_enable_clock(bus->hal.dev, true);
     }
     // set peripheral clock resolution
-    ret = lcd_i80_select_periph_clock(bus, bus_config->clk_src);
-    ESP_GOTO_ON_ERROR(ret, err, TAG, "select periph clock %d failed", bus_config->clk_src);
+    lcd_clock_source_t clk_src = bus_config->clk_src;
+    // if user doesn't specify a clock source, use the default one
+    if (clk_src == 0) {
+        clk_src = LCD_CLK_SRC_DEFAULT;
+    }
+    ret = lcd_i80_select_periph_clock(bus, clk_src);
+    ESP_GOTO_ON_ERROR(ret, err, TAG, "select periph clock %d failed", clk_src);
     // reset peripheral and FIFO after we select a correct clock source
     lcd_ll_reset(bus->hal.dev);
     lcd_ll_fifo_reset(bus->hal.dev);
     // install interrupt service, (LCD peripheral shares the same interrupt source with Camera peripheral with different mask)
     // interrupt is disabled by default
     int isr_flags = LCD_I80_INTR_ALLOC_FLAGS | ESP_INTR_FLAG_SHARED | ESP_INTR_FLAG_LOWMED;
-    ret = esp_intr_alloc_intrstatus(lcd_periph_i80_signals.buses[bus_id].irq_id, isr_flags,
+    ret = esp_intr_alloc_intrstatus(soc_lcd_i80_signals[bus_id].irq_id, isr_flags,
                                     (uint32_t)lcd_ll_get_interrupt_status_reg(bus->hal.dev),
                                     LCD_LL_EVENT_I80, i80_lcd_default_isr_handler, bus, &bus->intr);
     ESP_GOTO_ON_ERROR(ret, err, TAG, "install interrupt failed");
@@ -207,8 +216,8 @@ esp_err_t esp_lcd_new_i80_bus(const esp_lcd_i80_bus_config_t *bus_config, esp_lc
     ESP_GOTO_ON_ERROR(ret, err, TAG, "install DMA failed");
     // disable RGB-LCD mode
     lcd_ll_enable_rgb_mode(bus->hal.dev, false);
-    // disable YUV-RGB converter
-    lcd_ll_enable_rgb_yuv_convert(bus->hal.dev, false);
+    // disable color converter
+    lcd_ll_enable_color_convert(bus->hal.dev, false);
     // set how much data to read from DMA each time
     lcd_ll_set_dma_read_stride(bus->hal.dev, bus->bus_width);
     // sometime, we need to change the output data order: ABAB->BABA
@@ -245,7 +254,7 @@ err:
             gdma_del_link_list(bus->dma_link);
         }
         if (bus->bus_id >= 0) {
-            PERIPH_RCC_RELEASE_ATOMIC(lcd_periph_i80_signals.buses[bus->bus_id].module, ref_count) {
+            PERIPH_RCC_RELEASE_ATOMIC(soc_lcd_i80_signals[bus->bus_id].module, ref_count) {
                 if (ref_count == 0) {
                     lcd_ll_enable_bus_clock(bus->bus_id, false);
                 }
@@ -255,9 +264,15 @@ err:
         if (bus->format_buffer) {
             free(bus->format_buffer);
         }
+        if (bus->clk_src != SOC_MOD_CLK_INVALID) {
+            esp_clk_tree_enable_src(bus->clk_src, false);
+            bus->clk_src = SOC_MOD_CLK_INVALID;
+        }
+#if CONFIG_PM_ENABLE
         if (bus->pm_lock) {
             esp_pm_lock_delete(bus->pm_lock);
         }
+#endif
         free(bus);
     }
     return ret;
@@ -269,8 +284,26 @@ esp_err_t esp_lcd_del_i80_bus(esp_lcd_i80_bus_handle_t bus)
     ESP_GOTO_ON_FALSE(bus, ESP_ERR_INVALID_ARG, err, TAG, "invalid argument");
     ESP_GOTO_ON_FALSE(LIST_EMPTY(&bus->device_list), ESP_ERR_INVALID_STATE, err, TAG, "device list not empty");
     int bus_id = bus->bus_id;
+    PERIPH_RCC_ATOMIC() {
+        lcd_ll_enable_clock(bus->hal.dev, false);
+    }
+    if (bus->clk_src != SOC_MOD_CLK_INVALID) {
+        esp_clk_tree_enable_src(bus->clk_src, false);
+        bus->clk_src = SOC_MOD_CLK_INVALID;
+    }
+#if I80_USE_RETENTION_LINK
+    const periph_retention_module_t module_id = soc_i80_lcd_retention_info[bus_id].retention_module;
+    sleep_retention_module_detach(module_id);
+    if (sleep_retention_is_module_created(module_id)) {
+        assert(sleep_retention_is_module_inited(module_id));
+        sleep_retention_module_free(module_id);
+    }
+    if (sleep_retention_is_module_inited(module_id)) {
+        sleep_retention_module_deinit(module_id);
+    }
+#endif // I80_USE_RETENTION_LINK
     lcd_com_remove_device(LCD_COM_DEVICE_TYPE_I80, bus_id);
-    PERIPH_RCC_RELEASE_ATOMIC(lcd_periph_i80_signals.buses[bus_id].module, ref_count) {
+    PERIPH_RCC_RELEASE_ATOMIC(soc_lcd_i80_signals[bus_id].module, ref_count) {
         if (ref_count == 0) {
             lcd_ll_enable_bus_clock(bus_id, false);
         }
@@ -279,9 +312,11 @@ esp_err_t esp_lcd_del_i80_bus(esp_lcd_i80_bus_handle_t bus)
     gdma_del_channel(bus->dma_chan);
     esp_intr_free(bus->intr);
     free(bus->format_buffer);
+#if CONFIG_PM_ENABLE
     if (bus->pm_lock) {
         esp_pm_lock_delete(bus->pm_lock);
     }
+#endif
     gdma_del_link_list(bus->dma_link);
     free(bus);
     ESP_LOGD(TAG, "del i80 bus(%d)", bus_id);
@@ -455,8 +490,10 @@ static esp_err_t panel_io_i80_tx_param(esp_lcd_panel_io_t *io, int lcd_cmd, cons
     esp_lcd_i80_bus_t *bus = next_device->bus;
     lcd_panel_io_i80_t *cur_device = bus->cur_device;
     lcd_i80_trans_descriptor_t *trans_desc = NULL;
-    assert(param_size <= bus->max_transfer_bytes && "parameter bytes too long, enlarge max_transfer_bytes");
-    assert(param_size <= LCD_I80_IO_FORMAT_BUF_SIZE && "format buffer too small, increase LCD_I80_IO_FORMAT_BUF_SIZE");
+    ESP_RETURN_ON_FALSE(param_size <= bus->max_transfer_bytes, ESP_ERR_INVALID_ARG, TAG,
+                        "parameter bytes too long, enlarge max_transfer_bytes");
+    ESP_RETURN_ON_FALSE(param_size <= LCD_I80_IO_FORMAT_BUF_SIZE, ESP_ERR_INVALID_ARG, TAG,
+                        "format buffer too small, increase LCD_I80_IO_FORMAT_BUF_SIZE");
     uint32_t cmd_cycles = next_device->lcd_cmd_bits / bus->bus_width;
     // in case bus_width=16 and cmd_bits=8, we still need 1 cmd_cycle
     if (cmd_cycles * bus->bus_width < next_device->lcd_cmd_bits) {
@@ -491,7 +528,7 @@ static esp_err_t panel_io_i80_tx_param(esp_lcd_panel_io_t *io, int lcd_cmd, cons
     trans_desc->data = (param && param_len) ? bus->format_buffer : NULL;
     trans_desc->data_length = trans_desc->data ? param_len : 4;
     trans_desc->trans_done_cb = NULL; // no callback for parameter transaction
-    size_t buffer_alignment = esp_ptr_internal(trans_desc->data) ? bus->int_mem_align : bus->ext_mem_align;
+    size_t buffer_alignment = (trans_desc->data == NULL || esp_ptr_internal(trans_desc->data)) ? bus->int_mem_align : bus->ext_mem_align;
     static uint32_t fake_trigger = 0;
     // mount data to DMA links
     gdma_buffer_mount_config_t mount_config = {
@@ -500,21 +537,25 @@ static esp_err_t panel_io_i80_tx_param(esp_lcd_panel_io_t *io, int lcd_cmd, cons
         .length = trans_desc->data_length,
         .flags = {
             .mark_eof = true,
-            .mark_final = true, // singly link list, mark final descriptor
+            .mark_final = GDMA_FINAL_LINK_TO_NULL, // singly link list, mark final descriptor
         }
     };
     gdma_link_mount_buffers(bus->dma_link, 0, &mount_config, 1, NULL);
+#if CONFIG_PM_ENABLE
     // increase the pm lock reference count before starting a new transaction
     if (bus->pm_lock) {
         esp_pm_lock_acquire(bus->pm_lock);
     }
+#endif
     lcd_start_transaction(bus, trans_desc);
     // polling the trans done event, but don't clear the event status
     while (!(lcd_ll_get_interrupt_status(bus->hal.dev) & LCD_LL_EVENT_TRANS_DONE)) {}
+#if CONFIG_PM_ENABLE
     // decrease pm lock reference count
     if (bus->pm_lock) {
         esp_pm_lock_release(bus->pm_lock);
     }
+#endif
     return ESP_OK;
 }
 
@@ -523,20 +564,18 @@ static esp_err_t panel_io_i80_tx_color(esp_lcd_panel_io_t *io, int lcd_cmd, cons
     lcd_panel_io_i80_t *i80_device = __containerof(io, lcd_panel_io_i80_t, base);
     esp_lcd_i80_bus_t *bus = i80_device->bus;
     lcd_i80_trans_descriptor_t *trans_desc = NULL;
-    assert(color_size <= bus->max_transfer_bytes && "color bytes too long, enlarge max_transfer_bytes");
-    uint32_t cache_line_size = 0;
+    ESP_RETURN_ON_FALSE(color_size <= bus->max_transfer_bytes, ESP_ERR_INVALID_ARG, TAG,
+                        "color bytes too long, enlarge max_transfer_bytes");
     if (esp_ptr_external_ram(color)) {
         // check alignment
         ESP_RETURN_ON_FALSE(((uint32_t)color & (bus->ext_mem_align - 1)) == 0, ESP_ERR_INVALID_ARG, TAG, "color address not aligned");
         ESP_RETURN_ON_FALSE((color_size & (bus->ext_mem_align - 1)) == 0, ESP_ERR_INVALID_ARG, TAG, "color size not aligned");
-        cache_line_size = cache_hal_get_cache_line_size(CACHE_LL_LEVEL_EXT_MEM, CACHE_TYPE_DATA);
     } else {
         // check alignment
         ESP_RETURN_ON_FALSE(((uint32_t)color & (bus->int_mem_align - 1)) == 0, ESP_ERR_INVALID_ARG, TAG, "color address not aligned");
         ESP_RETURN_ON_FALSE((color_size & (bus->int_mem_align - 1)) == 0, ESP_ERR_INVALID_ARG, TAG, "color size not aligned");
-        cache_line_size = cache_hal_get_cache_line_size(CACHE_LL_LEVEL_INT_MEM, CACHE_TYPE_DATA);
     }
-    if (cache_line_size > 0) {
+    if (esp_cache_get_line_size_by_addr(color) > 0) {
         // flush data from cache to the physical memory
         esp_cache_msync((void *)color, color_size, ESP_CACHE_MSYNC_FLAG_DIR_C2M | ESP_CACHE_MSYNC_FLAG_UNALIGNED);
     }
@@ -572,15 +611,46 @@ static esp_err_t panel_io_i80_tx_color(esp_lcd_panel_io_t *io, int lcd_cmd, cons
     return ESP_OK;
 }
 
+#if I80_USE_RETENTION_LINK
+static esp_err_t lcd_i80_create_sleep_retention_link_cb(void *arg)
+{
+    esp_lcd_i80_bus_t *bus = (esp_lcd_i80_bus_t *)arg;
+    int bus_id = bus->bus_id;
+    sleep_retention_module_t module_id = soc_i80_lcd_retention_info[bus_id].retention_module;
+    esp_err_t err = sleep_retention_entries_create(soc_i80_lcd_retention_info[bus_id].regdma_entry_array,
+                                                   soc_i80_lcd_retention_info[bus_id].array_size,
+                                                   REGDMA_LINK_PRI_LCDCAM, module_id);
+    ESP_RETURN_ON_ERROR(err, TAG, "create retention link failed");
+    return ESP_OK;
+}
+
+static void lcd_i80_create_retention_module(esp_lcd_i80_bus_t *bus)
+{
+    int bus_id = bus->bus_id;
+    sleep_retention_module_t module_id = soc_i80_lcd_retention_info[bus_id].retention_module;
+
+    if (sleep_retention_is_module_inited(module_id) && !sleep_retention_is_module_created(module_id)) {
+        if (sleep_retention_module_allocate(module_id) != ESP_OK) {
+            // even though the sleep retention module create failed, LCD driver should still work, so just warning here
+            ESP_LOGW(TAG, "create retention module failed, power domain can't turn off");
+        } else {
+            if (sleep_retention_module_attach(module_id) != ESP_OK) {
+                ESP_LOGW(TAG, "attach retention module failed, power domain can't turn off");
+            }
+        }
+    }
+}
+#endif // I80_USE_RETENTION_LINK
+
 static esp_err_t lcd_i80_select_periph_clock(esp_lcd_i80_bus_handle_t bus, lcd_clock_source_t clk_src)
 {
+    ESP_RETURN_ON_ERROR(esp_clk_tree_enable_src((soc_module_clk_t)clk_src, true), TAG, "clock source enable failed");
+    bus->clk_src = (soc_module_clk_t)clk_src;
     // get clock source frequency
     uint32_t src_clk_hz = 0;
     ESP_RETURN_ON_ERROR(esp_clk_tree_src_get_freq_hz((soc_module_clk_t)clk_src, ESP_CLK_TREE_SRC_FREQ_PRECISION_CACHED, &src_clk_hz),
                         TAG, "get clock source frequency failed");
-
-    ESP_RETURN_ON_ERROR(esp_clk_tree_enable_src((soc_module_clk_t)clk_src, true), TAG, "clock source enable failed");
-    LCD_CLOCK_SRC_ATOMIC() {
+    PERIPH_RCC_ATOMIC() {
         lcd_ll_select_clk_src(bus->hal.dev, clk_src);
         // force to use integer division, as fractional division might lead to clock jitter
         lcd_ll_set_group_clock_coeff(bus->hal.dev, LCD_PERIPH_CLOCK_PRE_SCALE, 0, 0);
@@ -605,10 +675,8 @@ static esp_err_t lcd_i80_init_dma_link(esp_lcd_i80_bus_handle_t bus, const esp_l
 {
     esp_err_t ret = ESP_OK;
     // alloc DMA channel and connect to LCD peripheral
-    gdma_channel_alloc_config_t dma_chan_config = {
-        .direction = GDMA_CHANNEL_DIRECTION_TX,
-    };
-    ret = LCD_GDMA_NEW_CHANNEL(&dma_chan_config, &bus->dma_chan);
+    gdma_channel_alloc_config_t dma_chan_config = {0};
+    ret = LCD_GDMA_NEW_CHANNEL(&dma_chan_config, &bus->dma_chan, NULL);
     ESP_RETURN_ON_ERROR(ret, TAG, "alloc DMA channel failed");
     gdma_connect(bus->dma_chan, GDMA_MAKE_TRIGGER(GDMA_TRIG_PERIPH_LCD, 0));
     gdma_strategy_config_t strategy_config = {
@@ -618,7 +686,7 @@ static esp_err_t lcd_i80_init_dma_link(esp_lcd_i80_bus_handle_t bus, const esp_l
     gdma_apply_strategy(bus->dma_chan, &strategy_config);
     // config DMA transfer parameters
     gdma_transfer_config_t trans_cfg = {
-        .max_data_burst_size = bus_config->dma_burst_size ? bus_config->dma_burst_size : 16, // Enable DMA burst transfer for better performance
+        .max_data_burst_size = bus_config->dma_burst_size ? bus_config->dma_burst_size : 32, // Enable DMA burst transfer for better performance
         .access_ext_mem = true, // the LCD can carry pixel buffer from the external memory
     };
     ESP_RETURN_ON_ERROR(gdma_config_transfer(bus->dma_chan, &trans_cfg), TAG, "config DMA transfer failed");
@@ -672,14 +740,14 @@ static esp_err_t lcd_i80_bus_configure_gpio(esp_lcd_i80_bus_handle_t bus, const 
     for (size_t i = 0; i < bus_config->bus_width; i++) {
         gpio_func_sel(bus_config->data_gpio_nums[i], PIN_FUNC_GPIO);
         // the esp_rom_gpio_connect_out_signal function will also help enable the output path properly
-        esp_rom_gpio_connect_out_signal(bus_config->data_gpio_nums[i], lcd_periph_i80_signals.buses[bus_id].data_sigs[i], false, false);
+        esp_rom_gpio_connect_out_signal(bus_config->data_gpio_nums[i], soc_lcd_i80_signals[bus_id].data_sigs[i], false, false);
     }
     // D/C signal
     gpio_func_sel(bus_config->dc_gpio_num, PIN_FUNC_GPIO);
-    esp_rom_gpio_connect_out_signal(bus_config->dc_gpio_num, lcd_periph_i80_signals.buses[bus_id].dc_sig, false, false);
+    esp_rom_gpio_connect_out_signal(bus_config->dc_gpio_num, soc_lcd_i80_signals[bus_id].dc_sig, false, false);
     // WR signal (PCLK)
     gpio_func_sel(bus_config->wr_gpio_num, PIN_FUNC_GPIO);
-    esp_rom_gpio_connect_out_signal(bus_config->wr_gpio_num, lcd_periph_i80_signals.buses[bus_id].wr_sig, false, false);
+    esp_rom_gpio_connect_out_signal(bus_config->wr_gpio_num, soc_lcd_i80_signals[bus_id].wr_sig, false, false);
     return ESP_OK;
 }
 
@@ -695,7 +763,7 @@ static void lcd_periph_trigger_quick_trans_done_event(esp_lcd_i80_bus_handle_t b
         .length = 4,
         .flags = {
             .mark_eof = true,   // mark the "EOF" flag to trigger LCD EOF interrupt
-            .mark_final = true, // singly link list, mark final descriptor
+            .mark_final = GDMA_FINAL_LINK_TO_NULL, // singly link list, mark final descriptor
         }
     };
     gdma_link_mount_buffers(bus->dma_link, 0, &mount_config, 1, NULL);
@@ -708,23 +776,24 @@ static void lcd_start_transaction(esp_lcd_i80_bus_t *bus, lcd_i80_trans_descript
 {
     // by default, the dummy phase is disabled because it's not common for most LCDs
     uint32_t dummy_cycles = 0;
-    uint32_t cmd_cycles = trans_desc->cmd_value >= 0 ? trans_desc->cmd_cycles : 0;
+    uint32_t cmd_cycles = trans_desc->cmd_value != -1 ? trans_desc->cmd_cycles : 0;
     // Number of data phase cycles are controlled by DMA buffer length, we only need to enable/disable the phase here
     uint32_t data_cycles = trans_desc->data ? 1 : 0;
-    if (trans_desc->cmd_value >= 0) {
+    if (trans_desc->cmd_value != -1) {
         lcd_ll_set_command(bus->hal.dev, bus->bus_width, trans_desc->cmd_value);
     }
     lcd_ll_set_phase_cycles(bus->hal.dev, cmd_cycles, dummy_cycles, data_cycles);
     lcd_ll_set_blank_cycles(bus->hal.dev, 1, 1);
 
+    lcd_ll_reset(bus->hal.dev);
     // reset FIFO before starting a new transaction, in case there remains some dirty data in the FIFO because of the "fake trigger".
     lcd_ll_fifo_reset(bus->hal.dev);
 
     // always start GDMA, because the lcd will only start working after the dma retrieves the data
     gdma_start(bus->dma_chan, gdma_link_get_head_addr(bus->dma_link));
-    // delay 1us is sufficient for DMA to pass data to LCD FIFO
+    // delay 4us is sufficient for DMA to pass data to LCD FIFO
     // in fact, this is only needed when LCD pixel clock is set too high
-    esp_rom_delay_us(1);
+    esp_rom_delay_us(4);
 
     lcd_ll_start(bus->hal.dev);
 }
@@ -746,7 +815,7 @@ static void lcd_i80_switch_devices(lcd_panel_io_i80_t *cur_device, lcd_panel_io_
         }
         if (next_device->cs_gpio_num >= 0) {
             // connect CS signal to the new device
-            esp_rom_gpio_connect_out_signal(next_device->cs_gpio_num, lcd_periph_i80_signals.buses[bus->bus_id].cs_sig,
+            esp_rom_gpio_connect_out_signal(next_device->cs_gpio_num, soc_lcd_i80_signals[bus->bus_id].cs_sig,
                                             next_device->flags.cs_active_high, false);
         }
     }
@@ -777,10 +846,12 @@ IRAM_ATTR static void i80_lcd_default_isr_handler(void *args)
         // process finished transaction
         if (trans_desc) {
             assert(trans_desc->i80_device == cur_device && "transaction device mismatch");
+#if CONFIG_PM_ENABLE
             // decrease pm lock reference count
             if (bus->pm_lock) {
                 esp_pm_lock_release(bus->pm_lock);
             }
+#endif
             // device callback
             if (trans_desc->trans_done_cb) {
                 if (trans_desc->trans_done_cb(&cur_device->base, NULL, trans_desc->user_ctx)) {
@@ -821,16 +892,18 @@ IRAM_ATTR static void i80_lcd_default_isr_handler(void *args)
                     .length = trans_desc->data_length,
                     .flags = {
                         .mark_eof = true,
-                        .mark_final = true, // singly link list, mark final descriptor
+                        .mark_final = GDMA_FINAL_LINK_TO_NULL, // singly link list, mark final descriptor
                     }
                 };
                 gdma_link_mount_buffers(bus->dma_link, 0, &mount_config, 1, NULL);
                 // enable interrupt again, because the new transaction can trigger new trans done event
                 esp_intr_enable(bus->intr);
+#if CONFIG_PM_ENABLE
                 // increase the pm lock reference count before starting a new transaction
                 if (bus->pm_lock) {
                     esp_pm_lock_acquire(bus->pm_lock);
                 }
+#endif
                 lcd_start_transaction(bus, trans_desc);
                 break; // exit for-each loop
             }
@@ -840,3 +913,11 @@ IRAM_ATTR static void i80_lcd_default_isr_handler(void *args)
         portYIELD_FROM_ISR();
     }
 }
+
+#if CONFIG_LCD_ENABLE_DEBUG_LOG
+__attribute__((constructor))
+static void i80_lcd_override_default_log_level(void)
+{
+    esp_log_level_set(TAG, ESP_LOG_VERBOSE);
+}
+#endif

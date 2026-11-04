@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2024-2025 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2024-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -9,7 +9,6 @@
 #include "esp_log.h"
 #include "esp_private/esp_psram_impl.h"
 #include "rom/spi_flash.h"
-#include "rom/opi_flash.h"
 #include "esp_rom_gpio.h"
 #include "esp_rom_efuse.h"
 #include "hal/gpio_hal.h"
@@ -292,9 +291,9 @@ static void s_config_psram_clock(bool init_state)
     } else {
         // This function can be extended if we have other psram frequency
 
-#if (CONFIG_SPIRAM_SPEED == 80)
+#if (CONFIG_SPIRAM_SPEED == 80) || (CONFIG_SPIRAM_SPEED == 64)
         clock_conf = psram_ctrlr_ll_calculate_clock_reg(1);
-#elif (CONFIG_SPIRAM_SPEED == 40)
+#elif (CONFIG_SPIRAM_SPEED == 40) || (CONFIG_SPIRAM_SPEED == 32)
         clock_conf = psram_ctrlr_ll_calculate_clock_reg(2);
 #endif
         psram_ctrlr_ll_set_bus_clock(PSRAM_CTRLR_LL_MSPI_ID_0, clock_conf);
@@ -345,8 +344,8 @@ esp_err_t esp_psram_impl_enable(void)
 #endif
 
 #if SOC_SPI_MEM_SUPPORT_TIMING_TUNING
-    //enter MSPI slow mode to init PSRAM device registers
-    mspi_timing_enter_low_speed_mode(true);
+    //enter MSPI slow mode to init PSRAM device registers (early init: see mspi_timing_enter_low_speed_early)
+    mspi_timing_enter_low_speed_early();
 #else
     s_config_psram_clock(true);
 #endif // SOC_SPI_MEM_SUPPORT_TIMING_TUNING
@@ -413,7 +412,7 @@ esp_err_t esp_psram_impl_enable(void)
     //Configure SPI0 PSRAM related SPI Phases
     config_psram_spi_phases();
     //Back to the high speed mode. Flash/PSRAM clocks are set to the clock that user selected. SPI0/1 registers are all set correctly
-    mspi_timing_enter_high_speed_mode(true);
+    mspi_timing_enter_high_speed_early();
 #else
     s_config_psram_clock(false);
     //Configure SPI0 PSRAM related SPI Phases
@@ -432,6 +431,20 @@ static void config_psram_spi_phases(void)
     psram_ctrlr_ll_set_addr_bitlen(PSRAM_CTRLR_LL_MSPI_ID_0, PSRAM_QUAD_ADDR_LENGTH);
     psram_ctrlr_ll_set_rd_dummy(PSRAM_CTRLR_LL_MSPI_ID_0, PSRAM_QUAD_FAST_READ_QUAD_DUMMY);
     psram_ctrlr_ll_set_cs_pin(PSRAM_CTRLR_LL_MSPI_ID_0, PSRAM_LL_CS_ID_1);
+}
+
+/******************************* Halfsleep Mode *******************************/
+// This PSRAM device does not support halfsleep mode
+PSRAM_HALFSLEEP_SLEEP_CODE_ATTR void esp_psram_impl_enter_halfsleep_mode(void)
+{
+}
+
+PSRAM_HALFSLEEP_SLEEP_CODE_ATTR void esp_psram_impl_exit_halfsleep_mode(void)
+{
+}
+
+PSRAM_HALFSLEEP_RESUME_CODE_ATTR void esp_psram_impl_resume_from_halfsleep_mode(uint32_t slowclk_period)
+{
 }
 
 /*---------------------------------------------------------------------------------

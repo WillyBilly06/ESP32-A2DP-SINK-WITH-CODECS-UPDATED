@@ -197,7 +197,7 @@ exit:
     return neighbor;
 }
 
-Error NeighborTable::GetNextNeighborInfo(otNeighborInfoIterator &aIterator, Neighbor::Info &aNeighInfo)
+Error NeighborTable::GetNextNeighborInfo(Iterator &aIterator, Neighbor::Info &aNeighInfo)
 {
     Error   error = kErrorNone;
     int16_t index;
@@ -230,7 +230,7 @@ Error NeighborTable::GetNextNeighborInfo(otNeighborInfoIterator &aIterator, Neig
 
     // Negative iterator value gives the current index into mRouters array
 
-    for (index = -aIterator; index <= Mle::kMaxRouterId; index++)
+    for (index = static_cast<int16_t>(-aIterator); index <= Mle::kMaxRouterId; index++)
     {
         Router *router = Get<RouterTable>().FindRouterById(static_cast<uint8_t>(index));
 
@@ -239,12 +239,12 @@ Error NeighborTable::GetNextNeighborInfo(otNeighborInfoIterator &aIterator, Neig
             aNeighInfo.SetFrom(*router);
             aNeighInfo.mIsChild = false;
             index++;
-            aIterator = -index;
+            aIterator = static_cast<Iterator>(-index);
             ExitNow();
         }
     }
 
-    aIterator = -index;
+    aIterator = static_cast<Iterator>(-index);
     error     = kErrorNotFound;
 
 exit:
@@ -255,11 +255,11 @@ exit:
 
 #if OPENTHREAD_MTD
 
-Error NeighborTable::GetNextNeighborInfo(otNeighborInfoIterator &aIterator, Neighbor::Info &aNeighInfo)
+Error NeighborTable::GetNextNeighborInfo(Iterator &aIterator, Neighbor::Info &aNeighInfo)
 {
     Error error = kErrorNotFound;
 
-    VerifyOrExit(aIterator == OT_NEIGHBOR_INFO_ITERATOR_INIT);
+    VerifyOrExit(aIterator == kIteratorInit);
 
     aIterator++;
     VerifyOrExit(Get<Mle::Mle>().GetParent().IsStateValid());
@@ -323,16 +323,15 @@ void NeighborTable::Signal(Event aEvent, const Neighbor &aNeighbor)
 
     case kChildRemoved:
         Get<Notifier>().Signal(kEventThreadChildRemoved);
-#if OPENTHREAD_FTD && OPENTHREAD_CONFIG_TMF_PROXY_DUA_ENABLE
-        Get<DuaManager>().HandleChildDuaAddressEvent(static_cast<const Child &>(aNeighbor),
-                                                     DuaManager::kAddressRemoved);
-#endif
         break;
 
 #if OPENTHREAD_FTD
     case kRouterAdded:
+        Get<RouterTable>().SignalTableChanged(RouterTable::kEventNeighborAdded);
+        break;
+
     case kRouterRemoved:
-        Get<RouterTable>().SignalTableChanged();
+        Get<RouterTable>().SignalTableChanged(RouterTable::kEventNeighborRemoved);
         break;
 #endif
 

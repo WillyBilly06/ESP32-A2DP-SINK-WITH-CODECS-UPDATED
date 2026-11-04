@@ -38,8 +38,12 @@ foreach(exe IN LISTS executables)
             ${MBEDTLS_FRAMEWORK_DIR}/tests/programs/query_config.h
             ${CMAKE_CURRENT_BINARY_DIR}/../test/query_config.c)
     endif()
-    add_executable(${exe} ${exe}.c $<TARGET_OBJECTS:mbedtls_test>
+    add_executable(${exe}
+        ${exe}.c
+        $<TARGET_OBJECTS:mbedtls_test>
+        $<TARGET_OBJECTS:mbedtls_test_helpers>
         ${extra_sources})
+    set_base_compile_options(${exe})
     target_link_libraries(${exe} ${libs} ${CMAKE_THREAD_LIBS_INIT})
     target_include_directories(${exe} PRIVATE ${MBEDTLS_FRAMEWORK_DIR}/tests/programs
                                               ${MBEDTLS_FRAMEWORK_DIR}/tests/include
@@ -52,8 +56,13 @@ foreach(exe IN LISTS executables)
 endforeach()
 
 if(THREADS_FOUND)
-    add_executable(ssl_pthread_server ssl_pthread_server.c $<TARGET_OBJECTS:mbedtls_test>)
-    target_include_directories(ssl_pthread_server PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../../framework/tests/include
+    add_executable(ssl_pthread_server
+        ssl_pthread_server.c
+        $<TARGET_OBJECTS:mbedtls_test>
+        $<TARGET_OBJECTS:mbedtls_test_helpers>)
+    set_base_compile_options(ssl_pthread_server)
+    target_include_directories(ssl_pthread_server PRIVATE ${MBEDTLS_FRAMEWORK_DIR}/tests/programs
+                                                          ${MBEDTLS_FRAMEWORK_DIR}/tests/include
                                                           ${CMAKE_CURRENT_SOURCE_DIR}/../../tests/include)
     target_link_libraries(ssl_pthread_server ${libs} ${CMAKE_THREAD_LIBS_INIT})
     list(APPEND executables ssl_pthread_server)

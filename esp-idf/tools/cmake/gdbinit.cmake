@@ -22,10 +22,15 @@ function(__generate_gdbinit)
     set(gdbinit_py_extensions
         "# Add Python GDB extensions\n"
         "python\n"
+        "import sys\n"
         "try:\n"
         "    import freertos_gdb\n"
         "except ModuleNotFoundError:\n"
-        "    print('warning: python extension \"freertos_gdb\" not found.')\n"
+        "    print('warning: python extension \"freertos_gdb\" not found.', file=sys.stderr)\n"
+        "try:\n"
+        "    import idf_drivers_gdb\n"
+        "except ModuleNotFoundError:\n"
+        "    print('warning: python extension \"idf_drivers_gdb\" not found.', file=sys.stderr)\n"
         "end\n")
 
     # Define paths
@@ -33,8 +38,9 @@ function(__generate_gdbinit)
     set(symbols_gdbinit_path ${gdbinit_dir}/symbols)
     set(py_extensions_gdbinit_path ${gdbinit_dir}/py_extensions)
     set(connect_gdbinit_path ${gdbinit_dir}/connect)
-    idf_build_get_property(PROJECT_EXECUTABLE EXECUTABLE)
-    set(application_elf ${BUILD_DIR}/${PROJECT_EXECUTABLE})
+    # EXECUTABLE is a CMake target name; the on-disk elf is EXECUTABLE_NAME + ".elf".
+    idf_build_get_property(PROJECT_EXECUTABLE_NAME EXECUTABLE_NAME)
+    set(application_elf ${BUILD_DIR}/${PROJECT_EXECUTABLE_NAME}.elf)
 
     file(MAKE_DIRECTORY ${gdbinit_dir})
 

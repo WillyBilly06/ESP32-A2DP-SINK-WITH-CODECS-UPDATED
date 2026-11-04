@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2025 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2025-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: CC0-1.0
  *
@@ -57,7 +57,19 @@ void ot_external_coexist_init(void);
 void ot_console_start(void);
 
 /**
+ * @brief   De-initializes the console.
+ *
+ */
+void ot_console_stop(void);
+
+/**
  * @brief   Form or join the Thread network automatically.
  *
  */
 void ot_network_auto_start(void);
+
+/**
+ * @brief   Register external system commands (e.g., iperf).
+ *
+ */
+void ot_register_external_commands(void);

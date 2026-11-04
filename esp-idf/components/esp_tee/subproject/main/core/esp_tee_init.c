@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2024-2025 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2024-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -22,8 +22,13 @@
 #include "esp_app_desc.h"
 #endif
 
+#include "psa/crypto.h"
+
 /* TEE symbols */
 extern uint32_t _tee_stack;
+extern uint32_t _tee_stack_bottom;
+extern uint32_t _tee_intr_stack;
+extern uint32_t _tee_intr_stack_bottom;
 extern uint32_t _tee_bss_start;
 extern uint32_t _tee_bss_end;
 extern uint32_t _tee_s_intr_handler;
@@ -117,6 +122,9 @@ void __attribute__((noreturn)) esp_tee_init(uint32_t ree_entry_addr, uint32_t re
 {
     /* Clear BSS */
     memset(&_tee_bss_start, 0, (&_tee_bss_end - &_tee_bss_start) * sizeof(_tee_bss_start));
+    /* Clear the TEE stack and interrupt stack */
+    memset(&_tee_stack_bottom, 0, (&_tee_stack - &_tee_stack_bottom) * sizeof(_tee_stack_bottom));
+    memset(&_tee_intr_stack_bottom, 0, (&_tee_intr_stack - &_tee_intr_stack_bottom) * sizeof(_tee_intr_stack_bottom));
 
     static uint32_t btld_sp;
 
@@ -153,6 +161,13 @@ void __attribute__((noreturn)) esp_tee_init(uint32_t ree_entry_addr, uint32_t re
         abort();
     }
     ESP_FAULT_ASSERT(err == ESP_OK);
+
+    psa_status_t status = psa_crypto_init();
+    if (status != PSA_SUCCESS) {
+        ESP_LOGE(TAG, "Failed to initialize PSA Crypto! (0x%08x)", status);
+        abort();
+    }
+    ESP_FAULT_ASSERT(status == PSA_SUCCESS);
 
     /* Initializing the secure storage */
     err = esp_tee_sec_storage_init();

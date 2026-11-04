@@ -58,6 +58,23 @@ struct ble_hs_adv_fields;
 #define BLE_EDDYSTONE_URL_SUFFIX_GOV        0x0d
 #define BLE_EDDYSTONE_URL_SUFFIX_NONE       0xff
 
+#if MYNEWT_VAL(BLE_STATIC_TO_DYNAMIC)
+/**
+ * Ensure all dynamic memory required for the functioning
+ * of the eddystone beacon is allocated.
+ * No need to explicitely call the API, but still provided.
+ */
+int ble_eddystone_ensure_ctx_init(void);
+
+/**
+ * Deinits dynamic memory used by the eddystone beacon.
+ * Call this API from the application when the feature is
+ * not required.
+ * Using the beacon after this will automatically re-init the memory.
+ */
+void ble_eddystone_ctx_deinit(void);
+#endif
+
 /**
  * Configures the device to advertise Eddystone UID beacons.
  *
@@ -75,7 +92,7 @@ struct ble_hs_adv_fields;
  *                              Other nonzero on failure.
  */
 int ble_eddystone_set_adv_data_uid(struct ble_hs_adv_fields *adv_fields,
-                                   void *uid, int8_t measured_power);
+                                   const void *uid, int8_t measured_power);
 
 /**
  * Configures the device to advertise Eddystone URL beacons.
@@ -102,7 +119,7 @@ int ble_eddystone_set_adv_data_uid(struct ble_hs_adv_fields *adv_fields,
  *                              Other nonzero on failure.
  */
 int ble_eddystone_set_adv_data_url(struct ble_hs_adv_fields *adv_fields,
-                                   uint8_t url_scheme, char *url_body,
+                                   uint8_t url_scheme, const char *url_body,
                                    uint8_t url_body_len, uint8_t suffix,
                                    int8_t measured_power);
 

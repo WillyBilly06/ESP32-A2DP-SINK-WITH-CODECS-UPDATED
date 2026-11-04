@@ -20,16 +20,14 @@
 #include <assert.h>
 #include <string.h>
 #include <errno.h>
-#include <stdio.h>
 #include "os/os.h"
 #include "nimble/hci_common.h"
 #include "ble_hs_priv.h"
 #include "bt_common.h"
+#include "host/ble_hs_log.h"
 #if (BT_HCI_LOG_INCLUDED == TRUE)
 #include "hci_log/bt_hci_log.h"
 #endif // (BT_HCI_LOG_INCLUDED == TRUE)
-
-
 /*
  * HCI Command Header
  *
@@ -52,9 +50,11 @@ ble_hs_hci_cmd_transport(struct ble_hci_cmd *cmd)
         return 0;
 
     case BLE_ERR_MEM_CAPACITY:
+        BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_ENOMEM_EVT);
         return BLE_HS_ENOMEM_EVT;
 
     default:
+        BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_EUNKNOWN);
         return BLE_HS_EUNKNOWN;
     }
 }
@@ -67,7 +67,14 @@ ble_hs_hci_cmd_send(uint16_t opcode, uint8_t len, const void *cmddata)
     int rc;
 
     cmd = (struct ble_hci_cmd *)ble_transport_alloc_cmd();
+    if (cmd == NULL) {
+        BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_ENOMEM_EVT);
+        return BLE_HS_ENOMEM_EVT;
+    }
     BLE_HS_DBG_ASSERT(cmd != NULL);
+    if (cmd == NULL) {
+        return BLE_HS_ENOMEM;
+    }
 
     buf = (uint8_t *)cmd;
 #if !(SOC_ESP_NIMBLE_CONTROLLER) && CONFIG_BT_CONTROLLER_ENABLED
@@ -91,14 +98,11 @@ ble_hs_hci_cmd_send(uint16_t opcode, uint8_t len, const void *cmddata)
     buf--;
 #endif
 
-#if ((BT_HCI_LOG_INCLUDED == TRUE))
-    uint8_t *data;
-#if !(SOC_ESP_NIMBLE_CONTROLLER) && CONFIG_BT_CONTROLLER_ENABLED
-    data = (uint8_t *)buf + 1;
-#else
-    data = (uint8_t *)buf;
+#if ((BT_HCI_LOG_INCLUDED == TRUE) && SOC_ESP_NIMBLE_CONTROLLER && CONFIG_BT_CONTROLLER_ENABLED)
+    bt_hci_log_record_hci_data(0x01, (uint8_t *)buf, len + BLE_HCI_CMD_HDR_LEN);
+#if BT_HCI_INSIGHTS_INCLUDED
+    bt_hci_log_record_insights(0x01, (uint8_t *)buf, len + BLE_HCI_CMD_HDR_LEN);
 #endif
-    bt_hci_log_record_hci_data(0x01, data, len + BLE_HCI_CMD_HDR_LEN);
 #endif
 
     rc = ble_hs_hci_cmd_transport((void *) buf);
@@ -106,6 +110,11 @@ ble_hs_hci_cmd_send(uint16_t opcode, uint8_t len, const void *cmddata)
     if (rc == 0) {
         STATS_INC(ble_hs_stats, hci_cmd);
     } else {
+#if MYNEWT_VAL(MP_RUNTIME_ALLOC)
+        ble_transport_free(BLE_HCI_CMD, buf);
+#else
+        ble_transport_free(buf);
+#endif
         BLE_HS_LOG(DEBUG, "ble_hs_hci_cmd_send failure; rc=%d\n", rc);
     }
 
@@ -117,10 +126,12 @@ ble_hs_hci_cmd_send_buf(uint16_t opcode, const void *buf, uint8_t buf_len)
 {
     switch (ble_hs_sync_state) {
     case BLE_HS_SYNC_STATE_BAD:
+        BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_ENOTSYNCED);
         return BLE_HS_ENOTSYNCED;
 
     case BLE_HS_SYNC_STATE_BRINGUP:
         if (!ble_hs_is_parent_task()) {
+            BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_ENOTSYNCED);
             return BLE_HS_ENOTSYNCED;
         }
         break;
@@ -130,6 +141,7 @@ ble_hs_hci_cmd_send_buf(uint16_t opcode, const void *buf, uint8_t buf_len)
 
     default:
         BLE_HS_DBG_ASSERT(0);
+        BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_EUNKNOWN);
         return BLE_HS_EUNKNOWN;
     }
 

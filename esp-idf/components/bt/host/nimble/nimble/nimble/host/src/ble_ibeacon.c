@@ -21,6 +21,10 @@
 #include "host/ble_hs_adv.h"
 #include "host/ble_ibeacon.h"
 #include "ble_hs_priv.h"
+#include "host/ble_hs_log.h"
+#if MYNEWT_VAL(BLE_STATIC_TO_DYNAMIC)
+#include "esp_nimble_mem.h"
+#endif
 
 #define BLE_IBEACON_MFG_DATA_SIZE       25
 
@@ -39,12 +43,38 @@
  *                              Other nonzero on failure.
  */
 int
-ble_ibeacon_set_adv_data(void *uuid128, uint16_t major,
+ble_ibeacon_set_adv_data(const void *uuid128, uint16_t major,
                          uint16_t minor, int8_t measured_power)
 {
     struct ble_hs_adv_fields fields;
-    uint8_t buf[BLE_IBEACON_MFG_DATA_SIZE];
+#if MYNEWT_VAL(BLE_STATIC_TO_DYNAMIC)
+    static uint8_t * buf = NULL;
+#else
+    static uint8_t buf[BLE_IBEACON_MFG_DATA_SIZE];
+#endif
     int rc;
+
+    /* Validate inputs before any buffer writes */
+    if (uuid128 == NULL) {
+        BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_EINVAL);
+        return BLE_HS_EINVAL;
+    }
+    if (measured_power < -126 || measured_power > 20) {
+        BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_EINVAL);
+        return BLE_HS_EINVAL;
+    }
+
+#if MYNEWT_VAL(BLE_STATIC_TO_DYNAMIC)
+if (buf == NULL) {
+    /* Since the data used by buf is needed for adv reattempts,
+     * this data shall stay in the heap and not be freed.
+     */
+    buf = nimble_platform_mem_calloc(BLE_IBEACON_MFG_DATA_SIZE, sizeof(uint8_t));
+    if (buf == NULL) {
+        return BLE_HS_ENOMEM;
+    }
+}
+#endif
 
     /** Company identifier (Apple). */
     buf[0] = 0x4c;
@@ -62,14 +92,11 @@ ble_ibeacon_set_adv_data(void *uuid128, uint16_t major,
     put_be16(buf + 22, minor);
 
     /* Measured Power ranging data (Calibrated tx power at 1 meters). */
-    if (measured_power < -126 || measured_power > 20) {
-        return BLE_HS_EINVAL;
-    }
     buf[24] = measured_power;
 
     memset(&fields, 0, sizeof fields);
     fields.mfg_data = buf;
-    fields.mfg_data_len = sizeof buf;
+    fields.mfg_data_len = BLE_IBEACON_MFG_DATA_SIZE;
 
     /* Advertise two flags:
      *     o Discoverability in forthcoming advertisement (general)

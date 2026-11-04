@@ -1,11 +1,57 @@
-| Supported Targets | ESP32 | ESP32-C2 | ESP32-C3 | ESP32-C5 | ESP32-C6 | ESP32-C61 | ESP32-H2 | ESP32-S3 |
-| ----------------- | ----- | -------- | -------- | -------- | -------- | --------- | -------- | -------- |
+| Supported Targets | ESP32 | ESP32-C2 | ESP32-C3 | ESP32-C5 | ESP32-C6 | ESP32-C61 | ESP32-H2 | ESP32-H21 | ESP32-H4 | ESP32-S3 | ESP32-S31 |
+| ----------------- | ----- | -------- | -------- | -------- | -------- | --------- | -------- | --------- | -------- | -------- | --------- |
 
 # BLE Multiple Connection Central Example
 
 (See the README.md file in the upper level 'examples' directory for more information about examples.)
 
 **This example relies on the BLE controller. please use the chip modules listed under Supported Targets.**
+
+## Flow Diagram
+
+```
+    ┌──────────────────────────────────────────────────────────────────────────┐
+    │                    BLE Multi-Connection Central                          │
+    └──────────────────────────────────────────────────────────────────────────┘
+
+    ┌───────────────────┐
+    │  Multi-Conn Cent  │
+    │  (GATTC + GATTS)  │
+    └─────────┬─────────┘
+              │
+              │  1. Initialize GATT Client & Server
+              │  2. Set Random Address
+              │  3. Start Scanning
+              │
+              ▼
+    ┌───────────────────────────────────────────────────────────────────────┐
+    │                         Scan for Peripherals                          │
+    └───────────────────────────────────────────────────────────────────────┘
+              │
+              │  Found peripheral?
+              │
+              ├───────────────────┬───────────────────┬───────────────────┐
+              ▼                   ▼                   ▼                   ▼
+    ┌─────────────────┐ ┌─────────────────┐ ┌─────────────────┐    ...
+    │  Peripheral 1   │ │  Peripheral 2   │ │  Peripheral 3   │
+    └────────┬────────┘ └────────┬────────┘ └────────┬────────┘
+             │                   │                   │
+             │  ─────────── For Each Peripheral ───────────
+             │
+             │  4. Stop Scanning
+             │  5. Create Connection
+             │  6. Update Scheduling Length
+             │  7. Connection Established
+             │  8. Add to Peer List
+             │  9. Change Random Address
+             │ 10. Resume Scanning
+             │
+             ▼
+    ┌───────────────────────────────────────────────────────────────────────┐
+    │              All peripherals connected (up to CONFIG limit)           │
+    │                     Maintain multiple connections                      │
+    └───────────────────────────────────────────────────────────────────────┘
+```
 
 ## How to Use Example
 

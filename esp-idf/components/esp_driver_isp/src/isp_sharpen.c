@@ -12,7 +12,7 @@
 #include "freertos/FreeRTOS.h"
 #include "driver/isp_core.h"
 #include "driver/isp_sharpen.h"
-#include "soc/isp_periph.h"
+#include "hal/isp_periph.h"
 #include "esp_private/isp_private.h"
 
 static const char *TAG = "ISP_SHARPEN";
@@ -45,7 +45,7 @@ esp_err_t esp_isp_sharpen_configure(isp_proc_handle_t proc, const esp_isp_sharpe
         isp_hal_sharpen_config(&(proc->hal), NULL);
     }
 
-    bool valid = isp_ll_shadow_update_sharpen(proc->hal.hw);
+    bool valid = isp_ll_shadow_update_sharpen(proc->hal.hw, config->flags.update_once_configured);
     ESP_RETURN_ON_FALSE_ISR(valid, ESP_ERR_INVALID_STATE, TAG, "failed to update sharp shadow register");
 
     return ESP_OK;

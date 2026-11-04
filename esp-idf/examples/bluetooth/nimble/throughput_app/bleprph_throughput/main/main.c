@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2015-2025 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2015-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -16,13 +16,14 @@
 #include "services/gap/ble_svc_gap.h"
 #include "gatts_sens.h"
 #include "../src/ble_hs_hci_priv.h"
+#include "esp_timer.h"
 
 #if CONFIG_EXAMPLE_EXTENDED_ADV
 static uint8_t ext_adv_pattern[] = {
-    0x02, 0x01, 0x06,
-    0x03, 0x03, 0xab, 0xcd,
-    0x03, 0x03, 0xAB, 0xF2,
-    0x0e, 0X09, 'n', 'i', 'm', 'b', 'l', 'e', '-', 'b', 'l', 'e', 'p', 'r', 'p', 'h'
+    0x02, BLE_HS_ADV_TYPE_FLAGS, 0x06,
+    0x03, BLE_HS_ADV_TYPE_COMP_UUIDS16, 0xab, 0xcd,
+    0x03, BLE_HS_ADV_TYPE_COMP_UUIDS16, 0xAB, 0xF2,
+    0x0c, BLE_HS_ADV_TYPE_COMP_NAME, 'n', 'i', 'm', 'b', 'l', 'e', '_', 'p', 'r', 'p', 'h'
 };
 
 static uint8_t s_current_phy;
@@ -30,15 +31,16 @@ static uint8_t s_current_phy;
 
 static const char *device_name = "nimble_prph";
 
-#define NOTIFY_THROUGHPUT_PAYLOAD 495
-#define MIN_REQUIRED_MBUF         2 /* Assuming payload of 500Bytes and each mbuf can take 292Bytes.  */
+#define NOTIFY_THROUGHPUT_PAYLOAD 495 /* Exactly aligns with 2 LL packets */
+#define MIN_REQUIRED_MBUF         10 /* Reserve mbufs for incoming ATT packets */
+#define NOTIFY_PIPELINE_DEPTH     8  /* Number of notifications to keep in flight */
 #define PREFERRED_MTU_VALUE       512
 #define LL_PACKET_TIME            2120
 #define LL_PACKET_LENGTH          251
 #define MTU_DEF                   512
 
 static const char *tag = "bleprph_throughput";
-static SemaphoreHandle_t notify_sem;
+static TaskHandle_t notify_task_handle = NULL;
 static bool notify_state;
 static int notify_test_time = 60;
 static uint16_t conn_handle;
@@ -259,12 +261,13 @@ notify_task(void *arg)
                 break;
             }
 
-            while (notify_time < (notify_test_time * 1000)) {
-                /* We are anyway using counting semaphore for sending
-                 * notifications. So hopefully not much waiting period will be
-                 * introduced before sending a new notification. Revisit this
-                 * counter if need to do away with semaphore waiting. XXX */
-                xSemaphoreTake(notify_sem, portMAX_DELAY);
+            while (notify_state && notify_time < (notify_test_time * 1000)) {
+                ulTaskNotifyTake(pdFALSE, portMAX_DELAY);
+
+                /* Stop immediately if central unsubscribed */
+                if (!notify_state) {
+                    break;
+                }
 
                 if (dummy == 200) {
                     dummy = 0;
@@ -276,28 +279,29 @@ notify_task(void *arg)
                     do {
                         om = ble_hs_mbuf_from_flat(payload, sizeof(payload));
                         if (om == NULL) {
-                            /* Memory not available for mbuf */
-                            vTaskDelay(100 / portTICK_PERIOD_MS);
+                            /* Memory not available for mbuf, yield briefly */
+                            vTaskDelay(1);
                         }
                     } while (om == NULL);
 
                     rc = ble_gatts_notify_custom(conn_handle, notify_handle, om);
                     if (rc != 0) {
-                        ESP_LOGE(tag, "Error while sending notification; rc = %d", rc);
+                        if (rc == BLE_HS_ENOMEM) {
+                            ESP_LOGD(tag, "Notification queue full (expected backpressure)");
+                        } else {
+                            ESP_LOGE(tag, "Error while sending notification; rc = %d", rc);
+                        }
                         notify_count -= 1;
-                        xSemaphoreGive(notify_sem);
-                        /* Most probably error is because we ran out of mbufs (rc = 6),
-                         * increase the mbuf count/size from menuconfig. Though
-                         * inserting delay is not good solution let us keep it
-                         * simple for time being so that the mbufs get freed up
-                         * (?), of course assumption is we ran out of mbufs */
-                        vTaskDelay(10 / portTICK_PERIOD_MS);
+                        /* Yield to let mbufs free up */
+                        vTaskDelay(1);
                     }
                 } else {
-                    ESP_LOGE(tag, "Not enough OS_MBUFs available; reduce notify count ");
-                    xSemaphoreGive(notify_sem);
-                    notify_count -= 1;
-                    vTaskDelay(10 / portTICK_PERIOD_MS);
+                        if (notify_task_handle) {
+                            xTaskNotifyGive(notify_task_handle);
+                        }
+                        notify_count -= 1;
+                        /* Yield briefly to let mbufs free up */
+                        vTaskDelay(1);
                 }
 
                 end_time = esp_timer_get_time();
@@ -305,13 +309,20 @@ notify_task(void *arg)
                 notify_count += 1;
             }
 
-            printf("\n*********************************\n");
-            ESP_LOGI(tag, "Notify throughput = %d bps, count = %d",
-                     (notify_count * NOTIFY_THROUGHPUT_PAYLOAD * 8) / notify_test_time, notify_count);
-            printf("\n*********************************\n");
-            ESP_LOGI(tag, " Notification test complete for stipulated time of %d sec", notify_test_time);
+            /* Use actual elapsed time for accurate throughput calculation */
+            {
+                int actual_secs = (int)(notify_time / 1000);
+                if (actual_secs > 0 && notify_count > 0) {
+                    printf("\n*********************************\n");
+                    ESP_LOGI(tag, "Notify throughput = %d bps, count = %d",
+                             (int)(((uint64_t)notify_count * NOTIFY_THROUGHPUT_PAYLOAD * 8) / actual_secs), notify_count);
+                    printf("\n*********************************\n");
+                    ESP_LOGI(tag, " Notification test complete (%d sec elapsed)", actual_secs);
+                }
+            }
             notify_test_time = 0;
             notify_count = 0;
+            notify_time = 0;
 
             break;
         }
@@ -358,6 +369,12 @@ gatts_gap_event(struct ble_gap_event *event, void *arg)
     case BLE_GAP_EVENT_DISCONNECT:
         ESP_LOGI(tag, "disconnect; reason = %d", event->disconnect.reason);
 
+        /* Stop notification task loop cleanly */
+        notify_state = false;
+        if (notify_task_handle) {
+            xTaskNotifyGive(notify_task_handle);
+        }
+
         /* Connection terminated; resume advertising */
 #if CONFIG_EXAMPLE_EXTENDED_ADV
         ble_gap_ext_adv_stop(0);
@@ -378,11 +395,6 @@ gatts_gap_event(struct ble_gap_event *event, void *arg)
 
     case BLE_GAP_EVENT_ADV_COMPLETE:
         ESP_LOGI(tag, "adv complete ");
-#if CONFIG_EXAMPLE_EXTENDED_ADV
-        ext_bleprph_advertise();
-#else
-        gatts_advertise();
-#endif
         break;
 
     case BLE_GAP_EVENT_SUBSCRIBE:
@@ -391,11 +403,23 @@ gatts_gap_event(struct ble_gap_event *event, void *arg)
                  event->subscribe.cur_notify, event->subscribe.attr_handle);
         if (event->subscribe.attr_handle == notify_handle) {
             notify_state = event->subscribe.cur_notify;
-            if (arg != NULL) {
-                ESP_LOGI(tag, "notify test time = %d", *(int *)arg);
-                notify_test_time = *((int *)arg);
+            if (notify_state) {
+                /* Always reset test time on new subscription.
+                 * The central controls the actual duration by unsubscribing.
+                 * Use a large default so the peripheral never stops on its own. */
+                notify_test_time = 3600;
+                ESP_LOGI(tag, "Notifications enabled, test time = %d sec", notify_test_time);
+                /* Prime the notification pipeline to allow multiple in-flight
+                 * notifications. This enables the controller to fill connection
+                 * events with back-to-back PDUs for maximum throughput. */
+                for (int i = 0; i < NOTIFY_PIPELINE_DEPTH; i++) {
+                    if (notify_task_handle) {
+                        xTaskNotifyGive(notify_task_handle);
+                    }
+                }
+            } else {
+                ESP_LOGI(tag, "Notifications disabled");
             }
-            xSemaphoreGive(notify_sem);
         } else if (event->subscribe.attr_handle != notify_handle) {
             notify_state = event->subscribe.cur_notify;
         }
@@ -403,16 +427,20 @@ gatts_gap_event(struct ble_gap_event *event, void *arg)
 
     case BLE_GAP_EVENT_NOTIFY_TX:
         ESP_LOGD(tag, "BLE_GAP_EVENT_NOTIFY_TX success !!");
-        if ((event->notify_tx.status == 0) ||
-                (event->notify_tx.status == BLE_HS_EDONE)) {
-            /* Send new notification i.e. give Semaphore. By definition,
-             * sending new notifications should not be based on successful
-             * notifications sent, but let us adopt this method to avoid too
-             * many `BLE_HS_ENOMEM` errors because of continuous transfer of
-             * notifications.XXX */
-            xSemaphoreGive(notify_sem);
-        } else {
-            ESP_LOGE(tag, "BLE_GAP_EVENT_NOTIFY_TX notify tx status = %d", event->notify_tx.status);
+
+        /* Always return the pipeline token to prevent the task from blocking permanently,
+         * even if the notification failed (e.g., due to disconnect or buffer full). */
+        if (notify_task_handle) {
+            xTaskNotifyGive(notify_task_handle);
+        }
+
+        if ((event->notify_tx.status != 0) &&
+                (event->notify_tx.status != BLE_HS_EDONE)) {
+            if (event->notify_tx.status == BLE_HS_ENOMEM) {
+                ESP_LOGD(tag, "BLE_GAP_EVENT_NOTIFY_TX flow control (ENOMEM)");
+            } else {
+                ESP_LOGE(tag, "BLE_GAP_EVENT_NOTIFY_TX notify tx status = %d", event->notify_tx.status);
+            }
         }
         break;
 
@@ -472,13 +500,8 @@ gatts_on_reset(int reason)
 void gatts_host_task(void *param)
 {
     ESP_LOGI(tag, "BLE Host Task Started");
-    /* Create a counting semaphore for Notification. Can be used to track
-     * successful notification txmission. Optimistically take some big number
-     * for counting Semaphore */
-    notify_sem = xSemaphoreCreateCounting(100, 0);
     /* This function will return only when nimble_port_stop() is executed */
     nimble_port_run();
-    vSemaphoreDelete(notify_sem);
     nimble_port_freertos_deinit();
 }
 
@@ -507,8 +530,11 @@ void app_main(void)
     ble_hs_cfg.store_status_cb = ble_store_util_status_rr;
 
     /* Initialize Notify Task */
-    xTaskCreate(notify_task, "notify_task", 4096, NULL, 10, NULL);
-
+    BaseType_t task_rc = xTaskCreate(notify_task, "notify_task", 4096, NULL, 10, &notify_task_handle);
+    if (task_rc != pdPASS) {
+        ESP_LOGE(tag, "Failed to create notify_task (rc=%d)", task_rc);
+        return ;
+    }
 #if MYNEWT_VAL(BLE_GATTS)
     rc = gatt_svr_init();
     assert(rc == 0);

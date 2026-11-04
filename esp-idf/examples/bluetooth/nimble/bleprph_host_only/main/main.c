@@ -4,24 +4,22 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include "esp_log.h"
 #include "nvs_flash.h"
 /* BLE */
 #include "nimble/nimble_port.h"
 #include "nimble/nimble_port_freertos.h"
 #include "host/ble_hs.h"
 #include "host/util/util.h"
-#include "console/console.h"
 #include "services/gap/ble_svc_gap.h"
 #include "bleprph.h"
 #include "uart_driver.h"
 
 #if CONFIG_EXAMPLE_EXTENDED_ADV
 static uint8_t ext_adv_pattern_1[] = {
-    0x02, 0x01, 0x06,
-    0x03, 0x03, 0xab, 0xcd,
-    0x03, 0x03, 0x18, 0x11,
-    0x11, 0X09, 'n', 'i', 'm', 'b', 'l', 'e', '-', 'b', 'l', 'e', 'p', 'r', 'p', 'h', '-', 'e',
+    0x02, BLE_HS_ADV_TYPE_FLAGS, 0x06,
+    0x03, BLE_HS_ADV_TYPE_COMP_UUIDS16, 0xab, 0xcd,
+    0x03, BLE_HS_ADV_TYPE_COMP_UUIDS16, 0x18, 0x11,
+    0x11, BLE_HS_ADV_TYPE_COMP_NAME, 'n', 'i', 'm', 'b', 'l', 'e', '-', 'b', 'l', 'e', 'p', 'r', 'p', 'h', '-', 'e',
 };
 #endif
 
@@ -245,7 +243,9 @@ bleprph_gap_event(struct ble_gap_event *event, void *arg)
         }
 
 #if MYNEWT_VAL(BLE_POWER_CONTROL)
-	bleprph_power_control(event->connect.conn_handle);
+        if (event->connect.status == 0) {
+            bleprph_power_control(event->connect.conn_handle);
+        }
 #endif
         return 0;
 
@@ -343,6 +343,8 @@ bleprph_gap_event(struct ble_gap_event *event, void *arg)
 
         if (event->passkey.params.action == BLE_SM_IOACT_DISP) {
             pkey.action = event->passkey.params.action;
+            /* WARNING: Hardcoded passkey for demonstration only.
+             * In production, generate a random passkey per pairing. */
             pkey.passkey = 123456; // This is the passkey to be entered on peer
             ESP_LOGI(tag, "Enter passkey %" PRIu32 "on the peer side", pkey.passkey);
             rc = ble_sm_inject_io(event->passkey.conn_handle, &pkey);
@@ -497,6 +499,7 @@ app_main(void)
     ret = nimble_port_init();
     if (ret != ESP_OK) {
         ESP_LOGE(tag, "Failed to init nimble %d ", ret);
+        hci_uart_close();
         return;
     }
     /* Initialize the NimBLE host configuration. */

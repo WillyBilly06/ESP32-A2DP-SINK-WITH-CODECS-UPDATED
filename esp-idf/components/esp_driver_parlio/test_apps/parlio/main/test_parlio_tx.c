@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2023-2025 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2023-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -19,7 +19,7 @@
 TEST_CASE("parallel_tx_unit_install_uninstall", "[parlio_tx]")
 {
     printf("install tx units exhaustively\r\n");
-    parlio_tx_unit_handle_t units[SOC_PARLIO_GROUPS * SOC_PARLIO_TX_UNITS_PER_GROUP];
+    parlio_tx_unit_handle_t units[PARLIO_LL_GET(INST_NUM) * PARLIO_LL_GET(TX_UNITS_PER_INST)];
     int k = 0;
     parlio_tx_unit_config_t config = {
         .clk_src = PARLIO_CLK_SRC_DEFAULT,
@@ -31,8 +31,8 @@ TEST_CASE("parallel_tx_unit_install_uninstall", "[parlio_tx]")
         .max_transfer_size = 64,
         .valid_gpio_num = -1,
     };
-    for (int i = 0; i < SOC_PARLIO_GROUPS; i++) {
-        for (int j = 0; j < SOC_PARLIO_TX_UNITS_PER_GROUP; j++) {
+    for (int i = 0; i < PARLIO_LL_GET(INST_NUM); i++) {
+        for (int j = 0; j < PARLIO_LL_GET(TX_UNITS_PER_INST); j++) {
             TEST_ESP_OK(parlio_new_tx_unit(&config, &units[k++]));
         }
     }
@@ -97,7 +97,7 @@ TEST_CASE("parallel_tx_unit_trans_done_event", "[parlio_tx]")
         .trans_queue_depth = 8,
         .max_transfer_size = 128,
         .bit_pack_order = PARLIO_BIT_PACK_ORDER_LSB,
-        .sample_edge = PARLIO_SAMPLE_EDGE_POS,
+        .shift_edge = PARLIO_SHIFT_EDGE_POS,
     };
     TEST_ESP_OK(parlio_new_tx_unit(&config, &tx_unit));
     TEST_ESP_OK(parlio_tx_unit_enable(tx_unit));
@@ -149,7 +149,7 @@ TEST_CASE("parallel_tx_unit_enable_disable", "[parlio_tx]")
         .trans_queue_depth = 4,
         .max_transfer_size = 256,
         .bit_pack_order = PARLIO_BIT_PACK_ORDER_LSB,
-        .sample_edge = PARLIO_SAMPLE_EDGE_POS,
+        .shift_edge = PARLIO_SHIFT_EDGE_POS,
     };
     TEST_ESP_OK(parlio_new_tx_unit(&config, &tx_unit));
     TEST_ESP_OK(parlio_tx_unit_enable(tx_unit));
@@ -210,7 +210,7 @@ TEST_CASE("parallel_tx_unit_idle_value", "[parlio_tx]")
         .trans_queue_depth = 4,
         .max_transfer_size = 64,
         .bit_pack_order = PARLIO_BIT_PACK_ORDER_LSB,
-        .sample_edge = PARLIO_SAMPLE_EDGE_POS,
+        .shift_edge = PARLIO_SHIFT_EDGE_POS,
     };
     TEST_ESP_OK(parlio_new_tx_unit(&config, &tx_unit));
     TEST_ESP_OK(parlio_tx_unit_enable(tx_unit));
@@ -262,7 +262,7 @@ TEST_CASE("parallel_tx_clock_gating", "[paralio_tx]")
         .trans_queue_depth = 4,
         .max_transfer_size = 64,
         .bit_pack_order = PARLIO_BIT_PACK_ORDER_MSB,
-        .sample_edge = PARLIO_SAMPLE_EDGE_POS,
+        .shift_edge = PARLIO_SHIFT_EDGE_POS,
         .flags.clk_gate_en = true, // enable clock gating, controlled by the level of TEST_DATA7_GPIO
     };
     TEST_ESP_OK(parlio_new_tx_unit(&config, &tx_unit));
@@ -325,7 +325,7 @@ TEST_CASE("parallel_tx_clock_gating_and_msb_coexist", "[paralio_tx]")
         .trans_queue_depth = 4,
         .max_transfer_size = 256,
         .bit_pack_order = PARLIO_BIT_PACK_ORDER_MSB,
-        .sample_edge = PARLIO_SAMPLE_EDGE_POS,
+        .shift_edge = PARLIO_SHIFT_EDGE_POS,
         .valid_start_delay = 5,
         .valid_stop_delay = 5,
         .flags.clk_gate_en = true, // enable clock gating, controlled by the CS signal
@@ -390,7 +390,7 @@ TEST_CASE("parlio_tx_can_transmit_PSRAM_buffer", "[parlio_tx]")
         .trans_queue_depth = 4,
         .max_transfer_size = 65535,
         .bit_pack_order = PARLIO_BIT_PACK_ORDER_LSB,
-        .sample_edge = PARLIO_SAMPLE_EDGE_POS,
+        .shift_edge = PARLIO_SHIFT_EDGE_POS,
         .flags.clk_gate_en = true,
     };
 
@@ -512,7 +512,7 @@ TEST_CASE("parallel tx unit use external non-free running clock", "[parlio_tx]")
         .trans_queue_depth = 8,
         .max_transfer_size = 256,
         .bit_pack_order = PARLIO_BIT_PACK_ORDER_LSB,
-        .sample_edge = PARLIO_SAMPLE_EDGE_POS,
+        .shift_edge = PARLIO_SHIFT_EDGE_POS,
     };
 
     uint8_t test_round = 50;
@@ -571,7 +571,7 @@ TEST_CASE("parlio_tx_loop_transmission", "[parlio_tx]")
         .trans_queue_depth = 3,
         .max_transfer_size = 256,
         .bit_pack_order = PARLIO_BIT_PACK_ORDER_LSB,
-        .sample_edge = PARLIO_SAMPLE_EDGE_POS,
+        .shift_edge = PARLIO_SHIFT_EDGE_POS,
     };
     TEST_ESP_OK(parlio_new_tx_unit(&config, &tx_unit));
 
@@ -649,7 +649,7 @@ TEST_CASE("parlio_tx_loop_transmission", "[parlio_tx]")
 }
 #endif  // SOC_PARLIO_TX_SUPPORT_LOOP_TRANSMISSION
 
-#if SOC_PARLIO_TX_SUPPORT_EOF_FROM_DMA
+#if PARLIO_LL_SUPPORT(TX_EOF_FROM_DMA)
 TEST_CASE("parlio_tx can transmit buffer larger than max_size decided by datalen_eof", "[parlio_tx]")
 {
     printf("install parlio tx unit\r\n");
@@ -670,7 +670,7 @@ TEST_CASE("parlio_tx can transmit buffer larger than max_size decided by datalen
         .trans_queue_depth = 1,
         .max_transfer_size = 100 * 1024,
         .bit_pack_order = PARLIO_BIT_PACK_ORDER_LSB,
-        .sample_edge = PARLIO_SAMPLE_EDGE_POS,
+        .shift_edge = PARLIO_SHIFT_EDGE_POS,
         .flags.clk_gate_en = true,
     };
 
@@ -695,4 +695,4 @@ TEST_CASE("parlio_tx can transmit buffer larger than max_size decided by datalen
     TEST_ESP_OK(parlio_del_tx_unit(tx_unit));
     free(buffer);
 }
-#endif // SOC_PARLIO_TX_SUPPORT_EOF_FROM_DMA
+#endif // PARLIO_LL_SUPPORT(TX_EOF_FROM_DMA)

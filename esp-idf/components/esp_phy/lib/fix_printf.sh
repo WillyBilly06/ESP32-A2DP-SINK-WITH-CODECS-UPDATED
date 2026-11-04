@@ -1,7 +1,8 @@
 #!/bin/bash
 chip_list=(esp32 esp32s2 esp32c3 esp32s3 esp32h2 esp32h4 esp32c2 esp32c6 esp32c5 esp32c61)
 
-for dir in "${chip_list[@]}"; do
+for dir in */; do
+    dir=${dir%/}
     if [ $dir = esp32 ]; then
         TOOLCHAIN="xtensa-esp32-elf"
     elif [ $dir = esp32s2 ]; then
@@ -36,5 +37,3 @@ for dir in "${chip_list[@]}"; do
         echo "$dir does not exist"
     fi
 done
-
-

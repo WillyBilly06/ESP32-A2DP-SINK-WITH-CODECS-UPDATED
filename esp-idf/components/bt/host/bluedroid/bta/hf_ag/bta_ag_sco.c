@@ -199,7 +199,7 @@ static void bta_ag_sco_conn_cback(UINT16 sco_idx)
             handle = 0;
     }
 
-    if (handle != 0)
+    if (handle != 0 && p_scb)
     {
         BTM_ReadEScoLinkParms(sco_idx, &sco_data);
 
@@ -251,10 +251,10 @@ static void bta_ag_sco_disc_cback(UINT16 sco_idx)
 
     APPL_TRACE_DEBUG ("bta_ag_sco_disc_cback(): sco_idx: 0x%x  p_cur_scb: 0x%08x  sco.state: %d", (unsigned int)sco_idx, (unsigned int)bta_ag_cb.sco.p_curr_scb, (unsigned int)bta_ag_cb.sco.state);
 
-    APPL_TRACE_DEBUG ("bta_ag_sco_disc_cback(): scb[0] addr: 0x%08x  in_use: %u  sco_idx: 0x%x  sco state: %u",
-                       (unsigned int) &bta_ag_cb.scb[0], (unsigned int)bta_ag_cb.scb[0].in_use, (unsigned int)bta_ag_cb.scb[0].sco_idx, (unsigned int)bta_ag_cb.scb[0].state);
-    APPL_TRACE_DEBUG ("bta_ag_sco_disc_cback(): scb[1] addr: 0x%08x  in_use: %u  sco_idx: 0x%x  sco state: %u",
-                       (unsigned int) &bta_ag_cb.scb[1], (unsigned int) bta_ag_cb.scb[1].in_use, (unsigned int) bta_ag_cb.scb[1].sco_idx, (unsigned int) bta_ag_cb.scb[1].state);
+    for (int i = 0; i < BTA_AG_NUM_SCB; i++) {
+        APPL_TRACE_DEBUG ("bta_ag_sco_disc_cback(): scb[%d] addr: 0x%08x  in_use: %u  sco_idx: 0x%x  sco state: %u", i,
+                          (unsigned int) &bta_ag_cb.scb[i], (unsigned int)bta_ag_cb.scb[i].in_use, (unsigned int)bta_ag_cb.scb[i].sco_idx, (unsigned int)bta_ag_cb.scb[i].state);
+    }
 
     /* match callback to scb */
     if (bta_ag_cb.sco.p_curr_scb != NULL && bta_ag_cb.sco.p_curr_scb->in_use)
@@ -672,10 +672,13 @@ static void bta_ag_create_sco(tBTA_AG_SCB *p_scb, BOOLEAN is_orig)
 
 #if (BTM_SCO_HCI_INCLUDED == TRUE)
 #if (BTM_WBS_INCLUDED == TRUE)
-    if (esco_codec == BTA_AG_CODEC_MSBC)
-        pcm_sample_rate = BTA_HFP_SCO_SAMP_RATE_16K;
+        if (esco_codec == BTA_AG_CODEC_MSBC) {
+            pcm_sample_rate = BTA_HFP_SCO_SAMP_RATE_16K;
+        } else
 #endif
-        pcm_sample_rate = BTA_HFP_SCO_SAMP_RATE_8K;
+        {
+            pcm_sample_rate = BTA_HFP_SCO_SAMP_RATE_8K;
+        }
         sco_route = bta_ag_sco_co_init(pcm_sample_rate, pcm_sample_rate, &codec_info, p_scb->app_id);
 #endif
 
@@ -786,7 +789,7 @@ void bta_ag_codec_negotiate(tBTA_AG_SCB *p_scb)
 
         /* Start timer to handle timeout */
         p_scb->cn_timer.p_cback = (TIMER_CBACK*)&bta_ag_cn_timer_cback;
-        p_scb->cn_timer.param = (INT32)p_scb;
+        p_scb->cn_timer.param = (UINT32)p_scb;
         bta_sys_start_timer(&p_scb->cn_timer, 0, BTA_AG_CODEC_NEGO_TIMEOUT);
     }
     else
@@ -843,6 +846,7 @@ static void bta_ag_sco_event(tBTA_AG_SCB *p_scb, UINT8 event)
                     }
                 } else {
                     osi_free(p_buf);
+                    break;
                 }
             } else {
                 osi_free(p_buf);
@@ -1405,14 +1409,8 @@ BOOLEAN bta_ag_sco_is_open(tBTA_AG_SCB *p_scb)
 *******************************************************************************/
 BOOLEAN bta_ag_sco_is_opening(tBTA_AG_SCB *p_scb)
 {
-#if (BTM_WBS_INCLUDED == TRUE )
-    return (((bta_ag_cb.sco.state == BTA_AG_SCO_OPENING_ST) ||
-            (bta_ag_cb.sco.state == BTA_AG_SCO_OPENING_ST)) &&
-            (bta_ag_cb.sco.p_curr_scb == p_scb));
-#else
     return ((bta_ag_cb.sco.state == BTA_AG_SCO_OPENING_ST) &&
             (bta_ag_cb.sco.p_curr_scb == p_scb));
-#endif
 }
 
 /*******************************************************************************
@@ -1694,7 +1692,7 @@ void bta_ag_sco_conn_close(tBTA_AG_SCB *p_scb, tBTA_AG_DATA *p_data)
 *******************************************************************************/
 void bta_ag_sco_conn_rsp(tBTA_AG_SCB *p_scb, tBTM_ESCO_CONN_REQ_EVT_DATA *p_data)
 {
-    tBTM_ESCO_PARAMS    resp;
+    tBTM_ESCO_PARAMS    resp = {0};
     UINT8               hci_status = HCI_SUCCESS;
 #if (BTM_SCO_HCI_INCLUDED == TRUE)
     tBTA_HFP_CODEC_INFO codec_info = {BTA_HFP_SCO_CODEC_PCM};
@@ -2000,9 +1998,10 @@ static void bta_ag_sco_data_send_msbc(tBTA_AG_SCB *p_scb, BT_HDR *p_buf)
                 p_buf3->offset = BTA_AG_BUFF_OFFSET_MIN;
                 p_buf3->len = BTA_AG_SCO_OUT_PKT_LEN_EV3;
                 UINT8 *p_data3 = (UINT8 *)(p_buf3 + 1) + p_buf3->offset;
-                memcpy(p_data3, p_data, BTA_AG_MSBC_FRAME_SIZE - BTA_AG_H2_HEADER_LEN - BTA_AG_SCO_OUT_PKT_LEN_EV3);
-                p_data += BTA_AG_MSBC_FRAME_SIZE - BTA_AG_H2_HEADER_LEN - BTA_AG_SCO_OUT_PKT_LEN_EV3;
-                total_len -= BTA_AG_MSBC_FRAME_SIZE - BTA_AG_H2_HEADER_LEN - BTA_AG_SCO_OUT_PKT_LEN_EV3;
+                UINT16 rem_payload = BTA_AG_MSBC_FRAME_SIZE - (BTA_AG_SCO_OUT_PKT_LEN_EV3 - BTA_AG_H2_HEADER_LEN);
+                memcpy(p_data3, p_data, rem_payload);
+                p_data += rem_payload;
+                total_len -= rem_payload;
                 bta_ag_write_sco_data(p_scb, p_buf2, p_buf3);
             }
         }

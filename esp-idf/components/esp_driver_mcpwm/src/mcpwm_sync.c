@@ -1,11 +1,10 @@
 /*
- * SPDX-FileCopyrightText: 2022-2025 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2022-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
 
 #include "mcpwm_private.h"
-#include "hal/gpio_hal.h"
 #include "driver/mcpwm_sync.h"
 #include "driver/gpio.h"
 #include "esp_private/gpio.h"
@@ -106,12 +105,13 @@ static esp_err_t mcpwm_del_timer_sync_src(mcpwm_sync_t *sync_src)
 
 static esp_err_t mcpwm_gpio_sync_src_register_to_group(mcpwm_gpio_sync_src_t *gpio_sync_src, int group_id)
 {
-    mcpwm_group_t *group = mcpwm_acquire_group_handle(group_id);
-    ESP_RETURN_ON_FALSE(group, ESP_ERR_NO_MEM, TAG, "no mem for group (%d)", group_id);
+    mcpwm_group_t *group = NULL;
+    esp_err_t ret = ESP_OK;
 
+    ESP_GOTO_ON_ERROR(mcpwm_acquire_group_handle(group_id, 0, &group), err, TAG, "acquire group failed");
     int sync_id = -1;
     portENTER_CRITICAL(&group->spinlock);
-    for (int i = 0; i < SOC_MCPWM_GPIO_SYNCHROS_PER_GROUP; i++) {
+    for (int i = 0; i < MCPWM_LL_GET(GPIO_SYNCHROS_PER_GROUP); i++) {
         if (!group->gpio_sync_srcs[i]) {
             sync_id = i;
             group->gpio_sync_srcs[i] = gpio_sync_src;
@@ -120,16 +120,17 @@ static esp_err_t mcpwm_gpio_sync_src_register_to_group(mcpwm_gpio_sync_src_t *gp
     }
     portEXIT_CRITICAL(&group->spinlock);
 
-    if (sync_id < 0) {
-        mcpwm_release_group_handle(group);
-        group = NULL;
-    } else {
-        gpio_sync_src->base.group = group;
-        gpio_sync_src->sync_id = sync_id;
-    }
-    ESP_RETURN_ON_FALSE(sync_id >= 0, ESP_ERR_NOT_FOUND, TAG, "no free gpio sync_src in group (%d)", group_id);
+    ESP_GOTO_ON_FALSE(sync_id >= 0, ESP_ERR_NOT_FOUND, err, TAG, "no free gpio sync_src in group (%d)", group_id);
 
+    gpio_sync_src->base.group = group;
+    gpio_sync_src->sync_id = sync_id;
     return ESP_OK;
+
+err:
+    if (group) {
+        mcpwm_release_group_handle(group);
+    }
+    return ret;
 }
 
 static void mcpwm_gpio_sync_src_unregister_from_group(mcpwm_gpio_sync_src_t *gpio_sync_src)
@@ -159,7 +160,7 @@ esp_err_t mcpwm_new_gpio_sync_src(const mcpwm_gpio_sync_src_config_t *config, mc
     esp_err_t ret = ESP_OK;
     mcpwm_gpio_sync_src_t *gpio_sync_src = NULL;
     ESP_GOTO_ON_FALSE(config && ret_sync, ESP_ERR_INVALID_ARG, err, TAG, "invalid argument");
-    ESP_GOTO_ON_FALSE(config->group_id < SOC_MCPWM_GROUPS && config->group_id >= 0, ESP_ERR_INVALID_ARG,
+    ESP_GOTO_ON_FALSE(config->group_id < MCPWM_LL_GET(GROUP_NUM) && config->group_id >= 0, ESP_ERR_INVALID_ARG,
                       err, TAG, "invalid group ID:%d", config->group_id);
 
     gpio_sync_src = heap_caps_calloc(1, sizeof(mcpwm_gpio_sync_src_t), MCPWM_MEM_ALLOC_CAPS);
@@ -174,23 +175,7 @@ esp_err_t mcpwm_new_gpio_sync_src(const mcpwm_gpio_sync_src_config_t *config, mc
     gpio_func_sel(config->gpio_num, PIN_FUNC_GPIO);
     gpio_input_enable(config->gpio_num);
 
-    esp_rom_gpio_connect_in_signal(config->gpio_num, mcpwm_periph_signals.groups[group_id].gpio_synchros[sync_id].sync_sig, 0);
-
-    if (config->flags.pull_down) {
-        gpio_pulldown_en(config->gpio_num);
-    } else {
-        gpio_pulldown_dis(config->gpio_num);
-    }
-    if (config->flags.pull_up) {
-        gpio_pullup_en(config->gpio_num);
-    } else {
-        gpio_pullup_dis(config->gpio_num);
-    }
-
-    // deprecated, to be removed in in esp-idf v6.0
-    if (config->flags.io_loop_back) {
-        gpio_ll_output_enable(&GPIO, config->gpio_num);
-    }
+    esp_rom_gpio_connect_in_signal(config->gpio_num, soc_mcpwm_signals[group_id].gpio_synchros[sync_id].sync_sig, 0);
 
     // different ext sync share the same config register, using a group level spin lock
     portENTER_CRITICAL(&group->spinlock);
@@ -220,7 +205,7 @@ static esp_err_t mcpwm_del_gpio_sync_src(mcpwm_sync_t *sync_src)
     int sync_id = gpio_sync_src->sync_id;
 
     ESP_LOGD(TAG, "del gpio sync_src (%d,%d)", group->group_id, gpio_sync_src->sync_id);
-    esp_rom_gpio_connect_in_signal(GPIO_MATRIX_CONST_ZERO_INPUT, mcpwm_periph_signals.groups[group_id].gpio_synchros[sync_id].sync_sig, 0);
+    esp_rom_gpio_connect_in_signal(GPIO_MATRIX_CONST_ZERO_INPUT, soc_mcpwm_signals[group_id].gpio_synchros[sync_id].sync_sig, 0);
 
     // recycle memory resource
     ESP_RETURN_ON_ERROR(mcpwm_gpio_sync_src_destroy(gpio_sync_src), TAG, "destroy GPIO sync_src failed");

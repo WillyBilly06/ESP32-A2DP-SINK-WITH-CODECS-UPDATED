@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2018-2025 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2018-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -12,16 +12,18 @@
 #include "esp_log.h"
 #include "esp_ipc_isr.h"
 #include "sdkconfig.h"
-#include "esp_rom_uart.h"
+#include "soc/soc_caps.h"
+#include "esp_rom_serial_output.h"
 #include "soc/dport_reg.h"
-#include "soc/gpio_periph.h"
+#include "soc/gpio_reg.h"
 #include "soc/efuse_periph.h"
-#include "soc/rtc_periph.h"
-#include "soc/timer_periph.h"
 #include "esp_cpu.h"
 #include "soc/rtc.h"
 #include "esp_private/rtc_clk.h"
+#if SOC_WDT_SUPPORTED || SOC_RTC_WDT_SUPPORTED
 #include "hal/wdt_hal.h"
+#endif
+#include "hal/uart_ll.h"
 #include "soc/soc_memory_layout.h"
 #include "esp_private/cache_err_int.h"
 
@@ -73,6 +75,7 @@ void esp_restart_noos(void)
     // Disable interrupts
     esp_cpu_intr_disable(0xFFFFFFFF);
 
+#if SOC_RTC_WDT_SUPPORTED
     // Enable RTC watchdog for 1 second
     wdt_hal_context_t rtc_wdt_ctx;
     wdt_hal_init(&rtc_wdt_ctx, WDT_RWDT, 0, false);
@@ -83,6 +86,7 @@ void esp_restart_noos(void)
 
     //Enable flash boot mode so that flash booting after restart is protected by the RTC WDT.
     wdt_hal_set_flashboot_en(&rtc_wdt_ctx, true);
+#endif /* SOC_RTC_WDT_SUPPORTED */
 
     // Reset and stall the other CPU.
     // CPU must be reset before stalling, in case it was running a s32c1i
@@ -96,6 +100,7 @@ void esp_restart_noos(void)
     // Other core is now stalled, can access DPORT registers directly
     esp_ipc_isr_stall_abort();
 
+#if SOC_WDT_SUPPORTED
     //Todo: Refactor to use Interrupt or Task Watchdog API, and a system level WDT context
     // Disable TG0/TG1 watchdogs
     wdt_hal_context_t wdt0_context = {.inst = WDT_MWDT0, .mwdt_dev = &TIMERG0};
@@ -107,6 +112,7 @@ void esp_restart_noos(void)
     wdt_hal_write_protect_disable(&wdt1_context);
     wdt_hal_disable(&wdt1_context);
     wdt_hal_write_protect_enable(&wdt1_context);
+#endif /* SOC_WDT_SUPPORTED */
 
 #ifdef CONFIG_FREERTOS_TASK_CREATE_ALLOW_EXT_MEM
     if (esp_ptr_external_ram(esp_cpu_get_sp())) {

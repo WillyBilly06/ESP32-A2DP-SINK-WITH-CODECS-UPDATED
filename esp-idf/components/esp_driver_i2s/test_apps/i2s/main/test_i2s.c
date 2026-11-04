@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2022-2025 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2022-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -13,7 +13,6 @@
 #include "freertos/semphr.h"
 #include "sdkconfig.h"
 #include "driver/gpio.h"
-#include "hal/gpio_hal.h"
 #include "hal/dma_types.h"
 #include "esp_private/gpio.h"
 #include "esp_err.h"
@@ -21,8 +20,16 @@
 #include "unity.h"
 #include "math.h"
 #include "esp_rom_gpio.h"
-#include "soc/i2s_periph.h"
+#include "hal/i2s_periph.h"
+#include "hal/i2s_types.h"
 #include "driver/i2s_std.h"
+#include "driver/i2s_common.h"
+#include "soc/soc_caps.h"
+#if SOC_I2S_SUPPORTS_TX_FIFO_SYNC
+#include "driver/i2s_etm.h"
+#include "driver/gptimer.h"
+#include "esp_etm.h"
+#endif
 #if SOC_I2S_SUPPORTS_PDM
 #include "driver/i2s_pdm.h"
 #endif
@@ -33,7 +40,7 @@
 #include "esp_private/i2s_platform.h"
 #if SOC_PCNT_SUPPORTED
 #include "driver/pulse_cnt.h"
-#include "soc/pcnt_periph.h"
+#include "hal/pcnt_periph.h"
 #endif
 
 #include "../../test_inc/test_i2s.h"
@@ -56,7 +63,7 @@ static void i2s_test_io_config(int mode)
     gpio_set_direction(DATA_OUT_IO, GPIO_MODE_INPUT_OUTPUT);
 
     switch (mode) {
-#if SOC_I2S_NUM > 1
+#if I2S_LL_GET(INST_NUM) > 1
     case I2S_TEST_MODE_SLAVE_TO_MASTER: {
         esp_rom_gpio_connect_out_signal(MASTER_BCK_IO, i2s_periph_signal[0].m_rx_bck_sig, 0, 0);
         esp_rom_gpio_connect_in_signal(MASTER_BCK_IO, i2s_periph_signal[1].s_tx_bck_sig, 0);
@@ -170,14 +177,14 @@ TEST_CASE("I2S_basic_channel_allocation_reconfig_deleting_test", "[i2s]")
 
     /* Exhaust test */
     std_cfg.gpio_cfg.mclk = -1;
-    i2s_chan_handle_t tx_ex[SOC_I2S_NUM] = {};
-    for (int i = 0; i < SOC_I2S_NUM; i++) {
+    i2s_chan_handle_t tx_ex[I2S_LL_GET(INST_NUM)] = {};
+    for (int i = 0; i < I2S_LL_GET(INST_NUM); i++) {
         TEST_ESP_OK(i2s_new_channel(&chan_cfg, &tx_ex[i], NULL));
         TEST_ESP_OK(i2s_channel_init_std_mode(tx_ex[i], &std_cfg));
         TEST_ESP_OK(i2s_channel_enable(tx_ex[i]));
     }
     TEST_ESP_ERR(ESP_ERR_NOT_FOUND, i2s_new_channel(&chan_cfg, &tx_handle, NULL));
-    for (int i = 0; i < SOC_I2S_NUM; i++) {
+    for (int i = 0; i < I2S_LL_GET(INST_NUM); i++) {
         TEST_ESP_OK(i2s_channel_disable(tx_ex[i]));
         TEST_ESP_OK(i2s_del_channel(tx_ex[i]));
     }
@@ -237,7 +244,95 @@ TEST_CASE("I2S_basic_channel_allocation_reconfig_deleting_test", "[i2s]")
     TEST_ESP_OK(i2s_del_channel(rx_handle));
 }
 
+#if SOC_I2S_HW_VERSION_2 && SOC_I2S_SUPPORTS_TDM
+/* Cover the relaxed lazy-duplex constitution conditions:
+ * Two channels constitute full-duplex when they share the same valid WS/BCK pins,
+ * the same BCLK/WS inversion settings and the same frame timing (sample rate + total frame bits),
+ * even if their slot layout (mode / slot number / slot bit width) or MCLK configuration differs. */
+TEST_CASE("I2S_lazy_duplex_constitution_boundary_test", "[i2s]")
+{
+    i2s_chan_config_t chan_cfg = I2S_CHANNEL_DEFAULT_CONFIG(I2S_NUM_0, I2S_ROLE_MASTER);
+    i2s_chan_info_t chan_info;
+    i2s_chan_handle_t tx_handle;
+    i2s_chan_handle_t rx_handle;
+
+    /* STD stereo 32-bit => 2 slots * 32 bits = 64 bits per frame */
+    i2s_std_config_t std_64bit = {
+        .clk_cfg = I2S_STD_CLK_DEFAULT_CONFIG(SAMPLE_RATE),
+        .slot_cfg = I2S_STD_PHILIPS_SLOT_DEFAULT_CONFIG(I2S_DATA_BIT_WIDTH_32BIT, I2S_SLOT_MODE_STEREO),
+        .gpio_cfg = I2S_TEST_MASTER_DEFAULT_PIN,
+    };
+    /* TDM 4-slot 16-bit => 4 slots * 16 bits = 64 bits per frame (same frame width, different slot layout) */
+    i2s_tdm_config_t tdm_64bit = {
+        .clk_cfg = I2S_TDM_CLK_DEFAULT_CONFIG(SAMPLE_RATE),
+        .slot_cfg = I2S_TDM_PHILIPS_SLOT_DEFAULT_CONFIG(I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_STEREO, 0x0F),
+        .gpio_cfg = I2S_TEST_MASTER_DEFAULT_PIN,
+    };
+
+    /* Case 1: STD and TDM with the same frame width and identical BCLK/WS config can constitute duplex
+     *         across modes. The pair channel handle should be retrievable from either side. */
+    TEST_ESP_OK(i2s_new_channel(&chan_cfg, NULL, &rx_handle));
+    TEST_ESP_OK(i2s_new_channel(&chan_cfg, &tx_handle, NULL));
+    TEST_ESP_OK(i2s_channel_init_std_mode(rx_handle, &std_64bit));
+    TEST_ESP_OK(i2s_channel_init_tdm_mode(tx_handle, &tdm_64bit));
+    TEST_ESP_OK(i2s_channel_get_info(tx_handle, &chan_info));
+    TEST_ASSERT(chan_info.pair_chan == rx_handle);
+    TEST_ASSERT_EQUAL(I2S_ROLE_SLAVE, chan_info.role);
+    TEST_ESP_OK(i2s_channel_get_info(rx_handle, &chan_info));
+    TEST_ASSERT(chan_info.pair_chan == tx_handle);
+    TEST_ASSERT_EQUAL(I2S_ROLE_MASTER, chan_info.role);
+    TEST_ESP_OK(i2s_del_channel(tx_handle));
+    TEST_ESP_OK(i2s_del_channel(rx_handle));
+
+    /* Case 2: Different frame width (STD 16-bit => 32 bits vs TDM => 64 bits) must NOT constitute duplex. */
+    i2s_std_config_t std_32bit = std_64bit;
+    std_32bit.slot_cfg = (i2s_std_slot_config_t)I2S_STD_PHILIPS_SLOT_DEFAULT_CONFIG(I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_STEREO);
+    TEST_ESP_OK(i2s_new_channel(&chan_cfg, NULL, &rx_handle));
+    TEST_ESP_OK(i2s_new_channel(&chan_cfg, &tx_handle, NULL));
+    TEST_ESP_OK(i2s_channel_init_std_mode(rx_handle, &std_32bit));
+    TEST_ESP_OK(i2s_channel_init_tdm_mode(tx_handle, &tdm_64bit));
+    TEST_ESP_OK(i2s_channel_get_info(tx_handle, &chan_info));
+    TEST_ASSERT(chan_info.pair_chan == NULL);
+    TEST_ESP_OK(i2s_del_channel(tx_handle));
+    TEST_ESP_OK(i2s_del_channel(rx_handle));
+
+    /* Case 3: Same frame width and BCLK/WS pins but different MCLK/external clock configs can still
+     *         constitute duplex. */
+    i2s_std_config_t std_diff_mclk = std_64bit;
+    std_diff_mclk.clk_cfg.mclk_multiple = I2S_MCLK_MULTIPLE_384;
+    std_diff_mclk.clk_cfg.ext_clk_freq_hz = 24000000;
+    std_diff_mclk.gpio_cfg.mclk = I2S_GPIO_UNUSED;
+    std_diff_mclk.gpio_cfg.invert_flags.mclk_inv = true;
+    TEST_ESP_OK(i2s_new_channel(&chan_cfg, NULL, &rx_handle));
+    TEST_ESP_OK(i2s_new_channel(&chan_cfg, &tx_handle, NULL));
+    TEST_ESP_OK(i2s_channel_init_std_mode(rx_handle, &std_64bit));
+    TEST_ESP_OK(i2s_channel_init_std_mode(tx_handle, &std_diff_mclk));
+    TEST_ESP_OK(i2s_channel_get_info(tx_handle, &chan_info));
+    TEST_ASSERT(chan_info.pair_chan == rx_handle);
+    TEST_ESP_OK(i2s_channel_get_info(rx_handle, &chan_info));
+    TEST_ASSERT(chan_info.pair_chan == tx_handle);
+    TEST_ESP_OK(i2s_del_channel(tx_handle));
+    TEST_ESP_OK(i2s_del_channel(rx_handle));
+
+    /* Case 4: WS/BCK left unused (-1) on both channels must NOT constitute duplex even if everything
+     *         else matches, because there is no shared clock line to combine. */
+    i2s_std_config_t std_no_clk_pin = std_64bit;
+    std_no_clk_pin.gpio_cfg.bclk = I2S_GPIO_UNUSED;
+    std_no_clk_pin.gpio_cfg.ws = I2S_GPIO_UNUSED;
+    TEST_ESP_OK(i2s_new_channel(&chan_cfg, NULL, &rx_handle));
+    TEST_ESP_OK(i2s_new_channel(&chan_cfg, &tx_handle, NULL));
+    TEST_ESP_OK(i2s_channel_init_std_mode(rx_handle, &std_no_clk_pin));
+    TEST_ESP_OK(i2s_channel_init_std_mode(tx_handle, &std_no_clk_pin));
+    TEST_ESP_OK(i2s_channel_get_info(tx_handle, &chan_info));
+    TEST_ASSERT(chan_info.pair_chan == NULL);
+    TEST_ESP_OK(i2s_del_channel(tx_handle));
+    TEST_ESP_OK(i2s_del_channel(rx_handle));
+}
+#endif // SOC_I2S_HW_VERSION_2 && SOC_I2S_SUPPORTS_TDM
+
 static volatile bool task_run_flag;
+static volatile bool read_task_success = true;
+static volatile bool write_task_success = true;
 
 #define TEST_I2S_DATA 0x78
 
@@ -270,6 +365,7 @@ static void i2s_read_task(void *args)
         ret = i2s_channel_read(rx_handle, recv_buf, 2000, &recv_size, 300);
         if (ret == ESP_ERR_TIMEOUT) {
             printf("Read timeout count: %"PRIu32"\n", cnt++);
+            read_task_success = false;
         }
     }
 
@@ -291,6 +387,7 @@ static void i2s_write_task(void *args)
         ret = i2s_channel_write(tx_handle, send_buf, 2000, &send_size, 300);
         if (ret == ESP_ERR_TIMEOUT) {
             printf("Write timeout count: %"PRIu32"\n", cnt++);
+            write_task_success = false;
         }
     }
 
@@ -431,6 +528,7 @@ TEST_CASE("I2S_lazy_duplex_test", "[i2s]")
             },
         },
     };
+    /* Part 1: test common lazy duplex mode */
     TEST_ESP_OK(i2s_new_channel(&chan_cfg, &tx_handle, NULL));
     TEST_ESP_OK(i2s_channel_init_std_mode(tx_handle, &std_cfg));
     TEST_ESP_OK(i2s_channel_enable(tx_handle));
@@ -451,7 +549,7 @@ TEST_CASE("I2S_lazy_duplex_test", "[i2s]")
     xTaskCreate(i2s_read_check_task, "i2s_read_check_task", 4096, rx_handle, 5, NULL);
     printf("RX started\n");
 
-    /* Wait 3 seconds to see if any failures occur */
+    /* Wait 1 seconds to see if any failures occur */
     vTaskDelay(pdMS_TO_TICKS(1000));
     printf("Finished\n");
 
@@ -467,6 +565,72 @@ TEST_CASE("I2S_lazy_duplex_test", "[i2s]")
     /* Delete the channels */
     TEST_ESP_OK(i2s_del_channel(tx_handle));
     TEST_ESP_OK(i2s_del_channel(rx_handle));
+
+    /* Part 2: Test no lazy duplex mode with port auto assignment */
+    chan_cfg.id = I2S_NUM_AUTO;
+    TEST_ESP_OK(i2s_new_channel(&chan_cfg, NULL, &rx_handle));
+    TEST_ESP_OK(i2s_new_channel(&chan_cfg, &tx_handle, NULL));
+    TEST_ESP_OK(i2s_channel_init_std_mode(rx_handle, &std_cfg));
+
+    /* Change the config to not constitute full-duplex */
+    std_cfg.gpio_cfg.mclk = I2S_GPIO_UNUSED;
+    std_cfg.gpio_cfg.bclk = I2S_GPIO_UNUSED;
+    std_cfg.gpio_cfg.ws = I2S_GPIO_UNUSED;
+    std_cfg.gpio_cfg.dout = I2S_GPIO_UNUSED;
+    std_cfg.gpio_cfg.din = I2S_GPIO_UNUSED;
+#if CONFIG_IDF_TARGET_ESP32S2
+    TEST_ESP_ERR(ESP_ERR_INVALID_ARG, i2s_channel_init_std_mode(tx_handle, &std_cfg));
+    /* Delete the channels */
+    TEST_ESP_OK(i2s_del_channel(tx_handle));
+    TEST_ESP_OK(i2s_del_channel(rx_handle));
+    return;
+#else
+    TEST_ESP_OK(i2s_channel_init_std_mode(tx_handle, &std_cfg));
+#endif
+
+#if CONFIG_IDF_TARGET_ESP32
+    /* On ESP32, if failed to constitute full-duplex with `I2S_NUM_AUTO`,
+       the channel will be re-assigned to the next availableport */
+    i2s_chan_info_t chan_info;
+    TEST_ESP_OK(i2s_channel_get_info(rx_handle, &chan_info));
+    TEST_ASSERT(chan_info.id == I2S_NUM_0);
+    TEST_ESP_OK(i2s_channel_get_info(tx_handle, &chan_info));
+    TEST_ASSERT(chan_info.id == I2S_NUM_1);
+#endif
+
+    TEST_ESP_OK(i2s_channel_enable(tx_handle));
+    TEST_ESP_OK(i2s_channel_enable(rx_handle));
+
+    task_run_flag = true;
+    read_task_success = true;
+    write_task_success = true;
+    /* writing task to keep writing */
+    xTaskCreate(i2s_write_task, "i2s_write_task", 4096, tx_handle, 5, NULL);
+    printf("TX started\n");
+    vTaskDelay(pdMS_TO_TICKS(1000));
+    /* reading task to keep reading */
+    xTaskCreate(i2s_read_task, "i2s_read_task", 4096, rx_handle, 5, NULL);
+    printf("RX started\n");
+
+    /* Wait 1 seconds to see if any failures occur */
+    vTaskDelay(pdMS_TO_TICKS(1000));
+    printf("Finished\n");
+
+    /* Stop those three tasks */
+    task_run_flag = false;
+
+    /* Wait for the three thread deleted */
+    vTaskDelay(pdMS_TO_TICKS(1000));
+
+    /* Disable the channels, they will keep waiting until the current reading / writing finished */
+    TEST_ESP_OK(i2s_channel_disable(tx_handle));
+    TEST_ESP_OK(i2s_channel_disable(rx_handle));
+    /* Delete the channels */
+    TEST_ESP_OK(i2s_del_channel(tx_handle));
+    TEST_ESP_OK(i2s_del_channel(rx_handle));
+    /* Check if the reading and writing tasks are successful */
+    TEST_ASSERT(read_task_success);
+    TEST_ASSERT(write_task_success);
 }
 
 static bool whether_contains_exapected_data(uint16_t *src, uint32_t src_len, uint32_t src_step, uint32_t start_val, uint32_t val_step)
@@ -742,7 +906,7 @@ TEST_CASE("I2S_loopback_test", "[i2s]")
     TEST_ESP_OK(i2s_del_channel(rx_handle));
 }
 
-#if SOC_I2S_NUM > 1 && !CONFIG_ESP32P4_SELECTS_REV_LESS_V3
+#if I2S_LL_GET(INST_NUM) > 1 && !CONFIG_ESP32P4_SELECTS_REV_LESS_V3
 TEST_CASE("I2S_master_write_slave_read_test", "[i2s]")
 {
     i2s_chan_handle_t tx_handle;
@@ -848,7 +1012,7 @@ static void i2s_test_common_sample_rate(i2s_chan_handle_t rx_chan, i2s_std_clk_c
     gpio_func_sel(MASTER_WS_IO, PIN_FUNC_GPIO);
     gpio_set_direction(MASTER_WS_IO, GPIO_MODE_INPUT_OUTPUT);
     esp_rom_gpio_connect_out_signal(MASTER_WS_IO, i2s_periph_signal[0].m_rx_ws_sig, 0, 0);
-    esp_rom_gpio_connect_in_signal(MASTER_WS_IO, pcnt_periph_signals.groups[0].units[0].channels[0].pulse_sig, 0);
+    esp_rom_gpio_connect_in_signal(MASTER_WS_IO, soc_pcnt_signals[0].units[0].channels[0].pulse_sig_id_matrix, 0);
 
     const uint32_t test_freq[] = {
         8000,  10000, 11025, 12000, 16000, 22050,
@@ -857,11 +1021,11 @@ static void i2s_test_common_sample_rate(i2s_chan_handle_t rx_chan, i2s_std_clk_c
     };
     int real_pulse = 0;
     int case_cnt = sizeof(test_freq) / sizeof(uint32_t);
-#if SOC_I2S_SUPPORTS_PLL_F96M
+#if I2S_LL_DEFAULT_CLK_FREQ == 96000000
     // 196000 Hz sample rate doesn't support on PLL_96M target
     case_cnt = 15;
 #endif
-#if SOC_I2S_SUPPORTS_XTAL
+#if I2S_LL_SUPPORT(XTAL)
     // Can't support a very high sample rate while using XTAL as clock source
     if (clk_cfg->clk_src == I2S_CLK_SRC_XTAL) {
         case_cnt = 10;
@@ -912,7 +1076,7 @@ TEST_CASE("I2S_default_PLL_clock_test", "[i2s]")
     std_cfg.clk_cfg.clk_src = I2S_LL_DEFAULT_CLK_SRC;
 #endif
     i2s_test_common_sample_rate(rx_handle, &std_cfg.clk_cfg);
-#if SOC_I2S_SUPPORTS_XTAL
+#if I2S_LL_SUPPORT(XTAL)
     std_cfg.clk_cfg.clk_src = I2S_CLK_SRC_XTAL;
     i2s_test_common_sample_rate(rx_handle, &std_cfg.clk_cfg);
 #endif
@@ -976,6 +1140,9 @@ TEST_CASE("I2S_package_lost_test", "[i2s]")
         .slot_cfg = I2S_STD_PHILIPS_SLOT_DEFAULT_CONFIG(I2S_DATA_BIT_WIDTH_32BIT, I2S_SLOT_MODE_STEREO),
         .gpio_cfg = I2S_TEST_MASTER_DEFAULT_PIN,
     };
+#if CONFIG_IDF_TARGET_ESP32S31  // esp32s31 doesn't support PLL as clock source, use APLL instead
+    std_cfg.clk_cfg.clk_src = I2S_CLK_SRC_APLL;
+#endif
 
     TEST_ESP_OK(i2s_new_channel(&chan_cfg, NULL, &rx_handle));
     TEST_ESP_OK(i2s_channel_init_std_mode(rx_handle, &std_cfg));
@@ -1200,4 +1367,252 @@ TEST_CASE("I2S_rate_tunning", "[i2s]")
     TEST_ESP_OK(i2s_channel_disable(rx_handle));
     TEST_ESP_OK(i2s_del_channel(tx_handle));
     TEST_ESP_OK(i2s_del_channel(rx_handle));
+}
+
+#if SOC_I2S_SUPPORTS_TX_FIFO_SYNC
+#define I2S_TX_SYNC_TEST_TIMER_RES_HZ      (1000 * 1000)
+#define I2S_TX_SYNC_TEST_ALARM_COUNT       (5000)
+#define I2S_TX_SYNC_TEST_IDEAL_CNT         (1000)
+#define I2S_TX_SYNC_TEST_MANUAL_THRESH     (64)
+#define I2S_TX_SYNC_TEST_BUF_SIZE          (4096)
+
+typedef struct {
+    SemaphoreHandle_t sem;
+    int32_t diff_count;
+} i2s_tx_sync_test_ctx_t;
+
+static IRAM_ATTR bool i2s_tx_sync_test_callback(i2s_chan_handle_t handle, const i2s_sync_event_data_t *event, void *user_ctx)
+{
+    (void)handle;
+    i2s_tx_sync_test_ctx_t *ctx = (i2s_tx_sync_test_ctx_t *)user_ctx;
+    ctx->diff_count = event->diff_count;
+
+    BaseType_t need_yield = pdFALSE;
+    xSemaphoreGiveFromISR(ctx->sem, &need_yield);
+    return need_yield == pdTRUE;
+}
+
+TEST_CASE("I2S TX sync callback can be registered while running", "[i2s]")
+{
+    i2s_chan_handle_t tx_handle = NULL;
+
+    i2s_chan_config_t chan_cfg = I2S_CHANNEL_DEFAULT_CONFIG(I2S_NUM_0, I2S_ROLE_MASTER);
+    i2s_std_config_t std_cfg = {
+        .clk_cfg = I2S_STD_CLK_DEFAULT_CONFIG(48000),
+        .slot_cfg = I2S_STD_PHILIPS_SLOT_DEFAULT_CONFIG(I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_STEREO),
+        .gpio_cfg = I2S_TEST_MASTER_DEFAULT_PIN,
+    };
+    std_cfg.gpio_cfg.mclk = -1;
+#if CONFIG_IDF_TARGET_ESP32S31
+    std_cfg.clk_cfg.clk_src = I2S_CLK_SRC_APLL;
+#endif
+
+    TEST_ESP_OK(i2s_new_channel(&chan_cfg, &tx_handle, NULL));
+    TEST_ESP_OK(i2s_channel_init_std_mode(tx_handle, &std_cfg));
+    TEST_ESP_OK(i2s_channel_enable(tx_handle));
+
+    i2s_event_callbacks_t dma_cbs = {
+        .on_sent = i2s_tx_on_sent_callback,
+    };
+    TEST_ASSERT_EQUAL(ESP_ERR_INVALID_STATE, i2s_channel_register_event_callback(tx_handle, &dma_cbs, NULL));
+
+    i2s_event_callbacks_t sync_cbs = {
+        .on_tx_sync_evt = i2s_tx_sync_test_callback,
+    };
+    TEST_ESP_OK(i2s_channel_register_event_callback(tx_handle, &sync_cbs, NULL));
+    sync_cbs.on_tx_sync_evt = NULL;
+    TEST_ESP_OK(i2s_channel_register_event_callback(tx_handle, &sync_cbs, NULL));
+
+    TEST_ESP_OK(i2s_channel_disable(tx_handle));
+    TEST_ESP_OK(i2s_del_channel(tx_handle));
+}
+
+TEST_CASE("I2S TX sync callback is triggered by GPTimer ETM alarm", "[i2s][etm]")
+{
+    i2s_chan_handle_t tx_handle = NULL;
+    gptimer_handle_t timer = NULL;
+    esp_etm_event_handle_t timer_event = NULL;
+    esp_etm_task_handle_t i2s_sync_task = NULL;
+    esp_etm_channel_handle_t etm_channel = NULL;
+    uint8_t *buf = NULL;
+
+    i2s_tx_sync_test_ctx_t cb_ctx = {
+        .sem = xSemaphoreCreateBinary(),
+    };
+    TEST_ASSERT_NOT_NULL(cb_ctx.sem);
+
+    i2s_chan_config_t chan_cfg = I2S_CHANNEL_DEFAULT_CONFIG(I2S_NUM_0, I2S_ROLE_MASTER);
+    chan_cfg.dma_desc_num = 4;
+    chan_cfg.dma_frame_num = 256;
+    i2s_std_config_t std_cfg = {
+        .clk_cfg = I2S_STD_CLK_DEFAULT_CONFIG(48000),
+        .slot_cfg = I2S_STD_PHILIPS_SLOT_DEFAULT_CONFIG(I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_STEREO),
+        .gpio_cfg = I2S_TEST_MASTER_DEFAULT_PIN,
+    };
+    std_cfg.gpio_cfg.mclk = -1;
+#if CONFIG_IDF_TARGET_ESP32S31
+    std_cfg.clk_cfg.clk_src = I2S_CLK_SRC_APLL;
+#endif
+
+    TEST_ESP_OK(i2s_new_channel(&chan_cfg, &tx_handle, NULL));
+    TEST_ESP_OK(i2s_channel_init_std_mode(tx_handle, &std_cfg));
+
+    buf = (uint8_t *)calloc(1, I2S_TX_SYNC_TEST_BUF_SIZE);
+    TEST_ASSERT_NOT_NULL(buf);
+    size_t bytes_loaded = 0;
+    TEST_ESP_OK(i2s_channel_preload_data(tx_handle, buf, I2S_TX_SYNC_TEST_BUF_SIZE, &bytes_loaded));
+    TEST_ASSERT_GREATER_THAN(0, bytes_loaded);
+
+    i2s_tx_fifo_sync_config_t sync_cfg = {
+        .auto_suppl_thresh = 0,
+        .manual_suppl_thresh = I2S_TX_SYNC_TEST_MANUAL_THRESH,
+        .ideal_cnt = I2S_TX_SYNC_TEST_IDEAL_CNT,
+        .suppl_mode = I2S_TX_FIFO_SYNC_SUPPL_MODE_LAST_DATA,
+    };
+    i2s_event_callbacks_t cbs = {
+        .on_tx_sync_evt = i2s_tx_sync_test_callback,
+    };
+    TEST_ESP_OK(i2s_channel_register_event_callback(tx_handle, &cbs, &cb_ctx));
+
+    i2s_sync_count_t sync_count = {};
+    TEST_ESP_OK(i2s_channel_get_sync_count(tx_handle, &sync_count, true));
+    TEST_ESP_OK(i2s_channel_get_sync_count(tx_handle, &sync_count, false));
+    printf("TX sync API before start: diff=%"PRId32", fifo=%"PRIu32", bclk=%"PRIu32"\n",
+           sync_count.diff_count, sync_count.fifo_count, sync_count.bclk_count);
+
+    i2s_etm_task_config_t i2s_task_cfg = {
+        .task_type = I2S_ETM_TASK_SYNC_FIFO,
+    };
+    TEST_ESP_OK(i2s_new_etm_task(tx_handle, &i2s_task_cfg, &i2s_sync_task));
+
+    gptimer_config_t timer_cfg = {
+        .clk_src = GPTIMER_CLK_SRC_DEFAULT,
+        .direction = GPTIMER_COUNT_UP,
+        .resolution_hz = I2S_TX_SYNC_TEST_TIMER_RES_HZ,
+    };
+    TEST_ESP_OK(gptimer_new_timer(&timer_cfg, &timer));
+    gptimer_alarm_config_t alarm_cfg = {
+        .alarm_count = I2S_TX_SYNC_TEST_ALARM_COUNT,
+    };
+    TEST_ESP_OK(gptimer_set_alarm_action(timer, &alarm_cfg));
+
+    gptimer_etm_event_config_t timer_event_cfg = {
+        .event_type = GPTIMER_ETM_EVENT_ALARM_MATCH,
+    };
+    TEST_ESP_OK(gptimer_new_etm_event(timer, &timer_event_cfg, &timer_event));
+
+    esp_etm_channel_config_t etm_cfg = {};
+    TEST_ESP_OK(esp_etm_new_channel(&etm_cfg, &etm_channel));
+    TEST_ESP_OK(esp_etm_channel_connect(etm_channel, timer_event, i2s_sync_task));
+
+    TEST_ESP_OK(i2s_channel_enable(tx_handle));
+    // TEST_ASSERT_EQUAL(ESP_ERR_INVALID_STATE, i2s_channel_enable_tx_fifo_sync(tx_handle, true));
+    TEST_ESP_OK(i2s_channel_config_tx_fifo_sync(tx_handle, &sync_cfg));
+    TEST_ESP_OK(i2s_channel_enable_tx_fifo_sync(tx_handle, true));
+    TEST_ESP_OK(esp_etm_channel_enable(etm_channel));
+    TEST_ESP_OK(gptimer_enable(timer));
+    TEST_ESP_OK(gptimer_start(timer));
+
+    bool callback_triggered = xSemaphoreTake(cb_ctx.sem, pdMS_TO_TICKS(100)) == pdTRUE;
+    printf("TX sync callback: triggered=%d, diff=%"PRId32"\n", callback_triggered, cb_ctx.diff_count);
+
+    TEST_ESP_OK(gptimer_stop(timer));
+    TEST_ESP_OK(i2s_channel_disable(tx_handle));
+    TEST_ESP_OK(i2s_channel_enable_tx_fifo_sync(tx_handle, false));
+    cbs.on_tx_sync_evt = NULL;
+    TEST_ESP_OK(i2s_channel_register_event_callback(tx_handle, &cbs, NULL));
+    TEST_ESP_OK(gptimer_disable(timer));
+    TEST_ESP_OK(esp_etm_channel_disable(etm_channel));
+
+    TEST_ESP_OK(esp_etm_del_event(timer_event));
+    TEST_ESP_OK(esp_etm_del_task(i2s_sync_task));
+    TEST_ESP_OK(esp_etm_del_channel(etm_channel));
+    TEST_ESP_OK(gptimer_del_timer(timer));
+    TEST_ESP_OK(i2s_del_channel(tx_handle));
+    vSemaphoreDelete(cb_ctx.sem);
+    free(buf);
+
+    TEST_ASSERT_TRUE(callback_triggered);
+
+    /* SYNC_CHECK fires at 0.005 s. About 48000 * 2 * 0.005 = 480 samples
+     * are sent, so ideal_cnt 1000 should produce diff_count around -520.
+     */
+    TEST_ASSERT_INT32_WITHIN(52, -520, cb_ctx.diff_count);
+}
+#endif
+
+TEST_CASE("i2s_destination_test", "[i2s]")
+{
+    i2s_chan_handle_t tx = NULL;
+    i2s_chan_handle_t rx = NULL;
+    i2s_chan_config_t chan_cfg = I2S_CHANNEL_DEFAULT_CONFIG(I2S_NUM_0, I2S_ROLE_MASTER);
+
+    i2s_std_config_t std_cfg = {
+        .clk_cfg = I2S_STD_CLK_DEFAULT_CONFIG(SAMPLE_RATE),
+        .slot_cfg = I2S_STD_PHILIPS_SLOT_DEFAULT_CONFIG(SAMPLE_BITS, I2S_SLOT_MODE_STEREO),
+        .gpio_cfg = I2S_TEST_MASTER_DEFAULT_PIN,
+    };
+    i2s_event_callbacks_t cbs = { 0 };
+
+    // DMA destination is the default path and should support normal callback registration for TX.
+    TEST_ESP_OK(i2s_new_channel(&chan_cfg, &tx, NULL));
+    TEST_ESP_OK(i2s_channel_init_std_mode(tx, &std_cfg));
+    TEST_ESP_OK(i2s_channel_register_event_callback(tx, &cbs, NULL));
+    TEST_ESP_OK(i2s_del_channel(tx));
+    tx = NULL;
+
+    // DMA destination is the default path and should support normal callback registration for RX.
+    TEST_ESP_OK(i2s_new_channel(&chan_cfg, NULL, &rx));
+    TEST_ESP_OK(i2s_channel_init_std_mode(rx, &std_cfg));
+    TEST_ESP_OK(i2s_channel_register_event_callback(rx, &cbs, NULL));
+    TEST_ESP_OK(i2s_del_channel(rx));
+    rx = NULL;
+
+    chan_cfg.id = I2S_NUM_AUTO;
+#if SOC_I2S_SUPPORTS_BT_DEST
+
+    // BT destination should be accepted by auto allocation and bypass DMA-only APIs on TX.
+    uint8_t buf[16];
+    size_t loaded = 0;
+    size_t written = 0;
+    size_t read_bytes = 0;
+
+    chan_cfg.tx_destination = I2S_DESTINATION_BT;
+    TEST_ESP_OK(i2s_new_channel(&chan_cfg, &tx, NULL));
+    TEST_ESP_OK(i2s_channel_init_std_mode(tx, &std_cfg));
+    // DMA event callbacks rely on the DMA data path and are not available on the Bluetooth path.
+    i2s_event_callbacks_t tx_dma_cbs = { .on_sent = i2s_tx_on_sent_callback };
+    TEST_ASSERT_EQUAL(ESP_ERR_NOT_SUPPORTED, i2s_channel_register_event_callback(tx, &tx_dma_cbs, NULL));
+#if SOC_I2S_SUPPORTS_TX_FIFO_SYNC
+    // TX FIFO sync callback is a peripheral interrupt event and is available regardless of the data path.
+    i2s_event_callbacks_t tx_sync_cbs = { .on_tx_sync_evt = i2s_tx_sync_test_callback };
+    TEST_ESP_OK(i2s_channel_register_event_callback(tx, &tx_sync_cbs, NULL));
+#endif
+    TEST_ASSERT_EQUAL(ESP_ERR_NOT_SUPPORTED, i2s_channel_preload_data(tx, buf, sizeof(buf), &loaded));
+    TEST_ASSERT_EQUAL(ESP_ERR_NOT_SUPPORTED, i2s_channel_write(tx, buf, sizeof(buf), &written, 0));
+    TEST_ESP_OK(i2s_del_channel(tx));
+    tx = NULL;
+    chan_cfg.tx_destination = I2S_DESTINATION_DMA;
+
+    // BT destination should be accepted by auto allocation and bypass DMA-only APIs on RX.
+    chan_cfg.rx_destination = I2S_DESTINATION_BT;
+    TEST_ESP_OK(i2s_new_channel(&chan_cfg, NULL, &rx));
+    TEST_ESP_OK(i2s_channel_init_std_mode(rx, &std_cfg));
+    // DMA event callbacks rely on the DMA data path and are not available on the Bluetooth path.
+    i2s_event_callbacks_t rx_dma_cbs = { .on_recv = i2s_rx_on_recv_callback };
+    TEST_ASSERT_EQUAL(ESP_ERR_NOT_SUPPORTED, i2s_channel_register_event_callback(rx, &rx_dma_cbs, NULL));
+    TEST_ASSERT_EQUAL(ESP_ERR_NOT_SUPPORTED, i2s_channel_read(rx, buf, sizeof(buf), &read_bytes, 0));
+    TEST_ESP_OK(i2s_del_channel(rx));
+    rx = NULL;
+    chan_cfg.rx_destination = I2S_DESTINATION_DMA;
+#else
+    // BT destination should be rejected on chips without hardware support.
+    chan_cfg.tx_destination = I2S_DESTINATION_BT;
+    TEST_ASSERT_EQUAL(ESP_ERR_NOT_SUPPORTED, i2s_new_channel(&chan_cfg, &tx, NULL));
+    chan_cfg.tx_destination = I2S_DESTINATION_DMA;
+
+    chan_cfg.rx_destination = I2S_DESTINATION_BT;
+    TEST_ASSERT_EQUAL(ESP_ERR_NOT_SUPPORTED, i2s_new_channel(&chan_cfg, NULL, &rx));
+    chan_cfg.rx_destination = I2S_DESTINATION_DMA;
+#endif
 }

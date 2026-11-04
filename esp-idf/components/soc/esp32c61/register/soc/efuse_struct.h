@@ -1,7 +1,7 @@
 /**
  * SPDX-FileCopyrightText: 2024-2025 Espressif Systems (Shanghai) CO LTD
  *
- *  SPDX-License-Identifier: Apache-2.0
+ *  SPDX-License-Identifier: Apache-2.0 OR MIT
  */
 #pragma once
 
@@ -4536,7 +4536,6 @@ typedef struct {
 } efuse_dev_t;
 
 extern efuse_dev_t EFUSE0;
-extern efuse_dev_t EFUSE1;
 
 #ifndef __cplusplus
 _Static_assert(sizeof(efuse_dev_t) == 0x70c, "Invalid size of efuse_dev_t structure");

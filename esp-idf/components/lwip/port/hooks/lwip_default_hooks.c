@@ -11,7 +11,9 @@
 #include "esp_log.h"
 #include <string.h>
 
+#ifndef __weak
 #define __weak __attribute__((weak))
+#endif
 
 /**
  * Default lwip behavior is to silence LWIP_ERROR() if LWIP_DEBUG is not set.
@@ -232,6 +234,9 @@ void dhcp_parse_extra_opts(struct dhcp *dhcp, uint8_t state, uint8_t option, uin
     NETIF_FOREACH(netif) {
       /* find the netif related to this dhcp */
       if (dhcp == netif_dhcp_data(netif)) {
+        if (mtu < 68) { /* RFC 2132 requires MTU >= 68 */
+          return;
+        }
         if (mtu < netif->mtu) {
           netif->mtu = mtu;
           LWIP_DEBUGF(DHCP_DEBUG | LWIP_DBG_TRACE, ("dhcp_parse_extra_opts(): Negotiated netif MTU is %d\n", netif->mtu));

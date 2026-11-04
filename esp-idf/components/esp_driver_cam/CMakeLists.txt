@@ -4,9 +4,9 @@ set(srcs "esp_cam_ctlr.c" "dvp_share_ctrl.c")
 
 set(includes "include" "interface")
 
-set(requires "esp_driver_isp")
+set(requires "esp_driver_isp" "esp_hal_cam")
 
-set(priv_requires "esp_driver_gpio")
+set(priv_requires "esp_driver_gpio" "esp_driver_dma")
 
 if(CONFIG_SOC_MIPI_CSI_SUPPORTED)
     list(APPEND srcs "csi/src/esp_cam_ctlr_csi.c")
@@ -34,3 +34,7 @@ idf_component_register(SRCS ${srcs}
                        REQUIRES ${requires}
                        PRIV_REQUIRES ${priv_requires}
                       )
+
+if(CONFIG_PM_ENABLE)
+    idf_component_optional_requires(PRIVATE esp_pm)
+endif()

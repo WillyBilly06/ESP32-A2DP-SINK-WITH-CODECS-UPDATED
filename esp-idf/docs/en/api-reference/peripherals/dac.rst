@@ -22,27 +22,6 @@ The DAC peripheral supports outputting analog signal in the following ways:
 
 For other analog output options, see :doc:`Sigma-Delta Modulation <sdm>` and :doc:`LED Control <ledc>`. Both modules produce high-frequency PWM/PDM output, which can be hardware low-pass filtered in order to generate a lower frequency analog output.
 
-DAC File Structure
-------------------
-
-.. figure:: ../../../_static/diagrams/dac/dac_file_structure.png
-    :align: center
-    :alt: DAC file structure
-
-    DAC File Structure
-
-
-**Public headers that need to be included in the DAC application are listed as follows:**
-
-- ``dac.h``: The top header file of the legacy DAC driver, which should be only included in the apps which use the legacy driver API.
-- ``dac_oneshot.h``: The top header file of the new DAC driver, which should be included in the apps which use the new driver API with one-shot mode.
-- ``dac_cosine.h``: The top header file of the new DAC driver, which should be included in the apps which use the new driver API with cosine mode.
-- ``dac_continuous.h``: The top header file of the new DAC driver, which should be included in the apps which use the new driver API with continuous mode.
-
-.. note::
-
-    The legacy driver cannot coexist with the new driver. Include ``dac.h`` to use the legacy driver or ``dac_oneshot.h``, ``dac_cosine.h``, and ``dac_continuous.h`` to use the new driver. The legacy driver might be removed in the future.
-
 Functional Overview
 -------------------
 
@@ -64,6 +43,43 @@ DAC channels can convert digital data continuously via the DMA. There are three 
     1. Normal writing (synchronous): Data can be transmitted at one time and kept blocked until all the data has been loaded into the DMA buffer, and the voltage is kept as the last conversion value while no more data is inputted. It is usually used to transport a long signal like an audio. To convert data continuously, the continuous channel handle need to be allocated by calling :cpp:func:`dac_continuous_new_channels` and the DMA conversion should be enabled by calling :cpp:func:`dac_continuous_enable`. Then data can be written by :cpp:func:`dac_continuous_write` synchronously. Refer to :example:`peripherals/dac/dac_continuous/dac_audio` for examples.
     2. Cyclical writing: A piece of data can be converted cyclically without blocking, and no more operation is needed after the data are loaded into the DMA buffer. But note that the inputted buffer size is limited by the number of descriptors and the DMA buffer size. It is usually used to transport short signals that need to be repeated, e.g., a sine wave. To achieve cyclical writing, call :cpp:func:`dac_continuous_write_cyclically` after the DAC continuous mode is enabled. Refer to :example:`peripherals/dac/dac_continuous/signal_generator` for examples.
     3. Asynchronous writing: Data can be transmitted asynchronously based on the event callback. :cpp:member:`dac_event_callbacks_t::on_convert_done` must be registered to use asynchronous mode. Users can get the :cpp:type:`dac_event_data_t` in the callback which contains the DMA buffer address and length, allowing them to load the data into the buffer directly. To use the asynchronous writing, call :cpp:func:`dac_continuous_register_event_callback` to register the :cpp:member:`dac_event_callbacks_t::on_convert_done` before enabling, and then :cpp:func:`dac_continuous_start_async_writing` to start the asynchronous writing. Note that once the asynchronous writing is started, the callback function will be triggered continuously. Call :cpp:func:`dac_continuous_write_asynchronously` to load the data either in a separate task or in the callback directly. Refer to :example:`peripherals/dac/dac_continuous/dac_audio` for examples.
+
+The following diagram illustrates the life cycle of the DAC continuous driver and the state transitions associated with each API:
+
+.. mermaid::
+
+    flowchart TD
+        NC(["Idle (Initial State)"]) -->|"new_channels()"| REG[Registered]
+        REG -->|"del_channels()"| NC
+        REG -->|"enable()"| EN[Enabled]
+        EN -->|"disable()"| REG
+
+        EN -->|"start_async_writing()"| ASYNC[Async Writing]
+        ASYNC -->|"stop_async_writing()"| EN
+
+        EN -->|"write_cyclically()"| CYCLIC[Cyclic Writing]
+        CYCLIC -->|"stop_cyclically()"| EN
+
+        EN -->|"write()"| SYNC[Sync Writing]
+        SYNC -->|"write()"| SYNC
+        SYNC -->|"on transmission complete"| EN
+
+        subgraph REG_APIS [Registered State APIs]
+            REGCB["register_event_callbacks()"]
+        end
+
+        subgraph ASYNC_APIS [Async Writing State APIs]
+            AWRITE["write_asynchronously()"]
+        end
+
+        REG -. can call .-> REGCB
+        ASYNC -. when receiving a callback .-> AWRITE
+
+.. note::
+
+    - For brevity, the prefix ``dac_continuous_`` is omitted from all function names in the diagram.
+    - For backward compatibility, calling :cpp:func:`dac_continuous_stop_cyclically` to exit cyclic writing is optional — any API that transitions away from the Enabled state will automatically stop an ongoing cyclic conversion. However, explicitly calling :cpp:func:`dac_continuous_stop_cyclically` is recommended.
+    - Sync writing requires no explicit exit — any API that transitions away from the Enabled state will automatically stop the ongoing sync writing immediately (the data not yet converted is discarded).
 
 .. only:: esp32
 
@@ -98,6 +114,8 @@ When the power management is enabled (i.e., :ref:`CONFIG_PM_ENABLE` is on), the 
 
 When using DAC driver in continuous mode, it can prevent the system from changing or stopping the clock source in DMA or cosine mode by acquiring a power management lock. When the clock source is generated from APB, the lock type will be set to :cpp:enumerator:`esp_pm_lock_type_t::ESP_PM_APB_FREQ_MAX`. When the clock source is APLL (only in DMA mode), it will be set to :cpp:enumerator:`esp_pm_lock_type_t::ESP_PM_NO_LIGHT_SLEEP`. Whenever the DAC is converting (i.e., DMA or cosine wave generator is working), the driver guarantees that the power management lock is acquired after calling :cpp:func:`dac_continuous_enable`. Likewise, the driver will release the lock when :cpp:func:`dac_continuous_disable` is called.
 
+.. _dac-iram-safe:
+
 IRAM Safe
 ^^^^^^^^^
 
@@ -119,8 +137,7 @@ All the public DAC APIs are guaranteed to be thread safe by the driver, which me
 Kconfig Options
 ^^^^^^^^^^^^^^^
 
-- :ref:`CONFIG_DAC_ISR_IRAM_SAFE` controls whether the default ISR handler can work when cache is disabled. See `IRAM Safe <#iram-safe>`__ for more information.
-- :ref:`CONFIG_DAC_SUPPRESS_DEPRECATE_WARN` controls whether to suppress the warning message compilation while using the legacy DAC driver.
+- :ref:`CONFIG_DAC_ISR_IRAM_SAFE` controls whether the default ISR handler can work when cache is disabled. See :ref:`dac-iram-safe` for more information.
 - :ref:`CONFIG_DAC_ENABLE_DEBUG_LOG` is used to enable the debug log output. Enable this option increases the firmware binary size.
 
 .. only:: esp32
@@ -142,4 +159,4 @@ API Reference
 .. include-build-file:: inc/dac_cosine.inc
 .. include-build-file:: inc/dac_continuous.inc
 .. include-build-file:: inc/components/esp_driver_dac/include/driver/dac_types.inc
-.. include-build-file:: inc/components/hal/include/hal/dac_types.inc
+.. include-build-file:: inc/components/esp_hal_ana_conv/include/hal/dac_types.inc

@@ -1,10 +1,11 @@
 /*
- * SPDX-FileCopyrightText: 2020-2025 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2020-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
 
 #include "string.h"
+#include <stdint.h>
 #include "sdkconfig.h"
 #include "esp_err.h"
 #include "esp_log.h"
@@ -14,12 +15,10 @@
 #include "esp_flash_partitions.h"
 #include "bootloader_flash.h"
 #include "bootloader_common.h"
-#include "soc/gpio_periph.h"
 #include "soc/rtc.h"
 #include "soc/efuse_reg.h"
 #include "soc/chip_revision.h"
 #include "hal/efuse_hal.h"
-#include "hal/gpio_ll.h"
 #include "esp_image_format.h"
 #include "bootloader_sha.h"
 #include "sys/param.h"
@@ -30,7 +29,15 @@
 #define IS_FIELD_SET(rev_full) (((rev_full) != 65535) && ((rev_full) != 0))
 #define ALIGN_UP(num, align) (((num) + ((align) - 1)) & ~((align) - 1))
 
-static const char* TAG = "boot_comm";
+#if ESP_ROM_HAS_LP_ROM && CONFIG_SECURE_BOOT_ROM_FAST_WAKE_RESERVE_SIZE > 0
+#error "Retain mem is placed at the start of RTC RAM on this target, while the ROM keeps the secure boot fast wake up digest at the end of it. The layout needs to be re-evaluated."
+#endif
+
+#if CONFIG_SECURE_BOOT && ESP_ROM_SUPPORT_SECURE_BOOT_FAST_WAKEUP && CONFIG_SECURE_BOOT_ROM_FAST_WAKE_RESERVE_SIZE == 0
+#error "esp_rom_caps.h advertises ROM secure boot fast wake up support that Kconfig.soc_caps.in does not, so the digest area is left unreserved."
+#endif
+
+ESP_LOG_ATTR_TAG(TAG, "boot_comm");
 
 bool bootloader_common_check_chip_revision_validity(const esp_image_header_t *img_hdr, bool check_max_revision)
 {
@@ -274,7 +281,9 @@ rtc_retain_mem_t* bootloader_common_get_rtc_retain_mem(void)
     #define RETAIN_MEM_SIZE     ALIGN_UP(sizeof(rtc_retain_mem_t), 8)
     #define RTC_RETAIN_MEM_ADDR (SOC_RTC_DRAM_HIGH - RETAIN_MEM_SIZE)
 #endif //ESP_ROM_HAS_LP_ROM
-    static rtc_retain_mem_t *const s_bootloader_retain_mem = (rtc_retain_mem_t *)RTC_RETAIN_MEM_ADDR;
+
+    static rtc_retain_mem_t *const s_bootloader_retain_mem =
+        (rtc_retain_mem_t *)(RTC_RETAIN_MEM_ADDR - CONFIG_SECURE_BOOT_ROM_FAST_WAKE_RESERVE_SIZE);
     return s_bootloader_retain_mem;
 #else
     static __attribute__((section(".bootloader_data_rtc_mem"))) rtc_retain_mem_t s_bootloader_retain_mem;

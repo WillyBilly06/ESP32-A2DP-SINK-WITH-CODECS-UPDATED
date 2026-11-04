@@ -24,10 +24,11 @@ ble_transport_dummy_host_recv_cb(hci_trans_pkt_ind_t type, uint8_t *data, uint16
 static int
 ble_transport_host_recv_cb(hci_trans_pkt_ind_t type, uint8_t *data, uint16_t len)
 {
-    int rc;
-
+    int rc = 0;
     if (type == HCI_ACL_IND) {
+#if CONFIG_BT_NIMBLE_ROLE_CENTRAL || CONFIG_BT_NIMBLE_ROLE_PERIPHERAL
         rc = ble_transport_to_hs_acl((struct os_mbuf *)data);
+#endif
     }
 #if MYNEWT_VAL(BLE_ISO) 
     else if (type == HCI_ISO_IND) {
@@ -70,8 +71,16 @@ ble_transport_alloc_cmd(void)
     return r_ble_hci_trans_buf_alloc(ESP_HCI_INTERNAL_BUF_CMD);
 }
 
+#if MYNEWT_VAL(MP_RUNTIME_ALLOC)
+void
+ble_transport_free(uint8_t type, void *buf)
+{
+    r_ble_hci_trans_buf_free(buf);
+}
+#else
 void
 ble_transport_free(void *buf)
 {
     r_ble_hci_trans_buf_free(buf);
 }
+#endif // MYNEWT_VAL(MP_RUNTIME_ALLOC)

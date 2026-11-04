@@ -1,18 +1,28 @@
 /*
- * SPDX-FileCopyrightText: 2024-2025 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2024-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#include "soc/soc_caps.h"
+#include "esp_attr.h"
+
+#if SOC_AES_SUPPORTED
 #include "soc/aes_reg.h"
+#endif
+#if SOC_HMAC_SUPPORTED
 #include "soc/hmac_reg.h"
+#endif
+#if SOC_DIG_SIGN_SUPPORTED
 #include "soc/ds_reg.h"
+#endif
 #include "soc/efuse_reg.h"
 #include "soc/pcr_reg.h"
 #include "soc/lp_analog_peri_reg.h"
 #include "soc/lp_wdt_reg.h"
 #include "soc/spi_mem_reg.h"
 #include "soc/ext_mem_defs.h"
+#include "soc/assist_debug_reg.h"
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -52,6 +62,7 @@ TEST_CASE("Test APM violation: MMU", "[apm_violation]")
     TEST_FAIL_MESSAGE("APM violation should have been generated");
 }
 
+#if SOC_AES_SUPPORTED
 TEST_CASE("Test APM violation: AES", "[apm_violation]")
 {
     uint32_t val = UINT32_MAX;
@@ -59,7 +70,9 @@ TEST_CASE("Test APM violation: AES", "[apm_violation]")
     TEST_ASSERT_EQUAL(0, val);
     TEST_FAIL_MESSAGE("APM violation should have been generated");
 }
+#endif
 
+#if SOC_AES_SUPPORTED
 TEST_CASE("Test APM violation: HMAC", "[apm_violation]")
 {
     uint32_t val = UINT32_MAX;
@@ -67,7 +80,9 @@ TEST_CASE("Test APM violation: HMAC", "[apm_violation]")
     TEST_ASSERT_EQUAL(0, val);
     TEST_FAIL_MESSAGE("APM violation should have been generated");
 }
+#endif
 
+#if SOC_DIG_SIGN_SUPPORTED
 TEST_CASE("Test APM violation: DS", "[apm_violation]")
 {
     uint32_t val = UINT32_MAX;
@@ -75,6 +90,7 @@ TEST_CASE("Test APM violation: DS", "[apm_violation]")
     TEST_ASSERT_EQUAL(0, val);
     TEST_FAIL_MESSAGE("APM violation should have been generated");
 }
+#endif
 
 TEST_CASE("Test APM violation: SHA PCR", "[apm_violation]")
 {
@@ -210,5 +226,88 @@ TEST_CASE("Test REE-TEE isolation: DROM-W1", "[exception]")
 {
     const uint32_t test_addr = ALIGN_DOWN_TO_MMU_PAGE_SIZE((uint32_t)&_instruction_reserved_start);
     *(uint32_t *)(test_addr - 0x04) = 0xbadc0de;
+    TEST_FAIL_MESSAGE("Exception should have been generated");
+}
+
+static void do_stack_overflow(int depth, volatile uint8_t *sink)
+{
+    if (depth == -1) {
+        return; // unreachable
+    }
+
+    uint8_t buffer[1024];
+    buffer[0] = (uint8_t)depth;
+    *sink = buffer[0];
+
+    do_stack_overflow(depth + 1, sink);
+}
+
+static void __attribute__((noinline)) do_stack_underflow(void *underflow)
+{
+    __asm__ __volatile__(
+        "mv sp, %0\n" :: "r"(underflow)
+    );
+
+    /* The blocking delay ensures that the stack protection fault interrupt is
+     * captured and handled by the CPU before the current function returns.
+     */
+    esp_rom_delay_us(10);
+}
+
+typedef struct {
+    bool underflow;
+    StackType_t *underflow_stack;
+} StackProtectionTaskArgs;
+
+static void tStackProtection(void *pvParameters)
+{
+    StackProtectionTaskArgs *tArgs = (StackProtectionTaskArgs *)pvParameters;
+
+    if (!tArgs->underflow) { /* Overflow path */
+        volatile uint8_t sink = 0;
+        do_stack_overflow(1, &sink);
+    } else { /* Underflow path */
+        do_stack_underflow((void *)tArgs->underflow_stack);
+    }
+}
+
+static void do_stack_smash(bool underflow)
+{
+    static struct {
+        StackType_t StackBuffer[2048];
+        StackType_t Underflow[1024];
+        StackType_t UnderflowEnd[0];
+    } tData;
+
+    static StaticTask_t TaskBuffer;
+    static StackProtectionTaskArgs taskArgs;
+    taskArgs.underflow = underflow;
+    taskArgs.underflow_stack = tData.UnderflowEnd;
+
+    TaskHandle_t handle = xTaskCreateStatic(tStackProtection, "tStackProt", sizeof(tData.StackBuffer) / sizeof(StackType_t), &taskArgs, 10, tData.StackBuffer, &TaskBuffer);
+    TEST_ASSERT_NULL(handle);
+}
+
+TEST_CASE("Test REE stack overflow", "[exception]")
+{
+    do_stack_smash(false);
+    TEST_FAIL_MESSAGE("Exception should have been generated");
+}
+
+TEST_CASE("Test REE stack underflow", "[exception]")
+{
+    do_stack_smash(true);
+    TEST_FAIL_MESSAGE("Exception should have been generated");
+}
+
+TEST_CASE("Test TEE stack overflow", "[exception]")
+{
+    esp_tee_service_call(1, SS_ESP_TEE_TEST_STACK_OVERFLOW);
+    TEST_FAIL_MESSAGE("Exception should have been generated");
+}
+
+TEST_CASE("Test TEE stack underflow", "[exception]")
+{
+    esp_tee_service_call(1, SS_ESP_TEE_TEST_STACK_UNDERFLOW);
     TEST_FAIL_MESSAGE("Exception should have been generated");
 }

@@ -105,14 +105,18 @@ TEST_CASE("SDIO_Slave: test register", "[sdio]")
 /*---------------------------------------------------------------
                 SDMMC_SDIO: test reset
 ---------------------------------------------------------------*/
-TEST_CASE("SDIO_Slave: test reset", "[sdio]")
+static void test_reset(bool reset_hw)
 {
     s_slave_init(SDIO_SLAVE_SEND_PACKET);
     TEST_ESP_OK(sdio_slave_start());
     ESP_LOGI(TAG, "slave ready");
 
     sdio_slave_stop();
-    TEST_ESP_OK(sdio_slave_reset());
+    if (!reset_hw) {
+        TEST_ESP_OK(sdio_slave_reset());
+    } else {
+        TEST_ESP_OK(sdio_slave_reset_hw());
+    }
     TEST_ESP_OK(sdio_slave_start());
 
     //tx
@@ -153,6 +157,16 @@ TEST_CASE("SDIO_Slave: test reset", "[sdio]")
 
     sdio_slave_stop();
     sdio_slave_deinit();
+}
+
+TEST_CASE("SDIO_Slave: test reset", "[sdio]")
+{
+    test_reset(false);
+}
+
+TEST_CASE("SDIO_Slave: test reset hw", "[sdio]")
+{
+    test_reset(true);
 }
 
 /*---------------------------------------------------------------
@@ -318,7 +332,7 @@ TEST_CASE("SDIO_Slave: test to host (Performance)", "[sdio_speed]")
     test_to_host();
 }
 
-#if SOC_PAU_SUPPORTED
+#if CONFIG_PM_POWER_DOWN_PERIPHERAL_IN_LIGHT_SLEEP
 #include "esp_private/sleep_sys_periph.h"
 #include "esp_private/sleep_retention.h"
 

@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2024-2025 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2024-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -188,12 +188,12 @@ Cache_Sync_Items = 0x4000062c;
 Cache_Op_Addr = 0x40000630;
 Cache_Invalidate_Addr = 0x40000634;
 Cache_Clean_Addr = 0x40000638;
-Cache_WriteBack_Addr = 0x4000063c;
-Cache_WriteBack_Invalidate_Addr = 0x40000640;
+PROVIDE( Cache_WriteBack_Addr = 0x4000063c );
+PROVIDE( Cache_WriteBack_Invalidate_Addr = 0x40000640 );
 Cache_Invalidate_All = 0x40000644;
 Cache_Clean_All = 0x40000648;
-Cache_WriteBack_All = 0x4000064c;
-Cache_WriteBack_Invalidate_All = 0x40000650;
+PROVIDE( Cache_WriteBack_All = 0x4000064c );
+PROVIDE( Cache_WriteBack_Invalidate_All = 0x40000650 );
 Cache_Mask_All = 0x40000654;
 Cache_UnMask_Dram0 = 0x40000658;
 Cache_Suspend_Autoload = 0x4000065c;
@@ -249,21 +249,21 @@ ets_clk_get_cpu_freq = 0x400006e8;
  ***************************************/
 
 /* Functions */
-gpio_set_output_level = 0x400006ec;
-gpio_get_input_level = 0x400006f0;
-gpio_matrix_in = 0x400006f4;
-gpio_matrix_out = 0x400006f8;
-gpio_bypass_matrix_in = 0x400006fc;
-/* gpio_output_disable = 0x40000700; */
-/* gpio_output_enable = 0x40000704; */
-gpio_pad_input_disable = 0x40000708;
-gpio_pad_input_enable = 0x4000070c;
-gpio_pad_pulldown = 0x40000710;
-gpio_pad_pullup = 0x40000714;
-gpio_pad_select_gpio = 0x40000718;
-gpio_pad_set_drv = 0x4000071c;
-gpio_pad_unhold = 0x40000720;
-gpio_pad_hold = 0x40000724;
+rom_gpio_set_output_level = 0x400006ec;
+rom_gpio_get_input_level = 0x400006f0;
+rom_gpio_matrix_in = 0x400006f4;
+rom_gpio_matrix_out = 0x400006f8;
+rom_gpio_bypass_matrix_in = 0x400006fc;
+rom_gpio_output_disable = 0x40000700;
+rom_gpio_output_enable = 0x40000704;
+rom_gpio_pad_input_disable = 0x40000708;
+rom_gpio_pad_input_enable = 0x4000070c;
+rom_gpio_pad_pulldown = 0x40000710;
+rom_gpio_pad_pullup = 0x40000714;
+rom_gpio_pad_select_gpio = 0x40000718;
+rom_gpio_pad_set_drv = 0x4000071c;
+rom_gpio_pad_unhold = 0x40000720;
+rom_gpio_pad_hold = 0x40000724;
 
 
 /***************************************
@@ -370,9 +370,8 @@ ets_efuse_usb_device_disabled = 0x40000808;
  ***************************************/
 
 /* Functions */
-ets_ecdsa_verify = 0x40000810;
-ets_secure_boot_verify_bootloader_with_keys = 0x40000814;
-ets_secure_boot_verify_signature = 0x40000818;
+_rom_ets_ecdsa_verify = 0x40000810;
+_rom_ets_secure_boot_verify_signature = 0x40000818;
 ets_secure_boot_read_key_digests = 0x4000081c;
 ets_secure_boot_revoke_public_key_digest = 0x40000820;
 

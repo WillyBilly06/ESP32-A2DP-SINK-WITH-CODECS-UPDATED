@@ -252,9 +252,9 @@ static void test_wifi_roc(void)
                                pdTRUE, pdFALSE, portMAX_DELAY);
     /* Confirm that Frame has been received successfully */
     if (bits == WIFI_ACTION_RX_EVENT) {
-        wifi_roc_req_t req = {0};
-        req.ifx = WIFI_IF_STA;
+        /* op_id is retained from previous ROC request */
         req.type = WIFI_ROC_CANCEL;
+        req.rx_cb = NULL;
         TEST_ESP_OK(esp_wifi_remain_on_channel(&req));
 
         vTaskDelay(1000 / portTICK_PERIOD_MS);
@@ -265,4 +265,4 @@ static void test_wifi_roc(void)
     }
 }
 
-TEST_CASE_MULTIPLE_DEVICES("test ROC and Offchannel Action Frame Tx", "[Offchan][test_env=wifi_two_dut][timeout=90]", test_wifi_roc, test_wifi_offchan_tx);
+TEST_CASE_MULTIPLE_DEVICES("test ROC and Offchannel Action Frame Tx", "[Offchan][test_env=two_duts][timeout=90]", test_wifi_roc, test_wifi_offchan_tx);

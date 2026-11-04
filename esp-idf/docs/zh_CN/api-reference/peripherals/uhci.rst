@@ -52,8 +52,9 @@ UHCI 控制器需要通过 :cpp:type:`uhci_controller_config_t` 进行配置。
     uhci_controller_config_t uhci_cfg = {
         .uart_port = EX_UART_NUM,                 // 将指定 UART 端口连接到 UHCI 硬件
         .tx_trans_queue_depth = 30,               // 发送队列的队列深度
-        .max_receive_internal_mem = 10 * 1024,    // 内部接收内存大小，更多信息请参考 API 注释。
-        .max_transmit_size = 10 * 1024,           // 单次传输的最大传输量，单位是字节
+        .max_receive_internal_mem = 10 * 1024,    // uhci_receive() 期望的最大缓冲区大小，同时决定 RX DMA 描述符链长度。对于较大的传输，建议将该值配置为至少会分配两个描述符，以便进行乒乓操作。
+        .max_transmit_size = 10 * 1024,           // 一次传输事务中的最大总字节数（包含该次传入的所有缓冲区）
+        .max_transmit_buffer_count = 1,           // 一次传输事务中的最大缓冲区数量。设为 0 或 1 表示只使用单缓冲区传输。
         .dma_burst_size = 32,                     // 突发传输大小
         .rx_eof_flags.idle_eof = 1,               // 结束帧的条件，用户可以选择 `idle_eof`, `rx_brk_eof` 和 `length_eof`, 关于更多信息请参考 API 注释.
     };
@@ -87,16 +88,20 @@ TX 事件数据在 :cpp:type:`uhci_tx_done_event_data_t` 中定义：
 
 RX 事件数据在 :cpp:type:`uhci_rx_event_data_t` 中定义：
 
-- :cpp:member:`uhci_rx_event_data_t::data` 指向接收到的数据。数据保存在 :cpp:func:`uhci_receive` 函数的 ``buffer`` 参数中。用户在回调返回之前不应释放此接收缓冲区。
+- :cpp:member:`uhci_rx_event_data_t::data` 指向接收到的数据。数据保存在 :cpp:func:`uhci_receive` 函数 ``buffer`` 参数指定的缓冲区中，因此用户在回调返回之前不应释放此接收缓冲区。``edata->data`` 所指向的数据通常仅保证在回调期间可读。若回调返回后仍需使用该数据，请先拷贝到外部缓冲区。
 - :cpp:member:`uhci_rx_event_data_t::recv_size` 表示接收到的数据大小。此值不会大于 :cpp:func:`uhci_receive` 函数的 ``buffer_size`` 参数。
 - :cpp:member:`uhci_rx_event_data_t::flags::totally_received` 指示当前接收缓冲区是否是事务中的最后一个。
+
+.. note::
+
+    如果希望不拷贝而在回调外继续使用 ``edata->data`` （例如把指针通过队列传给任务处理），属于高级零拷贝用法。用户需要理解底层 DMA 环形缓冲区的分块和覆盖行为，并保证消费者处理速度快于覆盖速度。
 
 启动 UHCI 传输
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 :cpp:func:`uhci_transmit` 是一个非阻塞函数，这意味着在调用后会立即返回。您可以通过 :cpp:member:`uhci_event_callbacks_t::on_tx_trans_done` 相关回调指示事务完成。我们还提供了一个函数 :cpp:func:`uhci_wait_all_tx_transaction_done` 来阻塞线程，等待所有事务完成。
 
-以下代码显示了如何通过 UHCI 接收数据：
+以下代码显示了如何通过 UHCI 传输数据：
 
 .. code:: c
 
@@ -108,12 +113,36 @@ RX 事件数据在 :cpp:type:`uhci_rx_event_data_t` 中定义：
     // 等待所有传输完成
     ESP_ERROR_CHECK(uhci_wait_all_tx_transaction_done(uhci_ctrl, -1));
 
+如果待发送的数据分散在多个独立的缓冲区中，可以使用 :cpp:func:`uhci_multi_buffer_transmit` 将它们作为一次事务发送，而无需先拷贝到一块连续的缓冲区中。各缓冲区段通过一个 :cpp:type:`uhci_transmit_buffer_info_t` 数组描述，并按给定顺序作为一条连续的 UART 数据流发送（在内部，这些段会被组装成一条 DMA 链表，只有最后一段被标记为事务结束）。要使用该功能，需要在创建控制器时把 :cpp:member:`uhci_controller_config_t::max_transmit_buffer_count` 设为你在单次调用中打算发送的最大段数。
+
+需要满足以下约束：
+
+- ``array_size`` 不得超过 :cpp:member:`uhci_controller_config_t::max_transmit_buffer_count`。
+- 所有缓冲区的总字节数不得超过 :cpp:member:`uhci_controller_config_t::max_transmit_size`。
+- 与 :cpp:func:`uhci_transmit` 一样，每个缓冲区段在传输完成前都必须保持有效。
+
+.. code:: c
+
+    uint8_t header[8];
+    uint8_t payload[DATA_LENGTH];
+    // ... 填充 header 和 payload ...
+    uhci_transmit_buffer_info_t buffer_info[] = {
+        { .write_buffer = header,  .buffer_size = sizeof(header) },
+        { .write_buffer = payload, .buffer_size = sizeof(payload) },
+    };
+    ESP_ERROR_CHECK(uhci_multi_buffer_transmit(uhci_ctrl, buffer_info, 2));
+    ESP_ERROR_CHECK(uhci_wait_all_tx_transaction_done(uhci_ctrl, -1));
+
+.. note::
+
+    当通过 :cpp:func:`uhci_multi_buffer_transmit` 提交的事务包含多个段时，“传输完成”回调中的 :cpp:member:`uhci_tx_done_event_data_t::buffer` 只指向第一个段，应把它当作该事务的标识句柄，而不是一段长度为 ``sent_size`` 字节的连续内存的起始地址。:cpp:member:`uhci_tx_done_event_data_t::sent_size` 是所有段大小之和。
+
 启动 UHCI 接收
 ^^^^^^^^^^^^^^^^^^^^^^^^^
 
-:cpp:func:`uhci_receive` 是一个非阻塞函数，这意味着该函数在调用后会立即返回。用户可以通过 :cpp:member:`uhci_rx_event_data_t::recv_size` 获取相关的回调，以指示接收事件并判断事务是否完成。
+:cpp:func:`uhci_receive` 是一个非阻塞函数，这意味着该函数在调用后会立即返回。用户可以通过 :cpp:member:`uhci_event_callbacks_t::on_rx_trans_event` 获取相关的回调，以指示接收事件并判断事务是否完成。
 
-以下代码展示了如何通过 UHCI 传输数据：
+以下代码展示了如何通过 UHCI 接收数据：
 
 .. code:: c
 
@@ -146,13 +175,13 @@ RX 事件数据在 :cpp:type:`uhci_rx_event_data_t` 中定义：
         .on_rx_trans_event = s_uhci_rx_event_cbs,
     };
 
-    // 注册回调，并开始启动回收
+    // 注册回调，并启动接收
     ESP_ERROR_CHECK(uhci_register_event_callbacks(uhci_ctrl, &uhci_cbs, ctx));
     ESP_ERROR_CHECK(uhci_receive(uhci_ctrl, pdata, 100));
 
     uhci_event_t evt;
     while (1) {
-        // 一个在任务中的队列用来接收 UHCI 抛出的事件
+        // 在任务中，队列用于接收 UHCI 抛出的事件
         if (xQueueReceive(uhci_queue, &evt, portMAX_DELAY) == pdTRUE) {
             if (evt == UHCI_EVT_EOF) {
                 printf("Received size: %d\n", ctx->receive_size);
@@ -161,9 +190,9 @@ RX 事件数据在 :cpp:type:`uhci_rx_event_data_t` 中定义：
         }
     }
 
-在 API :cpp:func:`uhci_receive` 接口中，参数 ``read_buffer`` 是用户必须提供的缓冲区，参数 ``buffer_size`` 表示用户提供的缓冲区大小。在 UHCI 控制器的配置结构中，参数 :cpp:member:`uhci_controller_config_t::max_receive_internal_mem` 指定了内部 DMA 工作空间的期望大小。软件将根据此工作空间大小分配一定数量的 DMA 节点，这些节点形成一个循环链表。
+在 API :cpp:func:`uhci_receive` 接口中，参数 ``read_buffer`` 是用户必须提供的缓冲区，参数 ``buffer_size`` 表示用户提供的缓冲区大小。``buffer_size`` 一般不得超过 :cpp:member:`uhci_controller_config_t::max_receive_internal_mem`。
 
-当一个节点被填满，但接收尚未完成时，将触发 :cpp:member:`uhci_event_callbacks_t::on_rx_trans_event` 事件，且 :cpp:member:`uhci_rx_event_data_t::flags::totally_received` 的值为 0。 当所有数据接收完成时，该事件将再次被触发，并且 :cpp:member:`uhci_rx_event_data_t::flags::totally_received` 的值为 1。
+当一个节点被填满，但接收尚未完成时，将触发 :cpp:member:`uhci_event_callbacks_t::on_rx_trans_event` 事件，且 :cpp:member:`uhci_rx_event_data_t::flags::totally_received` 的值为 0。当所有数据接收完成时，该事件将再次被触发，并且 :cpp:member:`uhci_rx_event_data_t::flags::totally_received` 的值为 1。
 
 此机制允许用户使用相对较小的缓冲区实现连续且快速的接收，而无需分配与接收总数据量相等大小的缓冲区。
 
@@ -199,7 +228,7 @@ RX 事件数据在 :cpp:type:`uhci_rx_event_data_t` 中定义：
 
 通过启用 Kconfig 选项 :ref:`CONFIG_UHCI_ISR_CACHE_SAFE`，可实现以下功能：
 
-1. 即使缓存被禁用，中断也能被服务。
+1. 即使缓存被禁用，中断也能被及时处理。
 2. 将 ISR 使用的所有函数放入 IRAM [1]_
 3. 将驱动对象放入 DRAM，防止其意外映射到 PSRAM。
 
@@ -293,7 +322,7 @@ API 参考
 
 .. include-build-file:: inc/uhci.inc
 .. include-build-file:: inc/components/esp_driver_uart/include/driver/uhci_types.inc
-.. include-build-file:: inc/components/hal/include/hal/uhci_types.inc
+.. include-build-file:: inc/components/esp_hal_uart/include/hal/uhci_types.inc
 
 .. [1]
    回调函数（例如 :cpp:member:`uhci_event_callbacks_t::on_tx_trans_done` 、:cpp:member:`uhci_event_callbacks_t::on_rx_trans_event`）及其调用的函数也应驻留在 IRAM 中，用户需要自行注意这一点。

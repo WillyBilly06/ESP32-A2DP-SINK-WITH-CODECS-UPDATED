@@ -22,23 +22,25 @@
 #include <string.h>
 #include "syscfg/syscfg.h"
 #include "nimble/nimble_opt.h"
+#include "host/ble_hs_log.h"
 
 #if NIMBLE_BLE_CONNECT
 #if NIMBLE_BLE_SM
 
 #include "nimble/ble.h"
 #include "ble_hs_priv.h"
-
 #if MYNEWT_VAL(BLE_CRYPTO_STACK_MBEDTLS)
+#if CONFIG_MBEDTLS_VER_4_X_SUPPORT
+#include "psa/crypto.h"
+#else
 #include "mbedtls/aes.h"
-
 #include "mbedtls/cipher.h"
 #include "mbedtls/entropy.h"
-#include "mbedtls/ctr_drbg.h"
 #include "mbedtls/cmac.h"
 #include "mbedtls/ecdh.h"
 #include "mbedtls/ecp.h"
-
+#include "mbedtls/esp_mbedtls_random.h"
+#endif // CONFIG_MBEDTLS_VER_4_X_SUPPORT
 #else
 #include "tinycrypt/aes.h"
 #include "tinycrypt/constants.h"
@@ -56,13 +58,26 @@
 
 #if MYNEWT_VAL(BLE_CRYPTO_STACK_MBEDTLS)
 #if MYNEWT_VAL(BLE_SM_SC)
+#if MYNEWT_VAL(BLE_STATIC_TO_DYNAMIC)
+#include "esp_nimble_mem.h"
+static mbedtls_ecp_keypair * keypair_ptr = NULL;
+#define keypair (*keypair_ptr)
+#else
 static mbedtls_ecp_keypair keypair;
+#endif /* MYNEWT_VAL(BLE_STATIC_TO_DYNAMIC) */
 #endif
 #else
 #if MYNEWT_VAL(BLE_SM_SC) && MYNEWT_VAL(TRNG)
 static struct trng_dev *g_trng;
 #endif
 #endif
+
+#if CONFIG_MBEDTLS_VER_4_X_SUPPORT
+#define BLE_PUB_KEY_LEN 65
+static const char * const TAG = "ble_sm_alg";
+#else
+#define BLE_PUB_KEY_LEN 64
+#endif // CONFIG_MBEDTLS_VER_4_X_SUPPORT
 
 /**
   * Keep forward-compatibility with Mbed TLS 3.x.
@@ -97,11 +112,41 @@ ble_sm_alg_encrypt(const uint8_t *key, const uint8_t *plaintext,
     swap_buf(tmp, key, 16);
 
 #if MYNEWT_VAL(BLE_CRYPTO_STACK_MBEDTLS)
+#if CONFIG_MBEDTLS_VER_4_X_SUPPORT
+    psa_status_t status;
+    psa_key_attributes_t key_attributes = PSA_KEY_ATTRIBUTES_INIT;
+    psa_key_id_t key_id = 0;
+    psa_set_key_usage_flags(&key_attributes, PSA_KEY_USAGE_ENCRYPT);
+    psa_set_key_algorithm(&key_attributes, PSA_ALG_ECB_NO_PADDING);
+    psa_set_key_type(&key_attributes, PSA_KEY_TYPE_AES);
+    psa_set_key_bits(&key_attributes, 128);
+    status = psa_import_key(&key_attributes, tmp, 16, &key_id);
+    if (status != PSA_SUCCESS) {
+        ESP_LOGE(TAG, "Failed to import AES key: %d", status);
+        BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_EUNKNOWN);
+        return BLE_HS_EUNKNOWN;
+    }
+    psa_reset_key_attributes(&key_attributes);
+    
+    swap_buf(tmp, plaintext, 16);
+
+    size_t output_len = 0;
+    status = psa_cipher_encrypt(key_id, PSA_ALG_ECB_NO_PADDING, tmp,
+                                16, enc_data, 16, &output_len);
+    if (status != PSA_SUCCESS || output_len != 16) {
+        ESP_LOGE(TAG, "Encryption failed: %d", status);
+        psa_destroy_key(key_id);
+        BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_EUNKNOWN);
+        return BLE_HS_EUNKNOWN;
+    }
+    psa_destroy_key(key_id);
+#else
     mbedtls_aes_context s = {0};
 
     mbedtls_aes_init(&s);
     if (mbedtls_aes_setkey_enc(&s, tmp, 128) != 0) {
         mbedtls_aes_free(&s);
+        BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_EUNKNOWN);
         return BLE_HS_EUNKNOWN;
     }
 
@@ -109,20 +154,24 @@ ble_sm_alg_encrypt(const uint8_t *key, const uint8_t *plaintext,
 
     if (mbedtls_aes_crypt_ecb(&s, MBEDTLS_AES_ENCRYPT, tmp, enc_data) != 0) {
         mbedtls_aes_free(&s);
+        BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_EUNKNOWN);
         return BLE_HS_EUNKNOWN;
     }
 
     mbedtls_aes_free(&s);
+#endif // CONFIG_MBEDTLS_VER_4_X_SUPPORT
 #else
     struct tc_aes_key_sched_struct s;
 
     if (tc_aes128_set_encrypt_key(&s, tmp) == TC_CRYPTO_FAIL) {
+        BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_EUNKNOWN);
         return BLE_HS_EUNKNOWN;
     }
 
     swap_buf(tmp, plaintext, 16);
 
     if (tc_aes_encrypt(enc_data, tmp, &s) == TC_CRYPTO_FAIL) {
+        BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_EUNKNOWN);
         return BLE_HS_EUNKNOWN;
     }
 #endif
@@ -252,6 +301,53 @@ int
 ble_sm_alg_aes_cmac(const uint8_t *key, const uint8_t *in, size_t len,
                     uint8_t *out)
 {
+#if CONFIG_MBEDTLS_VER_4_X_SUPPORT
+    psa_status_t status;
+    psa_key_attributes_t key_attributes = PSA_KEY_ATTRIBUTES_INIT;
+    psa_key_id_t key_id = 0;
+    psa_algorithm_t alg = PSA_ALG_CMAC;
+    psa_set_key_usage_flags(&key_attributes, PSA_KEY_USAGE_SIGN_MESSAGE);
+    psa_set_key_algorithm(&key_attributes, PSA_ALG_CMAC);
+    psa_set_key_type(&key_attributes, PSA_KEY_TYPE_AES);
+    psa_set_key_bits(&key_attributes, 128);
+    status = psa_import_key(&key_attributes, key, 16, &key_id);
+    if (status != PSA_SUCCESS) {
+        ESP_LOGE(TAG, "Failed to import key: %d", status);
+        BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_EUNKNOWN);
+        return BLE_HS_EUNKNOWN;
+    }
+    psa_reset_key_attributes(&key_attributes);
+
+    psa_mac_operation_t operation = PSA_MAC_OPERATION_INIT;
+    status = psa_mac_sign_setup(&operation, key_id, alg);
+    if (status != PSA_SUCCESS) {
+        ESP_LOGE(TAG, "Failed to setup MAC sign operation: %d", status);
+        psa_destroy_key(key_id);
+        BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_EUNKNOWN);
+        return BLE_HS_EUNKNOWN;
+    }
+
+    size_t output_len = 0;
+    status = psa_mac_update(&operation, in, len);
+    if (status != PSA_SUCCESS) {
+        ESP_LOGE(TAG, "Failed to update MAC operation: %d", status);
+        psa_mac_abort(&operation);
+        psa_destroy_key(key_id);
+        BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_EUNKNOWN);
+        return BLE_HS_EUNKNOWN;
+    }
+
+    status = psa_mac_sign_finish(&operation, out, 16, &output_len);
+    if (status != PSA_SUCCESS || output_len != 16) {
+        ESP_LOGE(TAG, "Failed to finish MAC sign operation: %d", status);
+        psa_mac_abort(&operation);
+        psa_destroy_key(key_id);
+        BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_EUNKNOWN);
+        return BLE_HS_EUNKNOWN; 
+    }
+
+    psa_destroy_key(key_id);
+#else
     int rc = BLE_HS_EUNKNOWN;
     mbedtls_cipher_context_t ctx = {0};
     const mbedtls_cipher_info_t *cipher_info;
@@ -282,7 +378,12 @@ ble_sm_alg_aes_cmac(const uint8_t *key, const uint8_t *in, size_t len,
 
 exit:
     mbedtls_cipher_free(&ctx);
+    if (rc != 0) {
+        rc = BLE_HS_EUNKNOWN;
+    }
     return rc;
+#endif // CONFIG_MBEDTLS_VER_4_X_SUPPORT
+    return 0;
 }
 
 #else
@@ -294,14 +395,17 @@ ble_sm_alg_aes_cmac(const uint8_t *key, const uint8_t *in, size_t len,
     struct tc_cmac_struct state;
 
     if (tc_cmac_setup(&state, key, &sched) == TC_CRYPTO_FAIL) {
+        BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_EUNKNOWN);
         return BLE_HS_EUNKNOWN;
     }
 
     if (tc_cmac_update(&state, in, len) == TC_CRYPTO_FAIL) {
+        BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_EUNKNOWN);
         return BLE_HS_EUNKNOWN;
     }
 
     if (tc_cmac_final(out, &state) == TC_CRYPTO_FAIL) {
+        BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_EUNKNOWN);
         return BLE_HS_EUNKNOWN;
     }
 
@@ -352,6 +456,7 @@ ble_sm_alg_f4(const uint8_t *u, const uint8_t *v, const uint8_t *x,
 
     rc = ble_sm_alg_aes_cmac(xs, m, sizeof(m), out_enc_data);
     if (rc != 0) {
+        BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_EUNKNOWN);
         return BLE_HS_EUNKNOWN;
     }
 
@@ -396,7 +501,8 @@ ble_sm_alg_f5(const uint8_t *w, const uint8_t *n1, const uint8_t *n2,
 
     rc = ble_sm_alg_aes_cmac(salt, ws, 32, t);
     if (rc != 0) {
-        return BLE_HS_EUNKNOWN;
+        rc = BLE_HS_EUNKNOWN;
+        goto exit;
     }
 
     ble_sm_alg_log_buf("t", t, 16);
@@ -410,7 +516,8 @@ ble_sm_alg_f5(const uint8_t *w, const uint8_t *n1, const uint8_t *n2,
 
     rc = ble_sm_alg_aes_cmac(t, m, sizeof(m), mackey);
     if (rc != 0) {
-        return BLE_HS_EUNKNOWN;
+        rc = BLE_HS_EUNKNOWN;
+        goto exit;
     }
 
     ble_sm_alg_log_buf("mackey", mackey, 16);
@@ -422,14 +529,23 @@ ble_sm_alg_f5(const uint8_t *w, const uint8_t *n1, const uint8_t *n2,
 
     rc = ble_sm_alg_aes_cmac(t, m, sizeof(m), ltk);
     if (rc != 0) {
-        return BLE_HS_EUNKNOWN;
+        rc = BLE_HS_EUNKNOWN;
+        goto exit;
     }
 
     ble_sm_alg_log_buf("ltk", ltk, 16);
 
     swap_in_place(ltk, 16);
+    rc = 0;
 
-    return 0;
+exit:
+    /* Zero sensitive key material from stack */
+    memset(ws, 0, sizeof(ws));
+    memset(t, 0, sizeof(t));
+    /* Use a memory barrier to prevent compiler from optimizing out the memsets */
+    __asm__ volatile("" : : "r"(ws), "r"(t) : "memory");
+
+    return rc;
 }
 
 int
@@ -459,17 +575,20 @@ ble_sm_alg_f6(const uint8_t *w, const uint8_t *n1, const uint8_t *n2,
     swap_buf(m + 48, iocap, 3);
 
     m[51] = a1t;
-    memcpy(m + 52, a1, 6);
     swap_buf(m + 52, a1, 6);
 
     m[58] = a2t;
-    memcpy(m + 59, a2, 6);
     swap_buf(m + 59, a2, 6);
 
     swap_buf(ws, w, 16);
 
     rc = ble_sm_alg_aes_cmac(ws, m, sizeof(m), check);
+
+    /* Zero sensitive key material from stack */
+    memset(ws, 0, sizeof(ws));
+
     if (rc != 0) {
+        BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_EUNKNOWN);
         return BLE_HS_EUNKNOWN;
     }
 
@@ -502,6 +621,7 @@ ble_sm_alg_g2(const uint8_t *u, const uint8_t *v, const uint8_t *x,
     /* reuse xs (key) as buffer for result */
     rc = ble_sm_alg_aes_cmac(xs, m, sizeof(m), xs);
     if (rc != 0) {
+        BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_EUNKNOWN);
         return BLE_HS_EUNKNOWN;
     }
 
@@ -518,19 +638,65 @@ ble_sm_alg_gen_dhkey(const uint8_t *peer_pub_key_x, const uint8_t *peer_pub_key_
                      const uint8_t *our_priv_key, uint8_t *out_dhkey)
 {
     uint8_t dh[32];
-    uint8_t pk[64];
+    uint8_t pk[BLE_PUB_KEY_LEN];
     uint8_t priv[32];
     int rc = BLE_HS_EUNKNOWN;
 
-    swap_buf(pk, peer_pub_key_x, 32);
-    swap_buf(&pk[32], peer_pub_key_y, 32);
     swap_buf(priv, our_priv_key, 32);
 
 #if MYNEWT_VAL(BLE_CRYPTO_STACK_MBEDTLS)
+#if CONFIG_MBEDTLS_VER_4_X_SUPPORT
+    // PSA/mbedTLS expects 65 bytes: 0x04 prefix + X (32 bytes) + Y (32 bytes)
+    pk[0] = 0x04; // Uncompressed format for public key
+    swap_buf(&pk[1], peer_pub_key_x, 32);
+    swap_buf(&pk[33], peer_pub_key_y, 32);
+
+    psa_key_id_t key_id = 0;
+    psa_status_t status;
+    psa_key_attributes_t key_attributes = PSA_KEY_ATTRIBUTES_INIT;
+    psa_set_key_type(&key_attributes, PSA_KEY_TYPE_ECC_KEY_PAIR(PSA_ECC_FAMILY_SECP_R1));
+    psa_set_key_bits(&key_attributes, 256);
+    psa_set_key_algorithm(&key_attributes, PSA_ALG_ECDH);
+    psa_set_key_usage_flags(&key_attributes, PSA_KEY_USAGE_DERIVE);
+    status = psa_import_key(&key_attributes, priv, 32, &key_id);
+    if (status != PSA_SUCCESS) {
+        ESP_LOGE(TAG, "Failed to import key: %d", status);
+        goto exit;
+    }
+    psa_reset_key_attributes(&key_attributes);
+    size_t output_len = 0;
+    status = psa_raw_key_agreement(PSA_ALG_ECDH, key_id, pk, BLE_PUB_KEY_LEN, dh, sizeof(dh), &output_len);
+    if (status != PSA_SUCCESS) {
+        ESP_LOGE(TAG, "Failed to perform raw key agreement: %d", status);
+        goto exit;
+    }
+
+    if (output_len != 32) {
+        ESP_LOGE(TAG, "Unexpected output length: %zu", output_len);
+        goto exit;
+    }
+    rc = 0;
+
+exit:
+    if (key_id != 0) {
+        psa_destroy_key(key_id);
+    }
+#else
+    swap_buf(pk, peer_pub_key_x, 32);
+    swap_buf(&pk[32], peer_pub_key_y, 32);
+
+#if MYNEWT_VAL(BLE_SM_SC) && MYNEWT_VAL(BLE_STATIC_TO_DYNAMIC)
+    if (!keypair_ptr) {
+        keypair_ptr = nimble_platform_mem_calloc(1, sizeof(mbedtls_ecp_keypair));
+        if (!keypair_ptr) {
+            rc = BLE_HS_ENOMEM;
+	    goto exit;
+        }
+    }
+#endif
+
     struct mbedtls_ecp_point pt = {0}, Q = {0};
     mbedtls_mpi z = {0}, d = {0};
-    mbedtls_ctr_drbg_context ctr_drbg = {0};
-    mbedtls_entropy_context entropy = {0};
 
     uint8_t pub[65] = {0};
     /* Hardcoded first byte of pub key for MBEDTLS_ECP_PF_UNCOMPRESSED */
@@ -540,8 +706,6 @@ ble_sm_alg_gen_dhkey(const uint8_t *peer_pub_key_x, const uint8_t *peer_pub_key_
     /* Initialize the required structures here */
     mbedtls_ecp_point_init(&pt);
     mbedtls_ecp_point_init(&Q);
-    mbedtls_ctr_drbg_init(&ctr_drbg);
-    mbedtls_entropy_init(&entropy);
     mbedtls_mpi_init(&d);
     mbedtls_mpi_init(&z);
 
@@ -558,12 +722,6 @@ ble_sm_alg_gen_dhkey(const uint8_t *peer_pub_key_x, const uint8_t *peer_pub_key_
         goto exit;
     }
 
-    /* Set PRNG */
-    if ( ( rc = mbedtls_ctr_drbg_seed(&ctr_drbg, mbedtls_entropy_func, &entropy,
-                                      NULL, 0) ) != 0) {
-        goto exit;
-    }
-
     /* Prepare point Q from pub key */
     if (mbedtls_ecp_point_read_binary(&keypair.MBEDTLS_PRIVATE(grp), &Q, pub, 65) != 0) {
         goto exit;
@@ -574,7 +732,7 @@ ble_sm_alg_gen_dhkey(const uint8_t *peer_pub_key_x, const uint8_t *peer_pub_key_
     }
 
     rc = mbedtls_ecdh_compute_shared(&keypair.MBEDTLS_PRIVATE(grp), &z, &Q, &d,
-                                     mbedtls_ctr_drbg_random, &ctr_drbg);
+                                     mbedtls_esp_random, NULL);
     if (rc != 0) {
         goto exit;
     }
@@ -589,25 +747,45 @@ exit:
     mbedtls_mpi_free(&z);
     mbedtls_mpi_free(&d);
     mbedtls_ecp_point_free(&Q);
-    mbedtls_entropy_free(&entropy);
-    mbedtls_ctr_drbg_free(&ctr_drbg);
+#endif // CONFIG_MBEDTLS_VER_4_X_SUPPORT
     if (rc != 0) {
-        return BLE_HS_EUNKNOWN;
+#if MYNEWT_VAL(BLE_SM_SC) && MYNEWT_VAL(BLE_STATIC_TO_DYNAMIC)
+        if (keypair_ptr) {
+            nimble_platform_mem_free(keypair_ptr);
+            keypair_ptr = NULL;
+        }
+#endif
+        rc = BLE_HS_EUNKNOWN;
+	goto exit_cleanup;
     }
-
 #else
+    // TinyCrypt/uECC expects 64 bytes: X (32 bytes) + Y (32 bytes), no prefix
+    swap_buf(pk, peer_pub_key_x, 32);
+    swap_buf(&pk[32], peer_pub_key_y, 32);
+
     if (uECC_valid_public_key(pk, uECC_secp256r1()) < 0) {
-        return BLE_HS_EUNKNOWN;
+        rc = BLE_HS_EUNKNOWN;
+	goto exit_cleanup;
     }
 
     rc = uECC_shared_secret(pk, priv, dh, uECC_secp256r1());
     if (rc == TC_CRYPTO_FAIL) {
-        return BLE_HS_EUNKNOWN;
+        rc = BLE_HS_EUNKNOWN;
+	goto exit_cleanup;
     }
 #endif
 
     swap_buf(out_dhkey, dh, 32);
-    return 0;
+    rc = 0;
+
+exit_cleanup:
+    /* Zero sensitive key material from stack */
+    memset(dh, 0, sizeof(dh));
+    memset(priv, 0, sizeof(priv));
+    /* Use a memory barrier to prevent compiler from optimizing out the memsets */
+    __asm__ __volatile__("" : : "r"(dh), "r"(priv) : "memory");
+
+    return rc;
 }
 
 /* based on Core Specification 4.2 Vol 3. Part H 2.3.5.6.1 */
@@ -635,25 +813,67 @@ static int
 mbedtls_gen_keypair(uint8_t *public_key, uint8_t *private_key)
 {
     int rc = BLE_HS_EUNKNOWN;
-    mbedtls_entropy_context entropy = {0};
-    mbedtls_ctr_drbg_context ctr_drbg = {0};
+#if CONFIG_MBEDTLS_VER_4_X_SUPPORT
+    psa_status_t status = PSA_SUCCESS;
+    psa_key_id_t key_id = 0;
+    psa_key_attributes_t key_attributes = PSA_KEY_ATTRIBUTES_INIT;
+    psa_algorithm_t alg = PSA_ALG_ECDH;
+    psa_key_type_t key_type = PSA_KEY_TYPE_ECC_KEY_PAIR(PSA_ECC_FAMILY_SECP_R1);
+    psa_key_usage_t key_usage = PSA_KEY_USAGE_DERIVE | PSA_KEY_USAGE_EXPORT;
 
+    psa_set_key_type(&key_attributes, key_type);
+    psa_set_key_bits(&key_attributes, 256);
+    psa_set_key_algorithm(&key_attributes, alg);
+    psa_set_key_usage_flags(&key_attributes, key_usage);
+    status = psa_generate_key(&key_attributes, &key_id);
+    if (status != PSA_SUCCESS) {
+        ESP_LOGE(TAG, "Failed to generate key: %d", status);
+        goto exit;
+    }
+    psa_reset_key_attributes(&key_attributes);
 
-    mbedtls_entropy_init(&entropy);
-    mbedtls_ctr_drbg_init(&ctr_drbg);
+    size_t olen = 0;
+    status = psa_export_public_key(key_id, public_key, BLE_PUB_KEY_LEN, &olen);
+    if (status != PSA_SUCCESS || olen != BLE_PUB_KEY_LEN) {
+        ESP_LOGE(TAG, "Failed to export public key: %d", status);
+        goto exit;
+    }
+
+    status = psa_export_key(key_id, private_key, 32, &olen);
+    if (status != PSA_SUCCESS || olen != 32) {
+        ESP_LOGE(TAG, "Failed to export private key: %d", status);
+        goto exit;
+    }
+
+    rc = 0;
+
+exit:
+    if (key_id != 0) {
+        psa_destroy_key(key_id);
+    }
+    if (rc != 0) {
+        BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_EUNKNOWN);
+        return BLE_HS_EUNKNOWN;
+    }
+#else
+
+#if MYNEWT_VAL(BLE_SM_SC) && MYNEWT_VAL(BLE_STATIC_TO_DYNAMIC)
+    if (!keypair_ptr) {
+        keypair_ptr = nimble_platform_mem_calloc(1, sizeof(mbedtls_ecp_keypair));
+        if (!keypair_ptr) {
+            BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_ENOMEM);
+            return BLE_HS_ENOMEM;
+        }
+    }
+#endif
 
     /* Free the previously allocate keypair */
     mbedtls_ecp_keypair_free(&keypair);
 
     mbedtls_ecp_keypair_init(&keypair);
 
-    if (( rc = mbedtls_ctr_drbg_seed(&ctr_drbg, mbedtls_entropy_func, &entropy,
-                                NULL, 0)) != 0) {
-        goto exit;
-    }
-
     if ((rc = mbedtls_ecp_gen_key(MBEDTLS_ECP_DP_SECP256R1, &keypair,
-                                  mbedtls_ctr_drbg_random, &ctr_drbg)) != 0) {
+                                  mbedtls_esp_random, NULL)) != 0) {
         goto exit;
     }
 
@@ -672,19 +892,26 @@ mbedtls_gen_keypair(uint8_t *public_key, uint8_t *private_key)
     memcpy(public_key, &pub[1], 64);
 
 exit:
-    mbedtls_ctr_drbg_free( &ctr_drbg );
-    mbedtls_entropy_free( &entropy );
     if (rc != 0) {
         mbedtls_ecp_keypair_free(&keypair);
-        return BLE_HS_EUNKNOWN;
-    }
 
-    return 0;
+#if MYNEWT_VAL(BLE_SM_SC) && MYNEWT_VAL(BLE_STATIC_TO_DYNAMIC)
+        if (keypair_ptr) {
+            nimble_platform_mem_free(keypair_ptr);
+            keypair_ptr = NULL;
+        }
+#endif
+        rc = BLE_HS_EUNKNOWN;
+    }
+#endif // CONFIG_MBEDTLS_VER_4_X_SUPPORT
+    return rc;
 }
 
 void mbedtls_free_keypair(void)
 {
+#ifndef CONFIG_MBEDTLS_VER_4_X_SUPPORT
     mbedtls_ecp_keypair_free(&keypair);
+#endif // CONFIG_MBEDTLS_VER_4_X_SUPPORT
 }
 #endif
 
@@ -695,30 +922,41 @@ void mbedtls_free_keypair(void)
 int
 ble_sm_alg_gen_key_pair(uint8_t *pub, uint8_t *priv)
 {
+
 #if MYNEWT_VAL(BLE_SM_SC_DEBUG_KEYS)
     swap_buf(pub, ble_sm_alg_dbg_pub_key, 32);
     swap_buf(&pub[32], &ble_sm_alg_dbg_pub_key[32], 32);
     swap_buf(priv, ble_sm_alg_dbg_priv_key, 32);
 #else
-    uint8_t pk[64];
+    uint8_t pk[BLE_PUB_KEY_LEN];
 
     do {
 
 #if MYNEWT_VAL(BLE_CRYPTO_STACK_MBEDTLS)
         if (mbedtls_gen_keypair(pk, priv) != 0) {
+            BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_EUNKNOWN);
             return BLE_HS_EUNKNOWN;
         }
+#if CONFIG_MBEDTLS_VER_4_X_SUPPORT
+        // PSA/mbedTLS: pk[0]=0x04, pk[1..32]=X, pk[33..64]=Y
+        swap_buf(pub, &pk[1], 32);      // Extract X (skip 0x04 prefix)
+        swap_buf(&pub[32], &pk[33], 32); // Extract Y
+#else
+        swap_buf(pub, pk, 32);
+        swap_buf(&pub[32], &pk[32], 32);
+#endif // CONFIG_MBEDTLS_VER_4_X_SUPPORT
 #else
         if (uECC_make_key(pk, priv, uECC_secp256r1()) != TC_CRYPTO_SUCCESS) {
+            BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_EUNKNOWN);
             return BLE_HS_EUNKNOWN;
         }
+        // TinyCrypt/uECC: pk[0..31]=X, pk[32..63]=Y (no prefix)
+        swap_buf(pub, pk, 32);          // Extract X (from start)
+        swap_buf(&pub[32], &pk[32], 32); // Extract Y
 #endif
 
         /* Make sure generated key isn't debug key. */
     } while (memcmp(priv, ble_sm_alg_dbg_priv_key, 32) == 0);
-
-    swap_buf(pub, pk, 32);
-    swap_buf(&pub[32], &pk[32], 32);
     swap_in_place(priv, 32);
 #endif
 

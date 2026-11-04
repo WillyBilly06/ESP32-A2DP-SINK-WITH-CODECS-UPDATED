@@ -5,6 +5,15 @@
  *  SPDX-License-Identifier: Apache-2.0 OR GPL-2.0-or-later
  */
 
+/* On Mingw-w64, force the use of a C99-compliant printf() and friends.
+ * This is necessary on older versions of Mingw and/or Windows runtimes
+ * where snprintf does not always zero-terminate the buffer, and does
+ * not support formats such as "%zu" for size_t and "%lld" for long long.
+ */
+#if !defined(__USE_MINGW_ANSI_STDIO)
+#define __USE_MINGW_ANSI_STDIO 1
+#endif
+
 #include "mbedtls/build_info.h"
 #include "mbedtls/debug.h"
 #include "mbedtls/platform.h"
@@ -545,33 +554,10 @@ static void print_deserialized_ssl_session(const uint8_t *ssl, uint32_t len,
     if (ciphersuite_info == NULL) {
         printf_err("Cannot find ciphersuite info\n");
     } else {
-#if defined(MBEDTLS_MD_C)
-        const mbedtls_md_info_t *md_info;
-#endif
-
         printf("\tciphersuite    : %s\n", mbedtls_ssl_ciphersuite_get_name(ciphersuite_info));
         printf("\tcipher flags   : 0x%02X\n", ciphersuite_info->MBEDTLS_PRIVATE(flags));
-
-#if defined(MBEDTLS_CIPHER_C)
-        const mbedtls_cipher_info_t *cipher_info;
-        cipher_info = mbedtls_cipher_info_from_type(ciphersuite_info->MBEDTLS_PRIVATE(cipher));
-        if (cipher_info == NULL) {
-            printf_err("Cannot find cipher info\n");
-        } else {
-            printf("\tcipher         : %s\n", mbedtls_cipher_info_get_name(cipher_info));
-        }
-#else /* MBEDTLS_CIPHER_C */
         printf("\tcipher type     : %d\n", ciphersuite_info->MBEDTLS_PRIVATE(cipher));
-#endif /* MBEDTLS_CIPHER_C */
-
-#if defined(MBEDTLS_MD_C)
-        md_info = mbedtls_md_info_from_type(ciphersuite_info->MBEDTLS_PRIVATE(mac));
-        if (md_info == NULL) {
-            printf_err("Cannot find Message-Digest info\n");
-        } else {
-            printf("\tMessage-Digest : %s\n", mbedtls_md_get_name(md_info));
-        }
-#endif /* MBEDTLS_MD_C */
+        printf("\tMessage-Digest : %d\n", ciphersuite_info->MBEDTLS_PRIVATE(mac));
     }
 
     CHECK_SSL_END(1);
@@ -742,13 +728,6 @@ static void print_deserialized_ssl_session(const uint8_t *ssl, uint32_t len,
  *  uint16 mtu;                 // DTLS: path mtu (max outgoing fragment size)
  *  uint8 alpn_chosen_len;
  *  uint8 alpn_chosen<0..2^8-1> // ALPN: negotiated application protocol
- *
- * Note: In the mbedtls_ssl_context structure, badmac_seen is called
- * badmac_seen_or_in_hsfraglen since Mbed TLS 3.6.2. The field contains
- * the badmac_seen value in DTLS, and a handshake parsing intermediate
- * value in non-DTLS TLS. The value is only meaningful for DTLS and should
- * not be saved in non-DTLS TLS, so in this program, the context info file
- * filed remains badmac_seen.
  *
  * /p ssl   pointer to serialized session
  * /p len   number of bytes in the buffer
@@ -932,14 +911,12 @@ int main(int argc, char *argv[])
     size_t ssl_max_len = SSL_INIT_LEN;
     size_t ssl_len = 0;
 
-#if defined(MBEDTLS_USE_PSA_CRYPTO)
     psa_status_t status = psa_crypto_init();
     if (status != PSA_SUCCESS) {
         mbedtls_fprintf(stderr, "Failed to initialize PSA Crypto implementation: %d\n",
                         (int) status);
         return MBEDTLS_ERR_SSL_HW_ACCEL_FAILED;
     }
-#endif /* MBEDTLS_USE_PSA_CRYPTO */
 
     /* The 'b64_file' is opened when parsing arguments to check that the
      * file name is correct */
@@ -1009,9 +986,7 @@ int main(int argc, char *argv[])
         printf("Finished. No valid base64 code found\n");
     }
 
-#if defined(MBEDTLS_USE_PSA_CRYPTO)
     mbedtls_psa_crypto_free();
-#endif /* MBEDTLS_USE_PSA_CRYPTO */
 
     return 0;
 }

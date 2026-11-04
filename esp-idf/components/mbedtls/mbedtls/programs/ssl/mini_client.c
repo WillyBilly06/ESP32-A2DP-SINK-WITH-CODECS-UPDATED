@@ -24,14 +24,12 @@
 #define UNIX
 #endif
 
-#if !defined(MBEDTLS_CTR_DRBG_C) || !defined(MBEDTLS_ENTROPY_C) || \
-    !defined(MBEDTLS_NET_C) || !defined(MBEDTLS_SSL_CLI_C) || \
+#if !defined(MBEDTLS_NET_C) || !defined(MBEDTLS_SSL_CLI_C) || \
     !defined(UNIX)
 
 int main(void)
 {
-    mbedtls_printf("MBEDTLS_CTR_DRBG_C and/or MBEDTLS_ENTROPY_C and/or "
-                   "MBEDTLS_NET_C and/or MBEDTLS_SSL_CLI_C and/or UNIX "
+    mbedtls_printf("MBEDTLS_NET_C and/or MBEDTLS_SSL_CLI_C and/or UNIX "
                    "not defined.\n");
     mbedtls_exit(0);
 }
@@ -41,8 +39,6 @@ int main(void)
 
 #include "mbedtls/net_sockets.h"
 #include "mbedtls/ssl.h"
-#include "mbedtls/entropy.h"
-#include "mbedtls/ctr_drbg.h"
 
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -127,7 +123,6 @@ const unsigned char ca_cert[] = {
 
 enum exit_codes {
     exit_ok = 0,
-    ctr_drbg_seed_failed,
     ssl_config_defaults_failed,
     ssl_setup_failed,
     hostname_failed,
@@ -148,11 +143,8 @@ int main(void)
     mbedtls_x509_crt ca;
 #endif
 
-    mbedtls_entropy_context entropy;
-    mbedtls_ctr_drbg_context ctr_drbg;
     mbedtls_ssl_context ssl;
     mbedtls_ssl_config conf;
-    mbedtls_ctr_drbg_init(&ctr_drbg);
 
     /*
      * 0. Initialize and setup stuff
@@ -163,19 +155,10 @@ int main(void)
 #if defined(MBEDTLS_X509_CRT_PARSE_C)
     mbedtls_x509_crt_init(&ca);
 #endif
-    mbedtls_entropy_init(&entropy);
 
-#if defined(MBEDTLS_USE_PSA_CRYPTO)
     psa_status_t status = psa_crypto_init();
     if (status != PSA_SUCCESS) {
         ret = MBEDTLS_ERR_SSL_HW_ACCEL_FAILED;
-        goto exit;
-    }
-#endif /* MBEDTLS_USE_PSA_CRYPTO */
-
-    if (mbedtls_ctr_drbg_seed(&ctr_drbg, mbedtls_entropy_func, &entropy,
-                              (const unsigned char *) pers, strlen(pers)) != 0) {
-        ret = ctr_drbg_seed_failed;
         goto exit;
     }
 
@@ -186,8 +169,6 @@ int main(void)
         ret = ssl_config_defaults_failed;
         goto exit;
     }
-
-    mbedtls_ssl_conf_rng(&conf, mbedtls_ctr_drbg_random, &ctr_drbg);
 
 #if defined(MBEDTLS_KEY_EXCHANGE_SOME_PSK_ENABLED)
     mbedtls_ssl_conf_psk(&conf, psk, sizeof(psk),
@@ -260,14 +241,10 @@ exit:
     mbedtls_net_free(&server_fd);
     mbedtls_ssl_free(&ssl);
     mbedtls_ssl_config_free(&conf);
-    mbedtls_ctr_drbg_free(&ctr_drbg);
-    mbedtls_entropy_free(&entropy);
 #if defined(MBEDTLS_X509_CRT_PARSE_C)
     mbedtls_x509_crt_free(&ca);
 #endif
-#if defined(MBEDTLS_USE_PSA_CRYPTO)
     mbedtls_psa_crypto_free();
-#endif /* MBEDTLS_USE_PSA_CRYPTO */
 
     mbedtls_exit(ret);
 }

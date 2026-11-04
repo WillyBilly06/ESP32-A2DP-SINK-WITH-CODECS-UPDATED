@@ -16,6 +16,17 @@ clang_tidy_check:
       --limit-file tools/ci/static-analysis-rules.yml
       --xtensa-include-dir
 
+gcc_static_analyzer:
+  extends:
+    - .pre_check_template
+    - .rules:patterns:clang_tidy
+  variables:
+    CI_CCACHE_DISABLE: 1
+    ANALYZING_APP: "examples/get-started/hello_world"
+  script:
+    - echo "CONFIG_COMPILER_STATIC_ANALYZER=y" >> ${ANALYZING_APP}/sdkconfig.defaults
+    - sed -i 's/.*MINIMAL_BUILD.*//g' ${ANALYZING_APP}/CMakeLists.txt
+    - idf-build-apps build -p ${ANALYZING_APP}
 #
 ## build stage
 ## Sonarqube related jobs put here for this reason:
@@ -85,7 +96,7 @@ clang_tidy_check:
 #code_quality_report:
 #  extends:
 #    - .sonar_scan_template
-#    - .rules:protected
+#    - .rules:protected:check
 #  allow_failure: true  # it's using exit code to indicate the code analysis result,
 #                       # we don't want to block ci when critical issues founded
 #  script:

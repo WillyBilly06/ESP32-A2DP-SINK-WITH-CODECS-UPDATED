@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2016-2025 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2016-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -79,6 +79,7 @@ static IRAM_ATTR bool adc_dma_intr(adc_continuous_ctx_t *adc_digi_ctx)
         else {
             esp_err_t msync_ret = esp_cache_msync((void *)finished_buffer, finished_size, ESP_CACHE_MSYNC_FLAG_DIR_M2C);
             assert(msync_ret == ESP_OK);
+            (void)msync_ret;
         }
 #endif
 
@@ -126,6 +127,7 @@ static IRAM_ATTR bool adc_dma_intr(adc_continuous_ctx_t *adc_digi_ctx)
 #if SOC_CACHE_INTERNAL_MEM_VIA_L1CACHE
     esp_err_t msync_ret = esp_cache_msync((void *)(adc_digi_ctx->hal.rx_desc), adc_digi_ctx->adc_desc_size, ESP_CACHE_MSYNC_FLAG_DIR_C2M | ESP_CACHE_MSYNC_FLAG_INVALIDATE);
     assert(msync_ret == ESP_OK);
+    (void)msync_ret;
 #endif
     return need_yield;
 }
@@ -260,13 +262,13 @@ esp_err_t adc_continuous_start(adc_continuous_handle_t handle)
     ANALOG_CLOCK_ENABLE();
 
     //reset ADC digital part to reset ADC sampling EOF counter
-    ADC_BUS_CLK_ATOMIC() {
-        adc_ll_reset_register();
-    }
+    sar_periph_ctrl_adc_reset();
 
+#if CONFIG_PM_ENABLE
     if (handle->pm_lock) {
         ESP_RETURN_ON_ERROR(esp_pm_lock_acquire(handle->pm_lock), ADC_TAG, "acquire pm_lock failed");
     }
+#endif
 
     handle->fsm = ADC_FSM_STARTED;
     sar_periph_ctrl_adc_continuous_power_acquire();
@@ -335,6 +337,7 @@ esp_err_t adc_continuous_start(adc_continuous_handle_t handle)
 #if SOC_CACHE_INTERNAL_MEM_VIA_L1CACHE
     esp_err_t ret = esp_cache_msync(handle->hal.rx_desc, handle->adc_desc_size, ESP_CACHE_MSYNC_FLAG_DIR_C2M);
     assert(ret == ESP_OK);
+    (void)ret;
 #endif
 
     adc_dma_start(handle->adc_dma, handle->hal.rx_desc);
@@ -359,7 +362,7 @@ esp_err_t adc_continuous_stop(adc_continuous_handle_t handle)
     adc_hal_digi_enable(false);
     adc_hal_digi_connect(false);
 #if ADC_LL_WORKAROUND_CLEAR_EOF_COUNTER
-    periph_module_reset(PERIPH_SARADC_MODULE);
+    sar_periph_ctrl_adc_reset();
     adc_hal_digi_clr_eof();
 #endif
 
@@ -375,10 +378,12 @@ esp_err_t adc_continuous_stop(adc_continuous_handle_t handle)
     }
     sar_periph_ctrl_adc_continuous_power_release();
 
+#if CONFIG_PM_ENABLE
     //release power manager lock
     if (handle->pm_lock) {
         ESP_RETURN_ON_ERROR(esp_pm_lock_release(handle->pm_lock), ADC_TAG, "release pm_lock failed");
     }
+#endif
     ANALOG_CLOCK_DISABLE();
 
     return ESP_OK;
@@ -427,9 +432,11 @@ esp_err_t adc_continuous_deinit(adc_continuous_handle_t handle)
         free(handle->ringbuf_struct);
     }
 
+#if CONFIG_PM_ENABLE
     if (handle->pm_lock) {
         esp_pm_lock_delete(handle->pm_lock);
     }
+#endif
 
     free(handle->rx_dma_buf);
     free(handle->hal.rx_desc);
@@ -505,6 +512,7 @@ esp_err_t adc_continuous_config(adc_continuous_handle_t handle, const adc_contin
     uint32_t adc1_chan_mask = 0;
     uint32_t adc2_chan_mask = 0;
     for (int i = 0; i < config->pattern_num; i++) {
+        ESP_RETURN_ON_FALSE(config->adc_pattern[i].atten < SOC_ADC_ATTEN_NUM, ESP_ERR_INVALID_ARG, ADC_TAG, "invalid pattern attenuation");
         const adc_digi_pattern_config_t *pat = &config->adc_pattern[i];
         if (pat->unit == ADC_UNIT_1) {
             handle->use_adc1 = 1;

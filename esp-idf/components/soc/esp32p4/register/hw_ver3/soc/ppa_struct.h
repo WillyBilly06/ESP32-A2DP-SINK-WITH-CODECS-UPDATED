@@ -1,7 +1,7 @@
 /**
  * SPDX-FileCopyrightText: 2025 Espressif Systems (Shanghai) CO LTD
  *
- *  SPDX-License-Identifier: Apache-2.0
+ *  SPDX-License-Identifier: Apache-2.0 OR MIT
  */
 #pragma once
 
@@ -116,7 +116,7 @@ typedef union {
          */
         uint32_t rgb2yuv_protocol:1;
         /** yuv422_rx_byte_order : R/W; bitpos: [13:12]; default: 0;
-         *  YUV422 input byte order when reg_sr_rx_cm is 4'd9. 0: YVYU, 1:YUYV, 2: VYUY, 3: UYVY (high addr -> low addr)
+         *  YUV422 input byte order when reg_sr_rx_cm is 4'd9. 0: YVYU, 1:YUYV, 2: VYUY, 3: UYVY （high addr -> low addr）
          */
         uint32_t yuv422_rx_byte_order:2;
         uint32_t reserved_14:18;

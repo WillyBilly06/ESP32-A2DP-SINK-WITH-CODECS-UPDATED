@@ -101,7 +101,8 @@ from types import SimpleNamespace
 
 import xml.etree.ElementTree as ET
 
-from mbedtls_dev import build_tree
+import framework_scripts_path # pylint: disable=unused-import
+from mbedtls_framework import build_tree
 
 
 class AbiChecker:
@@ -196,11 +197,32 @@ class AbiChecker:
         """If the crypto submodule is present, initialize it.
         if version.crypto_revision exists, update it to that revision,
         otherwise update it to the default revision"""
-        update_output = subprocess.check_output(
-            [self.git_command, "submodule", "update", "--init", '--recursive'],
-            cwd=git_worktree_path,
+        submodule_output = subprocess.check_output(
+            [self.git_command, "submodule", "foreach", "--recursive",
+             f'git worktree add --detach "{git_worktree_path}/$displaypath" HEAD'],
+            cwd=self.repo_path,
             stderr=subprocess.STDOUT
         )
+        self.log.debug(submodule_output.decode("utf-8"))
+
+        try:
+            # Try to update the submodules using local commits
+            # (Git will sometimes insist on fetching the remote without --no-fetch
+            # if the submodules are shallow clones)
+            update_output = subprocess.check_output(
+                [self.git_command, "submodule", "update", "--init", '--recursive', '--no-fetch'],
+                cwd=git_worktree_path,
+                stderr=subprocess.STDOUT
+            )
+        except subprocess.CalledProcessError as err:
+            self.log.debug(err.stdout.decode("utf-8"))
+
+            # Checkout with --no-fetch failed, falling back to fetching from origin
+            update_output = subprocess.check_output(
+                [self.git_command, "submodule", "update", "--init", '--recursive'],
+                cwd=git_worktree_path,
+                stderr=subprocess.STDOUT
+            )
         self.log.debug(update_output.decode("utf-8"))
         if not (os.path.exists(os.path.join(git_worktree_path, "crypto"))
                 and version.crypto_revision):
@@ -325,8 +347,14 @@ class AbiChecker:
     @staticmethod
     def _list_generated_test_data_files(git_worktree_path):
         """List the generated test data files."""
+        generate_psa_tests = 'framework/scripts/generate_psa_tests.py'
+        if not os.path.isfile(git_worktree_path + '/' + generate_psa_tests):
+            # The checked-out revision is from before generate_psa_tests.py
+            # was moved to the framework submodule. Use the old location.
+            generate_psa_tests = 'tests/scripts/generate_psa_tests.py'
+
         output = subprocess.check_output(
-            ['tests/scripts/generate_psa_tests.py', '--list'],
+            [generate_psa_tests, '--list'],
             cwd=git_worktree_path,
         ).decode('ascii')
         return [line for line in output.split('\n') if line]
@@ -352,8 +380,14 @@ class AbiChecker:
             if 'storage_format' in filename:
                 storage_data_files.add(filename)
                 to_be_generated.add(filename)
+
+        generate_psa_tests = 'framework/scripts/generate_psa_tests.py'
+        if not os.path.isfile(git_worktree_path + '/' + generate_psa_tests):
+            # The checked-out revision is from before generate_psa_tests.py
+            # was moved to the framework submodule. Use the old location.
+            generate_psa_tests = 'tests/scripts/generate_psa_tests.py'
         subprocess.check_call(
-            ['tests/scripts/generate_psa_tests.py'] + sorted(to_be_generated),
+            [generate_psa_tests] + sorted(to_be_generated),
             cwd=git_worktree_path,
         )
         for test_file in sorted(storage_data_files):
@@ -365,8 +399,15 @@ class AbiChecker:
     def _cleanup_worktree(self, git_worktree_path):
         """Remove the specified git worktree."""
         shutil.rmtree(git_worktree_path)
+        submodule_output = subprocess.check_output(
+            [self.git_command, "submodule", "foreach", "--recursive",
+             f'git worktree remove "{git_worktree_path}/$displaypath"'],
+            cwd=self.repo_path,
+            stderr=subprocess.STDOUT
+        )
+        self.log.debug(submodule_output.decode("utf-8"))
         worktree_output = subprocess.check_output(
-            [self.git_command, "worktree", "prune"],
+            [self.git_command, "worktree", "remove", git_worktree_path],
             cwd=self.repo_path,
             stderr=subprocess.STDOUT
         )

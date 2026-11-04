@@ -1,7 +1,7 @@
 /*
- * SPDX-FileCopyrightText: 2024 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2024-2025 Espressif Systems (Shanghai) CO LTD
  *
- * SPDX-License-Identifier: Apache-2.0
+ * SPDX-License-Identifier: Apache-2.0 OR MIT
  */
 
 #pragma once
@@ -25,7 +25,7 @@
 #define DR_REG_INTMTX_BASE                        0x60010000
 #define DR_REG_PCNT_BASE                          0x60012000
 #define DR_REG_SOC_ETM_BASE                       0x60013000
-#define DR_REG_MCPWM0_BASE                        0x60014000
+#define DR_REG_MCPWM_BASE                         0x60014000
 #define DR_REG_PARL_IO_BASE                       0x60015000
 #define DR_REG_PVT_BASE                           0x60019000
 #define DR_REG_GDMA_BASE                          0x60080000
@@ -61,5 +61,6 @@
 #define DR_REG_INTPRI_BASE                        0x600C5000
 #define DR_REG_CACHE_BASE                         0x600C8000
 
-#define DR_REG_I2C_ANA_MST_BASE                   0x600AD800 //TODO: [ESP32H21] IDF-11550, need check
 #define PWDET_CONF_REG                            0x600A0810 //TODO: [ESP32H21] IDF-11589, IDF-11592, need check
+
+#define IEEE802154_REG_BASE              0x600A3000

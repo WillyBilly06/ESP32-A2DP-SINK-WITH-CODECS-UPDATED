@@ -22,7 +22,7 @@
 #include "soc/soc_caps.h"
 
 #include "test_utils.h"
-#include "idf_performance.h"
+#include "sdio_performance.h"
 #include "test_dualboard_utils.h"
 #include "../../sdio_common_test.h"
 
@@ -203,7 +203,7 @@ TEST_CASE("SDIO_SDMMC: test register", "[sdio]")
 /*---------------------------------------------------------------
                 SDMMC_SDIO: test reset
 ---------------------------------------------------------------*/
-TEST_CASE("SDIO_SDMMC: test reset", "[sdio]")
+static void test_reset(void)
 {
     essl_handle_t handle = NULL;
     test_sdio_param_t test_param = {
@@ -241,6 +241,16 @@ TEST_CASE("SDIO_SDMMC: test reset", "[sdio]")
 
     s_send_finish_test(handle);
     s_master_deinit();
+}
+
+TEST_CASE("SDIO_SDMMC: test reset", "[sdio]")
+{
+    test_reset();
+}
+
+TEST_CASE("SDIO_SDMMC: test reset hw", "[sdio]")
+{
+    test_reset();
 }
 
 /*---------------------------------------------------------------

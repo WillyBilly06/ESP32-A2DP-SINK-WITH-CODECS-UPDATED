@@ -194,6 +194,10 @@ ESP-IDF 提供了一套灵活的日志系统，包括两个可配置版本 **Log
 
   - 对于 **Log V2**，选项 :ref:`CONFIG_LOG_COLORS_SUPPORT` 支持在运行时为特定日志、文件或组件添加颜色输出，即使全局颜色已禁用。此时要为特定上下文启用颜色，请使用 ``ESP_LOG_COLOR_DISABLED``。
 
+  .. note::
+
+    IDF Monitor 需要依据上述日志消息格式，才能自动为日志添加颜色高亮效果。对格式的最低要求是：日志级别名称后接时间戳，且每条日志消息必须以换行符结尾。例如，``I (56): Log message\n``。如果未遵循此格式（例如禁用了时间戳），自动日志着色将失效。在这种情况下，建议在 menuconfig 中启用 :ref:`CONFIG_LOG_COLORS` 配置项。此外还有一个限制，即对于多行日志消息，只有第一行会被正确着色。
+
 - **Level Name**：表示日志详细级别的单个字母（I, W, E, D, V），显示在每条日志消息的开头，用于识别日志级别。这在禁用颜色时非常有用，例如在禁用颜色时 ESP-IDF 监视工具就会使用该信息。
 
 - **Timestamp**：为日志消息全局添加时间戳。由 :ref:`CONFIG_LOG_TIMESTAMP_SOURCE` 控制。
@@ -651,6 +655,23 @@ buffer 日志需特殊处理
      - 26272 (+160)
 
 启用 **Log V2** 会增加 IRAM 的使用量，同时减少整个应用程序的二进制文件大小、flash 代码和数据量。
+
+.. only:: not CONFIG_ESP_ROM_HAS_VPRINTF_FUNC
+
+    在 Log V2 中减少 IRAM 使用
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    **Log V2** 中 IRAM 开销增加的主要原因是 ``esp_rom_vprintf`` 在 {IDF_TARGET_NAME} 上被编译进了 IRAM（约 1.2 KB）。在内联函数 ``esp_log_vprintf()`` 中，``esp_rom_vprintf`` 作为受限环境（例如在 ISR 中或缓存被禁用时）的回退格式化函数被引用。
+
+    在 IRAM 与 DRAM 共用同一内存池的芯片上，这也会减少相应的可用堆空间（约 1.2 KB）。
+
+    为消除该开销，请禁用 :ref:`CONFIG_LOG_API_CONSTRAINED_ENV_SAFE` （默认启用）。禁用后：
+
+    - ``ESP_DRAM_LOGx`` 和 ``ESP_EARLY_LOGx`` 直接展开为 ``esp_rom_printf()`` （真正的 ROM 函数，无需 IRAM 开销），完全绕过 ``esp_log()`` 处理流程。
+    - 在受限环境中，普通的 ``ESP_LOGx`` 调用将使用标准 ``vprintf`` 函数。如果 ``vprintf`` 位于 flash 中，此类调用可能导致崩溃。对于必须在缓存被禁用时或在 ISR 中使用的日志，请使用 ``ESP_DRAM_LOGx``。
+    - ``esp_rom_vprintf`` 不会被引用，因此链接器会将其从二进制文件中排除。
+
+    若启用 :ref:`CONFIG_LOG_API_CONSTRAINED_ENV_SAFE`，则保留原始 **Log V2** 行为：所有受限环境的日志都通过 ``esp_log()`` 路由，并使用 ``esp_rom_vprintf`` 作为早期/DRAM 日志的格式化函数。
 
 通过 JTAG 将日志记录到主机
 ------------------------------

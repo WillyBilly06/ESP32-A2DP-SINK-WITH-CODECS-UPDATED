@@ -54,10 +54,13 @@ void MeshForwarder::SendMessage(OwnedPtr<Message> aMessagePtr)
 #endif
 }
 
-Error MeshForwarder::EvictMessage(Message::Priority aPriority)
+Error MeshForwarder::EvictMessage(Message::Priority aPriority, EvictReason aEvictReason)
 {
     Error    error = kErrorNotFound;
     Message *message;
+
+    error = RemoveUnsecureReassemblyMessage(aEvictReason);
+    VerifyOrExit(error == kErrorNotFound);
 
 #if OPENTHREAD_CONFIG_DELAY_AWARE_QUEUE_MANAGEMENT_ENABLE
     error = RemoveAgedMessages();
@@ -65,6 +68,8 @@ Error MeshForwarder::EvictMessage(Message::Priority aPriority)
 #endif
 
     VerifyOrExit((message = mSendQueue.GetTail()) != nullptr);
+
+    VerifyOrExit(!message->GetDoNotEvict());
 
     if (message->GetPriority() < static_cast<uint8_t>(aPriority))
     {

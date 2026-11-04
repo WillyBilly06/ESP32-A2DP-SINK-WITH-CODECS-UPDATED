@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2024-2025 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2024-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -9,8 +9,7 @@
 #include "esp_attr.h"
 #include "esp_macros.h"
 #include "esp_rom_sys.h"
-#include "esp_rom_uart.h"
-#include "rom/cache.h"
+#include "esp_rom_serial_output.h"
 
 #include "riscv/rv_utils.h"
 #include "riscv/rvruntime-frames.h"
@@ -19,6 +18,7 @@
 #include "hal/cache_ll.h"
 #include "hal/cache_hal.h"
 #include "hal/apm_hal.h"
+#include "soc/soc_caps.h"
 
 #if SOC_INT_PLIC_SUPPORTED
 #include "soc/plic_reg.h"
@@ -56,6 +56,12 @@ static void tee_panic_end(void)
     if (CONFIG_ESP_CONSOLE_UART_NUM >= 0) {
         esp_rom_output_tx_wait_idle(CONFIG_ESP_CONSOLE_UART_NUM);
     }
+
+    // Reset crypto peripherals before the panic-induced reset so the next boot
+    // sees them in a clean state. The SoC-specific implementation mirrors
+    // esp_system_reset_modules_on_exit() in the non-TEE path using register-level
+    // accesses.
+    esp_tee_soc_reset_crypto_peripherals();
 
     // Generate system reset
     esp_rom_software_reset_system();

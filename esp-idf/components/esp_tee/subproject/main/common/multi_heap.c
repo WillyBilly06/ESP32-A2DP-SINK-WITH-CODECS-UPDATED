@@ -1,24 +1,35 @@
 /*
- * SPDX-FileCopyrightText: 2024-2025 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2024-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
+#include <assert.h>
 #include <stdio.h>
 #include <stdbool.h>
-#include "esp_rom_tlsf.h"
+#include <string.h>
+#include "rom_patch_tlsf.h"
 #include "esp_rom_sys.h"
 #include "tlsf_block_functions.h"
 #include "multi_heap.h"
+#include "esp_tee.h"
 
 /* Handle to a registered TEE heap */
 static multi_heap_handle_t tee_heap;
+
+static inline void tee_heap_set_poison(bool enable)
+{
+    tlsf_poison_fill_pfunc_set(enable ? (poison_fill_pfunc_t)esp_tee_app_config.ns_heap_poison_fill : NULL);
+}
 
 inline static void multi_heap_assert(bool condition, const char *format, int line, intptr_t address)
 {
     /* Can't use libc assert() here as it calls printf() which can cause another malloc() for a newlib lock.
        Also, it's useful to be able to print the memory address where corruption was detected.
     */
-    (void) condition;
+    if (!condition) {
+        esp_rom_printf(format, line, address);
+        abort();
+    }
 }
 
 #define MULTI_HEAP_ASSERT(CONDITION, ADDRESS) \
@@ -52,6 +63,9 @@ esp_err_t esp_tee_heap_init(void *start_ptr, size_t size)
     if (too_small) {
         return ESP_ERR_INVALID_SIZE;
     }
+
+    /* Zeroize the entire region before registering it as the TEE heap*/
+    memset(start_ptr, 0, size);
 
 #if CONFIG_IDF_TARGET_ESP32C6 || CONFIG_IDF_TARGET_ESP32H2
     void *heap = tlsf_create_with_pool(start_ptr + sizeof(heap_t), usable_size);
@@ -97,7 +111,10 @@ void *esp_tee_heap_malloc(size_t size)
 
 void *esp_tee_heap_calloc(size_t n, size_t size)
 {
-    size_t reg_size = n * size;
+    size_t reg_size;
+    if (__builtin_mul_overflow(n, size, &reg_size)) {
+        return NULL;
+    }
     void *ptr = esp_tee_heap_malloc(reg_size);
     if (ptr != NULL) {
         memset(ptr, 0x00, reg_size);
@@ -138,7 +155,10 @@ void esp_tee_heap_free(void *p)
 
     tee_heap->free_bytes += tlsf_block_size(p);
     tee_heap->free_bytes += tlsf_alloc_overhead();
+
+    tee_heap_set_poison(false);
     tlsf_free(tee_heap->heap_data, p);
+    tee_heap_set_poison(true);
 }
 
 void *malloc(size_t size)
@@ -149,6 +169,34 @@ void *malloc(size_t size)
 void *calloc(size_t n, size_t size)
 {
     return esp_tee_heap_calloc(n, size);
+}
+
+void *realloc(void* ptr, size_t size)
+{
+    if (tee_heap == NULL) {
+        return NULL;
+    }
+
+    if (ptr == NULL) {
+        return esp_tee_heap_malloc(size);
+    }
+
+    size_t previous_block_size = tlsf_block_size(ptr);
+    tee_heap_set_poison(false);
+    void *result = tlsf_realloc(tee_heap->heap_data, ptr, size);
+    tee_heap_set_poison(true);
+
+    if (result) {
+        /* No need to subtract the tlsf_alloc_overhead() as it has already
+         * been subtracted when allocating the block at first with malloc */
+        tee_heap->free_bytes += previous_block_size;
+        tee_heap->free_bytes -= tlsf_block_size(result);
+        if (tee_heap->free_bytes < tee_heap->minimum_free_bytes) {
+            tee_heap->minimum_free_bytes = tee_heap->free_bytes;
+        }
+    }
+
+    return result;
 }
 
 void free(void *ptr)
@@ -183,7 +231,7 @@ void esp_tee_heap_dump_info(void)
 
 /* Definitions for functions from the heap component, used in files shared with ESP-IDF */
 
-void *heap_caps_malloc(size_t alignment, size_t size, uint32_t caps)
+void *heap_caps_malloc(size_t size, uint32_t caps)
 {
     (void) caps;
     return esp_tee_heap_malloc(size);
@@ -198,11 +246,21 @@ void *heap_caps_aligned_alloc(size_t alignment, size_t size, uint32_t caps)
 void *heap_caps_aligned_calloc(size_t alignment, size_t n, size_t size, uint32_t caps)
 {
     (void) caps;
-    uint32_t reg_size = n * size;
+    size_t reg_size;
+    if (__builtin_mul_overflow(n, size, &reg_size)) {
+        return NULL;
+    }
 
     void *ptr = esp_tee_heap_aligned_alloc(reg_size, alignment);
     if (ptr != NULL) {
         memset(ptr, 0x00, reg_size);
     }
     return ptr;
+}
+
+/* No-op function, used to force linking this file,
+   instead of the heap implementation from libc.
+ */
+void esp_tee_include_heap_impl(void)
+{
 }

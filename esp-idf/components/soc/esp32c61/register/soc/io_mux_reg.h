@@ -1,11 +1,10 @@
 /**
  * SPDX-FileCopyrightText: 2025 Espressif Systems (Shanghai) CO LTD
  *
- *  SPDX-License-Identifier: Apache-2.0
+ *  SPDX-License-Identifier: Apache-2.0 OR MIT
  */
 #pragma once
 
-#include <stdint.h>
 #include "soc/soc.h"
 #ifdef __cplusplus
 extern "C" {
@@ -109,19 +108,14 @@ extern "C" {
 #define USB_INT_PHY0_DM_GPIO_NUM     12
 #define USB_INT_PHY0_DP_GPIO_NUM     13
 
-#define EXT_OSC_SLOW_GPIO_NUM        0
-
-#define MAX_RTC_GPIO_NUM              6
-#define MAX_PAD_GPIO_NUM             29
-#define MAX_GPIO_NUM                 33
 
 #define REG_IO_MUX_BASE                             DR_REG_IO_MUX_BASE
 // definitions above are inherited from previous version of code, should double check
 
 // definitions below are generated from pin_txt.csv
 #define PERIPHS_IO_MUX_XTAL_32K_P_U                  (REG_IO_MUX_BASE + 0x0)
-#define FUNC_XTAL_32K_P_GPIO0                                              1
 #define FUNC_XTAL_32K_P_GPIO0_0                                            0
+#define FUNC_XTAL_32K_P_GPIO0                                              1
 
 #define PERIPHS_IO_MUX_XTAL_32K_N_U                  (REG_IO_MUX_BASE + 0x4)
 #define FUNC_XTAL_32K_N_GPIO1_0                                            0

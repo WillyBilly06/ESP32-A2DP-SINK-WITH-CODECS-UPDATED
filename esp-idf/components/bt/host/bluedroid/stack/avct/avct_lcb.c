@@ -310,10 +310,16 @@ tAVCT_LCB *avct_lcb_alloc(BD_ADDR bd_addr)
 
     for (i = 0; i < AVCT_NUM_LINKS; i++, p_lcb++) {
         if (!p_lcb->allocated) {
+            memset(p_lcb, 0, sizeof(tAVCT_LCB));
             p_lcb->allocated = (UINT8)(i + 1);
             memcpy(p_lcb->peer_addr, bd_addr, BD_ADDR_LEN);
             AVCT_TRACE_DEBUG("avct_lcb_alloc %d", p_lcb->allocated);
             p_lcb->tx_q = fixed_queue_new(QUEUE_SIZE_MAX);
+            if (p_lcb->tx_q == NULL) {
+                AVCT_TRACE_ERROR("avct_lcb_alloc: failed to create tx_q");
+                memset(p_lcb, 0, sizeof(tAVCT_LCB));
+                p_lcb = NULL;
+            }
             break;
         }
     }
@@ -358,7 +364,7 @@ void avct_lcb_dealloc(tAVCT_LCB *p_lcb, tAVCT_LCB_EVT *p_data)
 
     AVCT_TRACE_DEBUG("%s Freeing LCB", __func__);
     osi_free(p_lcb->p_rx_msg);
-    fixed_queue_free(p_lcb->tx_q, NULL);
+    fixed_queue_free(p_lcb->tx_q, osi_free_func);
     memset(p_lcb, 0, sizeof(tAVCT_LCB));
 }
 

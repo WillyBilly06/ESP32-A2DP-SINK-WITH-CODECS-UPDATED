@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2023-2024 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2023-2025 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -26,7 +26,7 @@
 #include "hal/rtc_hal.h"
 #include "esp32s3/rom/cache.h"
 
-static __attribute__((unused)) const char *TAG = "sleep";
+ESP_LOG_ATTR_TAG(TAG, "sleep");
 
 typedef struct {
     uint32_t start;
@@ -119,11 +119,11 @@ static esp_err_t esp_sleep_tagmem_pd_low_init(void)
     if (s_tag_mem->link_addr == NULL) {
         extern char _stext[], _etext[];
         uint32_t code_start = (uint32_t)_stext;
-        uint32_t code_size = (uint32_t)(_etext - _stext);
+        uint32_t code_size = (uint32_t)((uintptr_t)_etext - (uintptr_t)_stext);
 #if !(CONFIG_SPIRAM && CONFIG_SOC_PM_SUPPORT_TAGMEM_PD)
         extern char _rodata_start[], _rodata_reserved_end[];
         uint32_t data_start = (uint32_t)_rodata_start;
-        uint32_t data_size = (uint32_t)(_rodata_reserved_end - _rodata_start);
+        uint32_t data_size = (uint32_t)((uintptr_t)_rodata_reserved_end - (uintptr_t)_rodata_start);
 #else
         uint32_t data_start = SOC_DROM_LOW;
         uint32_t data_size = SOC_EXTRAM_DATA_SIZE;
@@ -231,7 +231,7 @@ bool cpu_domain_pd_allowed(void)
 
 esp_err_t sleep_cpu_configure(bool light_sleep_enable)
 {
-#if ESP_SLEEP_POWER_DOWN_CPU
+#if CONFIG_PM_ESP_SLEEP_POWER_DOWN_CPU
     if (light_sleep_enable) {
         ESP_RETURN_ON_ERROR(esp_sleep_cpu_retention_init(), TAG, "Failed to enable CPU power down during light sleep.");
     } else {

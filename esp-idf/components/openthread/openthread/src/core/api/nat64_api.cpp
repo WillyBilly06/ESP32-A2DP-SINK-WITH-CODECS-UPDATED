@@ -142,7 +142,7 @@ otError otIp4FromIp4MappedIp6Address(const otIp6Address *aIp6Address, otIp4Addre
 
 void otIp4ToIp4MappedIp6Address(const otIp4Address *aIp4Address, otIp6Address *aIp6Address)
 {
-    AsCoreType(aIp6Address).SetToIp4Mapped(AsCoreType(aIp4Address));
+    AsCoreType(aIp6Address).InitAsIp4Mapped(AsCoreType(aIp4Address));
 }
 
 otError otIp4AddressFromString(const char *aString, otIp4Address *aAddress)
@@ -179,4 +179,15 @@ void otIp4CidrToString(const otIp4Cidr *aCidr, char *aBuffer, uint16_t aSize)
     AssertPointerIsNotNull(aBuffer);
 
     AsCoreType(aCidr).ToString(aBuffer, aSize);
+}
+
+const char *otNat64StateToString(otNat64State aState)
+{
+    const char *str = "Unknown";
+
+    VerifyOrExit(aState <= OT_NAT64_STATE_ACTIVE);
+    str = Nat64::StateToString(MapEnum(aState));
+
+exit:
+    return str;
 }

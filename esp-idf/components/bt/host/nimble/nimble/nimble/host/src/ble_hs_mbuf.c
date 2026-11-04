@@ -20,6 +20,7 @@
 #include "host/ble_hs.h"
 #include "host/ble_hs_mbuf.h"
 #include "ble_hs_priv.h"
+#include "host/ble_hs_log.h"
 
 /**
  * Allocates an mbuf for use by the nimble host.
@@ -39,7 +40,7 @@ ble_hs_mbuf_gen_pkt(uint16_t leading_space)
         return NULL;
     }
 
-    if (om->om_omp->omp_databuf_len < leading_space) {
+    if (OS_MBUF_TRAILINGSPACE(om) < leading_space) {
         rc = os_mbuf_free_chain(om);
         BLE_HS_DBG_ASSERT_EVAL(rc == 0);
         return NULL;
@@ -72,8 +73,10 @@ struct os_mbuf *
 ble_hs_mbuf_acl_pkt(void)
 {
 #if CONFIG_BT_NIMBLE_LEGACY_VHCI_ENABLE
+    /* +1 for HCI packet type indicator byte */
     return ble_hs_mbuf_gen_pkt(BLE_HCI_DATA_HDR_SZ + 1);
 #else
+    /* +1 for HCI packet type indicator byte */
     return ble_hs_mbuf_gen_pkt(BLE_HCI_DATA_HDR_SZ + BLE_HS_CTRL_DATA_HDR_SZ + 1);
 #endif
 }
@@ -91,8 +94,10 @@ struct os_mbuf *
 ble_hs_mbuf_l2cap_pkt(void)
 {
 #if CONFIG_BT_NIMBLE_LEGACY_VHCI_ENABLE
+    /* +1 for HCI packet type indicator byte */
     return ble_hs_mbuf_gen_pkt(BLE_HCI_DATA_HDR_SZ + BLE_L2CAP_HDR_SZ + 1);
 #else
+    /* +1 for HCI packet type indicator byte */
     return ble_hs_mbuf_gen_pkt(BLE_HCI_DATA_HDR_SZ + BLE_L2CAP_HDR_SZ + BLE_HS_CTRL_DATA_HDR_SZ + 1);
 #endif
 }
@@ -103,9 +108,16 @@ ble_hs_mbuf_att_pkt(void)
     /* Prepare write request and response are the largest ATT commands which
      * contain attribute data.
      */
+#if CONFIG_BT_NIMBLE_LEGACY_VHCI_ENABLE
     return ble_hs_mbuf_gen_pkt(BLE_HCI_DATA_HDR_SZ +
                                BLE_L2CAP_HDR_SZ +
-                               BLE_ATT_PREP_WRITE_CMD_BASE_SZ);
+                               BLE_ATT_PREP_WRITE_CMD_BASE_SZ + 1);
+#else
+    return ble_hs_mbuf_gen_pkt(BLE_HCI_DATA_HDR_SZ +
+                               BLE_L2CAP_HDR_SZ +
+                               BLE_HS_CTRL_DATA_HDR_SZ +
+                               BLE_ATT_PREP_WRITE_CMD_BASE_SZ + 1);
+#endif
 }
 
 struct os_mbuf *
@@ -113,6 +125,10 @@ ble_hs_mbuf_from_flat(const void *buf, uint16_t len)
 {
     struct os_mbuf *om;
     int rc;
+
+    if (buf == NULL && len > 0) {
+        return NULL;
+    }
 
     om = ble_hs_mbuf_att_pkt();
     if (om == NULL) {
@@ -135,6 +151,11 @@ ble_hs_mbuf_to_flat(const struct os_mbuf *om, void *flat, uint16_t max_len,
     uint16_t copy_len;
     int rc;
 
+    if (om == NULL) {
+        BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_EINVAL);
+        return BLE_HS_EINVAL;
+    }
+
     if (OS_MBUF_PKTLEN(om) <= max_len) {
         copy_len = OS_MBUF_PKTLEN(om);
     } else {
@@ -143,10 +164,11 @@ ble_hs_mbuf_to_flat(const struct os_mbuf *om, void *flat, uint16_t max_len,
 
     rc = os_mbuf_copydata(om, 0, copy_len, flat);
     if (rc != 0) {
+        BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_EUNKNOWN);
         return BLE_HS_EUNKNOWN;
     }
 
-    if (copy_len > max_len) {
+    if (OS_MBUF_PKTLEN(om) > max_len) {
         rc = BLE_HS_EMSGSIZE;
     } else {
         rc = 0;
@@ -161,12 +183,19 @@ ble_hs_mbuf_to_flat(const struct os_mbuf *om, void *flat, uint16_t max_len,
 int
 ble_hs_mbuf_pullup_base(struct os_mbuf **om, int base_len)
 {
+    if (base_len <= 0) {
+        BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_EINVAL);
+        return BLE_HS_EINVAL;
+    }
+
     if (OS_MBUF_PKTLEN(*om) < base_len) {
+        BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_EBADDATA);
         return BLE_HS_EBADDATA;
     }
 
     *om = os_mbuf_pullup(*om, base_len);
     if (*om == NULL) {
+        BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_ENOMEM);
         return BLE_HS_ENOMEM;
     }
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# SPDX-FileCopyrightText: 2025 Espressif Systems (Shanghai) CO LTD
+# SPDX-FileCopyrightText: 2025-2026 Espressif Systems (Shanghai) CO LTD
 # SPDX-License-Identifier: Apache-2.0
 
 import argparse
@@ -8,7 +8,6 @@ import struct
 from enum import Enum
 from enum import IntFlag
 from typing import Any
-from typing import Optional
 
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import serialization
@@ -17,29 +16,28 @@ from cryptography.hazmat.primitives.asymmetric import ec
 # === Constants ===
 SEC_STG_KEY_DATA_SZ = 256
 AES_KEY_LEN = 32
-AES_DEFAULT_IV_LEN = 16
-AES_GCM_IV_LEN = 12
 ECDSA_P256_LEN = 32
-ECDSA_P192_LEN = 24
+ECDSA_P384_LEN = 48
 
 
 # === Key Type Enum ===
 class KeyType(Enum):
     AES256 = 0
     ECDSA_P256 = 1
-    ECDSA_P192 = 2
+    ECDSA_P384 = 3
 
 
 # === Bitwise Flags Enum ===
 class Flags(IntFlag):
     NONE = 0x00000000
     WRITE_ONCE = 0x00000001
+    TEE_ONLY = 0x00000002
 
 
 # === Key Generators ===
 
 
-def generate_aes256_key(flags: Flags, key_file: Optional[str] = None) -> bytes:
+def generate_aes256_key(flags: Flags, key_file: str | None = None) -> bytes:
     if key_file:
         with open(key_file, 'rb') as f:
             key_data = f.read()
@@ -48,27 +46,15 @@ def generate_aes256_key(flags: Flags, key_file: Optional[str] = None) -> bytes:
             raise ValueError('AES key file must be at least 32 bytes long')
 
         key = key_data[:AES_KEY_LEN]
-        iv_data = key_data[AES_KEY_LEN:]
-
-        iv_len = len(iv_data)
-        if iv_len == 0:
-            iv = os.urandom(AES_DEFAULT_IV_LEN)
-        elif iv_len == AES_GCM_IV_LEN:
-            iv = iv_data + b'\x00' * (AES_DEFAULT_IV_LEN - AES_GCM_IV_LEN)
-        elif iv_len == AES_DEFAULT_IV_LEN:
-            iv = iv_data
-        else:
-            raise ValueError('IV length must be exactly 12 or 16 bytes, or omitted to generate one')
     else:
         key = os.urandom(AES_KEY_LEN)
-        iv = os.urandom(AES_DEFAULT_IV_LEN)
 
-    packed = struct.pack('<II32s16s', KeyType.AES256.value, flags.value, key, iv)
+    packed = struct.pack('<II32s', KeyType.AES256.value, flags.value, key)
     return packed + b'\x00' * (SEC_STG_KEY_DATA_SZ - len(packed))
 
 
 def generate_ecdsa_key(
-    curve: ec.EllipticCurve, key_type_enum: KeyType, key_len: int, flags: Flags, pem_file: Optional[str] = None
+    curve: ec.EllipticCurve, key_type_enum: KeyType, key_len: int, flags: Flags, pem_file: str | None = None
 ) -> bytes:
     if pem_file:
         with open(pem_file, 'rb') as f:
@@ -87,13 +73,13 @@ def generate_ecdsa_key(
     return packed + b'\x00' * (SEC_STG_KEY_DATA_SZ - len(packed))
 
 
-def generate_key_data(key_type: KeyType, flags: Flags, input_file: Optional[str]) -> bytes:
+def generate_key_data(key_type: KeyType, flags: Flags, input_file: str | None) -> bytes:
     if key_type == KeyType.AES256:
         return generate_aes256_key(flags, input_file)
     elif key_type == KeyType.ECDSA_P256:
         return generate_ecdsa_key(ec.SECP256R1(), key_type, ECDSA_P256_LEN, flags, input_file)
-    elif key_type == KeyType.ECDSA_P192:
-        return generate_ecdsa_key(ec.SECP192R1(), key_type, ECDSA_P192_LEN, flags, input_file)
+    elif key_type == KeyType.ECDSA_P384:
+        return generate_ecdsa_key(ec.SECP384R1(), key_type, ECDSA_P384_LEN, flags, input_file)
     else:
         raise ValueError(f'Unsupported key type: {key_type}')
 
@@ -127,6 +113,11 @@ def parse_args() -> argparse.Namespace:
         action='store_true',
         help='make key persistent - cannot be modified or deleted once written',
     )
+    parser.add_argument(
+        '--tee-only',
+        action='store_true',
+        help='mark key as owned exclusively by the TEE - the REE cannot use, generate or clear it',
+    )
     return parser.parse_args()
 
 
@@ -137,12 +128,16 @@ def main() -> None:
     flags = Flags.NONE
     if args.write_once:
         flags |= Flags.WRITE_ONCE
+    if args.tee_only:
+        flags |= Flags.TEE_ONLY
 
     print(f'[+] Generating key of type: {key_type.name} (value: {key_type.value})')
     if args.input:
         print(f'[+] Using user-provided key file: {args.input}')
     if args.write_once:
         print('[+] WRITE_ONCE flag is set')
+    if args.tee_only:
+        print('[+] TEE_ONLY flag is set')
 
     key_data = generate_key_data(key_type, flags, args.input)
 

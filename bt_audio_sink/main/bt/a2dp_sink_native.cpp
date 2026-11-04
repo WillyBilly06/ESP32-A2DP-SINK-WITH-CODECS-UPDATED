@@ -107,7 +107,7 @@ void NativeA2DPSink::app_task_handler(void *arg) {
 
 void NativeA2DPSink::av_hdl_stack_evt(uint16_t event, void *p_param) {
     ESP_LOGI(TAG, "av_hdl_stack_evt: starting A2DP sink init");
-    esp_err_t name_err = esp_bt_dev_set_device_name(bt_name.c_str()); ESP_LOGI(TAG, "set_device_name: %s", esp_err_to_name(name_err));
+    esp_err_t name_err = esp_bt_gap_set_device_name(bt_name.c_str()); ESP_LOGI(TAG, "set_device_name: %s", esp_err_to_name(name_err));
     esp_bt_gap_register_callback(gap_cb_trampoline);
     esp_avrc_ct_register_callback(rc_ct_cb_trampoline);
     esp_avrc_ct_init();

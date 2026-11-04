@@ -17,6 +17,8 @@
 
     然而，你可以通过烧录 ``USB_PHY_SEL`` eFuse，将内部 USB PHY 永久切换为支持 USB OTG 外设的模式，不再用于 USB_SERIAL_JTAG。有关 USB_SERIAL_JTAG 和 USB OTG 的更多信息，请参阅 *{IDF_TARGET_NAME} 技术参考手册* [`PDF <{IDF_TARGET_TRM_CN_URL}>`__]。
 
+    如需了解 USB OTG 的实际应用示例，请参考专为 USB OTG 应用设计的 `ESP32-S3-USB-OTG <https://documentation.espressif.com/esp-dev-kits/zh_CN/latest/esp32s3/esp32-s3-usb-otg/index.html>`_ 开发板。
+
 设备固件升级 (DFU) 是一种通过通用串行总线 (USB) 升级设备固件的机制。但是，启用安全启动 (Secure Boot) 或 flash 加密会禁用 ROM 中的 USB-OTG USB 堆栈，则无法通过该端口上的模拟串口或 DFU 进行更新。
 
 - 入门指南中的 :ref:`get-started-get-prerequisites` 介绍了 DFU 的软件要求。
@@ -27,7 +29,7 @@
 USB 连接
 --------------
 
-.. only:: esp32p4
+.. only:: esp32p4 or esp32s31
 
     {IDF_TARGET_NAME} 将 USB D+ 和 D- 信号连接到其专用引脚。为了实现 USB 设备功能，这些引脚必须连接到 USB 总线，如，通过 Micro-B 接口、USB-C 接口进行连接，或直接连接到标准 A 型插头。
 
@@ -159,7 +161,7 @@ Zadig 工具可能会检测到 {IDF_TARGET_NAME} 的多个 USB 接口。请 **�
 
 - 出现 ``No DFU capable USB device available`` 错误的原因可能是在 Windows 上没有正确安装 USB 驱动程序（请参考 :ref:`api_guide_dfu_flash_win`），或是未在 Linux 上设置 Udev 规则（请参考 :ref:`api_guide_dfu_flash_udev`），或是设备未处于引导加载程序模式。
 
-- 在 Windows 上使用 ``dfu-util`` 第一次烧录失败，并出现 ``Lost device after RESET?`` 错误信息。出现此问题时，请重新烧录一次，再次烧录应该会成功。
+- 在 Windows 或 macOS 上使用 ``dfu-util`` 第一次烧录可能失败，并出现 ``Lost device after RESET?`` 错误信息。``idf.py dfu-flash`` 会自动重试一次。如果仍然失败，请手动再次运行 ``idf.py dfu-flash``。
 
 
 .. only:: SOC_SUPPORTS_SECURE_DL_MODE

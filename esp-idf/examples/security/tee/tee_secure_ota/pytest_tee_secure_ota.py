@@ -13,6 +13,8 @@ from common_test_methods import get_host_ip4_by_dest_ip
 from pytest_embedded import Dut
 from pytest_embedded_idf.utils import idf_parametrize
 
+TESTING_TARGETS = ['esp32c6', 'esp32c5', 'esp32c61']
+
 server_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'test_certs/server_cert.pem')
 key_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'test_certs/server_key.pem')
 
@@ -32,7 +34,7 @@ def start_https_server(ota_image_dir: str, server_ip: str, server_port: int) -> 
 
 
 @pytest.mark.wifi_high_traffic
-@idf_parametrize('target', ['esp32c6'], indirect=['target'])
+@idf_parametrize('target', TESTING_TARGETS, indirect=['target'])
 def test_examples_tee_secure_ota_example(dut: Dut) -> None:
     """
     This is a positive test case, which downloads complete binary file multiple number of times.
@@ -86,13 +88,13 @@ def test_examples_tee_secure_ota_example(dut: Dut) -> None:
                 ap_password = get_env_config_variable(env_name, 'ap_password')
                 dut.write(f'{ap_ssid} {ap_password}')
             try:
-                ip_address = dut.expect(r'IPv4 address: (\d+\.\d+\.\d+\.\d+)[^\d]', timeout=30)[1].decode()
+                ip_address = dut.expect(r'IPv4 address: (\d+\.\d+\.\d+\.\d+)[^\d]', timeout=60)[1].decode()
                 print(f'Connected to AP/Ethernet with IP: {ip_address}')
             except pexpect.exceptions.TIMEOUT:
                 raise ValueError('ENV_TEST_FAILURE: Cannot connect to AP')
 
             host_ip = get_host_ip4_by_dest_ip(ip_address)
-            dut.expect('Returned from app_main', timeout=30)
+            dut.expect(f'{dut.target}>', timeout=30)
 
             # User OTA for last iteration
             if i == (iterations - 1):

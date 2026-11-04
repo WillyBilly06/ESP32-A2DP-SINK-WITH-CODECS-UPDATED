@@ -59,7 +59,6 @@ extern "C" {
     .low_drv = fine_freq_tune, \
     .high_drv = coarse_freq_tune, \
     .bias_volt = 5, \
-    .bypass_shield_output = false, \
 }
 
 /**
@@ -81,7 +80,6 @@ extern "C" {
     .low_drv = fine_freq_tune, \
     .high_drv = coarse_freq_tune, \
     .bias_volt = 5, \
-    .bypass_shield_output = false, \
 }
 
 /**
@@ -125,7 +123,6 @@ typedef struct {
     uint8_t                         low_drv;            /*!< Low speed touch driver, only effective when high speed driver is disabled */
     uint8_t                         high_drv;           /*!< High speed touch driver */
     uint8_t                         bias_volt;          /*!< The Internal LDO voltage, which decide the bias voltage of the sample wave, range [0,15] */
-    bool                            bypass_shield_output; /*!< (Deprecated) no effect, only for compatibility */
 } touch_sensor_sample_config_t;
 
 /**

@@ -3,23 +3,21 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  */
+#include "sdkconfig.h"
+
 #include <string.h>
 #include "esp_attr.h"
 #include "esp_partition.h"
-#include "esp_flash_encrypt.h"
-#include "sdkconfig.h"
+#include "esp_efuse.h"
 #include "core_dump_checksum.h"
 #include "esp_core_dump_port.h"
-#include "esp_core_dump_port_impl.h"
 #include "esp_core_dump_common.h"
 #include "hal/efuse_hal.h"
 #include "esp_task_wdt.h"
 
-#ifdef CONFIG_ESP_COREDUMP_DATA_FORMAT_ELF
 #include <sys/param.h>      // for the MIN macro
 #include "esp_app_desc.h"
 #include "esp_memory_utils.h"
-#endif
 
 #define ELF_CLASS ELFCLASS32
 
@@ -91,14 +89,10 @@ typedef struct {
 
 // Represents lightweight implementation to save core dump data into ELF formatted binary
 
-#if CONFIG_ESP_COREDUMP_DATA_FORMAT_ELF
-
 #ifdef ALIGN_UP
 #undef ALIGN_UP
 #endif
 #define ALIGN_UP(x, a) (((x) + (a) - 1) & ~((a) - 1))
-
-esp_err_t esp_core_dump_store(void) __attribute__((alias("esp_core_dump_write_elf")));
 
 // Builds elf header and check all data offsets
 static int elf_write_file_header(core_dump_elf_t *self, uint32_t seg_count)
@@ -412,7 +406,7 @@ static int elf_process_tasks_regs(core_dump_elf_t *self)
     void *task = NULL;
     int len = 0;
     int ret = 0;
-    int tasks_num = 0;
+    uint16_t tasks_num = 0;
 
     esp_core_dump_reset_tasks_snapshots_iter();
     task = esp_core_dump_get_current_task_handle();
@@ -503,8 +497,8 @@ static int elf_process_task_data(core_dump_elf_t *self)
     core_dump_task_header_t task_hdr = { 0 };
     core_dump_mem_seg_header_t interrupted_stack = { 0 };
     TaskIterator_t task_iter;
-    int tasks_num = 0;
-    int bad_tasks_num = 0;
+    uint16_t tasks_num = 0;
+    uint16_t bad_tasks_num = 0;
 
     ESP_COREDUMP_LOG_PROCESS("================   Processing task data   ================");
 
@@ -798,7 +792,7 @@ static int esp_core_dump_do_write_elf_pass(core_dump_elf_t *self)
     return tot_len;
 }
 
-static esp_err_t esp_core_dump_write_elf(void)
+esp_err_t esp_core_dump_write_elf(void)
 {
     core_dump_elf_t self = { 0 };
     core_dump_header_t dump_hdr = { 0 };
@@ -839,9 +833,6 @@ static esp_err_t esp_core_dump_write_elf(void)
     // Write core dump header
     dump_hdr.data_len = tot_len;
     dump_hdr.version = esp_core_dump_elf_version();
-    dump_hdr.tasks_num = 0; // unused in ELF format
-    dump_hdr.tcb_sz = 0; // unused in ELF format
-    dump_hdr.mem_segs_num = 0; // unused in ELF format
     dump_hdr.chip_rev = efuse_hal_chip_revision();
     err = esp_core_dump_write_data(&self.write_data, &dump_hdr, sizeof(core_dump_header_t));
     if (err != ESP_OK) {
@@ -910,13 +901,13 @@ static esp_err_t elf_core_dump_image_mmap(esp_partition_mmap_handle_t* core_data
     /* Data read from the mmapped core dump partition will be garbage if flash
      * encryption is enabled in hardware and core dump partition is not encrypted
      */
-    if (esp_flash_encryption_enabled() && !core_part->encrypted) {
+    if (esp_efuse_is_flash_encryption_enabled() && !core_part->encrypted) {
         ESP_COREDUMP_LOGE("Flash encryption enabled in hardware and core dump partition is not encrypted!");
         return ESP_ERR_NOT_SUPPORTED;
     }
 
     /* map the full core dump partition, including the checksum. */
-    return esp_partition_mmap(core_part, 0, out_size, ESP_PARTITION_MMAP_DATA,
+    return esp_partition_mmap(core_part, 0, out_size, ESP_PARTITION_MMAP_DATA | ESP_PARTITION_MMAP_BLOCKS_WRITE,
                               map_addr, core_data_handle);
 }
 
@@ -1067,5 +1058,3 @@ esp_err_t esp_core_dump_get_summary(esp_core_dump_summary_t *summary)
 }
 
 #endif // CONFIG_ESP_COREDUMP_ENABLE_TO_FLASH
-
-#endif //CONFIG_ESP_COREDUMP_DATA_FORMAT_ELF

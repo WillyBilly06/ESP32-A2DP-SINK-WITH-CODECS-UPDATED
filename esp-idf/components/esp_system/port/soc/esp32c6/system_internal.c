@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2022-2025 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2022-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -13,15 +13,18 @@
 #include "esp_log.h"
 #include "esp_rom_sys.h"
 #include "riscv/rv_utils.h"
-#include "esp_rom_uart.h"
+#include "esp_rom_serial_output.h"
 #include "soc/gpio_reg.h"
+#include "soc/soc_caps.h"
 #include "esp_cpu.h"
 #include "soc/rtc.h"
 #include "esp_private/rtc_clk.h"
-#include "soc/rtc_periph.h"
 #include "soc/uart_reg.h"
 #include "hal/uart_ll.h"
+#if SOC_WDT_SUPPORTED || SOC_RTC_WDT_SUPPORTED
 #include "hal/wdt_hal.h"
+#endif
+#include "hal/uart_ll.h"
 #include "hal/modem_syscon_ll.h"
 #include "hal/modem_lpcon_ll.h"
 #include "esp_private/cache_err_int.h"
@@ -68,18 +71,23 @@ void esp_system_reset_modules_on_exit(void)
 
     // Reset crypto peripherals. This ensures a clean state for the crypto peripherals after a CPU restart
     // and hence avoiding any possibility with crypto failure in ROM security workflows.
+#if !CONFIG_SECURE_ENABLE_TEE
+    // Avoid resetting the TEE-protected crypto peripherals as it would lead to an APM fault
     SET_PERI_REG_MASK(PCR_AES_CONF_REG, PCR_AES_RST_EN);
     SET_PERI_REG_MASK(PCR_DS_CONF_REG, PCR_DS_RST_EN);
     SET_PERI_REG_MASK(PCR_ECC_CONF_REG, PCR_ECC_RST_EN);
     SET_PERI_REG_MASK(PCR_HMAC_CONF_REG, PCR_HMAC_RST_EN);
-    SET_PERI_REG_MASK(PCR_RSA_CONF_REG, PCR_RSA_RST_EN);
     SET_PERI_REG_MASK(PCR_SHA_CONF_REG, PCR_SHA_RST_EN);
     CLEAR_PERI_REG_MASK(PCR_AES_CONF_REG, PCR_AES_RST_EN);
     CLEAR_PERI_REG_MASK(PCR_DS_CONF_REG, PCR_DS_RST_EN);
     CLEAR_PERI_REG_MASK(PCR_ECC_CONF_REG, PCR_ECC_RST_EN);
     CLEAR_PERI_REG_MASK(PCR_HMAC_CONF_REG, PCR_HMAC_RST_EN);
-    CLEAR_PERI_REG_MASK(PCR_RSA_CONF_REG, PCR_RSA_RST_EN);
     CLEAR_PERI_REG_MASK(PCR_SHA_CONF_REG, PCR_SHA_RST_EN);
+    CLEAR_PERI_REG_MASK(PCR_ECC_PD_CTRL_REG, PCR_ECC_MEM_FORCE_PD);
+#endif // !CONFIG_SECURE_ENABLE_TEE
+    SET_PERI_REG_MASK(PCR_RSA_CONF_REG, PCR_RSA_RST_EN);
+    CLEAR_PERI_REG_MASK(PCR_RSA_CONF_REG, PCR_RSA_RST_EN);
+
     CLEAR_PERI_REG_MASK(PCR_REGDMA_CONF_REG, PCR_REGDMA_RST_EN);
 
     // UART's sclk is controlled in the PCR register and does not reset with the UART module. The ROM missed enabling
@@ -95,6 +103,7 @@ void esp_restart_noos(void)
 {
     // Disable interrupts
     rv_utils_intr_global_disable();
+#if SOC_RTC_WDT_SUPPORTED
     // Enable RTC watchdog for 1 second
     wdt_hal_context_t rtc_wdt_ctx;
     wdt_hal_init(&rtc_wdt_ctx, WDT_RWDT, 0, false);
@@ -105,9 +114,11 @@ void esp_restart_noos(void)
     //Enable flash boot mode so that flash booting after restart is protected by the RTC WDT.
     wdt_hal_set_flashboot_en(&rtc_wdt_ctx, true);
     wdt_hal_write_protect_enable(&rtc_wdt_ctx);
+#endif /* SOC_RTC_WDT_SUPPORTED */
 
     // C6 is a single core SoC, no need to reset and stall the other CPU
 
+#if SOC_WDT_SUPPORTED
     // Disable TG0/TG1 watchdogs
     wdt_hal_context_t wdt0_context = {.inst = WDT_MWDT0, .mwdt_dev = &TIMERG0};
     wdt_hal_write_protect_disable(&wdt0_context);
@@ -118,16 +129,10 @@ void esp_restart_noos(void)
     wdt_hal_write_protect_disable(&wdt1_context);
     wdt_hal_disable(&wdt1_context);
     wdt_hal_write_protect_enable(&wdt1_context);
+#endif /* SOC_WDT_SUPPORTED */
 
     // Disable cache
     Cache_Disable_ICache();
-
-    // Reset wifi/bluetooth/ethernet/sdio (bb/mac)
-    // Moved to module internal
-    // SET_PERI_REG_MASK(SYSTEM_CORE_RST_EN_REG,
-    //                   SYSTEM_SDIO_RST |                              // SDIO_HINF_HINF_SDIO_RST?
-    //                   SYSTEM_EMAC_RST | SYSTEM_MACPWR_RST |          // TODO: IDF-5325 (ethernet)
-    // REG_WRITE(SYSTEM_CORE_RST_EN_REG, 0);
 
     esp_system_reset_modules_on_exit();
 

@@ -157,7 +157,7 @@ void RadioSpinel::Init(bool          aSkipRcpVersionCheck,
     if (sSupportsLogCrashDump)
     {
         LogDebg("RCP supports crash dump logging. Requesting crash dump.");
-        SuccessOrExit(error = Set(SPINEL_PROP_RCP_LOG_CRASH_DUMP, nullptr));
+        IgnoreReturnValue(Set(SPINEL_PROP_RCP_LOG_CRASH_DUMP, nullptr));
     }
 
     if (!aSkipRcpVersionCheck)
@@ -556,7 +556,7 @@ void RadioSpinel::HandleValueIs(spinel_prop_key_t aKey, const uint8_t *aBuffer, 
     else if (aKey == SPINEL_PROP_STREAM_DEBUG)
     {
         char         logStream[OPENTHREAD_CONFIG_NCP_SPINEL_LOG_MAX_SIZE + 1];
-        unsigned int len = sizeof(logStream);
+        unsigned int len = sizeof(logStream) - 1;
 
         unpacked = spinel_datatype_unpack_in_place(aBuffer, aLength, SPINEL_DATATYPE_DATA_S, logStream, &len);
         assert(len < sizeof(logStream));
@@ -1328,14 +1328,17 @@ otError RadioSpinel::Set(spinel_prop_key_t aKey, const char *aFormat, ...)
 #if OPENTHREAD_SPINEL_CONFIG_RCP_RESTORATION_MAX_COUNT > 0
     do
     {
-        RecoverFromRcpFailure();
+        if (aKey != SPINEL_PROP_RCP_LOG_CRASH_DUMP)
+        {
+            RecoverFromRcpFailure();
+        }
 #endif
         va_start(mPropertyArgs, aFormat);
         error = RequestWithExpectedCommandV(SPINEL_CMD_PROP_VALUE_IS, SPINEL_CMD_PROP_VALUE_SET, aKey, aFormat,
                                             mPropertyArgs);
         va_end(mPropertyArgs);
 #if OPENTHREAD_SPINEL_CONFIG_RCP_RESTORATION_MAX_COUNT > 0
-    } while (mRcpFailure != kRcpFailureNone);
+    } while (aKey != SPINEL_PROP_RCP_LOG_CRASH_DUMP && mRcpFailure != kRcpFailureNone);
 #endif
 
     return error;
@@ -1399,12 +1402,19 @@ otError RadioSpinel::WaitResponse(bool aHandleRcpTimeout)
         if ((end <= now) || (GetSpinelDriver().GetSpinelInterface()->WaitForFrame(end - now) != OT_ERROR_NONE))
         {
             LogWarn("Wait for response timeout");
-            if (aHandleRcpTimeout)
+            // Skip RCP timeout handling for the non-essential crash dump property
+            if (aHandleRcpTimeout && mWaitingKey != SPINEL_PROP_RCP_LOG_CRASH_DUMP)
             {
                 HandleRcpTimeout();
             }
             ExitNow(mError = OT_ERROR_RESPONSE_TIMEOUT);
         }
+#if OPENTHREAD_SPINEL_CONFIG_RCP_RESTORATION_MAX_COUNT > 0
+        if (mRcpFailure != kRcpFailureNone)
+        {
+            ExitNow(mError = OT_ERROR_RESPONSE_TIMEOUT);
+        }
+#endif
     } while (mWaitingTid);
 
     LogIfFail("Error waiting response", mError);
@@ -1412,6 +1422,11 @@ otError RadioSpinel::WaitResponse(bool aHandleRcpTimeout)
     mWaitingKey = SPINEL_PROP_LAST_STATUS;
 
 exit:
+    if (mError != OT_ERROR_NONE && mWaitingTid != 0)
+    {
+        FreeTid(mWaitingTid);
+        mWaitingTid = 0;
+    }
     return mError;
 }
 
@@ -1612,15 +1627,15 @@ otError RadioSpinel::Transmit(otRadioFrame &aFrame)
 #if OPENTHREAD_CONFIG_MAC_HEADER_IE_SUPPORT && OPENTHREAD_CONFIG_TIME_SYNC_ENABLE
     if (mTransmitFrame->mInfo.mTxInfo.mIeInfo->mTimeIeOffset != 0)
     {
-        uint64_t netRadioTime = otPlatRadioGetNow(mInstance);
-        uint64_t netSyncTime;
-        uint8_t *timeIe = mTransmitFrame->mPsdu + mTransmitFrame->mInfo.mTxInfo.mIeInfo->mTimeIeOffset;
+        otRadioTime64 netRadioTime = otPlatRadioGetNow(mInstance);
+        otRadioTime64 netSyncTime;
+        uint8_t      *timeIe = mTransmitFrame->mPsdu + mTransmitFrame->mInfo.mTxInfo.mIeInfo->mTimeIeOffset;
 
         if (netRadioTime == UINT64_MAX)
         {
             // If we can't get the radio time, get the platform time
-            netSyncTime = static_cast<uint64_t>(static_cast<int64_t>(otPlatTimeGet()) +
-                                                mTransmitFrame->mInfo.mTxInfo.mIeInfo->mNetworkTimeOffset);
+            netSyncTime = static_cast<otRadioTime64>(static_cast<int64_t>(otPlatTimeGet()) +
+                                                     mTransmitFrame->mInfo.mTxInfo.mIeInfo->mNetworkTimeOffset);
         }
         else
         {
@@ -1629,16 +1644,16 @@ otError RadioSpinel::Transmit(otRadioFrame &aFrame)
             // If supported, add a delay and transmit the network time at a precise moment
 #if !OPENTHREAD_MTD && OPENTHREAD_CONFIG_MAC_CSL_TRANSMITTER_ENABLE
             transmitDelay                                  = kTxWaitUs / 10;
-            mTransmitFrame->mInfo.mTxInfo.mTxDelayBaseTime = static_cast<uint32_t>(netRadioTime);
+            mTransmitFrame->mInfo.mTxInfo.mTxDelayBaseTime = static_cast<otRadioTime32>(netRadioTime);
             mTransmitFrame->mInfo.mTxInfo.mTxDelay         = transmitDelay;
 #endif
-            netSyncTime = static_cast<uint64_t>(static_cast<int64_t>(netRadioTime) + transmitDelay +
-                                                mTransmitFrame->mInfo.mTxInfo.mIeInfo->mNetworkTimeOffset);
+            netSyncTime = static_cast<otRadioTime64>(static_cast<int64_t>(netRadioTime) + transmitDelay +
+                                                     mTransmitFrame->mInfo.mTxInfo.mIeInfo->mNetworkTimeOffset);
         }
 
         *(timeIe++) = mTransmitFrame->mInfo.mTxInfo.mIeInfo->mTimeSyncSeq;
 
-        for (uint8_t i = 0; i < sizeof(uint64_t); i++)
+        for (uint8_t i = 0; i < sizeof(otRadioTime64); i++)
         {
             *(timeIe++) = static_cast<uint8_t>(netSyncTime & 0xff);
             netSyncTime = netSyncTime >> 8;
@@ -1991,10 +2006,19 @@ void RadioSpinel::HandleRcpUnexpectedReset(spinel_status_t aStatus)
 
 #if OPENTHREAD_SPINEL_CONFIG_RCP_RESTORATION_MAX_COUNT > 0
     mRcpFailure = kRcpFailureUnexpectedReset;
-#elif OPENTHREAD_SPINEL_CONFIG_ABORT_ON_UNEXPECTED_RCP_RESET_ENABLE
+#else
+    if (sSupportsLogCrashDump)
+    {
+        mWaitingTid = 0;
+        LogDebg("RCP supports crash dump logging. Requesting crash dump.");
+        IgnoreReturnValue(Set(SPINEL_PROP_RCP_LOG_CRASH_DUMP, nullptr));
+    }
+
+#if OPENTHREAD_SPINEL_CONFIG_ABORT_ON_UNEXPECTED_RCP_RESET_ENABLE
     abort();
 #else
     DieNow(OT_EXIT_RADIO_SPINEL_RESET);
+#endif
 #endif
 }
 
@@ -2042,6 +2066,14 @@ void RadioSpinel::RecoverFromRcpFailure(void)
     {
         LogCrit("Too many rcp failures, exiting");
         DieNow(OT_EXIT_FAILURE);
+    }
+
+    if (sSupportsLogCrashDump)
+    {
+        mWaitingTid = 0;
+        LogDebg("RCP supports crash dump logging. Requesting crash dump.");
+        IgnoreReturnValue(Set(SPINEL_PROP_RCP_LOG_CRASH_DUMP, nullptr));
+        mRcpFailure = kRcpFailureNone;
     }
 
     LogWarn("Trying to recover (%d/%d)", mRcpFailureCount, kMaxFailureCount);
@@ -2105,12 +2137,6 @@ void RadioSpinel::RecoverFromRcpFailure(void)
     }
 
     --mRcpFailureCount;
-
-    if (sSupportsLogCrashDump)
-    {
-        LogDebg("RCP supports crash dump logging. Requesting crash dump.");
-        SuccessOrDie(Set(SPINEL_PROP_RCP_LOG_CRASH_DUMP, nullptr));
-    }
 
     LogNote("RCP recovery is done");
 
@@ -2188,11 +2214,15 @@ void RadioSpinel::RestoreProperties(void)
                          otLinkGetFrameCounter(mInstance) + kFrameCounterGuard));
     }
 
+    SuccessOrDie(Set(SPINEL_PROP_MAC_SRC_MATCH_SHORT_ADDRESSES, nullptr));
+
     for (int i = 0; i < mSrcMatchShortEntryCount; ++i)
     {
         SuccessOrDie(
             Insert(SPINEL_PROP_MAC_SRC_MATCH_SHORT_ADDRESSES, SPINEL_DATATYPE_UINT16_S, mSrcMatchShortEntries[i]));
     }
+
+    SuccessOrDie(Set(SPINEL_PROP_MAC_SRC_MATCH_EXTENDED_ADDRESSES, nullptr));
 
     for (int i = 0; i < mSrcMatchExtEntryCount; ++i)
     {

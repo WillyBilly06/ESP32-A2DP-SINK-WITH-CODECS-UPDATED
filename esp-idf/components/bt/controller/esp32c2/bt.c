@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2015-2025 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2015-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -232,6 +232,10 @@ static void esp_bt_ctrl_log_partition_get_and_erase_first_block(void);
 #if CONFIG_FREERTOS_USE_TICKLESS_IDLE
 static bool esp_bt_check_wakeup_by_bt(void);
 #endif // CONFIG_FREERTOS_USE_TICKLESS_IDLE
+#if (CONFIG_BT_CONTROLLER_ONLY) && (CONFIG_BT_LE_SM_SC) && (!CONFIG_BT_SMP_CRYPTO_STACK_MBEDTLS)
+#include "tinycrypt/ecc.h"
+static int ecc_rand_func(uint8_t *dst, unsigned int len);
+#endif // (CONFIG_BT_CONTROLLER_ONLY) && (CONFIG_BT_LE_SM_SC) && (!CONFIG_BT_SMP_CRYPTO_STACK_MBEDTLS)
 /* Local variable definition
  ***************************************************************************
  */
@@ -424,7 +428,7 @@ void esp_bt_read_ctrl_log_from_flash(bool output)
 
     print_len = 0;
     max_print_len = 4096;
-    err = esp_partition_mmap(log_partition, 0, MAX_STORAGE_SIZE, ESP_PARTITION_MMAP_DATA, &mapped_ptr, &mmap_handle);
+    err = esp_partition_mmap(log_partition, 0, MAX_STORAGE_SIZE, ESP_PARTITION_MMAP_DATA | ESP_PARTITION_MMAP_BLOCKS_WRITE, &mapped_ptr, &mmap_handle);
     if (err != ESP_OK) {
         ESP_LOGE("FLASH", "Mmap failed: %s", esp_err_to_name(err));
         return;
@@ -772,7 +776,7 @@ esp_err_t controller_sleep_init(modem_clock_lpclk_src_t slow_clk_src)
 
     // enable light sleep
 #ifdef CONFIG_PM_ENABLE
-    rc = esp_pm_lock_create(ESP_PM_CPU_FREQ_MAX, 0, "bt", &s_pm_lock);
+    rc = esp_pm_lock_create(ESP_PM_APB_FREQ_MAX, 0, "bt", &s_pm_lock);
     if (rc != ESP_OK) {
         goto error;
     }
@@ -912,14 +916,14 @@ esp_err_t esp_bt_controller_init(esp_bt_controller_config_t *cfg)
 
     /* If we place the ble code into flash, don't need to initialize ROM. */
 #if !CONFIG_BT_CTRL_RUN_IN_FLASH_ONLY
-#if DEFAULT_BT_LE_50_FEATURE_SUPPORT || DEFAULT_BT_LE_ROLE_CENTROL || DEFAULT_BT_LE_ROLE_OBSERVER
+// #if DEFAULT_BT_LE_50_FEATURE_SUPPORT || DEFAULT_BT_LE_ROLE_CENTROL || DEFAULT_BT_LE_ROLE_OBSERVER
     extern int esp_ble_rom_func_ptr_init_all(void);
     esp_ble_rom_func_ptr_init_all();
-#else
-    ESP_LOGI(NIMBLE_PORT_LOG_TAG, "Init only legacy adv and slave function");
-    extern int esp_ble_rom_func_ptr_init_legacy_adv_and_slave(void);
-    esp_ble_rom_func_ptr_init_legacy_adv_and_slave();
-#endif
+// #else
+//     ESP_LOGI(NIMBLE_PORT_LOG_TAG, "Init only legacy adv and slave function");
+//     extern int esp_ble_rom_func_ptr_init_legacy_adv_and_slave(void);
+//     esp_ble_rom_func_ptr_init_legacy_adv_and_slave();
+// #endif
 #endif //!CONFIG_BT_CTRL_RUN_IN_FLASH_ONLY
 
     /* Initialize the function pointers for OS porting */
@@ -952,11 +956,7 @@ esp_err_t esp_bt_controller_init(esp_bt_controller_config_t *cfg)
     }
 
     os_msys_init();
-#if CONFIG_BT_NIMBLE_ENABLED
-    // ble_npl_eventq_init() need to use npl function in rom and must be called after esp_bt_controller_init()
-    /* Initialize default event queue */
-    ble_npl_eventq_init(nimble_port_get_dflt_eventq());
-#endif
+
     esp_phy_modem_init();
     periph_module_enable(PERIPH_BT_MODULE);
     periph_module_reset(PERIPH_BT_MODULE);
@@ -1024,6 +1024,9 @@ esp_err_t esp_bt_controller_init(esp_bt_controller_config_t *cfg)
         ESP_LOGW(NIMBLE_PORT_LOG_TAG, "hci transport init failed %d", ret);
         goto free_controller;
     }
+#if (CONFIG_BT_CONTROLLER_ONLY) && (CONFIG_BT_LE_SM_SC) && (!CONFIG_BT_SMP_CRYPTO_STACK_MBEDTLS)
+    uECC_set_rng(ecc_rand_func);
+#endif // (CONFIG_BT_CONTROLLER_ONLY) && (CONFIG_BT_LE_SM_SC) && (!CONFIG_BT_SMP_CRYPTO_STACK_MBEDTLS)
     return ESP_OK;
 free_controller:
     hci_transport_deinit();
@@ -1036,9 +1039,7 @@ controller_init_err:
 modem_deint:
     esp_phy_modem_deinit();
     periph_module_disable(PERIPH_BT_MODULE);
-#if CONFIG_BT_NIMBLE_ENABLED
-    ble_npl_eventq_deinit(nimble_port_get_dflt_eventq());
-#endif // CONFIG_BT_NIMBLE_ENABLED
+
 free_mem:
     os_msys_buf_free();
     npl_freertos_mempool_deinit();
@@ -1065,10 +1066,6 @@ esp_err_t esp_bt_controller_deinit(void)
 
     periph_module_disable(PERIPH_BT_MODULE);
 
-#if CONFIG_BT_NIMBLE_ENABLED
-    /* De-initialize default event queue */
-    ble_npl_eventq_deinit(nimble_port_get_dflt_eventq());
-#endif
     os_msys_buf_free();
 
     esp_unregister_npl_funcs();
@@ -1227,15 +1224,15 @@ esp_err_t esp_bt_mem_release(esp_bt_mode_t mode)
 {
     esp_err_t ret = ESP_OK;
 
-#if CONFIG_BT_RELEASE_IRAM && CONFIG_ESP_SYSTEM_PMP_IDRAM_SPLIT
+#if CONFIG_BT_RELEASE_IRAM && CONFIG_ESP_SYSTEM_MEMPROT
     /* Release Bluetooth text section and merge Bluetooth data, bss & text into a large free heap
      * region when esp_bt_mem_release is called, total saving ~21kB or more of IRAM. ESP32-C2 has
      * only 3 configurable PMP entries available, rest of them are hard-coded. We cannot split the
-     * memory into 3 different regions (IRAM, BLE-IRAM, DRAM). So `ESP_SYSTEM_PMP_IDRAM_SPLIT` needs
+     * memory into 3 different regions (IRAM, BLE-IRAM, DRAM). So `ESP_SYSTEM_MEMPROT` needs
      * to be disabled.
      */
-    #error "ESP_SYSTEM_PMP_IDRAM_SPLIT should be disabled to allow BT to be released"
-#endif // CONFIG_BT_RELEASE_IRAM && CONFIG_ESP_SYSTEM_PMP_IDRAM_SPLIT
+    #error "ESP_SYSTEM_MEMPROT should be disabled to allow BT to be released"
+#endif // CONFIG_BT_RELEASE_IRAM && CONFIG_ESP_SYSTEM_MEMPROT
 
     if (ble_controller_status != ESP_BT_CONTROLLER_STATUS_IDLE) {
         return ESP_ERR_INVALID_STATE;
@@ -1436,19 +1433,12 @@ uint8_t esp_ble_get_chip_rev_version(void)
 #if (!CONFIG_BT_NIMBLE_ENABLED) && (CONFIG_BT_CONTROLLER_ENABLED)
 #if CONFIG_BT_LE_SM_LEGACY || CONFIG_BT_LE_SM_SC
 #define BLE_SM_KEY_ERR 0x17
-#if CONFIG_BT_LE_CRYPTO_STACK_MBEDTLS
-#include "mbedtls/aes.h"
+#define BLE_PUB_KEY_LEN 65
+#if CONFIG_BT_SMP_CRYPTO_STACK_MBEDTLS
 #if CONFIG_BT_LE_SM_SC
-#include "mbedtls/cipher.h"
-#include "mbedtls/entropy.h"
-#include "mbedtls/ctr_drbg.h"
-#include "mbedtls/cmac.h"
-#include "mbedtls/ecdh.h"
-#include "mbedtls/ecp.h"
-
-static mbedtls_ecp_keypair keypair;
+#include "psa/crypto.h"
+static const char *TAG_SM_ALG = "ble_sm_alg";
 #endif // CONFIG_BT_LE_SM_SC
-
 #else
 #include "tinycrypt/aes.h"
 #include "tinycrypt/constants.h"
@@ -1457,8 +1447,31 @@ static mbedtls_ecp_keypair keypair;
 #if CONFIG_BT_LE_SM_SC
 #include "tinycrypt/cmac_mode.h"
 #include "tinycrypt/ecc_dh.h"
+
+
+#if CONFIG_BT_CONTROLLER_ONLY
+/* Used by uECC to get random data */
+static int ecc_rand_func(uint8_t *dst, unsigned int len)
+{
+    int offset_cnt = 0;
+    uint8_t *u8ptr = dst;
+    uint64_t random64 = 0;
+
+    while(len > 0) {
+        random64 = (uint64_t)esp_random();
+        random64 = (random64 << 32)| (uint64_t)esp_random();;
+        offset_cnt = len < sizeof(uint64_t) ? len : sizeof(uint64_t);
+        memcpy(u8ptr, &random64, offset_cnt);
+        len -= offset_cnt;
+        u8ptr += offset_cnt;
+    }
+
+    return 1;
+}
+
+#endif // CONFIG_BT_CONTROLLER_ONLY
 #endif // CONFIG_BT_LE_SM_SC
-#endif // CONFIG_BT_LE_CRYPTO_STACK_MBEDTLS
+#endif // CONFIG_BT_SMP_CRYPTO_STACK_MBEDTLS
 
 /* Based on Core Specification 4.2 Vol 3. Part H 2.3.5.6.1 */
 static const uint8_t ble_sm_alg_dbg_priv_key[32] = {
@@ -1471,146 +1484,114 @@ int ble_sm_alg_gen_dhkey(const uint8_t *peer_pub_key_x, const uint8_t *peer_pub_
                          const uint8_t *our_priv_key, uint8_t *out_dhkey)
 {
     uint8_t dh[32];
-    uint8_t pk[64];
+    uint8_t pk[BLE_PUB_KEY_LEN];
     uint8_t priv[32];
     int rc = BLE_SM_KEY_ERR;
 
-    swap_buf(pk, peer_pub_key_x, 32);
-    swap_buf(&pk[32], peer_pub_key_y, 32);
     swap_buf(priv, our_priv_key, 32);
 
-#if CONFIG_BT_LE_CRYPTO_STACK_MBEDTLS
-    struct mbedtls_ecp_point pt = {0}, Q = {0};
-    mbedtls_mpi z = {0}, d = {0};
-    mbedtls_ctr_drbg_context ctr_drbg = {0};
-    mbedtls_entropy_context entropy = {0};
+#if CONFIG_BT_SMP_CRYPTO_STACK_MBEDTLS
+    // PSA expects 65 bytes: 0x04 prefix + X (32 bytes) + Y (32 bytes)
+    pk[0] = 0x04; // Uncompressed format for public key
+    swap_buf(&pk[1], peer_pub_key_x, 32);
+    swap_buf(&pk[33], peer_pub_key_y, 32);
 
-    uint8_t pub[65] = {0};
-    /* Hardcoded first byte of pub key for MBEDTLS_ECP_PF_UNCOMPRESSED */
-    pub[0] = 0x04;
-    memcpy(&pub[1], pk, 64);
+    psa_key_id_t key_id = 0;
+    psa_status_t status;
+    psa_key_attributes_t key_attributes = PSA_KEY_ATTRIBUTES_INIT;
+    psa_set_key_type(&key_attributes, PSA_KEY_TYPE_ECC_KEY_PAIR(PSA_ECC_FAMILY_SECP_R1));
+    psa_set_key_bits(&key_attributes, 256);
+    psa_set_key_algorithm(&key_attributes, PSA_ALG_ECDH);
+    psa_set_key_usage_flags(&key_attributes, PSA_KEY_USAGE_DERIVE);
 
-    /* Initialize the required structures here */
-    mbedtls_ecp_point_init(&pt);
-    mbedtls_ecp_point_init(&Q);
-    mbedtls_ctr_drbg_init(&ctr_drbg);
-    mbedtls_entropy_init(&entropy);
-    mbedtls_mpi_init(&d);
-    mbedtls_mpi_init(&z);
-
-    /* Below 3 steps are to validate public key on curve secp256r1 */
-    if (mbedtls_ecp_group_load(&keypair.MBEDTLS_PRIVATE(grp), MBEDTLS_ECP_DP_SECP256R1) != 0) {
+    status = psa_import_key(&key_attributes, priv, 32, &key_id);
+    if (status != PSA_SUCCESS) {
+        ESP_LOGE(TAG_SM_ALG, "Failed to import key: %d", status);
+        goto exit;
+    }
+    psa_reset_key_attributes(&key_attributes);
+    size_t output_len = 0;
+    status = psa_raw_key_agreement(PSA_ALG_ECDH, key_id, pk, BLE_PUB_KEY_LEN, dh, sizeof(dh), &output_len);
+    if (status != PSA_SUCCESS) {
+        ESP_LOGE(TAG_SM_ALG, "Failed to perform raw key agreement: %d", status);
         goto exit;
     }
 
-    if (mbedtls_ecp_point_read_binary(&keypair.MBEDTLS_PRIVATE(grp), &pt, pub, 65) != 0) {
+    if (output_len != 32) {
+        ESP_LOGE(TAG_SM_ALG, "Unexpected output length: %zu", output_len);
         goto exit;
     }
-
-    if (mbedtls_ecp_check_pubkey(&keypair.MBEDTLS_PRIVATE(grp), &pt) != 0) {
-        goto exit;
-    }
-
-    /* Set PRNG */
-    if ((rc = mbedtls_ctr_drbg_seed(&ctr_drbg, mbedtls_entropy_func, &entropy, NULL, 0)) != 0) {
-        goto exit;
-    }
-
-    /* Prepare point Q from pub key */
-    if (mbedtls_ecp_point_read_binary(&keypair.MBEDTLS_PRIVATE(grp), &Q, pub, 65) != 0) {
-        goto exit;
-    }
-
-    if (mbedtls_mpi_read_binary(&d, priv, 32) != 0) {
-        goto exit;
-    }
-
-    rc = mbedtls_ecdh_compute_shared(&keypair.MBEDTLS_PRIVATE(grp), &z, &Q, &d,
-                                     mbedtls_ctr_drbg_random, &ctr_drbg);
-    if (rc != 0) {
-        goto exit;
-    }
-
-    rc = mbedtls_mpi_write_binary(&z, dh, 32);
-    if (rc != 0) {
-        goto exit;
-    }
+    rc = 0;
 
 exit:
-    mbedtls_ecp_point_free(&pt);
-    mbedtls_mpi_free(&z);
-    mbedtls_mpi_free(&d);
-    mbedtls_ecp_point_free(&Q);
-    mbedtls_entropy_free(&entropy);
-    mbedtls_ctr_drbg_free(&ctr_drbg);
     if (rc != 0) {
         return BLE_SM_KEY_ERR;
     }
 
 #else
+    // tinycrypt expects 64 bytes: X (32 bytes) + Y (32 bytes), no prefix
+    swap_buf(pk, peer_pub_key_x, 32);
+    swap_buf(&pk[32], peer_pub_key_y, 32);
+
     if (uECC_valid_public_key(pk, &curve_secp256r1) < 0) {
         return BLE_SM_KEY_ERR;
     }
 
-    rc = uECC_shared_secret(pk, priv, dh, &curve_secp256r1);
+    rc = uECC_shared_secret(pk, priv, dh, uECC_secp256r1());
     if (rc == TC_CRYPTO_FAIL) {
         return BLE_SM_KEY_ERR;
     }
-#endif // CONFIG_BT_LE_CRYPTO_STACK_MBEDTLS
+#endif // CONFIG_BT_SMP_CRYPTO_STACK_MBEDTLS
 
     swap_buf(out_dhkey, dh, 32);
     return 0;
 }
 
-#if CONFIG_BT_LE_CRYPTO_STACK_MBEDTLS
+#if CONFIG_BT_SMP_CRYPTO_STACK_MBEDTLS
 static int mbedtls_gen_keypair(uint8_t *public_key, uint8_t *private_key)
 {
     int rc = BLE_SM_KEY_ERR;
-    mbedtls_entropy_context entropy = {0};
-    mbedtls_ctr_drbg_context ctr_drbg = {0};
+    psa_status_t status;
+    psa_key_id_t key_id = 0;
+    psa_key_attributes_t key_attributes = PSA_KEY_ATTRIBUTES_INIT;
+    psa_algorithm_t alg = PSA_ALG_ECDH;
+    psa_key_type_t key_type = PSA_KEY_TYPE_ECC_KEY_PAIR(PSA_ECC_FAMILY_SECP_R1);
+    psa_key_usage_t key_usage = PSA_KEY_USAGE_DERIVE | PSA_KEY_USAGE_EXPORT;
 
-    mbedtls_entropy_init(&entropy);
-    mbedtls_ctr_drbg_init(&ctr_drbg);
-    mbedtls_ecp_keypair_init(&keypair);
-
-    if ((rc = mbedtls_ctr_drbg_seed(&ctr_drbg, mbedtls_entropy_func, &entropy,
-                                    NULL, 0)) != 0) {
+    psa_set_key_type(&key_attributes, key_type);
+    psa_set_key_bits(&key_attributes, 256);
+    psa_set_key_algorithm(&key_attributes, alg);
+    psa_set_key_usage_flags(&key_attributes, key_usage);
+    status = psa_generate_key(&key_attributes, &key_id);
+    if (status != PSA_SUCCESS) {
         goto exit;
     }
-
-    if ((rc = mbedtls_ecp_gen_key(MBEDTLS_ECP_DP_SECP256R1, &keypair,
-                                  mbedtls_ctr_drbg_random, &ctr_drbg)) != 0) {
-        goto exit;
-    }
-
-    if ((rc = mbedtls_mpi_write_binary(&keypair.MBEDTLS_PRIVATE(d), private_key, 32)) != 0) {
-        goto exit;
-    }
+    psa_reset_key_attributes(&key_attributes);
 
     size_t olen = 0;
-    uint8_t pub[65] = {0};
-
-    if ((rc = mbedtls_ecp_point_write_binary(&keypair.MBEDTLS_PRIVATE(grp), &keypair.MBEDTLS_PRIVATE(Q), MBEDTLS_ECP_PF_UNCOMPRESSED,
-              &olen, pub, 65)) != 0) {
+    status = psa_export_public_key(key_id, public_key, BLE_PUB_KEY_LEN, &olen);
+    if (status != PSA_SUCCESS || olen != BLE_PUB_KEY_LEN) {
         goto exit;
     }
 
-    memcpy(public_key, &pub[1], 64);
+    status = psa_export_key(key_id, private_key, 32, &olen);
+    if (status != PSA_SUCCESS || olen != 32) {
+        goto exit;
+    }
 
+    psa_destroy_key(key_id);
+    rc = 0;
 exit:
-    mbedtls_ctr_drbg_free(&ctr_drbg);
-    mbedtls_entropy_free(&entropy);
     if (rc != 0) {
-        mbedtls_ecp_keypair_free(&keypair);
         return BLE_SM_KEY_ERR;
     }
 
     return 0;
 }
-#endif  // CONFIG_BT_LE_CRYPTO_STACK_MBEDTLS
+#endif  // CONFIG_BT_SMP_CRYPTO_STACK_MBEDTLS
 
 /**
- * pub: 64 bytes
+ * pub: BLE_PUB_KEY_LEN bytes
  * priv: 32 bytes
  */
 int ble_sm_alg_gen_key_pair(uint8_t *pub, uint8_t *priv)
@@ -1620,23 +1601,31 @@ int ble_sm_alg_gen_key_pair(uint8_t *pub, uint8_t *priv)
     swap_buf(&pub[32], &ble_sm_alg_dbg_pub_key[32], 32);
     swap_buf(priv, ble_sm_alg_dbg_priv_key, 32);
 #else
-    uint8_t pk[64];
+    uint8_t pk[BLE_PUB_KEY_LEN];
 
     do {
-#if CONFIG_BT_LE_CRYPTO_STACK_MBEDTLS
+#if CONFIG_BT_SMP_CRYPTO_STACK_MBEDTLS
         if (mbedtls_gen_keypair(pk, priv) != 0) {
             return BLE_SM_KEY_ERR;
         }
 #else
-        if (uECC_make_key(pk, priv, &curve_secp256r1) != TC_CRYPTO_SUCCESS) {
+        if (uECC_make_key(pk, priv, uECC_secp256r1()) != TC_CRYPTO_SUCCESS) {
             return BLE_SM_KEY_ERR;
         }
-#endif  // CONFIG_BT_LE_CRYPTO_STACK_MBEDTLS
+#endif  // CONFIG_BT_SMP_CRYPTO_STACK_MBEDTLS
         /* Make sure generated key isn't debug key. */
     } while (memcmp(priv, ble_sm_alg_dbg_priv_key, 32) == 0);
 
+#if CONFIG_BT_SMP_CRYPTO_STACK_MBEDTLS
+    // PSA returns 65 bytes: 0x04 prefix + X (32 bytes) + Y (32 bytes)
+    // Skip the 0x04 prefix when copying to pub
+    swap_buf(pub, &pk[1], 32);
+    swap_buf(&pub[32], &pk[33], 32);
+#else
+    // tinycrypt returns 64 bytes: X (32 bytes) + Y (32 bytes), no prefix
     swap_buf(pub, pk, 32);
     swap_buf(&pub[32], &pk[32], 32);
+#endif
     swap_in_place(priv, 32);
 #endif // CONFIG_BT_LE_SM_SC_DEBUG_KEYS
     return 0;

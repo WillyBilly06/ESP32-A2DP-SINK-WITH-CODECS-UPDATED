@@ -1,5 +1,5 @@
-| Supported Targets | ESP32-C2 | ESP32-C3 | ESP32-C5 | ESP32-C6 | ESP32-C61 | ESP32-H2 | ESP32-P4 | ESP32-S2 | ESP32-S3 |
-| ----------------- | -------- | -------- | -------- | -------- | --------- | -------- | -------- | -------- | -------- |
+| Supported Targets | ESP32-C2 | ESP32-C3 | ESP32-C5 | ESP32-C6 | ESP32-C61 | ESP32-H2 | ESP32-H4 | ESP32-P4 | ESP32-S2 | ESP32-S3 | ESP32-S31 |
+| ----------------- | -------- | -------- | -------- | -------- | --------- | -------- | -------- | -------- | -------- | -------- | --------- |
 
 # Temperature Sensor Example
 
@@ -14,6 +14,8 @@ The conversion relationship is the first two columns of the table below. Among t
 |     2     |   0    |     -10 ~ 80     |
 |     3     |   1    |     -30 ~ 50     |
 |     4     |   2    |     -40 ~ 20     |
+
+> **Note**: The temperature sensor is integrated directly into the chip. The sensor is designed primarily to measure the internal temperature of the chip, and its readings can be affected by factors such as the microcontroller's clock frequency, I/O load, and the external environment. 
 
 ## How to use example
 

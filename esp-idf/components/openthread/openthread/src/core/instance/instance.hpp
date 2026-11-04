@@ -31,8 +31,8 @@
  *  This file defines OpenThread instance class.
  */
 
-#ifndef INSTANCE_HPP_
-#define INSTANCE_HPP_
+#ifndef OT_CORE_INSTANCE_INSTANCE_HPP_
+#define OT_CORE_INSTANCE_INSTANCE_HPP_
 
 #include "openthread-core-config.h"
 
@@ -47,12 +47,15 @@
 #include "common/array.hpp"
 #include "common/as_core_type.hpp"
 #include "common/debug.hpp"
+#include "common/enum_to_string.hpp"
 #include "common/error.hpp"
 #include "common/heap.hpp"
 #include "common/locator.hpp"
 #include "common/log.hpp"
 #include "common/message.hpp"
 #include "common/non_copyable.hpp"
+#include "common/num_utils.hpp"
+#include "common/numeric_limits.hpp"
 #include "common/random.hpp"
 #include "common/serial_number.hpp"
 #include "common/string.hpp"
@@ -76,6 +79,7 @@
 #include "backbone_router/bbr_manager.hpp"
 #include "border_router/dhcp6_pd_client.hpp"
 #include "border_router/infra_if.hpp"
+#include "border_router/multi_ail_detector.hpp"
 #include "border_router/routing_manager.hpp"
 #include "border_router/rx_ra_tracker.hpp"
 #include "coap/coap_secure.hpp"
@@ -87,16 +91,18 @@
 #include "mac/mac.hpp"
 #include "mac/wakeup_tx_scheduler.hpp"
 #include "meshcop/border_agent.hpp"
+#include "meshcop/border_agent_admitter.hpp"
+#include "meshcop/border_agent_ephemeral_key.hpp"
 #include "meshcop/border_agent_tracker.hpp"
 #include "meshcop/border_agent_txt_data.hpp"
 #include "meshcop/commissioner.hpp"
 #include "meshcop/dataset_manager.hpp"
 #include "meshcop/dataset_updater.hpp"
-#include "meshcop/extended_panid.hpp"
 #include "meshcop/joiner.hpp"
 #include "meshcop/joiner_router.hpp"
 #include "meshcop/meshcop_leader.hpp"
-#include "meshcop/network_name.hpp"
+#include "meshcop/network_identity.hpp"
+#include "meshcop/seeker.hpp"
 #include "net/dhcp6_client.hpp"
 #include "net/dhcp6_server.hpp"
 #include "net/dhcp6_types.hpp"
@@ -110,6 +116,7 @@
 #include "net/nat64_translator.hpp"
 #include "net/nd_agent.hpp"
 #include "net/netif.hpp"
+#include "net/plat_tcp.hpp"
 #include "net/slaac_address.hpp"
 #include "net/sntp_client.hpp"
 #include "net/srp_advertising_proxy.hpp"
@@ -122,7 +129,6 @@
 #include "thread/anycast_locator.hpp"
 #include "thread/child_supervision.hpp"
 #include "thread/discover_scanner.hpp"
-#include "thread/dua_manager.hpp"
 #include "thread/energy_scan_server.hpp"
 #include "thread/key_manager.hpp"
 #include "thread/link_metrics.hpp"
@@ -131,20 +137,23 @@
 #include "thread/message_framer.hpp"
 #include "thread/mle.hpp"
 #include "thread/mlr_manager.hpp"
+#include "thread/net_diag.hpp"
 #include "thread/network_data_local.hpp"
 #include "thread/network_data_notifier.hpp"
 #include "thread/network_data_publisher.hpp"
 #include "thread/network_data_service.hpp"
-#include "thread/network_diagnostic.hpp"
 #include "thread/panid_query_server.hpp"
 #include "thread/radio_selector.hpp"
 #include "thread/thread_netif.hpp"
 #include "thread/time_sync_service.hpp"
 #include "thread/tmf.hpp"
+#include "thread/vendor_info.hpp"
 #include "utils/channel_manager.hpp"
 #include "utils/channel_monitor.hpp"
 #include "utils/heap.hpp"
 #include "utils/history_tracker.hpp"
+#include "utils/history_tracker_client.hpp"
+#include "utils/history_tracker_server.hpp"
 #include "utils/jam_detector.hpp"
 #include "utils/link_metrics_manager.hpp"
 #include "utils/mesh_diag.hpp"
@@ -200,6 +209,11 @@ public:
     static Instance *Init(void *aBuffer, size_t *aBufferSize);
 
 #if OPENTHREAD_CONFIG_MULTIPLE_STATIC_INSTANCE_ENABLE
+    /**
+     * Specifies number of static OpenThread instances.
+     */
+    static constexpr uint16_t kNumStaticInstances = OPENTHREAD_CONFIG_MULTIPLE_INSTANCE_NUM;
+
     /**
      * This static method initializes the OpenThread instance.
      *
@@ -308,14 +322,30 @@ public:
      *
      * @returns The log level.
      */
-    static LogLevel GetLogLevel(void)
-#if OPENTHREAD_CONFIG_LOG_LEVEL_DYNAMIC_ENABLE
+    LogLevel GetLogLevel(void) const
     {
-        return sLogLevel;
-    }
-#else
-    {
+#if !OPENTHREAD_CONFIG_LOG_LEVEL_DYNAMIC_ENABLE
         return static_cast<LogLevel>(OPENTHREAD_CONFIG_LOG_LEVEL);
+#elif !OPENTHREAD_CONFIG_MULTIPLE_INSTANCE_ENABLE
+        return mLogLevel;
+#else
+        return (mIsLogLevelSet) ? mLogLevel : sGlobalLogLevel;
+#endif
+    }
+
+#if OPENTHREAD_CONFIG_MULTIPLE_INSTANCE_ENABLE
+    /**
+     * Returns the global log level.
+     *
+     * @returns The global log level.
+     */
+    static LogLevel GetGlobalLogLevel(void)
+    {
+#if !OPENTHREAD_CONFIG_LOG_LEVEL_DYNAMIC_ENABLE
+        return static_cast<LogLevel>(OPENTHREAD_CONFIG_LOG_LEVEL);
+#else
+        return sGlobalLogLevel;
+#endif
     }
 #endif
 
@@ -324,9 +354,50 @@ public:
      * Sets the log level.
      *
      * @param[in] aLogLevel  A log level.
+     *
+     * @retval kErrorNone         Successfully updated the log level.
+     * @retval kErrorInvalidArgs  The given log level is invalid.
+     * @retval kErrorNotCapable   Instance-aware logging is not enabled in a multi-instance configuration.
      */
-    static void SetLogLevel(LogLevel aLogLevel);
+    Error SetLogLevel(LogLevel aLogLevel);
+
+#if OPENTHREAD_CONFIG_LOG_LEVEL_OVERRIDE_ENABLE
+    /**
+     * Overrides the current log level with a new one.
+     *
+     * The active log level will be the maximum of the original (user-set) log level and the override log level.
+     * If this is the first time an override is requested, the current log level is saved as the original log level.
+     *
+     * Subsequent calls to `SetLogLevel()` will update the original log level, and the active log level will be
+     * updated accordingly (again as the maximum of the new original and the override level).
+     *
+     * This method can be called multiple times to change the override log level.
+     *
+     * @param[in] aLogLevel  The override log level.
+     */
+    void OverrideLogLevel(LogLevel aLogLevel);
+
+    /**
+     * Restores the log level to its original (user-set) value.
+     *
+     * This clears the log level override state. If the log level is not currently overridden, calling this
+     * method has no effect.
+     */
+    void RestoreLogLevel(void);
+#endif // OPENTHREAD_CONFIG_LOG_LEVEL_OVERRIDE_ENABLE
+
+#if OPENTHREAD_CONFIG_MULTIPLE_INSTANCE_ENABLE
+    /**
+     * Sets the global log level.
+     *
+     * @param[in] aLogLevel  A log level.
+     *
+     * @retval kErrorNone         Successfully updated the log level.
+     * @retval kErrorInvalidArgs  The given log level is invalid.
+     */
+    static Error SetGlobalLogLevel(LogLevel aLogLevel);
 #endif
+#endif // OPENTHREAD_CONFIG_LOG_LEVEL_DYNAMIC_ENABLE
 
     /**
      * Finalizes the OpenThread instance.
@@ -362,27 +433,35 @@ public:
 
 #if OPENTHREAD_CONFIG_REFERENCE_DEVICE_ENABLE
     /**
-     * Enables/disables the "DNS name compressions" mode.
+     * Enables/disables the "DNS name compression" mode.
      *
-     * By default DNS name compression is enabled. When disabled, DNS names are appended as full and never compressed.
-     * This is applicable to OpenThread's DNS and SRP client/server modules.
+     * By default, DNS name compression is enabled. When disabled, DNS names are appended in full and are never
+     * compressed. This applies to OpenThread's DNS and SRP client/server modules.
+     *
+     * DNS name compression cannot be disabled if the OpenThread mDNS module is enabled. Enabling the mDNS module will
+     * automatically enable name compression if it was previously disabled. Attempting to disable compression while the
+     * mDNS module is active will return `kErrorNotCapable`.
      *
      * This is intended for testing only and available under a `REFERENCE_DEVICE` config.
      *
      * @param[in] aEnabled   TRUE to enable the "DNS name compression" mode, FALSE to disable.
+     *
+     * @retval kErrorNone         The "DNS name compression" mode is updated.
+     * @retval kErrorNotCapable   The "DNS name compression" mode cannot be disabled since OpenThread mDNS module is
+     *                            enabled.
      */
-    static void SetDnsNameCompressionEnabled(bool aEnabled) { sDnsNameCompressionEnabled = aEnabled; }
+    Error SetDnsNameCompressionEnabled(bool aEnabled);
 
     /**
      * Indicates whether the "DNS name compression" mode is enabled or not.
      *
-     * @returns TRUE if the "DNS name compressions" mode is enabled, FALSE otherwise.
+     * @returns TRUE if the "DNS name compression" mode is enabled, FALSE otherwise.
      */
-    static bool IsDnsNameCompressionEnabled(void) { return sDnsNameCompressionEnabled; }
+    bool IsDnsNameCompressionEnabled(void) { return mDnsNameCompressionEnabled; }
 #endif
 
     /**
-     * Retrieves the the Message Buffer information.
+     * Retrieves the Message Buffer information.
      *
      * @param[out]  aInfo  A `BufferInfo` where information is written.
      */
@@ -412,6 +491,17 @@ public:
      */
     template <typename Type> inline Type &Get(void);
 
+#if OPENTHREAD_CONFIG_MULTIPLE_INSTANCE_ENABLE && OPENTHREAD_CONFIG_LOG_INSTANCE_AWARE_API_ENABLE
+    /**
+     * Gets the currently active OpenThread instance.
+     *
+     * It is used to determine the active instance primarily for logging purposes.
+     *
+     * @returns A pointer to the active OpenThread instance, or `nullptr` if not known.
+     */
+    static Instance *GetActiveInstance(void);
+#endif
+
 #if OPENTHREAD_PLATFORM_NEXUS
     /**
      * Constructor to initialize an `Instance`
@@ -424,25 +514,58 @@ public:
     void AfterInit(void);
 #endif
 
+#if OPENTHREAD_CONFIG_MULTIPLE_INSTANCE_ENABLE && OPENTHREAD_CONFIG_LOG_INSTANCE_AWARE_API_ENABLE
+    /**
+     * Destructor
+     */
+    ~Instance(void);
+#endif
+
 private:
+    class ActiveInstanceTracker
+    {
+    public:
+        // This class is used to track and update the `gActiveInstance` pointer during the
+        // construction and destruction of an `Instance`.
+        //
+        // `mActiveInstanceTracker` is defined as the very first member variable in `Instance`.
+        // This ensures its constructor is called before any other member components are
+        // initialized, and its destructor is called after all other components are destroyed.
+        // This ensures `gActiveInstance` is correctly set during the entire lifecycle of
+        // the `Instance`, allowing member components to safely emit logs.
+        //
+        // The `Instance` destructor also explicitly sets `gActiveInstance` to the instance
+        // being destroyed at the beginning of its body. This ensures that during the
+        // entire destruction process, log messages are correctly associated with the
+        // instance being destroyed. Finally, when `mActiveInstanceTracker` itself is
+        // destroyed (at the end of the `Instance` destruction), `gActiveInstance` is
+        // set to `nullptr` to avoid any potential use of a dangling pointer.
+
+#if OPENTHREAD_CONFIG_MULTIPLE_INSTANCE_ENABLE && OPENTHREAD_CONFIG_LOG_INSTANCE_AWARE_API_ENABLE
+        ActiveInstanceTracker(Instance &aInstance) { gActiveInstance = &aInstance; }
+        ~ActiveInstanceTracker(void) { gActiveInstance = nullptr; }
+#else
+        ActiveInstanceTracker(Instance &) {}
+#endif
+    };
+
 #if !OPENTHREAD_PLATFORM_NEXUS
     Instance(void);
     void AfterInit(void);
+#endif
+#if OPENTHREAD_CONFIG_LOG_LEVEL_DYNAMIC_ENABLE
+    void SignalLogLevelChange(void);
 #endif
 
     //-----------------------------------------------------------------------------------------------------------------
     // `static` variables
 
-#if OPENTHREAD_CONFIG_LOG_LEVEL_DYNAMIC_ENABLE
-    static LogLevel sLogLevel;
+#if OPENTHREAD_CONFIG_LOG_LEVEL_DYNAMIC_ENABLE && OPENTHREAD_CONFIG_MULTIPLE_INSTANCE_ENABLE
+    static LogLevel sGlobalLogLevel;
 #endif
 
 #if (OPENTHREAD_MTD || OPENTHREAD_FTD) && !OPENTHREAD_CONFIG_HEAP_EXTERNAL_ENABLE
     static Utils::Heap *sHeap;
-#endif
-
-#if (OPENTHREAD_MTD || OPENTHREAD_FTD) && OPENTHREAD_CONFIG_REFERENCE_DEVICE_ENABLE
-    static bool sDnsNameCompressionEnabled;
 #endif
 
     //-----------------------------------------------------------------------------------------------------------------
@@ -452,6 +575,8 @@ private:
     //
     // Tasklet and Timer Schedulers are first to ensure other
     // objects/classes can use them from their constructors.
+
+    ActiveInstanceTracker mActiveInstanceTracker;
 
     Tasklet::Scheduler    mTaskletScheduler;
     TimerMilli::Scheduler mTimerMilliScheduler;
@@ -473,7 +598,7 @@ private:
     Radio mRadio;
 
 #if OPENTHREAD_CONFIG_UPTIME_ENABLE
-    Uptime mUptime;
+    UptimeTracker mUptimeTracker;
 #endif
 
 #if OPENTHREAD_CONFIG_OTNS_ENABLE
@@ -506,6 +631,10 @@ private:
     Ip6::Ip6    mIp6;
     ThreadNetif mThreadNetif;
     Tmf::Agent  mTmfAgent;
+
+#if OPENTHREAD_CONFIG_PLATFORM_TCP_ENABLE
+    Ip6::PlatTcp mPlatTcp;
+#endif
 
 #if OPENTHREAD_CONFIG_DHCP6_CLIENT_ENABLE
     Dhcp6::Client mDhcp6Client;
@@ -553,8 +682,7 @@ private:
 
     MeshCoP::ActiveDatasetManager  mActiveDataset;
     MeshCoP::PendingDatasetManager mPendingDataset;
-    MeshCoP::ExtendedPanIdManager  mExtendedPanIdManager;
-    MeshCoP::NetworkNameManager    mNetworkNameManager;
+    MeshCoP::NetworkIdentity       mNetworkIdentity;
     Ip6::Filter                    mIp6Filter;
     KeyManager                     mKeyManager;
     Lowpan::Lowpan                 mLowpan;
@@ -585,14 +713,20 @@ private:
 
     NetworkData::Service::Manager mNetworkDataServiceManager;
 
-    NetworkDiagnostic::Server mNetworkDiagnosticServer;
+    VendorInfo mVendorInfo;
+
+    NetDiag::Server mNetDiagServer;
 #if OPENTHREAD_CONFIG_TMF_NETDIAG_CLIENT_ENABLE
-    NetworkDiagnostic::Client mNetworkDiagnosticClient;
+    NetDiag::Client mNetDiagClient;
 #endif
 
 #if OPENTHREAD_CONFIG_BORDER_AGENT_ENABLE
-    MeshCoP::BorderAgent::Manager mBorderAgentManager;
     MeshCoP::BorderAgent::TxtData mBorderAgentTxtData;
+    MeshCoP::BorderAgent::Manager mBorderAgentManager;
+#endif
+
+#if OPENTHREAD_CONFIG_BORDER_AGENT_ENABLE && OPENTHREAD_CONFIG_BORDER_AGENT_ADMITTER_ENABLE
+    MeshCoP::BorderAgent::Admitter mBorderAgentAdmitter;
 #endif
 
 #if OPENTHREAD_CONFIG_BORDER_AGENT_ENABLE && OPENTHREAD_CONFIG_BORDER_AGENT_EPHEMERAL_KEY_ENABLE
@@ -611,6 +745,9 @@ private:
     Tmf::SecureAgent mTmfSecureAgent;
 #endif
 
+#if OPENTHREAD_CONFIG_SEEKER_ENABLE || OPENTHREAD_CONFIG_JOINER_ENABLE
+    MeshCoP::Seeker mSeeker;
+#endif
 #if OPENTHREAD_CONFIG_JOINER_ENABLE
     MeshCoP::Joiner mJoiner;
 #endif
@@ -633,11 +770,7 @@ private:
 #endif
 
 #if OPENTHREAD_CONFIG_MLR_ENABLE || (OPENTHREAD_FTD && OPENTHREAD_CONFIG_TMF_PROXY_MLR_ENABLE)
-    MlrManager mMlrManager;
-#endif
-
-#if OPENTHREAD_CONFIG_DUA_ENABLE || (OPENTHREAD_FTD && OPENTHREAD_CONFIG_TMF_PROXY_DUA_ENABLE)
-    DuaManager mDuaManager;
+    Mlr::Manager mMlrManager;
 #endif
 
 #if OPENTHREAD_CONFIG_SRP_SERVER_ENABLE
@@ -704,6 +837,12 @@ private:
 
 #if OPENTHREAD_CONFIG_HISTORY_TRACKER_ENABLE
     HistoryTracker::Local mHistoryTrackerLocal;
+#if OPENTHREAD_CONFIG_HISTORY_TRACKER_SERVER_ENABLE
+    HistoryTracker::Server mHistoryTrackerServer;
+#endif
+#if OPENTHREAD_CONFIG_HISTORY_TRACKER_CLIENT_ENABLE
+    HistoryTracker::Client mHistoryTrackerClient;
+#endif
 #endif
 
 #if OPENTHREAD_CONFIG_LINK_METRICS_MANAGER_ENABLE
@@ -725,6 +864,9 @@ private:
 #if OPENTHREAD_CONFIG_BORDER_ROUTING_TRACK_PEER_BR_INFO_ENABLE
     BorderRouter::NetDataBrTracker mNetDataBrTracker;
 #endif
+#if OPENTHREAD_CONFIG_BORDER_ROUTING_MULTI_AIL_DETECTION_ENABLE
+    BorderRouter::MultiAilDetector mMultiAilDetector;
+#endif
 #if OPENTHREAD_CONFIG_BORDER_ROUTING_DHCP6_PD_ENABLE && OPENTHREAD_CONFIG_BORDER_ROUTING_DHCP6_PD_CLIENT_ENABLE
     BorderRouter::Dhcp6PdClient mDhcp6PdClient;
 #endif
@@ -732,6 +874,10 @@ private:
 
 #if OPENTHREAD_CONFIG_NAT64_TRANSLATOR_ENABLE
     Nat64::Translator mNat64Translator;
+#endif
+
+#if OPENTHREAD_CONFIG_REFERENCE_DEVICE_ENABLE
+    bool mDnsNameCompressionEnabled;
 #endif
 
 #endif // OPENTHREAD_MTD || OPENTHREAD_FTD
@@ -749,6 +895,18 @@ private:
 #endif
 #if OPENTHREAD_CONFIG_POWER_CALIBRATION_ENABLE && OPENTHREAD_CONFIG_PLATFORM_POWER_CALIBRATION_ENABLE
     Utils::PowerCalibration mPowerCalibration;
+#endif
+
+#if OPENTHREAD_CONFIG_LOG_LEVEL_DYNAMIC_ENABLE
+    LogLevel mLogLevel;
+#if OPENTHREAD_CONFIG_LOG_LEVEL_OVERRIDE_ENABLE
+    LogLevel mOriginalLogLevel;
+    LogLevel mOverrideLogLevel;
+    bool     mIsLogLevelOverridden;
+#endif
+#if OPENTHREAD_CONFIG_MULTIPLE_INSTANCE_ENABLE
+    bool mIsLogLevelSet;
+#endif
 #endif
 
     bool mIsInitialized;
@@ -772,7 +930,7 @@ template <> inline Radio::Statistics &Instance::Get(void) { return mRadio.mStati
 #endif
 
 #if OPENTHREAD_CONFIG_UPTIME_ENABLE
-template <> inline Uptime &Instance::Get(void) { return mUptime; }
+template <> inline UptimeTracker &Instance::Get(void) { return mUptimeTracker; }
 #endif
 
 #if OPENTHREAD_CONFIG_OTNS_ENABLE
@@ -912,19 +1070,21 @@ template <> inline Ip6::Icmp &Instance::Get(void) { return mIp6.mIcmp; }
 
 template <> inline Ip6::Mpl &Instance::Get(void) { return mIp6.mMpl; }
 
+#if OPENTHREAD_CONFIG_PLATFORM_TCP_ENABLE
+template <> inline Ip6::PlatTcp &Instance::Get(void) { return mPlatTcp; }
+#endif
+
 template <> inline Tmf::Agent &Instance::Get(void) { return mTmfAgent; }
 
 #if OPENTHREAD_CONFIG_SECURE_TRANSPORT_ENABLE
 template <> inline Tmf::SecureAgent &Instance::Get(void) { return mTmfSecureAgent; }
 #endif
 
-template <> inline MeshCoP::ExtendedPanIdManager &Instance::Get(void) { return mExtendedPanIdManager; }
-
-template <> inline MeshCoP::NetworkNameManager &Instance::Get(void) { return mNetworkNameManager; }
-
 template <> inline MeshCoP::ActiveDatasetManager &Instance::Get(void) { return mActiveDataset; }
 
 template <> inline MeshCoP::PendingDatasetManager &Instance::Get(void) { return mPendingDataset; }
+
+template <> inline MeshCoP::NetworkIdentity &Instance::Get(void) { return mNetworkIdentity; }
 
 #if OPENTHREAD_CONFIG_TIME_SYNC_ENABLE
 template <> inline TimeSync &Instance::Get(void) { return mTimeSync; }
@@ -932,16 +1092,14 @@ template <> inline TimeSync &Instance::Get(void) { return mTimeSync; }
 
 #if OPENTHREAD_CONFIG_COMMISSIONER_ENABLE && OPENTHREAD_FTD
 template <> inline MeshCoP::Commissioner &Instance::Get(void) { return mCommissioner; }
-
-template <> inline AnnounceBeginClient &Instance::Get(void) { return mCommissioner.GetAnnounceBeginClient(); }
-
-template <> inline EnergyScanClient &Instance::Get(void) { return mCommissioner.GetEnergyScanClient(); }
-
-template <> inline PanIdQueryClient &Instance::Get(void) { return mCommissioner.GetPanIdQueryClient(); }
 #endif
 
 #if OPENTHREAD_CONFIG_PLATFORM_DNSSD_ENABLE || OPENTHREAD_CONFIG_MULTICAST_DNS_ENABLE
 template <> inline Dnssd &Instance::Get(void) { return mDnssd; }
+#endif
+
+#if OPENTHREAD_CONFIG_SEEKER_ENABLE || OPENTHREAD_CONFIG_JOINER_ENABLE
+template <> inline MeshCoP::Seeker &Instance::Get(void) { return mSeeker; }
 #endif
 
 #if OPENTHREAD_CONFIG_JOINER_ENABLE
@@ -972,10 +1130,12 @@ template <> inline Dns::Dso &Instance::Get(void) { return mDnsDso; }
 template <> inline Dns::Multicast::Core &Instance::Get(void) { return mMdnsCore; }
 #endif
 
-template <> inline NetworkDiagnostic::Server &Instance::Get(void) { return mNetworkDiagnosticServer; }
+template <> inline VendorInfo &Instance::Get(void) { return mVendorInfo; }
+
+template <> inline NetDiag::Server &Instance::Get(void) { return mNetDiagServer; }
 
 #if OPENTHREAD_CONFIG_TMF_NETDIAG_CLIENT_ENABLE
-template <> inline NetworkDiagnostic::Client &Instance::Get(void) { return mNetworkDiagnosticClient; }
+template <> inline NetDiag::Client &Instance::Get(void) { return mNetDiagClient; }
 #endif
 
 #if OPENTHREAD_CONFIG_DHCP6_CLIENT_ENABLE
@@ -1025,7 +1185,16 @@ template <> inline Utils::MeshDiag &Instance::Get(void) { return mMeshDiag; }
 #endif
 
 #if OPENTHREAD_CONFIG_HISTORY_TRACKER_ENABLE
+
 template <> inline HistoryTracker::Local &Instance::Get(void) { return mHistoryTrackerLocal; }
+
+#if OPENTHREAD_CONFIG_HISTORY_TRACKER_SERVER_ENABLE
+template <> inline HistoryTracker::Server &Instance::Get(void) { return mHistoryTrackerServer; }
+#endif
+
+#if OPENTHREAD_CONFIG_HISTORY_TRACKER_CLIENT_ENABLE
+template <> inline HistoryTracker::Client &Instance::Get(void) { return mHistoryTrackerClient; }
+#endif
 #endif
 
 #if OPENTHREAD_CONFIG_LINK_METRICS_MANAGER_ENABLE
@@ -1039,6 +1208,10 @@ template <> inline MeshCoP::DatasetUpdater &Instance::Get(void) { return mDatase
 #if OPENTHREAD_CONFIG_BORDER_AGENT_ENABLE
 template <> inline MeshCoP::BorderAgent::Manager &Instance::Get(void) { return mBorderAgentManager; }
 template <> inline MeshCoP::BorderAgent::TxtData &Instance::Get(void) { return mBorderAgentTxtData; }
+#endif
+
+#if OPENTHREAD_CONFIG_BORDER_AGENT_ENABLE && OPENTHREAD_CONFIG_BORDER_AGENT_ADMITTER_ENABLE
+template <> inline MeshCoP::BorderAgent::Admitter &Instance::Get(void) { return mBorderAgentAdmitter; }
 #endif
 
 #if OPENTHREAD_CONFIG_BORDER_AGENT_ENABLE && OPENTHREAD_CONFIG_BORDER_AGENT_EPHEMERAL_KEY_ENABLE
@@ -1073,13 +1246,6 @@ template <> inline BackboneRouter::MulticastListenersTable &Instance::Get(void)
 }
 #endif
 
-#if OPENTHREAD_CONFIG_BACKBONE_ROUTER_DUA_NDPROXYING_ENABLE
-template <> inline BackboneRouter::NdProxyTable &Instance::Get(void)
-{
-    return mBackboneRouterManager.GetNdProxyTable();
-}
-#endif
-
 template <> inline BackboneRouter::BackboneTmfAgent &Instance::Get(void)
 {
     return mBackboneRouterManager.GetBackboneTmfAgent();
@@ -1087,11 +1253,7 @@ template <> inline BackboneRouter::BackboneTmfAgent &Instance::Get(void)
 #endif
 
 #if OPENTHREAD_CONFIG_MLR_ENABLE || (OPENTHREAD_FTD && OPENTHREAD_CONFIG_TMF_PROXY_MLR_ENABLE)
-template <> inline MlrManager &Instance::Get(void) { return mMlrManager; }
-#endif
-
-#if OPENTHREAD_CONFIG_DUA_ENABLE || (OPENTHREAD_FTD && OPENTHREAD_CONFIG_TMF_PROXY_DUA_ENABLE)
-template <> inline DuaManager &Instance::Get(void) { return mDuaManager; }
+template <> inline Mlr::Manager &Instance::Get(void) { return mMlrManager; }
 #endif
 
 #if OPENTHREAD_CONFIG_MLE_LINK_METRICS_INITIATOR_ENABLE
@@ -1110,6 +1272,9 @@ template <> inline BorderRouter::RxRaTracker    &Instance::Get(void) { return mR
 template <> inline BorderRouter::RoutingManager &Instance::Get(void) { return mRoutingManager; }
 #if OPENTHREAD_CONFIG_BORDER_ROUTING_TRACK_PEER_BR_INFO_ENABLE
 template <> inline BorderRouter::NetDataBrTracker &Instance::Get(void) { return mNetDataBrTracker; }
+#endif
+#if OPENTHREAD_CONFIG_BORDER_ROUTING_MULTI_AIL_DETECTION_ENABLE
+template <> inline BorderRouter::MultiAilDetector &Instance::Get(void) { return mMultiAilDetector; }
 #endif
 #if OPENTHREAD_CONFIG_BORDER_ROUTING_DHCP6_PD_ENABLE && OPENTHREAD_CONFIG_BORDER_ROUTING_DHCP6_PD_CLIENT_ENABLE
 template <> inline BorderRouter::Dhcp6PdClient &Instance::Get(void) { return mDhcp6PdClient; }
@@ -1206,4 +1371,4 @@ void TimerMicroIn<Owner, HandleTimertPtr>::HandleTimer(Timer &aTimer)
 
 } // namespace ot
 
-#endif // INSTANCE_HPP_
+#endif // OT_CORE_INSTANCE_INSTANCE_HPP_

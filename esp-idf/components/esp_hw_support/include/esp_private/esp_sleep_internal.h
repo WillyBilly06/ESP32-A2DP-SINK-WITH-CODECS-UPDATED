@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2022-2025 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2022-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -8,6 +8,7 @@
 #include <stdbool.h>
 #include "sdkconfig.h"
 #include "esp_sleep.h"
+#include "hal/uart_types.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -39,7 +40,11 @@ typedef enum {
     ESP_SLEEP_RTC_FAST_USE_XTAL_MODE,     //!< The mode in which the crystal is used as the RTC_FAST clock source, need keep XTAL on in HP_SLEEP mode when ULP is working.
     ESP_SLEEP_DIG_USE_XTAL_MODE,          //!< The mode requested by digital peripherals to keep XTAL clock on during sleep (both HP_SLEEP and LP_SLEEP mode). (!!! Only valid for lightsleep, will override the XTAL domain config by esp_sleep_pd_config)
     ESP_SLEEP_LP_USE_XTAL_MODE,           //!< The mode requested by lp peripherals to keep XTAL clock on during sleep. Only valid for lightsleep.
+    ESP_SLEEP_LP_USE_RC_FAST_MODE,        //!< The mode requested by lp peripherals to keep FOSC clock on during sleep.
     ESP_SLEEP_VBAT_POWER_DEEPSLEEP_MODE,  //!< The mode to switch power supply to VBAT during deep sleep.
+#if CONFIG_IDF_TARGET_ESP32
+    ESP_SLEEP_ANALOG_LOW_POWER_MODE,      //!< If analog-related peripherals(ADC, TSENS, TOUCH) is not used in monitor mode, analog low power mode can be enabled to reduce power consumption (~300uA) in monitor state.
+#endif
     ESP_SLEEP_MODE_MAX,
 } esp_sleep_sub_mode_t;
 
@@ -75,14 +80,54 @@ esp_err_t esp_sleep_sub_mode_force_disable(esp_sleep_sub_mode_t mode);
  */
 int32_t* esp_sleep_sub_mode_dump_config(FILE *stream);
 
-#if !SOC_GPIO_SUPPORT_HOLD_SINGLE_IO_IN_DSLP
+#if SOC_PM_SUPPORT_RTC_PERIPH_PD
 /**
- * @brief Isolate all digital IOs except those that are held during deep sleep
+ * @brief Enable LP peripherals to use XTAL during sleep
  *
- * Reduce digital IOs current leakage during deep sleep.
+ * @return
+ *      - ESP_OK on success
  */
-void esp_sleep_isolate_digital_gpio(void);
+esp_err_t esp_sleep_acquire_lp_use_xtal(void);
+
+/**
+ * @brief Disable LP peripherals to use XTAL during sleep
+ *
+ * @return
+ *      - ESP_OK on success
+ */
+esp_err_t esp_sleep_release_lp_use_xtal(void);
 #endif
+
+#if !SOC_GPIO_SUPPORT_HOLD_SINGLE_IO_IN_DSLP || SOC_GPIO_NEED_SOFT_ISOLATE_DURING_PD
+/**
+ * @brief Soft-isolate valid digital IO pads (SOC_GPIO_VALID_DIGITAL_IO_PAD_MASK) for leakage control
+ *
+ * Skips pads that are digitally held and pads reserved by the driver.
+ * MSPI signal pads are not in this pass; use esp_sleep_isolate_mspi_gpio() after cache/MSPI idle.
+ *
+ * @param do_backup  If true, back up each pad's pu/pd/ie/oe/fun_sel before isolating so that
+ *                   esp_sleep_restore_isolated_digital_gpio() can restore them later.
+ *                   Pass false when restore is not needed (e.g. deep sleep).
+ */
+void esp_sleep_isolate_digital_gpio(bool do_backup);
+
+/**
+ * @brief Backup and isolate (or pull up) the five base MSPI lines (CLK/Q/D/HD/WP)
+ *
+ * If CONFIG_ESP_SLEEP_MSPI_NEED_ALL_IO_PU && !SOC_MSPI_HAS_INDEPENT_IOMUX, enables pull-up only;
+ * otherwise full pad isolate like esp_sleep_isolate_digital_gpio. Intended after SPI bus is idle
+ * (e.g. light sleep with TOP power-down).
+ */
+void esp_sleep_isolate_mspi_gpio(void);
+
+/**
+ * @brief Restore pu/pd/ie/oe and IOMUX fun_sel for every GPIO in the soft-isolate backup bitmap
+ *
+ * Reverses esp_sleep_isolate_digital_gpio / esp_sleep_isolate_mspi_gpio. Call after wake before
+ * normal Flash access.
+ */
+void esp_sleep_restore_isolated_digital_gpio(void);
+#endif // !SOC_GPIO_SUPPORT_HOLD_SINGLE_IO_IN_DSLP || SOC_GPIO_NEED_SOFT_ISOLATE_DURING_PD
 
 #if SOC_PM_SUPPORT_PMU_CLK_ICG
 /**
@@ -90,11 +135,17 @@ void esp_sleep_isolate_digital_gpio(void);
  */
 typedef enum {
     ESP_SLEEP_CLOCK_IOMUX,  //!< The clock ICG cell mapping of IOMUX
-    ESP_SLEEP_CLOCK_LEDC,   //!< The clock ICG cell mapping of LEDC
+    ESP_SLEEP_CLOCK_LEDC0,   //!< The clock ICG cell mapping of LEDC0
     ESP_SLEEP_CLOCK_UART0,   //!< The clock ICG cell mapping of UART0
     ESP_SLEEP_CLOCK_UART1,   //!< The clock ICG cell mapping of UART1
 #if SOC_UART_HP_NUM > 2
     ESP_SLEEP_CLOCK_UART2,   //!< The clock ICG cell mapping of UART2
+#endif
+#if SOC_UART_HP_NUM > 3
+    ESP_SLEEP_CLOCK_UART3,   //!< The clock ICG cell mapping of UART3
+#endif
+#if SOC_UART_HP_NUM > 4
+    ESP_SLEEP_CLOCK_UART4,   //!< The clock ICG cell mapping of UART4
 #endif
 #if SOC_BLE_USE_WIFI_PWR_CLK_WORKAROUND
     ESP_SLEEP_CLOCK_BT_USE_WIFI_PWR_CLK,  //!< The clock ICG cell remapping of RETENTION
@@ -102,12 +153,16 @@ typedef enum {
     ESP_SLEEP_CLOCK_MAX     //!< Number of ICG cells
 } esp_sleep_clock_t;
 
+// Get UART sleep clock with giving uart num (num must be a valid HP UART port)
+#define SLEEP_UART_ICG(num) ((esp_sleep_clock_t)(ESP_SLEEP_CLOCK_UART0 + (num)))
+
 /**
  * @brief Clock ICG options
  */
 typedef enum {
     ESP_SLEEP_CLOCK_OPTION_GATE,    //!< Gate the clock in sleep mode
-    ESP_SLEEP_CLOCK_OPTION_UNGATE   //!< Ungate the clock in sleep mode
+    ESP_SLEEP_CLOCK_OPTION_UNGATE,  //!< Ungate the clock in sleep mode
+    ESP_SLEEP_CLOCK_OPTION_MAX
 } esp_sleep_clock_option_t;
 
 /**
@@ -147,22 +202,6 @@ esp_err_t esp_deep_sleep_register_phy_hook(esp_deep_sleep_cb_t new_dslp_cb);
   * @param old_dslp_cb     Callback to be unregistered
   */
 void esp_deep_sleep_deregister_phy_hook(esp_deep_sleep_cb_t old_dslp_cb);
-#endif
-
-#if CONFIG_PM_POWER_DOWN_PERIPHERAL_IN_LIGHT_SLEEP && SOC_PM_MMU_TABLE_RETENTION_WHEN_TOP_PD
-/**
- * @brief Backup or restore the MMU when the top domain is powered down.
- * @param backup_or_restore decide to backup mmu or restore mmu
- */
-void esp_sleep_mmu_retention(bool backup_or_restore);
-
-/**
- * @brief Whether to allow the top domain to be powered off due to mmu domain requiring retention.
- *
- * In light sleep mode, only when the system can provide enough memory
- * for mmu retention, the top power domain can be powered off.
- */
-bool mmu_domain_pd_allowed(void);
 #endif
 
 /**

@@ -16,16 +16,14 @@
 #include "esp_check.h"
 #include "esp_heap_caps.h"
 #include "esp_intr_alloc.h"
-#include "freertos/FreeRTOS.h"
-#include "freertos/queue.h"
-#include "freertos/idf_additions.h"
+#include "esp_private/critical_section.h"
 #include "driver/isp_types.h"
 #include "soc/soc_caps.h"
 #if SOC_ISP_SUPPORTED
 #include "hal/isp_hal.h"
 #include "hal/isp_ll.h"
 #include "hal/isp_types.h"
-#include "soc/isp_periph.h"
+#include "hal/isp_periph.h"
 #endif
 
 // Helper macros for atomic operations to ensure Clang compatibility
@@ -69,15 +67,15 @@ typedef struct isp_processor_t {
     void                        *csi_brg_hw;
 #endif
     ISP_ATOMIC_TYPE(isp_fsm_t)  isp_fsm;
-    portMUX_TYPE                spinlock;
-    color_space_pixel_format_t  in_color_format;
-    color_space_pixel_format_t  out_color_format;
+    DECLARE_CRIT_SECTION_LOCK_IN_STRUCT(spinlock);
+    isp_color_t                 in_color_format;
+    isp_color_t                 out_color_format;
     uint32_t                    h_res;
     uint32_t                    v_res;
     color_raw_element_order_t   bayer_order;
     bool                        bypass_isp;
     /* sub module contexts */
-    isp_af_ctlr_t               af_ctlr[SOC_ISP_AF_CTLR_NUMS];
+    isp_af_ctlr_t               af_ctlr[ISP_LL_AF_CTLR_NUMS];
     isp_awb_ctlr_t              awb_ctlr;
     isp_ae_ctlr_t               ae_ctlr;
     isp_hist_ctlr_t             hist_ctlr;
@@ -85,6 +83,7 @@ typedef struct isp_processor_t {
     ISP_ATOMIC_TYPE(isp_fsm_t)  blc_fsm;
     ISP_ATOMIC_TYPE(isp_fsm_t)  ccm_fsm;
     ISP_ATOMIC_TYPE(isp_fsm_t)  color_fsm;
+    ISP_ATOMIC_TYPE(isp_fsm_t)  crop_fsm;
     ISP_ATOMIC_TYPE(isp_fsm_t)  demosaic_fsm;
     ISP_ATOMIC_TYPE(isp_fsm_t)  gamma_fsm;
     ISP_ATOMIC_TYPE(isp_fsm_t)  lsc_fsm;
@@ -105,6 +104,10 @@ typedef struct isp_processor_t {
         uint32_t                hist_isr_added:  1;
     } isr_users;
 
+    struct {
+        uint32_t                wbg_update_once_configured: 1;
+    } sub_module_flags;
+
 } isp_processor_t;
 #endif
 
@@ -114,6 +117,7 @@ typedef enum {
     ISP_SUBMODULE_AWB,
     ISP_SUBMODULE_SHARPEN,
     ISP_SUBMODULE_HIST,
+    ISP_SUBMODULE_GENERAL,
 } isp_submodule_t;
 
 /*---------------------------------------------------------------

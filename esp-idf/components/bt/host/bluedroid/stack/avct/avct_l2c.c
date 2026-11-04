@@ -124,6 +124,7 @@ void avct_l2c_connect_ind_cback(BD_ADDR bd_addr, UINT16 lcid, UINT16 psm, UINT8 
         } else {
             /* TG role only - accept the connection from CT. move the channel ID to the conflict list */
             p_lcb->conflict_lcid = p_lcb->ch_lcid;
+            p_lcb->ch_flags = 0;
             AVCT_TRACE_DEBUG("avct_l2c_connect_ind_cback conflict_lcid:0x%x", p_lcb->conflict_lcid);
         }
     }
@@ -142,6 +143,7 @@ void avct_l2c_connect_ind_cback(BD_ADDR bd_addr, UINT16 lcid, UINT16 psm, UINT8 
 
         /* transition to configuration state */
         p_lcb->ch_state = AVCT_CH_CFG;
+        p_lcb->ch_flags = 0;
 
         /* Send L2CAP config req — omit MTU for Realtek interop */
         memset(&cfg, 0, sizeof(tL2CAP_CFG_INFO));
@@ -182,6 +184,7 @@ void avct_l2c_connect_cfm_cback(UINT16 lcid, UINT16 result)
             if (result == L2CAP_CONN_OK) {
                 /* set channel state */
                 p_lcb->ch_state = AVCT_CH_CFG;
+                p_lcb->ch_flags = 0;
 
                 /* Send L2CAP config req — omit MTU for Realtek interop */
                 memset(&cfg, 0, sizeof(tL2CAP_CFG_INFO));
@@ -229,6 +232,9 @@ void avct_l2c_config_cfm_cback(UINT16 lcid, tL2CAP_CFG_INFO *p_cfg)
     if ((p_lcb = avct_lcb_by_lcid(lcid)) != NULL) {
         AVCT_TRACE_DEBUG("avct_l2c_config_cfm_cback: 0x%x, ch_state: %d, res: %d",
                          lcid, p_lcb->ch_state, p_cfg->result);
+        if (p_lcb->conflict_lcid == lcid) {
+            return;
+        }
         /* if in correct state */
         if (p_lcb->ch_state == AVCT_CH_CFG) {
             /* if result successful */
@@ -273,6 +279,10 @@ void avct_l2c_config_ind_cback(UINT16 lcid, tL2CAP_CFG_INFO *p_cfg)
     /* look up lcb for this channel */
     if ((p_lcb = avct_lcb_by_lcid(lcid)) != NULL) {
         AVCT_TRACE_DEBUG("avct_l2c_config_ind_cback: 0x%x, ch_state: %d", lcid, p_lcb->ch_state);
+        if (p_lcb->ch_state != AVCT_CH_CFG) {
+            AVCT_TRACE_ERROR("avct_l2c_config_ind_cback: EINVAL state %d", p_lcb->ch_state);
+            return;
+        }
         /* store the mtu in tbl */
         if (p_cfg->mtu_present) {
             p_lcb->peer_mtu = p_cfg->mtu;
@@ -284,6 +294,10 @@ void avct_l2c_config_ind_cback(UINT16 lcid, tL2CAP_CFG_INFO *p_cfg)
         memset(p_cfg, 0, sizeof(tL2CAP_CFG_INFO));
         p_cfg->result = L2CAP_CFG_OK;
         L2CA_ConfigRsp(lcid, p_cfg);
+
+        if (p_lcb->conflict_lcid == lcid) {
+            return;
+        }
 
         /* if first config ind */
         if ((p_lcb->ch_flags & AVCT_L2C_CFG_IND_DONE) == 0) {
@@ -313,7 +327,7 @@ void avct_l2c_config_ind_cback(UINT16 lcid, tL2CAP_CFG_INFO *p_cfg)
 void avct_l2c_disconnect_ind_cback(UINT16 lcid, BOOLEAN ack_needed)
 {
     tAVCT_LCB       *p_lcb;
-    UINT16          result = AVCT_RESULT_FAIL;
+    tAVCT_LCB_EVT   evt;
 
     /* look up lcb for this channel */
     if ((p_lcb = avct_lcb_by_lcid(lcid)) != NULL) {
@@ -323,7 +337,13 @@ void avct_l2c_disconnect_ind_cback(UINT16 lcid, BOOLEAN ack_needed)
             L2CA_DisconnectRsp(lcid);
         }
 
-        avct_lcb_event(p_lcb, AVCT_LCB_LL_CLOSE_EVT, (tAVCT_LCB_EVT *) &result);
+        if (p_lcb->conflict_lcid == lcid) {
+            p_lcb->conflict_lcid = 0;
+            return;
+        }
+
+        evt.result = AVCT_RESULT_FAIL;
+        avct_lcb_event(p_lcb, AVCT_LCB_LL_CLOSE_EVT, &evt);
         AVCT_TRACE_DEBUG("ch_state di: %d ", p_lcb->ch_state);
     }
 }
@@ -347,6 +367,10 @@ void avct_l2c_disconnect_cfm_cback(UINT16 lcid, UINT16 result)
     if ((p_lcb = avct_lcb_by_lcid(lcid)) != NULL) {
         AVCT_TRACE_DEBUG("avct_l2c_disconnect_cfm_cback: 0x%x, ch_state: %d, res: %d",
                          lcid, p_lcb->ch_state, result);
+        if (p_lcb->conflict_lcid == lcid) {
+            p_lcb->conflict_lcid = 0;
+            return;
+        }
         /* result value may be previously stored */
         res = (p_lcb->ch_result != 0) ? p_lcb->ch_result : result;
         p_lcb->ch_result = 0;

@@ -13,7 +13,7 @@
  * END_DEPENDENCIES
  */
 
-/* BEGIN_CASE depends_on:MBEDTLS_SSL_PROTO_TLS1_2:MBEDTLS_CIPHER_NULL_CIPHER */
+/* BEGIN_CASE depends_on:MBEDTLS_SSL_PROTO_TLS1_2:MBEDTLS_SSL_NULL_CIPHERSUITES */
 void ssl_decrypt_null(int hash_id)
 {
     mbedtls_ssl_transform transform_in, transform_out;
@@ -121,7 +121,7 @@ exit:
 }
 /* END_CASE */
 
-/* BEGIN_CASE depends_on:MBEDTLS_SSL_HAVE_CBC:MBEDTLS_SSL_HAVE_AES:MBEDTLS_SSL_PROTO_TLS1_2 */
+/* BEGIN_CASE depends_on:PSA_WANT_ALG_CBC_NO_PADDING:PSA_WANT_KEY_TYPE_AES:MBEDTLS_SSL_PROTO_TLS1_2 */
 void ssl_decrypt_non_etm_cbc(int cipher_type, int hash_id, int trunc_hmac,
                              int length_selector)
 {

@@ -24,16 +24,19 @@
 #include "console/console.h"
 #include "nimble/ble.h"
 #include "ble_hs_priv.h"
+#include "host/ble_hs_log.h"
 
 #if NIMBLE_BLE_CONNECT
 static const ble_uuid_t *uuid_ccc =
         BLE_UUID16_DECLARE(BLE_GATT_DSC_CLT_CFG_UUID16);
 
+#if MYNEWT_VAL(BLE_CPFD_CAFD)
 static const ble_uuid_t *uuid_cpfd =
         BLE_UUID16_DECLARE(BLE_GATT_DSC_CLT_PRE_FMT16);
 
 static const ble_uuid_t *uuid_cafd =
         BLE_UUID16_DECLARE(BLE_GATT_DSC_CLT_AGG_FMT16);
+#endif
 
 static const char * const ble_gatt_chr_f_names[] = {
     "BROADCAST",
@@ -69,34 +72,35 @@ static const char * const ble_gatt_dsc_f_names[] = {
 #define BLE_CHR_FLAGS_STR_LEN 180
 
 static char *
-ble_gatts_flags_to_str(uint16_t flags, char *buf,
+ble_gatts_flags_to_str(uint32_t flags, char *buf,
                        const char * const *names)
 {
     int bit;
     bool non_empty = false;
     size_t length = 0;
 
-    buf[0] = '\0';
     strcpy(buf, "[");
     length += 1;
     for (bit = 0; names[bit]; ++bit) {
-        if (flags & (1 << bit)) {
-            length += strlen(names[bit]);
-            if (length + 1 >= BLE_CHR_FLAGS_STR_LEN) {
-                return buf;
+        if (flags & ((uint32_t)1 << bit)) {
+            size_t name_len = strlen(names[bit]);
+            size_t extra = (non_empty ? 1 : 0); /* separator */
+            /* Check if we have room for separator + name + closing bracket */
+            if (length + extra + name_len + 1 >= BLE_CHR_FLAGS_STR_LEN) {
+                break;
             }
             if (non_empty) {
                 strcat(buf, "|");
                 length += 1;
             }
             strcat(buf, names[bit]);
+            length += name_len;
             non_empty = true;
         }
     }
     strcat(buf, "]");
     return buf;
 }
-
 
 #define STRINGIFY(X) #X
 #define FIELD_NAME_LEN STRINGIFY(12)
@@ -108,8 +112,10 @@ ble_gatt_show_local_chr(const struct ble_gatt_svc_def *svc,
 {
     const struct ble_gatt_chr_def *chr;
     const struct ble_gatt_dsc_def *dsc;
+#if MYNEWT_VAL(BLE_CPFD_CAFD)
     const struct ble_gatt_cpfd *cpfd;
     int cpfd_count;
+#endif
 
     for (chr = svc->characteristics; chr && chr->uuid; ++chr) {
         console_printf("characteristic\n");
@@ -145,6 +151,7 @@ ble_gatt_show_local_chr(const struct ble_gatt_svc_def *svc,
             handle++;
         }
 
+#if MYNEWT_VAL(BLE_CPFD_CAFD)
         cpfd_count = 0;
         for (cpfd = chr->cpfd; cpfd && cpfd->format; ++cpfd) {
             console_printf("cpf descriptor\n");
@@ -178,6 +185,7 @@ ble_gatt_show_local_chr(const struct ble_gatt_svc_def *svc,
                                                   flags_buf, ble_gatt_dsc_f_names));
             handle++;
         }
+#endif
 
         for (dsc = chr->descriptors; dsc && dsc->uuid; ++dsc) {
             console_printf("descriptor\n");
@@ -204,6 +212,10 @@ ble_gatt_show_local_inc_svc(const struct ble_gatt_svc_def *svc,
     const struct ble_gatt_svc_def **includes;
     int num = 0;
 
+    if (svc->includes == NULL) {
+        return 0;
+    }
+
     for (includes = &svc->includes[0]; *includes != NULL; ++includes) {
         console_printf("included service\n");
         console_printf("%" FIELD_INDENT "s %" FIELD_NAME_LEN "s "
@@ -224,10 +236,17 @@ ble_gatt_show_local_svc(const struct ble_gatt_svc_def *svc,
 {
     char uuid_buf[BLE_UUID_STR_LEN];
     char flags_buf[BLE_CHR_FLAGS_STR_LEN];
+    const char *svc_type_str;
 
-    console_printf("%s service\n",
-                   svc->type == BLE_GATT_SVC_TYPE_PRIMARY ?
-                           "primary" : "secondary");
+    if (svc->type == BLE_GATT_SVC_TYPE_PRIMARY) {
+        svc_type_str = "primary";
+    } else if (svc->type == BLE_GATT_SVC_TYPE_SECONDARY) {
+        svc_type_str = "secondary";
+    } else {
+        svc_type_str = "unknown";
+    }
+
+    console_printf("%s service\n", svc_type_str);
     console_printf("%" FIELD_INDENT "s %" FIELD_NAME_LEN "s "
                    "%s\n", " ", "uuid",
                    ble_uuid_to_str(svc->uuid, uuid_buf));

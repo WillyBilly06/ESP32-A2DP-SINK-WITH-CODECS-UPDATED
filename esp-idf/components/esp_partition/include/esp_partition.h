@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2015-2024 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2015-2025 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -10,7 +10,10 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <stddef.h>
+#include "esp_bit_defs.h"
 #include "esp_err.h"
+#include "esp_blockdev.h"
+#include "esp_attr.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -25,13 +28,19 @@ extern "C" {
 typedef struct esp_flash_t esp_flash_t;
 /** @endcond */
 
+
 /**
- * @brief Enumeration which specifies memory space requested in an mmap call
+ * @brief Flags for @ref esp_partition_mmap() calls
  */
 typedef enum {
-    ESP_PARTITION_MMAP_DATA,    /**< map to data memory (Vaddr0), allows byte-aligned access, (4 MB total - only for esp32) */
-    ESP_PARTITION_MMAP_INST,    /**< map to instruction memory (Vaddr1-3), allows only 4-byte-aligned access, (11 MB total - only for esp32) */
-} esp_partition_mmap_memory_t;
+    ESP_PARTITION_MMAP_DATA = 0,            /**< map to data memory (Vaddr0), allows byte-aligned access, (4 MB total - only for esp32) */
+    ESP_PARTITION_MMAP_INST = BIT(0),       /**< map to instruction memory (Vaddr1-3), allows only 4-byte-aligned access, (11 MB total - only for esp32) */
+    //Enum above are also used in the ROM, don't change the value.
+    ESP_PARTITION_MMAP_BLOCKS_WRITE = BIT(1),   /**< Blocks flash erasing/writing until unmap to avoid the cache disabling. See SPI_FLASH_MMAP_FLAG_BLOCKS_WRITE. */
+} esp_partition_mmap_flag_t;
+
+/** Deprecated type. */
+#define esp_partition_mmap_memory_t _Pragma("GCC warning \"'esp_partition_mmap_memory_t' enum is deprecated.\"") esp_partition_mmap_flag_t
 
 /**
  * @brief Opaque handle for memory region obtained from esp_partition_mmap.
@@ -170,6 +179,35 @@ typedef struct {
 esp_partition_iterator_t esp_partition_find(esp_partition_type_t type, esp_partition_subtype_t subtype, const char* label);
 
 /**
+ * @brief Find partition based on one or more parameters with error reporting
+ *
+ * This function provides the same functionality as esp_partition_find() but returns
+ * error information instead of just NULL on failure. This allows applications
+ * to distinguish between "no partitions found" and actual error conditions.
+ *
+ * @param type Partition type, one of esp_partition_type_t values or an 8-bit unsigned integer.
+ *             To find all partitions, no matter the type, use ESP_PARTITION_TYPE_ANY, and set
+ *             subtype argument to ESP_PARTITION_SUBTYPE_ANY.
+ * @param subtype Partition subtype, one of esp_partition_subtype_t values or an 8-bit unsigned integer.
+ *                To find all partitions of given type, use ESP_PARTITION_SUBTYPE_ANY.
+ * @param label (optional) Partition label. Set this value if looking
+ *             for partition with a specific name. Pass NULL otherwise.
+ * @param[out] it Output iterator which can be used to enumerate all the partitions found. Must not be NULL.
+ *               Set to NULL if no partitions were found or on error.
+ *               If not NULL after successful call, iterator must be released using
+ *               esp_partition_iterator_release when not used any more.
+ *
+ * @return
+ *         - ESP_OK: Operation completed successfully
+ *         - ESP_ERR_INVALID_ARG: if param[out] it is NULL, or if type is ESP_PARTITION_TYPE_ANY
+ *                                but subtype is not ESP_PARTITION_SUBTYPE_ANY
+ *         - ESP_ERR_NO_MEM: if memory allocation failed
+ *         - ESP_ERR_NOT_FOUND: if no partition were found
+ *         - Other error codes from partition loading functions
+ */
+esp_err_t esp_partition_find_err(esp_partition_type_t type, esp_partition_subtype_t subtype, const char* label, esp_partition_iterator_t* it);
+
+/**
  * @brief Find first partition based on one or more parameters
  *
  * @param type Partition type, one of esp_partition_type_t values or an 8-bit unsigned integer.
@@ -184,6 +222,34 @@ esp_partition_iterator_t esp_partition_find(esp_partition_type_t type, esp_parti
  *         This pointer is valid for the lifetime of the application.
  */
 const esp_partition_t* esp_partition_find_first(esp_partition_type_t type, esp_partition_subtype_t subtype, const char* label);
+
+/**
+ * @brief Find first partition based on one or more parameters with error reporting
+ *
+ * This function provides the same functionality as esp_partition_find_first() but returns
+ * error information instead of just NULL on failure. This allows applications
+ * to distinguish between "no partition found" and actual error conditions.
+ *
+ * @param type Partition type, one of esp_partition_type_t values or an 8-bit unsigned integer.
+ *             To find all partitions, no matter the type, use ESP_PARTITION_TYPE_ANY, and set
+ *             subtype argument to ESP_PARTITION_SUBTYPE_ANY.
+ * @param subtype Partition subtype, one of esp_partition_subtype_t values or an 8-bit unsigned integer
+ *                To find all partitions of given type, use ESP_PARTITION_SUBTYPE_ANY.
+ * @param label (optional) Partition label. Set this value if looking
+ *             for partition with a specific name. Pass NULL otherwise.
+ * @param[out] partition Output pointer to esp_partition_t structure. Must not be NULL.
+ *                       Set to NULL if no partition is found or on error.
+ *                       If not NULL after successful call, this pointer is valid for the lifetime of the application.
+ *
+ * @return
+ *         - ESP_OK: Operation completed successfully (regardless of whether partition was found)
+ *         - ESP_ERR_INVALID_ARG: if param[out] partition is NULL, or if type is ESP_PARTITION_TYPE_ANY
+ *                                but subtype is not ESP_PARTITION_SUBTYPE_ANY
+ *         - ESP_ERR_NO_MEM: if memory allocation failed
+ *         - ESP_ERR_NOT_FOUND: if no partition were found
+ *         - Other error codes from partition loading functions
+ */
+esp_err_t esp_partition_find_first_err(esp_partition_type_t type, esp_partition_subtype_t subtype, const char* label, const esp_partition_t** partition);
 
 /**
  * @brief Get esp_partition_t structure for given partition
@@ -235,6 +301,45 @@ void esp_partition_iterator_release(esp_partition_iterator_t iterator);
  * - If found, returns a pointer to the esp_partition_t structure in flash. This pointer is always valid for the lifetime of the application.
  */
 const esp_partition_t* esp_partition_verify(const esp_partition_t* partition);
+
+/**
+ * @brief Verify partition data with error reporting
+ *
+ * This function provides the same functionality as esp_partition_verify() but returns
+ * error information instead of just NULL on failure. This allows applications
+ * to distinguish between "partition not found" and actual error conditions
+ *
+ * Given a pointer to partition data, verify this partition exists in the partition table
+ * by comparing all key fields (flash_chip, address, size, encrypted status). The function
+ * searches through all registered partitions with matching type, subtype, and label.
+ *
+ * This function is useful to:
+ * - Take partition data from RAM buffer and convert to permanent flash-based pointer
+ * - Validate partition structures obtained from external sources
+ * - Ensure partition data integrity before performing operations
+ *
+ * @param partition Pointer to partition data to verify. Must be non-NULL.
+ *                  The following fields are used for verification:
+ *                  - type: Partition type
+ *                  - subtype: Partition subtype
+ *                  - label: Partition label (if non-empty)
+ *                  - flash_chip: Flash chip pointer
+ *                  - address: Starting address
+ *                  - size: Partition size
+ *                  - encrypted: Encryption status
+ * @param[out] out_partition Output pointer to verified esp_partition_t structure. Must not be NULL.
+ *                           Set to NULL if partition is not found or on error.
+ *                           If not NULL after successful call, this pointer is valid for the
+ *                           lifetime of the application and points to the permanent partition
+ *                           structure in flash.
+ *
+ * @return
+ *         - ESP_OK: Partition verified successfully and found in partition table
+ *         - ESP_ERR_INVALID_ARG: if partition or out_partition is NULL
+ *         - ESP_ERR_NO_MEM: if memory allocation failed during partition search
+ *         - ESP_ERR_NOT_FOUND: if no matching partition found in partition table
+ */
+esp_err_t esp_partition_verify_err(const esp_partition_t* partition, const esp_partition_t** out_partition);
 
 /**
  * @brief Read data from the partition
@@ -380,19 +485,25 @@ esp_err_t esp_partition_erase_range(const esp_partition_t* partition,
  * To release mapped memory, pass handle returned via out_handle argument to
  * esp_partition_munmap function.
  *
+ * If there is any mapped region while SPI Flash is being erased or programmed, the cache will be disabled and the
+ * system will be suspended by default. (for more info see SPI flash docs about cache disabling. It will decrease the
+ * performance of the system when it's possible for the cache to be kept enabled (for example, when XIP on PSRAM).
+ * Please specify @ref ESP_PARTITION_MMAP_BLOCKS_WRITE flag to block flash erasing/writing APIs until this region is
+ * unmapped. See SPI_FLASH_MMAP_FLAG_BLOCKS_WRITE for more details.
+ *
  * @param partition Pointer to partition structure obtained using
  *                  esp_partition_find_first or esp_partition_get.
  *                  Must be non-NULL.
  * @param offset Offset from the beginning of partition where mapping should start.
  * @param size Size of the area to be mapped.
- * @param memory  Memory space where the region should be mapped
+ * @param flags  Flags of the mapping, including address space where the region should be mapped (data or instruction)
  * @param out_ptr  Output, pointer to the mapped memory region
  * @param out_handle  Output, handle which should be used for esp_partition_munmap call
  *
  * @return ESP_OK, if successful
  */
 esp_err_t esp_partition_mmap(const esp_partition_t* partition, size_t offset, size_t size,
-                             esp_partition_mmap_memory_t memory,
+                             esp_partition_mmap_flag_t flags,
                              const void** out_ptr, esp_partition_mmap_handle_t* out_handle);
 
 /**
@@ -517,8 +628,55 @@ uint32_t esp_partition_get_main_flash_sector_size(void);
  */
 esp_err_t esp_partition_copy(const esp_partition_t* dest_part, uint32_t dest_offset, const esp_partition_t* src_part, uint32_t src_offset, size_t size);
 
+
+/* *************************************************************************************
+ * Block Device Layer interface
+ * *************************************************************************************/
+
+/**
+ * @brief Creates block device instance associated with the desired partition and returns the corresponding handle. Convenient version.
+ *
+ * The Block Device Layer (BDL) interface allows generic access to each partition, represented by its unique parameters or by existing 'esp_partition_t' object.
+ * Each  BDL structure instance is employed as an extension to existing partition object, ie the partition object is not created if not found.
+ * The BDL instance is to be created and destroyed only via the corresponding create/release APIs. Ignoring this requirement may lead to memory leaks and similar troubles.
+ *
+ * New BDL structure instance is created on the application's heap, it is initialized with the partition's holder details (esp_partition_t) and the caller obtains
+ * corresponding BDL handle in 'out_bdl_handle' output parameter. The life-cycle of such BDL object is fully managed by the owner (caller) and is not checked during
+ * possible esp_partition_t changes or instance destruction.
+ *
+ * @param[in] type Partition type, one of esp_partition_type_t values or an 8-bit unsigned integer.
+ *             To find all partitions, no matter the type, use ESP_PARTITION_TYPE_ANY, and set
+ *             subtype argument to ESP_PARTITION_SUBTYPE_ANY.
+ * @param[in] subtype Partition subtype, one of esp_partition_subtype_t values or an 8-bit unsigned integer
+ *                To find all partitions of given type, use ESP_PARTITION_SUBTYPE_ANY.
+ * @param[in] label (optional) Partition label. Set this value if looking
+ *             for partition with a specific name. Pass NULL otherwise.
+ * @param[out] out_bdl_handle Block device instance handle for "native" BDL control
+ *
+ * @return
+ *      - ESP_OK on success
+ *      - ESP_ERR_NO_MEM if memory allocation has failed
+ *      - ESP_ERR_NOT_FOUND if the partition defined by the parameters cannot be found
+ */
+esp_err_t esp_partition_get_blockdev(const esp_partition_type_t type, const esp_partition_subtype_t subtype, const char *label, esp_blockdev_handle_t *out_bdl_handle);
+
+/**
+ * @brief The same as esp_partition_get_blockdev(), it just accepts existing partition holder as an parameter and doesn't provide the partition search by itself.
+ *
+ * @param[in] partition Pointer to existing esp_partition_t instance
+ * @param[out] out_bdl_handle Block device instance handle for "native" BDL control
+ *
+ * @return
+ *      - ESP_OK on success
+ *      - ESP_ERR_NO_MEM if memory allocation has failed
+ *      - ESP_ERR_NOT_FOUND if the partition defined by the parameters cannot be found
+ */
+esp_err_t esp_partition_ptr_get_blockdev(const esp_partition_t *partition, esp_blockdev_handle_t *out_bdl_handle);
+
 #ifdef __cplusplus
 }
 #endif
+
+FLAG_ATTR(esp_partition_mmap_flag_t)
 
 #endif /* __ESP_PARTITION_H__ */

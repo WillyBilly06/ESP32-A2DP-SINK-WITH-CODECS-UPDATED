@@ -101,8 +101,7 @@ FatFS 是最适用于常见应用的文件系统，如文件/目录访问、数�
 
 - `FatFS 源站点 <http://elm-chan.org/fsw/ff/>`_
 - 更多关于 `FAT 表大小限制 <https://en.wikipedia.org/wiki/Design_of_the_FAT_file_system#Size_limits>`_
-- :ref:`using-fatfs-with-vfs`
-- :ref:`using-fatfs-with-vfs-and-sdcards`
+- :ref:`fatfs-mount-and-use`
 - ESP-IDF FatFS 工具： :ref:`FatFS 分区生成器 <fatfs-partition-generator>` 和 :ref:`FatFS 分区分析器 <fatfs-partition-analyzer>`
 
 **示例:**
@@ -173,16 +172,25 @@ NVS 具有如下特性：
 * NVS 库无法在不符合规格的电源环境中确保一致性，例如使用电池或太阳能面板供电的系统。在这种情况下，flash 数据的错误解析可能会导致 NVS flash 分区损坏。开发者应提供数据恢复代码，例如，基于具有工厂设置的只读数据分区。
 * 已初始化的 NVS 库会占用 RAM 空间，这个占用量随着 flash 分区和缓存的键数量的增加线性增长。
 
+**只读 NVS 分区：**
+
+* 只读分区可用于存储运行时不应被修改的数据，例如固件或配置数据。
+* 可以在分区表 CSV 文件中将 NVS 分区标记为 ``readonly``。只读 NVS 分区的最小尺寸可以小至一页（4 KiB/``0x1000``），而标准读写 NVS 分区则无法设置如此小的尺寸。
+* ``0x1000`` 和 ``0x2000`` 大小的分区始终为只读分区，而大小为 ``0x3000`` 及以上的分区则支持读写（在代码中仍可以只读模式打开）。
+
 **相关文档:**
 
 - 有关 API 和 NVS 库的更多信息，请参阅 :doc:`非易失性存储库 <../api-reference/storage/nvs_flash>`。
 - 有关批量生产的信息，请参阅 :doc:`NVS 分区生成程序 <../api-reference/storage/nvs_partition_gen>`。
 - 有关离线 NVS 分区解析的信息，请参阅 :doc:`NVS 分区解析程序 <../api-reference/storage/nvs_partition_parse>`。
+- 有关只读 NVS 分区的信息，请参阅 :ref:`只读 NVS <read-only-nvs>`。
 
 **示例:**
 
 - :example:`storage/nvs/nvs_rw_value` 演示了如何写入和读取一个整数值。
 - :example:`storage/nvs/nvs_rw_blob` 演示如何写入和读取一个 blob。
+- :example:`storage/nvs/nvs_statistics` 演示了如何获取并解读 NVS 使用情况统计信息：包括指定 NVS 分区中的空闲、已用、可用、总条目数、以及命名空间数量。
+- :example:`storage/nvs/nvs_iteration` 演示了如何遍历特定（或任意）NVS 数据类型的条目，以及如何获取这些条目的相关信息。
 - :example:`security/nvs_encryption_hmac` 演示了如何用 HMAC 外设进行 NVS 加密，并通过 efuse 中的 HMAC 密钥生成加密密钥。
 - :example:`security/flash_encryption` 演示了如何进行 flash 加密，包括创建和使用 NVS 分区。
 

@@ -19,12 +19,38 @@
 
 #include "syscfg/syscfg.h"
 #include "ble_hs_priv.h"
+#include "host/ble_hs_log.h"
+#if MYNEWT_VAL(BLE_STATIC_TO_DYNAMIC)
+#include "esp_nimble_mem.h"
+#endif
 
 #if MYNEWT_VAL(BLE_HS_FLOW_CTRL)
 
 #define BLE_HS_FLOW_ITVL_TICKS  \
     ble_npl_time_ms_to_ticks32(MYNEWT_VAL(BLE_HS_FLOW_CTRL_ITVL))
 
+static ble_npl_event_fn ble_hs_flow_event_cb;
+
+/* Connection handle associated with each mbuf in ACL pool */
+#if MYNEWT_VAL(BLE_STATIC_TO_DYNAMIC)
+typedef struct {
+    uint16_t num_completed_pkts;              /* Tracks number of completed packets */
+    struct ble_npl_callout flow_timer;        /* Periodic flow timer */
+    struct ble_npl_event flow_ev;             /* Event for flow handling */
+#if !MYNEWT_VAL(MP_RUNTIME_ALLOC)
+    uint16_t mbuf_conn_handle[MYNEWT_VAL(BLE_TRANSPORT_ACL_FROM_LL_COUNT)];
+#endif
+} ble_hs_flow_ctx_t;
+
+static ble_hs_flow_ctx_t  *ble_hs_flow_ctx;
+
+#define ble_hs_flow_num_completed_pkts   (ble_hs_flow_ctx->num_completed_pkts)
+#define ble_hs_flow_timer                (ble_hs_flow_ctx->flow_timer)
+#define ble_hs_flow_ev                   (ble_hs_flow_ctx->flow_ev)
+#if !MYNEWT_VAL(MP_RUNTIME_ALLOC)
+#define ble_hs_flow_mbuf_conn_handle     (ble_hs_flow_ctx->mbuf_conn_handle)
+#endif
+#else
 /**
  * The number of freed buffers since the most-recent
  * number-of-completed-packets event was sent.  This is used to determine if an
@@ -34,15 +60,15 @@ static uint16_t ble_hs_flow_num_completed_pkts;
 
 /** Periodically sends number-of-completed-packets events.  */
 static struct ble_npl_callout ble_hs_flow_timer;
-
-static ble_npl_event_fn ble_hs_flow_event_cb;
-
 static struct ble_npl_event ble_hs_flow_ev;
 
 #if !MYNEWT_VAL(MP_RUNTIME_ALLOC)
 /* Connection handle associated with each mbuf in ACL pool */
 static uint16_t ble_hs_flow_mbuf_conn_handle[ MYNEWT_VAL(BLE_TRANSPORT_ACL_FROM_LL_COUNT) ];
+#endif
+#endif
 
+#if !MYNEWT_VAL(MP_RUNTIME_ALLOC)
 static inline int
 ble_hs_flow_mbuf_index(const struct os_mbuf *om)
 {
@@ -53,6 +79,7 @@ ble_hs_flow_mbuf_index(const struct os_mbuf *om)
     idx = (addr - mp->mp_membuf_addr) / mp->mp_block_size;
 
     BLE_HS_DBG_ASSERT(mp->mp_membuf_addr + idx * mp->mp_block_size == addr);
+    BLE_HS_DBG_ASSERT(idx >= 0 && idx < MYNEWT_VAL(BLE_TRANSPORT_ACL_FROM_LL_COUNT));
 
     return idx;
 }
@@ -87,8 +114,6 @@ ble_hs_flow_tx_num_comp_pkts(void)
             cmd->h[0].handle = htole16(conn->bhc_handle);
             cmd->h[0].count = htole16(conn->bhc_completed_pkts);
 
-            conn->bhc_completed_pkts = 0;
-
             /* The host-number-of-completed-packets command does not elicit a
              * response from the controller, so don't use the normal blocking
              * HCI API when sending it.
@@ -100,6 +125,8 @@ ble_hs_flow_tx_num_comp_pkts(void)
             if (rc != 0) {
                 return rc;
             }
+
+            conn->bhc_completed_pkts = 0;
         }
     }
 
@@ -114,12 +141,13 @@ ble_hs_flow_event_cb(struct ble_npl_event *ev)
     ble_hs_lock();
 
     if (ble_hs_flow_num_completed_pkts > 0) {
+        uint16_t snapshot = ble_hs_flow_num_completed_pkts;
         rc = ble_hs_flow_tx_num_comp_pkts();
         if (rc != 0) {
             ble_hs_sched_reset(rc);
         }
 
-        ble_hs_flow_num_completed_pkts = 0;
+        ble_hs_flow_num_completed_pkts -= snapshot;
     }
 
     ble_hs_unlock();
@@ -143,7 +171,7 @@ ble_hs_flow_inc_completed_pkts(struct ble_hs_conn *conn)
     }
 
     /* If the number of free buffers is at or below the configured threshold,
-     * send an immediate number-of-copmleted-packets event.
+     * send an immediate number-of-completed-packets event.
      */
     num_free = MYNEWT_VAL(BLE_TRANSPORT_ACL_FROM_LL_COUNT) -
                ble_hs_flow_num_completed_pkts;
@@ -168,7 +196,13 @@ ble_hs_flow_acl_free(struct os_mempool_ext *mpe, void *data, void *arg)
 
     #if MYNEWT_VAL(MP_RUNTIME_ALLOC)
     // For runtime allocation, get the connection handle from HCI ACL data
-    const struct hci_data_hdr *hdr = (void *)om->om_data;
+    // Check if the header was stripped by comparing om_data with the start of the buffer
+    const struct hci_data_hdr *hdr;
+    if (om->om_data == om->om_databuf) {
+        hdr = (void *)om->om_data;
+    } else {
+        hdr = (void *)((uint8_t *)om->om_data - BLE_HCI_DATA_HDR_SZ);
+    }
     conn_handle = BLE_HCI_DATA_HANDLE(hdr->hdh_handle_pb_bc);
     #else
     int idx = ble_hs_flow_mbuf_index(om);
@@ -189,6 +223,9 @@ ble_hs_flow_acl_free(struct os_mempool_ext *mpe, void *data, void *arg)
     conn = ble_hs_conn_find(conn_handle);
     if (conn != NULL) {
         ble_hs_flow_inc_completed_pkts(conn);
+    } else {
+        BLE_HS_LOG(INFO, "ACL free: connection not found; "
+                   "conn_handle=0x%04x; flow credit may be lost\n", conn_handle);
     }
 
     ble_hs_unlock_nested();
@@ -203,7 +240,10 @@ ble_hs_flow_connection_broken(uint16_t conn_handle)
 #if MYNEWT_VAL(BLE_HS_FLOW_CTRL) &&                 \
     MYNEWT_VAL(BLE_HS_FLOW_CTRL_TX_ON_DISCONNECT)
     ble_hs_lock();
-    ble_hs_flow_tx_num_comp_pkts();
+    int rc = ble_hs_flow_tx_num_comp_pkts();
+    if (rc != 0) {
+        ble_hs_sched_reset(rc);
+    }
     ble_hs_unlock();
 #endif
 }
@@ -244,7 +284,7 @@ ble_hs_flow_startup(void)
 
     /* Remove previous event from queue, if any*/
     ble_npl_eventq_remove(ble_hs_evq_get(), &ble_hs_flow_ev);
-   
+
 
 #if MYNEWT_VAL(SELFTEST)
     ble_npl_callout_stop(&ble_hs_flow_timer);
@@ -272,30 +312,32 @@ ble_hs_flow_startup(void)
 
     /* Flow control successfully enabled. */
     ble_hs_flow_num_completed_pkts = 0;
+    ble_npl_callout_init(&ble_hs_flow_timer, ble_hs_evq_get(),
+                         ble_hs_flow_event_cb, NULL);
 #if SOC_ESP_NIMBLE_CONTROLLER && CONFIG_BT_CONTROLLER_ENABLED
     ble_hci_trans_set_acl_free_cb(ble_hs_flow_acl_free, NULL);
 #else
     ble_transport_register_put_acl_from_ll_cb(ble_hs_flow_acl_free);
 #endif
-    ble_npl_callout_init(&ble_hs_flow_timer, ble_hs_evq_get(),
-                         ble_hs_flow_event_cb, NULL);
 #endif
 
     return 0;
 }
 
 void
-ble_hs_flow_stop(void)
-{
-#if MYNEWT_VAL(BLE_HS_FLOW_CTRL)
-    ble_npl_callout_deinit(&ble_hs_flow_timer);
-#endif
-}
-
-void
 ble_hs_flow_init(void)
 {
 #if MYNEWT_VAL(BLE_HS_FLOW_CTRL)
+#if MYNEWT_VAL(BLE_STATIC_TO_DYNAMIC)
+    if (!ble_hs_flow_ctx) {
+        ble_hs_flow_ctx = nimble_platform_mem_calloc(1, sizeof(*ble_hs_flow_ctx));
+        BLE_HS_DBG_ASSERT(ble_hs_flow_ctx);
+        if (!ble_hs_flow_ctx) {
+            return;
+        }
+    }
+#endif
+
     ble_npl_event_init(&ble_hs_flow_ev, ble_hs_flow_event_cb, NULL);
     ble_npl_callout_init(&ble_hs_flow_timer, ble_hs_evq_get(),
                          ble_hs_flow_event_cb, NULL);
@@ -308,5 +350,12 @@ ble_hs_flow_deinit(void)
 #if MYNEWT_VAL(BLE_HS_FLOW_CTRL)
     ble_npl_event_deinit(&ble_hs_flow_ev);
     ble_npl_callout_deinit(&ble_hs_flow_timer);
+
+#if MYNEWT_VAL(BLE_STATIC_TO_DYNAMIC)
+    if (ble_hs_flow_ctx) {
+        nimble_platform_mem_free(ble_hs_flow_ctx);
+        ble_hs_flow_ctx = NULL;
+    }
+#endif /* MYNEWT_VAL(BLE_STATIC_TO_DYNAMIC) */
 #endif //MYNEWT_VAL(BLE_HS_FLOW_CTRL)
 }

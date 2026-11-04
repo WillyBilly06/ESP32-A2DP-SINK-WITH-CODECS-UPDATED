@@ -26,8 +26,8 @@
  *  POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef SRP_CLIENT_HPP_
-#define SRP_CLIENT_HPP_
+#ifndef OT_CORE_NET_SRP_CLIENT_HPP_
+#define OT_CORE_NET_SRP_CLIENT_HPP_
 
 #include "openthread-core-config.h"
 
@@ -715,6 +715,27 @@ public:
     bool IsServiceKeyRecordEnabled(void) const { return mServiceKeyRecordEnabled; }
 
     /**
+     * Enables/disables "host key record inclusion" mode.
+     *
+     * When enabled (default), SRP client will include KEY record in Host Description Instruction.
+     *
+     * @note Host KEY record is required in Host Description Instruction. The default behavior of the SRP client is to
+     * include it. This method is added under the `REFERENCE_DEVICE` config and is intended to override the default
+     * behavior for testing only. `SetHostKeyRecordEnabled(false)` makes the SRP client non-functional and non-compliant
+     * and is used solely for testing to validate SRP server behavior.
+     *
+     * @param[in] aEnabled   TRUE to enable, FALSE to disable the "host key record inclusion" mode.
+     */
+    void SetHostKeyRecordEnabled(bool aEnabled) { mHostKeyRecordEnabled = aEnabled; }
+
+    /**
+     * Indicates whether the "host key record inclusion" mode is enabled or disabled.
+     *
+     * @returns TRUE if "host key record inclusion" mode is enabled, FALSE otherwise.
+     */
+    bool IsHostKeyRecordEnabled(void) const { return mHostKeyRecordEnabled; }
+
+    /**
      * Enables/disables "use short Update Lease Option" behavior.
      *
      * When enabled, the SRP client will use the short variant format of Update Lease Option in its message. The short
@@ -745,7 +766,7 @@ private:
         OPENTHREAD_CONFIG_SRP_CLIENT_MAX_TIMEOUT_FAILURES_TO_SWITCH_SERVER;
 #endif
 
-    static constexpr uint16_t kUdpPayloadSize = Ip6::kMaxDatagramLength - sizeof(Ip6::Udp::Header);
+    static constexpr uint16_t kUdpPayloadSize = Ip6::kMaxDatagramLength - sizeof(Ip6::UdpHeader);
 
     // -------------------------------
     // Lease related constants
@@ -1079,6 +1100,7 @@ private:
     bool    mShouldRemoveKeyLease : 1;
 #if OPENTHREAD_CONFIG_REFERENCE_DEVICE_ENABLE
     bool mServiceKeyRecordEnabled : 1;
+    bool mHostKeyRecordEnabled : 1;
     bool mUseShortLeaseOption : 1;
 #endif
 
@@ -1117,4 +1139,4 @@ DefineMapEnum(otSrpClientItemState, Srp::Client::ItemState);
 
 #endif // OPENTHREAD_CONFIG_SRP_CLIENT_ENABLE
 
-#endif // SRP_CLIENT_HPP_
+#endif // OT_CORE_NET_SRP_CLIENT_HPP_

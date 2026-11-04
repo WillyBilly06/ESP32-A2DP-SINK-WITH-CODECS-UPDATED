@@ -5,11 +5,11 @@ Secure Boot v2
 
 :link_to_translation:`zh_CN:[中文]`
 
-{IDF_TARGET_SBV2_SCHEME:default="RSA-PSS", esp32c2, esp32c61="ECDSA", esp32c6, esp32h2, esp32p4, esp32c5, esp32h21="RSA-PSS or ECDSA"}
+{IDF_TARGET_SBV2_SCHEME:default="RSA-PSS", esp32c2, esp32c61, esp32h4="ECDSA", esp32c6, esp32h2, esp32p4, esp32c5="RSA-PSS or ECDSA", esp32h21="RSA-PSS"}
 
-{IDF_TARGET_SBV2_KEY:default="RSA-3072", esp32c2, esp32c61="ECDSA-256 or ECDSA-192", esp32c6, esp32h2, esp32p4, esp32h21="RSA-3072, ECDSA-256, or ECDSA-192", esp32c5="RSA-3072, ECDSA-384, ECDSA-256, or ECDSA-192"}
+{IDF_TARGET_SBV2_KEY:default="RSA-3072", esp32c2, esp32c61="ECDSA-256", esp32c6, esp32h2, esp32p4="RSA-3072, ECDSA-256", esp32h21="RSA-3072", esp32h4="ECDSA-384, ECDSA-256", esp32c5="RSA-3072, ECDSA-384, ECDSA-256"}
 
-{IDF_TARGET_SECURE_BOOT_OPTION_TEXT:default="", esp32c6, esp32h2, esp32p4, esp32h21="RSA is recommended for faster verification. You can choose either the RSA or ECDSA scheme from the menu.", esp32c5="ECDSA is recommended for faster verification. You can choose either the RSA or ECDSA scheme from the menu."}
+{IDF_TARGET_SECURE_BOOT_OPTION_TEXT:default="", esp32c6, esp32h2, esp32p4="RSA is recommended for faster verification. You can choose either the RSA or ECDSA scheme from the menu.", esp32c5="ECDSA is recommended for faster verification. You can choose either the RSA or ECDSA scheme from the menu."}
 
 {IDF_TARGET_SBV2_SCHEME_RECOMMENDATION:default="RSA is recommended for use cases where fast boot-up time is required whereas ECDSA is recommended for use cases where shorter key length is required.", esp32c5="ECDSA is recommended for use cases where fast boot-up time and shorter key length is required."}
 
@@ -25,7 +25,7 @@ Secure Boot v2
 
 {IDF_TARGET_CPU_FREQ:default="", esp32c5="240 MHz", esp32c6="160 MHz", esp32h2="96 MHz", esp32p4="360 MHz"}
 
-{IDF_TARGET_SBV2_DEFAULT_SCHEME:default="RSA", esp32c2, esp32c61, esp32c5="ECDSA (v2)"}
+{IDF_TARGET_SBV2_DEFAULT_SCHEME:default="RSA", esp32c2, esp32c61, esp32c5, esp32h4="ECDSA (v2)"}
 
 {IDF_TARGET_EFUSE_WR_DIS_RD_DIS:default="ESP_EFUSE_WR_DIS_RD_DIS", esp32="ESP_EFUSE_WR_DIS_EFUSE_RD_DISABLE"}
 
@@ -50,7 +50,19 @@ Secure Boot v2
 
 .. note::
 
-    In this guide, most used commands are in the form of ``idf.py secure-<command>``, which is a wrapper around corresponding ``espsecure.py <command>``. The ``idf.py`` based commands provides more user-friendly experience, although may lack some of the advanced functionality of their ``espsecure.py`` based counterparts.
+    In this guide, most used commands are in the form of ``idf.py secure-<command>``, which is a wrapper around corresponding ``espsecure <command>``. The ``idf.py`` based commands provides more user-friendly experience, although may lack some of the advanced functionality of their ``espsecure`` based counterparts.
+
+.. only:: CONFIG_SECURE_BOOT_V2_ECDSA_INSECURE and SOC_SECURE_BOOT_V2_RSA
+
+    .. warning::
+
+        On {IDF_TARGET_NAME}, the ECDSA based Secure Boot V2 scheme is not functional for certain input vectors and is therefore **not recommended**. Please use the RSA based Secure Boot V2 scheme instead. To use the ECDSA based scheme regardless of this limitation, enable :ref:`CONFIG_SECURE_BOOT_INSECURE` and :ref:`CONFIG_SECURE_BOOT_V2_FORCE_ENABLE_ECDSA`. This issue will be fixed in a future hardware ECO revision; refer to the hardware errata document for details.
+
+.. only:: CONFIG_SECURE_BOOT_V2_ECDSA_INSECURE and not SOC_SECURE_BOOT_V2_RSA
+
+    .. warning::
+
+        On {IDF_TARGET_NAME}, the ECDSA based Secure Boot V2 scheme is vulnerable for certain input vectors and is therefore **not recommended for production**. To use the ECDSA based Secure Boot V2 scheme regardless of this limitation, enable :ref:`CONFIG_SECURE_BOOT_INSECURE` and :ref:`CONFIG_SECURE_BOOT_V2_FORCE_ENABLE_ECDSA`. This issue will be fixed in a future hardware ECO revision; refer to the hardware errata document for details.
 
 Background
 ----------
@@ -75,9 +87,6 @@ The Secure Boot process on {IDF_TARGET_NAME} involves the following steps:
 
 2. When the second stage bootloader loads a particular application image, the application's {IDF_TARGET_SBV2_SCHEME} signature is verified. If the verification is successful, the application image is executed.
 
-.. only:: SOC_ECDSA_P192_CURVE_DEFAULT_DISABLED
-
-    The ECDSA-P192 curve is disabled by default on {IDF_TARGET_NAME}. If the provided secure boot signing key uses the ECDSA-P192 curve, the system attempts to enable support for ECDSA-P192 curve mode to proceed with secure boot. However, if the curve mode has already been locked, enabling ECDSA-P192 is not possible. In such cases, secure boot cannot be configured using an ECDSA-P192 key. The user must instead provide a signing key based on the ECDSA-P256 curve or RSA based signing key.
 
 Advantages
 ----------
@@ -254,7 +263,7 @@ The content of each signature block is shown in the following table:
 
 .. only:: SOC_SECURE_BOOT_V2_ECC
 
-    .. list-table:: Content of an ECDSA-256 / ECDSA-192 Signature Block
+    .. list-table:: Content of an ECDSA-256 Signature Block
         :widths: 10 10 40
         :header-rows: 1
 
@@ -275,7 +284,7 @@ The content of each signature block is shown in the following table:
           - SHA-256 hash of only the image content, not including the signature block.
         * - 36
           - 1
-          - Curve ID. 1 for NIST192p curve. 2 for NIST256p curve.
+          - Curve ID. 2 for NIST256p curve.
         * - 37
           - 64
           - ECDSA Public key: 32-byte X coordinate followed by 32-byte Y coordinate.
@@ -350,7 +359,7 @@ In the Secure Boot v2 scheme, the application image is padded to the flash MMU p
 
     - Default flash MMU page size is 64 KB
     :SOC_MMU_PAGE_SIZE_CONFIGURABLE: - {IDF_TARGET_NAME} supports configurable flash MMU page size, and ``CONFIG_MMU_PAGE_SIZE`` gets set based on the :ref:`CONFIG_ESPTOOLPY_FLASHSIZE`
-    - Secure padding is applied through the option ``--secure-pad-v2`` in the ``elf2image`` conversion using ``esptool.py``
+    - Secure padding is applied through the option ``--secure-pad-v2`` in the ``elf2image`` conversion using ``esptool``
 
 The following table explains the Secure Boot v2 signed image with secure padding and signature block appended:
 
@@ -408,6 +417,16 @@ An image is verified if the public key stored in any signature block is valid fo
     3. Use the public key to verify the signature of the bootloader image, using either RSA-PSS (section 8.1.2 of RFC8017) or ECDSA signature verification (section 5.3.3 of RFC6090) with the image digest calculated in step (2) for comparison.
 
 
+Verifying Data Partitions
+--------------------------
+
+The Secure Boot v2 signature verification can also verify data partition images during OTA updates. Enable :ref:`CONFIG_SECURE_SIGNED_DATA_PARTITION` to verify data partitions with subtype ``ESP_PARTITION_SUBTYPE_DATA_UNDEFINED``.
+
+Data partition images must be signed using ``idf.py secure-sign-data`` with the same signing key and follow the same format as application images. The verification uses the public key digest(s) stored in eFuse and follows the process described in :ref:`verify_image`.
+
+For detailed information including OTA procedures and partition configuration, see :ref:`secure-signed-data-partition`.
+
+
 Bootloader Size
 ---------------
 
@@ -441,7 +460,7 @@ eFuse Usage
 
     - KEY_PURPOSE_X - Set the purpose of the key block on {IDF_TARGET_NAME} by programming SECURE_BOOT_DIGESTX (X = 0, 1, 2) into KEY_PURPOSE_X (X = 0, 1, 2, 3, 4, 5). Example: If KEY_PURPOSE_2 is set to SECURE_BOOT_DIGEST1, then BLOCK_KEY2 will have the Secure Boot v2 public key digest. The write-protection bit must be set, and this field does not have a read-protection bit.
 
-    - BLOCK_KEYX - The block contains the data corresponding to its purpose programmed in KEY_PURPOSE_X. Stores the SHA-256 digest of the public key is written to an eFuse key block. This digest is represented as 776 bytes, with offsets of 36 to 812, as per the :ref:`signature-block-format`. The write-protection bit must be set, but the read-protection bit must not.
+    - BLOCK_KEYX - The block contains the data corresponding to its function programmed in KEY_PURPOSE_X and stores the SHA-256 digest of the public key. The digest is 32 bytes in size. This digest is calculated from the 776-byte signature block (offset 36 to 812, including the public key modulus, exponent, and the precomputed R and M' values), as specified in the :ref:`signature-block-format`. The write-protection bit must be set, but the read-protection bit must not be set.
 
     - KEY_REVOKEX - The revocation bits corresponding to each of the 3 key blocks. E.g., setting KEY_REVOKE2 revokes the key block whose key purpose is SECURE_BOOT_DIGEST2.
 
@@ -487,7 +506,7 @@ How To Enable Secure Boot v2
 
     For production environments, we recommend generating the key pair using OpenSSL or another industry-standard encryption program. See :ref:`secure-boot-v2-generate-key` for more details.
 
-7. Run ``idf.py bootloader`` to build a Secure Boot-enabled bootloader. The build output will include a prompt for a flashing command, using ``esptool.py write_flash``.
+7. Run ``idf.py bootloader`` to build a Secure Boot-enabled bootloader. The build output will include a prompt for a flashing command, using ``esptool write-flash``.
 
 8. When you are ready to flash the bootloader, run the specified command and then wait for flashing to complete. You have to enter it yourself, this step is not performed by the build system.
 
@@ -509,6 +528,7 @@ How To Enable Secure Boot v2
 
 11. On subsequent boots, the Secure Boot hardware will verify that the second stage bootloader has not changed, and the second stage bootloader will verify the signed app image using the validated public key portion of its appended signature block.
 
+For a comprehensive example that enables Secure Boot v2 along with other security features such as flash encryption and NVS encryption, see :example:`security/security_features_app`.
 
 Restrictions After Secure Boot Is Enabled
 -----------------------------------------
@@ -519,9 +539,6 @@ Restrictions After Secure Boot Is Enabled
 
 - After Secure Boot is enabled, further read-protection of eFuse keys is not possible. This is done to prevent an attacker from read-protecting the eFuse block that contains the Secure Boot public key digest, which could result in immediate denial of service and potentially enable a fault injection attack to bypass the signature verification. For further information on read-protected keys, see the details below.
 
-.. only:: SOC_ECDSA_P192_CURVE_DEFAULT_DISABLED
-
-    When Secure Boot is enabled, the ECDSA curve mode becomes write-protected. This means that if the curve mode was not previously set to use the ECDSA-P192 key before enabling Secure Boot, it will no longer be possible to configure or use the ECDSA-P192 curve on the ECDSA peripheral afterward.
 
 Burning read-protected keys
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -570,11 +587,11 @@ The build system will prompt you with a command to generate a new signing key vi
 
   .. only:: SOC_ECDSA_SUPPORT_CURVE_P384
 
-    Select the ECDSA scheme by passing ``--version 2 --scheme ecdsa384``, ``--version 2 --scheme ecdsa256`` or ``--version 2 --scheme ecdsa192`` to generate corresponding ECDSA private key.
+    Select the ECDSA scheme by passing ``--version 2 --scheme ecdsa384`` or ``--version 2 --scheme ecdsa256`` to generate the corresponding ECDSA private key.
 
   .. only:: not SOC_ECDSA_SUPPORT_CURVE_P384
 
-    Select the ECDSA scheme by passing ``--version 2 --scheme ecdsa256`` or ``--version 2 --scheme ecdsa192`` to generate corresponding ECDSA private key.
+    Select the ECDSA scheme by passing ``--version 2 --scheme ecdsa256`` to generate the corresponding ECDSA private key.
 
 The strength of the signing key is proportional to (a) the random number source of the system, and (b) the correctness of the algorithm used. For production devices, we recommend generating signing keys from a system with a quality entropy source and using the best available {IDF_TARGET_SBV2_SCHEME} key generation utilities.
 
@@ -589,12 +606,6 @@ For example, to generate a signing key using the OpenSSL command line:
       openssl genrsa -out my_secure_boot_signing_key.pem 3072
 
 .. only:: SOC_SECURE_BOOT_V2_ECC
-
-    For the ECC NIST192p curve
-
-    .. code-block::
-
-        openssl ecparam -name prime192v1 -genkey -noout -out my_secure_boot_signing_key.pem
 
     For the ECC NIST256p curve
 
@@ -612,7 +623,6 @@ For example, to generate a signing key using the OpenSSL command line:
 
 Remember that the strength of the Secure Boot system depends on keeping the signing key private.
 
-
 .. _remote-sign-v2-image:
 
 Remote Signing of Images
@@ -621,7 +631,7 @@ Remote Signing of Images
 Signing Using ``idf.py``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-For production builds, it can be good practice to use a remote signing server rather than have the signing key on the build machine (which is the default ESP-IDF Secure Boot configuration). The ``espsecure.py`` command line program can be used to sign app images and partition table data for Secure Boot, on a remote system.
+For production builds, it can be good practice to use a remote signing server rather than have the signing key on the build machine (which is the default ESP-IDF Secure Boot configuration). The ``espsecure`` command line program can be used to sign app images and partition table data for Secure Boot, on a remote system.
 
 To use remote signing, disable the option :ref:`CONFIG_SECURE_BOOT_BUILD_SIGNED_BINARIES` and build the firmware. The private signing key does not need to be present on the build system.
 
@@ -663,7 +673,7 @@ In such cases, disable the option :ref:`CONFIG_SECURE_BOOT_BUILD_SIGNED_BINARIES
 
     .. note::
 
-        For all the above three remote signing workflows, the signed binary is written to the filename provided to the ``--output`` argument, and the option ``--append_signatures`` allows us to append multiple signatures (up to 3) to the image.
+        For all the above three remote signing workflows, the signed binary is written to the filename provided to the ``--output`` argument, and the option ``--append-signatures`` allows us to append multiple signatures (up to 3) to the image.
 
 .. only:: not SOC_EFUSE_REVOKE_BOOT_KEY_DIGESTS
 
@@ -689,7 +699,7 @@ Secure Boot Best Practices
     * Between 1 and 3 {IDF_TARGET_SBV2_KEY} public key pairs (Keys #0, #1, #2) should be computed independently and stored separately.
     * The KEY_DIGEST eFuses should be write-protected after being programmed.
     * The unused KEY_DIGEST slots must have their corresponding KEY_REVOKE eFuse burned to permanently disable them. This must happen before the device leaves the factory.
-    * The eFuses can either be written by the second stage bootloader during first boot after enabling ``Secure Boot v2`` from menuconfig or can be done using ``espefuse.py`` which communicates with the serial bootloader program in ROM.
+    * The eFuses can either be written by the second stage bootloader during first boot after enabling ``Secure Boot v2`` from menuconfig or can be done using ``espefuse`` which communicates with the serial bootloader program in ROM.
     * The KEY_DIGESTs should be numbered sequentially beginning at key digest #0. If key digest #1 is used, key digest #0 should be used. If key digest #2 is used, key digest #0 & #1 must be used.
     * The second stage bootloader is non-OTA upgradeable, and is signed using at least one, possibly all three, private keys and flashed in the factory.
     * Apps should only be signed with a single private key, with the others being stored securely elsewhere. However, they may be signed with multiple private keys if some are being revoked, see :ref:`secure-boot-v2-key-revocation` below.
@@ -704,20 +714,20 @@ Secure Boot Best Practices
 
     .. code-block::
 
-        idf.py secure-sign-data -k secure_boot_signing_key2.pem --append_signatures -o signed_bootloader.bin build/bootloader/bootloader.bin
+        idf.py secure-sign-data -k secure_boot_signing_key2.pem --append-signatures -o signed_bootloader.bin build/bootloader/bootloader.bin
 
     * While signing with multiple private keys, it is recommended that the private keys be signed independently, if possible on different servers and stored separately.
     * You can check the signatures attached to a binary using:
 
     .. code-block::
 
-        espsecure.py signature_info_v2 datafile.bin
+        espsecure signature-info-v2 datafile.bin
 
     .. only:: SOC_ECDSA_SUPPORT_CURVE_P384
 
       .. note::
 
-        If Secure Boot v2 is configured using the ECDSA P-384 signature scheme, all signing keys used must be ECDSA-P384 keys. Using keys with different elliptic curves (e.g., P-192 or P-256) alongside P-384 is not supported and will cause signature verification to fail during boot.
+        If Secure Boot v2 is configured using the ECDSA P-384 signature scheme, all signing keys used must be ECDSA-P384 keys. Using keys with different elliptic curves (for example, P-256) alongside P-384 is not supported and will cause signature verification to fail during boot.
 
     .. _secure-boot-v2-key-revocation:
 
@@ -731,9 +741,7 @@ Secure Boot Best Practices
 
     .. note::
 
-        Note that enabling the config :ref:`CONFIG_SECURE_BOOT_ALLOW_UNUSED_DIGEST_SLOTS` only makes sure that the **app** does not revoke the unused digest slots.
-        But if you plan to enable secure boot during the fist boot up, the bootloader will intentionally revoke the unused digest slots while enabling secure boot, even if the above config is enabled. Because keeping the unused key slots unrevoked would be a security hazard.
-        In case for any development workflow if you need to avoid this revocation, you should :ref:`enable-secure-boot-v2-externally`, rather than enabling it during the boot up, so that the bootloader would not need to enable secure boot, and thus you could avoid its revocation strategy.
+        Enabling the config :ref:`CONFIG_SECURE_BOOT_ALLOW_UNUSED_DIGEST_SLOTS` keeps the unused digest slots un-revoked in both cases: at runtime in the **app**, and in the **bootloader** when secure boot is enabled during the first boot up. Note that leaving unused key slots un-revoked could pose a security risk, unless the debug and download interfaces are completely disabled and remote interfaces are fully audited for security risks.
 
     Conservative Approach
     ~~~~~~~~~~~~~~~~~~~~~~

@@ -33,6 +33,7 @@ extern "C" {
 /* Codec type */
 #define BTC_AV_CODEC_NONE       0xFF
 #define BTC_AV_CODEC_SBC        A2D_MEDIA_CT_SBC        /* SBC media codec type */
+#define BTC_AV_CODEC_M24        A2D_MEDIA_CT_M24        /* M24 media codec type */
 
 #define BTC_AV_CODEC_PCM        0x5                     /* Raw PCM */
 
@@ -164,6 +165,7 @@ typedef UINT8 tBTC_AV_CHANNEL_MODE;
  * Structure used to configure the AV codec capabilities/config
  */
 typedef struct {
+    UINT8 id;                         /* ESP-IDF media codec type */
     UINT8 info[AVDT_CODEC_SIZE];     /* Codec info (can be config or capabilities) */
 } tBTC_AV_CODEC_INFO;
 

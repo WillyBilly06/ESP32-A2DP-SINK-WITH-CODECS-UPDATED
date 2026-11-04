@@ -22,27 +22,6 @@ DAC 外设支持以下列方式输出模拟信号：
 
 其他模拟输出选项可参考 :doc:`Sigma-Delta 调制 <sdm>` 和 :doc:`LED PWM 控制器 <ledc>`。这两个模块均输出高频的 PWM/PDM 信号，也可借助硬件低通滤波输出较低频率的模拟信号。
 
-DAC 文件结构
-------------
-
-.. figure:: ../../../_static/diagrams/dac/dac_file_structure.png
-    :align: center
-    :alt: DAC 文件结构
-
-    DAC 文件结构
-
-
-**需包含在 DAC 应用程序中的公共头文件包括：**
-
-- ``dac.h``：原有 DAC 驱动的最上层头文件，只包含在使用原有驱动 API 的应用程序中。
-- ``dac_oneshot.h``：新 DAC 驱动的最上层头文件，应包含在使用新驱动 API（单次模式）的应用程序中。
-- ``dac_cosine.h``：新 DAC 驱动的最上层头文件，应包含在使用新驱动 API（余弦模式）的应用程序中。
-- ``dac_continuous.h``：新 DAC 驱动的最上层头文件，应包含在使用新驱动 API（连续模式）的应用程序中。
-
-.. note::
-
-    原有驱动程序与新驱动程序无法共存。使用原有驱动需包含 ``dac.h``，使用新驱动需包含 ``dac_oneshot.h``、 ``dac_cosine.h`` 和 ``dac_continuous.h``。后续更新或将移除原有驱动程序。
-
 功能概览
 --------
 
@@ -64,6 +43,43 @@ DAC 通道可以通过 DMA 连续转换数字信号，这种模式下有三种�
     1. 常规写入（同步）：一次性传输所有数据并在所有数据均已载入 DMA 缓冲区前保持阻塞状态。如果不再继续输入数据，电压将维持在最后的转换值。该模式通常用于传输音频等长信号。要连续转换数据，需要调用 :cpp:func:`dac_continuous_new_channels` 来分配连续通道句柄，调用 :cpp:func:`dac_continuous_enable` 来启用 DMA 转换，然后调用 :cpp:func:`dac_continuous_write` 来同步写入数据。示例可参考 :example:`peripherals/dac/dac_continuous/dac_audio`。
     2. 循环写入：在数据载入 DMA 缓冲区后，缓冲区中的数据将以非阻塞的方式被循环转换。但要注意，输入的缓冲区大小受 DMA 描述符数量和 DMA 缓冲区大小的限制。该模式通常用于传输如正弦波等需要重复的短信号。为了启用循环写入，需要在启用 DAC 连续模式后调用 :cpp:func:`dac_continuous_write_cyclically`。示例可参考 :example:`peripherals/dac/dac_continuous/signal_generator`。
     3. 异步写入。可根据事件回调异步传输数据。需要调用 :cpp:member:`dac_event_callbacks_t::on_convert_done` 以启用异步模式。用户在回调中可得到 :cpp:type:`dac_event_data_t`，其中包含 DMA 缓冲区的地址和长度，即允许用户直接将数据载入 DMA 缓冲区。启用异步写入前需要调用 :cpp:func:`dac_continuous_register_event_callback`、 :cpp:member:`dac_event_callbacks_t::on_convert_done` 和 :cpp:func:`dac_continuous_start_async_writing`。注意，异步写入一旦开始，回调函数将被持续触发。调用 :cpp:func:`dac_continuous_write_asynchronously` 可以在某个单独任务中或直接在回调函数中载入数据。示例可参考 :example:`peripherals/dac/dac_continuous/dac_audio`。
+
+下图展示了连续模式驱动的生命周期，以及各 API 对应的状态转移：
+
+.. mermaid::
+
+    flowchart TD
+        NC([空闲（初始状态）]) -->|"new_channels()"| REG[已注册]
+        REG -->|"del_channels()"| NC
+        REG -->|"enable()"| EN[已启用]
+        EN -->|"disable()"| REG
+
+        EN -->|"start_async_writing()"| ASYNC[异步写入]
+        ASYNC -->|"stop_async_writing()"| EN
+
+        EN -->|"write_cyclically()"| CYCLIC[循环写入]
+        CYCLIC -->|"stop_cyclically()"| EN
+
+        EN -->|"write()"| SYNC[同步写入]
+        SYNC -->|"write()"| SYNC
+        SYNC -->|"传输完成后"| EN
+
+        subgraph REG_APIS [已注册状态可用 API]
+            REGCB["register_event_callbacks()"]
+        end
+
+        subgraph ASYNC_APIS [异步写入可用 API]
+            AWRITE["write_asynchronously()"]
+        end
+
+        REG -. 可调用 .-> REGCB
+        ASYNC -. 收到回调通知后调用 .-> AWRITE
+
+.. note::
+
+    - 为了简洁，图中省略了各函数名的前缀 ``dac_continuous_``。
+    - 为了向后兼容，循环写入的退出函数 :cpp:func:`dac_continuous_stop_cyclically` 是可选的，所有从已启用状态出发的函数会自动检查并停止任何正在进行的循环写入。推荐显式调用 :cpp:func:`dac_continuous_stop_cyclically` 来停止循环写入。
+    - 同步写入无需显式退出，所有从已启用状态出发的函数会自动立即停止任何正在进行的同步写入（尚未转换的数据将被丢弃）。
 
 .. only:: esp32
 
@@ -111,6 +127,8 @@ IRAM 安全
 
 此时在 cache 被禁用时仍可以运行中断，但会增加 IRAM 内存消耗。
 
+.. _dac-iram-safe:
+
 线程安全
 ^^^^^^^^
 
@@ -119,8 +137,7 @@ IRAM 安全
 Kconfig 选项
 ^^^^^^^^^^^^^
 
-- :ref:`CONFIG_DAC_ISR_IRAM_SAFE` 控制默认 ISR 处理程序在 cache 被禁用时能否继续运行。更多信息可参考 `IRAM 安全 <#iram-safe>`__。
-- :ref:`CONFIG_DAC_SUPPRESS_DEPRECATE_WARN` 控制是否在使用原有 DAC 驱动时关闭警告信息。
+- :ref:`CONFIG_DAC_ISR_IRAM_SAFE` 控制默认 ISR 处理程序在 cache 被禁用时能否继续运行。更多信息可参考 :ref:`dac-iram-safe`。
 - :ref:`CONFIG_DAC_ENABLE_DEBUG_LOG` 用于启用调试日志输出。启用该选项将增加固件的二进制文件大小。
 
 .. only:: esp32
@@ -142,4 +159,4 @@ API 参考
 .. include-build-file:: inc/dac_cosine.inc
 .. include-build-file:: inc/dac_continuous.inc
 .. include-build-file:: inc/components/esp_driver_dac/include/driver/dac_types.inc
-.. include-build-file:: inc/components/hal/include/hal/dac_types.inc
+.. include-build-file:: inc/components/esp_hal_ana_conv/include/hal/dac_types.inc

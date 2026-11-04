@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2015-2025 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2015-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -7,13 +7,14 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/param.h> // For MIN/MAX
-#include "spi_flash_chip_generic.h"
-#include "spi_flash_defs.h"
-#include "hal/spi_flash_encrypt_hal.h"
 #include "esp_log.h"
 #include "esp_attr.h"
-#include "esp_private/spi_flash_os.h"
 #include "esp_rom_caps.h"
+
+#include "hal/spi_flash_encrypt_hal.h"
+#include "esp_flash_chips/spi_flash_defs.h"
+#include "esp_flash_chips/spi_flash_chip_generic.h"
+#include "esp_private/spi_flash_os.h"
 
 #define IS_REGION_32BIT(start, len)    ((start) + (len) > (1<<24))
 #define IS_ADDR_32BIT(addr)            (addr >= (1<<24))
@@ -53,12 +54,14 @@ DRAM_ATTR flash_chip_dummy_t *rom_flash_chip_dummy_hpm = (flash_chip_dummy_t *)&
 
 // These are the pointer to HW flash encryption. Default using hardware encryption.
 DRAM_ATTR static spi_flash_encryption_t esp_flash_encryption_default __attribute__((__unused__)) = {
+#if SOC_FLASH_ENC_SUPPORTED
     .flash_encryption_enable = spi_flash_encryption_hal_enable,
     .flash_encryption_disable = spi_flash_encryption_hal_disable,
     .flash_encryption_data_prepare = spi_flash_encryption_hal_prepare,
     .flash_encryption_done = spi_flash_encryption_hal_done,
     .flash_encryption_destroy = spi_flash_encryption_hal_destroy,
     .flash_encryption_check = spi_flash_encryption_hal_check,
+#endif
 };
 
 #define SPI_FLASH_DEFAULT_IDLE_TIMEOUT_MS           200
@@ -603,7 +606,7 @@ esp_err_t spi_flash_chip_generic_write_encrypted(esp_flash_t *chip, const void *
         esp_flash_encryption->flash_encryption_data_prepare(address, (uint32_t *)data_bytes, block_size);
         err = chip->chip_drv->set_chip_write_protect(chip, false);
         if (err != ESP_OK) {
-            return err;
+            goto err_out;
         }
         // Waiting for encrypting buffer to finish and making result visible for SPI1
         esp_flash_encryption->flash_encryption_done();
@@ -614,11 +617,11 @@ esp_err_t spi_flash_chip_generic_write_encrypted(esp_flash_t *chip, const void *
 
         err = chip->chip_drv->write(chip, (uint32_t *)data_bytes, address, length);
         if (err != ESP_OK) {
-            return err;
+            goto err_out;
         }
         err = chip->chip_drv->wait_idle(chip, chip->chip_drv->timeout->page_program_timeout);
         if (err != ESP_OK) {
-            return err;
+            goto err_out;
         }
 
         // Note: we don't wait for idle status here, because this way
@@ -632,6 +635,11 @@ esp_err_t spi_flash_chip_generic_write_encrypted(esp_flash_t *chip, const void *
         address += block_size;
     }
 
+    esp_flash_encryption->flash_encryption_disable();
+    return err;
+
+err_out:
+    esp_flash_encryption->flash_encryption_destroy();
     esp_flash_encryption->flash_encryption_disable();
     return err;
 }

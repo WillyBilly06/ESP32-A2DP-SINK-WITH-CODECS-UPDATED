@@ -1,11 +1,10 @@
 /**
- * SPDX-FileCopyrightText: 2024 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2025 Espressif Systems (Shanghai) CO LTD
  *
- *  SPDX-License-Identifier: Apache-2.0
+ *  SPDX-License-Identifier: Apache-2.0 OR MIT
  */
 #pragma once
 
-#include <stdint.h>
 #include "soc/soc.h"
 #ifdef __cplusplus
 extern "C" {
@@ -119,15 +118,15 @@ extern "C" {
 #define PMS_LP_MM_L2MEM_MON_ALLOW_M  (PMS_LP_MM_L2MEM_MON_ALLOW_V << PMS_LP_MM_L2MEM_MON_ALLOW_S)
 #define PMS_LP_MM_L2MEM_MON_ALLOW_V  0x00000001U
 #define PMS_LP_MM_L2MEM_MON_ALLOW_S  9
-/** PMS_LP_MM_TCM_MON_ALLOW : R/W; bitpos: [10]; default: 1;
- *  Configures whether the LP CPU in machine mode has permission to access TCM monitor.
+/** PMS_LP_MM_SPM_MON_ALLOW : R/W; bitpos: [10]; default: 1;
+ *  Configures whether the LP CPU in machine mode has permission to access SPM monitor.
  *  0: Not allowed
  *  1: Allowed
  */
-#define PMS_LP_MM_TCM_MON_ALLOW    (BIT(10))
-#define PMS_LP_MM_TCM_MON_ALLOW_M  (PMS_LP_MM_TCM_MON_ALLOW_V << PMS_LP_MM_TCM_MON_ALLOW_S)
-#define PMS_LP_MM_TCM_MON_ALLOW_V  0x00000001U
-#define PMS_LP_MM_TCM_MON_ALLOW_S  10
+#define PMS_LP_MM_SPM_MON_ALLOW    (BIT(10))
+#define PMS_LP_MM_SPM_MON_ALLOW_M  (PMS_LP_MM_SPM_MON_ALLOW_V << PMS_LP_MM_SPM_MON_ALLOW_S)
+#define PMS_LP_MM_SPM_MON_ALLOW_V  0x00000001U
+#define PMS_LP_MM_SPM_MON_ALLOW_S  10
 /** PMS_LP_MM_CACHE_ALLOW : R/W; bitpos: [11]; default: 1;
  *  Configures whether the LP CPU in machine mode has permission to access cache.
  *  0: Not allowed
@@ -181,16 +180,6 @@ extern "C" {
 #define PMS_LP_MM_HP_GDMA_ALLOW_M  (PMS_LP_MM_HP_GDMA_ALLOW_V << PMS_LP_MM_HP_GDMA_ALLOW_S)
 #define PMS_LP_MM_HP_GDMA_ALLOW_V  0x00000001U
 #define PMS_LP_MM_HP_GDMA_ALLOW_S  3
-/** PMS_LP_MM_HP_REGDMA_ALLOW : R/W; bitpos: [4]; default: 1;
- *  Configures whether the LP CPU in machine mode has permission to access HP GDMA (DW
- *  GDMA).
- *  0: Not allowed
- *  1: Allow
- */
-#define PMS_LP_MM_HP_REGDMA_ALLOW    (BIT(4))
-#define PMS_LP_MM_HP_REGDMA_ALLOW_M  (PMS_LP_MM_HP_REGDMA_ALLOW_V << PMS_LP_MM_HP_REGDMA_ALLOW_S)
-#define PMS_LP_MM_HP_REGDMA_ALLOW_V  0x00000001U
-#define PMS_LP_MM_HP_REGDMA_ALLOW_S  4
 /** PMS_LP_MM_HP_SDMMC_ALLOW : R/W; bitpos: [5]; default: 1;
  *  Configures whether the LP CPU in machine mode has permission to access HP SDMMC.
  *  0: Not allowed
@@ -360,16 +349,16 @@ extern "C" {
 #define PMS_LP_MM_HP_RMT_ALLOW_M  (PMS_LP_MM_HP_RMT_ALLOW_V << PMS_LP_MM_HP_RMT_ALLOW_S)
 #define PMS_LP_MM_HP_RMT_ALLOW_V  0x00000001U
 #define PMS_LP_MM_HP_RMT_ALLOW_S  22
-/** PMS_LP_MM_HP_BITSRAMBLER_ALLOW : R/W; bitpos: [23]; default: 1;
+/** PMS_LP_MM_HP_BITSCRAMBLER_ALLOW : R/W; bitpos: [23]; default: 1;
  *  Configures whether the LP CPU in machine mode has permission to access HP bit
  *  scrambler.
  *  0: Not allowed
  *  1: Allowed
  */
-#define PMS_LP_MM_HP_BITSRAMBLER_ALLOW    (BIT(23))
-#define PMS_LP_MM_HP_BITSRAMBLER_ALLOW_M  (PMS_LP_MM_HP_BITSRAMBLER_ALLOW_V << PMS_LP_MM_HP_BITSRAMBLER_ALLOW_S)
-#define PMS_LP_MM_HP_BITSRAMBLER_ALLOW_V  0x00000001U
-#define PMS_LP_MM_HP_BITSRAMBLER_ALLOW_S  23
+#define PMS_LP_MM_HP_BITSCRAMBLER_ALLOW    (BIT(23))
+#define PMS_LP_MM_HP_BITSCRAMBLER_ALLOW_M  (PMS_LP_MM_HP_BITSCRAMBLER_ALLOW_V << PMS_LP_MM_HP_BITSCRAMBLER_ALLOW_S)
+#define PMS_LP_MM_HP_BITSCRAMBLER_ALLOW_V  0x00000001U
+#define PMS_LP_MM_HP_BITSCRAMBLER_ALLOW_S  23
 /** PMS_LP_MM_HP_AXI_ICM_ALLOW : R/W; bitpos: [24]; default: 1;
  *  Configures whether the LP CPU in machine mode has permission to access HP AXI ICM.
  *  0: Not allowed

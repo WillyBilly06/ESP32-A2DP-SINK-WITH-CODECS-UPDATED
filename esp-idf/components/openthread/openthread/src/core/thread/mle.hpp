@@ -31,8 +31,8 @@
  *   This file includes definitions for MLE functionality required by the Thread Child, Router, and Leader roles.
  */
 
-#ifndef MLE_HPP_
-#define MLE_HPP_
+#ifndef OT_CORE_THREAD_MLE_HPP_
+#define OT_CORE_THREAD_MLE_HPP_
 
 #include "openthread-core-config.h"
 
@@ -50,6 +50,7 @@
 #include "common/time_ticker.hpp"
 #include "common/timer.hpp"
 #include "common/trickle_timer.hpp"
+#include "common/uptime.hpp"
 #include "crypto/aes_ccm.hpp"
 #include "mac/mac.hpp"
 #include "mac/mac_types.hpp"
@@ -130,6 +131,7 @@ class Mle : public InstanceLocator, private NonCopyable
 #if OPENTHREAD_FTD
     friend class ot::TimeTicker;
     friend class Tmf::Agent;
+    friend class ot::RouterTable;
 #endif
 
 public:
@@ -564,34 +566,58 @@ public:
     uint16_t GetLeaderRloc16(void) const { return Rloc16FromRouterId(GetLeaderId()); }
 
     /**
-     * Retrieves the Leader's RLOC.
+     * Composes a Routing Locator (RLOC) address for a given RLOC16.
+     *
+     * @param[in]   aRloc16   The RLOC16 value.
+     * @param[out]  aAddress  A reference to an address to return the RLOC.
+     */
+    void ComposeRloc(uint16_t aRloc16, Ip6::Address &aAddress) const;
+
+    /**
+     * Composes an Anycast Locator (ALOC) address for a given ALOC16.
+     *
+     * @param[in]   aAloc16   The ALOC16 value.
+     * @param[out]  aAddress  A reference to an address to return the ALOC.
+     */
+    void ComposeAloc(uint16_t aAloc16, Ip6::Address &aAddress) const { ComposeRloc(aAloc16, aAddress); }
+
+    /**
+     * Composes the Leader's RLOC.
      *
      * @param[out]  aAddress  A reference to an address to return the Leader's RLOC.
      */
-    void GetLeaderRloc(Ip6::Address &aAddress) const;
+    void ComposeLeaderRloc(Ip6::Address &aAddress) const;
 
     /**
-     * Retrieves the Leader's ALOC.
+     * Composes the Leader's ALOC.
      *
      * @param[out]  aAddress  A reference to an address to return the Leader's ALOC.
      */
-    void GetLeaderAloc(Ip6::Address &aAddress) const;
+    void ComposeLeaderAloc(Ip6::Address &aAddress) const;
 
     /**
-     * Retrieves the Commissioner's ALOC for a given session ID.
+     * Composes the Commissioner's ALOC for a given session ID.
      *
-     * @param[in]   aSessionId      Commissioner session id.
+     * @param[in]   aSessionId      Commissioner session ID.
      * @param[out]  aAddress        A reference to an address to return the Commissioner's ALOC.
      */
-    void GetCommissionerAloc(uint16_t aSessionId, Ip6::Address &aAddress) const;
+    void ComposeCommissionerAloc(uint16_t aSessionId, Ip6::Address &aAddress) const;
 
     /**
-     * Retrieves the Service ALOC for given Service ID.
+     * Composes the Service ALOC for a given Service ID.
      *
-     * @param[in]   aServiceId Service ID to get ALOC for.
-     * @param[out]  aAddress   A reference to an address to return the Service ALOC.
+     * @param[in]   aServiceId   Service ID to compose ALOC for.
+     * @param[out]  aAddress     A reference to an address to return the Service ALOC.
      */
-    void GetServiceAloc(uint8_t aServiceId, Ip6::Address &aAddress) const;
+    void ComposeServiceAloc(uint8_t aServiceId, Ip6::Address &aAddress) const;
+
+    /**
+     * Composes a Mesh-Local IPv6 Address from a given Interface Identifier.
+     *
+     * @param[in]   aIid       The Interface Identifier to use.
+     * @param[out]  aAddress   A reference to the IPv6 Address to populate.
+     */
+    void ComposeMeshLocalAddress(const Ip6::InterfaceIdentifier &aIid, Ip6::Address &aAddress) const;
 
     /**
      * Returns the most recently received Leader Data.
@@ -759,14 +785,6 @@ public:
 
 #if OPENTHREAD_FTD
     /**
-     * Indicates whether or not the device is router-eligible.
-     *
-     * @retval true   If device is router-eligible.
-     * @retval false  If device is not router-eligible.
-     */
-    bool IsRouterEligible(void) const;
-
-    /**
      * Sets whether or not the device is router-eligible.
      *
      * If @p aEligible is false and the device is currently operating as a router, this call will cause the device to
@@ -777,7 +795,18 @@ public:
      * @retval kErrorNone         Successfully set the router-eligible configuration.
      * @retval kErrorNotCapable   The device is not capable of becoming a router.
      */
-    Error SetRouterEligible(bool aEligible);
+    Error SetRouterEligible(bool aEligible) { return mRoleTransitioner.SetRouterEligible(aEligible); }
+
+    /**
+     * Indicates whether the router role is currently allowed.
+     *
+     * A device is allowed to become a router if it is a Full Thread Device (FTD), is currently configured to be
+     * router-eligible (see `SetRouterEligible(true)`), and the active Security Policy permits routers.
+     *
+     * @retval TRUE   If the router role is allowed.
+     * @retval FALSE  If the router role is not allowed.
+     */
+    bool IsRouterRoleAllowed(void) const { return mRoleTransitioner.IsRouterRoleAllowed(); }
 
     /**
      * Indicates whether a node is the only router on the network.
@@ -869,7 +898,6 @@ public:
      * @param[in]  aPartitionId  The preferred Leader Partition Id.
      */
     void SetPreferredLeaderPartitionId(uint32_t aPartitionId) { mPreferredLeaderPartitionId = aPartitionId; }
-#endif
 
     /**
      * Sets the preferred Router Id. Upon becoming a router/leader the node
@@ -883,6 +911,8 @@ public:
      * @retval kErrorInvalidState  Could not set (role is other than detached and disabled)
      */
     Error SetPreferredRouterId(uint8_t aRouterId);
+
+#endif // OPENTHREAD_CONFIG_REFERENCE_DEVICE_ENABLE
 
     /**
      * Gets the Partition Id which the device joined successfully once.
@@ -922,14 +952,14 @@ public:
      *
      * @returns The ROUTER_SELECTION_JITTER value in seconds.
      */
-    uint8_t GetRouterSelectionJitter(void) const { return mRouterRoleTransition.GetJitter(); }
+    uint8_t GetRouterSelectionJitter(void) const { return mRoleTransitioner.GetJitter(); }
 
     /**
      * Sets the ROUTER_SELECTION_JITTER value.
      *
      * @param[in] aRouterJitter  The router selection jitter value (in seconds).
      */
-    void SetRouterSelectionJitter(uint8_t aRouterJitter) { mRouterRoleTransition.SetJitter(aRouterJitter); }
+    void SetRouterSelectionJitter(uint8_t aRouterJitter) { mRoleTransitioner.SetJitter(aRouterJitter); }
 
     /**
      * Indicates whether or not router role transition (upgrade from REED or downgrade to REED) is pending.
@@ -937,7 +967,7 @@ public:
      * @retval TRUE    Router role transition is pending.
      * @retval FALSE   Router role transition is not pending
      */
-    bool IsRouterRoleTransitionPending(void) const { return mRouterRoleTransition.IsPending(); }
+    bool IsRouterRoleTransitionPending(void) const { return mRoleTransitioner.IsTransitionPending(); }
 
     /**
      * Returns the current timeout delay in seconds till router role transition (upgrade from REED or downgrade to
@@ -945,35 +975,76 @@ public:
      *
      * @returns The timeout in seconds till router role transition, or zero if not pending role transition.
      */
-    uint8_t GetRouterRoleTransitionTimeout(void) const { return mRouterRoleTransition.GetTimeout(); }
+    uint8_t GetRouterRoleTransitionTimeout(void) const { return mRoleTransitioner.GetTimeout(); }
 
     /**
      * Returns the ROUTER_UPGRADE_THRESHOLD value.
      *
      * @returns The ROUTER_UPGRADE_THRESHOLD value.
      */
-    uint8_t GetRouterUpgradeThreshold(void) const { return mRouterUpgradeThreshold; }
+    uint8_t GetRouterUpgradeThreshold(void) const { return mRoleTransitioner.GetUpgradeThreshold(); }
 
     /**
      * Sets the ROUTER_UPGRADE_THRESHOLD value.
      *
+     * This threshold is used by the device to decide whether to upgrade from a child (REED) to a router role. It is
+     * not used when the device is acting as the Leader to evaluate upgrade requests from other devices.
+     *
      * @param[in]  aThreshold  The ROUTER_UPGRADE_THRESHOLD value.
      */
-    void SetRouterUpgradeThreshold(uint8_t aThreshold) { mRouterUpgradeThreshold = aThreshold; }
+    void SetRouterUpgradeThreshold(uint8_t aThreshold) { mRoleTransitioner.SetUpgradeThreshold(aThreshold); }
+
+    /**
+     * Returns the leader upgrade threshold value.
+     *
+     * This threshold is used only when the device is operating as the Leader to decide whether to accept or reject
+     * an Address Solicit request from a router-eligible end device (REED) wishing to upgrade to a router.
+     *
+     * @returns The leader upgrade threshold value.
+     */
+    uint8_t GetLeaderUpgradeThreshold(void) const { return mLeaderUpgradeThreshold; }
+
+    /**
+     * Sets the leader upgrade threshold value.
+     *
+     * This threshold is used only when the device is operating as the Leader to decide whether to accept or reject
+     * an Address Solicit request from a router-eligible end device (REED) wishing to upgrade to a router.
+     *
+     * @param[in]  aThreshold  The leader upgrade threshold value.
+     */
+    void SetLeaderUpgradeThreshold(uint8_t aThreshold) { mLeaderUpgradeThreshold = aThreshold; }
 
     /**
      * Returns the ROUTER_DOWNGRADE_THRESHOLD value.
      *
      * @returns The ROUTER_DOWNGRADE_THRESHOLD value.
      */
-    uint8_t GetRouterDowngradeThreshold(void) const { return mRouterDowngradeThreshold; }
+    uint8_t GetRouterDowngradeThreshold(void) const { return mRoleTransitioner.GetDowngradeThreshold(); }
 
     /**
      * Sets the ROUTER_DOWNGRADE_THRESHOLD value.
      *
      * @param[in]  aThreshold  The ROUTER_DOWNGRADE_THRESHOLD value.
      */
-    void SetRouterDowngradeThreshold(uint8_t aThreshold) { mRouterDowngradeThreshold = aThreshold; }
+    void SetRouterDowngradeThreshold(uint8_t aThreshold) { mRoleTransitioner.SetDowngradeThreshold(aThreshold); }
+
+    /**
+     * Indicates whether or not downgrading from router role to REED is blocked.
+     *
+     * If the transition to the router role was triggered by a Child ID Request, it indicates that the child has no
+     * other parent option. In this case the downgrade is blocked to prevent the parent router becoming REED to ensure
+     * this child remains connected. This flag is cleared in various situations:
+     *
+     * - When device detaches (e.g. partition change).
+     * - If a new router is added (new possible parent).
+     * - If all children blocking downgrade are disconnected.
+     *
+     * This method is intended for testing purposes only.
+     *
+     * @retval TRUE   The device is blocked from downgrading.
+     * @retval FALSE  The device is not blocked from downgrading.
+     */
+    bool IsDowngradeBlocked(void) const { return mRoleTransitioner.IsDowngradeBlocked(); }
 
     /**
      * Returns the MLE_CHILD_ROUTER_LINKS value.
@@ -998,7 +1069,7 @@ public:
      * @retval TRUE   If the REED is going to become a Router soon.
      * @retval FALSE  If the REED is not going to become a Router soon.
      */
-    bool WillBecomeRouterSoon(void) const;
+    bool WillBecomeRouterSoon(void) const { return mRoleTransitioner.WillBecomeRouterSoon(); }
 
     /**
      * Removes a link to a neighbor.
@@ -1032,11 +1103,11 @@ public:
                                  const LeaderData &aLeaderDataB);
 
     /**
-     * Fills an ConnectivityTlv.
+     * Fills a `ConnectivityTlvValue`.
      *
-     * @param[out]  aTlv  A reference to the tlv to be filled.
+     * @param[out]  aTlvValue  A reference to a `ConnectivityTlvValue` be filled.
      */
-    void FillConnectivityTlv(ConnectivityTlv &aTlv);
+    void FillConnectivityTlvValue(ConnectivityTlvValue &aTlvValue) const;
 
     /**
      * Schedule tx of MLE Advertisement message (unicast) to the given neighboring router after a random delay.
@@ -1091,28 +1162,33 @@ public:
      */
     Error GetMaxChildTimeout(uint32_t &aTimeout) const;
 
+#if OPENTHREAD_CONFIG_MLE_DISCOVERY_SCAN_REQUEST_CALLBACK_ENABLE
+    /**
+     * Callback function pointer invoked reporting a receiving a MLE Discovery Request.
+     */
+    typedef otThreadDiscoveryRequestCallback DiscoveryRequestCallback;
+
+    /**
+     * Represents info about a received Discovery Request.
+     */
+    typedef otThreadDiscoveryRequestInfo DiscoveryRequestInfo;
+
     /**
      * Sets the callback that is called when processing an MLE Discovery Request message.
      *
      * @param[in]  aCallback A pointer to a function that is called to deliver MLE Discovery Request data.
      * @param[in]  aContext  A pointer to application-specific context.
      */
-    void SetDiscoveryRequestCallback(otThreadDiscoveryRequestCallback aCallback, void *aContext)
+    void SetDiscoveryRequestCallback(DiscoveryRequestCallback aCallback, void *aContext)
     {
         mDiscoveryRequestCallback.Set(aCallback, aContext);
     }
+#endif
 
     /**
      * Resets the MLE Advertisement Trickle timer interval.
      */
     void ResetAdvertiseInterval(void);
-
-    /**
-     * Updates the MLE Advertisement Trickle timer max interval (if timer is running).
-     *
-     * This is called when there is change in router table.
-     */
-    void UpdateAdvertiseInterval(void);
 
 #if OPENTHREAD_CONFIG_TIME_SYNC_ENABLE
     /**
@@ -1124,40 +1200,21 @@ public:
     Error SendTimeSync(void);
 #endif
 
-    /**
-     * Gets the maximum number of IP addresses that each MTD child may register with this device as parent.
-     *
-     * @returns The maximum number of IP addresses that each MTD child may register with this device as parent.
-     */
-    uint8_t GetMaxChildIpAddresses(void) const;
-
 #if OPENTHREAD_CONFIG_REFERENCE_DEVICE_ENABLE
-
-    /**
-     * Sets/restores the maximum number of IP addresses that each MTD child may register with this
-     * device as parent.
-     *
-     * @param[in]  aMaxIpAddresses  The maximum number of IP addresses that each MTD child may register with this
-     *                              device as parent. 0 to clear the setting and restore the default.
-     *
-     * @retval kErrorNone           Successfully set/cleared the number.
-     * @retval kErrorInvalidArgs    If exceeds the allowed maximum number.
-     */
-    Error SetMaxChildIpAddresses(uint8_t aMaxIpAddresses);
 
     /**
      * Sets whether the device was commissioned using CCM.
      *
      * @param[in]  aEnabled  TRUE if the device was commissioned using CCM, FALSE otherwise.
      */
-    void SetCcmEnabled(bool aEnabled) { mCcmEnabled = aEnabled; }
+    void SetCcmEnabled(bool aEnabled) { mRoleTransitioner.SetCcmEnabled(aEnabled); }
 
     /**
      * Sets whether the Security Policy TLV version-threshold for routing (VR field) is enabled.
      *
      * @param[in]  aEnabled  TRUE to enable Security Policy TLV version-threshold for routing, FALSE otherwise.
      */
-    void SetThreadVersionCheckEnabled(bool aEnabled) { mThreadVersionCheckEnabled = aEnabled; }
+    void SetThreadVersionCheckEnabled(bool aEnabled) { mRoleTransitioner.SetThreadVersionCheckEnabled(aEnabled); }
 
     /**
      * Gets the current Interval Max value used by Advertisement trickle timer.
@@ -1238,6 +1295,7 @@ private:
     static constexpr uint32_t kParentRequestReedTimeout      = 1250; // Wait timer after tx of Parent Req to REEDs
     static constexpr uint32_t kParentRequestDuplicateTimeout = 700;  // Min time to detect duplicate Parent Req rx
     static constexpr uint32_t kChildIdResponseTimeout        = 1250; // Wait time to receive Child ID Response
+    static constexpr uint32_t kChildIdResponseJitter         = kChildIdResponseTimeout * 1 / 10; // Jitter 10%
     static constexpr uint32_t kAttachStartJitter             = 50;   // Max jitter time added to start of attach
     static constexpr uint32_t kAnnounceProcessTimeout        = 250;  // Delay after Announce rx before processing
     static constexpr uint32_t kAnnounceTimeout               = 1400; // Total timeout for sending Announce messages
@@ -1292,7 +1350,6 @@ private:
     static constexpr uint8_t  kMleHopLimit                   = 255;
     static constexpr uint8_t  kMleSecurityTagSize            = 4;
     static constexpr uint32_t kDefaultStoreFrameCounterAhead = OPENTHREAD_CONFIG_STORE_FRAME_COUNTER_AHEAD;
-    static constexpr uint8_t  kMaxIpAddressesToRegister      = OPENTHREAD_CONFIG_MLE_IP_ADDRS_TO_REGISTER;
     static constexpr uint32_t kDefaultChildTimeout           = OPENTHREAD_CONFIG_MLE_CHILD_TIMEOUT_DEFAULT;
     static constexpr uint32_t kDefaultCslTimeout             = OPENTHREAD_CONFIG_CSL_TIMEOUT;
 
@@ -1318,6 +1375,7 @@ private:
     static constexpr uint8_t  kRouterDowngradeThreshold      = 23;
     static constexpr uint8_t  kRouterUpgradeThreshold        = 16;
     static constexpr uint16_t kDiscoveryMaxJitter            = 250; // Max jitter delay Discovery Responses (in msec).
+    static constexpr uint32_t kMaxScheduledDiscoveryResponse = 16;  // Rate-limit Discovery response.
     static constexpr uint16_t kUnsolicitedDataResponseJitter = 500; // Max delay for unsol Data Response (in msec).
     static constexpr uint8_t  kLeaderDowngradeExtraDelay     = 10;  // Extra delay to downgrade leader (in sec).
     static constexpr uint8_t  kDefaultLeaderWeight           = 64;
@@ -1331,7 +1389,6 @@ private:
     static constexpr uint8_t kLinkRequestMinMargin    = OPENTHREAD_CONFIG_MLE_LINK_REQUEST_MARGIN_MIN;
     static constexpr uint8_t kPartitionMergeMinMargin = OPENTHREAD_CONFIG_MLE_PARTITION_MERGE_MARGIN_MIN;
     static constexpr uint8_t kChildRouterLinks        = OPENTHREAD_CONFIG_MLE_CHILD_ROUTER_LINKS;
-    static constexpr uint8_t kMaxChildIpAddresses     = OPENTHREAD_CONFIG_MLE_IP_ADDRS_PER_CHILD;
 
     // Constants for gradual router link establishment (on FTD child)
     struct GradualChildRouterLink
@@ -1448,8 +1505,8 @@ private:
     {
         kMessageSend,
         kMessageReceive,
-        kMessageDelay,
-        kMessageRemoveDelayed,
+        kMessageScheduleDelayedSend,
+        kMessageRemoveDelayedSend,
     };
 
     enum MessageType : uint8_t
@@ -1529,20 +1586,21 @@ private:
     class TxMessage : public Message
     {
     public:
+        // Appending single TLV
         Error AppendSourceAddressTlv(void);
+        Error AppendModeTlv(void);
         Error AppendModeTlv(DeviceMode aMode);
         Error AppendTimeoutTlv(uint32_t aTimeout);
         Error AppendChallengeTlv(const TxChallenge &aChallenge);
         Error AppendResponseTlv(const RxChallenge &aResponse);
         Error AppendLinkFrameCounterTlv(void);
         Error AppendMleFrameCounterTlv(void);
-        Error AppendLinkAndMleFrameCounterTlvs(void);
         Error AppendAddress16Tlv(uint16_t aRloc16);
         Error AppendNetworkDataTlv(NetworkData::Type aType);
         Error AppendTlvRequestTlv(const uint8_t *aTlvs, uint8_t aTlvsLength);
         Error AppendLeaderDataTlv(void);
         Error AppendScanMaskTlv(uint8_t aScanMask);
-        Error AppendStatusTlv(StatusTlv::Status aStatus);
+        Error AppendStatusTlv(Status aStatus);
         Error AppendLinkMarginTlv(uint8_t aLinkMargin);
         Error AppendVersionTlv(void);
         Error AppendAddressRegistrationTlv(AddressRegistrationMode aMode = kAppendAllAddresses);
@@ -1551,7 +1609,6 @@ private:
         Error AppendXtalAccuracyTlv(void);
         Error AppendActiveTimestampTlv(void);
         Error AppendPendingTimestampTlv(void);
-        Error AppendActiveAndPendingTimestampTlvs(void);
 #if OPENTHREAD_CONFIG_TIME_SYNC_ENABLE
         Error AppendTimeRequestTlv(void);
         Error AppendTimeParameterTlv(void);
@@ -1564,7 +1621,8 @@ private:
         Error AppendCslClockAccuracyTlv(void);
 #endif
 #if OPENTHREAD_FTD
-        Error AppendRouteTlv(Neighbor *aNeighbor = nullptr);
+        Error AppendRouteTlv(void);
+        Error AppendCompactRouteTlv(uint16_t aDestRloc16);
         Error AppendActiveDatasetTlv(void);
         Error AppendPendingDatasetTlv(void);
         Error AppendConnectivityTlv(void);
@@ -1576,11 +1634,17 @@ private:
             return AppendTlvRequestTlv(aTlvArray, kArrayLength);
         }
 
+        // Appending multiple TLVs
+        Error AppendLinkAndMleFrameCounterTlvs(void);
+        Error AppendSourceAddressAndLeaderDataTlvs(void);
+        Error AppendActiveAndPendingTimestampTlvs(void);
+
         Error SendTo(const Ip6::Address &aDestination);
 
     private:
         Error AppendAddressRegistrationEntry(const Ip6::Address &aAddress);
         Error AppendDatasetTlv(MeshCoP::Dataset::Type aDatasetType);
+        Error AppendFullOrCompactRouteTlv(uint16_t aDestRloc16);
     };
 
     //- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -1597,6 +1661,7 @@ private:
         Error ReadFrameCounterTlvs(uint32_t &aLinkFrameCounter, uint32_t &aMleFrameCounter) const;
         Error ReadTlvRequestTlv(TlvList &aTlvList) const;
         Error ReadLeaderDataTlv(LeaderData &aLeaderData) const;
+        Error ReadConnectivityTlv(Connectivity &aConnectivity) const;
         Error ReadAndSetNetworkDataTlv(const LeaderData &aLeaderData) const;
         Error ReadAndSaveActiveDataset(const MeshCoP::Timestamp &aActiveTimestamp) const;
         Error ReadAndSavePendingDataset(const MeshCoP::Timestamp &aPendingTimestamp) const;
@@ -1604,7 +1669,7 @@ private:
         Error ReadCslClockAccuracyTlv(Mac::CslAccuracy &aCslAccuracy) const;
 #endif
 #if OPENTHREAD_FTD
-        Error ReadRouteTlv(RouteTlv &aRouteTlv) const;
+        Error ReadRouteTlv(RouteTlv::Data &aRouteTlvData) const;
 #endif
 
     private:
@@ -1645,6 +1710,13 @@ private:
 
     //- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
+    struct ChildUpdateResponseInfo
+    {
+        TlvList      mTlvList;     // The TLVs to include in the Child Update Response.
+        RxChallenge  mChallenge;   // The received challenge from the Child Update Request (can be empty if none).
+        Ip6::Address mDestination; // The destination address.
+    };
+
 #if OPENTHREAD_FTD
     struct ParentResponseInfo
     {
@@ -1659,6 +1731,7 @@ private:
         Mac::ExtAddress mExtAddress;       // The neighbor/router extended address.
         TlvList         mRequestedTlvList; // The requested TLVs in Link Request.
         RxChallenge     mRxChallenge;      // The challenge in Link Request.
+        uint16_t        mRloc16;           // The neighbor/router RLOC16.
         uint8_t         mLinkMargin;       // Link margin of the received Link Request.
     };
 #endif
@@ -1674,7 +1747,7 @@ private:
 
     struct AddrSolicitInfo
     {
-        Error ParseFrom(const Coap::Message &aMessage);
+        Error ParseFrom(const Coap::Msg &aMsg);
 
         Mac::ExtAddress mExtAddress;
         uint16_t        mRequestedRloc16;
@@ -1731,15 +1804,16 @@ private:
             MessageType  mMessageType;
         };
 
-        void AddSchedule(MessageType         aMessageType,
-                         const Ip6::Address &aDestination,
-                         uint32_t            aDelay,
-                         const void         *aInfo,
-                         uint16_t            aInfoSize);
-        void Execute(const Schedule &aSchedule);
-        bool HasMatchingSchedule(MessageType aMessageType, const Ip6::Address &aDestination) const;
-        void RemoveMatchingSchedules(MessageType aMessageType, const Ip6::Address &aDestination);
-        void LogRemove(const Schedule &aSchedule);
+        void     AddSchedule(MessageType         aMessageType,
+                             const Ip6::Address &aDestination,
+                             uint32_t            aDelay,
+                             const void         *aInfo,
+                             uint16_t            aInfoSize);
+        void     Execute(const Schedule &aSchedule);
+        bool     HasMatchingSchedule(MessageType aMessageType, const Ip6::Address &aDestination) const;
+        void     RemoveMatchingSchedules(MessageType aMessageType, const Ip6::Address &aDestination);
+        uint32_t CountMatchingSchedules(MessageType aMessageType) const;
+        void     LogRemove(const Schedule &aSchedule);
 
         static bool Match(const Schedule &aSchedule, MessageType aMessageType, const Ip6::Address &aDestination);
 
@@ -1778,6 +1852,24 @@ private:
         uint8_t  mKeyIndex;
     } OT_TOOL_PACKED_END;
 
+    static_assert(sizeof(SecurityHeader) == 10, "SecurityHeader is not packed");
+
+    //- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+    OT_TOOL_PACKED_BEGIN
+    struct AesCcmAuthData
+    {
+        // Represents the authenticated data used during MLE AES-CCM
+        // security processing. It includes the sender and receiver
+        // IPv6 addresses followed by the Aux Security Header.
+
+        Ip6::Address   mSenderAddr;
+        Ip6::Address   mReceiverAddr;
+        SecurityHeader mSecurityHeader;
+    } OT_TOOL_PACKED_END;
+
+    static_assert(sizeof(AesCcmAuthData) == 42, "AesCcmAuthData is not packed");
+
     //- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
     class ParentCandidate : public Parent
@@ -1787,16 +1879,10 @@ private:
         void Clear(void);
         void CopyTo(Parent &aParent) const;
 
-        RxChallenge mRxChallenge;
-        int8_t      mPriority;
-        uint8_t     mLinkQuality3;
-        uint8_t     mLinkQuality2;
-        uint8_t     mLinkQuality1;
-        uint16_t    mSedBufferSize;
-        uint8_t     mSedDatagramCount;
-        uint8_t     mLinkMargin;
-        LeaderData  mLeaderData;
-        bool        mIsSingleton;
+        RxChallenge  mRxChallenge;
+        Connectivity mConnectivity;
+        uint8_t      mLinkMargin;
+        LeaderData   mLeaderData;
     };
 
     //- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -1828,15 +1914,23 @@ private:
         bool  IsRestoringChildRole(void) const { return mState == kRestoringChildRole; }
         bool  IsRestoringRouterOrLeaderRole(void) const { return mState == kRestoringRouterOrLeaderRole; }
         void  HandleTimer(void);
+        void  HandleChildUpdateRequest(RxInfo &aRxInfo) { CheckIfMessageIsFromParent(aRxInfo); }
 
         void               GenerateRandomChallenge(void) { mChallenge.GenerateRandom(); }
         const TxChallenge &GetChallenge(void) const { return mChallenge; }
 
     private:
-        static constexpr uint32_t kMaxStartDelay                = 25;
-        static constexpr uint8_t  kMaxChildUpdatesToRestoreRole = kMaxChildKeepAliveAttempts;
-        static constexpr uint32_t kChildUpdateRetxDelay         = kUnicastRetxDelay; /// 1000 msec
-        static constexpr uint16_t kRetxJitter                   = 5;
+        static constexpr uint32_t kMaxStartDelay = 25; // in msec
+
+        // Restoring Child Role (sending "child update request").
+        static constexpr uint8_t  kChildUpdateAttempts                = 4;
+        static constexpr uint8_t  kExtraChildUpdatesAfterRxFromParent = 2;
+        static constexpr uint16_t kChildUpdateMinTimeout              = 1000; // in ms
+        static constexpr uint16_t kChildUpdateStartTimeout            = 4000; // in ms
+        static constexpr uint16_t kChildUpdateRetxJitter              = 25;   // in ms
+        static constexpr uint8_t  kRestoreLinkRequestAttempts         = 4;
+        static constexpr uint32_t kLeaderRetxDelayMin = kLinkRequestTimeout * 9 / 10;  // 0.9 * base delay
+        static constexpr uint32_t kLeaderRetxDelayMax = kLinkRequestTimeout * 11 / 10; // 1.1 * base delay
 
         enum State : uint8_t
         {
@@ -1847,15 +1941,17 @@ private:
 
         void SetState(State aState);
         void SendChildUpdate(void);
+        void CheckIfMessageIsFromParent(RxInfo &aRxInfo);
 #if OPENTHREAD_FTD
-        void DetermineMaxLinkRequestAttempts(void);
         void SendMulticastLinkRequest(void);
 #endif
 
         using DelayTimer = TimerMilliIn<Mle, &Mle::HandleRoleRestorerTimer>;
 
         State       mState;
-        uint8_t     mAttempts;
+        uint8_t     mAttempts : 7;
+        bool        mUseIncreasingTimeout : 1;
+        uint16_t    mCurTimeout;
         DelayTimer  mTimer;
         TxChallenge mChallenge;
     };
@@ -1866,6 +1962,8 @@ private:
 
     class Attacher : public InstanceLocator
     {
+        friend class ot::UnitTester;
+
     public:
         explicit Attacher(Instance &aInstance);
 
@@ -1903,6 +2001,8 @@ private:
             kReattachModePending, // Reattach using stored Pending Dataset
         };
 
+        static constexpr uint8_t kMaxChildIdRequests = 3;
+
         void     SetState(State aState);
         uint32_t GetStartDelay(void) const;
         bool     HasAcceptableParentCandidate(void) const;
@@ -1917,7 +2017,7 @@ private:
         bool  PrepareAnnounceState(void);
         bool  IsBetterParent(uint16_t                aRloc16,
                              uint8_t                 aTwoWayLinkMargin,
-                             const ConnectivityTlv  &aConnectivityTlv,
+                             const Connectivity     &aConnectivity,
                              uint16_t                aVersion,
                              const Mac::CslAccuracy &aCslAccuracy);
 
@@ -1937,6 +2037,7 @@ private:
         AddressRegistrationMode mAddressRegistrationMode;
         uint8_t                 mParentRequestCounter;
         uint8_t                 mAnnounceChannel;
+        uint8_t                 mChildIdRequestsRemaining;
         uint16_t                mAttachCounter;
         uint16_t                mAnnounceDelay;
         TxChallenge             mParentRequestChallenge;
@@ -2154,26 +2255,65 @@ private:
 
 #if OPENTHREAD_FTD
 
-    class RouterRoleTransition
+    class RoleTransitioner : public InstanceLocator
     {
-    public:
-        RouterRoleTransition(void);
+        // Manages the router role upgrade/downgrade transitions
 
-        bool    IsPending(void) const { return (mTimeout != 0); }
+    public:
+        enum UpdateRouterRoleAllowedReason : uint8_t // Used in `UpdateRouterRoleAllowed()`
+        {
+            kReasonMleInit,
+            kReasonDeviceModeChanged,
+            kReasonConfigParameterChanged,
+            kReasonSecurityPolicyChanged,
+        };
+
+        explicit RoleTransitioner(Instance &aInstance);
+
+        bool    IsRouterRoleAllowed(void) const { return mRouterRoleAllowed; }
+        void    UpdateRouterRoleAllowed(UpdateRouterRoleAllowedReason aReason);
+        Error   SetRouterEligible(bool aEligible);
+        uint8_t GetJitter(void) const { return mJitter; }
+        void    SetJitter(uint8_t aJitter) { mJitter = aJitter; }
+        uint8_t GetUpgradeThreshold(void) const { return mUpgradeThreshold; }
+        void    SetUpgradeThreshold(uint8_t aThreshold) { mUpgradeThreshold = aThreshold; }
+        uint8_t GetDowngradeThreshold(void) const { return mDowngradeThreshold; }
+        void    SetDowngradeThreshold(uint8_t aThreshold) { mDowngradeThreshold = aThreshold; }
+        bool    IsDowngradeBlocked(void) const { return mDowngradeBlocked; }
+        void    SetDowngradeBlocked(bool aBlocked) { mDowngradeBlocked = aBlocked; }
+        bool    IsTransitionPending(void) const { return (mTimeout != 0); }
+        bool    WillBecomeRouterSoon(void) const;
         void    StartTimeout(void);
         void    StopTimeout(void) { mTimeout = 0; }
         void    IncreaseTimeout(uint8_t aIncrement) { mTimeout += aIncrement; }
         uint8_t GetTimeout(void) const { return mTimeout; }
-        bool    HandleTimeTick(void);
-        uint8_t GetJitter(void) const { return mJitter; }
-        void    SetJitter(uint8_t aJitter) { mJitter = aJitter; }
+        bool    IsRouterCountBelowUpgradeThreshold(void) const;
+        void    HandleTimeTick(void);
+        void    DecideWhetherToUpgrade(void);
+        void    DecideWhetherToDowngrade(uint8_t aNeighborId, const RouteTlv::Data &aRouteTlvData);
+#if OPENTHREAD_CONFIG_REFERENCE_DEVICE_ENABLE
+        void SetCcmEnabled(bool aEnabled);
+        void SetThreadVersionCheckEnabled(bool aEnabled);
+#endif
 
     private:
+        bool DetermineIfRouterRoleAllowed(void) const;
+        bool NeighborHasComparableConnectivity(uint8_t aNeighborId, const RouteTlv::Data &aRouteTlvData) const;
+
+        bool mRouterEligible : 1;
+        bool mRouterRoleAllowed : 1;
+        bool mDowngradeBlocked : 1;
+#if OPENTHREAD_CONFIG_REFERENCE_DEVICE_ENABLE
+        bool mCcmEnabled : 1;
+        bool mThreadVersionCheckEnabled : 1;
+#endif
         uint8_t mTimeout;
         uint8_t mJitter;
+        uint8_t mUpgradeThreshold;
+        uint8_t mDowngradeThreshold;
     };
 
-#endif
+#endif // OPENTHREAD_FTD
 
     //------------------------------------------------------------------------------------------------------------------
 #if OPENTHREAD_CONFIG_P2P_ENABLE
@@ -2262,9 +2402,8 @@ private:
     void       HandleUdpReceive(Message &aMessage, const Ip6::MessageInfo &aMessageInfo);
     void       ReestablishLinkWithNeighbor(Neighbor &aNeighbor);
     Error      SendChildUpdateRequestToParent(ChildUpdateRequestMode aMode);
-    Error      SendChildUpdateResponse(const TlvList      &aTlvList,
-                                       const RxChallenge  &aChallenge,
-                                       const Ip6::Address &aDestination);
+    Error      SendChildUpdateRejectResponse(ChildUpdateResponseInfo &aInfo);
+    Error      SendChildUpdateResponse(const ChildUpdateResponseInfo &aInfo);
     void       SetRloc16(uint16_t aRloc16);
     void       SetStateDetached(void);
     void       SetStateChild(uint16_t aRloc16);
@@ -2282,17 +2421,17 @@ private:
     void       HandleChildUpdateResponseOnChild(RxInfo &aRxInfo);
     void       HandleDataResponse(RxInfo &aRxInfo);
     Error      HandleLeaderData(RxInfo &aRxInfo);
-    bool       HasUnregisteredAddress(void);
     uint32_t   GetAttachStartDelay(void) const;
     void       SendAnnounce(uint8_t aChannel, AnnounceMode aMode);
     void       SendAnnounce(uint8_t aChannel, const Ip6::Address &aDestination, AnnounceMode aMode = kNormalAnnounce);
     bool       IsNetworkDataNewer(const LeaderData &aLeaderData);
+    bool       HasUnregisteredAddress(void) const;
+    bool       ShouldRegisterUnicastAddrWithParent(const Ip6::Netif::UnicastAddress &aUnicastAddress) const;
     bool       ShouldRegisterMulticastAddrsWithParent(void) const;
-    Error      ProcessMessageSecurity(Crypto::AesCcm::Mode    aMode,
-                                      Message                &aMessage,
-                                      const Ip6::MessageInfo &aMessageInfo,
-                                      uint16_t                aCmdOffset,
-                                      const SecurityHeader   &aHeader);
+    Error      ProcessMessageSecurity(Crypto::AesCcm::Operation aOperation,
+                                      Message                  &aMessage,
+                                      uint16_t                  aCmdOffset,
+                                      const AesCcmAuthData     &aAuthData);
 
 #if OPENTHREAD_CONFIG_MLE_INFORM_PREVIOUS_PARENT_ON_REATTACH
     void InformPreviousParent(void);
@@ -2357,9 +2496,9 @@ private:
     void     ClearAlternateRloc16(void);
     uint8_t  SelectLeaderId(void) const;
     uint32_t SelectPartitionId(void) const;
+    void     DetermineConnectivity(Connectivity &aConnectivity) const;
     void     HandleDetachStart(void);
     void     HandleChildStart(void);
-    void     HandleSecurityPolicyChanged(void);
     void     HandleLinkRequest(RxInfo &aRxInfo);
     void     HandleLinkAccept(RxInfo &aRxInfo);
     void     HandleLinkAcceptAndRequest(RxInfo &aRxInfo);
@@ -2373,7 +2512,7 @@ private:
     void     HandleNetworkDataUpdateRouter(void);
     void     HandleDiscoveryRequest(RxInfo &aRxInfo);
     void     EstablishRouterLinkOnFtdChild(Router &aRouter, RxInfo &aRxInfo, uint8_t aLinkMargin);
-    Error    ProcessRouteTlv(const RouteTlv &aRouteTlv, RxInfo &aRxInfo);
+    Error    ProcessRouteTlv(const RouteTlv::Data &aRouteTlvData, RxInfo &aRxInfo);
     Error    ReadAndProcessRouteTlvOnFtdChild(RxInfo &aRxInfo, uint8_t aParentId);
     void     StopAdvertiseTrickleTimer(void);
     uint32_t DetermineAdvertiseIntervalMax(void) const;
@@ -2387,10 +2526,7 @@ private:
     void     SendParentResponse(const ParentResponseInfo &aInfo);
     Error    SendChildIdResponse(Child &aChild);
     Error    SendChildUpdateRequestToChild(Child &aChild);
-    void     SendChildUpdateResponseToChild(Child                  *aChild,
-                                            const Ip6::MessageInfo &aMessageInfo,
-                                            const TlvList          &aTlvList,
-                                            const RxChallenge      &aChallenge);
+    void     SendChildUpdateResponseToChild(Child *aChild, const ChildUpdateResponseInfo &aInfo);
     void     SendMulticastDataResponse(void);
     void     SendDataResponse(const Ip6::Address &aDestination,
                               const TlvList      &aTlvList,
@@ -2407,25 +2543,17 @@ private:
     void     SetChildStateToValid(Child &aChild);
     bool     HasChildren(void);
     void     RemoveChildren(void);
-    bool     ShouldDowngrade(uint8_t aNeighborId, const RouteTlv &aRouteTlv) const;
-    bool     NeighborHasComparableConnectivity(const RouteTlv &aRouteTlv, uint8_t aNeighborId) const;
     void     HandleAdvertiseTrickleTimer(void);
-    void     HandleAddressSolicitResponse(Coap::Message *aMessage, const Ip6::MessageInfo *aMessageInfo, Error aResult);
     void     HandleTimeTick(void);
+    void     HandleRouterTableEvent(RouterTable::Events aEvents);
 
-    template <Uri kUri> void HandleTmf(Coap::Message &aMessage, const Ip6::MessageInfo &aMessageInfo);
+    template <Uri kUri> void HandleTmf(Coap::Msg &aMsg);
 
-#if OPENTHREAD_CONFIG_TMF_PROXY_DUA_ENABLE
-    void SignalDuaAddressEvent(const Child &aChild, const Ip6::Address &aOldDua) const;
-#endif
+    DeclareTmfResponseHandlerIn(Mle, HandleAddressSolicitResponse);
 
     static bool IsMessageMleSubType(const Message &aMessage);
     static bool IsMessageChildUpdateRequest(const Message &aMessage);
     static void HandleAdvertiseTrickleTimer(TrickleTimer &aTimer);
-    static void HandleAddressSolicitResponse(void                *aContext,
-                                             otMessage           *aMessage,
-                                             const otMessageInfo *aMessageInfo,
-                                             otError              aResult);
 
 #if OT_SHOULD_LOG_AT(OT_LOG_LEVEL_INFO)
     const char *RouterUpgradeReasonToString(uint8_t aReason);
@@ -2457,8 +2585,8 @@ private:
 #if OPENTHREAD_CONFIG_MAC_CSL_RECEIVER_ENABLE
     uint32_t mCslTimeout;
 #endif
-    uint32_t         mLastAttachTime;
-    uint64_t         mLastUpdatedTimestamp;
+    UptimeSec        mLastAttachTime;
+    UptimeMsec       mLastUpdatedTimestamp;
     LeaderData       mLeaderData;
     Parent           mParent;
     NeighborTable    mNeighborTable;
@@ -2489,26 +2617,17 @@ private:
 
 #if OPENTHREAD_FTD
 
-    bool mRouterEligible : 1;
-    bool mAddressSolicitPending : 1;
-    bool mAddressSolicitRejected : 1;
-#if OPENTHREAD_CONFIG_REFERENCE_DEVICE_ENABLE
-    bool mCcmEnabled : 1;
-    bool mThreadVersionCheckEnabled : 1;
-#endif
-    uint8_t mRouterId;
-    uint8_t mPreviousRouterId;
-    uint8_t mNetworkIdTimeout;
-    uint8_t mRouterUpgradeThreshold;
-    uint8_t mRouterDowngradeThreshold;
-    uint8_t mLeaderWeight;
-    uint8_t mPreviousPartitionRouterIdSequence;
-    uint8_t mPreviousPartitionIdTimeout;
-    uint8_t mChildRouterLinks;
-    uint8_t mAlternateRloc16Timeout;
-#if OPENTHREAD_CONFIG_REFERENCE_DEVICE_ENABLE
-    uint8_t mMaxChildIpAddresses;
-#endif
+    bool     mAddressSolicitPending : 1;
+    bool     mAddressSolicitRejected : 1;
+    uint8_t  mRouterId;
+    uint8_t  mPreviousRouterId;
+    uint8_t  mNetworkIdTimeout;
+    uint8_t  mLeaderWeight;
+    uint8_t  mPreviousPartitionRouterIdSequence;
+    uint8_t  mPreviousPartitionIdTimeout;
+    uint8_t  mChildRouterLinks;
+    uint8_t  mAlternateRloc16Timeout;
+    uint8_t  mLeaderUpgradeThreshold;
     int8_t   mParentPriority;
     uint32_t mPreviousPartitionIdRouter;
     uint32_t mPreviousPartitionId;
@@ -2518,7 +2637,7 @@ private:
     TrickleTimer               mAdvertiseTrickleTimer;
     ChildTable                 mChildTable;
     RouterTable                mRouterTable;
-    RouterRoleTransition       mRouterRoleTransition;
+    RoleTransitioner           mRoleTransitioner;
     Ip6::Netif::UnicastAddress mLeaderAloc;
 #if OPENTHREAD_CONFIG_MLE_DEVICE_PROPERTY_LEADER_WEIGHT_ENABLE
     DeviceProperties mDeviceProperties;
@@ -2526,7 +2645,9 @@ private:
 #if OPENTHREAD_CONFIG_MLE_STEERING_DATA_SET_OOB_ENABLE
     MeshCoP::SteeringData mSteeringData;
 #endif
-    Callback<otThreadDiscoveryRequestCallback> mDiscoveryRequestCallback;
+#if OPENTHREAD_CONFIG_MLE_DISCOVERY_SCAN_REQUEST_CALLBACK_ENABLE
+    Callback<DiscoveryRequestCallback> mDiscoveryRequestCallback;
+#endif
 
 #endif // OPENTHREAD_FTD
 
@@ -2548,4 +2669,4 @@ DeclareTmfHandler(Mle, kUriAddressRelease);
 
 } // namespace ot
 
-#endif // MLE_HPP_
+#endif // OT_CORE_THREAD_MLE_HPP_

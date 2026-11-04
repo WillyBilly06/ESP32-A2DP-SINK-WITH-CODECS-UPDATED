@@ -21,13 +21,10 @@
 #include "nimble/hci_common.h"
 #include "host/ble_hs_hci.h"
 #include "ble_hs_priv.h"
+#include "host/ble_hs_log.h"
 
 #ifndef min
 #define min(a, b) ((a) < (b) ? (a) : (b))
-#endif
-
-#ifndef max
-#define max(a, b) ((a) > (b) ? (a) : (b))
 #endif
 
 uint16_t
@@ -37,9 +34,9 @@ ble_hs_hci_util_handle_pb_bc_join(uint16_t handle, uint8_t pb, uint8_t bc)
     BLE_HS_DBG_ASSERT(pb <= 0x03);
     BLE_HS_DBG_ASSERT(bc <= 0x03);
 
-    return (handle  << 0)   |
-           (pb      << 12)  |
-           (bc      << 14);
+    return ((handle & 0x0FFF) << 0)   |
+           ((pb     & 0x03)   << 12)  |
+           ((bc     & 0x03)   << 14);
 }
 
 int
@@ -47,6 +44,11 @@ ble_hs_hci_util_read_adv_tx_pwr(int8_t *out_tx_pwr)
 {
     struct ble_hci_le_rd_adv_chan_txpwr_rp rsp;
     int rc;
+
+    if (out_tx_pwr == NULL) {
+        BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_EINVAL);
+        return BLE_HS_EINVAL;
+    }
 
     rc = ble_hs_hci_cmd_tx(BLE_HCI_OP(BLE_HCI_OGF_LE,
                                       BLE_HCI_OCF_LE_RD_ADV_CHAN_TXPWR),
@@ -73,6 +75,11 @@ ble_hs_hci_util_rand(void *dst, int len)
     int chunk_sz;
     int rc;
 
+    if (len <= 0) {
+        BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_EINVAL);
+        return BLE_HS_EINVAL;
+    }
+
     u8ptr = dst;
     while (len > 0) {
         rc = ble_hs_hci_cmd_tx(BLE_HCI_OP(BLE_HCI_OGF_LE, BLE_HCI_OCF_LE_RAND),
@@ -81,7 +88,7 @@ ble_hs_hci_util_rand(void *dst, int len)
             return rc;
         }
 
-        chunk_sz = min(len, (int)sizeof(rsp));
+        chunk_sz = min(len, (int)sizeof(rsp.random_number));
         memcpy(u8ptr, &rsp.random_number, chunk_sz);
 
         len -= chunk_sz;
@@ -99,6 +106,11 @@ ble_hs_hci_util_read_rssi(uint16_t conn_handle, int8_t *out_rssi)
 
     int rc;
 
+    if (out_rssi == NULL) {
+        BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_EINVAL);
+        return BLE_HS_EINVAL;
+    }
+
     cmd.handle = htole16(conn_handle);
 
     rc = ble_hs_hci_cmd_tx(BLE_HCI_OP(BLE_HCI_OGF_STATUS_PARAMS,
@@ -109,6 +121,7 @@ ble_hs_hci_util_read_rssi(uint16_t conn_handle, int8_t *out_rssi)
     }
 
     if (le16toh(rsp.handle) != conn_handle) {
+        BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_ECONTROLLER);
         return BLE_HS_ECONTROLLER;
     }
 
@@ -121,6 +134,11 @@ int
 ble_hs_hci_util_set_random_addr(const uint8_t *addr)
 {
     struct ble_hci_le_set_rand_addr_cp cmd;
+
+    if (addr == NULL) {
+        BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_EINVAL);
+        return BLE_HS_EINVAL;
+    }
 
     memcpy(cmd.addr, addr, BLE_DEV_ADDR_LEN);
 
@@ -139,11 +157,13 @@ ble_hs_hci_util_set_data_len(uint16_t conn_handle, uint16_t tx_octets,
 
     if (tx_octets < BLE_HCI_SET_DATALEN_TX_OCTETS_MIN ||
         tx_octets > BLE_HCI_SET_DATALEN_TX_OCTETS_MAX) {
+        BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_EINVAL);
         return BLE_HS_EINVAL;
     }
 
     if (tx_time < BLE_HCI_SET_DATALEN_TX_TIME_MIN ||
         tx_time > BLE_HCI_SET_DATALEN_TX_TIME_MAX) {
+        BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_EINVAL);
         return BLE_HS_EINVAL;
     }
 
@@ -159,6 +179,7 @@ ble_hs_hci_util_set_data_len(uint16_t conn_handle, uint16_t tx_octets,
     }
 
     if (le16toh(rsp.conn_handle) != conn_handle) {
+        BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_ECONTROLLER);
         return BLE_HS_ECONTROLLER;
     }
 
@@ -171,6 +192,11 @@ ble_hs_hci_util_read_sugg_def_data_len(uint16_t *out_sugg_max_tx_octets,
 {
     struct ble_hci_le_rd_sugg_def_data_len_rp rsp;
     int rc;
+
+    if (out_sugg_max_tx_octets == NULL || out_sugg_max_tx_time == NULL) {
+        BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_EINVAL);
+        return BLE_HS_EINVAL;
+    }
 
     rc = ble_hs_hci_cmd_tx(BLE_HCI_OP(BLE_HCI_OGF_LE,
                                       BLE_HCI_OCF_LE_RD_SUGG_DEF_DATA_LEN),
@@ -205,11 +231,13 @@ ble_hs_hci_util_write_sugg_def_data_len(uint16_t sugg_max_tx_octets,
 
     if (sugg_max_tx_octets < BLE_HCI_SUGG_DEF_DATALEN_TX_OCTETS_MIN ||
         sugg_max_tx_octets > BLE_HCI_SUGG_DEF_DATALEN_TX_OCTETS_MAX) {
+        BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_EINVAL);
         return BLE_HS_EINVAL;
     }
 
     if (sugg_max_tx_time < BLE_HCI_SUGG_DEF_DATALEN_TX_TIME_MIN ||
         sugg_max_tx_time > BLE_HCI_SUGG_DEF_DATALEN_TX_TIME_MAX) {
+        BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_EINVAL);
         return BLE_HS_EINVAL;
     }
 
@@ -229,6 +257,7 @@ ble_hs_hci_util_data_hdr_strip(struct os_mbuf *om,
 
     rc = os_mbuf_copydata(om, 0, BLE_HCI_DATA_HDR_SZ, out_hdr);
     if (rc != 0) {
+        BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_ECONTROLLER);
         return BLE_HS_ECONTROLLER;
     }
 
@@ -248,6 +277,11 @@ ble_hs_hci_read_chan_map(uint16_t conn_handle, uint8_t *out_chan_map)
     struct ble_hci_le_rd_chan_map_rp rsp;
     int rc;
 
+    if (out_chan_map == NULL) {
+        BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_EINVAL);
+        return BLE_HS_EINVAL;
+    }
+
     cmd.conn_handle = htole16(conn_handle);
 
     rc = ble_hs_hci_cmd_tx(BLE_HCI_OP(BLE_HCI_OGF_LE,
@@ -258,10 +292,11 @@ ble_hs_hci_read_chan_map(uint16_t conn_handle, uint8_t *out_chan_map)
     }
 
     if (le16toh(rsp.conn_handle) != conn_handle) {
+        BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_ECONTROLLER);
         return BLE_HS_ECONTROLLER;
     }
 
-    memcpy(out_chan_map, rsp.chan_map, 5);
+    memcpy(out_chan_map, rsp.chan_map, sizeof(rsp.chan_map));
 
     return 0;
 }
@@ -271,6 +306,11 @@ ble_hs_hci_set_chan_class(const uint8_t *chan_map)
 {
     struct ble_hci_le_set_host_chan_class_cp cmd;
 
+    if (chan_map == NULL) {
+        BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_EINVAL);
+        return BLE_HS_EINVAL;
+    }
+
     memcpy(cmd.chan_map, chan_map, sizeof(cmd.chan_map));
 
     return ble_hs_hci_cmd_tx(BLE_HCI_OP(BLE_HCI_OGF_LE,
@@ -278,6 +318,7 @@ ble_hs_hci_set_chan_class(const uint8_t *chan_map)
                              &cmd, sizeof(cmd), NULL, 0);
 }
 
+#if MYNEWT_VAL(BLE_UTIL_API)
 int
 ble_hs_hci_util_set_data_addr_change(uint8_t adv_handle, uint8_t change_reason)
 {
@@ -291,7 +332,9 @@ ble_hs_hci_util_set_data_addr_change(uint8_t adv_handle, uint8_t change_reason)
 
     return ble_hs_hci_cmd_tx(opcode, &cmd, sizeof(cmd), NULL, 0);
 }
+#endif
 
+#if MYNEWT_VAL(BLE_DTM_MODE_TEST)
 int
 ble_hs_hci_dtm_tx_start(const uint8_t tx_chan, const uint8_t test_data_len,
 		        const uint8_t payload)
@@ -347,7 +390,7 @@ ble_hs_hci_dtm_enh_tx_start(const uint8_t tx_chan, const uint8_t test_data_len,
 
 int
 ble_hs_hci_dtm_enh_rx_start(const uint8_t rx_chan, const uint8_t index,
-			    const uint8_t phy)
+                            const uint8_t phy)
 {
     struct ble_hci_le_rx_test_v2_cp cmd;
     uint16_t opcode;
@@ -360,13 +403,16 @@ ble_hs_hci_dtm_enh_rx_start(const uint8_t rx_chan, const uint8_t index,
 
     return ble_hs_hci_cmd_tx_no_rsp(opcode, &cmd, sizeof(cmd));
 }
+#endif
 
+#if MYNEWT_VAL(BLE_UTIL_API)
 int
 ble_hs_hci_set_host_feature(uint8_t bit_num, uint8_t bit_val)
 {
     struct ble_hci_le_set_host_feature_cp cmd;
 
     if (bit_val > 0x01) {
+        BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_EINVAL);
         return BLE_HS_EINVAL;
     }
 
@@ -377,6 +423,7 @@ ble_hs_hci_set_host_feature(uint8_t bit_num, uint8_t bit_val)
                                         BLE_HCI_OCF_LE_SET_HOST_FEATURE),
                              &cmd, sizeof(cmd), NULL, 0);
 }
+#endif
 
 int
 ble_hs_hci_rd_all_local_supp_features(uint8_t* status, uint8_t* max_page,
@@ -384,6 +431,11 @@ ble_hs_hci_rd_all_local_supp_features(uint8_t* status, uint8_t* max_page,
 {
     struct ble_hci_le_rd_all_local_feat_rp rsp;
     int rc;
+
+    if (status == NULL || max_page == NULL || le_features == NULL) {
+        BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_EINVAL);
+        return BLE_HS_EINVAL;
+    }
 
     rc = ble_hs_hci_cmd_tx(BLE_HCI_OP(BLE_HCI_OGF_LE,
                                       BLE_HCI_OCF_LE_RD_ALL_LOCAL_SUP_FEAT), NULL, 0,
@@ -396,7 +448,7 @@ ble_hs_hci_rd_all_local_supp_features(uint8_t* status, uint8_t* max_page,
     *status = rsp.status;
     *max_page = rsp.max_page;
 
-    memcpy(le_features, rsp.le_features, 248);
+    memcpy(le_features, rsp.le_features, sizeof(rsp.le_features));
 
     return 0;
 }
@@ -407,6 +459,7 @@ ble_hs_hci_rd_all_remote_features(uint16_t conn_handle, uint8_t page_requested)
     struct ble_hci_le_rd_all_remote_feat_cp cmd;
 
     if (page_requested > 0x0A) {
+        BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_EINVAL);
         return BLE_HS_EINVAL;
     }
 
@@ -420,13 +473,18 @@ ble_hs_hci_rd_all_remote_features(uint16_t conn_handle, uint8_t page_requested)
 
 #if MYNEWT_VAL(BLE_MONITOR_ADV)
 int
-ble_hs_hci_add_monitor_adv_list(uint8_t addr_type, uint8_t *addr, uint8_t rssi_low,
-                                uint8_t rssi_high, uint8_t timeout)
+ble_hs_hci_add_monitor_adv_list(uint8_t addr_type, uint8_t *addr, int8_t rssi_low,
+                                int8_t rssi_high, uint8_t timeout)
 {
     struct ble_hci_le_add_monitor_adv_list_cp cmd;
 
+    if (addr == NULL) {
+        BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_EINVAL);
+        return BLE_HS_EINVAL;
+    }
+
     cmd.addr_type = addr_type;
-    memcpy(cmd.address, addr, 6);
+    memcpy(cmd.address, addr, BLE_DEV_ADDR_LEN);
     cmd.rssi_low_threshold = rssi_low;
     cmd.rssi_high_threshold = rssi_high;
     cmd.timeout = timeout;
@@ -441,8 +499,13 @@ ble_hs_hci_rmv_monitor_adv_list(uint8_t addr_type, uint8_t *addr)
 {
     struct ble_hci_le_rmv_monitor_adv_list_cp cmd;
 
+    if (addr == NULL) {
+        BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_EINVAL);
+        return BLE_HS_EINVAL;
+    }
+
     cmd.addr_type = addr_type;
-    memcpy(cmd.address, addr, 6);
+    memcpy(cmd.address, addr, BLE_DEV_ADDR_LEN);
 
     return ble_hs_hci_cmd_tx(BLE_HCI_OP(BLE_HCI_OGF_LE,
 			                BLE_HCI_OCF_LE_RMV_MONITOR_ADV_LIST), &cmd, sizeof(cmd),
@@ -462,6 +525,11 @@ ble_hs_hci_read_monitor_adv_list_size(uint8_t *out_number)
 {
     int rc;
     struct ble_hci_le_rd_monitor_adv_list_size_rp rsp;
+
+    if (out_number == NULL) {
+        BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_EINVAL);
+        return BLE_HS_EINVAL;
+    }
 
     rc = ble_hs_hci_cmd_tx(BLE_HCI_OP(BLE_HCI_OGF_LE,
                                       BLE_HCI_OCF_LE_READ_MONITOR_ADV_LIST_SIZE), NULL, 0,

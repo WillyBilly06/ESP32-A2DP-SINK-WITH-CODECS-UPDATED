@@ -1,7 +1,7 @@
 /*
  * SPDX-FileCopyrightText: 2025 Espressif Systems (Shanghai) CO LTD
  *
- * SPDX-License-Identifier: Apache-2.0
+ * SPDX-License-Identifier: Apache-2.0 OR MIT
  */
 
 #pragma once
@@ -124,11 +124,8 @@
 //}}
 
 //Periheral Clock {{
-#define  CPU_CLK_FREQ_MHZ_BTLD                       (80)               // The cpu clock frequency (in MHz) to set at 2nd stage bootloader system clock configuration
-#define  APB_CLK_FREQ                                ( 40*1000000 )
-#define  MODEM_REQUIRED_MIN_APB_CLK_FREQ             ( 80*1000000 )
-#define  REF_CLK_FREQ                                ( 1000000 )
-#define  XTAL_CLK_FREQ                               (40*1000000)
+#define  APB_CLK_FREQ                                ( 32*1000000 )
+#define  MODEM_REQUIRED_MIN_APB_CLK_FREQ             ( 32*1000000 )
 //}}
 
 /* Overall memory map */
@@ -152,7 +149,7 @@
 #define SOC_IRAM_HIGH   0x40860000
 #define SOC_DRAM_LOW    0x40810000
 #define SOC_DRAM_HIGH   0x40860000
-#define SOC_RTC_IRAM_LOW  0x50000000 // TODO：[ESP32H4] IDF-12303 inherit from verify code, need remove
+#define SOC_RTC_IRAM_LOW  0x50000000
 #define SOC_RTC_IRAM_HIGH 0x50004000
 #define SOC_RTC_DRAM_LOW  0x50000000
 #define SOC_RTC_DRAM_HIGH 0x50004000
@@ -196,6 +193,10 @@
 // Start (highest address) of ROM boot stack, only relevant during early boot
 #define SOC_ROM_STACK_START         0x4085d350
 #define SOC_ROM_STACK_SIZE          0x2000
+
+//ICache1 region
+#define SOC_RAM_ICACHE1_LOW    0x40860000
+#define SOC_RAM_ICACHE1_HIGH   0x40867fff
 
 //On RISC-V CPUs, the interrupt sources are all external interrupts, whose type, source and priority are configured by SW.
 //There is no HW NMI conception. SW should controlled the masked levels through INT_THRESH_REG.

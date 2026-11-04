@@ -57,8 +57,8 @@ Leader::Leader(Instance &aInstance)
 
 void Leader::Reset(void)
 {
-    mVersion       = Random::NonCrypto::GetUint8();
-    mStableVersion = Random::NonCrypto::GetUint8();
+    mVersion       = Random::NonCrypto::Generate<uint8_t>();
+    mStableVersion = Random::NonCrypto::Generate<uint8_t>();
     SetLength(0);
     SignalNetDataChanged();
 
@@ -574,7 +574,7 @@ Coap::Message *Leader::ProcessCommissionerGetRequest(const Coap::Message &aMessa
     Coap::Message *response = nullptr;
     OffsetRange    offsetRange;
 
-    response = Get<Tmf::Agent>().NewPriorityResponseMessage(aMessage);
+    response = Get<Tmf::Agent>().AllocateAndInitPriorityResponseFor(aMessage);
     VerifyOrExit(response != nullptr, error = kErrorNoBufs);
 
     if (Tlv::FindTlvValueOffsetRange(aMessage, MeshCoP::Tlv::kGet, offsetRange) == kErrorNone)
@@ -586,8 +586,7 @@ Coap::Message *Leader::ProcessCommissionerGetRequest(const Coap::Message &aMessa
             uint8_t             type;
             const MeshCoP::Tlv *subTlv;
 
-            IgnoreError(aMessage.Read(offsetRange, type));
-            offsetRange.AdvanceOffset(sizeof(type));
+            IgnoreError(aMessage.ReadAndAdvance(offsetRange, type));
 
             subTlv = FindCommissioningDataSubTlv(type);
 
@@ -635,7 +634,7 @@ Error Leader::FindSteeringData(MeshCoP::SteeringData &aSteeringData) const
     const MeshCoP::SteeringDataTlv *steeringDataTlv = FindInCommissioningData<MeshCoP::SteeringDataTlv>();
 
     VerifyOrExit(steeringDataTlv != nullptr, error = kErrorNotFound);
-    steeringDataTlv->CopyTo(aSteeringData);
+    error = steeringDataTlv->CopyTo(aSteeringData);
 
 exit:
     return error;

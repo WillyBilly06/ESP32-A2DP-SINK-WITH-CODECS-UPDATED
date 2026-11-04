@@ -1,7 +1,7 @@
 /*
- * SPDX-FileCopyrightText: 2022-2024 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2022-2025 Espressif Systems (Shanghai) CO LTD
  *
- * SPDX-License-Identifier: Apache-2.0
+ * SPDX-License-Identifier: Apache-2.0 OR MIT
  */
 
 
@@ -62,9 +62,6 @@ PROVIDE ( ECDSA     = 0x50096000 );
 
 PROVIDE ( GPIO           = 0x500E0000 );
 PROVIDE ( GPIO_EXT       = 0x500E0F00 );
-PROVIDE ( SDM            = 0x500E0F00 );
-PROVIDE ( GLITCH_FILTER  = 0x500E0F30 );
-PROVIDE ( GPIO_ETM       = 0x500E0F60 );
 PROVIDE ( IO_MUX         = 0x500E1000 );
 PROVIDE ( MSPI_IOMUX     = 0x500E1200 );
 
@@ -77,6 +74,7 @@ PROVIDE ( LP_AON_CLKRST = 0x50111000 );
 PROVIDE ( EFUSE         = 0x5012D000 );
 PROVIDE ( LPPERI        = 0x50120000 );
 PROVIDE ( LP_TIMER      = 0x50112000 );
+PROVIDE ( LP_MAILBOX    = 0x50118000 );
 PROVIDE ( LP_UART       = 0x50121000 );
 PROVIDE ( LP_I2C        = 0x50122000 );
 PROVIDE ( LP_SPI        = 0x50123000 );
@@ -88,7 +86,7 @@ PROVIDE ( LP_TOUCH      = 0x50128000 );
 PROVIDE ( LP_GPIO         = 0x5012A000 );
 PROVIDE ( LP_PERI_PMS   = 0x5012E000 );
 PROVIDE ( HP2LP_PERI_PMS = 0x5012E800 );
-PROVIDE ( I2C_ANA_MST   = 0x50124000 );
+PROVIDE ( LP_I2C_ANA_MST = 0x50124000 );
 PROVIDE ( LP_ANA_PERI   = 0x50113000 );
 PROVIDE ( AHB_DMA      =  0x50085000 );
 PROVIDE ( AXI_DMA      =  0x5008a000 );
@@ -125,3 +123,4 @@ PROVIDE ( EMAC_DMA           = 0x50099000 );
 PROVIDE ( CACHE              = 0x3FF10000);
 PROVIDE ( TRACE0             = 0x3FF04000);
 PROVIDE ( TRACE1             = 0x3FF05000);
+PROVIDE ( ASSIST_DEBUG       = 0x3FF06000);

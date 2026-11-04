@@ -70,8 +70,9 @@ struct ble_store_key_sec {
  */
 struct ble_store_value_sec {
     ble_addr_t peer_addr;
+#if MYNEWT_VAL(BLE_STORE_MAX_BONDS)
     uint16_t bond_count;
-
+#endif
     uint8_t key_size;
     uint16_t ediv;
     uint64_t rand_num;
@@ -168,7 +169,10 @@ struct ble_store_key_ead {
 struct ble_store_value_ead {
     ble_addr_t peer_addr;
     unsigned km_present:1;
-    struct key_material *km;
+    struct {
+        uint8_t session_key[16];
+        uint8_t iv[8];
+    } km ;
 };
 #endif
 

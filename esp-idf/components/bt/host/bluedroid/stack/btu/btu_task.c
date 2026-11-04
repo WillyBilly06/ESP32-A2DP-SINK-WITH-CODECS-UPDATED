@@ -272,7 +272,13 @@ void btu_task_start_up(void *param)
     btu_init_core();
 
     /* Initialize any optional stack components */
-    BTE_InitStack();
+    if (BTE_InitStack() != BT_STATUS_SUCCESS) {
+        HCI_TRACE_ERROR("BTE_InitStack failed");
+        if (bluedroid_init_done_cb) {
+            bluedroid_init_done_cb(BT_STATUS_NOMEM);
+        }
+        return;
+    }
 
 #if (defined(BTA_INCLUDED) && BTA_INCLUDED == TRUE)
     bta_sys_init();
@@ -280,11 +286,9 @@ void btu_task_start_up(void *param)
 
     // Inform the bt jni thread initialization is ok.
     // btif_transfer_context(btif_init_ok, 0, NULL, 0, NULL);
-#if(defined(BT_APP_DEMO) && BT_APP_DEMO == TRUE)
     if (bluedroid_init_done_cb) {
-        bluedroid_init_done_cb();
+        bluedroid_init_done_cb(BT_STATUS_SUCCESS);
     }
-#endif
 }
 
 void btu_task_shut_down(void)
@@ -315,10 +319,13 @@ static void btu_general_alarm_process(void *param)
 
     switch (p_tle->event) {
     case BTU_TTYPE_BTM_DEV_CTL:
+#if (CLASSIC_BT_INCLUDED == TRUE)
         btm_dev_timeout(p_tle);
+#endif // (CLASSIC_BT_INCLUDED == TRUE)
         break;
 
     case BTU_TTYPE_L2CAP_LINK:
+    case BTU_TTYPE_L2CAP_LINK_RETRY:
     case BTU_TTYPE_L2CAP_CHNL:
     case BTU_TTYPE_L2CAP_HOLD:
     case BTU_TTYPE_L2CAP_INFO:
@@ -375,11 +382,15 @@ static void btu_general_alarm_process(void *param)
         break;
 
     case BTU_TTYPE_ATT_WAIT_FOR_RSP:
+#if (GATTC_INCLUDED == TRUE)
         gatt_rsp_timeout(p_tle);
+#endif // (GATTC_INCLUDED == TRUE)
         break;
 
     case BTU_TTYPE_ATT_WAIT_FOR_IND_ACK:
+#if (GATTC_INCLUDED == TRUE)
         gatt_ind_ack_timeout(p_tle);
+#endif // (GATTC_INCLUDED == TRUE)
         break;
 
 #if (defined(SMP_INCLUDED) && SMP_INCLUDED == TRUE)
@@ -407,6 +418,11 @@ static void btu_general_alarm_process(void *param)
     case BTU_TTYPE_BTM_SET_PAGE_TO:
         btm_page_to_setup_timeout(p_tle);
         break;
+#if (CLASSIC_BT_INCLUDED == TRUE)
+    case BTU_TTYPE_BTM_BREDR_PWR_CTRL:
+        btm_bredr_pwr_ctrl_timeout(p_tle);
+        break;
+#endif // #if (CLASSIC_BT_INCLUDED == TRUE)
     default:
         for (int i = 0; i < BTU_MAX_REG_TIMER; i++) {
             if (btu_cb.timer_reg[i].timer_cb == NULL) {
@@ -439,13 +455,22 @@ void btu_start_timer(TIMER_LIST_ENT *p_tle, UINT16 type, UINT32 timeout_sec)
     osi_mutex_lock(&btu_general_alarm_lock, OSI_MUTEX_MAX_TIMEOUT);
     if (!hash_map_has_key(btu_general_alarm_hash_map, p_tle)) {
         alarm = osi_alarm_new("btu_gen", btu_general_alarm_cb, (void *)p_tle, 0);
-        hash_map_set(btu_general_alarm_hash_map, p_tle, alarm);
+        if (alarm == NULL) {
+            HCI_TRACE_ERROR("%s Unable to create new alarm", __func__);
+            osi_mutex_unlock(&btu_general_alarm_lock);
+            return;
+        }
+        if (!hash_map_set(btu_general_alarm_hash_map, p_tle, alarm)) {
+            HCI_TRACE_ERROR("%s Unable to set alarm in map", __func__);
+            osi_alarm_free(alarm);
+            osi_mutex_unlock(&btu_general_alarm_lock);
+            return;
+        }
     }
-    osi_mutex_unlock(&btu_general_alarm_lock);
-
     alarm = hash_map_get(btu_general_alarm_hash_map, p_tle);
     if (alarm == NULL) {
         HCI_TRACE_ERROR("%s Unable to create alarm", __func__);
+        osi_mutex_unlock(&btu_general_alarm_lock);
         return;
     }
     osi_alarm_cancel(alarm);
@@ -455,6 +480,7 @@ void btu_start_timer(TIMER_LIST_ENT *p_tle, UINT16 type, UINT32 timeout_sec)
     p_tle->ticks = timeout_sec;
     p_tle->in_use = TRUE;
     osi_alarm_set(alarm, (period_ms_t)((period_ms_t)timeout_sec * 1000));
+    osi_mutex_unlock(&btu_general_alarm_lock);
 }
 
 
@@ -471,18 +497,21 @@ void btu_stop_timer(TIMER_LIST_ENT *p_tle)
 {
     assert(p_tle != NULL);
 
+    osi_mutex_lock(&btu_general_alarm_lock, OSI_MUTEX_MAX_TIMEOUT);
     if (p_tle->in_use == FALSE) {
+        osi_mutex_unlock(&btu_general_alarm_lock);
         return;
     }
-    p_tle->in_use = FALSE;
-
-    // Get the alarm for the timer list entry.
     osi_alarm_t *alarm = hash_map_get(btu_general_alarm_hash_map, p_tle);
     if (alarm == NULL) {
         HCI_TRACE_WARNING("%s Unable to find expected alarm in hashmap", __func__);
+        p_tle->in_use = FALSE;
+        osi_mutex_unlock(&btu_general_alarm_lock);
         return;
     }
     osi_alarm_cancel(alarm);
+    p_tle->in_use = FALSE;
+    osi_mutex_unlock(&btu_general_alarm_lock);
 }
 
 /*******************************************************************************
@@ -498,16 +527,18 @@ void btu_free_timer(TIMER_LIST_ENT *p_tle)
 {
     assert(p_tle != NULL);
 
-    p_tle->in_use = FALSE;
-
-    // Get the alarm for the timer list entry.
+    osi_mutex_lock(&btu_general_alarm_lock, OSI_MUTEX_MAX_TIMEOUT);
     osi_alarm_t *alarm = hash_map_get(btu_general_alarm_hash_map, p_tle);
     if (alarm == NULL) {
         HCI_TRACE_DEBUG("%s Unable to find expected alarm in hashmap", __func__);
+        p_tle->in_use = FALSE;
+        osi_mutex_unlock(&btu_general_alarm_lock);
         return;
     }
     osi_alarm_cancel(alarm);
     hash_map_erase(btu_general_alarm_hash_map, p_tle);
+    p_tle->in_use = FALSE;
+    osi_mutex_unlock(&btu_general_alarm_lock);
 }
 
 #if defined(QUICK_TIMER_TICKS_PER_SEC) && (QUICK_TIMER_TICKS_PER_SEC > 0)
@@ -524,6 +555,13 @@ static void btu_l2cap_alarm_process(void *param)
 {
     TIMER_LIST_ENT *p_tle = (TIMER_LIST_ENT *)param;
     assert(p_tle != NULL);
+
+    osi_mutex_lock(&btu_l2cap_alarm_lock, OSI_MUTEX_MAX_TIMEOUT);
+    if (!hash_map_has_key(btu_l2cap_alarm_hash_map, p_tle) || p_tle->in_use == FALSE) {
+        osi_mutex_unlock(&btu_l2cap_alarm_lock);
+        return;
+    }
+    osi_mutex_unlock(&btu_l2cap_alarm_lock);
 
     switch (p_tle->event) {
     case BTU_TTYPE_L2CAP_CHNL:      /* monitor or retransmission timer */
@@ -554,13 +592,22 @@ void btu_start_quick_timer(TIMER_LIST_ENT *p_tle, UINT16 type, UINT32 timeout_ti
     osi_mutex_lock(&btu_l2cap_alarm_lock, OSI_MUTEX_MAX_TIMEOUT);
     if (!hash_map_has_key(btu_l2cap_alarm_hash_map, p_tle)) {
         alarm = osi_alarm_new("btu_l2cap", btu_l2cap_alarm_cb, (void *)p_tle, 0);
-        hash_map_set(btu_l2cap_alarm_hash_map, p_tle, (void *)alarm);
+        if (alarm == NULL) {
+            HCI_TRACE_ERROR("%s Unable to create alarm", __func__);
+            osi_mutex_unlock(&btu_l2cap_alarm_lock);
+            return;
+        }
+        if (!hash_map_set(btu_l2cap_alarm_hash_map, p_tle, (void *)alarm)) {
+            HCI_TRACE_ERROR("%s Unable to set alarm in map", __func__);
+            osi_alarm_free(alarm);
+            osi_mutex_unlock(&btu_l2cap_alarm_lock);
+            return;
+        }
     }
-    osi_mutex_unlock(&btu_l2cap_alarm_lock);
-
     alarm = hash_map_get(btu_l2cap_alarm_hash_map, p_tle);
     if (alarm == NULL) {
         HCI_TRACE_ERROR("%s Unable to create alarm", __func__);
+        osi_mutex_unlock(&btu_l2cap_alarm_lock);
         return;
     }
     osi_alarm_cancel(alarm);
@@ -570,6 +617,7 @@ void btu_start_quick_timer(TIMER_LIST_ENT *p_tle, UINT16 type, UINT32 timeout_ti
     p_tle->in_use = TRUE;
     // The quick timer ticks are 100ms long.
     osi_alarm_set(alarm, (period_ms_t)(timeout_ticks * 100));
+    osi_mutex_unlock(&btu_l2cap_alarm_lock);
 }
 
 /*******************************************************************************
@@ -585,34 +633,39 @@ void btu_stop_quick_timer(TIMER_LIST_ENT *p_tle)
 {
     assert(p_tle != NULL);
 
+    osi_mutex_lock(&btu_l2cap_alarm_lock, OSI_MUTEX_MAX_TIMEOUT);
     if (p_tle->in_use == FALSE) {
+        osi_mutex_unlock(&btu_l2cap_alarm_lock);
         return;
     }
-    p_tle->in_use = FALSE;
-
-    // Get the alarm for the timer list entry.
     osi_alarm_t *alarm = hash_map_get(btu_l2cap_alarm_hash_map, p_tle);
     if (alarm == NULL) {
         HCI_TRACE_WARNING("%s Unable to find expected alarm in hashmap", __func__);
+        p_tle->in_use = FALSE;
+        osi_mutex_unlock(&btu_l2cap_alarm_lock);
         return;
     }
     osi_alarm_cancel(alarm);
+    p_tle->in_use = FALSE;
+    osi_mutex_unlock(&btu_l2cap_alarm_lock);
 }
 
 void btu_free_quick_timer(TIMER_LIST_ENT *p_tle)
 {
     assert(p_tle != NULL);
 
-    p_tle->in_use = FALSE;
-
-    // Get the alarm for the timer list entry.
+    osi_mutex_lock(&btu_l2cap_alarm_lock, OSI_MUTEX_MAX_TIMEOUT);
     osi_alarm_t *alarm = hash_map_get(btu_l2cap_alarm_hash_map, p_tle);
     if (alarm == NULL) {
         HCI_TRACE_DEBUG("%s Unable to find expected alarm in hashmap", __func__);
+        p_tle->in_use = FALSE;
+        osi_mutex_unlock(&btu_l2cap_alarm_lock);
         return;
     }
     osi_alarm_cancel(alarm);
     hash_map_erase(btu_l2cap_alarm_hash_map, p_tle);
+    p_tle->in_use = FALSE;
+    osi_mutex_unlock(&btu_l2cap_alarm_lock);
 }
 
 #endif /* defined(QUICK_TIMER_TICKS_PER_SEC) && (QUICK_TIMER_TICKS_PER_SEC > 0) */
@@ -640,13 +693,22 @@ void btu_start_timer_oneshot(TIMER_LIST_ENT *p_tle, UINT16 type, UINT32 timeout_
     osi_mutex_lock(&btu_oneshot_alarm_lock, OSI_MUTEX_MAX_TIMEOUT);
     if (!hash_map_has_key(btu_oneshot_alarm_hash_map, p_tle)) {
         alarm = osi_alarm_new("btu_oneshot", btu_oneshot_alarm_cb, (void *)p_tle, 0);
-        hash_map_set(btu_oneshot_alarm_hash_map, p_tle, alarm);
+        if (alarm == NULL) {
+            HCI_TRACE_ERROR("%s Unable to create new alarm", __func__);
+            osi_mutex_unlock(&btu_oneshot_alarm_lock);
+            return;
+        }
+        if (!hash_map_set(btu_oneshot_alarm_hash_map, p_tle, alarm)) {
+            HCI_TRACE_ERROR("%s Unable to set alarm in map", __func__);
+            osi_alarm_free(alarm);
+            osi_mutex_unlock(&btu_oneshot_alarm_lock);
+            return;
+        }
     }
-    osi_mutex_unlock(&btu_oneshot_alarm_lock);
-
     alarm = hash_map_get(btu_oneshot_alarm_hash_map, p_tle);
     if (alarm == NULL) {
         HCI_TRACE_ERROR("%s Unable to create alarm", __func__);
+        osi_mutex_unlock(&btu_oneshot_alarm_lock);
         return;
     }
     osi_alarm_cancel(alarm);
@@ -656,24 +718,28 @@ void btu_start_timer_oneshot(TIMER_LIST_ENT *p_tle, UINT16 type, UINT32 timeout_
     // NOTE: This value is in seconds but stored in a ticks field.
     p_tle->ticks = timeout_sec;
     osi_alarm_set(alarm, (period_ms_t)(timeout_sec * 1000));
+    osi_mutex_unlock(&btu_oneshot_alarm_lock);
 }
 
 void btu_stop_timer_oneshot(TIMER_LIST_ENT *p_tle)
 {
     assert(p_tle != NULL);
 
+    osi_mutex_lock(&btu_oneshot_alarm_lock, OSI_MUTEX_MAX_TIMEOUT);
     if (p_tle->in_use == FALSE) {
+        osi_mutex_unlock(&btu_oneshot_alarm_lock);
         return;
     }
-    p_tle->in_use = FALSE;
-
-    // Get the alarm for the timer list entry.
     osi_alarm_t *alarm = hash_map_get(btu_oneshot_alarm_hash_map, p_tle);
     if (alarm == NULL) {
         HCI_TRACE_WARNING("%s Unable to find expected alarm in hashmap", __func__);
+        p_tle->in_use = FALSE;
+        osi_mutex_unlock(&btu_oneshot_alarm_lock);
         return;
     }
     osi_alarm_cancel(alarm);
+    p_tle->in_use = FALSE;
+    osi_mutex_unlock(&btu_oneshot_alarm_lock);
 }
 
 #if (defined(HCILP_INCLUDED) && HCILP_INCLUDED == TRUE)

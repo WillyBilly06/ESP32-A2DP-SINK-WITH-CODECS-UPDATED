@@ -20,6 +20,13 @@
 #include "esp_timer.h"
 #include "esp_cache.h"
 #include "esp_private/sdmmc_common.h"
+#include "freertos/FreeRTOS.h"
+#include "soc/soc_caps.h"
+#if SOC_SDMMC_HOST_SUPPORTED
+#include "hal/sdmmc_ll.h"
+#endif
+
+#define SDMMC_DELAY_NUMS_MAX 10
 
 static const char* TAG = "sdmmc_sd";
 
@@ -275,7 +282,7 @@ esp_err_t sdmmc_enter_higher_speed_mode(sdmmc_card_t* card)
             ESP_LOGE(TAG, "%s: failed to switch bus to DDR mode (0x%x)", __func__, err);
             return err;
         }
-    } else if (card->host.max_freq_khz == SDMMC_FREQ_SDR104) {
+    } else if (card->host.max_freq_khz >= SDMMC_FREQ_SDR104) {
         //UHS-I SDR104
         ESP_LOGV(TAG, "%s: to switch to SDR104", __func__);
         if ((supported_mask & BIT(SD_ACCESS_MODE_SDR104)) == 0) {
@@ -287,7 +294,7 @@ esp_err_t sdmmc_enter_higher_speed_mode(sdmmc_card_t* card)
             ESP_LOGD(TAG, "%s: sdmmc_send_cmd_switch_func (2) returned 0x%x", __func__, err);
             goto out;
         }
-    } else if (card->host.max_freq_khz == SDMMC_FREQ_SDR50) {
+    } else if (card->host.max_freq_khz >= SDMMC_FREQ_SDR50) {
         //UHS-I SDR50
         ESP_LOGV(TAG, "%s: to switch to SDR50", __func__);
         if ((supported_mask & BIT(SD_ACCESS_MODE_SDR50)) == 0) {
@@ -332,7 +339,7 @@ static const uint8_t s_tuning_block_pattern[] = {
  * Find consecutive successful sampling points.
  * e.g. array: {1, 1, 0, 0, 1, 1, 1, 0}
  * out_length: 3
- * outout_end_index: 6
+ * out_end_index: 6
  */
 static void find_max_consecutive_success_points(int *array, size_t size, size_t *out_length, uint32_t *out_end_index)
 {
@@ -354,8 +361,17 @@ static void find_max_consecutive_success_points(int *array, size_t size, size_t 
         i++;
     }
 
-    *out_length = match_num > max ? match_num : max;
-    *out_end_index = match_num == size ? size : end;
+    /**
+     * this is to deal with the case when the last points are consecutive 1, e.g.
+     * {1, 0, 0, 1, 1, 1, 1, 1, 1}
+     */
+    if (match_num > max) {
+        max = match_num;
+        end = i - 1;
+    }
+
+    *out_length = max;
+    *out_end_index = end;
 }
 
 static esp_err_t read_tuning_block(sdmmc_card_t *card)
@@ -415,44 +431,64 @@ static esp_err_t read_tuning_block(sdmmc_card_t *card)
     return success ? ESP_OK : ESP_FAIL;
 }
 
-esp_err_t sdmmc_do_timing_tuning(sdmmc_card_t *card)
+esp_err_t sdmmc_do_timing_tuning(sdmmc_card_t *card, sdmmc_delay_mode_t delay_mode)
 {
     esp_err_t ret = ESP_FAIL;
 
     ESP_RETURN_ON_FALSE(!host_is_spi(card), ESP_ERR_NOT_SUPPORTED, TAG, "sdspi not supported timing tuning");
-    ESP_RETURN_ON_FALSE(card->host.set_input_delay, ESP_ERR_NOT_SUPPORTED, TAG, "input phase delay feature isn't supported");
+    if (delay_mode == SDMMC_DELAY_MODE_PHASE) {
+        ESP_RETURN_ON_FALSE(card->host.set_input_delay, ESP_ERR_NOT_SUPPORTED, TAG, "phase delay feature isn't supported");
+    } else {
+        ESP_RETURN_ON_FALSE(card->host.set_input_delayline, ESP_ERR_NOT_SUPPORTED, TAG, "line delay feature isn't supported");
+    }
 
-    int results[SDMMC_DELAY_PHASE_AUTO] = {};
+    int results[SDMMC_DELAY_NUMS_MAX] = {};
+    int start_delay_item = (delay_mode == SDMMC_DELAY_MODE_PHASE) ? SDMMC_DELAY_PHASE_0 : SDMMC_DELAY_LINE_0;
     int slot = card->host.slot;
-    for (int i = SDMMC_DELAY_PHASE_0; i < SDMMC_DELAY_PHASE_AUTO; i++) {
-        ESP_RETURN_ON_ERROR((*card->host.set_input_delay)(slot, i), TAG, "failed to set input delay");
-
+    int delay_total_nums = 5;
+    if (delay_mode == SDMMC_DELAY_MODE_PHASE) {
+        if (card->host.max_freq_khz == SDMMC_FREQ_SDR104) {
+            delay_total_nums = SDMMC_DELAY_PHASE_AUTO;
+        }
+    } else {
+        delay_total_nums = SDMMC_DELAY_LINE_AUTO;
+    }
+    for (int i = start_delay_item; i < delay_total_nums; i++) {
+        if (delay_mode == SDMMC_DELAY_MODE_PHASE) {
+            ESP_RETURN_ON_ERROR((*card->host.set_input_delay)(slot, i), TAG, "failed to set delay phase");
+        } else {
+            ESP_RETURN_ON_ERROR((*card->host.set_input_delayline)(slot, i), TAG, "failed to set delay line");
+        }
         ret = read_tuning_block(card);
         if (ret == ESP_OK) {
             results[i] += 1;
         }
     }
 
-    for (int i = 0; i < 4; i++) {
+    for (int i = 0; i < delay_total_nums; i++) {
         ESP_LOGV(TAG, "results[%d]: %d", i, results[i]);
     }
 
     size_t consecutive_len = 0;
     uint32_t end = 0;
-    find_max_consecutive_success_points(results, SDMMC_DELAY_PHASE_AUTO, &consecutive_len, &end);
+    find_max_consecutive_success_points(results, delay_total_nums, &consecutive_len, &end);
 
-    sdmmc_delay_phase_t proper_delay_phase = SDMMC_DELAY_PHASE_AUTO;
+    int proper_delay_id = SDMMC_DELAY_PHASE_AUTO;
     if (consecutive_len == 1) {
-        proper_delay_phase = end;
+        proper_delay_id = end;
     } else if (consecutive_len <= SDMMC_DELAY_PHASE_AUTO) {
-        proper_delay_phase = end / 2;
+        proper_delay_id = end - (consecutive_len / 2);
     } else {
         assert(false && "exceeds max tuning point");
     }
-    ESP_LOGV(TAG, "%s: proper_delay_phase: %d\n", __func__, proper_delay_phase);
+    ESP_LOGI(TAG, "%s: proper delay phase/line id: %d", __func__, proper_delay_id);
 
-    if (proper_delay_phase != SDMMC_DELAY_PHASE_AUTO) {
-        ESP_RETURN_ON_ERROR((*card->host.set_input_delay)(slot, proper_delay_phase), TAG, "failed to set input delay");
+    if (proper_delay_id != SDMMC_DELAY_PHASE_AUTO) {
+        if (delay_mode == SDMMC_DELAY_MODE_PHASE) {
+            ESP_RETURN_ON_ERROR((*card->host.set_input_delay)(slot, proper_delay_id), TAG, "failed to set delay phase");
+        } else {
+            ESP_RETURN_ON_ERROR((*card->host.set_input_delayline)(slot, proper_delay_id), TAG, "failed to set delay line");
+        }
     }
 
     return ESP_OK;
@@ -535,9 +571,15 @@ esp_err_t sdmmc_enable_hs_mode_and_check(sdmmc_card_t* card)
 
 static esp_err_t sdmmc_init_sd_uhs1_volt_sw_cb(void* arg, int voltage_mv)
 {
-    sdmmc_card_t* card = (sdmmc_card_t*)arg;
     ESP_LOGV(TAG, "%s: Voltage switch callback (%umv)", __func__, voltage_mv);
+
+#if SOC_SDMMC_IO_UHS_POWER_EXTERNAL
+    sdmmc_ll_switch_io_power_control_src(SDMMC_LL_IO_POWER_CONTROL_SRC_LDO);
+    return ESP_OK;
+#else
+    sdmmc_card_t* card = (sdmmc_card_t*)arg;
     return sd_pwr_ctrl_set_io_voltage(card->host.pwr_ctrl_handle, voltage_mv);
+#endif
 }
 
 esp_err_t sdmmc_init_sd_uhs1(sdmmc_card_t* card)
@@ -611,6 +653,11 @@ esp_err_t sdmmc_init_spi_crc(sdmmc_card_t* card)
      */
     assert(host_is_spi(card));
     esp_err_t err = sdmmc_send_cmd_crc_on_off(card, true);
+    if (err == ESP_ERR_NOT_SUPPORTED) { // Some cards fail to enable CRC on the first try, trying again
+       ESP_LOGD(TAG, "%s: enabling CRC failed with 0x%x, trying again", __func__, err);
+       vTaskDelay(SDMMC_INIT_SPI_CRC_RETRY_DELAY_MS / portTICK_PERIOD_MS);
+       err = sdmmc_send_cmd_crc_on_off(card, true);
+    }
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "%s: sdmmc_send_cmd_crc_on_off returned 0x%x", __func__, err);
         return err;

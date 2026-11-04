@@ -4,10 +4,8 @@ import collections
 import multiprocessing
 import os
 import platform
-from typing import Dict
-from typing import Union
 
-GENERATORS: Dict[str, Union[str, Dict, list]] = collections.OrderedDict(
+GENERATORS: dict[str, str | dict | list] = collections.OrderedDict(
     [
         # - command: build command line
         # - version: version command line
@@ -52,4 +50,4 @@ SUPPORTED_TARGETS = [
     'esp32c5',
     'esp32c61',
 ]
-PREVIEW_TARGETS = ['linux', 'esp32h21', 'esp32h4']
+PREVIEW_TARGETS = ['linux', 'esp32h21', 'esp32h4', 'esp32s31']

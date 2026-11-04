@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2022-2024 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2022-2025 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -50,8 +50,9 @@ extern "C" {
   *     LP_AON_STORE5_REG       FAST_RTC_MEMORY_LENGTH
   *     LP_AON_STORE6_REG       FAST_RTC_MEMORY_ENTRY
   *     LP_AON_STORE7_REG       FAST_RTC_MEMORY_CRC
-  *     LP_AON_STORE8_REG       Store light sleep wake stub addr
-  *     LP_AON_STORE9_REG       Store the sleep mode at bit[0]  (0:light sleep 1:deep sleep)
+  *     LP_AON_STORE8_REG       Store light sleep wake stub addr (mask bit[1:0])
+  *     LP_AON_STORE8_REG       Store the sleep mode at bit[0]  (0:light sleep 1:deep sleep)
+  *     LP_AON_STORE9_REG       LP core store wakeup cause
   *************************************************************************************
   */
 
@@ -64,6 +65,7 @@ extern "C" {
 #define RTC_MEMORY_CRC_REG                  LP_AON_STORE7_REG
 #define RTC_SLEEP_WAKE_STUB_ADDR_REG        LP_AON_STORE8_REG
 #define RTC_SLEEP_MODE_REG                  LP_AON_STORE8_REG
+#define RTC_LP_CORE_STORE_WAKEUP_REG        LP_AON_STORE9_REG
 
 #define RTC_DISABLE_ROM_LOG ((1 << 0) | (1 << 16)) //!< Disable logging from the ROM code.
 
@@ -126,8 +128,8 @@ typedef enum {
     SAR_TRIG        = BIT9,
     BT_TRIG         = BIT10,
     RISCV_TRIG      = BIT11,
-    XTAL_DEAD_TRIG  = BIT12,
-    RISCV_TRAP_TRIG = BIT13,
+    RISCV_TRAP_TRIG = BIT12,
+    XTAL_DEAD_TRIG  = BIT13,
     USB_TRIG        = BIT14
 } WAKEUP_REASON;
 
@@ -144,8 +146,8 @@ typedef enum {
     SAR_TRIG_EN        = SAR_TRIG,
     BT_TRIG_EN         = BT_TRIG,
     RISCV_TRIG_EN      = RISCV_TRIG,
-    XTAL_DEAD_TRIG_EN  = XTAL_DEAD_TRIG,
     RISCV_TRAP_TRIG_EN = RISCV_TRAP_TRIG,
+    XTAL_DEAD_TRIG_EN  = XTAL_DEAD_TRIG,
     USB_TRIG_EN        = USB_TRIG
 } WAKEUP_ENABLE;
 

@@ -1,4 +1,4 @@
-version: 3.6.5
+version: 4.1.0
 cpe: cpe:2.3:a:arm:mbed_tls:{}:*:*:*:*:*:*:*
 supplier: 'Organization: Espressif Systems (Shanghai) CO LTD'
 originator: 'Organization: Trusted Firmware <mbed-tls-security@lists.trustedfirmware.org>'
@@ -15,3 +15,5 @@ cve-exclude-list:
     reason: Fixed in 3.6.4
   - cve: CVE-2025-27810
     reason: Fixed in 3.6.3
+  - cve: CVE-2025-66442
+    reason: Applicable only with Clang with select-optimize feature. ESP-IDF uses gcc as the default compiler and uses -Os as the default optimisation flag

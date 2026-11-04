@@ -52,7 +52,8 @@ void pmksa_cache_free_entry(struct rsn_pmksa_cache *pmksa,
 	unsigned int hash;
 
 	pmksa->pmksa_count--;
-	pmksa->free_cb(entry, pmksa->ctx);
+	if (pmksa->free_cb)
+		pmksa->free_cb(entry, pmksa->ctx);
 
 	/* unlink from hash list */
 	hash = PMKID_HASH(entry->pmkid);
@@ -337,7 +338,8 @@ void pmksa_cache_auth_deinit(struct rsn_pmksa_cache *pmksa)
 	pmksa->pmksa = NULL;
 	for (i = 0; i < PMKID_HASH_SIZE; i++)
 		pmksa->pmkid[i] = NULL;
-	os_free(pmksa);
+    if(pmksa)
+        os_free(pmksa);
 }
 
 

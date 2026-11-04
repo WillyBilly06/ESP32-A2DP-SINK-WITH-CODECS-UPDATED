@@ -16,5 +16,6 @@ idf_component_register(
         esp-tls
         mbedtls
         lwip
-        driver
+        esp_driver_gpio
+        esp_driver_spi
 )

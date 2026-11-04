@@ -31,8 +31,8 @@
  *   This file includes definitions for the IEEE 802.15.4 MAC.
  */
 
-#ifndef MAC_HPP_
-#define MAC_HPP_
+#ifndef OT_CORE_MAC_MAC_HPP_
+#define OT_CORE_MAC_MAC_HPP_
 
 #include "openthread-core-config.h"
 
@@ -51,6 +51,7 @@
 #include "mac/mac_frame.hpp"
 #include "mac/mac_links.hpp"
 #include "mac/mac_types.hpp"
+#include "mac/scan_result.hpp"
 #include "mac/sub_mac.hpp"
 #include "radio/trel_link.hpp"
 #include "thread/key_manager.hpp"
@@ -99,16 +100,6 @@ constexpr uint32_t kDefaultWedListenInterval = OPENTHREAD_CONFIG_WED_LISTEN_INTE
 constexpr uint32_t kDefaultWedListenDuration = OPENTHREAD_CONFIG_WED_LISTEN_DURATION;
 
 /**
- * Defines the function pointer called on receiving an IEEE 802.15.4 Beacon during an Active Scan.
- */
-typedef otHandleActiveScanResult ActiveScanHandler;
-
-/**
- * Defines an Active Scan result.
- */
-typedef otActiveScanResult ActiveScanResult;
-
-/**
  * Defines the function pointer which is called during an Energy Scan when the scan result for a channel is
  * ready or when the scan completes.
  */
@@ -135,6 +126,19 @@ public:
     explicit Mac(Instance &aInstance);
 
     /**
+     * Clears the Mode2Key on destruction.
+     */
+    ~Mac(void) { ClearMode2Key(); }
+
+    /**
+     * Initializes the `Mac`.
+     *
+     * This method MUST be called after OpenThread `Instance` is fully initialized (from `Instance::AfterInit()`) and
+     * only after `KeyManager` is also fully initialized.
+     */
+    void Init(void);
+
+    /**
      * Starts an IEEE 802.15.4 Active Scan.
      *
      * @param[in]  aScanChannels  A bit vector indicating which channels to scan. Zero is mapped to all channels.
@@ -146,7 +150,7 @@ public:
      * @retval kErrorNone  Successfully scheduled the Active Scan request.
      * @retval kErrorBusy  Could not schedule the scan (a scan is ongoing or scheduled).
      */
-    Error ActiveScan(uint32_t aScanChannels, uint16_t aScanDuration, ActiveScanHandler aHandler, void *aContext);
+    Error ActiveScan(uint32_t aScanChannels, uint16_t aScanDuration, ScanResult::Handler aHandler, void *aContext);
 
     /**
      * Starts an IEEE 802.15.4 Energy Scan.
@@ -488,7 +492,7 @@ public:
      *
      * @returns A reference to the MAC counter.
      */
-    otMacCounters &GetCounters(void) { return mCounters; }
+    Counters &GetCounters(void) { return mCounters; }
 
 #if OPENTHREAD_CONFIG_MAC_RETRY_SUCCESS_HISTOGRAM_ENABLE
     /**
@@ -828,8 +832,8 @@ private:
     void     StartOperation(Operation aOperation);
     void     FinishOperation(void);
     void     PerformNextOperation(void);
-    TxFrame *PrepareBeaconRequest(void);
-    TxFrame *PrepareBeacon(void);
+    TxFrame *PrepareBeaconRequest(TxFrames &aTxFrames);
+    TxFrame *PrepareBeacon(TxFrames &aTxFrames);
     bool     ShouldSendBeacon(void) const;
     bool     IsJoinable(void) const;
     void     BeginTransmit(void);
@@ -842,17 +846,12 @@ private:
     Error UpdateScanChannel(void);
     void  PerformActiveScan(void);
     void  ReportActiveScanResult(const RxFrame *aBeaconFrame);
-    Error ConvertBeaconToActiveScanResult(const RxFrame *aBeaconFrame, ActiveScanResult &aResult);
     void  PerformEnergyScan(void);
     void  ReportEnergyScanResult(int8_t aRssi);
 
     void LogFrameRxFailure(const RxFrame *aFrame, Error aError) const;
     void LogFrameTxFailure(const TxFrame &aFrame, Error aError, uint8_t aRetryCount, bool aWillRetx) const;
     void LogBeacon(const char *aActionText) const;
-
-#if OPENTHREAD_CONFIG_TIME_SYNC_ENABLE
-    uint8_t GetTimeIeOffset(const Frame &aFrame);
-#endif
 
 #if OPENTHREAD_CONFIG_MAC_CSL_TRANSMITTER_ENABLE
     void ProcessCsl(const RxFrame &aFrame, const Address &aSrcAddr);
@@ -921,16 +920,14 @@ private:
 #endif
     union
     {
-        ActiveScanHandler mActiveScanHandler;
-        EnergyScanHandler mEnergyScanHandler;
+        ScanResult::ScanCallback    mActiveScanCallback;
+        Callback<EnergyScanHandler> mEnergyScanCallback;
     };
-
-    void *mScanHandlerContext;
 
     Links              mLinks;
     OperationTask      mOperationTask;
     MacTimer           mTimer;
-    otMacCounters      mCounters;
+    Counters           mCounters;
     uint32_t           mKeyIdMode2FrameCounter;
     SuccessRateTracker mCcaSuccessRateTracker;
     uint16_t           mCcaSampleCount;
@@ -958,4 +955,4 @@ private:
 } // namespace Mac
 } // namespace ot
 
-#endif // MAC_HPP_
+#endif // OT_CORE_MAC_MAC_HPP_

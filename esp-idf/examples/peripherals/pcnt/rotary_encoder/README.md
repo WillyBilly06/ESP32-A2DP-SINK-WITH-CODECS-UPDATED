@@ -1,5 +1,5 @@
-| Supported Targets | ESP32 | ESP32-C5 | ESP32-C6 | ESP32-H2 | ESP32-P4 | ESP32-S2 | ESP32-S3 |
-| ----------------- | ----- | -------- | -------- | -------- | -------- | -------- | -------- |
+| Supported Targets | ESP32 | ESP32-C5 | ESP32-C6 | ESP32-H2 | ESP32-H21 | ESP32-H4 | ESP32-P4 | ESP32-S2 | ESP32-S3 | ESP32-S31 |
+| ----------------- | ----- | -------- | -------- | -------- | --------- | -------- | -------- | -------- | -------- | --------- |
 
 # Rotary Encoder Example
 
@@ -33,24 +33,27 @@ B         +-----+     +-----+     +-----+
 
 * An ESP development board
 * EC11 rotary encoder (or other encoders which can produce quadrature waveforms)
+* Pull-up resistors for the A and B signal lines. It is recommended to provide external pull-up resistors on the PCB.
 
 Connection :
 
 ```text
       +--------+              +---------------------------------+
       |        |              |                                 |
-      |      A +--------------+ GPIO_A (internal pull up)       |
+      |      A +--------------+ GPIO_A (external pull up)       |
       |        |              |                                 |
 +-------+      |              |                                 |
 |     | |  GND +--------------+ GND                             |
 +-------+      |              |                                 |
       |        |              |                                 |
-      |      B +--------------+ GPIO_B (internal pull up)       |
+      |      B +--------------+ GPIO_B (external pull up)       |
       |        |              |                                 |
       +--------+              +---------------------------------+
 ```
 
 The GPIO used by the example can be changed according to your board by `EXAMPLE_EC11_GPIO_A` and `EXAMPLE_EC11_GPIO_B` in [source file](main/rotary_encoder_example_main.c).
+
+The PCNT driver does not configure internal pull-up or pull-down resistors for the input GPIOs. If your board does not have external pull-up resistors for the EC11 A/B signal lines, enable `EXAMPLE_ENABLE_INTERNAL_PULL_UPS` from `menuconfig`, or call GPIO APIs such as `gpio_pullup_en()` or `gpio_set_pull_mode()` in your application.
 
 ### Build and Flash
 

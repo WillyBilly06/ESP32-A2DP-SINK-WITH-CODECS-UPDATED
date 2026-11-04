@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2025 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2025-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -7,6 +7,8 @@
 #include "soc/soc_caps.h"
 #include "esp_private/esp_crypto_lock_internal.h"
 #include "sdkconfig.h"
+#include "esp_crypto_periph_clk.h"
+#include "esp_crypto_clk.h"
 
 #if SOC_AES_SUPPORTED
 #include "hal/aes_ll.h"
@@ -38,10 +40,16 @@
 #include "hal/crypto_dma_ll.h"
 #endif
 
+#if NON_OS_BUILD
+// To suppress build errors about spinlock's __DECLARE_RCC_ATOMIC_ENV
+int __DECLARE_RCC_ATOMIC_ENV __attribute__((unused));
+#endif
+
 #if SOC_AES_SUPPORTED
 void esp_crypto_aes_enable_periph_clk(bool enable)
 {
     AES_RCC_ATOMIC() {
+        esp_crypto_common_clk_enable(enable);
         aes_ll_enable_bus_clock(enable);
         if (enable) {
             aes_ll_reset_register();
@@ -60,6 +68,7 @@ void esp_crypto_aes_enable_periph_clk(bool enable)
 void esp_crypto_sha_enable_periph_clk(bool enable)
 {
     SHA_RCC_ATOMIC() {
+        esp_crypto_common_clk_enable(enable);
         sha_ll_enable_bus_clock(enable);
         if (enable) {
             sha_ll_reset_register();
@@ -78,6 +87,7 @@ void esp_crypto_sha_enable_periph_clk(bool enable)
 void esp_crypto_mpi_enable_periph_clk(bool enable)
 {
     MPI_RCC_ATOMIC() {
+        esp_crypto_common_clk_enable(enable);
         mpi_ll_enable_bus_clock(enable);
         if (enable) {
             mpi_ll_power_up();
@@ -93,6 +103,7 @@ void esp_crypto_mpi_enable_periph_clk(bool enable)
 void esp_crypto_ecc_enable_periph_clk(bool enable)
 {
     ECC_RCC_ATOMIC() {
+        esp_crypto_common_clk_enable(enable);
         ecc_ll_enable_bus_clock(enable);
         if (enable) {
             ecc_ll_power_up();
@@ -108,6 +119,7 @@ void esp_crypto_ecc_enable_periph_clk(bool enable)
 void esp_crypto_hmac_enable_periph_clk(bool enable)
 {
     HMAC_RCC_ATOMIC() {
+        esp_crypto_common_clk_enable(enable);
         hmac_ll_enable_bus_clock(enable);
         if (enable) {
             hmac_ll_reset_register();
@@ -120,6 +132,7 @@ void esp_crypto_hmac_enable_periph_clk(bool enable)
 void esp_crypto_ds_enable_periph_clk(bool enable)
 {
     DS_RCC_ATOMIC() {
+        esp_crypto_common_clk_enable(enable);
         ds_ll_enable_bus_clock(enable);
         if (enable) {
             ds_ll_reset_register();
@@ -132,6 +145,7 @@ void esp_crypto_ds_enable_periph_clk(bool enable)
 void esp_crypto_ecdsa_enable_periph_clk(bool enable)
 {
     ECDSA_RCC_ATOMIC() {
+        esp_crypto_common_clk_enable(enable);
         ecdsa_ll_enable_bus_clock(enable);
         if (enable) {
             ecdsa_ll_reset_register();
@@ -144,6 +158,7 @@ void esp_crypto_ecdsa_enable_periph_clk(bool enable)
 void esp_crypto_key_mgr_enable_periph_clk(bool enable)
 {
     KEY_MANAGER_RCC_ATOMIC() {
+        esp_crypto_common_clk_enable(enable);
         key_mgr_ll_power_up();
         key_mgr_ll_enable_bus_clock(enable);
         key_mgr_ll_enable_peripheral_clock(enable);

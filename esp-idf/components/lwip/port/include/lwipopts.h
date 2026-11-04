@@ -3,7 +3,7 @@
  *
  * SPDX-License-Identifier: BSD-3-Clause
  *
- * SPDX-FileContributor: 2015-2024 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileContributor: 2015-2026 Espressif Systems (Shanghai) CO LTD
  */
 #ifndef LWIP_HDR_ESP_LWIPOPTS_H
 #define LWIP_HDR_ESP_LWIPOPTS_H
@@ -726,6 +726,16 @@ static inline uint32_t timeout_from_offered(uint32_t lease, uint32_t min)
 #endif
 
 /**
+ * LWIP_NETIF_LINK_CALLBACK==1: Support a callback function from an interface
+ * whenever the link changes its up/down status.
+ */
+#ifdef CONFIG_LWIP_NETIF_LINK_CALLBACK
+#define LWIP_NETIF_LINK_CALLBACK       1
+#else
+#define LWIP_NETIF_LINK_CALLBACK       0
+#endif
+
+/**
  * LWIP_NETIF_EXT_STATUS_CALLBACK==1: Support an extended callback function
  * for several netif related event that supports multiple subscribers.
  *
@@ -846,7 +856,7 @@ static inline uint32_t timeout_from_offered(uint32_t lease, uint32_t min)
 /**
  * TCPIP_THREAD_NAME: The name assigned to the main tcpip thread.
  */
-#define TCPIP_THREAD_NAME              "tiT"
+#define TCPIP_THREAD_NAME              "tcpip"
 
 /**
  * TCPIP_THREAD_STACKSIZE: The stack size used by the main tcpip thread.
@@ -1233,6 +1243,19 @@ static inline uint32_t timeout_from_offered(uint32_t lease, uint32_t min)
 #endif
 
 /**
+ * LWIP_ND6_SUPPORT_STATIC_ENTRIES==1: enable nd6_add_static_neighbor() and
+ * nd6_remove_static_neighbor() to manage permanent IPv6->MAC neighbor cache
+ * entries that bypass Neighbor Discovery (no NS/NA). Applied per-(netif,address)
+ * and does not affect NDP on other interfaces. IPv6 counterpart of
+ * ETHARP_SUPPORT_STATIC_ENTRIES.
+ */
+#ifdef CONFIG_LWIP_ND6_SUPPORT_STATIC_ENTRIES
+#define LWIP_ND6_SUPPORT_STATIC_ENTRIES 1
+#else
+#define LWIP_ND6_SUPPORT_STATIC_ENTRIES 0
+#endif
+
+/**
  * LWIP_FORCE_ROUTER_FORWARDING==1: the router flag in NA packet will always set to 1,
  * otherwise, never set router flag for NA packets.
  */
@@ -1327,6 +1350,11 @@ static inline uint32_t timeout_from_offered(uint32_t lease, uint32_t min)
  * LWIP_ND6_NUM_DESTINATIONS: Maximum number of entries in IPv6 destinations cache
  */
 #define LWIP_ND6_NUM_DESTINATIONS          CONFIG_LWIP_IPV6_ND6_NUM_DESTINATIONS
+
+/**
+ * LWIP_IPV6_DUP_DETECT_ATTEMPTS: Number of duplicate address detection attempts
+ */
+#define LWIP_IPV6_DUP_DETECT_ATTEMPTS   CONFIG_LWIP_IPV6_DUP_DETECT_ATTEMPTS
 
 /**
  * LWIP_ND6_SUPPORT_RIO: Support route information options in IPv6 nd6 packets
@@ -1654,11 +1682,10 @@ static inline uint32_t timeout_from_offered(uint32_t lease, uint32_t min)
 #define ESP_MLDV6_REPORT              0
 #endif
 
+#define SYS_DEBUG                       LWIP_DBG_OFF
+
 #define ESP_LWIP                        1
 #define ESP_LWIP_ARP                    1
-#define ESP_PER_SOC_TCP_WND             0
-#define ESP_THREAD_SAFE                 1       /* Not used (to be removed in v6.x) */
-#define ESP_THREAD_SAFE_DEBUG           LWIP_DBG_OFF
 #define ESP_DHCP                        1
 #define ESP_DNS                         1
 #define ESP_STATS_TCP                   0
@@ -1693,6 +1720,14 @@ static inline uint32_t timeout_from_offered(uint32_t lease, uint32_t min)
 #define ESP_DHCPS_TIMER                 0
 #endif /* CONFIG_LWIP_DHCPS */
 
+/**
+ * LWIP_DHCPS_TEST_PARSE_OPTIONS==1: Expose dhcps_test_parse_options() in dhcpserver.c for
+ * unit tests. Default 0. Test projects may set -DLWIP_DHCPS_TEST_PARSE_OPTIONS=1
+ * (e.g. from CMake via idf_build_set_property) — do not use Kconfig for this.
+ */
+#ifndef LWIP_DHCPS_TEST_PARSE_OPTIONS
+#define LWIP_DHCPS_TEST_PARSE_OPTIONS 0
+#endif
 
 #if LWIP_NETCONN_SEM_PER_THREAD
 #define LWIP_NETCONN_THREAD_SEM_GET() sys_thread_sem_get()

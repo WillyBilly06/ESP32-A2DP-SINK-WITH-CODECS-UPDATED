@@ -3,10 +3,7 @@ PANDOC = pandoc
 default: all
 
 all_markdown = \
-	       psa-conditional-inclusion-c.md \
-	       psa-driver-developer-guide.md \
-	       psa-driver-integration-guide.md \
-	       psa-driver-interface.md \
+	       config-split.md \
 	       # This line is intentionally left blank
 
 html: $(all_markdown:.md=.html)

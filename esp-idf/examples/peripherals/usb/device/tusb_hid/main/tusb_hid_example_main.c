@@ -16,6 +16,11 @@
 #define APP_BUTTON (GPIO_NUM_0) // Use BOOT signal by default
 static const char *TAG = "example";
 
+/* Flag to indicate if the host has suspended the USB bus */
+static bool suspended = false;
+/* Flag of possibility to Wakeup Host via Remote Wakeup feature */
+static bool wakeup_host = false;
+
 /************* TinyUSB descriptors ****************/
 
 #define TUSB_DESC_TOTAL_LEN      (TUD_CONFIG_DESC_LEN + CFG_TUD_HID * TUD_HID_DESC_LEN)
@@ -34,7 +39,7 @@ const uint8_t hid_report_descriptor[] = {
 /**
  * @brief String descriptor
  */
-const char* hid_string_descriptor[5] = {
+const char *hid_string_descriptor[5] = {
     // array of pointer to string descriptors
     (char[]){0x09, 0x04},  // 0: is supported language is English (0x0409)
     "TinyUSB",             // 1: Manufacturer
@@ -69,7 +74,7 @@ uint8_t const *tud_hid_descriptor_report_cb(uint8_t instance)
 // Invoked when received GET_REPORT control request
 // Application must fill buffer report's content and return its length.
 // Return zero will cause the stack to STALL request
-uint16_t tud_hid_get_report_cb(uint8_t instance, uint8_t report_id, hid_report_type_t report_type, uint8_t* buffer, uint16_t reqlen)
+uint16_t tud_hid_get_report_cb(uint8_t instance, uint8_t report_id, hid_report_type_t report_type, uint8_t *buffer, uint16_t reqlen)
 {
     (void) instance;
     (void) report_id;
@@ -82,7 +87,7 @@ uint16_t tud_hid_get_report_cb(uint8_t instance, uint8_t report_id, hid_report_t
 
 // Invoked when received SET_REPORT control request or
 // received data on OUT endpoint ( Report ID = 0, Type = 0 )
-void tud_hid_set_report_cb(uint8_t instance, uint8_t report_id, hid_report_type_t report_type, uint8_t const* buffer, uint16_t bufsize)
+void tud_hid_set_report_cb(uint8_t instance, uint8_t report_id, hid_report_type_t report_type, uint8_t const *buffer, uint16_t bufsize)
 {
 }
 
@@ -152,6 +157,24 @@ static void app_send_hid_demo(void)
     }
 }
 
+void tud_suspend_cb(bool remote_wakeup_en)
+{
+    ESP_LOGI(TAG, "USB device suspended");
+    suspended = true;
+    if (remote_wakeup_en) {
+        ESP_LOGI(TAG, "Remote wakeup available, press the button to wake up the Host");
+        wakeup_host = true;
+    } else {
+        ESP_LOGI(TAG, "Remote wakeup not available");
+    }
+}
+
+void tud_resume_cb(void)
+{
+    ESP_LOGI(TAG, "USB device resumed");
+    suspended = false;
+}
+
 void app_main(void)
 {
     // Initialize button that will trigger HID reports
@@ -159,8 +182,8 @@ void app_main(void)
         .pin_bit_mask = BIT64(APP_BUTTON),
         .mode = GPIO_MODE_INPUT,
         .intr_type = GPIO_INTR_DISABLE,
-        .pull_up_en = true,
-        .pull_down_en = false,
+        .pull_up_en = GPIO_PULLUP_ENABLE,
+        .pull_down_en = GPIO_PULLDOWN_DISABLE,
     };
     ESP_ERROR_CHECK(gpio_config(&boot_button_config));
 
@@ -182,7 +205,17 @@ void app_main(void)
         if (tud_mounted()) {
             static bool send_hid_data = true;
             if (send_hid_data) {
-                app_send_hid_demo();
+                if (!suspended) {
+                    app_send_hid_demo();
+                } else {
+                    if (wakeup_host) {
+                        ESP_LOGI(TAG, "Waking up the Host");
+                        tud_remote_wakeup();
+                        wakeup_host = false;
+                    } else {
+                        ESP_LOGI(TAG, "USB Host remote wakeup is not available.");
+                    }
+                }
             }
             send_hid_data = !gpio_get_level(APP_BUTTON);
         }

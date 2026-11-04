@@ -194,6 +194,10 @@ The logging system supports the following formatting options, applicable for bot
 
   - For **Log V2**, the :ref:`CONFIG_LOG_COLORS_SUPPORT` option enables runtime support for adding color output to specific logs, files, or components, even if global color is disabled. To enable color for a specific context use ``ESP_LOG_COLOR_DISABLED``.
 
+  .. note::
+
+    Please note that IDF Monitor requires the log message format described above in order to apply color highlighting automatically. The minimum required format is a log level name followed by a timestamp, and each log message must end with a newline character. For example, ``I (56): Log message\n``. If this format is not followed, such as when the timestamp is disabled, automatic log coloring will not work. In these cases, it is recommended to enable :ref:`CONFIG_LOG_COLORS` in the menuconfig. Another limitation is that for multi-line log messages, only the first line will be colored correctly.
+
 - **Level Name**: A single letter (I, W, E, D, V) indicating log verbosity, displayed at the start of each message. Useful for identifying log levels, especially when color is disabled, as utilized by the ESP-IDF monitor tool.
 
 - **Timestamp**: Adds a timestamp to log messages globally. Controlled by :ref:`CONFIG_LOG_TIMESTAMP_SOURCE`.
@@ -651,6 +655,23 @@ The following measurements were performed using the ``esp_timer`` example with d
      - 26272 (+160)
 
 Enabling **Log V2** increases IRAM usage while reducing the overall application binary size, Flash code, and data usage.
+
+.. only:: not CONFIG_ESP_ROM_HAS_VPRINTF_FUNC
+
+    Reducing IRAM Usage in Log V2
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    The IRAM increase in **Log V2** is primarily caused by ``esp_rom_vprintf``, which is compiled into IRAM (about 1.2 KB) on {IDF_TARGET_NAME}. This function is referenced as the fallback formatter for constrained environments (ISR, cache disabled) in the ``esp_log_vprintf()`` inline function.
+
+    On chips where IRAM and DRAM share the same memory pool, this also reduces available heap by the same amount (about 1.2 KB).
+
+    To eliminate this cost, disable :ref:`CONFIG_LOG_API_CONSTRAINED_ENV_SAFE` (enabled by default). When disabled:
+
+    - ``ESP_DRAM_LOGx`` and ``ESP_EARLY_LOGx`` expand directly to ``esp_rom_printf()`` (a true ROM function, zero IRAM cost), bypassing the ``esp_log()`` pipeline entirely.
+    - Normal ``ESP_LOGx`` calls in constrained environments will use the standard ``vprintf`` function. If ``vprintf`` resides in flash, such calls may crash. Use ``ESP_DRAM_LOGx`` for any logging that must work with cache disabled or from an ISR.
+    - ``esp_rom_vprintf`` is never referenced, so the linker excludes it from the binary.
+
+    When enabled, the original **Log V2** behavior is preserved: all constrained-environment logs route through ``esp_log()`` and use ``esp_rom_vprintf`` as the formatter for early/DRAM logs.
 
 Logging to Host via JTAG
 ------------------------

@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2024-2025 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2024-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -31,6 +31,20 @@ extern "C" {
 #define JPEG_INTR_ALLOC_FLAG              (ESP_INTR_FLAG_SHARED)
 
 #define JPEG_ALIGN_UP(num, align)         (((num) + ((align) - 1)) & ~((align) - 1))
+// Buffers fed to the 2D-DMA must be at least 16-byte aligned.
+#define JPEG_DMA2D_BUFFER_ALIGN           16
+
+// The JPEG codec cannot work with encrypted buffer, because it deals with macro block. When an
+// unencrypted PSRAM region is reserved (CONFIG_SPIRAM_ENC_EXEMPT), codec buffers
+// must come from it; otherwise use normal PSRAM.
+#if CONFIG_SPIRAM_ENC_EXEMPT
+#define JPEG_SPIRAM_ALLOC_CAPS            (MALLOC_CAP_SPIRAM_NO_ENC)
+#else
+#define JPEG_SPIRAM_ALLOC_CAPS            (MALLOC_CAP_SPIRAM)
+#endif
+
+// Use retention link only when the target supports sleep retention and PM is enabled
+#define JPEG_USE_RETENTION_LINK  (CONFIG_PM_ENABLE && CONFIG_PM_POWER_DOWN_PERIPHERAL_IN_LIGHT_SLEEP)
 
 typedef struct jpeg_decoder_t jpeg_decoder_t;
 typedef struct jpeg_encoder_t jpeg_encoder_t;
@@ -52,7 +66,10 @@ struct jpeg_codec_t {
     intr_handle_t intr_handle;        // jpeg codec interrupt handler
     int intr_priority;                // jpeg codec interrupt priority
     SLIST_HEAD(jpeg_isr_handler_list_, jpeg_isr_handler_) jpeg_isr_handler_list; // List for jpeg interrupt.
+#if CONFIG_PM_ENABLE
     esp_pm_lock_handle_t pm_lock; // power manage lock
+#endif
+    bool retention_link_created;     // mark if the retention link is created.
 };
 
 typedef enum {
@@ -61,6 +78,7 @@ typedef enum {
     JPEG_DEC_RGB888_HB = 2,        /*!< output RGB888 format */
     JPEG_DEC_RGB565_HB = 3,        /*!< output RGB565 format */
     JPEG_DEC_GRAY_HB = 4,          /*!< output the gray picture */
+    JPEG_DEC_YUV420_HB = 5,        /*!< output YUV420 format */
     JPEG_DEC_BEST_HB_MAX,          /*!< Max value of output formats */
 } jpeg_dec_format_hb_t;
 
@@ -75,6 +93,7 @@ typedef struct {
     uint8_t mcux;                                               // the best value of minimum coding unit horizontal unit
     uint8_t mcuy;                                               // minimum coding unit vertical unit
     uint8_t qt_tbl_num;                                         // quantization table number
+    uint8_t qt_tbl_seen_mask;                                   // bit i set => qt_tbl[i] populated by a DQT entry
     uint32_t qt_tbl[JPEG_COMPONENT_NUMBER_MAX][JPEG_QUANTIZATION_TABLE_LEN];            // quantization table content [id]
     uint8_t nf;                                                 // number of frames
     uint8_t ci[JPEG_COMPONENT_NUMBER_MAX];                      // Component identifier.
@@ -242,6 +261,25 @@ esp_err_t jpeg_isr_deregister(jpeg_codec_handle_t jpeg_codec, jpeg_isr_handler_t
  * @return esp_err_t Returns ESP_OK if the interrupt priority meets the requirements, or an error code on failure
  */
 esp_err_t jpeg_check_intr_priority(jpeg_codec_handle_t jpeg_codec, int intr_priority);
+
+/**
+ * @brief Validate a user buffer that will be accessed by the 2D-DMA
+ *
+ * The buffer must be 16-byte aligned. When CONFIG_SPIRAM_ENC_EXEMPT is enabled,
+ * a PSRAM buffer must reside in the unencrypted carve-out, since the 2D-DMA
+ * cannot access encrypted PSRAM. Internal RAM buffers are always accepted.
+ *
+ * @param buffer Buffer pointer provided by the user
+ * @return true if the buffer can be used by the 2D-DMA, false otherwise
+ */
+bool jpeg_check_dma2d_buffer(const void *buffer);
+
+/**
+ * @brief Create sleep retention link
+ *
+ * @param jpeg_codec JPEG handle
+ */
+void jpeg_create_retention_module(jpeg_codec_handle_t jpeg_codec);
 
 #ifdef __cplusplus
 }

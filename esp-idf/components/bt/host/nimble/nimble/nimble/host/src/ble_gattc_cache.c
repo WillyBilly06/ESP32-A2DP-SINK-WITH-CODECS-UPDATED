@@ -27,19 +27,25 @@
 #include "nimble/storage_port.h"
 #include "host/ble_gatt.h"
 #include "esp_nimble_mem.h"
+#include "host/ble_hs_log.h"
+#if MYNEWT_VAL(BLE_STATIC_TO_DYNAMIC)
+#include "nvs.h"
+#endif
 
-#define GATT_CACHE_PREFIX "gatt_"
+#define GATT_CACHE_PREFIX "gatt_cache"
 #define INVALID_ADDR_NUM 0xff
 #define MAX_DEVICE_IN_CACHE 50
 #define MAX_ADDR_LIST_CACHE_BUF 4096
 
 #if MYNEWT_VAL(BLE_GATT_CACHING)
-static const char *cache_key = "gattc_cache_key";
+static const char *cache_key = "key";
 static const char *cache_addr = "cache_addr_tab";
 static uint8_t ble_gattc_cache_find_addr(ble_addr_t addr);
 static uint8_t ble_gattc_cache_find_hash(uint8_t * hash_key);
-static uint8_t svc_end_handle;
+#if !MYNEWT_VAL(BLE_STATIC_TO_DYNAMIC)
+static uint16_t svc_end_handle;
 struct cache_fn_mapping cache_fn;
+#endif
 
 typedef struct {
     /*Save the service data in the list according to the address */
@@ -57,7 +63,23 @@ typedef struct {
     cache_addr_info_t cache_addr[MAX_DEVICE_IN_CACHE];
 } cache_env_t;
 
+#if !MYNEWT_VAL(BLE_STATIC_TO_DYNAMIC)
 static cache_env_t *cache_env = NULL;
+#endif
+
+#if MYNEWT_VAL(BLE_STATIC_TO_DYNAMIC)
+typedef struct {
+    uint16_t _svc_end_handle;
+    struct cache_fn_mapping _cache_fn;
+    cache_env_t * _cache_env;
+} ble_gattc_cache_static_vars_t;
+
+static ble_gattc_cache_static_vars_t * ble_gattc_cache_static_vars = NULL;
+
+#define svc_end_handle (ble_gattc_cache_static_vars->_svc_end_handle)
+#define cache_fn (ble_gattc_cache_static_vars->_cache_fn)
+#define cache_env (ble_gattc_cache_static_vars->_cache_env)
+#endif
 
 static void
 print_hash_key(uint8_t * hash_key)
@@ -78,18 +100,46 @@ print_addr(ble_addr_t addr)
     }
 }
 
-static void
-getFilename(char *buffer, uint8_t * hash)
+/* Increased buffer size to safely hold "key" + 12 hex chars + null + margin */
+#define GATT_CACHE_KEY_NAME_MAX_LEN 20
+
+/* Thread-local storage for key name to avoid static buffer thread safety issues */
+static __thread char tls_key_buffer[GATT_CACHE_KEY_NAME_MAX_LEN];
+
+char *getKeyname(const ble_addr_t *addr)
 {
-    sprintf(buffer, "%s%02x%02x%02x%02x", GATT_CACHE_PREFIX,
-            hash[0], hash[1], hash[2], hash[3]);
+    snprintf(tls_key_buffer, GATT_CACHE_KEY_NAME_MAX_LEN, "%s%02X%02X%02X%02X%02X%02X",
+             cache_key,
+             addr->val[5], addr->val[4], addr->val[3],
+             addr->val[2], addr->val[1], addr->val[0]);
+
+    return tls_key_buffer;
 }
 
+static int
+cacheEraseItem(cache_handle_t handle, const char *key)
+{
+    int rc = -1;
+    if (cache_fn.erase_key_item) {
+        rc = cache_fn.erase_key_item(handle,key);
+        if (rc != 0) {
+            return rc;
+        }
+
+        if (cache_fn.commit) {
+            rc = cache_fn.commit(handle);
+            if (rc != 0) {
+                return rc;
+            }
+        }
+    }
+    return rc;
+}
 static int
 cacheErase(cache_handle_t handle)
 {
     if (cache_fn.erase_all) {
-        cache_fn.erase_all(handle);
+        return cache_fn.erase_all(handle);
     }
     return -1;
 }
@@ -129,18 +179,14 @@ cacheClose(ble_addr_t addr)
 static bool
 cacheOpen(ble_addr_t addr, bool to_save, uint8_t *index)
 {
-    char fname[255] = {0};
     int status = -1;
-    uint8_t hash_key[16] = {0};
 
     if ((*index = ble_gattc_cache_find_addr(addr)) != INVALID_ADDR_NUM) {
         if (cache_env->cache_addr[*index].is_open) {
             return true;
         } else {
-            memcpy(hash_key, cache_env->cache_addr[*index].hash_key, sizeof(uint8_t) * 16);
-            getFilename(fname, hash_key);
             if (cache_fn.open) {
-                if ((status = cache_fn.open(fname, READWRITE, &cache_env->cache_addr[*index].cache_fp)) == 0) {
+                if ((status = cache_fn.open(GATT_CACHE_PREFIX, READWRITE, &cache_env->cache_addr[*index].cache_fp)) == 0) {
                     /* Set the open flag to TRUE when success to open the hash file. */
                     cache_env->cache_addr[*index].is_open = true;
                 }
@@ -161,13 +207,12 @@ ble_gattc_cacheReset(ble_addr_t *addr)
 
     if ((index = ble_gattc_cache_find_addr(*addr)) != INVALID_ADDR_NUM) {
         if (cache_env->cache_addr[index].is_open) {
-            cacheErase(cache_env->cache_addr[index].cache_fp);
-
+            cacheEraseItem(cache_env->cache_addr[index].cache_fp, getKeyname(addr));
             if (cache_fn.close) {
                 cache_fn.close(cache_env->cache_addr[index].cache_fp);
             }
             cache_env->cache_addr[index].is_open = false;
-            BLE_HS_LOG(DEBUG, "%s erased peer entry from NVS");
+            BLE_HS_LOG(DEBUG, "%s erased peer entry from NVS", __func__);
         } else {
             cacheOpen(*addr, false, &index);
             if (index == INVALID_ADDR_NUM) {
@@ -175,12 +220,12 @@ ble_gattc_cacheReset(ble_addr_t *addr)
                 return;
             }
             if (cache_env->cache_addr[index].is_open) {
-                cacheErase(cache_env->cache_addr[index].cache_fp);
+                cacheEraseItem(cache_env->cache_addr[index].cache_fp, getKeyname(addr));
                 if (cache_fn.close) {
                     cache_fn.close(cache_env->cache_addr[index].cache_fp);
                 }
                 cache_env->cache_addr[index].is_open = false;
-                BLE_HS_LOG(DEBUG, "%s erased peer entry from NVS");
+                BLE_HS_LOG(DEBUG, "%s erased peer entry from NVS",__func__);
             } else {
                 BLE_HS_LOG(ERROR, "%s cacheOpen failed", __func__);
                 return;
@@ -204,7 +249,7 @@ ble_gattc_cacheReset(ble_addr_t *addr)
 
         /* Update addr list to storage flash */
         if (cache_env->num_addr > 0) {
-            uint8_t *p_buf = nimble_platform_mem_malloc(MAX_ADDR_LIST_CACHE_BUF);
+            uint8_t *p_buf = nimble_platform_mem_calloc(1,MAX_ADDR_LIST_CACHE_BUF);
             if (!p_buf) {
                 BLE_HS_LOG(ERROR, "%s malloc error", __func__);
                 return;
@@ -237,7 +282,7 @@ ble_gattc_cacheReset(ble_addr_t *addr)
                     cache_fn.close(cache_env->addr_fp);
                 }
                 cache_env->is_open = false;
-                BLE_HS_LOG(DEBUG, "%s erased entire cache from NVS");
+                BLE_HS_LOG(DEBUG, "%s erased entire cache from NVS", __func__);
             } else {
                 BLE_HS_LOG(INFO, "cache_env status is error");
             }
@@ -245,10 +290,42 @@ ble_gattc_cacheReset(ble_addr_t *addr)
     }
 }
 
+#if MYNEWT_VAL(BLE_STATIC_TO_DYNAMIC)
+static int
+ble_gattc_cache_static_vars_init(void)
+{
+    if (ble_gattc_cache_static_vars == NULL) {
+
+        ble_gattc_cache_static_vars = nimble_platform_mem_calloc(1, sizeof(ble_gattc_cache_static_vars_t));
+        if (ble_gattc_cache_static_vars == NULL) {
+            BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_ENOMEM);
+            return BLE_HS_ENOMEM;
+        }
+    }
+
+    return 0;
+}
+#endif
+
 static uint8_t
 ble_gattc_cache_find_addr(ble_addr_t addr)
 {
     uint8_t addr_index = 0;
+#if MYNEWT_VAL(BLE_STATIC_TO_DYNAMIC)
+    uint8_t rc = 0;
+    rc = ble_gattc_cache_static_vars_init();
+    if (rc != 0) {
+        return INVALID_ADDR_NUM;  /* Return invalid index on error */
+    }
+#endif
+
+    if (cache_env == NULL) {
+        cache_env = nimble_platform_mem_calloc(1, sizeof(cache_env_t));
+        if (cache_env == NULL) {
+            return INVALID_ADDR_NUM;
+        }
+    }
+
     uint8_t num = cache_env->num_addr;
     cache_addr_info_t *addr_info = &cache_env->cache_addr[0];
 
@@ -362,6 +439,7 @@ ble_gattc_fill_nv_attr(struct ble_gattc_cache_conn *peer, size_t num_attr, struc
 
     int index = 0;
     int svc_index = 0;
+    svc_end_handle = 0; // Reset to support multi-peer caches
 
     SLIST_FOREACH(svc, &peer->svcs, next) {
         ble_gattc_fill_nv_attr_entry(svc->svc.uuid, svc->svc.start_handle, svc->svc.end_handle,
@@ -403,14 +481,19 @@ static int
 ble_gattc_cache_addr_save(uint8_t *out_index, ble_addr_t addr, uint8_t * hash_key)
 {
     int rc;
-    uint8_t num = ++(cache_env->num_addr);
     uint8_t index = 0;
     uint8_t insert_ind = 0;
     uint8_t i = 0;
     uint8_t *p_buf;
 
-    p_buf = nimble_platform_mem_malloc(MAX_ADDR_LIST_CACHE_BUF);
+    if (cache_env == NULL) {
+        BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_EUNKNOWN);
+        return BLE_HS_EUNKNOWN;
+    }
+
+    p_buf = nimble_platform_mem_calloc(1,MAX_ADDR_LIST_CACHE_BUF);
     if (p_buf == NULL) {
+        BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_ENOMEM);
         return BLE_HS_ENOMEM;
     }
 
@@ -419,29 +502,30 @@ ble_gattc_cache_addr_save(uint8_t *out_index, ble_addr_t addr, uint8_t * hash_ke
         BLE_HS_LOG(DEBUG, "Hash key already present in the cache list");
 
         if ((index = ble_gattc_cache_find_addr(addr)) != INVALID_ADDR_NUM) {
-            BLE_HS_LOG(DEBUG, "tBD address already present in the cache list");
+            BLE_HS_LOG(DEBUG, "BD address already present in the cache list");
 
             /* If the bd_addr already in the address list, update the hash key in it. */
             insert_ind = index;
         } else {
-            /*
-                If the bd_addr isn't in the address list, added the bd_addr to the last of the
-                address list.
-             */
-            if(num > MYNEWT_VAL(BLE_GATT_CACHING_MAX_CONNS)) {
+            /* Address not found - need to allocate a new slot */
+            if(cache_env->num_addr >= MYNEWT_VAL(BLE_GATT_CACHING_MAX_CONNS)) {
                 nimble_platform_mem_free(p_buf);
+                BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_ENOMEM);
                 return BLE_HS_ENOMEM;
             }
             BLE_HS_LOG(DEBUG, "BD addr not present");
-            insert_ind = num - 1;
+            insert_ind = cache_env->num_addr;
+            cache_env->num_addr++; /* Increment only when adding new address */
         }
     } else {
         BLE_HS_LOG(DEBUG, "Hash key not present, saving new data");
-        if(num > MYNEWT_VAL(BLE_GATT_CACHING_MAX_CONNS)) {
+        if(cache_env->num_addr >= MYNEWT_VAL(BLE_GATT_CACHING_MAX_CONNS)) {
             nimble_platform_mem_free(p_buf);
+            BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_ENOMEM);
             return BLE_HS_ENOMEM;
         }
-        insert_ind = num - 1;
+        insert_ind = cache_env->num_addr;
+        cache_env->num_addr++; /* Increment only when adding new address */
     }
 
     print_hash_key(hash_key);
@@ -451,9 +535,9 @@ ble_gattc_cache_addr_save(uint8_t *out_index, ble_addr_t addr, uint8_t * hash_ke
     memcpy(&cache_env->cache_addr[insert_ind].addr, &addr, sizeof(ble_addr_t));
 
     cache_handle_t *fp = &cache_env->addr_fp;
-    uint16_t length = num * (sizeof(ble_addr_t) + (sizeof(uint8_t) * 16));
+    uint16_t length = cache_env->num_addr * (sizeof(ble_addr_t) + (sizeof(uint8_t) * 16));
 
-    for (i = 0; i < num; i++) {
+    for (i = 0; i < cache_env->num_addr; i++) {
 
         memcpy(p_buf + i * (sizeof(ble_addr_t) + sizeof(uint8_t) * 16),
                &cache_env->cache_addr[i].addr, sizeof(ble_addr_t));
@@ -511,7 +595,7 @@ ble_gattc_cache_save(struct ble_gattc_cache_conn *peer, size_t num_attr)
     uint8_t index = INVALID_ADDR_NUM;
     struct ble_gatt_nv_attr *nv_attr;
 
-    nv_attr = (struct ble_gatt_nv_attr *) nimble_platform_mem_malloc(num_attr * sizeof(ble_gatt_nv_attr));
+    nv_attr = (struct ble_gatt_nv_attr *) nimble_platform_mem_calloc(1,num_attr * sizeof(ble_gatt_nv_attr));
     if (nv_attr == NULL) {
         BLE_HS_LOG(DEBUG, "Failed to allocate memory to nv_attr");
         return;
@@ -535,7 +619,7 @@ ble_gattc_cache_save(struct ble_gattc_cache_conn *peer, size_t num_attr)
     if (cacheOpen(peer->ble_gattc_cache_conn_addr, true, &index)) {
         BLE_HS_LOG(DEBUG, "Cache Opened already \n\tWriting cache_fp and cache_key on index = %d",
                    index);
-        rc = cacheWrite(cache_env->cache_addr[index].cache_fp, cache_key, nv_attr,
+        rc = cacheWrite(cache_env->cache_addr[index].cache_fp, getKeyname(&peer->ble_gattc_cache_conn_addr), nv_attr,
                         num_attr * sizeof(struct ble_gatt_nv_attr));
     } else {
         rc = -1;
@@ -555,16 +639,21 @@ ble_gattc_cache_load_nv_attr(uint8_t index, int *num_attr)
     size_t length = 0;
     struct ble_gatt_nv_attr *nv_attr;
 
-    cacheRead(cache_env->cache_addr[index].cache_fp, cache_key, NULL, &length);
+    rc = cacheRead(cache_env->cache_addr[index].cache_fp, getKeyname(&cache_env->cache_addr[index].addr), NULL, &length);
+
+    if (rc != 0 || length == 0) {
+        BLE_HS_LOG(ERROR, "Failed to read cache length, rc = %d, length = %zu", rc, length);
+        return NULL;
+    }
 
     *num_attr = length / (sizeof(ble_gatt_nv_attr));
 
-    nv_attr = (struct ble_gatt_nv_attr *) nimble_platform_mem_malloc((*num_attr) * sizeof(struct ble_gatt_nv_attr));
+    nv_attr = (struct ble_gatt_nv_attr *) nimble_platform_mem_calloc(1,(*num_attr) * sizeof(struct ble_gatt_nv_attr));
     if (nv_attr == NULL) {
         return NULL;
     }
 
-    rc = cacheRead(cache_env->cache_addr[index].cache_fp, cache_key, nv_attr, &length);
+    rc = cacheRead(cache_env->cache_addr[index].cache_fp, getKeyname(&cache_env->cache_addr[index].addr), nv_attr, &length);
 
     BLE_HS_LOG(INFO, "%s, rc = %d, length = %d index = %d", __func__, rc, length, index);
     return nv_attr;
@@ -576,8 +665,9 @@ ble_gattc_add_svc_from_cache(ble_addr_t peer_addr, struct ble_gatt_nv_attr nv_at
     struct ble_gatt_svc *gatt_svc;
     int rc;
 
-    gatt_svc = (struct ble_gatt_svc *)nimble_platform_mem_malloc(sizeof(struct ble_gatt_svc));
+    gatt_svc = (struct ble_gatt_svc *)nimble_platform_mem_calloc(1,sizeof(struct ble_gatt_svc));
     if (gatt_svc == NULL) {
+        BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_ENOMEM);
         return BLE_HS_ENOMEM;
     }
 
@@ -597,8 +687,9 @@ ble_gattc_add_inc_from_cache(ble_addr_t peer_addr, struct ble_gatt_nv_attr nv_at
     int rc;
     struct ble_gatt_incl_svc *gatt_incl_svc;
 
-    gatt_incl_svc = (struct ble_gatt_incl_svc *)nimble_platform_mem_malloc(sizeof(struct ble_gatt_incl_svc));
+    gatt_incl_svc = (struct ble_gatt_incl_svc *)nimble_platform_mem_calloc(1,sizeof(struct ble_gatt_incl_svc));
     if (gatt_incl_svc == NULL) {
+        BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_ENOMEM);
         return BLE_HS_ENOMEM;
     }
 
@@ -618,8 +709,9 @@ ble_gattc_add_chr_from_cache(ble_addr_t peer_addr, struct ble_gatt_nv_attr nv_at
 {
     struct ble_gatt_chr *gatt_chr;
     int rc;
-    gatt_chr = (struct ble_gatt_chr *)nimble_platform_mem_malloc(sizeof(struct ble_gatt_chr));
+    gatt_chr = (struct ble_gatt_chr *)nimble_platform_mem_calloc(1,sizeof(struct ble_gatt_chr));
     if (gatt_chr == NULL) {
+        BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_ENOMEM);
         return BLE_HS_ENOMEM;
     }
 
@@ -638,8 +730,9 @@ ble_gattc_add_dsc_from_cache(ble_addr_t peer_addr, struct ble_gatt_nv_attr nv_at
 {
     struct ble_gatt_dsc *gatt_dsc;
     int rc;
-    gatt_dsc = (struct ble_gatt_dsc *)nimble_platform_mem_malloc(sizeof(struct ble_gatt_dsc));
+    gatt_dsc = (struct ble_gatt_dsc *)nimble_platform_mem_calloc(1,sizeof(struct ble_gatt_dsc));
     if (gatt_dsc == NULL) {
+        BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_ENOMEM);
         return BLE_HS_ENOMEM;
     }
 
@@ -660,6 +753,7 @@ ble_gattc_cache_assoc_load(ble_addr_t src_addr, uint8_t src_index, ble_addr_t as
 
     if (!cacheOpen(src_addr, true, &src_index)) {
         BLE_HS_LOG(INFO, "gattc cache open fail for src addr");
+        BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_EINVAL);
         return BLE_HS_EINVAL;
     }
 
@@ -703,6 +797,11 @@ ble_gattc_cache_assoc_load(ble_addr_t src_addr, uint8_t src_index, ble_addr_t as
                                    cache_env->cache_addr[src_index].hash_key);
 
     BLE_HS_LOG(DEBUG, "Successfully associated cache from src_addr to assoc_addr.");
+
+    if (rc != 0) {
+        return rc;
+    }
+
     return 0;
 }
 
@@ -745,11 +844,14 @@ ble_gattc_cache_load(ble_addr_t peer_addr)
 
     if (!cacheOpen(peer_addr, true, &index)) {
         BLE_HS_LOG(INFO, "gattc cache open fail");
+        BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_EINVAL);
         return BLE_HS_EINVAL;
     }
 
     if ((nv_attr = ble_gattc_cache_load_nv_attr(index, &num_attr)) == NULL) {
         BLE_HS_LOG(INFO, "%s, gattc cache nv_attr load fail", __func__);
+        cacheClose(peer_addr);
+        BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_EINVAL);
         return BLE_HS_EINVAL;
     }
 
@@ -778,15 +880,20 @@ ble_gattc_cache_load(ble_addr_t peer_addr)
     }
     nimble_platform_mem_free(nv_attr);
     cache_index = ble_gattc_cache_find_addr(peer_addr);
+    if (cache_index == INVALID_ADDR_NUM) {
+        BLE_HS_LOG(ERROR, "Address not found in cache");
+        return BLE_HS_ENOENT;
+    }
     ble_gattc_cache_conn_load_hash(cache_env->cache_addr[cache_index].addr,
                                    cache_env->cache_addr[cache_index].hash_key);
+    cacheClose(peer_addr);
     return rc;
 }
 
 int
 ble_gattc_cache_check_hash(struct ble_gattc_cache_conn *peer, struct os_mbuf *om)
 {
-    if (peer == NULL || om == NULL) {
+    if (peer == NULL || om == NULL || om->om_len != 16) {
         BLE_HS_LOG(ERROR, "Check hash failed");
         return -1;
     }
@@ -796,32 +903,75 @@ ble_gattc_cache_check_hash(struct ble_gattc_cache_conn *peer, struct os_mbuf *om
     return -1;
 }
 
+#if MYNEWT_VAL(BLE_STATIC_TO_DYNAMIC)
+void
+ble_gattc_cache_free_mem(void)
+{
+    if (ble_gattc_cache_static_vars) {
+        if (cache_env) {
+            uint8_t num_addr = cache_env->num_addr;
+            if (num_addr > MAX_DEVICE_IN_CACHE) {
+                num_addr = MAX_DEVICE_IN_CACHE;
+            }
+
+            /* Close any open per-peer cache handles before releasing cache_env. */
+            if (cache_fn.close) {
+                for (uint8_t i = 0; i < num_addr; i++) {
+                    if (cache_env->cache_addr[i].is_open) {
+                        cache_fn.close(cache_env->cache_addr[i].cache_fp);
+                        cache_env->cache_addr[i].is_open = false;
+                    }
+                }
+
+                if (cache_env->is_open) {
+                    cache_fn.close(cache_env->addr_fp);
+                    cache_env->is_open = false;
+                }
+            }
+
+            nimble_platform_mem_free(cache_env);
+            cache_env = NULL;
+        }
+        nimble_platform_mem_free(ble_gattc_cache_static_vars);
+        ble_gattc_cache_static_vars = NULL;
+    }
+}
+#endif
+
 int
 ble_gattc_cache_init(void *storage_cb)
 {
+    int rc = 0;
+    cache_handle_t fp;
+    uint8_t num_addr;
+    size_t length = MAX_ADDR_LIST_CACHE_BUF;
+    uint8_t *p_buf = NULL;
+
+#if MYNEWT_VAL(BLE_STATIC_TO_DYNAMIC)
+   int no_cached_blob = 0;
+   rc = ble_gattc_cache_static_vars_init();
+   if (rc != 0) {
+    return rc;
+   }
+#endif
+
     /* Point where to store data */
     cache_fn = link_storage_fn(storage_cb);
 
-    cache_handle_t fp;
-    int rc = 0;
-    uint8_t num_addr;
-    size_t length = MAX_ADDR_LIST_CACHE_BUF;
-
     svc_end_handle = 0;
 
-    uint8_t *p_buf = nimble_platform_mem_malloc(MAX_ADDR_LIST_CACHE_BUF);
+    p_buf = nimble_platform_mem_calloc(1,MAX_ADDR_LIST_CACHE_BUF);
     if (p_buf == NULL) {
         BLE_HS_LOG(ERROR, "%s malloc failed!", __func__);
         rc = BLE_HS_ENOMEM;
-        return rc;
+        goto error;
     }
 
-    cache_env = (cache_env_t *)nimble_platform_mem_malloc(sizeof(cache_env_t));
+    cache_env = (cache_env_t *)nimble_platform_mem_calloc(1,sizeof(cache_env_t));
     if (cache_env == NULL) {
         BLE_HS_LOG(ERROR, "%s malloc failed!", __func__);
-        nimble_platform_mem_free(p_buf);
         rc = BLE_HS_ENOMEM;
-        return rc;
+        goto error;
     }
 
     memset(cache_env, 0x0, sizeof(cache_env_t));
@@ -833,15 +983,31 @@ ble_gattc_cache_init(void *storage_cb)
 
             /* Read previously saved blob if available */
             if ((rc = cacheRead(fp, cache_key, p_buf, &length)) != 0) {
-                if (rc != 0) {
-                    BLE_HS_LOG(DEBUG, "%s, Line = %d, storage flash get blob data fail, err_code = 0x%x",
-                               __func__, __LINE__, rc);
+                BLE_HS_LOG(DEBUG, "%s, Line = %d, storage flash get blob data fail, err_code = 0x%x",
+                           __func__, __LINE__, rc);
+#if MYNEWT_VAL(BLE_STATIC_TO_DYNAMIC)
+                /*
+                 * This is expected scenario during first boot or
+                 * when no GATT cache exists yet and should not
+                 * be treated as a fatal error.
+                 */
+                if (rc == ESP_ERR_NVS_NOT_FOUND){
+                    no_cached_blob = 1;
+                    nimble_platform_mem_free(p_buf);
+                    return 0;
                 }
-                nimble_platform_mem_free(p_buf);
-                return rc;
+#endif
+                goto error;
             }
 
             num_addr = length / (sizeof(ble_addr_t) + sizeof(uint8_t) * 16);
+
+            if (num_addr > MAX_DEVICE_IN_CACHE) {
+                BLE_HS_LOG(ERROR, "Corrupted cache: num_addr %d exceeds max %d", num_addr, MAX_DEVICE_IN_CACHE);
+                rc = BLE_HS_EBADDATA;
+                goto error;
+            }
+
             cache_env->num_addr = num_addr;
             BLE_HS_LOG(DEBUG, "Number of address loaded = %d", cache_env->num_addr);
 
@@ -862,11 +1028,36 @@ ble_gattc_cache_init(void *storage_cb)
     } else {
         BLE_HS_LOG(ERROR, "%s, Line = %d, storage flash open fail, err_code = %x", __func__, __LINE__,
                    rc);
-        nimble_platform_mem_free(p_buf);
-        return rc;
+        goto error;
     }
 
     nimble_platform_mem_free(p_buf);
     return 0;
+error:
+    if (p_buf) {
+        nimble_platform_mem_free(p_buf);
+        p_buf = NULL;
+    }
+    if (cache_env && cache_env->is_open && cache_fn.close) {
+        cache_fn.close(cache_env->addr_fp);
+    }
+    if (cache_env) {
+        /* Close NVS handle if it was opened before freeing cache_env */
+        if (cache_env->is_open && cache_fn.close) {
+            cache_fn.close(cache_env->addr_fp);
+            cache_env->is_open = false;
+        }
+        nimble_platform_mem_free(cache_env);
+        cache_env = NULL;
+    }
+
+#if MYNEWT_VAL(BLE_STATIC_TO_DYNAMIC)
+    if (ble_gattc_cache_static_vars && !no_cached_blob) {
+        nimble_platform_mem_free(ble_gattc_cache_static_vars);
+        ble_gattc_cache_static_vars = NULL;
+    }
+#endif
+
+    return rc;
 }
 #endif /* MYNEWT_VAL(BLE_GATT_CACHING) */

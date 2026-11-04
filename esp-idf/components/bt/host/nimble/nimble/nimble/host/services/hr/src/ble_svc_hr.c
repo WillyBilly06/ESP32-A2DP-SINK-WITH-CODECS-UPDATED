@@ -12,11 +12,12 @@
 #include "host/ble_hs.h"
 #include "host/ble_gap.h"
 #include "services/hr/ble_svc_hr.h"
+#include "host/ble_hs_log.h"
 
 #if MYNEWT_VAL(BLE_GATTS) && CONFIG_BT_NIMBLE_HR_SERVICE
 /* Characteristic values */
 static uint8_t ble_svc_hr_measurement;
-static uint16_t ble_svc_hr_body_sensor_loc;
+static uint8_t ble_svc_hr_body_sensor_loc;
 static uint8_t ble_svc_hr_ctrl_pt;
 
 /* Characteristic value handles */
@@ -30,25 +31,25 @@ static int
 ble_svc_hr_access(uint16_t conn_handle, uint16_t attr_handle,
                   struct ble_gatt_access_ctxt *ctxt,
                   void *arg);
-int ble_svc_hr_notify_measurement(void);
+static int ble_svc_hr_notify_measurement(void);
 static int
 ble_svc_hr_chr_write(struct os_mbuf *om, uint16_t min_len,
                      uint16_t max_len, void *dst,
                      uint16_t *len);
 
-static const struct ble_gatt_svc_def ble_svc_hr_defs[] = {
-    {
-        /*** Heart Rate Measurement Service. */
-        .type = BLE_GATT_SVC_TYPE_PRIMARY,
-        .uuid = BLE_UUID16_DECLARE(BLE_SVC_HR_UUID16),
-        .characteristics = (struct ble_gatt_chr_def[])
-        { {
+static const ble_uuid16_t uuid_svc_hr = BLE_UUID16_INIT(BLE_SVC_HR_UUID16);
+static const ble_uuid16_t uuid_chr_hr_measure = BLE_UUID16_INIT(BLE_SVC_HR_CHR_UUID16_MEASUREMENT);
+static const ble_uuid16_t uuid_chr_body_sensor = BLE_UUID16_INIT(BLE_SVC_HR_CHR_UUID16_BODY_SENSOR_LOC);
+static const ble_uuid16_t uuid_chr_hr_cp = BLE_UUID16_INIT(BLE_SVC_HR_CHR_UUID16_CTRL_PT);
+
+static const struct ble_gatt_chr_def hr_characteristics[] = {
+            {
                 /** Heart Rate Measurement
                  *
                  * This characteristic exposes heart rate measurement value
                  * by notifying.
                  */
-                .uuid = BLE_UUID16_DECLARE(BLE_SVC_HR_CHR_UUID16_MEASUREMENT),
+                .uuid = &uuid_chr_hr_measure.u,
                 .access_cb = ble_svc_hr_access,
                 .val_handle = &ble_svc_hr_measurement_val_handle,
                 .flags = BLE_GATT_CHR_F_NOTIFY,
@@ -58,7 +59,7 @@ static const struct ble_gatt_svc_def ble_svc_hr_defs[] = {
                  * This characteristic exposes information about
                  * the location of the heart rate measurement device.
                  */
-                .uuid = BLE_UUID16_DECLARE(BLE_SVC_HR_CHR_UUID16_BODY_SENSOR_LOC),
+                .uuid = &uuid_chr_body_sensor.u,
                 .access_cb = ble_svc_hr_access,
                 .val_handle = &ble_svc_hr_body_sensor_loc_val_handle,
                 .flags = BLE_GATT_CHR_F_READ,
@@ -68,14 +69,21 @@ static const struct ble_gatt_svc_def ble_svc_hr_defs[] = {
                  * This characteristic enable a Client to write control
                  * points to a Server to control behavior
                  */
-                .uuid = BLE_UUID16_DECLARE(BLE_SVC_HR_CHR_UUID16_CTRL_PT),
+                .uuid = &uuid_chr_hr_cp.u,
                 .access_cb = ble_svc_hr_access,
                 .val_handle = &ble_svc_hr_ctrl_pt_val_handle,
-                .flags = BLE_GATT_CHR_F_READ | BLE_GATT_CHR_F_WRITE,
+                .flags = BLE_GATT_CHR_F_WRITE,
             }, {
                 0, /* No more characteristics in this service. */
             }
-        },
+};
+
+static const struct ble_gatt_svc_def ble_svc_hr_defs[] = {
+    {
+        /*** Heart Rate Measurement Service. */
+        .type = BLE_GATT_SVC_TYPE_PRIMARY,
+        .uuid = &uuid_svc_hr.u,
+        .characteristics = hr_characteristics,
     },
 
     {
@@ -110,18 +118,13 @@ ble_svc_hr_access(uint16_t conn_handle, uint16_t attr_handle,
 
     case BLE_SVC_HR_CHR_UUID16_CTRL_PT:
         if (ctxt->op == BLE_GATT_ACCESS_OP_WRITE_CHR) {
-            rc = ble_svc_hr_chr_write(ctxt->om, 0, sizeof(ble_svc_hr_ctrl_pt),
+            rc = ble_svc_hr_chr_write(ctxt->om, sizeof(ble_svc_hr_ctrl_pt), sizeof(ble_svc_hr_ctrl_pt),
                                       &ble_svc_hr_ctrl_pt,
                                       NULL);
 
             return rc == 0 ? 0 : BLE_ATT_ERR_INSUFFICIENT_RES;
-        } else if (ctxt->op == BLE_GATT_ACCESS_OP_READ_CHR) {
-            rc = os_mbuf_append(ctxt->om, &ble_svc_hr_ctrl_pt,
-                                sizeof(ble_svc_hr_ctrl_pt));
-            return rc == 0 ? 0 : BLE_ATT_ERR_INSUFFICIENT_RES;
-        } else {
-            return BLE_SVC_HS_ERR_CMD_NOT_SUPPORTED;
         }
+        return BLE_SVC_HS_ERR_CMD_NOT_SUPPORTED;
 
     default:
         assert(0);
@@ -140,7 +143,9 @@ ble_svc_hr_access(uint16_t conn_handle, uint16_t attr_handle,
 void
 ble_svc_hr_on_gap_connect(uint16_t conn_handle)
 {
-    ble_svc_hr_conn_handle[conn_handle] = conn_handle;
+    if (conn_handle <= MYNEWT_VAL(BLE_MAX_CONNECTIONS)) {
+        ble_svc_hr_conn_handle[conn_handle] = conn_handle;
+    }
 }
 
 /**
@@ -153,7 +158,9 @@ ble_svc_hr_on_gap_connect(uint16_t conn_handle)
 void
 ble_svc_hr_on_gap_disconnect(uint16_t conn_handle)
 {
-    ble_svc_hr_conn_handle[conn_handle] = -1;
+    if (conn_handle <= MYNEWT_VAL(BLE_MAX_CONNECTIONS)) {
+        ble_svc_hr_conn_handle[conn_handle] = -1;
+    }
 }
 
 /**
@@ -173,7 +180,8 @@ ble_svc_hr_notify_measurement(void)
             txom = ble_hs_mbuf_from_flat(&ble_svc_hr_measurement,
                                          sizeof(ble_svc_hr_measurement));
             if (!txom) {
-                return ESP_FAIL;
+                BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_ENOMEM);
+                return BLE_HS_ENOMEM;
             }
 
             rc = ble_gatts_notify_custom(ble_svc_hr_conn_handle[i],

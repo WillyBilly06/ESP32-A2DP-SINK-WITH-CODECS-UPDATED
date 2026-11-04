@@ -60,10 +60,11 @@ extern "C" {
  */
 typedef enum
 {
-    OT_CRYPTO_KEY_TYPE_RAW,   ///< Key Type: Raw Data.
-    OT_CRYPTO_KEY_TYPE_AES,   ///< Key Type: AES.
-    OT_CRYPTO_KEY_TYPE_HMAC,  ///< Key Type: HMAC.
-    OT_CRYPTO_KEY_TYPE_ECDSA, ///< Key Type: ECDSA.
+    OT_CRYPTO_KEY_TYPE_RAW,    ///< Key Type: Raw Data.
+    OT_CRYPTO_KEY_TYPE_AES,    ///< Key Type: AES.
+    OT_CRYPTO_KEY_TYPE_HMAC,   ///< Key Type: HMAC.
+    OT_CRYPTO_KEY_TYPE_ECDSA,  ///< Key Type: ECDSA.
+    OT_CRYPTO_KEY_TYPE_DERIVE, ///< Key Type: Derive.
 } otCryptoKeyType;
 
 /**
@@ -75,6 +76,7 @@ typedef enum
     OT_CRYPTO_KEY_ALG_AES_ECB,      ///< Key Algorithm: AES ECB.
     OT_CRYPTO_KEY_ALG_HMAC_SHA_256, ///< Key Algorithm: HMAC SHA-256.
     OT_CRYPTO_KEY_ALG_ECDSA,        ///< Key Algorithm: ECDSA.
+    OT_CRYPTO_KEY_ALG_HKDF_SHA256,  ///< Key Algorithm: HKDF SHA-256.
 } otCryptoKeyAlgorithm;
 
 /**
@@ -88,6 +90,7 @@ enum
     OT_CRYPTO_KEY_USAGE_DECRYPT     = 1 << 2, ///< Key Usage: AES ECB.
     OT_CRYPTO_KEY_USAGE_SIGN_HASH   = 1 << 3, ///< Key Usage: Sign Hash.
     OT_CRYPTO_KEY_USAGE_VERIFY_HASH = 1 << 4, ///< Key Usage: Verify Hash.
+    OT_CRYPTO_KEY_USAGE_DERIVE      = 1 << 5, ///< Key Usage: Derive.
 };
 
 /**
@@ -120,6 +123,9 @@ typedef struct otCryptoKey
  * @struct otCryptoContext
  *
  * Stores the context object for platform APIs.
+ *
+ * If `OPENTHREAD_CONFIG_CRYPTO_PLATFORM_ALLOCS_CONTEXT` is enabled, the platform allocates and populates this.
+ * Otherwise OpenThread core allocates and populates this.
  */
 typedef struct otCryptoContext
 {
@@ -289,6 +295,31 @@ otError otPlatCryptoDestroyKey(otCryptoKeyRef aKeyRef);
 bool otPlatCryptoHasKey(otCryptoKeyRef aKeyRef);
 
 /**
+ * Dynamically allocates new memory for the Crypto subsystem. On platforms that support it, they should redirect to
+ * `calloc`. For those that don't support `calloc`, they should implement the standard `calloc` behavior.
+ *
+ * See: https://man7.org/linux/man-pages/man3/calloc.3.html
+ *
+ * Is required for `OPENTHREAD_CONFIG_HEAP_EXTERNAL_ENABLE`.
+ *
+ * @param[in] aNum   The number of blocks to allocate
+ * @param[in] aSize  The size of each block to allocate
+ *
+ * @retval void*  The pointer to the front of the memory allocated
+ * @retval NULL   Failed to allocate the memory requested.
+ */
+void *otPlatCryptoCAlloc(size_t aNum, size_t aSize);
+
+/**
+ * Frees memory that was dynamically allocated by `otPlatCryptoCAlloc()`.
+ *
+ * Is required for `OPENTHREAD_CONFIG_HEAP_EXTERNAL_ENABLE`.
+ *
+ * @param[in] aPtr  A pointer the memory blocks to free. The pointer may be NULL.
+ */
+void otPlatCryptoFree(void *aPtr);
+
+/**
  * Initialize the HMAC operation.
  *
  * @param[in]  aContext          Context for HMAC operation.
@@ -296,6 +327,9 @@ bool otPlatCryptoHasKey(otCryptoKeyRef aKeyRef);
  * @retval OT_ERROR_NONE          Successfully initialized HMAC operation.
  * @retval OT_ERROR_FAILED        Failed to initialize HMAC operation.
  * @retval OT_ERROR_INVALID_ARGS  @p aContext was NULL
+ *
+ * @note If `OPENTHREAD_CONFIG_CRYPTO_PLATFORM_ALLOCS_CONTEXT` is enabled, @p aContext is populated by the platform.
+ *       Otherwise OpenThread core allocates and populates it.
  *
  * @note The platform driver shall point the context to the correct object such as psa_mac_operation_t or
  *       mbedtls_md_context_t.
@@ -361,6 +395,9 @@ otError otPlatCryptoHmacSha256Finish(otCryptoContext *aContext, uint8_t *aBuf, s
  * @retval OT_ERROR_INVALID_ARGS  @p aContext was NULL
  * @retval OT_ERROR_NO_BUFS       Cannot allocate the context.
  *
+ * @note If `OPENTHREAD_CONFIG_CRYPTO_PLATFORM_ALLOCS_CONTEXT` is enabled, @p aContext is populated by the platform.
+ *       Otherwise OpenThread core allocates and populates it.
+ *
  * @note The platform driver shall point the context to the correct object such as psa_key_id
  *       or mbedtls_aes_context_t.
  */
@@ -407,9 +444,12 @@ otError otPlatCryptoAesFree(otCryptoContext *aContext);
  *
  * @param[in]  aContext           Context for HKDF operation.
  *
- * @retval OT_ERROR_NONE          Successfully Initialised AES operation.
- * @retval OT_ERROR_FAILED        Failed to Initialise AES operation.
+ * @retval OT_ERROR_NONE          Successfully Initialised HKDF operation.
+ * @retval OT_ERROR_FAILED        Failed to Initialise HKDF operation.
  * @retval OT_ERROR_INVALID_ARGS  @p aContext was NULL
+ *
+ * @note If `OPENTHREAD_CONFIG_CRYPTO_PLATFORM_ALLOCS_CONTEXT` is enabled, @p aContext is populated by the platform.
+ *       Otherwise OpenThread core allocates and populates it.
  *
  * @note The platform driver shall point the context to the correct object such as psa_key_derivation_operation_t
  *       or HmacSha256::Hash
@@ -471,6 +511,8 @@ otError otPlatCryptoHkdfDeinit(otCryptoContext *aContext);
  * @retval OT_ERROR_FAILED        Failed to initialise SHA-256 operation.
  * @retval OT_ERROR_INVALID_ARGS  @p aContext was NULL
  *
+ * @note If `OPENTHREAD_CONFIG_CRYPTO_PLATFORM_ALLOCS_CONTEXT` is enabled, @p aContext is populated by the platform.
+ *       Otherwise OpenThread core allocates and populates it.
  *
  * @note The platform driver shall point the context to the correct object such as psa_hash_operation_t
  *       or mbedtls_sha256_context.
@@ -706,6 +748,51 @@ otError otPlatCryptoPbkdf2GenerateKey(const uint8_t *aPassword,
                                       uint32_t       aIterationCounter,
                                       uint16_t       aKeyLen,
                                       uint8_t       *aKey);
+
+/**
+ * @struct otPlatCryptoAesCcmConfig
+ *
+ * Holds the parameters for a one-shot AES-CCM* operation passed to `otPlatCryptoAesCcmProcessOneShot`.
+ */
+typedef struct otPlatCryptoAesCcmConfig
+{
+    otCryptoKey    mKey;             ///< The encryption key.
+    const uint8_t *mNonce;           ///< Pointer to the nonce buffer (IEEE 802.15.4 CCM* format, 13 bytes).
+    uint8_t        mNonceLength;     ///< Length of @p mNonce in bytes.
+    uint8_t        mTagLength;       ///< Authentication tag length in bytes (even)
+    uint32_t       mHeaderLength;    ///< Length of the additional authenticated data (header) in bytes.
+    uint32_t       mPlainTextLength; ///< Payload length in bytes (excluding tag).
+} otPlatCryptoAesCcmConfig;
+
+/**
+ * Performs in-place AES-CCM* authenticated encryption or decryption in a single call.
+ *
+ * For encryption (@p aEncrypt == true):
+ *   - Plaintext at @p aData is replaced with ciphertext in-place.
+ *   - The authentication tag is written to @p aData + @p aConfig->mPlainTextLength.
+ *
+ * For decryption (@p aEncrypt == false):
+ *   - Ciphertext at @p aData is replaced with plaintext in-place.
+ *   - The tag to verify must be at @p aData + @p aConfig->mPlainTextLength.
+ *
+ * Requires `OPENTHREAD_CONFIG_CRYPTO_PLATFORM_CCM_ONE_SHOT_ENABLE`.
+ *
+ * Default weak mbedTLS and PSA implementations are provided.
+ *
+ * @param[in]      aEncrypt  True to encrypt and generate tag; false to decrypt and verify tag.
+ * @param[in]      aConfig   CCM* parameters (key, nonce, lengths).
+ * @param[in]      aHeader   Additional authenticated data (not encrypted). May be NULL if header length is 0.
+ * @param[in,out]  aData     Payload buffer (plaintext on encrypt entry, ciphertext on decrypt entry).
+ *                           The buffer must hold @p aConfig->mPlainTextLength + @p aConfig->mTagLength bytes.
+ *
+ * @retval OT_ERROR_NONE      Success.
+ * @retval OT_ERROR_SECURITY  Tag mismatch (decrypt only).
+ * @retval OT_ERROR_FAILED    Operation failed.
+ */
+otError otPlatCryptoAesCcmProcessOneShot(bool                            aEncrypt,
+                                         const otPlatCryptoAesCcmConfig *aConfig,
+                                         const uint8_t                  *aHeader,
+                                         uint8_t                        *aData);
 
 /**
  * @}

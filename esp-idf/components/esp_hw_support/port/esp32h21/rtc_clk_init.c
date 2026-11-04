@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2024 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2024-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -9,52 +9,60 @@
 #include <stddef.h>
 #include <stdlib.h>
 #include "rom/ets_sys.h"
-#include "rom/rtc.h"
-#include "rom/uart.h"
+#include "esp32h21/rom/rtc.h"
 #include "soc/rtc.h"
 #include "esp_cpu.h"
 #include "regi2c_ctrl.h"
 #include "soc/lp_clkrst_reg.h"
-#include "soc/regi2c_pmu.h"
+#include "soc/regi2c_dcdc.h"
 #include "esp_hw_log.h"
-#include "sdkconfig.h"
-#include "esp_rom_uart.h"
 #include "hal/clk_tree_ll.h"
 #include "soc/pmu_reg.h"
 #include "pmu_param.h"
 
-static const char *TAG = "rtc_clk_init";
+ESP_HW_LOG_ATTR_TAG(TAG, "rtc_clk_init");
 
 void rtc_clk_init(rtc_clk_config_t cfg)
 {
     rtc_cpu_freq_config_t old_config, new_config;
 
-    /* Set tuning parameters for RC_FAST, RC_SLOW, and RC32K clocks.
+    /* Set tuning parameters for RC_FAST and RC_SLOW clocks.
      * Note: this doesn't attempt to set the clocks to precise frequencies.
      * Instead, we calibrate these clocks against XTAL frequency later, when necessary.
      * - SCK_DCAP value controls tuning of RC_SLOW clock.
      *   The higher the value of DCAP is, the lower is the frequency.
      * - CK8M_DFREQ value controls tuning of RC_FAST clock.
      *   CLK_8M_DFREQ constant gives the best temperature characteristics.
-     * - RC32K_DFREQ value controls tuning of RC32K clock.
      */
     REG_SET_FIELD(LP_CLKRST_FOSC_CNTL_REG, LP_CLKRST_FOSC_DFREQ, cfg.clk_8m_dfreq);
-    REGI2C_WRITE_MASK(I2C_PMU, I2C_PMU_OC_SCK_DCAP, cfg.slow_clk_dcap);
-    REG_SET_FIELD(LP_CLKRST_RC32K_CNTL_REG, LP_CLKRST_RC32K_DFREQ, cfg.rc32k_dfreq);
+    REG_SET_FIELD(LP_CLKRST_RC32K_CNTL_REG, LP_CLKRST_RC32K_DFREQ, cfg.slow_clk_dcap); // h21 specific workaround (RC32K_DFREQ is used for RC_SLOW clock tuning) TODO: IDF-12313
 
-    REGI2C_WRITE_MASK(I2C_PMU, I2C_PMU_EN_I2C_RTC_DREG, 0);
-    REGI2C_WRITE_MASK(I2C_PMU, I2C_PMU_EN_I2C_DIG_DREG, 0);
 
-    uint32_t hp_cali_dbias = get_act_hp_dbias();
-    uint32_t lp_cali_dbias = get_act_lp_dbias();
+    // switch to ccm mode
+    REG_SET_FIELD(PMU_DCM_CTRL_REG, PMU_DCDC_CCM_SW_EN, 1);
+    REG_SET_FIELD(PMU_HP_ACTIVE_BIAS_REG, PMU_HP_ACTIVE_DCDC_CCM_ENB, 0);
 
-    SET_PERI_REG_BITS(PMU_HP_MODEM_HP_REGULATOR0_REG, PMU_HP_MODEM_HP_REGULATOR_DBIAS, hp_cali_dbias, PMU_HP_MODEM_HP_REGULATOR_DBIAS_S);
-    SET_PERI_REG_BITS(PMU_HP_ACTIVE_HP_REGULATOR0_REG, PMU_HP_ACTIVE_HP_REGULATOR_DBIAS, hp_cali_dbias, PMU_HP_ACTIVE_HP_REGULATOR_DBIAS_S);
-    SET_PERI_REG_BITS(PMU_HP_SLEEP_LP_REGULATOR0_REG, PMU_HP_SLEEP_LP_REGULATOR_DBIAS, lp_cali_dbias, PMU_HP_SLEEP_LP_REGULATOR_DBIAS_S);
 
-    soc_xtal_freq_t xtal_freq = cfg.xtal_freq;
-    esp_rom_output_tx_wait_idle(0);
-    rtc_clk_xtal_freq_update(xtal_freq);
+    // dcdc init
+    REGI2C_WRITE_MASK(I2C_DCDC, I2C_DCDC_CCM_DREG0, DCDC_DREG_DEFAULT);
+    REGI2C_WRITE_MASK(I2C_DCDC, I2C_DCDC_CCM_PCUR_LIMIT0, 4);
+    REGI2C_WRITE_MASK(I2C_DCDC, I2C_DCDC_VCM_DREG0, DCDC_DREG_DEFAULT);
+    REGI2C_WRITE_MASK(I2C_DCDC, I2C_DCDC_VCM_PCUR_LIMIT0, 2);
+    REGI2C_WRITE_MASK(I2C_DCDC, I2C_DCDC_XPD_TRX, 0);
+    // REGI2C_WRITE_MASK(I2C_DCDC, I2C_DCDC_PD_DBRNO, 0);
+
+    // close rf_pll
+    CLEAR_PERI_REG_MASK(PMU_DATE_REG, BIT(25)); //bit25 control rfpll
+
+    uint32_t hp_drvb = get_act_hp_drvb();
+    uint32_t lp_dbias = get_act_lp_dbias();
+    pmu_ll_hp_set_regulator_xpd(&PMU, PMU_MODE_HP_ACTIVE, true);
+    pmu_ll_hp_set_regulator_driver_bar(&PMU, PMU_MODE_HP_ACTIVE, hp_drvb);
+    pmu_ll_lp_set_regulator_dbias(&PMU, PMU_MODE_LP_ACTIVE, lp_dbias);
+
+    // XTAL freq can be directly informed from register field PCR_CLK_XTAL_FREQ
+
+    // No need to wait UART0 TX idle since its default clock source is XTAL, should not be affected by system clock configuration
 
     /* Set CPU frequency */
     rtc_clk_cpu_freq_get_config(&old_config);
@@ -77,8 +85,6 @@ void rtc_clk_init(rtc_clk_config_t cfg)
         rtc_clk_32k_enable(true);
     } else if (cfg.slow_clk_src == SOC_RTC_SLOW_CLK_SRC_OSC_SLOW) {
         rtc_clk_32k_enable_external();
-    } else if (cfg.slow_clk_src == SOC_RTC_SLOW_CLK_SRC_RC32K) {
-       rtc_clk_rc32k_enable(true);
     }
     rtc_clk_8m_enable(need_rc_fast_en);
     rtc_clk_fast_src_set(cfg.fast_clk_src);

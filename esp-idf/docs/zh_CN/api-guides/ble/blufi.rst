@@ -1,16 +1,22 @@
 BluFi
-=======
+=====
 
 :link_to_translation:`en:[English]`
 
 概览
---------
+----
 
 BluFi 是一项基于蓝牙通道的 Wi-Fi 网络配置功能，适用于 {IDF_TARGET_NAME}。它通过安全协议将 Wi-Fi 的 SSID、密码等配置信息传输到 {IDF_TARGET_NAME}。基于这些信息，{IDF_TARGET_NAME} 可进而连接到 AP 或建立 SoftAP。
 
 BluFi 流程的关键部分包括数据的分片、加密以及校验和验证。
 
 用户可按需自定义用于对称加密、非对称加密以及校验的算法。此处，我们采用 DH 算法进行密钥协商，128-AES 算法用于数据加密，CRC16 算法用于校验和验证。
+
+.. note::
+
+   **BluFi 目前处于维护模式，暂不计划增加新功能。**
+
+   对于新项目或需要添加 Wi-Fi 配网功能的场景，建议使用 `network_provisioning`_ 组件。该组件更加现代、安全，并且仍在积极维护中。
 
 
 快速入门
@@ -20,7 +26,7 @@ BluFi 流程的关键部分包括数据的分片、加密以及校验和验证�
 
 
 硬件及软件准备
-^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^
 
 硬件：
 
@@ -41,10 +47,10 @@ BluFi 流程的关键部分包括数据的分片、加密以及校验和验证�
 
 
 通过 EspBlufi 应用配置 Wi-Fi
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Station 模式配置示例
-###################################
+####################
 
 
 1. **给 {IDF_TARGET_NAME} 上电**
@@ -147,7 +153,7 @@ Station 模式配置示例
 
 
 SoftAP 模式配置示例
-###############################
+###################
 
 
 1. **通过 EspBlufi 建立连接**
@@ -225,7 +231,7 @@ SoftAP 模式配置示例
 
 
 BluFi 流程
------------
+----------
 
 BluFi 配网流程包含配置 SoftAP 和配置 Station 两部分。
 
@@ -287,7 +293,7 @@ BluFi 流程图
 .. _frame_formats:
 
 BluFi 中定义的帧格式
----------------------
+--------------------
 
 手机应用程序与 {IDF_TARGET_NAME} 之间的 BluFi 通信格式定义如下：
 
@@ -643,7 +649,7 @@ ACK 帧格式 (8 bit)：
    此字段占两个字节，用来校验序列、数据长度以及明文。
 
 {IDF_TARGET_NAME} 端的安全实现
------------------------------
+------------------------------
 
 1. 数据安全
 
@@ -665,53 +671,59 @@ ACK 帧格式 (8 bit)：
 
    应用层需向 BluFi 注册以下几个与安全相关的函数：
 
-.. code-block:: c
+   .. code-block:: c
 
-   typedef void (*esp_blufi_negotiate_data_handler_t)(uint8_t *data, int len, uint8_t **output_data, int *output_len, bool *need_free)
+       typedef void (*esp_blufi_negotiate_data_handler_t)(uint8_t *data, int len, uint8_t **output_data, int *output_len, bool *need_free)
 
-该函数用来接收协商期间的正常数据 (normal data)。数据处理完成后，需要将待发送的数据使用 output_data 和 output_len 传出。
+   该函数用来接收协商期间的正常数据 (normal data)。数据处理完成后，需要将待发送的数据使用 output_data 和 output_len 传出。
 
-BluFi 会在调用完 Negotiate_data_handler 后，发送 Negotiate_data_handler 传出的 output_data。
+   BluFi 会在调用完 Negotiate_data_handler 后，发送 Negotiate_data_handler 传出的 output_data。
 
-这里的两个 “*” 是因为需要发出去的数据长度未知，所以需要函数自行分配 (malloc) 或者指向全局变量，并告知是否需要通过 NEED_FREE 释放内存。
+   这里的两个 ``*`` 是因为需要发出去的数据长度未知，所以需要函数自行分配 (malloc) 或者指向全局变量，并告知是否需要通过 NEED_FREE 释放内存。
 
-.. code-block:: c
+   .. code-block:: c
 
-   typedef int (* esp_blufi_encrypt_func_t)(uint8_t iv8, uint8_t *crypt_data, int crypt_len)
+       typedef int (* esp_blufi_encrypt_func_t)(uint8_t iv8, uint8_t *crypt_data, int crypt_len)
 
-加密和解密的数据长度必须一致。其中 IV8 为帧的 8 位序列，可作为 IV 的某 8 个位来使用。
+   加密和解密的数据长度必须一致。其中 IV8 为帧的 8 位序列，可作为 IV 的某 8 个位来使用。
 
-.. code-block:: c
+   .. code-block:: c
 
-   typedef int (* esp_blufi_decrypt_func_t)(uint8_t iv8, uint8_t *crypt_data, int crypt_len)
+       typedef int (* esp_blufi_decrypt_func_t)(uint8_t iv8, uint8_t *crypt_data, int crypt_len)
 
-加密和解密的数据长度必须一致。其中 IV8 为帧的 8 位序列，可作为 IV 的某 8 个位来使用。
+   加密和解密的数据长度必须一致。其中 IV8 为帧的 8 位序列，可作为 IV 的某 8 个位来使用。
 
-.. code-block:: c
+   .. code-block:: c
 
-   typedef uint16_t (*esp_blufi_checksum_func_t)(uint8_t iv8, uint8_t *data, int len)
+       typedef uint16_t (*esp_blufi_checksum_func_t)(uint8_t iv8, uint8_t *data, int len)
 
-该函数用来进行校验，返回值为校验的值。BluFi 会使用该函数返回值与帧的校验值进行比较。
+   该函数用来进行校验，返回值为校验的值。BluFi 会使用该函数返回值与帧的校验值进行比较。
+
 
 5. 实现更强的安全性
 
-本示例中默认的加密/解密逻辑仅用于演示目的。
+   示例中的默认加密、解密逻辑仅用于演示目的。如果你的应用需要更高的安全保障，可选择以下任一方法：
 
-如果需要更高等级的安全性，建议通过自定义 BluFi 框架中的安全回调函数，实现您自己的加密、解密、认证以及校验算法。
+   - **自定义安全回调**：通过改写 BluFi 框架中的安全回调函数，自定义加密、解密、认证以及校验算法：
 
-.. code-block:: c
+   .. code-block:: c
 
-   esp_err_t esp_blufi_register_callbacks(esp_blufi_callbacks_t *callbacks)
+       esp_err_t esp_blufi_register_callbacks(esp_blufi_callbacks_t *callbacks);
+
+   - **网络配网组件（推荐使用）**：使用 ESP-IDF 提供的 `network_provisioning`_ 组件，实现安全、可直接使用的配网解决方案。
 
 
 GATT 相关说明
 -------------
 
 UUID
-^^^^^
+^^^^
 
 BluFi Service UUID： 0xFFFF，16 bit
 
 BluFi（手机 > {IDF_TARGET_NAME}）特性：0xFF01，主要权限：可写
 
 BluFi（{IDF_TARGET_NAME} > 手机）特性：0xFF02，主要权限：可读可通知
+
+
+.. _network_provisioning: https://github.com/espressif/idf-extra-components/tree/master/network_provisioning

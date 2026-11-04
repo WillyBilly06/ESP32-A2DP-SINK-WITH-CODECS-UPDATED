@@ -12,19 +12,41 @@
 #include "host/ble_hs.h"
 #include "host/ble_gap.h"
 #include "services/htp/ble_svc_htp.h"
+#include "host/ble_hs_log.h"
+#if MYNEWT_VAL(BLE_STATIC_TO_DYNAMIC)
+#include "esp_nimble_mem.h"
+#endif
 
 #if MYNEWT_VAL(BLE_GATTS) && CONFIG_BT_NIMBLE_HTP_SERVICE
+
+#if MYNEWT_VAL(BLE_STATIC_TO_DYNAMIC)
+
+typedef struct {
+    uint16_t _ble_svc_htp_temp_type;
+    uint16_t _ble_svc_htp_temp_msr_itvl;
+    struct chr_subscribe _conn_chr_subs[MYNEWT_VAL(BLE_MAX_CONNECTIONS) + 1];
+} ble_svc_htp_ctx_t;
+
+static ble_svc_htp_ctx_t * ble_svc_htp_ctx;
+
+#define ble_svc_htp_temp_type (ble_svc_htp_ctx->_ble_svc_htp_temp_type)
+#define ble_svc_htp_temp_msr_itvl (ble_svc_htp_ctx->_ble_svc_htp_temp_msr_itvl)
+#define conn_chr_subs (ble_svc_htp_ctx->_conn_chr_subs)
+
+#else /* MYNEWT_VAL(BLE_STATIC_TO_DYNAMIC) */
+
 /* Characteristic values */
 static uint16_t ble_svc_htp_temp_type;
 static uint16_t ble_svc_htp_temp_msr_itvl;
+
+static struct chr_subscribe conn_chr_subs[MYNEWT_VAL(BLE_MAX_CONNECTIONS) + 1];
+#endif /* MYNEWT_VAL(BLE_STATIC_TO_DYNAMIC) */
 
 /* Health thermometer characteristic value handles */
 static uint16_t ble_svc_htp_temp_measurement_val_handle;
 static uint16_t ble_svc_htp_temp_type_val_handle;
 static uint16_t ble_svc_htp_intr_temp_val_handle;
 static uint16_t ble_svc_htp_msr_itvl_val_handle;
-
-static struct chr_subscribe conn_chr_subs[MYNEWT_VAL(BLE_MAX_CONNECTIONS) + 1];
 
 static int
 ble_svc_htp_access(uint16_t conn_handle, uint16_t attr_handle,
@@ -36,9 +58,32 @@ ble_svc_htp_chr_write(struct os_mbuf *om, uint16_t min_len,
                       uint16_t max_len, void *dst,
                       uint16_t *len);
 
+#if MYNEWT_VAL(BLE_STATIC_TO_DYNAMIC)
+int
+ble_svc_htp_ensure_ctx_init()
+{
+    if (ble_svc_htp_ctx == NULL) {
+        ble_svc_htp_ctx = nimble_platform_mem_calloc(1, sizeof(ble_svc_htp_ctx_t));
+        if (ble_svc_htp_ctx == NULL) {
+            return BLE_HS_ENOMEM;
+        }
+    }
+    return 0;
+}
+
+void
+ble_svc_htp_ctx_deinit()
+{
+    if (ble_svc_htp_ctx) {
+        nimble_platform_mem_free(ble_svc_htp_ctx);
+        ble_svc_htp_ctx = NULL;
+    }
+}
+#endif
+
 static const struct ble_gatt_svc_def ble_svc_htp_defs[] = {
     {
-        /*** Health Thermomter Service. */
+        /*** Health Thermometer Service. */
         .type = BLE_GATT_SVC_TYPE_PRIMARY,
         .uuid = BLE_UUID16_DECLARE(BLE_SVC_HTP_UUID16),
         .characteristics = (struct ble_gatt_chr_def[])
@@ -49,7 +94,7 @@ static const struct ble_gatt_svc_def ble_svc_htp_defs[] = {
                 .val_handle = &ble_svc_htp_temp_measurement_val_handle,
                 .flags = BLE_GATT_CHR_F_INDICATE,
             }, {
-                /** Temparature Type Characteristic */
+                /** Temperature Type Characteristic */
                 .uuid = BLE_UUID16_DECLARE(BLE_SVC_HTP_CHR_UUID16_TEMP_TYPE),
                 .access_cb = ble_svc_htp_access,
                 .val_handle = &ble_svc_htp_temp_type_val_handle,
@@ -87,7 +132,7 @@ static const struct ble_gatt_svc_def ble_svc_htp_defs[] = {
 };
 
 /**
- * HR access function
+ * HTP access function
  */
 static int
 ble_svc_htp_access(uint16_t conn_handle, uint16_t attr_handle,
@@ -96,6 +141,12 @@ ble_svc_htp_access(uint16_t conn_handle, uint16_t attr_handle,
 {
     uint16_t uuid16;
     int rc;
+
+#if MYNEWT_VAL(BLE_STATIC_TO_DYNAMIC)
+    if (ble_svc_htp_ctx == NULL) {
+        return BLE_ATT_ERR_UNLIKELY;
+    }
+#endif
 
     uuid16 = ble_uuid_u16(ctxt->chr->uuid);
     assert(uuid16 != 0);
@@ -136,6 +187,15 @@ ble_svc_htp_access(uint16_t conn_handle, uint16_t attr_handle,
 void
 ble_svc_htp_on_disconnect(uint16_t conn_handle)
 {
+#if MYNEWT_VAL(BLE_STATIC_TO_DYNAMIC)
+    if (ble_svc_htp_ctx == NULL) {
+        return;
+    }
+#endif
+
+    if (conn_handle > MYNEWT_VAL(BLE_MAX_CONNECTIONS)) {
+        return;
+    }
     conn_chr_subs[conn_handle].chr_subs[TEMP_MEASUREMENT] = false;
     conn_chr_subs[conn_handle].chr_subs[INTERMEDIATE_TEMP] = false;
     conn_chr_subs[conn_handle].chr_subs[MEASUREMENT_ITVL]  = false;
@@ -147,6 +207,15 @@ ble_svc_htp_on_disconnect(uint16_t conn_handle)
 bool
 ble_svc_htp_is_subscribed(uint16_t conn_handle, int chr)
 {
+#if MYNEWT_VAL(BLE_STATIC_TO_DYNAMIC)
+    if(ble_svc_htp_ensure_ctx_init()) {
+        return false;
+    }
+#endif
+
+    if (conn_handle > MYNEWT_VAL(BLE_MAX_CONNECTIONS)) {
+        return false;
+    }
     return conn_chr_subs[conn_handle].chr_subs[chr];
 }
 
@@ -161,6 +230,15 @@ ble_svc_htp_is_subscribed(uint16_t conn_handle, int chr)
 void
 ble_svc_htp_subscribe(uint16_t conn_handle, uint16_t attr_handle)
 {
+#if MYNEWT_VAL(BLE_STATIC_TO_DYNAMIC)
+    if(ble_svc_htp_ensure_ctx_init()) {
+        return;
+    }
+#endif
+
+    if (conn_handle > MYNEWT_VAL(BLE_MAX_CONNECTIONS)) {
+        return;
+    }
     if (attr_handle == ble_svc_htp_temp_measurement_val_handle) {
         conn_chr_subs[conn_handle].chr_subs[TEMP_MEASUREMENT] = true;
 
@@ -180,6 +258,12 @@ ble_svc_htp_subscribe(uint16_t conn_handle, uint16_t attr_handle)
 int
 ble_svc_htp_notify(uint16_t conn_handle, float temp, bool temp_unit)
 {
+#if MYNEWT_VAL(BLE_STATIC_TO_DYNAMIC)
+    if(ble_svc_htp_ensure_ctx_init()) {
+        return BLE_HS_ENOMEM;
+    }
+#endif
+
     int rc;
     struct os_mbuf *txom = NULL;
 
@@ -197,6 +281,7 @@ ble_svc_htp_notify(uint16_t conn_handle, float temp, bool temp_unit)
 
     rc = os_mbuf_copyinto(txom, sizeof(flags), &temp, sizeof(temp));
     if (rc != 0) {
+        os_mbuf_free_chain(txom);
         goto err;
     }
 
@@ -219,6 +304,12 @@ err:
 int
 ble_svc_htp_indicate(uint16_t conn_handle, float temp, bool temp_unit)
 {
+#if MYNEWT_VAL(BLE_STATIC_TO_DYNAMIC)
+    if(ble_svc_htp_ensure_ctx_init()) {
+        return BLE_HS_ENOMEM;
+    }
+#endif
+
     int rc;
     struct os_mbuf *txom = NULL;
 
@@ -237,6 +328,7 @@ ble_svc_htp_indicate(uint16_t conn_handle, float temp, bool temp_unit)
 
     rc = os_mbuf_copyinto(txom, sizeof(flags), &temp, sizeof(temp));
     if (rc != 0) {
+        os_mbuf_free_chain(txom);
         return rc;
     }
 
@@ -278,6 +370,13 @@ ble_svc_htp_init(void)
 
     /* Ensure this function only gets called by sysinit. */
     SYSINIT_ASSERT_ACTIVE();
+
+#if MYNEWT_VAL(BLE_STATIC_TO_DYNAMIC)
+    if(ble_svc_htp_ensure_ctx_init()) {
+        SYSINIT_PANIC_ASSERT(0);
+        return;
+    }
+#endif
 
     rc = ble_gatts_count_cfg(ble_svc_htp_defs);
     SYSINIT_PANIC_ASSERT(rc == 0);

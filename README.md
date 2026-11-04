@@ -1,6 +1,6 @@
 <p align="center">
   <img src="https://img.shields.io/badge/ESP32-WROOM-000000?style=for-the-badge&logo=espressif&logoColor=white" alt="ESP32"/>
-  <img src="https://img.shields.io/badge/ESP--IDF-v5.5.2-E7352C?style=for-the-badge&logo=espressif&logoColor=white" alt="ESP-IDF"/>
+  <img src="https://img.shields.io/badge/ESP--IDF-v6.1-E7352C?style=for-the-badge&logo=espressif&logoColor=white" alt="ESP-IDF"/>
   <img src="https://img.shields.io/badge/Bluetooth-A2DP-0082FC?style=for-the-badge&logo=bluetooth&logoColor=white" alt="Bluetooth"/>
   <img src="https://img.shields.io/badge/License-MIT-green?style=for-the-badge" alt="License"/>
 </p>
@@ -11,7 +11,7 @@
 </p>
 
 <p align="center">
-  <i>Updated ESP-IDF v5.5.2 build with a patched Bluetooth stack, native A2DP handling, and multi-codec decoding.</i><br>
+  <i>Updated ESP-IDF v6.1 build with a patched Bluetooth stack, native A2DP handling, and multi-codec decoding.</i><br>
   <a href="https://github.com/WillyBilly06/esp32-a2dp-sink-with-LDAC-APTX-AAC">View the original ESP-IDF 5.1.4 version</a>
 </p>
 
@@ -21,9 +21,16 @@
 
 > **Branch:** `main` - runs entirely on internal SRAM. No PSRAM is required.
 
-This project turns a standard ESP32-WROOM module into a high-quality Bluetooth Classic A2DP audio receiver. It uses a patched ESP-IDF v5.5.2 Bluetooth stack with native multi-codec support for LDAC, aptX-HD, aptX, aptX-LL, Opus, AAC, and SBC.
+This project turns a standard ESP32-WROOM module into a high-quality Bluetooth Classic A2DP audio receiver. It uses a patched ESP-IDF v6.1 Bluetooth stack with native multi-codec support for LDAC, aptX-HD, aptX, aptX-LL, Opus, AAC, and SBC.
 
 The `main` branch is designed for internal RAM operation on common ESP32-WROOM boards. For the original PSRAM-dependent implementation, see the [`PSRAM-only`](https://github.com/WillyBilly06/ESP32-A2DP-SINK-WITH-CODECS-UPDATED/tree/PSRAM-only) branch.
+
+## Releases
+
+- [Current: firmware 1.0.4 / ESP-IDF 6.1](https://github.com/WillyBilly06/ESP32-A2DP-SINK-WITH-CODECS-UPDATED/releases/tag/v1.0.4-idf6.1)
+- [Legacy: firmware 1.0.3 / ESP-IDF 5.5.2](https://github.com/WillyBilly06/ESP32-A2DP-SINK-WITH-CODECS-UPDATED/releases/tag/v1.0.3-idf5.5.2)
+
+Each release provides a USB flash bundle, raw/encrypted OTA images, checksums and source at its tag. The legacy release preserves the original main branch. The 6.1 release includes the Bluetooth name, status synchronization and OTA fixes described in [the validation record](docs/ESP_IDF_6_1_MIGRATION.md).
 
 ## Highlights
 
@@ -64,7 +71,7 @@ The `main` branch is designed for internal RAM operation on common ESP32-WROOM b
 | Recommended module | ESP32-WROVER | ESP32-WROOM |
 | A2DP integration | External `ESP32-A2DP` plus `arduino-audio-tools` | Native ESP-IDF A2DP/AVRCP wrapper |
 | Codecs | Original extended codec set | SBC, AAC, aptX, aptX-HD, aptX-LL, LDAC, Opus |
-| LC3 / LC3plus | Present in the older codec set | Not available for Bluetooth Classic A2DP |
+| LC3 / LC3plus | Present in the older codec set | Not enabled in this build |
 | 3D sound | Stage Presence 3D enabled | Removed to reduce RAM and CPU load |
 | LED effects | Pre-allocated at boot | Lazy allocation for the active effect |
 | Sound player | New static task per playback | Persistent task with zero heap cost per play |
@@ -145,7 +152,7 @@ PSRAM is not required for the `main` branch.
 | Opus | Codec-dependent | 48 kHz | 16-bit output | Supported |
 | AAC | 256 kbps | 48 kHz | 16-bit output | Supported |
 | SBC | 328 kbps | 48 kHz | 16-bit output | Supported |
-| LC3 / LC3plus | N/A | N/A | N/A | Not available for Bluetooth Classic A2DP |
+| LC3 / LC3plus | N/A | N/A | N/A | Not enabled in this build |
 
 LC3 is not listed as an available A2DP codec because LC3 is used for Bluetooth LE Audio over BLE. This project is a Bluetooth Classic A2DP sink, so LC3 is not available in this playback path.
 
@@ -153,31 +160,46 @@ LC3 is not listed as an available A2DP codec because LC3 is used for Bluetooth L
 
 ### Prerequisites
 
-1. ESP-IDF v5.5.2. This repository includes the patched ESP-IDF tree in `esp-idf/`.
-2. Python 3.11 or newer.
-3. An ESP32 board connected over USB.
+1. The patched **ESP-IDF v6.1** tree included in `esp-idf/`. A stock SDK does not include this project's codec integrations.
+2. Python 3.10 or newer and the tools selected by `esp-idf/tools/tools.json` (GCC 15.2 for this release).
+3. An original ESP32 with Bluetooth Classic and 8 MB flash for the supplied partition table.
 
-### Build Steps
+### Windows build
+
+Run from the repository root in Command Prompt:
 
 ```bat
 cd esp-idf
-install.bat
+install.bat esp32
 export.bat
-
 cd ..\bt_audio_sink
-idf.py build
-idf.py -p COMXX flash monitor
+idf.py --ccache build
 ```
 
-Replace `COMXX` with the serial port for your ESP32.
+For PowerShell, activate with `. .\esp-idf\export.ps1`, then run the same `idf.py --ccache build` in `bt_audio_sink/`. Use a fresh build directory when migrating an existing 5.5.2 checkout: `idf.py --ccache -B build-idf61 build`.
 
-On first flash, flash the recovery partition as well so the recovery button path is available:
+The portable helper `build_flash.bat` activates the bundled SDK and enables ccache. With no arguments it builds; additional arguments are forwarded to `idf.py`, for example `build_flash.bat -p COM6 flash monitor`.
+
+### Flash the main and recovery images
+
+After building the main project:
 
 ```bat
-idf.py -p COMXX flash
+idf.py --ccache -p COMXX flash
+cd recovery
+idf.py --ccache build
+python -m esptool --chip esp32 --port COMXX write-flash 0x10000 build/recovery.bin
+cd ..
+idf.py -p COMXX monitor
 ```
 
-The repository also includes `build_flash.bat` for a Windows build-and-flash workflow.
+Replace `COMXX` with your board's port. The main `flash` target writes the bootloader, partition table, OTA selection data and application at `0x110000`. Recovery is a **separate build**, written explicitly to its `ota_2` partition at `0x10000`; running the main `flash` target does not install recovery. Preserve existing NVS and SPIFFS when upgrading a configured speaker.
+
+### ESP-IDF 6.1 migration and validation
+
+The SDK is based on Espressif's stable `v6.1` tag, commit `fff9895c82d744c7237be8847347bdd1b07c6643`, including the matching submodule sources and libraries. The Bluedroid multi-codec extensions remain part of the bundled fork. Firmware version is configured under ESP-IDF Application Configuration (`APP_PROJECT_VER`); the image and BLE report the same version. Classic and BLE advertise the same canonical name to prevent Android name flicker. Application changes cover the Classic device-name API, I2S port configuration, explicit driver dependencies, and Mbed TLS 4's removal of the legacy MD5/AES interfaces. BLE UUIDs and command IDs remain compatible with [BDK Audio](https://github.com/WillyBilly06/BDK-AUDIO-APP).
+
+See [the migration and feature validation record](docs/ESP_IDF_6_1_MIGRATION.md) for build evidence and the separate device-test results. A successful build does not establish audio quality, physical LED/encoder operation or a successful OTA transfer.
 
 ## Architecture Overview
 
@@ -295,7 +317,7 @@ bt_audio_sink/
   tools/
     encrypt_firmware.py         AES-256-CBC firmware encryption helper
   ota_releases/                 Encrypted firmware output folder
-esp-idf/                        Patched ESP-IDF v5.5.2 tree
+esp-idf/                        Patched ESP-IDF v6.1 tree
 build_flash.bat                 Windows build and flash helper
 ```
 
@@ -355,7 +377,7 @@ LC3 is not expected on any Bluetooth Classic A2DP source because LC3 is part of 
 - Reworked memory allocation for internal SRAM operation.
 - Replaced external Arduino audio libraries with a native ESP-IDF A2DP/AVRCP path.
 - Added Opus support with 48 kHz / 16-bit configuration.
-- Removed LC3 / LC3plus from the Classic A2DP codec list because LC3 is BLE Audio only.
+- Disabled the LC3 / LC3plus integrations in this build.
 - Removed Stage Presence 3D processing to reduce CPU and RAM pressure.
 - Added analysis decimation to reduce DSP load at high sample rates.
 - Switched the audio pipeline from PSRAM pool buffers to an internal-RAM Q1.31 ring buffer.

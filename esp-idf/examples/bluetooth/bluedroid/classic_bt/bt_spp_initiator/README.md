@@ -1,7 +1,7 @@
-| Supported Targets | ESP32 |
-| ----------------- | ----- |
+| Supported Targets | ESP32 | ESP32-S31 |
+| ----------------- | ----- | --------- |
 
-# ESP-IDF BT-SPP-INITATOR demo
+# ESP-IDF BT-SPP-INITIATOR demo
 
 This example is to show how to use the APIs of **Serial Port Protocol** (**SPP**) to create an SPP initiator which performs as a client. we aggregate **Secure Simple Pair** (**SSP**) into this demo to show how to use SPP when creating your own APPs. We also provide the demo `bt_spp_acceptor` or the demo `bt_spp_vfs_acceptor` to create an SPP acceptor which performs as a server. In fact, you can create SPP acceptors and SPP initiators on a single device at the same time.
 
@@ -9,7 +9,7 @@ This example is to show how to use the APIs of **Serial Port Protocol** (**SPP**
 
 ### Hardware Required
 
-This example is designed to run on commonly available ESP32 development board, e.g. ESP32-DevKitC. To operate the example, you should be connect to an SPP acceptor running on a smartphone, a computer or on another ESP32 development board.
+This example is designed to run on commonly available ESP32 and ESP32-S31 development boards, e.g. ESP32-DevKitC and so on. To operate the example, you should be connect to an SPP acceptor running on a smartphone, a computer or on another ESP32 or ESP32-S31 development board.
 
 ### Configure the project
 1. Open the project configuration menu:
@@ -45,17 +45,17 @@ See the [Getting Started Guide](https://docs.espressif.com/projects/esp-idf/en/l
 After the program starts, the example will initiate a Bluetooth discovery procedure and filter out the peer device by the name in the EIR(Extended Inquiry Response). After discovering the SPP service, it will connect to the SPP acceptor and send data. The example will calculate the data rate or print the sent data after the SPP connection is established.
 ### Example Output
 
-When you run this example and the IO capability is `ESP_IO_CAP_IO` or `ESP_IO_CAP_IN` , the commands help table prints the following at the very beginning:
+When you run this example and the IO capability is `ESP_IO_CAP_IO` or `ESP_IO_CAP_IN`, the commands help table prints the following at the very beginning:
 
 ```
 ########################################################################
 Supported commands are as follows, arguments are embraced with < and >
 spp h;                -- show command manual
 
-Use this cmmand table if the IO Capability of local device set as IO_CAP_IO.
+Use this command table if the IO Capability of local device set as IO_CAP_IO.
 spp ok;               -- manual Numeric Confirmation.
 
-Use this cmmand table if the IO Capability of local device set as IO_CAP_IN.
+Use this command table if the IO Capability of local device set as IO_CAP_IN.
 spp key <auth key>;   -- manual Passkey. (e.g. spp key 136245;)
 
 ########################################################################
@@ -114,7 +114,7 @@ Whether you should passkey or confirm the number also depends on the IO capabili
 
 ## Example Breakdown
 
-To clearly show how the SSP aggregate with the SPP , we use the Commands and Effects scheme to illustrate the process of secure paring and connection establishment.
+To clearly show how the SSP aggregate with the SPP, we use the Commands and Effects scheme to illustrate the process of secure paring and connection establishment.
 
 - The example will respond to user command through UART console. Please go to `console_uart.c`  for the configuration details.
 
@@ -124,13 +124,13 @@ To clearly show how the SSP aggregate with the SPP , we use the Commands and Eff
 
 ## FAQ
 Q: How to change the process of SSP?
-A: Users can set the IO Capability and Security Mask for their device (fixed Security Mode, Security Mode 4). In short, the Security Mask sets the security level for authentication stage and the IO Capability determines the way of user interaction during pairing. The default Security Mask of this demo is `ESP_SPP_SEC_AUTHENTICATE` which support MITM (Man In The Middle) protection. For more information about Security Simple Pair on ESP32, please refer to [ESP32_SSP](../bt_spp_acceptor/ESP32_SSP.md).
+A: Users can set the IO Capability and Security Mask for their device (fixed Security Mode, Security Mode 4). In short, the Security Mask sets the security level for authentication stage and the IO Capability determines the way of user interaction during pairing. The default Security Mask of this demo is `ESP_SPP_SEC_AUTHENTICATE` which support MITM (Man In The Middle) protection. For more information about Security Simple Pair on supported chips, please refer to [ESP32_SSP](../bt_spp_acceptor/ESP32_SSP.md).
 
 Q: How can we reach the maximum throughput when using SPP?
-A: The default MTU size of classic Bluetooth SPP on ESP32 is 990 bytes, and higher throughput can be achieved in the case that data chunck size is close to the MTU size or multiple of MTU size. For example, sending 100 bytes data per second is much better than sending 10 bytes every 100 milliseconds.
+A: The default MTU size of classic Bluetooth SPP on supported chips is 990 bytes, and higher throughput can be achieved in the case that data chunk size is close to the MTU size or multiple of MTU size. For example, sending 100 bytes data per second is much better than sending 10 bytes every 100 milliseconds.
 
 Q: What is the difference between the event `ESP_SPP_CONG_EVT` and the parameter `cong` of the event `ESP_SPP_WRITE_EVT`?
-A: The event `ESP_SPP_CONG_EVT` shows the changing status from `congest` to `uncongest`, or form `uncongest` to `congest`. Congestion can have many causes, such as using out of the credit which is sent by peer, reaching the high watermark of the Tx buffer, the congestion at Bluetooth L2CAP layer and so on. The parameter `cong` of the event `ESP_SPP_WRITE_EVT` shows a snapshot of the state of the flow control manager after the write operation is completed. The user needs to carefully consider retransmitting or continuing to write according to these two events. The ESP32 offers an VFS mode of SPP which hides the details of retransmitting, but it will block the caller and is not more efficient than the callback mode.
+A: The event `ESP_SPP_CONG_EVT` shows the changing status from `congest` to `uncongest`, or form `uncongest` to `congest`. Congestion can have many causes, such as using out of the credit which is sent by peer, reaching the high watermark of the Tx buffer, the congestion at Bluetooth L2CAP layer and so on. The parameter `cong` of the event `ESP_SPP_WRITE_EVT` shows a snapshot of the state of the flow control manager after the write operation is completed. The user needs to carefully consider retransmitting or continuing to write according to these two events. The stack offers a VFS mode of SPP which hides the details of retransmitting, but it will block the caller and is not more efficient than the callback mode.
 
-Q: How many SPP clients does ESP32 support?
-A: The ESP32 supports maximum 8 SPP clients, which including virtual SPP connections. Virtual SPP connection means that SPP clients can connect to the different SPP servers running on the same peer device. However the number of SPP clients (excluding virtual connections) shall not exceed the number of Bluetooth ACL connections.
+Q: How many SPP client connections are supported in esp-idf Bluedroid?
+A: Esp-idf Bluedroid support a maximum of 8 SPP clients, including virtual SPP connections. Virtual SPP connection means that SPP clients can connect to the different SPP servers running on the same peer device. However the number of SPP clients (excluding virtual connections) shall not exceed the number of Bluetooth ACL connections.

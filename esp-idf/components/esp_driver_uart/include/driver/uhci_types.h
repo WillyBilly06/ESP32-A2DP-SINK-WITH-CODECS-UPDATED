@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2025 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2025-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -27,7 +27,11 @@ typedef struct uhci_controller_t *uhci_controller_handle_t;
  * @brief UHCI TX Done Event Data
  */
 typedef struct {
-    uint8_t *buffer;            /**< Pointer to the which data buffer has been finished the transaction */
+    uint8_t *buffer;            /**< Pointer to the which data buffer has been finished the transaction.
+                                      When the transaction was submitted with more than one discontinuous buffer segment
+                                      (via `uhci_multi_buffer_transmit()`), this only points to the first segment and
+                                      should be treated as an identifying handle for the transaction, not as
+                                      the start of a `sent_size`-byte contiguous region. */
     size_t sent_size;           /**< Size has been sent out */
 } uhci_tx_done_event_data_t;
 
@@ -46,13 +50,15 @@ typedef bool (*uhci_tx_done_callback_t)(uhci_controller_handle_t uhci_ctrl, cons
 
 /**
  * @brief UHCI RX Done Event Data Structure
+ *
+ * @note When an abnormal EOF occurs, `data` will be NULL and `recv_size` will be 0.
  */
 typedef struct {
-    uint8_t *data;                 /*!< Pointer to the received data buffer */
+    const uint8_t *data;           /*!< Pointer to the received data buffer. Data pointed to by this pointer is typically only guaranteed to be readable during the callback. If you need to use it after callback returns, copy it to external buffer first or refer to advanced zero-copy usage. */
     size_t recv_size;              /*!< Number of bytes received */
     struct {
         uint32_t totally_received: 1;     /*!< When callback is invoked, while this bit is not set, means the current event gives partial of whole data, the transaction has not been finished. If set, means the current event gives whole data, the transaction finished. */
-    } flags;                       /*!< I2C master config flags */
+    } flags;                       /*!< UHCI RX event flags */
 } uhci_rx_event_data_t;
 
 /**
@@ -60,7 +66,8 @@ typedef struct {
  * @param uhci_ctrl Handle to the UHCI controller that initiated the transmission.
  * @param edata Pointer to a structure containing event data related to receive event.
  *              This structure provides details such as the number of bytes received and any
- *              status information relevant to the operation.
+ *              status information relevant to the operation. The `edata` pointer is only valid
+ *              during the callback. So do not save this pointer and use it outside the callback.
  * @param user_ctx User-defined context passed during the callback registration.
  *                 It can be used to maintain application-specific state or data.
  *

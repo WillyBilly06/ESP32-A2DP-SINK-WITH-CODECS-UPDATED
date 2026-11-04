@@ -73,10 +73,22 @@
 #include <ifaddrs.h>
 #ifdef __linux__
 #include <linux/if_addr.h>
+#include <linux/if_addrlabel.h>
 #include <linux/if_link.h>
 #include <linux/if_tun.h>
 #include <linux/netlink.h>
 #include <linux/rtnetlink.h>
+
+#if !OPENTHREAD_POSIX_CONFIG_INSTALL_OMR_ROUTES_ENABLE && \
+    (OPENTHREAD_POSIX_CONFIG_NETIF_LINK_LOCAL_ROUTE_METRIC || OPENTHREAD_POSIX_CONFIG_NETIF_PREFIX_ROUTE_METRIC)
+#include <linux/version.h>
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 18, 0)
+#error "Cannot set route metric on kernel < 4.18. " \
+    "Consider using OPENTHREAD_POSIX_CONFIG_INSTALL_OMR_ROUTES_ENABLE "\
+    "to install OMR routes with higher priority on kernel < 4.18"
+#endif // LINUX_VERSION_CODE >= KERNEL_VERSION(4, 18, 0)
+#endif
+
 #endif // __linux__
 #include <math.h>
 #include <net/if.h>
@@ -194,7 +206,14 @@ using namespace ot::Posix::Ip6Utils;
 #endif // OPENTHREAD_POSIX_TUN_DEVICE
 
 #ifdef __linux__
-static uint32_t sNetlinkSequence = 0; ///< Netlink message sequence.
+static constexpr uint32_t kMeshLocalAddrLabel = 99;
+static uint32_t           sNetlinkSequence    = 0; ///< Netlink message sequence.
+static otMeshLocalPrefix  sLabeledMeshLocalPrefix;
+static bool               sIsMeshLocalPrefixLabeled = false;
+
+static void AddAddressLabel(const uint8_t *aAddress, uint8_t aPrefixLen, uint32_t aLabel);
+static void DeleteAddressLabel(const uint8_t *aAddress, uint8_t aPrefixLen);
+static void UpdateMeshLocalPrefixLabel(otInstance *aInstance);
 #endif
 
 #if OPENTHREAD_POSIX_CONFIG_INSTALL_OMR_ROUTES_ENABLE && defined(__linux__)
@@ -284,6 +303,12 @@ static bool sIsSyncingState = false;
 #define OPENTHREAD_POSIX_LOG_TUN_PACKETS 0
 
 static const char kLogModuleName[] = "Netif";
+
+static void LogCrit(const char *aFormat, ...) OT_TOOL_PRINTF_STYLE_FORMAT_ARG_CHECK(1, 2);
+static void LogWarn(const char *aFormat, ...) OT_TOOL_PRINTF_STYLE_FORMAT_ARG_CHECK(1, 2);
+static void LogNote(const char *aFormat, ...) OT_TOOL_PRINTF_STYLE_FORMAT_ARG_CHECK(1, 2);
+static void LogInfo(const char *aFormat, ...) OT_TOOL_PRINTF_STYLE_FORMAT_ARG_CHECK(1, 2);
+static void LogDebg(const char *aFormat, ...) OT_TOOL_PRINTF_STYLE_FORMAT_ARG_CHECK(1, 2);
 
 static void LogCrit(const char *aFormat, ...)
 {
@@ -452,7 +477,7 @@ static void UpdateUnicastLinux(otInstance *aInstance, const otIp6AddressInfo &aA
 
     AddRtAttr(&req.nh, sizeof(req), IFA_LOCAL, aAddressInfo.mAddress, sizeof(*aAddressInfo.mAddress));
 
-    if (!aAddressInfo.mPreferred || aAddressInfo.mMeshLocal || aAddressInfo.mScope == kLinkLocalScope)
+    if (!aAddressInfo.mPreferred || aAddressInfo.mScope == kLinkLocalScope)
     {
         struct ifa_cacheinfo cacheinfo;
 
@@ -755,6 +780,129 @@ exit:
     return error;
 }
 
+#ifdef __linux__
+static void AddAddressLabel(const uint8_t *aAddress, uint8_t aPrefixLen, uint32_t aLabel)
+{
+    constexpr unsigned int kBufSize = 128;
+    struct
+    {
+        struct nlmsghdr     header;
+        struct ifaddrlblmsg msg;
+        char                buf[kBufSize];
+    } req{};
+    unsigned int netifIdx = otSysGetThreadNetifIndex();
+    char         addrStrBuf[INET6_ADDRSTRLEN];
+
+    VerifyOrExit(netifIdx > 0);
+    VerifyOrExit(sNetlinkFd >= 0);
+
+    req.header.nlmsg_flags = NLM_F_REQUEST | NLM_F_ACK | NLM_F_CREATE | NLM_F_EXCL;
+
+    req.header.nlmsg_len  = NLMSG_LENGTH(sizeof(ifaddrlblmsg));
+    req.header.nlmsg_type = RTM_NEWADDRLABEL;
+    req.header.nlmsg_pid  = 0;
+    req.header.nlmsg_seq  = ++sNetlinkSequence;
+
+    req.msg.ifal_family    = AF_INET6;
+    req.msg.ifal_prefixlen = aPrefixLen;
+    req.msg.ifal_flags     = 0;
+    req.msg.ifal_index     = netifIdx;
+    req.msg.ifal_seq       = 0;
+
+    AddRtAttr(reinterpret_cast<nlmsghdr *>(&req), sizeof(req), IFAL_ADDRESS, aAddress, 16);
+    AddRtAttrUint32(&req.header, sizeof(req), IFAL_LABEL, aLabel);
+
+    inet_ntop(AF_INET6, aAddress, addrStrBuf, sizeof(addrStrBuf));
+
+    if (send(sNetlinkFd, &req, req.header.nlmsg_len, 0) < 0)
+    {
+        LogWarn("Failed to send request#%u to add address label %s/%u: %s", sNetlinkSequence, addrStrBuf, aPrefixLen,
+                strerror(errno));
+    }
+    else
+    {
+        LogInfo("Sent request#%u to add address label %s/%u with label %u", sNetlinkSequence, addrStrBuf, aPrefixLen,
+                aLabel);
+    }
+exit:
+    return;
+}
+
+static void DeleteAddressLabel(const uint8_t *aAddress, uint8_t aPrefixLen)
+{
+    constexpr unsigned int kBufSize = 128;
+    struct
+    {
+        struct nlmsghdr     header;
+        struct ifaddrlblmsg msg;
+        char                buf[kBufSize];
+    } req{};
+    unsigned int netifIdx = otSysGetThreadNetifIndex();
+    char         addrStrBuf[INET6_ADDRSTRLEN];
+
+    VerifyOrExit(netifIdx > 0);
+    VerifyOrExit(sNetlinkFd >= 0);
+
+    req.header.nlmsg_flags = NLM_F_REQUEST | NLM_F_ACK;
+
+    req.header.nlmsg_len  = NLMSG_LENGTH(sizeof(ifaddrlblmsg));
+    req.header.nlmsg_type = RTM_DELADDRLABEL;
+    req.header.nlmsg_pid  = 0;
+    req.header.nlmsg_seq  = ++sNetlinkSequence;
+
+    req.msg.ifal_family    = AF_INET6;
+    req.msg.ifal_prefixlen = aPrefixLen;
+    req.msg.ifal_flags     = 0;
+    req.msg.ifal_index     = netifIdx;
+    req.msg.ifal_seq       = 0;
+
+    AddRtAttr(reinterpret_cast<nlmsghdr *>(&req), sizeof(req), IFAL_ADDRESS, aAddress, 16);
+
+    inet_ntop(AF_INET6, aAddress, addrStrBuf, sizeof(addrStrBuf));
+
+    if (send(sNetlinkFd, &req, req.header.nlmsg_len, 0) < 0)
+    {
+        LogWarn("Failed to send request#%u to delete address label %s/%u: %s", sNetlinkSequence, addrStrBuf, aPrefixLen,
+                strerror(errno));
+    }
+    else
+    {
+        LogInfo("Sent request#%u to delete address label %s/%u", sNetlinkSequence, addrStrBuf, aPrefixLen);
+    }
+exit:
+    return;
+}
+
+static void UpdateMeshLocalPrefixLabel(otInstance *aInstance)
+{
+    const otMeshLocalPrefix *prefix = otIp6IsEnabled(aInstance) ? otThreadGetMeshLocalPrefix(aInstance) : nullptr;
+    otIp6Address             address;
+
+    VerifyOrExit(prefix == nullptr || !sIsMeshLocalPrefixLabeled ||
+                 memcmp(&sLabeledMeshLocalPrefix, prefix, sizeof(otMeshLocalPrefix)) != 0);
+
+    if (sIsMeshLocalPrefixLabeled)
+    {
+        memset(&address, 0, sizeof(address));
+        memcpy(address.mFields.m8, sLabeledMeshLocalPrefix.m8, sizeof(sLabeledMeshLocalPrefix));
+        DeleteAddressLabel(address.mFields.m8, 64);
+        sIsMeshLocalPrefixLabeled = false;
+    }
+
+    if (prefix != nullptr)
+    {
+        memset(&address, 0, sizeof(address));
+        memcpy(address.mFields.m8, prefix->m8, sizeof(*prefix));
+        AddAddressLabel(address.mFields.m8, 64, kMeshLocalAddrLabel);
+        sLabeledMeshLocalPrefix   = *prefix;
+        sIsMeshLocalPrefixLabeled = true;
+    }
+
+exit:
+    return;
+}
+#endif // __linux__
+
 #if OPENTHREAD_POSIX_CONFIG_INSTALL_OMR_ROUTES_ENABLE || OPENTHREAD_POSIX_CONFIG_INSTALL_EXTERNAL_ROUTES_ENABLE
 static otError AddRoute(const otIp6Prefix &aPrefix, uint32_t aPriority)
 {
@@ -1042,6 +1190,12 @@ void platformNetifStateChange(otInstance *aInstance, otChangedFlags aFlags)
     {
         UpdateLink(aInstance);
     }
+#ifdef __linux__
+    if ((OT_CHANGED_THREAD_NETIF_STATE | OT_CHANGED_THREAD_ML_ADDR) & aFlags)
+    {
+        UpdateMeshLocalPrefixLabel(aInstance);
+    }
+#endif
     if (OT_CHANGED_THREAD_NETDATA & aFlags)
     {
 #if OPENTHREAD_POSIX_CONFIG_INSTALL_OMR_ROUTES_ENABLE && defined(__linux__)
@@ -1165,7 +1319,7 @@ static otError tryProcessIcmp6RaMessage(otInstance *aInstance, const uint8_t *da
     otDumpInfoPlat("", data, static_cast<size_t>(length));
 #endif
 
-    raLength = length + (ra - data);
+    raLength = length - (ra - data);
     otPlatBorderRoutingProcessIcmp6Ra(aInstance, ra, raLength);
 
 exit:
@@ -2033,7 +2187,7 @@ static void platformConfigureTunDevice(otPlatformConfig *aPlatformConfig)
     struct ifreq ifr;
     const char  *interfaceName;
 
-    sTunFd = open(OPENTHREAD_POSIX_TUN_DEVICE, O_RDWR | O_CLOEXEC | O_NONBLOCK);
+    sTunFd = open(aPlatformConfig->mTunDevice, O_RDWR | O_CLOEXEC | O_NONBLOCK);
     VerifyOrDie(sTunFd >= 0, OT_EXIT_ERROR_ERRNO);
 
     memset(&ifr, 0, sizeof(ifr));
@@ -2134,9 +2288,7 @@ static void platformConfigureTunDevice(otPlatformConfig *aPlatformConfig)
     const char *last_slash;
     const char *path;
 
-    (void)aPlatformConfig;
-
-    path = OPENTHREAD_POSIX_TUN_DEVICE;
+    path = aPlatformConfig->mTunDevice;
 
     sTunFd = open(path, O_RDWR | O_NONBLOCK);
     VerifyOrDie(sTunFd >= 0, OT_EXIT_ERROR_ERRNO);
@@ -2150,7 +2302,7 @@ static void platformConfigureTunDevice(otPlatformConfig *aPlatformConfig)
     err   = ioctl(sTunFd, TUNSIFHEAD, &flags);
     VerifyOrDie(err == 0, OT_EXIT_ERROR_ERRNO);
 
-    last_slash = strrchr(OPENTHREAD_POSIX_TUN_DEVICE, '/');
+    last_slash = strrchr(path, '/');
     VerifyOrDie(last_slash != nullptr, OT_EXIT_ERROR_ERRNO);
     last_slash++;
 
@@ -2233,6 +2385,15 @@ void platformNetifInit(otPlatformConfig *aPlatformConfig)
     (void)LogInfo;
     (void)LogNote;
     (void)LogDebg;
+
+#if defined(__linux__) || defined(__NetBSD__) ||                                                       \
+    (defined(__APPLE__) && (OPENTHREAD_POSIX_CONFIG_MACOS_TUN_OPTION == OT_POSIX_CONFIG_MACOS_TUN)) || \
+    defined(__FreeBSD__)
+    if (aPlatformConfig->mTunDevice == nullptr)
+    {
+        aPlatformConfig->mTunDevice = OPENTHREAD_POSIX_TUN_DEVICE;
+    }
+#endif
 
     sIpFd = ot::Posix::SocketWithCloseExec(AF_INET6, SOCK_DGRAM, IPPROTO_IP, ot::Posix::kSocketNonBlock);
     VerifyOrDie(sIpFd >= 0, OT_EXIT_ERROR_ERRNO);

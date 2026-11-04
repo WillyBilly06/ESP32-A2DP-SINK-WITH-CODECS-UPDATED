@@ -35,9 +35,7 @@ extern "C" {
 #include "esp_http_client.h"
 #include "esp_crt_bundle.h"
 #include "esp_tls.h"
-#include "mbedtls/aes.h"
-#include "mbedtls/md.h"
-#include "mbedtls/pkcs5.h"
+#include "aes/esp_aes.h"
 #include "lwip/inet.h"
 #include "lwip/sockets.h"
 #include "lwip/netdb.h"
@@ -1255,7 +1253,7 @@ static bool connect_to_wifi(const char* ssid, const char* password) {
 // AES Decryption for OTA
 // ============================================================
 struct OtaDecryptContext {
-    mbedtls_aes_context aes;
+    esp_aes_context aes;
     uint8_t iv[16];
     uint8_t buffer[AES_BLOCK_SIZE];
     size_t buffer_len;
@@ -1267,17 +1265,24 @@ struct OtaDecryptContext {
 };
 
 static OtaDecryptContext* s_decrypt_ctx = nullptr;
+static void ota_decrypt_abort();
 
 static bool ota_decrypt_init(size_t total_size) {
     s_decrypt_ctx = new OtaDecryptContext();
     memset(s_decrypt_ctx, 0, sizeof(OtaDecryptContext));
     
-    mbedtls_aes_init(&s_decrypt_ctx->aes);
-    mbedtls_aes_setkey_dec(&s_decrypt_ctx->aes, AES_KEY, AES_KEY_SIZE * 8);
+    esp_aes_init(&s_decrypt_ctx->aes);
+    if (esp_aes_setkey(&s_decrypt_ctx->aes, AES_KEY, AES_KEY_SIZE * 8) != 0) {
+        esp_aes_free(&s_decrypt_ctx->aes);
+        delete s_decrypt_ctx;
+        s_decrypt_ctx = nullptr;
+        return false;
+    }
     
     s_decrypt_ctx->partition = esp_ota_get_next_update_partition(NULL);
     if (!s_decrypt_ctx->partition) {
         ESP_LOGE(TAG, "No OTA partition available");
+        esp_aes_free(&s_decrypt_ctx->aes);
         delete s_decrypt_ctx;
         s_decrypt_ctx = nullptr;
         return false;
@@ -1286,6 +1291,7 @@ static bool ota_decrypt_init(size_t total_size) {
     esp_err_t err = esp_ota_begin(s_decrypt_ctx->partition, OTA_WITH_SEQUENTIAL_WRITES, &s_decrypt_ctx->ota_handle);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "esp_ota_begin failed: %s", esp_err_to_name(err));
+        esp_aes_free(&s_decrypt_ctx->aes);
         delete s_decrypt_ctx;
         s_decrypt_ctx = nullptr;
         return false;
@@ -1335,9 +1341,13 @@ static bool ota_decrypt_write(const uint8_t* data, size_t len) {
         // Process complete blocks
         if (s_decrypt_ctx->buffer_len == AES_BLOCK_SIZE) {
             uint8_t decrypted[AES_BLOCK_SIZE];
-            mbedtls_aes_crypt_cbc(&s_decrypt_ctx->aes, MBEDTLS_AES_DECRYPT, 
+            int crypto_status = esp_aes_crypt_cbc(&s_decrypt_ctx->aes, ESP_AES_DECRYPT,
                                   AES_BLOCK_SIZE, s_decrypt_ctx->iv, 
                                   s_decrypt_ctx->buffer, decrypted);
+            if (crypto_status != 0) {
+                ESP_LOGE(TAG, "AES-CBC decrypt failed: %d", crypto_status);
+                return false;
+            }
             
             esp_err_t err = esp_ota_write(s_decrypt_ctx->ota_handle, decrypted, AES_BLOCK_SIZE);
             if (err != ESP_OK) {
@@ -1364,9 +1374,13 @@ static bool ota_decrypt_finish() {
         }
         
         uint8_t decrypted[AES_BLOCK_SIZE];
-        mbedtls_aes_crypt_cbc(&s_decrypt_ctx->aes, MBEDTLS_AES_DECRYPT, 
+        int crypto_status = esp_aes_crypt_cbc(&s_decrypt_ctx->aes, ESP_AES_DECRYPT,
                               AES_BLOCK_SIZE, s_decrypt_ctx->iv, 
                               s_decrypt_ctx->buffer, decrypted);
+        if (crypto_status != 0) {
+            ota_decrypt_abort();
+            return false;
+        }
         
         // Check for PKCS7 padding and remove it
         uint8_t pad_len = decrypted[AES_BLOCK_SIZE - 1];
@@ -1382,7 +1396,7 @@ static bool ota_decrypt_finish() {
     esp_err_t err = esp_ota_end(s_decrypt_ctx->ota_handle);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "esp_ota_end failed: %s", esp_err_to_name(err));
-        mbedtls_aes_free(&s_decrypt_ctx->aes);
+        esp_aes_free(&s_decrypt_ctx->aes);
         delete s_decrypt_ctx;
         s_decrypt_ctx = nullptr;
         return false;
@@ -1391,7 +1405,7 @@ static bool ota_decrypt_finish() {
     err = esp_ota_set_boot_partition(s_decrypt_ctx->partition);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "esp_ota_set_boot_partition failed: %s", esp_err_to_name(err));
-        mbedtls_aes_free(&s_decrypt_ctx->aes);
+        esp_aes_free(&s_decrypt_ctx->aes);
         delete s_decrypt_ctx;
         s_decrypt_ctx = nullptr;
         return false;
@@ -1400,7 +1414,7 @@ static bool ota_decrypt_finish() {
     ESP_LOGI(TAG, "OTA complete! Written %u bytes to %s", 
              (unsigned)s_decrypt_ctx->total_written, s_decrypt_ctx->partition->label);
     
-    mbedtls_aes_free(&s_decrypt_ctx->aes);
+    esp_aes_free(&s_decrypt_ctx->aes);
     delete s_decrypt_ctx;
     s_decrypt_ctx = nullptr;
     
@@ -1410,7 +1424,7 @@ static bool ota_decrypt_finish() {
 static void ota_decrypt_abort() {
     if (s_decrypt_ctx) {
         esp_ota_abort(s_decrypt_ctx->ota_handle);
-        mbedtls_aes_free(&s_decrypt_ctx->aes);
+        esp_aes_free(&s_decrypt_ctx->aes);
         delete s_decrypt_ctx;
         s_decrypt_ctx = nullptr;
     }

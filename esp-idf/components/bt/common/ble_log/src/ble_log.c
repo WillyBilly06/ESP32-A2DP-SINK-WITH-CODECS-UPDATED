@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2025 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2025-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -13,12 +13,22 @@
 #include "ble_log_lbm.h"
 #include "ble_log_prph.h"
 #include "ble_log_util.h"
+#include "esp_log.h"
+#include "esp_system.h"
 #if CONFIG_BLE_LOG_TS_ENABLED
 #include "ble_log_ts.h"
 #endif /* CONFIG_BLE_LOG_TS_ENABLED */
 
 /* VARIABLE */
+#define TAG "ble_log"
+
 BLE_LOG_STATIC bool ble_log_inited = false;
+BLE_LOG_STATIC bool shutdown_handler_registered = false;
+
+BLE_LOG_STATIC void ble_log_shutdown_handler(void)
+{
+    ble_log_flush();
+}
 
 /* INTERFACE */
 bool ble_log_init(void)
@@ -46,13 +56,19 @@ bool ble_log_init(void)
     }
 
     /* Initialize BLE Log peripheral interface */
-    if (!ble_log_prph_init(BLE_LOG_LBM_CNT)) {
+    if (!ble_log_prph_init(BLE_LOG_TRANS_TOTAL_CNT)) {
         goto exit;
     }
 
     /* Initialization done */
     ble_log_inited = true;
     ble_log_enable(true);
+    esp_err_t ret = esp_register_shutdown_handler(ble_log_shutdown_handler);
+    if (ret == ESP_OK) {
+        shutdown_handler_registered = true;
+    } else {
+        ESP_LOGW(TAG, "Register shutdown handler failed, ret = 0x%x", ret);
+    }
 
     /* Write initialization done log */
     ble_log_info_t ble_log_info = {
@@ -69,23 +85,34 @@ exit:
 
 void ble_log_deinit(void)
 {
+    if (shutdown_handler_registered) {
+        esp_err_t ret = esp_unregister_shutdown_handler(ble_log_shutdown_handler);
+        if (ret == ESP_OK) {
+            shutdown_handler_registered = false;
+        } else {
+            ESP_LOGW(TAG, "Unregister shutdown handler failed, ret = 0x%x", ret);
+        }
+    }
     ble_log_enable(false);
     ble_log_inited = false;
 
-    /* CRITICAL:
-     * BLE Log peripheral interface must be deinitialized at first,
-     * because there's a risky scenario that may cause severe peripheral
-     * driver fault - if a log buffer is sent to peripheral driver, and
-     * ble_log_deinit is called; in this case, if LBM is deinitialized
-     * before peripheral interface, the log buffer may be freed before
-     * peripheral driver completing tx, and the result would be faulty */
-    ble_log_prph_deinit();
-
-    /* Deinitialize BLE Log LBM */
-    ble_log_lbm_deinit();
-
-    /* Deinitialize BLE Log Runtime */
+    /* CRITICAL — Deinit ordering rationale:
+     *
+     * 1. Runtime task must be stopped FIRST to prevent it from sending
+     *    transports to an already-destroyed peripheral driver. The queue
+     *    is drained and pending transports are discarded.
+     *
+     * 2. Peripheral interface is deinitialized SECOND. It waits for any
+     *    in-flight DMA operations (started before the task was killed) to
+     *    complete, then destroys the driver. This is safe because no new
+     *    DMA operations can be started (the task is already dead).
+     *
+     * 3. LBM is deinitialized LAST. At this point all DMA has completed
+     *    (ensured by step 2) and all queued transports have been drained
+     *    (ensured by step 1), so freeing the buffers is safe. */
     ble_log_rt_deinit();
+    ble_log_prph_deinit();
+    ble_log_lbm_deinit();
 
 #if CONFIG_BLE_LOG_TS_ENABLED
     /* Deinitialize BLE Log TS */

@@ -2,21 +2,16 @@ set(libs
     ${mbedtls_target}
 )
 
-set(executables_libs
+set(executables
     metatest
+    query_compile_time_config
     query_included_headers
     selftest
     udp_proxy
-)
-add_dependencies(${programs_target} ${executables_libs})
-add_dependencies(${ssl_opt_target} udp_proxy)
-
-set(executables_mbedcrypto
-    benchmark
-    query_compile_time_config
     zeroize
 )
-add_dependencies(${programs_target} ${executables_mbedcrypto})
+add_dependencies(${programs_target} ${executables})
+add_dependencies(${ssl_opt_target} udp_proxy)
 add_dependencies(${ssl_opt_target} query_compile_time_config)
 
 if(TEST_CPP)
@@ -29,14 +24,22 @@ if(TEST_CPP)
         WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
     )
     add_executable(cpp_dummy_build "${cpp_dummy_build_cpp}")
-    target_include_directories(cpp_dummy_build PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../../include)
-    target_link_libraries(cpp_dummy_build ${mbedcrypto_target} ${CMAKE_THREAD_LIBS_INIT})
+    set_base_compile_options(cpp_dummy_build)
+    target_include_directories(cpp_dummy_build
+        PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../../include
+        PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../../tf-psa-crypto/include
+        PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../../tf-psa-crypto/drivers/builtin/include)
+    target_link_libraries(cpp_dummy_build ${tfpsacrypto_target} ${CMAKE_THREAD_LIBS_INIT})
 endif()
 
 if(USE_SHARED_MBEDTLS_LIBRARY AND
    NOT ${CMAKE_SYSTEM_NAME} MATCHES "[Ww][Ii][Nn]")
     add_executable(dlopen "dlopen.c")
-    target_include_directories(dlopen PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../../include)
+    set_base_compile_options(dlopen)
+    target_include_directories(dlopen
+        PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../../include
+        PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../../tf-psa-crypto/include
+        PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../../tf-psa-crypto/drivers/builtin/include)
     target_link_libraries(dlopen ${CMAKE_DL_LIBS})
 endif()
 
@@ -50,13 +53,14 @@ if(GEN_FILES)
             ${PERL}
                 ${CMAKE_CURRENT_SOURCE_DIR}/../../scripts/generate_query_config.pl
                 ${CMAKE_CURRENT_SOURCE_DIR}/../../include/mbedtls/mbedtls_config.h
-                ${CMAKE_CURRENT_SOURCE_DIR}/../../include/psa/crypto_config.h
+                ${CMAKE_CURRENT_SOURCE_DIR}/../../tf-psa-crypto/include/psa/crypto_config.h
                 ${CMAKE_CURRENT_SOURCE_DIR}/../../scripts/data_files/query_config.fmt
                 ${CMAKE_CURRENT_BINARY_DIR}/query_config.c
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/../..
         DEPENDS
             ${CMAKE_CURRENT_SOURCE_DIR}/../../scripts/generate_query_config.pl
             ${CMAKE_CURRENT_SOURCE_DIR}/../../include/mbedtls/mbedtls_config.h
-            ${CMAKE_CURRENT_SOURCE_DIR}/../../include/psa/crypto_config.h
+            ${CMAKE_CURRENT_SOURCE_DIR}/../../tf-psa-crypto/include/psa/crypto_config.h
             ${CMAKE_CURRENT_SOURCE_DIR}/../../scripts/data_files/query_config.fmt
     )
     # this file will also be used in another directory, so create a target, see
@@ -67,7 +71,7 @@ else()
     link_to_source(query_config.c)
 endif()
 
-foreach(exe IN LISTS executables_libs executables_mbedcrypto)
+foreach(exe IN LISTS executables)
     set(source ${exe}.c)
     set(extra_sources "")
     if(NOT EXISTS ${source} AND
@@ -82,25 +86,26 @@ foreach(exe IN LISTS executables_libs executables_mbedcrypto)
     endif()
     add_executable(${exe} ${source} $<TARGET_OBJECTS:mbedtls_test>
         ${extra_sources})
-    target_include_directories(${exe} PRIVATE ${MBEDTLS_FRAMEWORK_DIR}/tests/include)
-    target_include_directories(${exe} PRIVATE ${MBEDTLS_FRAMEWORK_DIR}/tests/programs)
-    target_include_directories(${exe} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../../library)
+    set_base_compile_options(${exe})
+    target_include_directories(${exe}
+        PRIVATE ${MBEDTLS_FRAMEWORK_DIR}/tests/include
+                ${MBEDTLS_FRAMEWORK_DIR}/tests/programs)
+    target_include_directories(${exe}
+        PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../../library
+                ${CMAKE_CURRENT_SOURCE_DIR}/../../tf-psa-crypto/core)
     if(exe STREQUAL "query_compile_time_config")
         target_include_directories(${exe} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
     endif()
 
     # Request C11, required for memory poisoning
     set_target_properties(${exe} PROPERTIES C_STANDARD 11)
-
-    # This emulates "if ( ... IN_LIST ... )" which becomes available in CMake 3.3
-    list(FIND executables_libs ${exe} exe_index)
-    if (${exe_index} GREATER -1)
-        target_link_libraries(${exe} ${libs} ${CMAKE_THREAD_LIBS_INIT})
-    else()
-        target_link_libraries(${exe} ${mbedcrypto_target} ${CMAKE_THREAD_LIBS_INIT})
-    endif()
+    target_link_libraries(${exe} ${libs} ${CMAKE_THREAD_LIBS_INIT})
 endforeach()
 
-install(TARGETS ${executables_libs} ${executables_mbedcrypto}
+target_include_directories(metatest
+        PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../../tf-psa-crypto/drivers/builtin/src
+                ${CMAKE_CURRENT_SOURCE_DIR}/../../tf-psa-crypto/platform
+)
+install(TARGETS ${executables}
         DESTINATION "bin"
         PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE)

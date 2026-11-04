@@ -1140,7 +1140,8 @@ extern  void GATT_StartIf (tGATT_IF gatt_if);
 **
 *******************************************************************************/
 extern BOOLEAN GATT_Connect (tGATT_IF gatt_if, BD_ADDR bd_addr, tBLE_ADDR_TYPE bd_addr_type,
-                             BOOLEAN is_direct, tBT_TRANSPORT transport, BOOLEAN is_aux);
+                             BOOLEAN is_direct, tBT_TRANSPORT transport, BOOLEAN is_aux,
+                             BOOLEAN is_pawr_synced, UINT8 adv_handle, UINT8 subevent);
 
 
 /*******************************************************************************
@@ -1225,23 +1226,6 @@ extern BOOLEAN GATT_GetConnectionInfor(UINT16 conn_id, tGATT_IF *p_gatt_if,
 extern BOOLEAN GATT_GetConnIdIfConnected(tGATT_IF gatt_if, BD_ADDR bd_addr,
         UINT16 *p_conn_id, tBT_TRANSPORT transport);
 
-
-/*******************************************************************************
-**
-** Function         GATT_Listen
-**
-** Description      This function start or stop LE advertisement and listen for
-**                  connection.
-**
-** Parameters       gatt_if: application interface
-**                  p_bd_addr: listen for specific address connection, or NULL for
-**                             listen to all device connection.
-**                  start: is a direct connection or a background auto connection
-**
-** Returns          TRUE if advertisement is started; FALSE if adv start failure.
-**
-*******************************************************************************/
-extern BOOLEAN GATT_Listen (tGATT_IF gatt_if, BOOLEAN start, BD_ADDR_PTR bd_addr);
 
 /*******************************************************************************
 **

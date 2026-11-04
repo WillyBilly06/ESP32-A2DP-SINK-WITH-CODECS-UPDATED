@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2023-2025 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2023-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -90,12 +90,12 @@ void esp_cpu_configure_region_protection(void)
      *    - We cannot set the lock bit as we need to reconfigure it again for the application.
      *      We configure PMP to cover entire valid IRAM and DRAM range.
      *
-     * 2. Application build with CONFIG_ESP_SYSTEM_PMP_IDRAM_SPLIT enabled
+     * 2. Application build with CONFIG_ESP_SYSTEM_MEMPROT enabled
      *    - We split the SRAM into IRAM and DRAM such that IRAM region cannot be written to
      *      and DRAM region cannot be executed. We use _iram_text_end and _data_start markers to set the boundaries.
      *      We also lock these entries so the R/W/X permissions are enforced even for machine mode
      *
-     * 3. Application build with CONFIG_ESP_SYSTEM_PMP_IDRAM_SPLIT disabled
+     * 3. Application build with CONFIG_ESP_SYSTEM_MEMPROT disabled
      *    - The IRAM-DRAM split is not enabled so we just need to ensure that access to only valid address ranges are successful
      *      so for that we set PMP to cover entire valid IRAM and DRAM region.
      *      We also lock these entries so the R/W/X permissions are enforced even for machine mode
@@ -133,23 +133,47 @@ void esp_cpu_configure_region_protection(void)
     PMP_ENTRY_SET(0, pmpaddr0, PMP_NAPOT | RWX);
     _Static_assert(SOC_CPU_SUBSYSTEM_LOW < SOC_CPU_SUBSYSTEM_HIGH, "Invalid CPU subsystem region");
 
-    // 2.1 I/D-ROM
+    // 2.1 I-ROM
     PMP_ENTRY_SET(1, SOC_IROM_MASK_LOW, NONE);
     PMP_ENTRY_SET(2, SOC_IROM_MASK_HIGH, PMP_TOR | RX);
-    _Static_assert(SOC_IROM_MASK_LOW < SOC_IROM_MASK_HIGH, "Invalid I/D-ROM region");
+    _Static_assert(SOC_IROM_MASK_LOW < SOC_IROM_MASK_HIGH, "Invalid I-ROM region");
+
+    /* 2.2 D-ROM - redundant with the I-ROM entry above (same range, already
+     * locked RX); kept as a separate pair only to pin the app's IRAM/DRAM split
+     * to entries 5-7.
+     *
+     * H2's ROM mask is a power of two, so commit d4167fea60c (v6.0) folded ROM
+     * into a single NAPOT entry (1) and moved the split down onto entry 2 -
+     * which every pre-v6.0 bootloader locks as the I-ROM TOR top. A locked PMP
+     * entry can't be reconfigured until CPU reset, so such an app can't gain
+     * IRAM execute permission and resets before app_main() (GitHub #18769).
+     * ROM was never a single NAPOT before v6.0, so ALL pre-v6.0 bootloaders
+     * break (unlike C6, where only pre-v5.2.2 do).
+     *
+     * CFG_RESET clears stale config a v6.0/v6.0.1 bootloader left here
+     * (PMP_ENTRY_SET only ORs bits); no-op once these are locked. CONDITIONAL_*
+     * keeps 3-4 locked in the app but unlocked in the bootloader (redundant, so
+     * no protection lost), letting a future app reclaim them once pre-v5.2.3
+     * bootloaders are out of support.
+     */
+    PMP_ENTRY_CFG_RESET(3);
+    PMP_ENTRY_CFG_RESET(4);
+    PMP_ENTRY_SET(3, SOC_DROM_MASK_LOW, CONDITIONAL_NONE);
+    PMP_ENTRY_SET(4, SOC_DROM_MASK_HIGH, PMP_TOR | CONDITIONAL_R);
+    _Static_assert(SOC_DROM_MASK_LOW < SOC_DROM_MASK_HIGH, "Invalid D-ROM region");
 
     if (esp_cpu_dbgr_is_attached()) {
         // Anti-FI check that cpu is really in ocd mode
         ESP_FAULT_ASSERT(esp_cpu_dbgr_is_attached());
 
-        // 5. IRAM and DRAM
+        // 3. IRAM and DRAM
         PMP_ENTRY_SET(5, SOC_IRAM_LOW, NONE);
         PMP_ENTRY_SET(6, SOC_IRAM_HIGH, PMP_TOR | RWX);
         _Static_assert(SOC_IRAM_LOW < SOC_IRAM_HIGH, "Invalid RAM region");
     } else {
-#if CONFIG_ESP_SYSTEM_PMP_IDRAM_SPLIT && !BOOTLOADER_BUILD
+#if CONFIG_ESP_SYSTEM_MEMPROT && CONFIG_ESP_SYSTEM_MEMPROT_PMP && !BOOTLOADER_BUILD
         extern int _iram_text_end;
-        // 5. IRAM and DRAM
+        // 3. IRAM and DRAM
         /* Reset the corresponding PMP config because PMP_ENTRY_SET only sets the given bits
          * Bootloader might have given extra permissions and those won't be cleared
          */
@@ -160,14 +184,14 @@ void esp_cpu_configure_region_protection(void)
         PMP_ENTRY_SET(6, (int)&_iram_text_end, PMP_TOR | RX);
         PMP_ENTRY_SET(7, SOC_DRAM_HIGH, PMP_TOR | RW);
 #else
-        // 5. IRAM and DRAM
+        // 3. IRAM and DRAM
         PMP_ENTRY_SET(5, SOC_IRAM_LOW, CONDITIONAL_NONE);
         PMP_ENTRY_SET(6, SOC_IRAM_HIGH, PMP_TOR | CONDITIONAL_RWX);
         _Static_assert(SOC_IRAM_LOW < SOC_IRAM_HIGH, "Invalid RAM region");
 #endif
     }
 
-#if CONFIG_ESP_SYSTEM_PMP_IDRAM_SPLIT && !BOOTLOADER_BUILD
+#if CONFIG_ESP_SYSTEM_MEMPROT && CONFIG_ESP_SYSTEM_MEMPROT_PMP && !BOOTLOADER_BUILD
     extern int _instruction_reserved_end;
     extern int _rodata_reserved_end;
 
@@ -188,8 +212,8 @@ void esp_cpu_configure_region_protection(void)
     _Static_assert(SOC_IROM_LOW < SOC_IROM_HIGH, "Invalid I/D_Cache region");
 #endif
 
-    // 6. LP memory
-#if CONFIG_ESP_SYSTEM_PMP_IDRAM_SPLIT && !BOOTLOADER_BUILD
+    // 5. LP memory
+#if CONFIG_ESP_SYSTEM_MEMPROT && CONFIG_ESP_SYSTEM_MEMPROT_PMP && !BOOTLOADER_BUILD
     extern int _rtc_text_end;
     /* Reset the corresponding PMP config because PMP_ENTRY_SET only sets the given bits
      * Bootloader might have given extra permissions and those won't be cleared
@@ -206,7 +230,8 @@ void esp_cpu_configure_region_protection(void)
     _Static_assert(SOC_RTC_IRAM_LOW < SOC_RTC_IRAM_HIGH, "Invalid RTC IRAM region");
 #endif
 
-    // 7. Peripheral addresses
+    // 6. Peripheral addresses
+    PMP_ENTRY_CFG_RESET(14);
     const uint32_t pmpaddr14 = PMPADDR_NAPOT(SOC_PERIPHERAL_LOW, SOC_PERIPHERAL_HIGH);
     PMP_ENTRY_SET(14, pmpaddr14, PMP_NAPOT | RW);
     _Static_assert(SOC_PERIPHERAL_LOW < SOC_PERIPHERAL_HIGH, "Invalid peripheral region");

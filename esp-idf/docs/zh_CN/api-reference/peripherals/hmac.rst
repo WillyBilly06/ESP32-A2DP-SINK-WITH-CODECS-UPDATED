@@ -26,15 +26,32 @@
 {IDF_TARGET_NAME} 上的 HMAC
 -----------------------------
 
-在 {IDF_TARGET_NAME} HMAC 模块的 eFuse 中会烧录一个密钥，可将该 eFuse 密钥设置为禁止所有外部资源访问，避免密钥泄露。
+在 {IDF_TARGET_NAME} 上，HMAC 模块会使用烧录到 eFuse 中的密钥。
 
-此外，在 {IDF_TARGET_NAME} 上的 HMAC 有以下三种应用场景：
+.. only:: SOC_KEY_MANAGER_SUPPORTED
 
-#. HMAC 支持软件使用
-#. HMAC 用作数字签名 (DS) 的密钥
-#. HMAC 用于启用软禁用的 JTAG 接口
+    在 {IDF_TARGET_NAME} 上，HMAC 模块也支持将密钥存储在密钥管理器中，详情请参阅 :ref:`key-manager`。
 
-第一种应用场景称为 **上行** 模式，后两种应用场景称为 **下行** 模式。
+可将该密钥设置为禁止所有外部资源访问，避免密钥泄露。
+
+.. only:: SOC_DIG_SIGN_SUPPORTED
+
+    此外，在 {IDF_TARGET_NAME} 上的 HMAC 有以下三种应用场景：
+
+    #. HMAC 支持软件使用
+    #. HMAC 用作 RSA 数字签名外设 (RSA_DS) 的密钥
+    #. HMAC 用于启用软禁用的 JTAG 接口
+
+    第一种应用场景称为 **上行** 模式，后两种应用场景称为 **下行** 模式。
+
+.. only:: not SOC_DIG_SIGN_SUPPORTED
+
+    此外，在 {IDF_TARGET_NAME} 上的 HMAC 有以下两种应用场景：
+
+    #. HMAC 支持软件使用
+    #. HMAC 用于启用软禁用的 JTAG 接口
+
+    第一种应用场景称为 **上行** 模式，第二种应用场景称为 **下行** 模式。
 
 HMAC 的 eFuse 密钥
 ^^^^^^^^^^^^^^^^^^^
@@ -43,20 +60,35 @@ HMAC 的 eFuse 密钥
 
 每个密钥都有相应的 eFuse 参数 **密钥功能 (key purpose)**，决定密钥应用于 HMAC 的哪种应用场景。
 
-.. list-table::
-   :widths: 15 70
-   :header-rows: 1
+.. only:: SOC_DIG_SIGN_SUPPORTED
 
-   * - 密钥功能
-     - 应用场景
-   * - 8
-     - HMAC 支持软件使用
-   * - 7
-     - HMAC 用作数字签名 (DS) 的密钥
-   * - 6
-     - HMAC 启用软禁用的 JTAG 接口
-   * - 5
-     - HMAC 既用作数字签名 (DS) 的密钥，又用于启用 JTAG 接口
+    .. list-table::
+       :widths: 15 70
+       :header-rows: 1
+
+       * - 密钥功能
+         - 应用场景
+       * - 8
+         - HMAC 支持软件使用
+       * - 7
+         - HMAC 用作 RSA 数字签名外设 (RSA_DS) 的密钥
+       * - 6
+         - HMAC 启用软禁用的 JTAG 接口
+       * - 5
+         - HMAC 既用作 RSA 数字签名外设 (RSA_DS) 的密钥，又用于启用 JTAG 接口
+
+.. only:: not SOC_DIG_SIGN_SUPPORTED
+
+    .. list-table::
+       :widths: 15 70
+       :header-rows: 1
+
+       * - 密钥功能
+         - 应用场景
+       * - 8
+         - HMAC 支持软件使用
+       * - 5, 6
+         - HMAC 用于启用软禁用的 JTAG 接口（HMAC 下行模式）
 
 这样一来，可以确保密钥用于原定场景。
 
@@ -71,18 +103,20 @@ HMAC 支持软件使用
 
 在此情况下，HMAC 支持软件使用，如验证消息真实性等。
 
-API :cpp:func:`esp_hmac_calculate` 用于计算 HMAC。输入参数包括消息、消息长度以及包含密钥的 eFuse 密钥块 ID，且该密钥块的 eFuse 密钥功能设置为上行模式。
+:cpp:func:`psa_mac_compute` 用于计算 HMAC，该函数接收一个不透明的 PSA 密钥，该密钥引用了包含密钥机密的 eFuse 密钥块，并且该密钥块的用途被设置为上行模式。
 
-HMAC 用作数字签名 (DS) 的密钥
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.. only:: SOC_DIG_SIGN_SUPPORTED
 
-密钥功能值：7、5
+    HMAC 用作 RSA 数字签名外设 (RSA_DS) 的密钥
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-HMAC 可用作密钥派生函数，解码数字签名模块使用的私钥参数。在此情况下，硬件使用标准信息进行计算。在 HMAC 部分只需提供 eFuse 密钥块和功能；而在数字签名模块则还需要一些额外参数。
+    密钥功能值：7、5
 
-无论是密钥还是实际的 HMAC，都不会暴露在 HMAC 和数字签名模块之外。对 HMAC 的计算，以及将其传递给数字签名模块的过程，均在内部进行。
+    HMAC 可用作密钥派生函数，解码 RSA_DS 模块使用的私钥参数。在此情况下，硬件使用标准信息进行计算。在 HMAC 部分只需提供 eFuse 密钥块和功能；而在 RSA_DS 模块则还需要一些额外参数。
 
-详情请参阅 **{IDF_TARGET_NAME} 技术参考手册** > **数字签名 (DS)** [`PDF <{IDF_TARGET_TRM_CN_URL}#digsig>`__]。
+    无论是密钥还是实际的 HMAC，都不会暴露在 HMAC 和 RSA_DS 模块之外。对 HMAC 的计算，以及将其传递给 RSA_DS 模块的过程，均在内部进行。
+
+    详情请参阅 **{IDF_TARGET_NAME} 技术参考手册** > **RSA 数字签名外设 (RSA_DS)** [`PDF <{IDF_TARGET_TRM_CN_URL}#digsig>`__]。
 
 .. _hmac_for_enabling_jtag:
 
@@ -142,6 +176,8 @@ HMAC 的第三种应用场景是将其作为密钥，启用软禁用的 JTAG 接
 
 以下为针对特定应用场景的实例代码，可用于设置 eFuse 密钥，并将其用于计算支持软件使用的 HMAC。
 
+使用 eFuse 存储 HMAC 密钥：
+
 ``esp_efuse_write_key`` 可以设置 eFuse 中的物理密钥块 4，并设置其功能。``ESP_EFUSE_KEY_PURPOSE_HMAC_UP`` (8) 表明，该密钥仅适用于生成支持软件使用的 HMAC。
 
 .. code-block:: c
@@ -160,26 +196,64 @@ HMAC 的第三种应用场景是将其作为密钥，启用软禁用的 JTAG 接
         // 密钥写入失败，可能已写入过
     }
 
-接下来可以使用已存储的密钥来计算 HMAC，供软件使用。
+接下来可以通过 PSA Crypto API，使用已存储的密钥来计算供软件使用的 HMAC。
+
+使用基于 eFuse 的 HMAC 密钥：
 
 .. code-block:: c
 
-    #include "esp_hmac.h"
+    #include "psa/crypto.h"
+    #include "psa_crypto_driver_esp_hmac_opaque.h"
 
     uint8_t hmac[32];
+    size_t hmac_length = 0;
 
     const char *message = "Hello, HMAC!";
     const size_t msg_len = 12;
 
-    esp_err_t result = esp_hmac_calculate(HMAC_KEY4, message, msg_len, hmac);
+    // 为 ESP-HMAC 不透明驱动设置密钥属性
+    psa_key_attributes_t attributes = PSA_KEY_ATTRIBUTES_INIT;
+    psa_set_key_usage_flags(&attributes, PSA_KEY_USAGE_SIGN_MESSAGE);
+    psa_set_key_algorithm(&attributes, PSA_ALG_HMAC(PSA_ALG_SHA_256));
+    psa_set_key_type(&attributes, PSA_KEY_TYPE_HMAC);
+    psa_set_key_bits(&attributes, 256);
+    psa_set_key_lifetime(&attributes, PSA_KEY_LIFETIME_ESP_HMAC_VOLATILE);
 
-    if (result == ESP_OK) {
+    // 为基于 eFuse 的密钥创建不透明密钥引用
+    esp_hmac_opaque_key_t opaque_key = {
+        .efuse_key_id = HMAC_KEY4,
+    };
+
+    // 导入不透明密钥
+    psa_key_id_t key_id = 0;
+    psa_status_t status = psa_import_key(&attributes, (uint8_t *)&opaque_key,
+                                         sizeof(opaque_key), &key_id);
+    if (status != PSA_SUCCESS) {
+        // 导入密钥失败
+        psa_reset_key_attributes(&attributes);
+        return;
+    }
+
+    // 计算 HMAC
+    status = psa_mac_compute(key_id, PSA_ALG_HMAC(PSA_ALG_SHA_256),
+                             (uint8_t *)message, msg_len,
+                             hmac, sizeof(hmac), &hmac_length);
+
+    // 清理
+    psa_destroy_key(key_id);
+    psa_reset_key_attributes(&attributes);
+
+    if (status == PSA_SUCCESS) {
         // HMAC 已写入 hmac 数组
     } else {
         // 计算 HMAC 失败
     }
 
+.. note::
+
+    ESP-HMAC 不透明 PSA 驱动基于单次硬件 HMAC 外设实现，该外设可以通过单次运算为完整消息计算消息认证码 (MAC)，但无法在多次调用之间保存或恢复运算中间状态。因此，该驱动不支持多分段流式运算：须在单次 :cpp:func:`psa_mac_compute` 调用中传入完整消息（如上所示），或仅执行一次多分段更新操作。若对同一 MAC 运算操作发起第二次非空更新，会返回 ``PSA_ERROR_BAD_STATE`` 错误，且该操作会直接失败并关闭，不会基于部分消息生成对应的 MAC 结果。
+
 API 参考
 -------------
 
-.. include-build-file:: inc/esp_hmac.inc
+.. include-build-file:: inc/psa_crypto_driver_esp_hmac_opaque_contexts.inc

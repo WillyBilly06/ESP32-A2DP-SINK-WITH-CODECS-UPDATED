@@ -26,6 +26,7 @@
 #include "host/ble_uuid.h"
 #include "ble_hs_priv.h"
 #include "esp_nimble_mem.h"
+#include "host/ble_hs_log.h"
 
 #if NIMBLE_BLE_CONNECT
 #if MYNEWT_VAL(BLE_GATTS)
@@ -50,6 +51,29 @@
  */
 
 STAILQ_HEAD(ble_att_svr_entry_list, ble_att_svr_entry);
+
+#if MYNEWT_VAL(BLE_STATIC_TO_DYNAMIC)
+typedef struct {
+    os_membuf_t *prep_entry_mem;
+    struct os_mempool prep_entry_pool;
+    void *entry_mem;
+    struct os_mempool entry_pool;
+    struct ble_att_svr_entry_list list;
+    struct ble_att_svr_entry_list hidden_list;
+    uint16_t id;
+} ble_att_svr_ctx_t;
+
+static ble_att_svr_ctx_t *ble_att_svr_ctx;
+
+#define ble_att_svr_prep_entry_mem  (ble_att_svr_ctx->prep_entry_mem)
+#define ble_att_svr_prep_entry_pool (ble_att_svr_ctx->prep_entry_pool)
+#define ble_att_svr_entry_mem       (ble_att_svr_ctx->entry_mem)
+#define ble_att_svr_entry_pool      (ble_att_svr_ctx->entry_pool)
+#define ble_att_svr_list            (ble_att_svr_ctx->list)
+#define ble_att_svr_hidden_list     (ble_att_svr_ctx->hidden_list)
+#define ble_att_svr_id              (ble_att_svr_ctx->id)
+
+#else
 static struct ble_att_svr_entry_list ble_att_svr_list;
 static struct ble_att_svr_entry_list ble_att_svr_hidden_list;
 
@@ -68,6 +92,25 @@ static os_membuf_t ble_att_svr_prep_entry_mem[
 #endif
 
 static struct os_mempool ble_att_svr_prep_entry_pool;
+#endif
+
+#if MYNEWT_VAL(BLE_STATIC_TO_DYNAMIC)
+static int
+ble_att_svr_ensure_ctx(void)
+{
+    if (ble_att_svr_ctx != NULL) {
+        return 0;
+    }
+
+    ble_att_svr_ctx = nimble_platform_mem_calloc(1, sizeof(*ble_att_svr_ctx));
+    if (ble_att_svr_ctx == NULL) {
+        BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_ENOMEM);
+        return BLE_HS_ENOMEM;
+    }
+
+    return 0;
+}
+#endif
 
 static struct ble_att_svr_entry *
 ble_att_svr_entry_alloc(void)
@@ -78,7 +121,7 @@ ble_att_svr_entry_alloc(void)
 #if MYNEWT_VAL(BLE_DYNAMIC_SERVICE) && !MYNEWT_VAL(MP_RUNTIME_ALLOC)
     /* if dynamic services are enabled, try to allocate from heap */
     if (entry == NULL) {
-        entry = nimble_platform_mem_malloc(sizeof *entry);
+        entry = nimble_platform_mem_calloc(1,sizeof *entry);
     }
 #endif
     if (entry != NULL) {
@@ -136,6 +179,7 @@ ble_att_svr_register(const ble_uuid_t *uuid, uint8_t flags,
 
     entry = ble_att_svr_entry_alloc();
     if (entry == NULL) {
+        BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_ENOMEM);
         return BLE_HS_ENOMEM;
     }
 
@@ -169,8 +213,19 @@ int ble_att_svr_deregister(uint16_t start_handle, uint16_t end_group_handle) {
     struct ble_att_svr_entry *entry;
     for (idx = start_handle; idx <= end_group_handle; idx++) {
         entry = ble_att_svr_find_by_handle(idx);
+        if (entry == NULL) {
+            /* Handle not found - skip (gaps in ATT handle space are common) */
+            if (idx == UINT16_MAX) {
+                break;  /* Prevent wrap-around infinite loop */
+            }
+            continue;
+        }
         STAILQ_REMOVE(&ble_att_svr_list, entry, ble_att_svr_entry, ha_next);
         ble_att_svr_entry_free(entry);
+
+        if (idx == UINT16_MAX) {
+            break;  /* Prevent wrap-around infinite loop */
+        }
     }
     return 0;
 }
@@ -288,7 +343,6 @@ ble_att_svr_get_sec_state(uint16_t conn_handle,
     ble_hs_unlock();
 }
 
-
 #if MYNEWT_VAL(BLE_GATTS)
 static int
 ble_att_svr_check_perms(uint16_t conn_handle, int is_read,
@@ -307,6 +361,9 @@ ble_att_svr_check_perms(uint16_t conn_handle, int is_read,
 
     if (is_read) {
         if (!(entry->ha_flags & BLE_ATT_F_READ)) {
+            BLE_HS_LOG(INFO, "ATT read not permitted; "
+                       "conn_handle=0x%04x attr_handle=0x%04x\n",
+                       conn_handle, entry->ha_handle_id);
             *out_att_err = BLE_ATT_ERR_READ_NOT_PERMITTED;
             return BLE_HS_EREJECT;
         }
@@ -316,6 +373,9 @@ ble_att_svr_check_perms(uint16_t conn_handle, int is_read,
         author = entry->ha_flags & BLE_ATT_F_READ_AUTHOR;
     } else {
         if (!(entry->ha_flags & BLE_ATT_F_WRITE)) {
+            BLE_HS_LOG(INFO, "ATT write not permitted; "
+                       "conn_handle=0x%04x attr_handle=0x%04x\n",
+                       conn_handle, entry->ha_handle_id);
             *out_att_err = BLE_ATT_ERR_WRITE_NOT_PERMITTED;
             return BLE_HS_EREJECT;
         }
@@ -358,6 +418,11 @@ ble_att_svr_check_perms(uint16_t conn_handle, int is_read,
         }
         ble_hs_unlock();
 
+        if (conn == NULL) {
+            *out_att_err = BLE_ATT_ERR_INSUFFICIENT_AUTHEN;
+            return BLE_HS_ATT_ERR(*out_att_err);
+        }
+
         rc = ble_store_read_peer_sec(&key_sec, &value_sec);
         if (rc == 0 && value_sec.ltk_present) {
             *out_att_err = BLE_ATT_ERR_INSUFFICIENT_ENC;
@@ -380,10 +445,15 @@ ble_att_svr_check_perms(uint16_t conn_handle, int is_read,
 
     if (author) {
         /* XXX: Prompt user for authorization. */
+        int authorized = 0;
         ble_hs_lock();
         conn = ble_hs_conn_find(conn_handle);
+        if (conn != NULL) {
+            authorized = conn->bhc_sec_state.authorize;
+        }
         ble_hs_unlock();
-        if(!conn->bhc_sec_state.authorize){
+
+        if (conn == NULL || !authorized) {
             rc = ble_gap_authorize_event(conn_handle, entry->ha_handle_id, is_read);
             if (rc == BLE_GAP_AUTHORIZE_REJECT) {
                 *out_att_err = BLE_ATT_ERR_INSUFFICIENT_AUTHOR;
@@ -445,6 +515,7 @@ ble_att_svr_pkt(struct os_mbuf **rxom, struct os_mbuf **out_txom,
     *out_txom = *rxom;
     *rxom = NULL;
     *out_att_err = BLE_ATT_ERR_INSUFFICIENT_RES;
+    BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_ENOMEM);
     return BLE_HS_ENOMEM;
 }
 
@@ -537,6 +608,9 @@ ble_att_svr_read_handle(uint16_t conn_handle, uint16_t attr_handle,
 
     entry = ble_att_svr_find_by_handle(attr_handle);
     if (entry == NULL) {
+        BLE_HS_LOG(INFO, "ATT read: invalid handle; "
+                   "conn_handle=0x%04x attr_handle=0x%04x\n",
+                   conn_handle, attr_handle);
         if (out_att_err != NULL) {
             *out_att_err = BLE_ATT_ERR_INVALID_HANDLE;
         }
@@ -619,6 +693,9 @@ ble_att_svr_write_handle(uint16_t conn_handle, uint16_t attr_handle,
 
     entry = ble_att_svr_find_by_handle(attr_handle);
     if (entry == NULL) {
+        BLE_HS_LOG(INFO, "ATT write: invalid handle; "
+                   "conn_handle=0x%04x attr_handle=0x%04x\n",
+                   conn_handle, attr_handle);
         if (out_att_err != NULL) {
             *out_att_err = BLE_ATT_ERR_INVALID_HANDLE;
         }
@@ -645,6 +722,7 @@ ble_att_svr_tx_error_rsp(uint16_t conn_handle, uint16_t cid, struct os_mbuf *txo
 
     rsp = ble_att_cmd_prepare(BLE_ATT_OP_ERROR_RSP, sizeof(*rsp), txom);
     if (rsp == NULL) {
+        BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_ENOMEM);
         return BLE_HS_ENOMEM;
     }
 
@@ -757,6 +835,7 @@ ble_att_svr_build_mtu_rsp(uint16_t conn_handle, struct os_mbuf **rxom,
     if (cmd == NULL) {
         *att_err = BLE_ATT_ERR_INSUFFICIENT_RES;
         rc = BLE_HS_ENOMEM;
+        txom = NULL;
         goto done;
     }
 
@@ -1029,8 +1108,9 @@ ble_att_svr_fill_type_value_entry(struct os_mbuf *om, uint16_t first,
     uint16_t u16;
     int rsp_sz;
     int rc;
+    int orig_len = OS_MBUF_PKTHDR(om)->omp_len;
 
-    rsp_sz = OS_MBUF_PKTHDR(om)->omp_len + 4;
+    rsp_sz = orig_len + 4;
     if (rsp_sz > mtu) {
         return 0;
     }
@@ -1038,18 +1118,22 @@ ble_att_svr_fill_type_value_entry(struct os_mbuf *om, uint16_t first,
     put_le16(&u16, first);
     rc = os_mbuf_append(om, &u16, 2);
     if (rc != 0) {
-        *out_att_err = BLE_ATT_ERR_INSUFFICIENT_RES;
-        return BLE_HS_ENOMEM;
+        goto fail;
     }
 
     put_le16(&u16, last);
     rc = os_mbuf_append(om, &u16, 2);
     if (rc != 0) {
-        *out_att_err = BLE_ATT_ERR_INSUFFICIENT_RES;
-        return BLE_HS_ENOMEM;
+        goto fail;
     }
 
     return BLE_HS_EAGAIN;
+
+fail:
+    os_mbuf_adj(om, orig_len - OS_MBUF_PKTLEN(om));
+    *out_att_err = BLE_ATT_ERR_INSUFFICIENT_RES;
+    BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_ENOMEM);
+    return BLE_HS_ENOMEM;
 }
 
 static int
@@ -1327,13 +1411,20 @@ static void ble_att_svr_make_conn_aware(uint16_t conn_handle) {
     conn->bhc_gatt_svr.half_aware = 1;
 
     ble_hs_conn_addrs(conn, &addrs);
+#if MYNEWT_VAL(BLE_STATIC_TO_DYNAMIC)
+    if (ble_gatts_conn_aware_states != NULL) {
+#endif
     for(i = 0; i < MYNEWT_VAL(BLE_STORE_MAX_BONDS); i++) {
-        if(memcmp(ble_gatts_conn_aware_states[i].peer_id_addr,
-                    addrs.peer_id_addr.val, sizeof addrs.peer_id_addr.val)) {
+	if(memcmp(ble_gatts_conn_aware_states[i].peer_id_addr,
+                    addrs.peer_id_addr.val, sizeof addrs.peer_id_addr.val) == 0) {
             ble_gatts_conn_aware_states[i].aware = false;
             ble_gatts_conn_aware_states[i].half_aware = 1;
         }
     }
+#if MYNEWT_VAL(BLE_STATIC_TO_DYNAMIC)
+    }
+#endif
+    BLE_HS_DBG_ASSERT(ble_hs_locked_by_cur_task());
 }
 
 static bool ble_att_svr_check_conn_aware(uint16_t conn_handle) {
@@ -1341,25 +1432,33 @@ static bool ble_att_svr_check_conn_aware(uint16_t conn_handle) {
     struct ble_hs_conn_addrs addrs;
 
     conn = ble_hs_conn_find_assert(conn_handle);
+    BLE_HS_DBG_ASSERT(ble_hs_locked_by_cur_task());
 
     if (conn->bhc_gatt_svr.half_aware == 1) {
         conn->bhc_gatt_svr.half_aware = 0;
         conn->bhc_gatt_svr.aware_state = true;
 
         ble_hs_conn_addrs(conn, &addrs);
+#if MYNEWT_VAL(BLE_STATIC_TO_DYNAMIC)
+        if (ble_gatts_conn_aware_states != NULL) {
+#endif
         for(int i = 0; i < MYNEWT_VAL(BLE_STORE_MAX_BONDS); i++) {
             if(memcmp(ble_gatts_conn_aware_states[i].peer_id_addr,
-                      addrs.peer_id_addr.val, sizeof addrs.peer_id_addr.val)) {
+                      addrs.peer_id_addr.val, sizeof addrs.peer_id_addr.val) == 0) {
                 ble_gatts_conn_aware_states[i].half_aware = 0;
                 ble_gatts_conn_aware_states[i].aware = true;
             }
         }
+#if MYNEWT_VAL(BLE_STATIC_TO_DYNAMIC)
+       }
+#endif
     }
     return conn->bhc_gatt_svr.aware_state;
 }
 
 static uint8_t * ble_att_svr_get_csfs(uint16_t conn_handle) {
     struct ble_hs_conn *conn;
+    BLE_HS_DBG_ASSERT(ble_hs_locked_by_cur_task());
     conn = ble_hs_conn_find_assert(conn_handle);
     return conn->bhc_gatt_svr.peer_cl_sup_feat;
 }
@@ -1521,10 +1620,10 @@ ble_att_svr_rx_read_type(uint16_t conn_handle, uint16_t cid, struct os_mbuf **rx
 
     start_handle = le16toh(req->batq_start_handle);
     end_handle = le16toh(req->batq_end_handle);
+    err_handle = start_handle;
 
     if (start_handle > end_handle || start_handle == 0) {
         att_err = BLE_ATT_ERR_INVALID_HANDLE;
-        err_handle = start_handle;
         rc = BLE_HS_EBADDATA;
         goto done;
     }
@@ -1550,13 +1649,19 @@ ble_att_svr_rx_read_type(uint16_t conn_handle, uint16_t cid, struct os_mbuf **rx
         conn->bhc_gatt_svr.half_aware = 0;
 
         ble_hs_conn_addrs(conn, &addrs);
+#if MYNEWT_VAL(BLE_STATIC_TO_DYNAMIC)
+        if (ble_gatts_conn_aware_states != NULL) {
+#endif
         for(i = 0; i < MYNEWT_VAL(BLE_STORE_MAX_BONDS); i++) {
             if(memcmp(ble_gatts_conn_aware_states[i].peer_id_addr,
-                        addrs.peer_id_addr.val, sizeof addrs.peer_id_addr.val)) {
+                        addrs.peer_id_addr.val, sizeof addrs.peer_id_addr.val) == 0) {
                 ble_gatts_conn_aware_states[i].aware = true;
                 ble_gatts_conn_aware_states[i].half_aware = 0;
             }
         }
+#if MYNEWT_VAL(BLE_STATIC_TO_DYNAMIC)
+        }
+#endif
     } else {
         if((ble_att_svr_get_csfs(conn_handle)[0] & 1)
             && ble_svc_gatt_csf_handle() != err_handle ) {
@@ -1769,6 +1874,7 @@ ble_att_svr_build_read_mult_rsp(uint16_t conn_handle, uint16_t cid,
             *err_handle = handle;
             goto done;
         }
+
     }
 
     rc = 0;
@@ -1797,8 +1903,7 @@ ble_att_svr_rx_read_mult(uint16_t conn_handle, uint16_t cid, struct os_mbuf **rx
 
 #if MYNEWT_VAL(BLE_GATT_CACHING)
     ble_hs_lock();
-    if((ble_att_svr_get_csfs(conn_handle)[0] & 1)
-        && ble_svc_gatt_csf_handle() != err_handle ) {
+    if(ble_att_svr_get_csfs(conn_handle)[0] & 1) {
         if (!ble_att_svr_check_conn_aware(conn_handle)) {
             att_err = BLE_ATT_ERR_DB_OUT_OF_SYNC;
             rc = BLE_HS_EREJECT;
@@ -1811,11 +1916,12 @@ ble_att_svr_rx_read_mult(uint16_t conn_handle, uint16_t cid, struct os_mbuf **rx
 #endif
 
     rc = ble_att_svr_build_read_mult_rsp(conn_handle, cid, rxom, &txom, &att_err,
-                                         &err_handle);
+                                     &err_handle);
+    if (rc != 0) {
+        goto done;
+    }
 
-#if MYNEWT_VAL(BLE_GATT_CACHING)
-    done :
-#endif
+done:
     return ble_att_svr_tx_rsp(conn_handle, cid, rc, txom, BLE_ATT_OP_READ_MULT_REQ,
                               att_err, err_handle);
 }
@@ -1850,6 +1956,12 @@ ble_att_svr_build_read_mult_rsp_var(uint16_t conn_handle, uint16_t cid,
     }
 
     tmp = os_msys_get_pkthdr(2, 0);
+    if (tmp == NULL) {
+        *att_err = BLE_ATT_ERR_INSUFFICIENT_RES;
+        *err_handle = 0;
+        rc = BLE_HS_ENOMEM;
+        goto done;
+    }
 
     /* Iterate through requested handles, reading the corresponding attribute
      * for each.  Stop when there are no more handles to process, or the
@@ -1877,7 +1989,12 @@ ble_att_svr_build_read_mult_rsp_var(uint16_t conn_handle, uint16_t cid,
             goto done;
         }
         tuple_len = OS_MBUF_PKTLEN(tmp);
-        rc = os_mbuf_append(txom, &tuple_len, sizeof(tuple_len));
+        if (OS_MBUF_PKTLEN(txom) + 2 + tuple_len > mtu) {
+            rc = 0;
+            goto done;
+        }
+        uint16_t le_len = htole16(tuple_len);
+        rc = os_mbuf_append(txom, &le_len, sizeof(le_len));
         if (rc != 0) {
             *err_handle = handle;
             goto done;
@@ -1921,8 +2038,7 @@ ble_att_svr_rx_read_mult_var(uint16_t conn_handle, uint16_t cid, struct os_mbuf 
 
 #if MYNEWT_VAL(BLE_GATT_CACHING)
     ble_hs_lock();
-    if((ble_att_svr_get_csfs(conn_handle)[0] & 1)
-        && ble_svc_gatt_csf_handle() != err_handle ) {
+    if(ble_att_svr_get_csfs(conn_handle)[0] & 1) {
         if (!ble_att_svr_check_conn_aware(conn_handle)) {
             att_err = BLE_ATT_ERR_DB_OUT_OF_SYNC;
             rc = BLE_HS_EREJECT;
@@ -1935,11 +2051,12 @@ ble_att_svr_rx_read_mult_var(uint16_t conn_handle, uint16_t cid, struct os_mbuf 
 #endif
 
     rc = ble_att_svr_build_read_mult_rsp_var(conn_handle, cid, rxom, &txom, &att_err,
-                                         &err_handle);
+                                     &err_handle);
+    if (rc != 0) {
+        goto done;
+    }
 
-#if MYNEWT_VAL(BLE_GATT_CACHING)
 done:
-#endif
     return ble_att_svr_tx_rsp(conn_handle, cid, rc, txom,
                               BLE_ATT_OP_READ_MULT_VAR_REQ,
                               att_err, err_handle);
@@ -2008,6 +2125,7 @@ ble_att_svr_read_group_type_entry_write(struct os_mbuf *om, uint16_t mtu,
 
     buf = os_mbuf_extend(om, len);
     if (buf == NULL) {
+        BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_ENOMEM);
         return BLE_HS_ENOMEM;
     }
 
@@ -2154,7 +2272,6 @@ ble_att_svr_build_read_group_type_rsp(uint16_t conn_handle, uint16_t cid,
     }
 
     rc = 0;
-
 done:
     if (rc == 0) {
         if (start_group_handle != 0) {
@@ -2167,7 +2284,7 @@ done:
                  * end handle of 0xffff so that the client knows there are no
                  * more attributes without needing to send a follow-up request.
                  */
-                end_group_handle = 0xffff;
+                end_group_handle = 0xFFFF;
             }
 
             rc = ble_att_svr_read_group_type_entry_write(txom, mtu,
@@ -2242,9 +2359,6 @@ ble_att_svr_rx_read_group_type(uint16_t conn_handle, uint16_t cid, struct os_mbu
     ble_hs_lock();
     ble_att_svr_make_conn_aware(conn_handle);
     ble_hs_unlock();
-    if(rc != 0) {
-        goto done;
-    }
 #endif
 
     om_uuid_len = OS_MBUF_PKTHDR(*rxom)->omp_len - sizeof(*req);
@@ -2293,12 +2407,15 @@ ble_att_svr_build_write_rsp(struct os_mbuf **rxom, struct os_mbuf **out_txom,
      */
     rc = ble_att_svr_pkt(rxom, &txom, att_err);
     if (rc != 0) {
+        os_mbuf_free_chain(txom);
+	txom = NULL;
         goto done;
     }
 
     if (ble_att_cmd_prepare(BLE_ATT_OP_WRITE_RSP, 0, txom) == NULL) {
         *att_err = BLE_ATT_ERR_INSUFFICIENT_RES;
         rc = BLE_HS_ENOMEM;
+        txom = NULL;
         goto done;
     }
 
@@ -2379,6 +2496,7 @@ int
 ble_att_svr_rx_write_no_rsp(uint16_t conn_handle, uint16_t cid, struct os_mbuf **rxom)
 {
 #if !MYNEWT_VAL(BLE_ATT_SVR_WRITE_NO_RSP)
+    os_mbuf_free_chain(*rxom);
     return BLE_HS_ENOTSUP;
 #endif
 
@@ -2387,6 +2505,7 @@ ble_att_svr_rx_write_no_rsp(uint16_t conn_handle, uint16_t cid, struct os_mbuf *
     if ((ble_att_svr_get_csfs(conn_handle)[0] & 1) &&
         !ble_att_svr_check_conn_aware(conn_handle)) {
         ble_hs_unlock();
+        os_mbuf_free_chain(*rxom);
         return BLE_HS_EREJECT;
     }
     ble_hs_unlock();
@@ -2412,13 +2531,10 @@ ble_att_svr_rx_write_no_rsp(uint16_t conn_handle, uint16_t cid, struct os_mbuf *
     return ble_att_svr_write_handle(conn_handle, handle, 0, rxom, &att_err);
 }
 
+#if MYNEWT_VAL(BLE_ATT_SVR_SIGNED_WRITE)
 int
 ble_att_svr_rx_signed_write(uint16_t conn_handle, uint16_t cid, struct os_mbuf **rxom)
 {
-#if !MYNEWT_VAL(BLE_ATT_SVR_SIGNED_WRITE)
-    return BLE_HS_ENOTSUP;
-#endif
-
     if (MYNEWT_VAL(BLE_EATT_CHAN_NUM) > 0 && ble_hs_cfg.eatt) {
         return BLE_HS_ENOTSUP;
     }
@@ -2473,7 +2589,11 @@ ble_att_svr_rx_signed_write(uint16_t conn_handle, uint16_t cid, struct os_mbuf *
 
     /* Authentication procedure */
     len = OS_MBUF_PKTLEN(*rxom) + sizeof(value_sec.sign_counter) + 1;
-    message = nimble_platform_mem_malloc(len);
+    message = nimble_platform_mem_calloc(1,len);
+    if (message == NULL) {
+        rc = BLE_HS_ENOMEM;
+        goto err;
+    }
 
     message[0] = BLE_ATT_OP_SIGNED_WRITE_CMD;
     os_mbuf_copydata(*rxom, 0, OS_MBUF_PKTLEN(*rxom), &message[1]);
@@ -2507,11 +2627,13 @@ ble_att_svr_rx_signed_write(uint16_t conn_handle, uint16_t cid, struct os_mbuf *
         goto err;
     }
 
+#if MYNEWT_VAL(BLE_SM_SIGN_CNT)
     /* Signature matches, increment sign counter and pass the data to the upper layer */
     rc = ble_sm_incr_peer_sign_counter(conn_handle);
     if (rc != 0) {
         goto err;
     }
+#endif
 
     /* Strip the request base from the front of the mbuf. */
     os_mbuf_adj(*rxom, sizeof(*req));
@@ -2527,6 +2649,7 @@ err:
     nimble_platform_mem_free(message);
     return rc;
 }
+#endif
 
 int
 ble_att_svr_write_local(uint16_t attr_handle, struct os_mbuf *om)
@@ -2630,6 +2753,7 @@ ble_att_svr_prep_validate(struct ble_att_prep_entry_list *prep_list,
             /* Ensure attribute write starts at offset 0. */
             if (entry->bape_offset != 0) {
                 *err_handle = entry->bape_handle;
+                BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_ATT_ERR_INVALID_OFFSET);
                 return BLE_ATT_ERR_INVALID_OFFSET;
             }
         } else {
@@ -2638,6 +2762,7 @@ ble_att_svr_prep_validate(struct ble_att_prep_entry_list *prep_list,
                 entry->bape_offset) {
 
                 *err_handle = entry->bape_handle;
+                BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_ATT_ERR_INVALID_OFFSET);
                 return BLE_ATT_ERR_INVALID_OFFSET;
             }
         }
@@ -2646,6 +2771,7 @@ ble_att_svr_prep_validate(struct ble_att_prep_entry_list *prep_list,
         cur_len = entry->bape_offset + OS_MBUF_PKTLEN(entry->bape_value);
         if (cur_len > BLE_ATT_ATTR_MAX_LEN) {
             *err_handle = entry->bape_handle;
+            BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_ATT_ERR_INVALID_ATTR_VALUE_LEN);
             return BLE_ATT_ERR_INVALID_ATTR_VALUE_LEN;
         }
 #endif
@@ -2749,6 +2875,7 @@ ble_att_svr_insert_prep_entry(uint16_t conn_handle,
 
     prep_entry = ble_att_svr_prep_alloc(out_att_err);
     if (prep_entry == NULL) {
+        BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_ENOMEM);
         return BLE_HS_ENOMEM;
     }
     prep_entry->bape_handle = handle;
@@ -2876,7 +3003,12 @@ ble_att_svr_rx_prep_write(uint16_t conn_handle, uint16_t cid, struct os_mbuf **r
     }
 
     /* adjust for ATT header */
-    os_mbuf_prepend(txom, 1);
+    txom = os_mbuf_prepend(txom, 1);
+    if (txom == NULL) {
+        att_err = BLE_ATT_ERR_INSUFFICIENT_RES;
+        rc = BLE_HS_ENOMEM;
+        goto done;
+    }
     txom->om_data[0] = BLE_ATT_OP_PREP_WRITE_RSP;
 
     rc = 0;
@@ -2899,7 +3031,7 @@ ble_att_svr_rx_exec_write(uint16_t conn_handle, uint16_t cid, struct os_mbuf **r
     struct ble_hs_conn *conn;
     struct os_mbuf *txom;
     uint16_t err_handle;
-    uint8_t att_err;
+    uint8_t att_err = 0;
     uint8_t flags;
     int rc;
 
@@ -2909,8 +3041,7 @@ ble_att_svr_rx_exec_write(uint16_t conn_handle, uint16_t cid, struct os_mbuf **r
 
 #if MYNEWT_VAL(BLE_GATT_CACHING)
     ble_hs_lock();
-    if((ble_att_svr_get_csfs(conn_handle)[0] & 1)
-        && ble_svc_gatt_csf_handle() != err_handle ) {
+    if(ble_att_svr_get_csfs(conn_handle)[0] & 1) {
         if (!ble_att_svr_check_conn_aware(conn_handle)) {
             att_err = BLE_ATT_ERR_DB_OUT_OF_SYNC;
             rc = BLE_HS_EREJECT;
@@ -2993,6 +3124,7 @@ ble_att_svr_rx_notify(uint16_t conn_handle, uint16_t cid, struct os_mbuf **rxom)
 
     rc = ble_att_svr_pullup_req_base(rxom, sizeof(*req), NULL);
     if (rc != 0) {
+        BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_ENOMEM);
         return BLE_HS_ENOMEM;
     }
 
@@ -3001,6 +3133,7 @@ ble_att_svr_rx_notify(uint16_t conn_handle, uint16_t cid, struct os_mbuf **rxom)
     handle = le16toh(req->banq_handle);
 
     if (handle == 0) {
+        BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_EBADDATA);
         return BLE_HS_EBADDATA;
     }
 
@@ -3010,6 +3143,8 @@ ble_att_svr_rx_notify(uint16_t conn_handle, uint16_t cid, struct os_mbuf **rxom)
      * security established shall be pass to application
      */
     if (ble_hs_cfg.sm_sec_lvl >= 2 && !sec_state.encrypted) {
+        os_mbuf_free_chain(*rxom);
+        *rxom = NULL;
         return 0;
     }
 
@@ -3040,7 +3175,8 @@ ble_att_svr_rx_notify_multi(uint16_t conn_handle, uint16_t cid, struct os_mbuf *
     while (pkt_len > 0) {
         rc = ble_att_svr_pullup_req_base(rxom, sizeof(struct ble_att_tuple_list), NULL);
         if (rc != 0) {
-            return BLE_HS_ENOMEM;
+            rc = BLE_HS_ENOMEM;
+            goto done;
         }
 
         req = (struct ble_att_tuple_list *)(*rxom)->om_data;
@@ -3066,6 +3202,7 @@ ble_att_svr_rx_notify_multi(uint16_t conn_handle, uint16_t cid, struct os_mbuf *
 
         rc = os_mbuf_appendfrom(tmp, *rxom, 0, attr_len);
         if (rc) {
+            os_mbuf_free_chain(tmp);
             BLE_HS_LOG_ERROR("not enough resources, aborting");
             rc = BLE_ATT_ERR_INSUFFICIENT_RES;
             goto done;
@@ -3096,6 +3233,7 @@ ble_att_clt_pkt(struct os_mbuf **rxom, struct os_mbuf **out_txom,
     *out_txom = *rxom;
     *rxom = NULL;
     *out_att_err = BLE_ATT_ERR_INSUFFICIENT_RES;
+    BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_ENOMEM);
     return BLE_HS_ENOMEM;
 }
 
@@ -3207,6 +3345,8 @@ ble_att_svr_rx_indicate(uint16_t conn_handle, uint16_t cid, struct os_mbuf **rxo
      * security established shall be pass to application
      */
     if (ble_hs_cfg.sm_sec_lvl >= 2 && !sec_state.encrypted) {
+        os_mbuf_free_chain(*rxom);
+        *rxom = NULL;
         goto done;
     }
 
@@ -3305,6 +3445,11 @@ ble_att_svr_reset(void)
 {
     struct ble_att_svr_entry *entry;
 
+#if MYNEWT_VAL(BLE_STATIC_TO_DYNAMIC)
+    if (ble_att_svr_ctx == NULL) {
+        return;
+    }
+#endif
     while ((entry = STAILQ_FIRST(&ble_att_svr_list)) != NULL) {
         STAILQ_REMOVE_HEAD(&ble_att_svr_list, ha_next);
         ble_att_svr_entry_free(entry);
@@ -3325,8 +3470,19 @@ ble_att_svr_reset(void)
 static void
 ble_att_svr_free_start_mem(void)
 {
-    nimble_platform_mem_free(ble_att_svr_entry_mem);
-    ble_att_svr_entry_mem = NULL;
+#if MYNEWT_VAL(BLE_STATIC_TO_DYNAMIC)
+    if (ble_att_svr_ctx == NULL) {
+        return;
+    }
+#endif
+    if (ble_att_svr_entry_mem) {
+        nimble_platform_mem_free(ble_att_svr_entry_mem);
+        ble_att_svr_entry_mem = NULL;
+    }
+    os_mempool_unregister(&ble_att_svr_entry_pool);
+#if MYNEWT_VAL(BLE_STATIC_TO_DYNAMIC)
+    memset(&ble_att_svr_entry_pool, 0, sizeof(ble_att_svr_entry_pool));
+#endif
 }
 
 int
@@ -3334,23 +3490,32 @@ ble_att_svr_start(void)
 {
     int rc;
 
+#if MYNEWT_VAL(BLE_STATIC_TO_DYNAMIC)
+    rc = ble_att_svr_ensure_ctx();
+    if (rc != 0) {
+        return rc;
+    }
+#endif
+
     ble_att_svr_free_start_mem();
 
     if (ble_hs_max_attrs > 0) {
-        #if !MYNEWT_VAL(MP_RUNTIME_ALLOC)
-        ble_att_svr_entry_mem = nimble_platform_mem_malloc(
+#if !MYNEWT_VAL(MP_RUNTIME_ALLOC)
+        ble_att_svr_entry_mem = nimble_platform_mem_calloc(1,
             OS_MEMPOOL_BYTES(ble_hs_max_attrs,
                              sizeof (struct ble_att_svr_entry)));
         if (ble_att_svr_entry_mem == NULL) {
             rc = BLE_HS_ENOMEM;
             goto err;
         }
-        #endif
-
+#endif
         rc = os_mempool_init(&ble_att_svr_entry_pool, ble_hs_max_attrs,
                              sizeof (struct ble_att_svr_entry),
                              ble_att_svr_entry_mem, "ble_att_svr_entry_pool");
         if (rc != 0) {
+#if MYNEWT_VAL(BLE_STATIC_TO_DYNAMIC)
+            memset(&ble_att_svr_entry_pool, 0, sizeof(ble_att_svr_entry_pool));
+#endif
             rc = BLE_HS_EOS;
             goto err;
         }
@@ -3363,6 +3528,27 @@ err:
     return rc;
 }
 
+#if MYNEWT_VAL(BLE_STATIC_TO_DYNAMIC)
+void
+ble_att_svr_deinit(void)
+{
+    if (ble_att_svr_ctx == NULL) {
+        return;
+    }
+
+    if (ble_att_svr_prep_entry_mem) {
+        nimble_platform_mem_free(ble_att_svr_prep_entry_mem);
+        ble_att_svr_prep_entry_mem = NULL;
+    }
+    os_mempool_unregister(&ble_att_svr_prep_entry_pool);
+    memset(&ble_att_svr_prep_entry_pool, 0, sizeof(ble_att_svr_prep_entry_pool));
+    ble_att_svr_free_start_mem();
+
+    nimble_platform_mem_free(ble_att_svr_ctx);
+    ble_att_svr_ctx = NULL;
+}
+#endif
+
 void
 ble_att_svr_stop(void)
 {
@@ -3374,13 +3560,42 @@ ble_att_svr_init(void)
 {
     int rc;
 
+#if MYNEWT_VAL(BLE_STATIC_TO_DYNAMIC)
+    rc = ble_att_svr_ensure_ctx();
+    if (rc != 0) {
+        return rc;
+    }
+#endif
+
     if (MYNEWT_VAL(BLE_ATT_SVR_MAX_PREP_ENTRIES) > 0) {
+#if MYNEWT_VAL(BLE_STATIC_TO_DYNAMIC)
+#if !MYNEWT_VAL(MP_RUNTIME_ALLOC)
+     size_t mem_size = OS_MEMPOOL_SIZE(MYNEWT_VAL(BLE_ATT_SVR_MAX_PREP_ENTRIES),
+                                          sizeof(struct ble_att_prep_entry)) * sizeof(os_membuf_t);
+     ble_att_svr_prep_entry_mem = (os_membuf_t *)nimble_platform_mem_calloc(1, mem_size);
+     if (!ble_att_svr_prep_entry_mem) {
+         BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_ENOMEM);
+         return BLE_HS_ENOMEM;
+     }
+#endif // !MYNEWT_VAL(MP_RUNTIME_ALLOC)
+#endif
         rc = os_mempool_init(&ble_att_svr_prep_entry_pool,
                              MYNEWT_VAL(BLE_ATT_SVR_MAX_PREP_ENTRIES),
                              sizeof (struct ble_att_prep_entry),
                              ble_att_svr_prep_entry_mem,
                              "ble_att_svr_prep_entry_pool");
         if (rc != 0) {
+#if MYNEWT_VAL(BLE_STATIC_TO_DYNAMIC)
+#if !MYNEWT_VAL(MP_RUNTIME_ALLOC)
+            nimble_platform_mem_free(ble_att_svr_prep_entry_mem);
+            ble_att_svr_prep_entry_mem = NULL;
+#endif
+            os_mempool_unregister(&ble_att_svr_prep_entry_pool);
+            memset(&ble_att_svr_prep_entry_pool, 0,
+                   sizeof(ble_att_svr_prep_entry_pool));
+#endif
+
+            BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_EOS);
             return BLE_HS_EOS;
         }
     }
@@ -3407,6 +3622,12 @@ int ble_att_get_database_size(int *out_size)
     for (entry = STAILQ_FIRST(&ble_att_svr_list);
          entry != NULL;
          entry = STAILQ_NEXT(entry, ha_next)) {
+
+        if (entry->ha_uuid->type != BLE_UUID_TYPE_16) {
+            /* Only include if fill function is also updated to handle these */
+            continue;
+        }
+
         uuid = (ble_uuid16_t*)entry->ha_uuid;
 
         if(uuid->value == BLE_ATT_UUID_PRIMARY_SERVICE ||
@@ -3424,16 +3645,22 @@ int ble_att_get_database_size(int *out_size)
                 return rc;
             }
 
-            /* handle + type + inc_svc_att_handle + end_grp_handle + uuid */
-            size += (8 + ble_uuid_length(&service_uuid.u));
+            /* handle + type + inc_svc_att_handle + end_grp_handle + [uuid] */
+            size += (4 + (service_uuid.u.type == BLE_UUID_TYPE_16 ? 6 : 4));
         }
         else if(uuid->value == BLE_ATT_UUID_CHARACTERISTIC) {
 
             /* uuid is stored in the value attribute */
-            entry = STAILQ_NEXT(entry, ha_next);
+            struct ble_att_svr_entry *next_entry = STAILQ_NEXT(entry, ha_next);
+            if (next_entry == NULL) {
+                size += 4; // Updated
+                continue;
+            }
             /* handle(2 bytes) + type(2 bytes) + properties(1 byte)
                       + val_handle(2 bytes) + uuid */
-            size += (7 + ble_uuid_length(entry->ha_uuid));
+            size += (7 + ble_uuid_length(next_entry->ha_uuid));
+             /* Advance entry to skip the value attribute which was just accounted for */
+            entry = next_entry;
         }
         else if(uuid->value == 0x2901 ||
                 uuid->value == 0x2902 ||
@@ -3443,7 +3670,7 @@ int ble_att_get_database_size(int *out_size)
                 /* handle + type */
             size += 4;
         }
-        else if(uuid->value == 0x2901) {
+        else if(uuid->value == 0x2900) {
             /* handle + type + value(2 bytes) */
             size += 6;
         }
@@ -3467,6 +3694,9 @@ int ble_att_fill_database_info(uint8_t *out_data)
     for (entry = STAILQ_FIRST(&ble_att_svr_list);
          entry != NULL;
          entry = STAILQ_NEXT(entry, ha_next)) {
+        if (entry->ha_uuid->type != BLE_UUID_TYPE_16) {
+            continue;
+        }
         uuid = BLE_UUID16(entry->ha_uuid);
         if(uuid->value == BLE_ATT_UUID_PRIMARY_SERVICE ||
            uuid->value == BLE_ATT_UUID_SECONDARY_SERVICE) {

@@ -25,13 +25,47 @@
 #include "host/ble_hs.h"
 #include "host/ble_gap.h"
 #include "services/ans/ble_svc_ans.h"
+#include "host/ble_hs_log.h"
+#if MYNEWT_VAL(BLE_STATIC_TO_DYNAMIC)
+#include "esp_nimble_mem.h"
+#endif
 
-#if MYNEWT_VAL(BLE_GATTS)
+#if MYNEWT_VAL(BLE_GATTS) && CONFIG_BT_NIMBLE_ANS_SERVICE
 /* Max length of new alert info string */
 #define BLE_SVC_ANS_INFO_STR_MAX_LEN        18
 /* Max length of a new alert notification, max string length + 2 bytes
  * for category ID and count. */
 #define BLE_SVC_ANS_NEW_ALERT_MAX_LEN   (BLE_SVC_ANS_INFO_STR_MAX_LEN + 2)
+
+/* Category ID for "all categories" */
+#define BLE_SVC_ANS_CAT_ID_ALL  0xFF
+
+#if MYNEWT_VAL(BLE_STATIC_TO_DYNAMIC)
+typedef struct {
+    uint8_t _ble_svc_ans_new_alert_cat;
+    uint8_t _ble_svc_ans_unr_alert_cat;
+    uint8_t _ble_svc_ans_new_alert_val[BLE_SVC_ANS_NEW_ALERT_MAX_LEN];
+    uint16_t _ble_svc_ans_new_alert_val_len;
+    uint8_t _ble_svc_ans_unr_alert_stat[2];
+    uint8_t _ble_svc_ans_alert_not_ctrl_pt[2];
+    uint8_t _ble_svc_ans_new_alert_cnt[BLE_SVC_ANS_CAT_NUM];
+    uint8_t _ble_svc_ans_unr_alert_cnt[BLE_SVC_ANS_CAT_NUM];
+    uint16_t _ble_svc_ans_conn_handle;
+} ble_svc_ans_ctx_t;
+
+static ble_svc_ans_ctx_t * ble_svc_ans_ctx;
+
+#define ble_svc_ans_new_alert_cat (ble_svc_ans_ctx->_ble_svc_ans_new_alert_cat)
+#define ble_svc_ans_unr_alert_cat (ble_svc_ans_ctx->_ble_svc_ans_unr_alert_cat)
+#define ble_svc_ans_new_alert_val (ble_svc_ans_ctx->_ble_svc_ans_new_alert_val)
+#define ble_svc_ans_new_alert_val_len (ble_svc_ans_ctx->_ble_svc_ans_new_alert_val_len)
+#define ble_svc_ans_unr_alert_stat (ble_svc_ans_ctx->_ble_svc_ans_unr_alert_stat)
+#define ble_svc_ans_alert_not_ctrl_pt (ble_svc_ans_ctx->_ble_svc_ans_alert_not_ctrl_pt)
+#define ble_svc_ans_new_alert_cnt (ble_svc_ans_ctx->_ble_svc_ans_new_alert_cnt)
+#define ble_svc_ans_unr_alert_cnt (ble_svc_ans_ctx->_ble_svc_ans_unr_alert_cnt)
+#define ble_svc_ans_conn_handle (ble_svc_ans_ctx->_ble_svc_ans_conn_handle)
+
+#else /* MYNEWT_VAL(BLE_STATIC_TO_DYNAMIC) */
 
 /* Supported categories bitmasks */
 static uint8_t ble_svc_ans_new_alert_cat;
@@ -47,10 +81,6 @@ static uint8_t ble_svc_ans_alert_not_ctrl_pt[2];
 static uint8_t ble_svc_ans_new_alert_cnt[BLE_SVC_ANS_CAT_NUM];
 static uint8_t ble_svc_ans_unr_alert_cnt[BLE_SVC_ANS_CAT_NUM];
 
-/* Characteristic value handles */
-static uint16_t ble_svc_ans_new_alert_val_handle;
-static uint16_t ble_svc_ans_unr_alert_val_handle;
-
 /* Connection handle
  *
  * TODO: In order to support multiple connections we would need to save
@@ -58,6 +88,12 @@ static uint16_t ble_svc_ans_unr_alert_val_handle;
  *       we would need to notify each connection when needed.
  * */
 static uint16_t ble_svc_ans_conn_handle;
+
+#endif /* MYNEWT_VAL(BLE_STATIC_TO_DYNAMIC) */
+
+/* Characteristic value handles */
+static uint16_t ble_svc_ans_new_alert_val_handle;
+static uint16_t ble_svc_ans_unr_alert_val_handle;
 
 /* Access function */
 static int
@@ -77,18 +113,21 @@ static int
 ble_svc_ans_chr_write(struct os_mbuf *om, uint16_t min_len, uint16_t max_len,
                       void *dst, uint16_t *len);
 
-static const struct ble_gatt_svc_def ble_svc_ans_defs[] = {
-    {
-        /*** Alert Notification Service. */
-        .type = BLE_GATT_SVC_TYPE_PRIMARY,
-        .uuid = BLE_UUID16_DECLARE(BLE_SVC_ANS_UUID16),
-        .characteristics = (struct ble_gatt_chr_def[]) { {
-            /** Supported New Alert Catagory
+static const ble_uuid16_t uuid_svc_ans = BLE_UUID16_INIT(BLE_SVC_ANS_UUID16);
+static const ble_uuid16_t uuid_chr_new_alert_cat = BLE_UUID16_INIT(BLE_SVC_ANS_CHR_UUID16_SUP_NEW_ALERT_CAT);
+static const ble_uuid16_t uuid_chr_new_alert = BLE_UUID16_INIT(BLE_SVC_ANS_CHR_UUID16_NEW_ALERT);
+static const ble_uuid16_t uuid_chr_unr_alert_cat = BLE_UUID16_INIT(BLE_SVC_ANS_CHR_UUID16_SUP_UNR_ALERT_CAT);
+static const ble_uuid16_t uuid_chr_unr_alert_stat = BLE_UUID16_INIT(BLE_SVC_ANS_CHR_UUID16_UNR_ALERT_STAT);
+static const ble_uuid16_t uuid_chr_alert_notif_ctrl_pt = BLE_UUID16_INIT(BLE_SVC_ANS_CHR_UUID16_ALERT_NOT_CTRL_PT);
+
+static const struct ble_gatt_chr_def ans_characteristics[] = {
+        {
+            /** Supported New Alert Category
              *
              * This characteristic exposes what categories of new
              * alert are supported in the server.
              */
-            .uuid = BLE_UUID16_DECLARE(BLE_SVC_ANS_CHR_UUID16_SUP_NEW_ALERT_CAT),
+            .uuid = &uuid_chr_new_alert_cat.u,
             .access_cb = ble_svc_ans_access,
             .flags = BLE_GATT_CHR_F_READ,
         }, {
@@ -97,17 +136,17 @@ static const struct ble_gatt_svc_def ble_svc_ans_defs[] = {
              * This characteristic exposes information about
              * the count of new alerts (for a given category).
              */
-            .uuid = BLE_UUID16_DECLARE(BLE_SVC_ANS_CHR_UUID16_NEW_ALERT),
+            .uuid = &uuid_chr_new_alert.u,
             .access_cb = ble_svc_ans_access,
             .val_handle = &ble_svc_ans_new_alert_val_handle,
             .flags = BLE_GATT_CHR_F_NOTIFY,
         }, {
-            /** Supported Unread Alert Catagory
+            /** Supported Unread Alert Category
              *
              * This characteristic exposes what categories of
              * unread alert are supported in the server.
              */
-            .uuid = BLE_UUID16_DECLARE(BLE_SVC_ANS_CHR_UUID16_SUP_UNR_ALERT_CAT),
+            .uuid = &uuid_chr_unr_alert_cat.u,
             .access_cb = ble_svc_ans_access,
             .flags = BLE_GATT_CHR_F_READ,
         }, {
@@ -116,7 +155,7 @@ static const struct ble_gatt_svc_def ble_svc_ans_defs[] = {
              * This characteristic exposes the count of unread
              * alert events existing in the server.
              */
-            .uuid = BLE_UUID16_DECLARE(BLE_SVC_ANS_CHR_UUID16_UNR_ALERT_STAT),
+            .uuid = &uuid_chr_unr_alert_stat.u,
             .access_cb = ble_svc_ans_access,
             .val_handle = &ble_svc_ans_unr_alert_val_handle,
             .flags = BLE_GATT_CHR_F_NOTIFY,
@@ -130,18 +169,49 @@ static const struct ble_gatt_svc_def ble_svc_ans_defs[] = {
              * Client Characteristic Configuration for each alert
              * characteristic.
              */
-            .uuid = BLE_UUID16_DECLARE(BLE_SVC_ANS_CHR_UUID16_ALERT_NOT_CTRL_PT),
+            .uuid = &uuid_chr_alert_notif_ctrl_pt.u,
             .access_cb = ble_svc_ans_access,
             .flags = BLE_GATT_CHR_F_WRITE,
         }, {
             0, /* No more characteristics in this service. */
-        } },
+        }
+};
+
+static const struct ble_gatt_svc_def ble_svc_ans_defs[] = {
+    {
+        /*** Alert Notification Service. */
+        .type = BLE_GATT_SVC_TYPE_PRIMARY,
+        .uuid = &uuid_svc_ans.u,
+        .characteristics = ans_characteristics,
     },
 
     {
         0, /* No more services. */
     },
 };
+
+#if MYNEWT_VAL(BLE_STATIC_TO_DYNAMIC)
+int
+ble_svc_ans_ensure_ctx_init()
+{
+    if (ble_svc_ans_ctx == NULL) {
+        ble_svc_ans_ctx = nimble_platform_mem_calloc(1, sizeof(ble_svc_ans_ctx_t));
+        if (ble_svc_ans_ctx == NULL) {
+            return BLE_HS_ENOMEM;
+        }
+    }
+    return 0;
+}
+
+void
+ble_svc_ans_ctx_deinit()
+{
+    if (ble_svc_ans_ctx) {
+        nimble_platform_mem_free(ble_svc_ans_ctx);
+        ble_svc_ans_ctx = NULL;
+    }
+}
+#endif
 
 /**
  * ANS access function
@@ -154,18 +224,28 @@ ble_svc_ans_access(uint16_t conn_handle, uint16_t attr_handle,
     uint16_t uuid16;
     int rc;
 
-    /* ANS Control point command and catagory variables */
+    /* ANS Control point command and category variables */
     uint8_t cmd_id;
     uint8_t cat_id;
     uint8_t cat_bit_mask;
     int i;
 
+#if MYNEWT_VAL(BLE_STATIC_TO_DYNAMIC)
+    if (ble_svc_ans_ctx == NULL) {
+        return BLE_ATT_ERR_UNLIKELY;
+    }
+#endif
+
     uuid16 = ble_uuid_u16(ctxt->chr->uuid);
-    assert(uuid16 != 0);
+    if (uuid16 == 0) {
+        return BLE_ATT_ERR_UNLIKELY;
+    }
 
     switch (uuid16) {
     case BLE_SVC_ANS_CHR_UUID16_SUP_NEW_ALERT_CAT:
-        assert(ctxt->op == BLE_GATT_ACCESS_OP_READ_CHR);
+        if (ctxt->op != BLE_GATT_ACCESS_OP_READ_CHR) {
+            return BLE_ATT_ERR_UNLIKELY;
+        }
         rc = os_mbuf_append(ctxt->om, &ble_svc_ans_new_alert_cat,
                             sizeof ble_svc_ans_new_alert_cat);
         return rc == 0 ? 0 : BLE_ATT_ERR_INSUFFICIENT_RES;
@@ -184,10 +264,11 @@ ble_svc_ans_access(uint16_t conn_handle, uint16_t attr_handle,
             return rc == 0 ? 0 : BLE_ATT_ERR_INSUFFICIENT_RES;
         }
 
-        assert(0);
         return BLE_ATT_ERR_UNLIKELY;
     case BLE_SVC_ANS_CHR_UUID16_SUP_UNR_ALERT_CAT:
-        assert(ctxt->op == BLE_GATT_ACCESS_OP_READ_CHR);
+        if (ctxt->op != BLE_GATT_ACCESS_OP_READ_CHR) {
+            return BLE_ATT_ERR_UNLIKELY;
+        }
         rc = os_mbuf_append(ctxt->om, &ble_svc_ans_unr_alert_cat,
                             sizeof ble_svc_ans_unr_alert_cat);
         return rc == 0 ? 0 : BLE_ATT_ERR_INSUFFICIENT_RES;
@@ -225,7 +306,7 @@ ble_svc_ans_access(uint16_t conn_handle, uint16_t attr_handle,
             /* Set cat_bit_mask to the appropriate bitmask based on cat_id */
             if (cat_id < BLE_SVC_ANS_CAT_NUM) {
                 cat_bit_mask = (1 << cat_id);
-            } else if (cat_id == 0xff) {
+            } else if (cat_id == BLE_SVC_ANS_CAT_ID_ALL) {
                 cat_bit_mask = cat_id;
             } else {
                 /* invalid category ID */
@@ -246,26 +327,26 @@ ble_svc_ans_access(uint16_t conn_handle, uint16_t attr_handle,
                 ble_svc_ans_unr_alert_cat &= ~cat_bit_mask;
                 break;
             case BLE_SVC_ANS_CMD_NOT_NEW_ALERT_IMMEDIATE:
-                if (cat_id == 0xff) {
+                if (cat_id == BLE_SVC_ANS_CAT_ID_ALL) {
                     /* If cat_id is 0xff, notify on all enabled categories */
-                    for (i = BLE_SVC_ANS_CAT_NUM - 1; i > 0; --i) {
+                    for (i = BLE_SVC_ANS_CAT_NUM - 1; i >= 0; --i) {
                         if ((ble_svc_ans_new_alert_cat >> i) & 0x01) {
                             ble_svc_ans_new_alert_notify(i, NULL);
                         }
                     }
-                } else {
+                } else if ((ble_svc_ans_new_alert_cat >> cat_id) & 0x01){
                     ble_svc_ans_new_alert_notify(cat_id, NULL);
                 }
                 break;
             case BLE_SVC_ANS_CMD_NOT_UNR_ALERT_IMMEDIATE:
-                if (cat_id == 0xff) {
+                if (cat_id == BLE_SVC_ANS_CAT_ID_ALL) {
                     /* If cat_id is 0xff, notify on all enabled categories */
-                    for (i = BLE_SVC_ANS_CAT_NUM - 1; i > 0; --i) {
+                    for (i = BLE_SVC_ANS_CAT_NUM - 1; i >= 0; --i) {
                         if ((ble_svc_ans_unr_alert_cat >> i) & 0x01) {
                             ble_svc_ans_unr_alert_notify(i);
                         }
                     }
-                } else {
+                } else if ((ble_svc_ans_unr_alert_cat >> cat_id) & 0x01) {
                     ble_svc_ans_unr_alert_notify(cat_id);
                 }
                 break;
@@ -279,13 +360,12 @@ ble_svc_ans_access(uint16_t conn_handle, uint16_t attr_handle,
         return rc;
 
     default:
-        assert(0);
         return BLE_ATT_ERR_UNLIKELY;
     }
 }
 
 /**
- * This function must be called with the connection handlewhen a gap
+ * This function must be called with the connection handle when a gap
  * connect event is received in order to send notifications to the
  * client.
  *
@@ -295,6 +375,12 @@ ble_svc_ans_access(uint16_t conn_handle, uint16_t attr_handle,
 void
 ble_svc_ans_on_gap_connect(uint16_t conn_handle)
 {
+#if MYNEWT_VAL(BLE_STATIC_TO_DYNAMIC)
+    if(ble_svc_ans_ensure_ctx_init()) {
+        return;
+    }
+#endif
+
     ble_svc_ans_conn_handle = conn_handle;
 }
 
@@ -314,17 +400,28 @@ ble_svc_ans_new_alert_add(uint8_t cat_id, const char * info_str)
 {
     uint8_t cat_bit_mask;
 
+#if MYNEWT_VAL(BLE_STATIC_TO_DYNAMIC)
+    if(ble_svc_ans_ensure_ctx_init()) {
+        return BLE_HS_ENOMEM;
+    }
+#endif
+
     if (cat_id < BLE_SVC_ANS_CAT_NUM) {
         cat_bit_mask = (1 << cat_id);
     } else {
+        BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_EINVAL);
         return BLE_HS_EINVAL;
     }
 
     if ((cat_bit_mask & ble_svc_ans_new_alert_cat) == 0) {
+        BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_EINVAL);
         return BLE_HS_EINVAL;
     }
 
-    ble_svc_ans_new_alert_cnt[cat_id] += 1;
+    if (ble_svc_ans_new_alert_cnt[cat_id] < 0xFF) {
+        ble_svc_ans_new_alert_cnt[cat_id] += 1;
+    }
+
     return ble_svc_ans_new_alert_notify(cat_id, info_str);
 }
 
@@ -342,17 +439,28 @@ ble_svc_ans_unr_alert_add(uint8_t cat_id)
 {
     uint8_t cat_bit_mask;
 
+#if MYNEWT_VAL(BLE_STATIC_TO_DYNAMIC)
+    if(ble_svc_ans_ensure_ctx_init()) {
+        return BLE_HS_ENOMEM;
+    }
+#endif
+
     if (cat_id < BLE_SVC_ANS_CAT_NUM) {
         cat_bit_mask = 1 << cat_id;
     } else {
+        BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_EINVAL);
         return BLE_HS_EINVAL;
     }
 
     if ((cat_bit_mask & ble_svc_ans_unr_alert_cat) == 0) {
+        BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_EINVAL);
         return BLE_HS_EINVAL;
     }
 
-    ble_svc_ans_unr_alert_cnt[cat_id] += 1;
+    if (ble_svc_ans_unr_alert_cnt[cat_id] < 0xFF) {
+        ble_svc_ans_unr_alert_cnt[cat_id] += 1;
+    }
+
     return ble_svc_ans_unr_alert_notify(cat_id);
 }
 
@@ -372,7 +480,7 @@ ble_svc_ans_new_alert_notify(uint8_t cat_id, const char * info_str)
 {
     int info_str_len;
 
-    /* Clear notification to remove old infomation that may persist */
+    /* Clear notification to remove old information that may persist */
     memset(&ble_svc_ans_new_alert_val, '\0',
            BLE_SVC_ANS_NEW_ALERT_MAX_LEN);
 
@@ -403,9 +511,9 @@ ble_svc_ans_new_alert_notify(uint8_t cat_id, const char * info_str)
  * Send an unread alert notification to the given category.
  *
  * @param cat_id                The ID of the category to send the
- *                                  notificaiton to.
+ *                                  notification to.
  *
- * @return 0 on success, non-zer0 error code otherwise.
+ * @return 0 on success, non-zero error code otherwise.
  */
 static int
 ble_svc_ans_unr_alert_notify(uint8_t cat_id)
@@ -448,10 +556,10 @@ ble_svc_ans_chr_write(struct os_mbuf *om, uint16_t min_len,
 /**
  * Initialize the ANS with initial values for enabled categories
  * for new and unread alert characteristics. Bitwise or the
- * catagory bitmasks to enable multiple catagories.
+ * category bitmasks to enable multiple categories.
  *
  * XXX: We should technically be able to change the new alert and
- *      unread alert catagories when we have no active connections.
+ *      unread alert categories when we have no active connections.
  */
 void
 ble_svc_ans_init(void)
@@ -461,8 +569,16 @@ ble_svc_ans_init(void)
     /* Ensure this function only gets called by sysinit. */
     SYSINIT_ASSERT_ACTIVE();
 
+#if MYNEWT_VAL(BLE_STATIC_TO_DYNAMIC)
+    if(ble_svc_ans_ensure_ctx_init()) {
+        SYSINIT_PANIC_ASSERT(0);
+        return;
+    }
+#endif
+
     rc = ble_gatts_count_cfg(ble_svc_ans_defs);
     SYSINIT_PANIC_ASSERT(rc == 0);
+    (void)rc;
 
     rc = ble_gatts_add_svcs(ble_svc_ans_defs);
     SYSINIT_PANIC_ASSERT(rc == 0);

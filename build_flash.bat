@@ -1,6 +1,13 @@
 @echo off
-cd /d "D:\Bluetooth Project\esp-idf"
+setlocal
+set IDF_CCACHE_ENABLE=1
+cd /d "%~dp0esp-idf"
 call export.bat
-cd /d "D:\Bluetooth Project\bt_audio_sink"
-idf.py flash -p COM3 monitor
-pause
+if errorlevel 1 exit /b %errorlevel%
+cd /d "%~dp0bt_audio_sink"
+if "%~1"=="" (
+    idf.py --ccache build
+) else (
+    idf.py --ccache %*
+)
+exit /b %errorlevel%

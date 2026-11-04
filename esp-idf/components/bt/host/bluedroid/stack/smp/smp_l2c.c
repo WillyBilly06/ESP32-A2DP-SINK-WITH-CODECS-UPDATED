@@ -118,8 +118,8 @@ static void smp_connect_callback (UINT16 channel, BD_ADDR bd_addr, BOOLEAN conne
     if (memcmp(bd_addr, p_cb->pairing_bda, BD_ADDR_LEN) == 0) {
         SMP_TRACE_EVENT ("%s()  for pairing BDA: %08x%04x  Event: %s\n",
                          __FUNCTION__,
-                         (bd_addr[0] << 24) + (bd_addr[1] << 16) + (bd_addr[2] << 8) + bd_addr[3],
-                         (bd_addr[4] << 8) + bd_addr[5],
+                         ((UINT32)bd_addr[0] << 24) + ((UINT32)bd_addr[1] << 16) + ((UINT32)bd_addr[2] << 8) + bd_addr[3],
+                         ((UINT32)bd_addr[4] << 8) + bd_addr[5],
                          (connected) ? "connected" : "disconnected");
 
         if (connected) {
@@ -283,8 +283,8 @@ static void smp_br_connect_callback(UINT16 channel, BD_ADDR bd_addr, BOOLEAN con
 
     SMP_TRACE_EVENT ("%s for pairing BDA: %08x%04x  Event: %s\n",
                      __func__,
-                     (bd_addr[0] << 24) + (bd_addr[1] << 16) + (bd_addr[2] << 8) + bd_addr[3],
-                     (bd_addr[4] << 8) + bd_addr[5],
+                     ((UINT32)bd_addr[0] << 24) + ((UINT32)bd_addr[1] << 16) + ((UINT32)bd_addr[2] << 8) + bd_addr[3],
+                     ((UINT32)bd_addr[4] << 8) + bd_addr[5],
                      (connected) ? "connected" : "disconnected");
 
     if (connected) {
@@ -320,11 +320,24 @@ static void smp_br_data_received(UINT16 channel, BD_ADDR bd_addr, BT_HDR *p_buf)
     UINT8   cmd ;
     SMP_TRACE_EVENT ("SMDBG l2c %s\n", __func__);
 
+    if (p_buf->len < 1) {
+        SMP_TRACE_WARNING( "Bogus l2cap packet, too short");
+        osi_free(p_buf);
+        return;
+    }
+
     STREAM_TO_UINT8(cmd, p);
 
     /* sanity check */
     if ((SMP_OPCODE_MAX < cmd) || (SMP_OPCODE_MIN > cmd)) {
         SMP_TRACE_WARNING( "Ignore received command with RESERVED code 0x%02x", cmd);
+        osi_free(p_buf);
+        return;
+    }
+
+    /* Validate command length to prevent out-of-bounds read in handler functions */
+    if (p_buf->len != smp_cmd_size_per_spec[cmd]) {
+        SMP_TRACE_WARNING( "Ignore received command 0x%02x with invalid length %d", cmd, p_buf->len);
         osi_free(p_buf);
         return;
     }

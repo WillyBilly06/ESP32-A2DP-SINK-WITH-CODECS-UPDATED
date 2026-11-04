@@ -17,7 +17,7 @@
 #include "hal/efuse_hal.h"
 #include "esp_hw_log.h"
 
-static __attribute__((unused)) const char *TAG = "pmu_param";
+ESP_HW_LOG_ATTR_TAG(TAG, "pmu_param");
 
 #ifndef ARRAY_SIZE
 #define ARRAY_SIZE(a)   (sizeof(a) / sizeof((a)[0]))
@@ -53,7 +53,7 @@ static __attribute__((unused)) const char *TAG = "pmu_param";
     .clk_power = {          \
         .i2c_iso_en    = 1, \
         .i2c_retention = 1, \
-        .xpd_pll_i2c   = 1, \
+        .xpd_pll_i2c   = 0xf, \
         .xpd_pll       = 0  \
     }, \
     .xtal = {               \
@@ -336,7 +336,7 @@ uint32_t get_act_hp_dbias(void)
     uint32_t hp_cali_dbias = HP_CALI_ACTIVE_DBIAS_DEFAULT;
     uint32_t blk_version = efuse_hal_blk_version();
     uint32_t hp_cali_dbias_efuse = 0;
-    if (blk_version >= 2 && blk_version < 100) {
+    if (blk_version >= 2 && blk_version != 100) {
         hp_cali_dbias_efuse = efuse_ll_get_active_hp_dbias();
     }
     if (hp_cali_dbias_efuse > 0) {
@@ -357,7 +357,7 @@ uint32_t get_act_lp_dbias(void)
     uint32_t lp_cali_dbias = LP_CALI_ACTIVE_DBIAS_DEFAULT;
     uint32_t blk_version = efuse_hal_blk_version();
     uint32_t lp_cali_dbias_efuse = 0;
-    if (blk_version >= 2 && blk_version < 100) {
+    if (blk_version >= 2 && blk_version != 100) {
         lp_cali_dbias_efuse = efuse_ll_get_active_lp_dbias();
     }
     if (lp_cali_dbias_efuse > 0) {

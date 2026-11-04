@@ -1,0 +1,13 @@
+esp-ble-audio-lib
+
+Copyright (c) Espressif Systems (Shanghai) Co., Ltd.
+
+This distribution contains binary libraries that include code derived from
+the Zephyr Project (https://www.zephyrproject.org/).
+
+  Zephyr Project
+  Copyright (c) Zephyr Project contributors
+  https://github.com/zephyrproject-rtos/zephyr
+
+Such upstream code is licensed under the Apache License, Version 2.0.
+See the LICENSE file in this directory for the full license text.

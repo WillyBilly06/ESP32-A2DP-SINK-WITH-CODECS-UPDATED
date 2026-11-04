@@ -12,16 +12,9 @@
 #include "hal/efuse_ll.h"
 #include_next "hal/efuse_hal.h"
 
-//TODO: [ESP32H4] IDF-12322 inherited from verification branch, need check
-
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-/**
- * @brief get chip version
- */
-uint32_t efuse_hal_get_chip_revision(void);
 
 /**
  * @brief set eFuse timings

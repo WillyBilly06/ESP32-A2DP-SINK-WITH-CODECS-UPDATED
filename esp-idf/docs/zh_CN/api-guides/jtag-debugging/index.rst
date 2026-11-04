@@ -28,7 +28,9 @@ JTAG 调试
 :ref:`jtag-debugging-examples`
     如果你不熟悉 GDB，请查看此小节以获取 :ref:`Eclipse 集成开发环境 <jtag-debugging-examples-eclipse>` 以及 :ref:`命令行终端 <jtag-debugging-examples-command-line>` 提供的调试示例。
 :ref:`jtag-debugging-building-openocd`
-    介绍如何在 :doc:`Windows <building-openocd-windows>`，:doc:`Linux <building-openocd-linux>` 和 :doc:`macOS <building-openocd-macos>` 操作系统上从源码构建 OpenOCD。
+    OpenOCD 源码构建流程参考。
+:ref:`jtag-debugging-semihosting`
+    介绍 semihosting 功能。
 :ref:`jtag-debugging-tips-and-quirks`
     介绍使用 OpenOCD 和 GDB 通过 JTAG 接口调试 {IDF_TARGET_NAME} 时的注意事项和补充内容。
 
@@ -117,7 +119,7 @@ JTAG 调试
 
 .. highlight:: bash
 
-如果已经按照 :doc:`快速入门 <../../get-started/index>` 完成了 ESP-IDF 及其 CMake 构建系统的安装，那么 OpenOCD 已经被默认安装到了你的开发系统中。在 :ref:`设置开发环境 <get-started-set-up-env>` 结束后，应该能够在终端中运行如下 OpenOCD 命令：
+如果已经按照 :doc:`快速入门 <../../get-started/index>` 完成了 ESP-IDF 及其 CMake 构建系统的安装，那么 OpenOCD 已经被默认安装到了你的开发系统中。在 :ref:`Windows  <get-started-set-up-env>`、:ref:`Linux 或 macOS 设置开发环境<get-started-set-up-env-linux-macos>` 结束后，应该能够在终端中运行如下 OpenOCD 命令：
 
 .. code-block:: none
 
@@ -136,7 +138,7 @@ JTAG 调试
 
 你还可以检查 ``OPENOCD_SCRIPTS`` 环境变量的值，以确认 OpenOCD 配置文件的路径，Linux 和 macOS 用户可以在终端输入 ``echo $OPENOCD_SCRIPTS``，Windows 用户需要输入 ``echo %OPENOCD_SCRIPTS%``。如果终端输出了有效路径，则表明已经正确安装 OpenOCD。
 
-如果无法执行上述步骤，请再次阅读快速入门手册，Linux 和 macOS 用户请参考 :ref:`设置安装工具 <get-started-set-up-tools>` 章节，Windows 用户请参考 :ref:`ESP-IDF 工具安装器 <get-started-windows-tools-installer>`。
+如果无法执行上述步骤，请再次阅读快速入门的 :ref:`安装  <get-started-how-to-get-esp-idf>` 章节。
 
 .. note::
 
@@ -178,13 +180,13 @@ OpenOCD 安装完成后就可以配置 {IDF_TARGET_NAME} 目标（即带 JTAG �
 
 .. highlight:: bash
 
-打开终端，按照《快速入门指南》中的 :ref:`设置开发环境 <get-started-set-up-env>` 章节进行操作。运行 OpenOCD 时，需要提供与目标开发板相关的配置文件。构建项目后，ESP-IDF 会生成 ``build/project_description.json`` 文件，其中 ``debug_arguments_openocd`` 字段保存了默认的 OpenOCD 配置信息。请运行如下命令，以启动 OpenOCD（该命令适用于 Windows、Linux 和 macOS）：
+打开终端，按照快速入门中:ref:`Windows  <get-started-set-up-env>`、:ref:`Linux 或 macOS 设置开发环境 <get-started-set-up-env-linux-macos>` 章节进行操作。运行 OpenOCD 时，需要提供与目标开发板相关的配置文件。构建项目后，ESP-IDF 会生成 ``build/project_description.json`` 文件，其中 ``debug_arguments_openocd`` 字段保存了默认的 OpenOCD 配置信息。请运行如下命令，以启动 OpenOCD（该命令适用于 Windows、Linux 和 macOS）：
 
 .. include:: {IDF_TARGET_PATH_NAME}.inc
     :start-after: run-openocd
     :end-before: ---
 
-{IDF_TARGET_FTDI_CONFIG:default="Not Updated!", esp32s3="board/esp32s3-ftdi.cfg", esp32c3="board/esp32c3-ftdi.cfg", esp32c6="board/esp32c6-ftdi.cfg", esp32h2="board/esp32h2-ftdi.cfg", esp32p4="board/esp32p4-ftdi.cfg", esp32c5="board/esp32c5-ftdi.cfg", esp32c61="board/esp32c61-ftdi.cfg"}
+{IDF_TARGET_FTDI_CONFIG:default="Not Updated!", esp32s3="board/esp32s3-ftdi.cfg", esp32c3="board/esp32c3-ftdi.cfg", esp32c6="board/esp32c6-ftdi.cfg", esp32h2="board/esp32h2-ftdi.cfg", esp32h21="board/esp32h21-ftdi.cfg", esp32h4="board/esp32h4-ftdi.cfg", esp32p4="board/esp32p4-ftdi.cfg", esp32c5="board/esp32c5-ftdi.cfg", esp32c61="board/esp32c61-ftdi.cfg, esp32s31="board/esp32s31-ftdi.cfg"}
 
 .. note::
 
@@ -221,7 +223,7 @@ OpenOCD 安装完成后就可以配置 {IDF_TARGET_NAME} 目标（即带 JTAG �
 
 其中 OpenOCD 的烧写命令 ``program_esp`` 格式如下：
 
-``program_esp <image_file> <offset> [verify] [reset] [exit] [compress] [encrypt]``
+``program_esp <image_file> <offset> [verify] [reset] [exit] [compress] [encrypt] [no_clock_boost] [restore_clock] [no_skip_loaded] [force]``
 
 -  ``image_file`` - 程序镜像文件存放的路径
 -  ``offset`` - 镜像烧写到 flash 中的偏移地址
@@ -232,9 +234,38 @@ OpenOCD 安装完成后就可以配置 {IDF_TARGET_NAME} 目标（即带 JTAG �
 - ``encrypt`` - 烧写到 flash 前加密二进制文件，与 ``idf.py encrypted-flash`` 功能相同（可选）
 - ``no_clock_boost`` - 禁用在烧写前将目标时钟频率设置为其最大可能值（可选）。默认情况下禁用该选项，即默认启用时钟提升。
 - ``restore_clock`` - 可选。烧写完成后将时钟频率恢复到初始值。默认情况下不启用。
+- ``no_skip_loaded`` - 可选。烧写前不检查该二进制文件是否已被加载，默认情况下不启用。
+- ``force`` - 可选。禁用对镜像文件中检测到的芯片类型和版本范围进行目标兼容性检查。此检查默认启用。
+
+替代方法：使用 ``program_esp_bins``
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+为了便于在 ESP-IDF 项目中使用，OpenOCD 提供了一个替代命令 ``program_esp_bins``，该命令可以通过读取 ESP-IDF 构建过程中生成的 ``flasher_args.json`` 文件中的构建配置，在单个命令中烧录多个二进制文件。
+
+此方案有如下几点优势：
+
+* 自动从构建输出中读取所有二进制文件及其 flash 地址。
+* 根据项目配置自动处理加密分区。
+* 无需手动指定每个二进制文件（引导加载程序、分区表、应用程序等）的地址。
+
+基本用法：
+
+.. code-block:: bash
+
+    openocd -f board/esp32-wrover-kit-3.3v.cfg -c "program_esp_bins build flasher_args.json verify exit"
+
+命令格式
+""""""""
+
+OpenOCD 烧录命令 ``program_esp_bins`` 格式如下：
+
+``program_esp_bins <build_dir> <json_file> [verify] [reset] [exit] [compress] [no_clock_boost] [restore_clock] [no_skip_loaded] [force]``
+
+ - ``build_dir`` - 包含 ``flasher_args.json`` 文件的构建目录路径。
+ - ``json_file`` - 包含 flash 配置的 JSON 文件名称（通常为 ``flasher_args.json``）。
+ - 其他可选参数的使用方式与 ``program_esp`` 命令相同。详情请参阅 :ref:`jtag-upload-app-debug` 章节。
 
 现在可以调试应用程序了，请按照以下章节中的步骤进行操作。
-
 
 .. _jtag-debugging-launching-debugger:
 
@@ -282,42 +313,21 @@ OpenOCD 安装完成后就可以配置 {IDF_TARGET_NAME} 目标（即带 JTAG �
 从源码构建 OpenOCD
 ------------------
 
-以下文档分别介绍了如何在各操作系统平台上从源码构建 OpenOCD。
+本文档在演示中所使用的 OpenOCD 是预编译好的二进制发行版，在 :ref:`jtag-debugging-setup-openocd` 章节中有所介绍。
+
+如需根据特定需求从源码构建 OpenOCD，请参考 `OpenOCD 构建工作流程 <https://github.com/espressif/openocd-esp32/blob/master/.github/workflows/build_openocd.yml>`_。该工作流演示了如何在不同平台 (Windows, Linux, macOS) 上构建 OpenOCD。
+
+.. _jtag-debugging-semihosting:
+
+semihosting
+-----------
+
+借助 semihosting 机制，运行在 {IDF_TARGET_NAME} 上的代码能够通过调试器与主机 PC 进行通信，例如打印调试信息或读写文件等。
 
 .. toctree::
     :maxdepth: 1
 
-    Windows <building-openocd-windows>
-    Linux <building-openocd-linux>
-    macOS <building-openocd-macos>
-
-本文档在演示中所使用的 OpenOCD 是预编译好的二进制发行版，在 :ref:`jtag-debugging-setup-openocd` 章节中有所介绍。
-
-如果要使用本地从源代码编译的 OpenOCD 程序，需要将相应可执行文件的路径修改为 ``src/openocd``，并设置 ``OPENOCD_SCRIPTS`` 环境变量，使得 OpenOCD 能够找到配置文件。Linux 和 macOS 用户可以执行:
-
-.. code-block:: bash
-
-    cd ~/esp/openocd-esp32
-    export OPENOCD_SCRIPTS=$PWD/tcl
-
-Windows 用户可以执行:
-
-.. code-block:: batch
-
-    cd %USERPROFILE%\esp\openocd-esp32
-    set "OPENOCD_SCRIPTS=%CD%\tcl"
-
-针对 Linux 和 macOS 用户，运行本地编译的 OpenOCD 的示例:
-
-.. include:: {IDF_TARGET_PATH_NAME}.inc
-   :start-after: run-openocd-src-linux
-   :end-before: ---
-
-Windows 用户的示例如下:
-
-.. include:: {IDF_TARGET_PATH_NAME}.inc
-   :start-after: run-openocd-src-win
-   :end-before: ---
+    semihosting
 
 .. _jtag-debugging-tips-and-quirks:
 
@@ -342,11 +352,13 @@ Windows 用户的示例如下:
 
     using-debugger
     debugging-examples
+    semihosting
     tips-and-quirks
     ../app_trace
 
 - :doc:`using-debugger`
 - :doc:`debugging-examples`
+- :doc:`semihosting`
 - :doc:`tips-and-quirks`
 - :doc:`../app_trace`
 - `ESP-Prog 调试板介绍 <https://docs.espressif.com/projects/espressif-esp-iot-solution/zh_CN/latest/hw-reference/ESP-Prog_guide.html>`__

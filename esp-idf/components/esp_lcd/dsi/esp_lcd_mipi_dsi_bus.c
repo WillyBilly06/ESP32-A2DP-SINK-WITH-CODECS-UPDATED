@@ -1,8 +1,9 @@
 /*
- * SPDX-FileCopyrightText: 2023-2025 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2023-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
+#include <math.h>
 #include "esp_lcd_mipi_dsi.h"
 #include "esp_clk_tree.h"
 #include "mipi_dsi_priv.h"
@@ -19,16 +20,18 @@ esp_err_t esp_lcd_new_dsi_bus(const esp_lcd_dsi_bus_config_t *bus_config, esp_lc
                         ESP_ERR_INVALID_ARG, TAG, "invalid number of data lanes %d", bus_config->num_data_lanes);
     ESP_RETURN_ON_FALSE(bus_config->lane_bit_rate_mbps >= MIPI_DSI_LL_MIN_PHY_MBPS &&
                         bus_config->lane_bit_rate_mbps <= MIPI_DSI_LL_MAX_PHY_MBPS, ESP_ERR_INVALID_ARG, TAG,
-                        "invalid lane bit rate %"PRIu32, bus_config->lane_bit_rate_mbps);
+                        "invalid lane bit rate %.2f", bus_config->lane_bit_rate_mbps);
 
     // we don't use an bus allocator here, because different DSI bus uses different PHY.
     // And each PHY has its own associated PINs, which is not changeable.
     // So user HAS TO specify the bus ID by themselves, according to their PCB design.
     int bus_id = bus_config->bus_id;
-    ESP_RETURN_ON_FALSE(bus_id >= 0 && bus_id < MIPI_DSI_LL_NUM_BUS, ESP_ERR_INVALID_ARG, TAG, "invalid bus ID %d", bus_id);
+    ESP_RETURN_ON_FALSE(bus_id >= 0 && bus_id < MIPI_DSI_LL_GET(BUS_NUM), ESP_ERR_INVALID_ARG, TAG, "invalid bus ID %d", bus_id);
     esp_lcd_dsi_bus_t *dsi_bus = heap_caps_calloc(1, sizeof(esp_lcd_dsi_bus_t), DSI_MEM_ALLOC_CAPS);
     ESP_RETURN_ON_FALSE(dsi_bus, ESP_ERR_NO_MEM, TAG, "no memory for DSI bus");
     dsi_bus->bus_id = bus_id;
+    dsi_bus->phy_pllref_clk_src = SOC_MOD_CLK_INVALID;
+    dsi_bus->phy_cfg_clk_src = SOC_MOD_CLK_INVALID;
 
     // Enable the APB clock for accessing the DSI host and bridge registers
     PERIPH_RCC_ATOMIC() {
@@ -39,16 +42,18 @@ esp_err_t esp_lcd_new_dsi_bus(const esp_lcd_dsi_bus_config_t *bus_config, esp_lc
     // if the clock source is not assigned, fallback to the default clock source
     mipi_dsi_phy_pllref_clock_source_t phy_clk_src = bus_config->phy_clk_src;
     if (phy_clk_src == 0) {
-#if CONFIG_IDF_TARGET_ESP32P4 && HAL_CONFIG(CHIP_SUPPORT_MIN_REV) < 300
+#if SOC_IS(ESP32P4) && HAL_CONFIG(CHIP_SUPPORT_MIN_REV) < 300
         phy_clk_src = MIPI_DSI_PHY_PLLREF_CLK_SRC_DEFAULT_LEGACY;
 #else
         phy_clk_src = MIPI_DSI_PHY_PLLREF_CLK_SRC_DEFAULT;
 #endif
     }
     ESP_GOTO_ON_ERROR(esp_clk_tree_enable_src((soc_module_clk_t)phy_clk_src, true), err, TAG, "clock source enable failed");
+    dsi_bus->phy_pllref_clk_src = (soc_module_clk_t)phy_clk_src;
 
     // always use the default clock source for the DSI PHY configuration
     ESP_GOTO_ON_ERROR(esp_clk_tree_enable_src((soc_module_clk_t)MIPI_DSI_PHY_CFG_CLK_SRC_DEFAULT, true), err, TAG, "clock source enable failed");
+    dsi_bus->phy_cfg_clk_src = (soc_module_clk_t)MIPI_DSI_PHY_CFG_CLK_SRC_DEFAULT;
 
     // enable the clock source for DSI PHY
     PERIPH_RCC_ATOMIC() {
@@ -102,8 +107,8 @@ esp_err_t esp_lcd_new_dsi_bus(const esp_lcd_dsi_bus_config_t *bus_config, esp_lc
 
     // initialize the DSI operation mode: command mode
     mipi_dsi_host_ll_enable_video_mode(hal->host, false);
-    // place the clock lane in low power mode, we will switch to high speed mode later when DPI stream is ready
-    mipi_dsi_host_ll_set_clock_lane_state(hal->host, MIPI_DSI_LL_CLOCK_LANE_STATE_LP);
+    // set clock lane state: force HS keeps clock in high-speed mode continuously, auto lets the DSI host manage transitions
+    mipi_dsi_host_ll_set_clock_lane_state(hal->host, bus_config->flags.clock_lane_force_hs ? MIPI_DSI_LL_CLOCK_LANE_STATE_HS : MIPI_DSI_LL_CLOCK_LANE_STATE_AUTO);
     // Set the time that is required by the clock and data lanes to go from high-speed to low-power and from low-power to high-speed
     mipi_dsi_phy_ll_set_switch_time(hal->host, 50, 104, 46, 128);
 
@@ -114,9 +119,9 @@ esp_err_t esp_lcd_new_dsi_bus(const esp_lcd_dsi_bus_config_t *bus_config, esp_lc
     mipi_dsi_host_ll_enable_tx_eotp(hal->host, true, false);
 
     // Set the divider to get the Time Out clock, clock source is the high-speed byte clock
-    mipi_dsi_host_ll_set_timeout_clock_division(hal->host, bus_config->lane_bit_rate_mbps / 8 / MIPI_DSI_DEFAULT_TIMEOUT_CLOCK_FREQ_MHZ);
+    mipi_dsi_host_ll_set_timeout_clock_division(hal->host, (uint32_t)roundf(bus_config->lane_bit_rate_mbps / 8.0f / MIPI_DSI_DEFAULT_TIMEOUT_CLOCK_FREQ_MHZ));
     // Set the divider to get the TX Escape clock, clock source is the high-speed byte clock
-    mipi_dsi_host_ll_set_escape_clock_division(hal->host, bus_config->lane_bit_rate_mbps / 8 / MIPI_DSI_DEFAULT_ESCAPE_CLOCK_FREQ_MHZ);
+    mipi_dsi_host_ll_set_escape_clock_division(hal->host, (uint32_t)roundf(bus_config->lane_bit_rate_mbps / 8.0f / MIPI_DSI_DEFAULT_ESCAPE_CLOCK_FREQ_MHZ));
     // set the timeout intervals to zero, means to disable the timeout mechanism
     mipi_dsi_host_ll_set_timeout_count(hal->host, 0, 0, 0, 0, 0, 0, 0);
     // DSI host will wait indefinitely for a read response from the DSI device
@@ -142,14 +147,24 @@ esp_err_t esp_lcd_del_dsi_bus(esp_lcd_dsi_bus_handle_t bus)
         mipi_dsi_ll_enable_phy_pllref_clock(bus_id, false);
         mipi_dsi_ll_enable_phy_config_clock(bus_id, false);
     }
+    if (bus->phy_pllref_clk_src != SOC_MOD_CLK_INVALID) {
+        esp_clk_tree_enable_src(bus->phy_pllref_clk_src, false);
+        bus->phy_pllref_clk_src = SOC_MOD_CLK_INVALID;
+    }
+    if (bus->phy_cfg_clk_src != SOC_MOD_CLK_INVALID) {
+        esp_clk_tree_enable_src(bus->phy_cfg_clk_src, false);
+        bus->phy_cfg_clk_src = SOC_MOD_CLK_INVALID;
+    }
     // disable the APB clock for accessing the DSI peripheral registers
     PERIPH_RCC_ATOMIC() {
         mipi_dsi_ll_enable_bus_clock(bus_id, false);
     }
+#if CONFIG_PM_ENABLE
     if (bus->pm_lock) {
         esp_pm_lock_release(bus->pm_lock);
         esp_pm_lock_delete(bus->pm_lock);
     }
+#endif
     free(bus);
     return ESP_OK;
 }

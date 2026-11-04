@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2015-2025 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2015-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -65,7 +65,7 @@ typedef struct {
     adc_digi_pattern_config_t *adc_pattern; ///< List of configs for each ADC channel that will be used
     uint32_t sample_freq_hz;                /*!< The expected ADC sampling frequency in Hz. Please refer to `soc/soc_caps.h` to know available sampling frequency range*/
     adc_digi_convert_mode_t conv_mode;      ///< ADC DMA conversion mode, see `adc_digi_convert_mode_t`.
-    adc_digi_output_format_t format;        ///< ADC DMA conversion output format, see `adc_digi_output_format_t`.
+    adc_digi_output_format_t format __attribute__((deprecated));        ///< ADC DMA conversion output format, see `adc_digi_output_format_t`.
 } adc_continuous_config_t;
 
 /**
@@ -161,6 +161,14 @@ esp_err_t adc_continuous_start(adc_continuous_handle_t handle);
 /**
  * @brief Read bytes from ADC under continuous mode.
  *
+ * @note Raw ADC codes are intended for further processing. To obtain a voltage in mV, it is recommended to use
+ *       :cpp:func:`adc_cali_raw_to_voltage` instead of interpreting the raw value directly.
+ *
+ * @note On targets with :c:macro:`SOC_ADC_DIFF_SUPPORTED`, N-side channels can be used in single-ended mode,
+ *       but their raw data polarity is inverted. For an input range of -2 V to 2 V, the N-side raw code is
+ *       4393 to 0. Use the ADC calibration APIs to convert the raw result to voltage instead of interpreting the raw
+ *       code directly.
+ *
  * @param[in]  handle              ADC continuous mode driver handle
  * @param[out] buf                 Conversion result buffer to read from ADC. Suggest convert to `adc_digi_output_data_t` for `ADC Conversion Results`.
  *                                 See the subsection `Driver Backgrounds` in this header file to learn about this concept.
@@ -244,7 +252,7 @@ esp_err_t adc_continuous_channel_to_io(adc_unit_t unit_id, adc_channel_t channel
 typedef struct {
     adc_unit_t unit;        ///< ADC unit (ADC_UNIT_1 or ADC_UNIT_2)
     adc_channel_t channel;  ///< ADC channel number (0-9)
-    uint32_t raw_data;      ///< ADC raw data value (0-4095, 12-bit resolution)
+    uint32_t raw_data;      ///< ADC raw data value.
     bool valid;             ///< Whether the data is valid
 } adc_continuous_data_t;
 

@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2024-2025 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2024-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -16,11 +16,18 @@ extern "C" {
 #include "esp_err.h"
 #include "esp_bit_defs.h"
 
-#define MAX_ECDSA_SUPPORTED_KEY_LEN         32   /*!< Maximum supported size for the ECDSA key */
+#include "sdkconfig.h"
+
+#if CONFIG_SECURE_TEE_SEC_STG_SUPPORT_SECP384R1_SIGN
+#define MAX_ECDSA_SUPPORTED_KEY_LEN         48   /*!< Maximum supported size for the ECDSA key (SECP384R1) */
+#else
+#define MAX_ECDSA_SUPPORTED_KEY_LEN         32   /*!< Maximum supported size for the ECDSA key (SECP256R1) */
+#endif /* CONFIG_SECURE_TEE_SEC_STG_SUPPORT_SECP384R1_SIGN */
 #define MAX_AES_SUPPORTED_KEY_LEN           32   /*!< Maximum supported size for the AES key */
 
 #define SEC_STORAGE_FLAG_NONE               0      /*!< No flags */
 #define SEC_STORAGE_FLAG_WRITE_ONCE         BIT(0) /*!< Data can only be written once */
+#define SEC_STORAGE_FLAG_TEE_ONLY           BIT(1) /*!< Key is owned exclusively by the TEE */
 
 /**
  * @brief Enum to represent the type of key stored in the secure storage
@@ -29,7 +36,9 @@ extern "C" {
 typedef enum {
     ESP_SEC_STG_KEY_AES256 = 0,
     ESP_SEC_STG_KEY_ECDSA_SECP256R1 = 1,
-    ESP_SEC_STG_KEY_ECDSA_SECP192R1 = 2,
+#if SOC_ECDSA_SUPPORT_CURVE_P384
+    ESP_SEC_STG_KEY_ECDSA_SECP384R1 = 3,
+#endif /* SOC_ECDSA_SUPPORT_CURVE_P384 */
     ESP_SEC_STG_TYPE_MAX,
 } esp_tee_sec_storage_type_t;
 
@@ -79,8 +88,7 @@ typedef struct {
  *
  */
 typedef struct {
-    uint8_t sign_r[MAX_ECDSA_SUPPORTED_KEY_LEN];    /*!< R component */
-    uint8_t sign_s[MAX_ECDSA_SUPPORTED_KEY_LEN];    /*!< S component */
+    uint8_t signature[MAX_ECDSA_SUPPORTED_KEY_LEN * 2];    /*!< Signature */
 } __attribute__((__packed__)) esp_tee_sec_storage_ecdsa_sign_t;
 
 #if ESP_TEE_BUILD && !(__DOXYGEN__)
@@ -92,6 +100,21 @@ typedef struct {
  * @return esp_err_t ESP_OK on success, appropriate error code otherwise.
  */
 esp_err_t esp_tee_sec_storage_init(void);
+
+/**
+ * @brief Check whether a key ID is owned exclusively by the TEE
+ *
+ * A key is TEE-owned if either:
+ *   - it refers to the reserved TEE attestation key
+ *     (`CONFIG_SECURE_TEE_ATT_KEY_STR_ID`); this also blocks the REE from
+ *     "squatting" the ID before the TEE creates the key, or
+ *   - the stored key carries the ::SEC_STORAGE_FLAG_TEE_ONLY flag.
+ *
+ * @param key_id  NULL-terminated key identifier string (may be NULL)
+ *
+ * @return true if the key is TEE-owned (REE access must be denied), false otherwise
+ */
+bool esp_tee_sec_storage_is_key_tee_owned(const char *key_id);
 #endif
 
 /**
@@ -139,25 +162,33 @@ esp_err_t esp_tee_sec_storage_ecdsa_get_pubkey(const esp_tee_sec_storage_key_cfg
  * @brief Perform encryption using AES256-GCM with the key from secure storage
  *
  * @param[in]  ctx      Pointer to the AEAD operation context
+ * @param[out] iv       Pointer to the output buffer for the generated initialization vector
+ * @param[in]  iv_len   Length of the initialization vector buffer; must be exactly 12 bytes (96-bit IV, per NIST SP 800-38D)
  * @param[out] tag      Pointer to the authentication tag buffer
- * @param[in]  tag_len  Length of the authentication tag
+ * @param[in]  tag_len  Length of the authentication tag; must be 12 to 16 bytes (96- to 128-bit tag, per NIST SP 800-38D)
  * @param[out] output   Pointer to the output data buffer
+ *
+ * @note Non-standard @p iv_len / @p tag_len values are rejected with ESP_ERR_INVALID_SIZE.
  *
  * @return esp_err_t ESP_OK on success, appropriate error code otherwise.
  */
-esp_err_t esp_tee_sec_storage_aead_encrypt(const esp_tee_sec_storage_aead_ctx_t *ctx, uint8_t *tag, size_t tag_len, uint8_t *output);
+esp_err_t esp_tee_sec_storage_aead_encrypt(const esp_tee_sec_storage_aead_ctx_t *ctx, uint8_t *iv, size_t iv_len, uint8_t *tag, size_t tag_len, uint8_t *output);
 
 /**
  * @brief Perform decryption using AES256-GCM with the key from secure storage
  *
  * @param[in]  ctx      Pointer to the AEAD operation context
+ * @param[in]  iv       Pointer to the initialization vector used during encryption
+ * @param[in]  iv_len   Length of the initialization vector; must be exactly 12 bytes (96-bit IV, per NIST SP 800-38D)
  * @param[in]  tag      Pointer to the authentication tag buffer
- * @param[in]  tag_len  Length of the authentication tag
+ * @param[in]  tag_len  Length of the authentication tag; must be 12 to 16 bytes (96- to 128-bit tag, per NIST SP 800-38D)
  * @param[out] output   Pointer to the output data buffer
+ *
+ * @note Non-standard @p iv_len / @p tag_len values are rejected with ESP_ERR_INVALID_SIZE.
  *
  * @return esp_err_t ESP_OK on success, appropriate error code otherwise.
  */
-esp_err_t esp_tee_sec_storage_aead_decrypt(const esp_tee_sec_storage_aead_ctx_t *ctx, const uint8_t *tag, size_t tag_len, uint8_t *output);
+esp_err_t esp_tee_sec_storage_aead_decrypt(const esp_tee_sec_storage_aead_ctx_t *ctx, const uint8_t *iv, size_t iv_len, const uint8_t *tag, size_t tag_len, uint8_t *output);
 
 /**
  * @brief Generate and return the signature for the specified message digest using

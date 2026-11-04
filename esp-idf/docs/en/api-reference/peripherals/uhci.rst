@@ -52,8 +52,9 @@ If the configurations in :cpp:type:`uhci_controller_config_t` is specified, user
     uhci_controller_config_t uhci_cfg = {
         .uart_port = EX_UART_NUM,                 // Connect uart port to UHCI hardware.
         .tx_trans_queue_depth = 30,               // Queue depth of transaction queue.
-        .max_receive_internal_mem = 10 * 1024,    // internal memory usage, for more information, please refer to API reference.
-        .max_transmit_size = 10 * 1024,           // Maximum transfer size in one transaction, in bytes.
+        .max_receive_internal_mem = 10 * 1024,    // Expected max uhci_receive() buffer size; also sizes the RX DMA descriptor chain. For large transfers, configure it so that at least two descriptors are available for ping-pong operation.
+        .max_transmit_size = 10 * 1024,           // Maximum transfer size in one transaction, in bytes (including all buffers).
+        .max_transmit_buffer_count = 1,           // Maximum number of buffers in one transmit transaction. 0 or 1 means only single-buffer transmit is used.
         .dma_burst_size = 32,                     // Burst size.
         .rx_eof_flags.idle_eof = 1,               // When to trigger a end of frame event, you can choose `idle_eof`, `rx_brk_eof`, `length_eof`, for more information, please refer to API reference.
     };
@@ -87,14 +88,18 @@ The TX event data is defined in :cpp:type:`uhci_tx_done_event_data_t`:
 
 The RX event data is defined in :cpp:type:`uhci_rx_event_data_t`:
 
-- :cpp:member:`uhci_rx_event_data_t::data` points to the received data. The data is saved in the ``buffer`` parameter of the :cpp:func:`uhci_receive` function. Users should not free this receive buffer before the callback returns.
+- :cpp:member:`uhci_rx_event_data_t::data` points to the received data. The data is stored in the buffer specified by the ``buffer`` parameter of :cpp:func:`uhci_receive`, so users should not free this receive buffer before the callback returns. Data pointed to by ``edata->data`` is typically only guaranteed to be readable during the callback. If application code needs to use the received data after callback returns, copy it to a external buffer first.
 - :cpp:member:`uhci_rx_event_data_t::recv_size` indicates the number of received data. This value is not larger than the ``buffer_size`` parameter of :cpp:func:`uhci_receive` function.
 - :cpp:member:`uhci_rx_event_data_t::flags::totally_received` indicates whether the current received buffer is the last one in the transaction.
+
+.. note::
+
+    Forwarding ``edata->data`` pointer to another task without copying is an advanced zero-copy usage. To keep it safe, user code must understand the chunking and overwrite behavior of the underlying circular DMA buffer, and guarantee the consumer can process data before it gets overwritten.
 
 Initiating UHCI Transmission
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-:cpp:func:`uhci_transmit` is a non-blocking function, which means this function will immediately return after you call it. The related callback can be obtained via :cpp:member:`uhci_event_callbacks_t::on_tx_trans_done` to indicate that the transaction is done. The function :cpp:func:`uhci_wait_all_tx_transaction_done` can be used to indicate that all transactions are finished.
+:cpp:func:`uhci_transmit` is a non-blocking function, which means this function will immediately return after you call it. The related callback can be obtained via :cpp:member:`uhci_event_callbacks_t::on_tx_trans_done` to indicate that the transaction is done. The function :cpp:func:`uhci_wait_all_tx_transaction_done` can be used to block the thread until all transactions are finished.
 
 Data can be transmitted via UHCI as follows:
 
@@ -108,12 +113,36 @@ Data can be transmitted via UHCI as follows:
     // Wait all transaction finishes
     ESP_ERROR_CHECK(uhci_wait_all_tx_transaction_done(uhci_ctrl, -1));
 
+If the data to be sent is scattered across several separate buffers, you can send them as a single transaction without copying them into one contiguous buffer first, by using :cpp:func:`uhci_multi_buffer_transmit`. The buffer segments are described by an array of :cpp:type:`uhci_transmit_buffer_info_t` and are transmitted in the given order as one continuous UART stream (internally, the segments are assembled into one DMA link list and only the last segment is marked as the end of the transaction). To use this feature, :cpp:member:`uhci_controller_config_t::max_transmit_buffer_count` must be set to the maximum number of segments you intend to send in one call when creating the controller.
+
+The following constraints apply:
+
+- ``array_size`` must not exceed :cpp:member:`uhci_controller_config_t::max_transmit_buffer_count`.
+- The total size of all segments must not exceed :cpp:member:`uhci_controller_config_t::max_transmit_size`.
+- Every buffer segment must remain valid until the transmission is complete, same as :cpp:func:`uhci_transmit`.
+
+.. code:: c
+
+    uint8_t header[8];
+    uint8_t payload[DATA_LENGTH];
+    // ... fill header and payload ...
+    uhci_transmit_buffer_info_t buffer_info[] = {
+        { .write_buffer = header,  .buffer_size = sizeof(header) },
+        { .write_buffer = payload, .buffer_size = sizeof(payload) },
+    };
+    ESP_ERROR_CHECK(uhci_multi_buffer_transmit(uhci_ctrl, buffer_info, 2));
+    ESP_ERROR_CHECK(uhci_wait_all_tx_transaction_done(uhci_ctrl, -1));
+
+.. note::
+
+    When a transaction is submitted through :cpp:func:`uhci_multi_buffer_transmit` with more than one segment, :cpp:member:`uhci_tx_done_event_data_t::buffer` in the "trans-done" callback only points to the first segment and should be treated as an identifying handle for the transaction, not as the start of a ``sent_size``-byte contiguous region. :cpp:member:`uhci_tx_done_event_data_t::sent_size` is the sum of the sizes of all segments.
+
 Initiating UHCI Reception
 ^^^^^^^^^^^^^^^^^^^^^^^^^
 
-:cpp:func:`uhci_receive` is a non-blocking function, which means this function will immediately return after it is called. The related callback can be obtained via :cpp:member:`uhci_rx_event_data_t::recv_size` to indicate the receive event. It can be useful to determine if a transaction has been finished.
+:cpp:func:`uhci_receive` is a non-blocking function, which means this function will immediately return after it is called. The related callback can be obtained via :cpp:member:`uhci_event_callbacks_t::on_rx_trans_event` to indicate the receive event. It can be useful to determine if a transaction has been finished.
 
-Data can be transmitted via UHCI as follows:
+Data can be received via UHCI as follows:
 
 .. code:: c
 
@@ -137,7 +166,7 @@ Data can be transmitted via UHCI as follows:
             ctx->p_receive_data += edata->recv_size;
         }
 
-        xQueueSendFromISR(ctx->uhci_queue, &evt, &xTaskWoken);
+        xQueueSendFromISR(uhci_queue, &evt, &xTaskWoken);
         return xTaskWoken;
     }
 
@@ -153,7 +182,7 @@ Data can be transmitted via UHCI as follows:
     uhci_event_t evt;
     while (1) {
         // A queue in task for receiving event triggered by UHCI.
-        if (xQueueReceive(ctx->uhci_queue, &evt, portMAX_DELAY) == pdTRUE) {
+        if (xQueueReceive(uhci_queue, &evt, portMAX_DELAY) == pdTRUE) {
             if (evt == UHCI_EVT_EOF) {
                 printf("Received size: %d\n", ctx->receive_size);
                 break;
@@ -161,7 +190,7 @@ Data can be transmitted via UHCI as follows:
         }
     }
 
-In the API :cpp:func:`uhci_receive` interface, the parameter `read_buffer` is a buffer that must be provided by the user, and parameter `buffer_size` represents the size of the buffer supplied by the user. In the configuration structure of the UHCI controller, the parameter :cpp:member:`uhci_controller_config_t::max_receive_internal_mem` specifies the desired size of the internal DMA working space. The software allocates a certain number of DMA nodes based on this working space size. These nodes form a circular linked list.
+In the API :cpp:func:`uhci_receive` interface, the parameter ``read_buffer`` is a buffer that must be provided by the user, and parameter ``buffer_size`` represents the size of the buffer supplied by the user. ``buffer_size`` should generally not exceed :cpp:member:`uhci_controller_config_t::max_receive_internal_mem`.
 
 When a node is filled, but the reception has not yet completed, the event :cpp:member:`uhci_event_callbacks_t::on_rx_trans_event` will be triggered, accompanied by :cpp:member:`uhci_rx_event_data_t::flags::totally_received` set to 0. When all the data has been fully received, the :cpp:member:`uhci_event_callbacks_t::on_rx_trans_event` event will be triggered again with :cpp:member:`uhci_rx_event_data_t::flags::totally_received` set to 1.
 
@@ -169,7 +198,7 @@ This mechanism allows the user to achieve continuous and fast reception using a 
 
 .. note::
 
-    The parameter `read_buffer` of :cpp:func:`uhci_receive` cannot be freed until receive finishes.
+    The parameter ``read_buffer`` of :cpp:func:`uhci_receive` cannot be freed until receive finishes.
 
 Uninstall UHCI controller
 ^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -293,7 +322,7 @@ API Reference
 
 .. include-build-file:: inc/uhci.inc
 .. include-build-file:: inc/components/esp_driver_uart/include/driver/uhci_types.inc
-.. include-build-file:: inc/components/hal/include/hal/uhci_types.inc
+.. include-build-file:: inc/components/esp_hal_uart/include/hal/uhci_types.inc
 
 .. [1]
    The callback function, e.g., :cpp:member:`uhci_event_callbacks_t::on_tx_trans_done`, :cpp:member:`uhci_event_callbacks_t::on_rx_trans_event` and the functions invoked by itself should also reside in IRAM, users need to take care of this by themselves.

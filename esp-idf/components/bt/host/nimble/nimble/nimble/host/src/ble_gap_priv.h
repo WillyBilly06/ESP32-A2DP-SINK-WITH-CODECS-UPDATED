@@ -175,7 +175,11 @@ void ble_gap_identity_event(uint16_t conn_handle, const ble_addr_t *peer_id_addr
 int ble_gap_repeat_pairing_event(const struct ble_gap_repeat_pairing *rp);
 void ble_gap_pairing_complete_event(uint16_t conn_handle, int status);
 void ble_gap_vs_hci_event(const void *buf, uint8_t len);
+#if MYNEWT_VAL(BT_NIMBLE_MEM_OPTIMIZATION)
+uint8_t ble_gap_authorize_event(uint16_t conn_handle, uint16_t attr_handle, uint8_t is_read);
+#else
 int ble_gap_authorize_event(uint16_t conn_handle, uint16_t attr_handle, int is_read);
+#endif
 void ble_gap_eatt_event(uint16_t conn_handle, uint8_t status, uint16_t cid);
 int ble_gap_master_in_progress(void);
 
@@ -202,6 +206,14 @@ void ble_gap_rx_data_len_change(const struct ble_hci_ev_le_subev_data_len_chg *e
 void ble_gap_rx_rd_all_remote_feat(const struct ble_hci_ev_le_subev_rd_all_rem_feat *ev);
 #if MYNEWT_VAL(BLE_MONITOR_ADV)
 void ble_gap_rx_rd_monitor_adv_report(const struct ble_hci_ev_le_subev_monitor_adv_report *ev);
+#endif
+
+#if MYNEWT_VAL(BLE_FRAME_SPACE_UPDATE)
+void ble_gap_rx_frame_space_update_complete(const struct ble_hci_ev_le_subev_frame_space_update_complete *ev);
+#endif
+
+#if MYNEWT_VAL(BLE_UTP_OTA)
+void ble_gap_rx_utp_receive(const struct ble_hci_ev_le_subev_utp_receive *ev, uint8_t len);
 #endif
 
 #ifdef __cplusplus

@@ -26,51 +26,56 @@
       "versions": [
         {
           "linux-amd64": {
-            "sha256": "16d05c9104ff84529ac3799abb04d5666c193131ab461f153040721728b48730",
-            "size": 36396804,
-            "url": "https://github.com/espressif/binutils-gdb/releases/download/esp-gdb-v16.3_20250913/xtensa-esp-elf-gdb-16.3_20250913-x86_64-linux-gnu.tar.gz"
+            "sha256": "73bc6c4e50b06dceb60e94b53aded61b7769be3cf563572269d9c8d643db8e95",
+            "size": 42655871,
+            "url": "https://github.com/espressif/binutils-gdb/releases/download/esp-gdb-v17.1_20260402/xtensa-esp-elf-gdb-17.1_20260402-x86_64-linux-gnu.tar.gz"
           },
           "linux-arm64": {
-            "sha256": "ecbd53ba28cf24301be8260249bfcfb60567f938f4402797617c8a0fc170dc7d",
-            "size": 35457879,
-            "url": "https://github.com/espressif/binutils-gdb/releases/download/esp-gdb-v16.3_20250913/xtensa-esp-elf-gdb-16.3_20250913-aarch64-linux-gnu.tar.gz"
+            "sha256": "00290ffe21b2916ffd343fd28ac34fc8b93e99b992a3656fa09b4f2bdc564bea",
+            "size": 41589296,
+            "url": "https://github.com/espressif/binutils-gdb/releases/download/esp-gdb-v17.1_20260402/xtensa-esp-elf-gdb-17.1_20260402-aarch64-linux-gnu.tar.gz"
           },
           "linux-armel": {
-            "sha256": "c0895e88797089fd6b16e1cb986c5c85a880e0e8dc03bde1016c7771bc10ddba",
-            "size": 31288407,
-            "url": "https://github.com/espressif/binutils-gdb/releases/download/esp-gdb-v16.3_20250913/xtensa-esp-elf-gdb-16.3_20250913-arm-linux-gnueabi.tar.gz"
+            "sha256": "f187a315e0393c2086d47e22f092524e3a1026143daa93c8e2bbdb8eac77d488",
+            "size": 36649511,
+            "url": "https://github.com/espressif/binutils-gdb/releases/download/esp-gdb-v17.1_20260402/xtensa-esp-elf-gdb-17.1_20260402-arm-linux-gnueabi.tar.gz"
           },
           "linux-armhf": {
-            "sha256": "d939e273150f78c79e62c15564cb880f253b8f23670968905ea00687f9a7af2f",
-            "size": 31220965,
-            "url": "https://github.com/espressif/binutils-gdb/releases/download/esp-gdb-v16.3_20250913/xtensa-esp-elf-gdb-16.3_20250913-arm-linux-gnueabihf.tar.gz"
+            "sha256": "c0610a3e19f81cec5c7a9a8d7a3e8bfb53ff965c088ce0870c7df3180e78841b",
+            "size": 36568257,
+            "url": "https://github.com/espressif/binutils-gdb/releases/download/esp-gdb-v17.1_20260402/xtensa-esp-elf-gdb-17.1_20260402-arm-linux-gnueabihf.tar.gz"
           },
           "linux-i686": {
-            "sha256": "64ffefb7625edae77a03a13fd9bd07db088dec9d145eb1124de66f11510f7558",
-            "size": 35094067,
-            "url": "https://github.com/espressif/binutils-gdb/releases/download/esp-gdb-v16.3_20250913/xtensa-esp-elf-gdb-16.3_20250913-i586-linux-gnu.tar.gz"
+            "sha256": "303b06d82d2802f508af603cd7a1e256dca0f232a2fa28ab9fa35539c2c858ac",
+            "size": 41080699,
+            "url": "https://github.com/espressif/binutils-gdb/releases/download/esp-gdb-v17.1_20260402/xtensa-esp-elf-gdb-17.1_20260402-i586-linux-gnu.tar.gz"
           },
           "macos": {
-            "sha256": "8341493abc87e6ae468f4eda16c768b2ddb20c98336e1c491a3801ad823680ae",
-            "size": 45646032,
-            "url": "https://github.com/espressif/binutils-gdb/releases/download/esp-gdb-v16.3_20250913/xtensa-esp-elf-gdb-16.3_20250913-x86_64-apple-darwin24.5.tar.gz"
+            "sha256": "706d58849fd4a83244023051605b3631e835565395fa2783ed5afce1f17413ee",
+            "size": 53815837,
+            "url": "https://github.com/espressif/binutils-gdb/releases/download/esp-gdb-v17.1_20260402/xtensa-esp-elf-gdb-17.1_20260402-x86_64-apple-darwin24.5.tar.gz"
           },
           "macos-arm64": {
-            "sha256": "251e3be9c9436d9ab7fee6c05519fd816a05e63bd47495e24ea4e354881a851c",
-            "size": 39809369,
-            "url": "https://github.com/espressif/binutils-gdb/releases/download/esp-gdb-v16.3_20250913/xtensa-esp-elf-gdb-16.3_20250913-aarch64-apple-darwin24.5.tar.gz"
+            "sha256": "da97440e74a9ff36370bdb598cf421a8183c11ae6fb44431be594ad16dbe77ef",
+            "size": 46924973,
+            "url": "https://github.com/espressif/binutils-gdb/releases/download/esp-gdb-v17.1_20260402/xtensa-esp-elf-gdb-17.1_20260402-aarch64-apple-darwin24.5.tar.gz"
           },
-          "name": "16.3_20250913",
+          "name": "17.1_20260402",
           "status": "recommended",
+          "win-arm64": {
+            "sha256": "4ff247465d84030ab29b741874d16d740d12febc0508501b72b69564decb17e4",
+            "size": 31299279,
+            "url": "https://github.com/espressif/binutils-gdb/releases/download/esp-gdb-v17.1_20260402/xtensa-esp-elf-gdb-17.1_20260402-aarch64-w64-mingw32.zip"
+          },
           "win32": {
-            "sha256": "8fc9fa6a934523b6ad6e787cf1664d48496bae456fd85ea7589e3684ce3bbbe5",
-            "size": 32824604,
-            "url": "https://github.com/espressif/binutils-gdb/releases/download/esp-gdb-v16.3_20250913/xtensa-esp-elf-gdb-16.3_20250913-i686-w64-mingw32.zip"
+            "sha256": "8125a724e4f25c22b19a0321bce8b6a8675e12e0d12e5757d2ed75bd7262c53c",
+            "size": 43646185,
+            "url": "https://github.com/espressif/binutils-gdb/releases/download/esp-gdb-v17.1_20260402/xtensa-esp-elf-gdb-17.1_20260402-i686-w64-mingw32.zip"
           },
           "win64": {
-            "sha256": "99a2243b9a75bbac95a672cc3ab4b36013429ab5b4583e7a28339e3015a3fdfa",
-            "size": 33835839,
-            "url": "https://github.com/espressif/binutils-gdb/releases/download/esp-gdb-v16.3_20250913/xtensa-esp-elf-gdb-16.3_20250913-x86_64-w64-mingw32.zip"
+            "sha256": "7525ae46b39fc87568717d8f0cc3dfbcdb77b96435dd80acfce6918b0abc2b8a",
+            "size": 44820924,
+            "url": "https://github.com/espressif/binutils-gdb/releases/download/esp-gdb-v17.1_20260402/xtensa-esp-elf-gdb-17.1_20260402-x86_64-w64-mingw32.zip"
           }
         }
       ]
@@ -97,7 +102,8 @@
         "esp32p4",
         "esp32c61",
         "esp32h21",
-        "esp32h4"
+        "esp32h4",
+        "esp32s31"
       ],
       "version_cmd": [
         "riscv32-esp-elf-gdb-no-python",
@@ -107,51 +113,56 @@
       "versions": [
         {
           "linux-amd64": {
-            "sha256": "4e3cf8b7d11c7a2d1b50f40b1c50c0671dfe7eb13782c27c8a8cfdc8548bcdd4",
-            "size": 36557187,
-            "url": "https://github.com/espressif/binutils-gdb/releases/download/esp-gdb-v16.3_20250913/riscv32-esp-elf-gdb-16.3_20250913-x86_64-linux-gnu.tar.gz"
+            "sha256": "35f3db841338cb4f9bc60d757bc3e87dfa50ff50607bcbc3867c5b1ac28dd342",
+            "size": 43045928,
+            "url": "https://github.com/espressif/binutils-gdb/releases/download/esp-gdb-v17.1_20260402/riscv32-esp-elf-gdb-17.1_20260402-x86_64-linux-gnu.tar.gz"
           },
           "linux-arm64": {
-            "sha256": "8f1f4f24fa534c76ed9d71efffbf728cc30169e911742d7bd67dd0fdcf5f3ae3",
-            "size": 35664185,
-            "url": "https://github.com/espressif/binutils-gdb/releases/download/esp-gdb-v16.3_20250913/riscv32-esp-elf-gdb-16.3_20250913-aarch64-linux-gnu.tar.gz"
+            "sha256": "f185d924497750f254290a32c48163c08e3b2a29eb248d739d90990ebee17f44",
+            "size": 42035040,
+            "url": "https://github.com/espressif/binutils-gdb/releases/download/esp-gdb-v17.1_20260402/riscv32-esp-elf-gdb-17.1_20260402-aarch64-linux-gnu.tar.gz"
           },
           "linux-armel": {
-            "sha256": "ac4fc85e3daf190b21598ec468933dc2659033580715560f45827da25e15b285",
-            "size": 32183532,
-            "url": "https://github.com/espressif/binutils-gdb/releases/download/esp-gdb-v16.3_20250913/riscv32-esp-elf-gdb-16.3_20250913-arm-linux-gnueabi.tar.gz"
+            "sha256": "88c8d492345eb972e5f978defb3395643303a18cf1870ce8cd9b8621d244b36e",
+            "size": 37855622,
+            "url": "https://github.com/espressif/binutils-gdb/releases/download/esp-gdb-v17.1_20260402/riscv32-esp-elf-gdb-17.1_20260402-arm-linux-gnueabi.tar.gz"
           },
           "linux-armhf": {
-            "sha256": "628d0375f80f63834f68be1b2c4d71690d32ac71b4a9a32f514829a9eb90439f",
-            "size": 32067095,
-            "url": "https://github.com/espressif/binutils-gdb/releases/download/esp-gdb-v16.3_20250913/riscv32-esp-elf-gdb-16.3_20250913-arm-linux-gnueabihf.tar.gz"
+            "sha256": "739c145268a5b5d8eb90d56951cb7fae9dbb3a0c5eb22e20b837d295431f9635",
+            "size": 37719240,
+            "url": "https://github.com/espressif/binutils-gdb/releases/download/esp-gdb-v17.1_20260402/riscv32-esp-elf-gdb-17.1_20260402-arm-linux-gnueabihf.tar.gz"
           },
           "linux-i686": {
-            "sha256": "905dcd78558d7d559a95dc1eacc4572ea908be4ae6b1c937ea63a98df4482ca9",
-            "size": 35438945,
-            "url": "https://github.com/espressif/binutils-gdb/releases/download/esp-gdb-v16.3_20250913/riscv32-esp-elf-gdb-16.3_20250913-i586-linux-gnu.tar.gz"
+            "sha256": "29efe15235157bee507d97787a03e569f073bfef254c75d9662ec7f6e5162066",
+            "size": 41705144,
+            "url": "https://github.com/espressif/binutils-gdb/releases/download/esp-gdb-v17.1_20260402/riscv32-esp-elf-gdb-17.1_20260402-i586-linux-gnu.tar.gz"
           },
           "macos": {
-            "sha256": "2d5e5efead0b189e13cfe2670ca9d6d5965378ef3632d0b163a14f2f0536c274",
-            "size": 45892529,
-            "url": "https://github.com/espressif/binutils-gdb/releases/download/esp-gdb-v16.3_20250913/riscv32-esp-elf-gdb-16.3_20250913-x86_64-apple-darwin24.5.tar.gz"
+            "sha256": "4845ec4968207e40c9f840f29007d8e0cd7d11eb613bb9e9078a41bb0ceb6d4d",
+            "size": 54514283,
+            "url": "https://github.com/espressif/binutils-gdb/releases/download/esp-gdb-v17.1_20260402/riscv32-esp-elf-gdb-17.1_20260402-x86_64-apple-darwin24.5.tar.gz"
           },
           "macos-arm64": {
-            "sha256": "92771492084746fd22521c7c5b52bf1ed6dd86ef3cafe60e771bbdb4f0943f5a",
-            "size": 40145407,
-            "url": "https://github.com/espressif/binutils-gdb/releases/download/esp-gdb-v16.3_20250913/riscv32-esp-elf-gdb-16.3_20250913-aarch64-apple-darwin24.5.tar.gz"
+            "sha256": "f944bb6a07b03e5d74dd1f878ba05320ee7957d3a06bcc80cd0a9cf355e8ceea",
+            "size": 47663426,
+            "url": "https://github.com/espressif/binutils-gdb/releases/download/esp-gdb-v17.1_20260402/riscv32-esp-elf-gdb-17.1_20260402-aarch64-apple-darwin24.5.tar.gz"
           },
-          "name": "16.3_20250913",
+          "name": "17.1_20260402",
           "status": "recommended",
+          "win-arm64": {
+            "sha256": "dd1715255b8e6334de20599cd9c2bbb2d1c9c443acafe76e9f0f792466731902",
+            "size": 31760322,
+            "url": "https://github.com/espressif/binutils-gdb/releases/download/esp-gdb-v17.1_20260402/riscv32-esp-elf-gdb-17.1_20260402-aarch64-w64-mingw32.zip"
+          },
           "win32": {
-            "sha256": "c6a36c469d3b76e2b442be207814f7c3f71f21faf6faab4dd33fdedd56d89c01",
-            "size": 33531234,
-            "url": "https://github.com/espressif/binutils-gdb/releases/download/esp-gdb-v16.3_20250913/riscv32-esp-elf-gdb-16.3_20250913-i686-w64-mingw32.zip"
+            "sha256": "77b04d797b699127c7d395c55eef0d09840255e7710a0bd51bcbae83ffec1f0c",
+            "size": 44672431,
+            "url": "https://github.com/espressif/binutils-gdb/releases/download/esp-gdb-v17.1_20260402/riscv32-esp-elf-gdb-17.1_20260402-i686-w64-mingw32.zip"
           },
           "win64": {
-            "sha256": "32e79cb43b40f3b256193139b1fefd2782e3eaf82ee317b757ec8ba18b35159d",
-            "size": 34196400,
-            "url": "https://github.com/espressif/binutils-gdb/releases/download/esp-gdb-v16.3_20250913/riscv32-esp-elf-gdb-16.3_20250913-x86_64-w64-mingw32.zip"
+            "sha256": "f9e56a0d17414a30f7c457f7804173ecfb078b90d94a7b9f6318dc9652575d3f",
+            "size": 45474783,
+            "url": "https://github.com/espressif/binutils-gdb/releases/download/esp-gdb-v17.1_20260402/riscv32-esp-elf-gdb-17.1_20260402-x86_64-w64-mingw32.zip"
           }
         }
       ]
@@ -182,51 +193,51 @@
       "versions": [
         {
           "linux-amd64": {
-            "sha256": "b0065b3b28d2b5d3bf4868f2fda6bc95d6081025583d1c17b286884bead0305d",
-            "size": 176948400,
-            "url": "https://github.com/espressif/crosstool-NG/releases/download/esp-14.2.0_20251107/xtensa-esp-elf-14.2.0_20251107-x86_64-linux-gnu.tar.xz"
+            "sha256": "3d50f5cd5f173acfd524e07c1cd69bc99585731a415ca2e5bce879997fe602b8",
+            "size": 180530004,
+            "url": "https://github.com/espressif/crosstool-NG/releases/download/esp-15.2.0_20251204/xtensa-esp-elf-15.2.0_20251204-x86_64-linux-gnu.tar.xz"
           },
           "linux-arm64": {
-            "sha256": "571f1d3d4aa46f75d86f4c0f5c6c492fac6849de8345dae919875fa087c59591",
-            "size": 172565944,
-            "url": "https://github.com/espressif/crosstool-NG/releases/download/esp-14.2.0_20251107/xtensa-esp-elf-14.2.0_20251107-aarch64-linux-gnu.tar.xz"
+            "sha256": "c8a8255009803036ba3def98a97a7134ee5a8ac5db048425e126fcf07f27ce1c",
+            "size": 171323572,
+            "url": "https://github.com/espressif/crosstool-NG/releases/download/esp-15.2.0_20251204/xtensa-esp-elf-15.2.0_20251204-aarch64-linux-gnu.tar.xz"
           },
           "linux-armel": {
-            "sha256": "f8f3acabdea942ad42e8ad8748aaae993dfb6ba6c552d7e701ca42d90d857317",
-            "size": 170518776,
-            "url": "https://github.com/espressif/crosstool-NG/releases/download/esp-14.2.0_20251107/xtensa-esp-elf-14.2.0_20251107-arm-linux-gnueabi.tar.xz"
+            "sha256": "0ae215a8adb2823b370e31d20891747af42b86ce5042331df50829942d8cbbfe",
+            "size": 171249364,
+            "url": "https://github.com/espressif/crosstool-NG/releases/download/esp-15.2.0_20251204/xtensa-esp-elf-15.2.0_20251204-arm-linux-gnueabi.tar.xz"
           },
           "linux-armhf": {
-            "sha256": "c028f6902d652092b73655eba3780a120e901a24cff184d0be104a3e44c3d54a",
-            "size": 171649224,
-            "url": "https://github.com/espressif/crosstool-NG/releases/download/esp-14.2.0_20251107/xtensa-esp-elf-14.2.0_20251107-arm-linux-gnueabihf.tar.xz"
+            "sha256": "99c1b5d45e9d661457d7a98494e5ebb2ed2e01b4b4dd4861de750acaec15a7bc",
+            "size": 178819728,
+            "url": "https://github.com/espressif/crosstool-NG/releases/download/esp-15.2.0_20251204/xtensa-esp-elf-15.2.0_20251204-arm-linux-gnueabihf.tar.xz"
           },
           "linux-i686": {
-            "sha256": "d86fb12480129b722c2cb7515fbcb6a066083b50a38c33c193f2f17eede70575",
-            "size": 180444520,
-            "url": "https://github.com/espressif/crosstool-NG/releases/download/esp-14.2.0_20251107/xtensa-esp-elf-14.2.0_20251107-i586-linux-gnu.tar.xz"
+            "sha256": "6d3c510ddf5f084734c1dd5671d87a7b13973d713f641596ec1351dcce8d3ff3",
+            "size": 183293668,
+            "url": "https://github.com/espressif/crosstool-NG/releases/download/esp-15.2.0_20251204/xtensa-esp-elf-15.2.0_20251204-i586-linux-gnu.tar.xz"
           },
           "macos": {
-            "sha256": "9a0f6f4d83ff39af41f1d2ebbf4683668c95d4a47a3bf5b1fa74eef80f3af1bb",
-            "size": 183731136,
-            "url": "https://github.com/espressif/crosstool-NG/releases/download/esp-14.2.0_20251107/xtensa-esp-elf-14.2.0_20251107-x86_64-apple-darwin.tar.xz"
+            "sha256": "96da1fcf01e2ac89819d1e336ca9e27762c35ea120627b89de8fd482f42c54f8",
+            "size": 177161964,
+            "url": "https://github.com/espressif/crosstool-NG/releases/download/esp-15.2.0_20251204/xtensa-esp-elf-15.2.0_20251204-x86_64-apple-darwin.tar.xz"
           },
           "macos-arm64": {
-            "sha256": "cffc8213e8e5fea03d12e027868d743ff4d23263e6d45a98b03d18adec6454de",
-            "size": 168886320,
-            "url": "https://github.com/espressif/crosstool-NG/releases/download/esp-14.2.0_20251107/xtensa-esp-elf-14.2.0_20251107-aarch64-apple-darwin.tar.xz"
+            "sha256": "68d3fb1e75c6bb1b88c6a2c74977abd51efd09b560a99149bafdcf403cb21941",
+            "size": 171304492,
+            "url": "https://github.com/espressif/crosstool-NG/releases/download/esp-15.2.0_20251204/xtensa-esp-elf-15.2.0_20251204-aarch64-apple-darwin.tar.xz"
           },
-          "name": "esp-14.2.0_20251107",
+          "name": "esp-15.2.0_20251204",
           "status": "recommended",
           "win32": {
-            "sha256": "70778f0e7dad518f9e6547911bedd6e23c48775313c7ed92f1cb04a86cea2351",
-            "size": 391481671,
-            "url": "https://github.com/espressif/crosstool-NG/releases/download/esp-14.2.0_20251107/xtensa-esp-elf-14.2.0_20251107-i686-w64-mingw32.zip"
+            "sha256": "72403f48827f75495f7c0b1c2be9f643c8dac25af7722545fc3ba1f21e834389",
+            "size": 406468543,
+            "url": "https://github.com/espressif/crosstool-NG/releases/download/esp-15.2.0_20251204/xtensa-esp-elf-15.2.0_20251204-i686-w64-mingw32.zip"
           },
           "win64": {
-            "sha256": "b0de5062da2f05d1773d1537421134e2a7517bd74a06c3b5763b07f94e38bece",
-            "size": 396056136,
-            "url": "https://github.com/espressif/crosstool-NG/releases/download/esp-14.2.0_20251107/xtensa-esp-elf-14.2.0_20251107-x86_64-w64-mingw32.zip"
+            "sha256": "efa1e337b5f64239674bf755b767969cbba7f4e66fe7c6ab8d19b650f56012a9",
+            "size": 408348988,
+            "url": "https://github.com/espressif/crosstool-NG/releases/download/esp-15.2.0_20251204/xtensa-esp-elf-15.2.0_20251204-x86_64-w64-mingw32.zip"
           }
         }
       ]
@@ -256,7 +267,8 @@
         "esp32p4",
         "esp32c61",
         "esp32h21",
-        "esp32h4"
+        "esp32h4",
+        "esp32s31"
       ],
       "version_cmd": [
         "clang",
@@ -266,36 +278,36 @@
       "versions": [
         {
           "linux-amd64": {
-            "sha256": "8546cd8ac0596835fbe3970d7c8ed6a842713ab948b759525756867f3bc0a5ef",
-            "size": 332799436,
-            "url": "https://github.com/espressif/llvm-project/releases/download/esp-19.1.2_20250312/clang-esp-19.1.2_20250312-x86_64-linux-gnu.tar.xz"
+            "sha256": "6e62bf1973b57b5388aad281ce1463e953e70b3d8df74ef4668c70f31fbeda63",
+            "size": 416927952,
+            "url": "https://github.com/espressif/llvm-project/releases/download/esp-21.1.3_20260408/clang-esp-21.1.3_20260408-x86_64-linux-gnu.tar.xz"
           },
           "linux-arm64": {
-            "sha256": "02dcde2e9e71706f36f64a4dc551085eb155d08714aaefc251c05fa5c4e743ae",
-            "size": 313340976,
-            "url": "https://github.com/espressif/llvm-project/releases/download/esp-19.1.2_20250312/clang-esp-19.1.2_20250312-aarch64-linux-gnu.tar.xz"
+            "sha256": "a25e5446ba3aa4bccfafa4328cec240c5b1ae7638978d868c26777c4ceca241b",
+            "size": 371652712,
+            "url": "https://github.com/espressif/llvm-project/releases/download/esp-21.1.3_20260408/clang-esp-21.1.3_20260408-aarch64-linux-gnu.tar.xz"
           },
           "linux-armhf": {
-            "sha256": "cd79d1b92185adb91711909de96bf4a3ad1df214a3040013446ab36ccd533a18",
-            "size": 316011700,
-            "url": "https://github.com/espressif/llvm-project/releases/download/esp-19.1.2_20250312/clang-esp-19.1.2_20250312-arm-linux-gnueabihf.tar.xz"
+            "sha256": "dea30c6e3548aea856e047727054b8d9fe91dcf19dbb76ae426951a8bc7d960e",
+            "size": 383104848,
+            "url": "https://github.com/espressif/llvm-project/releases/download/esp-21.1.3_20260408/clang-esp-21.1.3_20260408-arm-linux-gnueabihf.tar.xz"
           },
           "macos": {
-            "sha256": "d9832307626ebf04115b7b51caa059f8caff8875b35e68000ead7f02c690aa82",
-            "size": 297033276,
-            "url": "https://github.com/espressif/llvm-project/releases/download/esp-19.1.2_20250312/clang-esp-19.1.2_20250312-x86_64-apple-darwin.tar.xz"
+            "sha256": "0096cbd1713b226bb403b19547003918943ec3294481d2a69c1596c9597f1ba5",
+            "size": 362965152,
+            "url": "https://github.com/espressif/llvm-project/releases/download/esp-21.1.3_20260408/clang-esp-21.1.3_20260408-x86_64-apple-darwin.tar.xz"
           },
           "macos-arm64": {
-            "sha256": "f67ae3c07d0d32685ee05b6add063f37e799a7bd14af86cb3998da237709c57f",
-            "size": 272383664,
-            "url": "https://github.com/espressif/llvm-project/releases/download/esp-19.1.2_20250312/clang-esp-19.1.2_20250312-aarch64-apple-darwin.tar.xz"
+            "sha256": "b04a345c7b4125400e4de78734cece01147e0cc43b57aeef846ef3b8ff57ef7d",
+            "size": 340183960,
+            "url": "https://github.com/espressif/llvm-project/releases/download/esp-21.1.3_20260408/clang-esp-21.1.3_20260408-aarch64-apple-darwin.tar.xz"
           },
-          "name": "esp-19.1.2_20250312",
+          "name": "esp-21.1.3_20260408",
           "status": "recommended",
           "win64": {
-            "sha256": "0fb20439a3d1d31088e646a6f2a8c9277ac6aed858188e2afa470bdb42e13afb",
-            "size": 465651960,
-            "url": "https://github.com/espressif/llvm-project/releases/download/esp-19.1.2_20250312/clang-esp-19.1.2_20250312-x86_64-w64-mingw32.tar.xz"
+            "sha256": "415566ace6f47a9abc302b4ba79776d27668fd3f4e9c0d26861ec4f970323618",
+            "size": 426383328,
+            "url": "https://github.com/espressif/llvm-project/releases/download/esp-21.1.3_20260408/clang-esp-21.1.3_20260408-x86_64-w64-mingw32.tar.xz"
           }
         }
       ]
@@ -303,7 +315,9 @@
     {
       "description": "Standalone Clang shared libraries distribution",
       "export_paths": [],
-      "export_vars": {},
+      "export_vars": {
+        "ESP_CLANG_LIBS_PATH": "${TOOL_PATH}/esp-clang/lib"
+      },
       "info_url": "https://github.com/espressif/llvm-project",
       "install": "on_request",
       "license": "Apache-2.0",
@@ -319,7 +333,8 @@
         "esp32h2",
         "esp32p4",
         "esp32c61",
-        "esp32h21"
+        "esp32h21",
+        "esp32s31"
       ],
       "tool_info_file": "esp-clang/esp-clang-libs.info",
       "version_cmd": [],
@@ -327,36 +342,36 @@
       "versions": [
         {
           "linux-amd64": {
-            "sha256": "c13b8a731beec0c2af56f94073ca17202c9e5047de4c6e61f5e3ed319d231962",
-            "size": 76164612,
-            "url": "https://github.com/espressif/llvm-project/releases/download/esp-19.1.2_20250312/libs-clang-esp-19.1.2_20250312-x86_64-linux-gnu.tar.xz"
+            "sha256": "c75406f5f0a1fe9692cdf6e6628cbbdf3f25e5721bb58d5e5540ea756d1197f3",
+            "size": 83267264,
+            "url": "https://github.com/espressif/llvm-project/releases/download/esp-21.1.3_20260408/libs-clang-esp-21.1.3_20260408-x86_64-linux-gnu.tar.xz"
           },
           "linux-arm64": {
-            "sha256": "dcf356d2a12eaf9660aa5e91cd70df14486d4bd45f47a8025327255b2fe3ece8",
-            "size": 69938392,
-            "url": "https://github.com/espressif/llvm-project/releases/download/esp-19.1.2_20250312/libs-clang-esp-19.1.2_20250312-aarch64-linux-gnu.tar.xz"
+            "sha256": "a3d89fcb12b59b7b96a20c05e32a4c7ffe3400f965c153310137ffa02e27ec38",
+            "size": 72333960,
+            "url": "https://github.com/espressif/llvm-project/releases/download/esp-21.1.3_20260408/libs-clang-esp-21.1.3_20260408-aarch64-linux-gnu.tar.xz"
           },
           "linux-armhf": {
-            "sha256": "e9e110841ffdd43c7fcc57de24f501eec917a02e54f6dbf3a2069fed1017f8a8",
-            "size": 72698812,
-            "url": "https://github.com/espressif/llvm-project/releases/download/esp-19.1.2_20250312/libs-clang-esp-19.1.2_20250312-arm-linux-gnueabihf.tar.xz"
+            "sha256": "79995c0ce185aad89b3f96d097e6ca6c0273cccf47961c5e6c89d6cd494ea0d0",
+            "size": 75211944,
+            "url": "https://github.com/espressif/llvm-project/releases/download/esp-21.1.3_20260408/libs-clang-esp-21.1.3_20260408-arm-linux-gnueabihf.tar.xz"
           },
           "macos": {
-            "sha256": "0ac4cf2340e766a240ae40519f404fceaea4262d5ab89292aa3a4118e6402492",
-            "size": 58104496,
-            "url": "https://github.com/espressif/llvm-project/releases/download/esp-19.1.2_20250312/libs-clang-esp-19.1.2_20250312-x86_64-apple-darwin.tar.xz"
+            "sha256": "2e3c51ffa570f7f3ea562686b3fef1a1c07a541096ac291b9bb8bfbac7b82f9c",
+            "size": 59725364,
+            "url": "https://github.com/espressif/llvm-project/releases/download/esp-21.1.3_20260408/libs-clang-esp-21.1.3_20260408-x86_64-apple-darwin.tar.xz"
           },
           "macos-arm64": {
-            "sha256": "d723ce5ae431b44305c888c989e7f405446a23c13f179edc1b6939f9ba437498",
-            "size": 48707440,
-            "url": "https://github.com/espressif/llvm-project/releases/download/esp-19.1.2_20250312/libs-clang-esp-19.1.2_20250312-aarch64-apple-darwin.tar.xz"
+            "sha256": "b524f0f36c6b8897b5dc2a85f66102cc44a2d1dcfdde15fa96796b7c1778b8d3",
+            "size": 50260232,
+            "url": "https://github.com/espressif/llvm-project/releases/download/esp-21.1.3_20260408/libs-clang-esp-21.1.3_20260408-aarch64-apple-darwin.tar.xz"
           },
-          "name": "esp-19.1.2_20250312",
+          "name": "esp-21.1.3_20260408",
           "status": "recommended",
           "win64": {
-            "sha256": "29e5c945f601b85dd88c29bfabfd8c592d8064e3aba01d946e0ff475e5810c17",
-            "size": 59681772,
-            "url": "https://github.com/espressif/llvm-project/releases/download/esp-19.1.2_20250312/libs-clang-esp-19.1.2_20250312-x86_64-w64-mingw32.tar.xz"
+            "sha256": "00cc2ba925b6d807d722635516a1c44ce3e82cb9f01a2ea9385f19e6cb88c7c5",
+            "size": 43058104,
+            "url": "https://github.com/espressif/llvm-project/releases/download/esp-21.1.3_20260408/libs-clang-esp-21.1.3_20260408-x86_64-w64-mingw32.tar.xz"
           }
         }
       ]
@@ -385,7 +400,8 @@
         "esp32c61",
         "esp32p4",
         "esp32h21",
-        "esp32h4"
+        "esp32h4",
+        "esp32s31"
       ],
       "version_cmd": [
         "riscv32-esp-elf-gcc",
@@ -395,51 +411,51 @@
       "versions": [
         {
           "linux-amd64": {
-            "sha256": "1d3a1b6a064686d9b77c4db7731f82e26c072e312e27969c45fe96410ecb2671",
-            "size": 306966476,
-            "url": "https://github.com/espressif/crosstool-NG/releases/download/esp-14.2.0_20251107/riscv32-esp-elf-14.2.0_20251107-x86_64-linux-gnu.tar.xz"
+            "sha256": "ace5aae6afe98f754947be043d40173e2e22ace57754b11a394b7238eefa01cf",
+            "size": 393927372,
+            "url": "https://github.com/espressif/crosstool-NG/releases/download/esp-15.2.0_20251204/riscv32-esp-elf-15.2.0_20251204-x86_64-linux-gnu.tar.xz"
           },
           "linux-arm64": {
-            "sha256": "072a553453691fbd98fe82b6efa9a2fa6beb7d2c90aed4463353bc33378e83bf",
-            "size": 299897524,
-            "url": "https://github.com/espressif/crosstool-NG/releases/download/esp-14.2.0_20251107/riscv32-esp-elf-14.2.0_20251107-aarch64-linux-gnu.tar.xz"
+            "sha256": "90cccb3ef035f016836dd7c292528b27333a716d42b9361a68005d178c0f70bf",
+            "size": 382287852,
+            "url": "https://github.com/espressif/crosstool-NG/releases/download/esp-15.2.0_20251204/riscv32-esp-elf-15.2.0_20251204-aarch64-linux-gnu.tar.xz"
           },
           "linux-armel": {
-            "sha256": "2da03aa3497dbff897cc8bb879b2138ba141e8071edec1a2e43b334f98de6424",
-            "size": 297707224,
-            "url": "https://github.com/espressif/crosstool-NG/releases/download/esp-14.2.0_20251107/riscv32-esp-elf-14.2.0_20251107-arm-linux-gnueabi.tar.xz"
+            "sha256": "5603d18a0534ab5c2faca672ac890ad5b57727e55c6734adf6584aa73844f112",
+            "size": 373116772,
+            "url": "https://github.com/espressif/crosstool-NG/releases/download/esp-15.2.0_20251204/riscv32-esp-elf-15.2.0_20251204-arm-linux-gnueabi.tar.xz"
           },
           "linux-armhf": {
-            "sha256": "6e4bee2ec2c8e922a890b59731746853ea8f14e118fcd6ae5fa58fea5c1aa2eb",
-            "size": 297953904,
-            "url": "https://github.com/espressif/crosstool-NG/releases/download/esp-14.2.0_20251107/riscv32-esp-elf-14.2.0_20251107-arm-linux-gnueabihf.tar.xz"
+            "sha256": "61b2feebfe14c5f2a7966ccec0c1c7ed2e2840d260671730f376aa92323b1338",
+            "size": 375893944,
+            "url": "https://github.com/espressif/crosstool-NG/releases/download/esp-15.2.0_20251204/riscv32-esp-elf-15.2.0_20251204-arm-linux-gnueabihf.tar.xz"
           },
           "linux-i686": {
-            "sha256": "402ed7d177e744916df8afc74c5e5a9cfd40557df07a6a7fc52b00917b15f97b",
-            "size": 309687076,
-            "url": "https://github.com/espressif/crosstool-NG/releases/download/esp-14.2.0_20251107/riscv32-esp-elf-14.2.0_20251107-i586-linux-gnu.tar.xz"
+            "sha256": "8dc31a97c008bf80d0c0b20b5960c522d9552f77a79ffd60e3ae6b1329cd68ef",
+            "size": 397880364,
+            "url": "https://github.com/espressif/crosstool-NG/releases/download/esp-15.2.0_20251204/riscv32-esp-elf-15.2.0_20251204-i586-linux-gnu.tar.xz"
           },
           "macos": {
-            "sha256": "d413836fa000f095d041a35950a45f82e2ff669995c8d6a09fa4d05e5c4ed258",
-            "size": 309020528,
-            "url": "https://github.com/espressif/crosstool-NG/releases/download/esp-14.2.0_20251107/riscv32-esp-elf-14.2.0_20251107-x86_64-apple-darwin.tar.xz"
+            "sha256": "6d4709eadf4c66aecb51c0ff9c7b068eefa6ecec37aa7817f172c9f735318e73",
+            "size": 397611788,
+            "url": "https://github.com/espressif/crosstool-NG/releases/download/esp-15.2.0_20251204/riscv32-esp-elf-15.2.0_20251204-x86_64-apple-darwin.tar.xz"
           },
           "macos-arm64": {
-            "sha256": "cedfcdaf8f165bd3e11ca4ee46b71d5b561fab93407eb8203812f9c14b1c7714",
-            "size": 288327120,
-            "url": "https://github.com/espressif/crosstool-NG/releases/download/esp-14.2.0_20251107/riscv32-esp-elf-14.2.0_20251107-aarch64-apple-darwin.tar.xz"
+            "sha256": "0869d1083532c631808543dd802885f02dbe1bb3bd640be0dee827e82ded768d",
+            "size": 389672664,
+            "url": "https://github.com/espressif/crosstool-NG/releases/download/esp-15.2.0_20251204/riscv32-esp-elf-15.2.0_20251204-aarch64-apple-darwin.tar.xz"
           },
-          "name": "esp-14.2.0_20251107",
+          "name": "esp-15.2.0_20251204",
           "status": "recommended",
           "win32": {
-            "sha256": "7670128df99adbdcbc99ebbdccda19347daf2fd191aab1eb22c24ae1c4d77226",
-            "size": 690936765,
-            "url": "https://github.com/espressif/crosstool-NG/releases/download/esp-14.2.0_20251107/riscv32-esp-elf-14.2.0_20251107-i686-w64-mingw32.zip"
+            "sha256": "a52d9c855f1771527d2a6b6a6012ddff3f17bb5c937830b163aa8418177c86da",
+            "size": 956756021,
+            "url": "https://github.com/espressif/crosstool-NG/releases/download/esp-15.2.0_20251204/riscv32-esp-elf-15.2.0_20251204-i686-w64-mingw32.zip"
           },
           "win64": {
-            "sha256": "373abecd1cdfd480b09b8659e319e636064f99fec46f635a05c5413e5f009c05",
-            "size": 697522467,
-            "url": "https://github.com/espressif/crosstool-NG/releases/download/esp-14.2.0_20251107/riscv32-esp-elf-14.2.0_20251107-x86_64-w64-mingw32.zip"
+            "sha256": "c61488aa15f49146aae918267110f775a52c3cef3844cbf261f475ef97523c3d",
+            "size": 963974138,
+            "url": "https://github.com/espressif/crosstool-NG/releases/download/esp-15.2.0_20251204/riscv32-esp-elf-15.2.0_20251204-x86_64-w64-mingw32.zip"
           }
         }
       ]
@@ -536,7 +552,8 @@
           "install": "always",
           "platforms": [
             "win32",
-            "win64"
+            "win64",
+            "win-arm64"
           ]
         },
         {
@@ -565,75 +582,80 @@
       "versions": [
         {
           "linux-amd64": {
-            "sha256": "cdd7fb352605cee3ae53b0e18b5929b642900e33d6b0173e19f6d4f2067ebf16",
-            "size": 53635506,
-            "url": "https://github.com/Kitware/CMake/releases/download/v3.30.2/cmake-3.30.2-linux-x86_64.tar.gz"
+            "sha256": "585ae9e013107bc8e7c7c9ce872cbdcbdff569e675b07ef57aacfb88c886faac",
+            "size": 55509479,
+            "url": "https://github.com/Kitware/CMake/releases/download/v4.0.3/cmake-4.0.3-linux-x86_64.tar.gz"
           },
           "linux-arm64": {
-            "sha256": "d18f50f01b001303d21f53c6c16ff12ee3aa45df5da1899c2fe95be7426aa026",
-            "size": 54889935,
-            "url": "https://github.com/Kitware/CMake/releases/download/v3.30.2/cmake-3.30.2-linux-aarch64.tar.gz"
+            "sha256": "391da1544ef50ac31300841caaf11db4de3976cdc4468643272e44b3f4644713",
+            "size": 56811927,
+            "url": "https://github.com/Kitware/CMake/releases/download/v4.0.3/cmake-4.0.3-linux-aarch64.tar.gz"
           },
           "linux-armel": {
-            "sha256": "446650c69ea74817a770f96446c162bb7ad24ffecaacb35fcd4845ec7d3c9099",
-            "size": 17035042,
-            "url": "https://dl.espressif.com/dl/cmake/cmake-3.30.2-Linux-armv7l.tar.gz"
+            "sha256": "ee80bd9c5a310928eb89c9d28c6867a497c9b146e271ede8383e31426b930e15",
+            "size": 24050923,
+            "url": "https://dl.espressif.com/dl/cmake/cmake-4.0.3-Linux-armv7l.tar.gz"
           },
           "linux-armhf": {
-            "sha256": "446650c69ea74817a770f96446c162bb7ad24ffecaacb35fcd4845ec7d3c9099",
-            "size": 17035042,
-            "url": "https://dl.espressif.com/dl/cmake/cmake-3.30.2-Linux-armv7l.tar.gz"
+            "sha256": "ee80bd9c5a310928eb89c9d28c6867a497c9b146e271ede8383e31426b930e15",
+            "size": 24050923,
+            "url": "https://dl.espressif.com/dl/cmake/cmake-4.0.3-Linux-armv7l.tar.gz"
           },
           "macos": {
-            "sha256": "c6fdda745f9ce69bca048e91955c7d043ba905d6388a62e0ff52b681ac17183c",
-            "size": 79199037,
-            "url": "https://github.com/Kitware/CMake/releases/download/v3.30.2/cmake-3.30.2-macos-universal.tar.gz"
+            "sha256": "4e85de4daf1c3e82d7dc6b8ba5683972944b466343aeb9c327a742437bb3ce9a",
+            "size": 80058792,
+            "url": "https://github.com/Kitware/CMake/releases/download/v4.0.3/cmake-4.0.3-macos-universal.tar.gz"
           },
           "macos-arm64": {
-            "sha256": "c6fdda745f9ce69bca048e91955c7d043ba905d6388a62e0ff52b681ac17183c",
-            "size": 79199037,
-            "url": "https://github.com/Kitware/CMake/releases/download/v3.30.2/cmake-3.30.2-macos-universal.tar.gz"
+            "sha256": "4e85de4daf1c3e82d7dc6b8ba5683972944b466343aeb9c327a742437bb3ce9a",
+            "size": 80058792,
+            "url": "https://github.com/Kitware/CMake/releases/download/v4.0.3/cmake-4.0.3-macos-universal.tar.gz"
           },
-          "name": "3.30.2",
+          "name": "4.0.3",
           "status": "recommended",
+          "win-arm64": {
+            "sha256": "86ccd6485bbd4bb41a1a858db397be5bca5e0de96858bf8dbba7a64407bd6c00",
+            "size": 46495761,
+            "url": "https://github.com/Kitware/CMake/releases/download/v4.0.3/cmake-4.0.3-windows-arm64.zip"
+          },
           "win32": {
-            "sha256": "48bf4b3dc2d668c578e0884cac7878e146b036ca6b5ce4f8b5572f861b004c25",
-            "size": 45404613,
-            "url": "https://github.com/Kitware/CMake/releases/download/v3.30.2/cmake-3.30.2-windows-x86_64.zip"
+            "sha256": "b59a31dfbfa376a4aaea9ff560ff2b29f78ee5f9fb15447fc71ae7bf9fea9379",
+            "size": 47717299,
+            "url": "https://github.com/Kitware/CMake/releases/download/v4.0.3/cmake-4.0.3-windows-x86_64.zip"
           },
           "win64": {
-            "sha256": "48bf4b3dc2d668c578e0884cac7878e146b036ca6b5ce4f8b5572f861b004c25",
-            "size": 45404613,
-            "url": "https://github.com/Kitware/CMake/releases/download/v3.30.2/cmake-3.30.2-windows-x86_64.zip"
+            "sha256": "b59a31dfbfa376a4aaea9ff560ff2b29f78ee5f9fb15447fc71ae7bf9fea9379",
+            "size": 47717299,
+            "url": "https://github.com/Kitware/CMake/releases/download/v4.0.3/cmake-4.0.3-windows-x86_64.zip"
           }
         },
         {
           "linux-amd64": {
-            "sha256": "3e15dadfec8d54eda39c2f266fc1e571c1b88bf32f9d221c8a039b07234206fa",
-            "size": 39509848,
-            "url": "https://github.com/Kitware/CMake/releases/download/v3.16.3/cmake-3.16.3-Linux-x86_64.tar.gz"
+            "sha256": "73565c72355c6652e9db149249af36bcab44d9d478c5546fd926e69ad6b43640",
+            "size": 45345904,
+            "url": "https://github.com/Kitware/CMake/releases/download/v3.22.1/cmake-3.22.1-linux-x86_64.tar.gz"
           },
           "macos": {
-            "sha256": "655d6ed41a1c276676ca6a1ec381c179d394420c489f2d39b3cf2ef26bfae799",
-            "size": 35799298,
-            "url": "https://github.com/Kitware/CMake/releases/download/v3.16.3/cmake-3.16.3-Darwin-x86_64.tar.gz"
+            "sha256": "9ba46ce69d524f5bcdf98076a6b01f727604fb31cf9005ec03dea1cf16da9514",
+            "size": 70155147,
+            "url": "https://github.com/Kitware/CMake/releases/download/v3.22.1/cmake-3.22.1-macos-universal.tar.gz"
           },
           "macos-arm64": {
-            "sha256": "655d6ed41a1c276676ca6a1ec381c179d394420c489f2d39b3cf2ef26bfae799",
-            "size": 35799298,
-            "url": "https://github.com/Kitware/CMake/releases/download/v3.16.3/cmake-3.16.3-Darwin-x86_64.tar.gz"
+            "sha256": "9ba46ce69d524f5bcdf98076a6b01f727604fb31cf9005ec03dea1cf16da9514",
+            "size": 70155147,
+            "url": "https://github.com/Kitware/CMake/releases/download/v3.22.1/cmake-3.22.1-macos-universal.tar.gz"
           },
-          "name": "3.16.3",
+          "name": "3.22.1",
           "status": "supported",
           "win32": {
-            "sha256": "4b1370b3252acda0850d26c75e9bc6b8e019daaa7978a19f5d8dc008450d3548",
-            "size": 32807681,
-            "url": "https://github.com/Kitware/CMake/releases/download/v3.16.3/cmake-3.16.3-win64-x64.zip"
+            "sha256": "35fbbb7d9ffa491834bbc79cdfefc6c360088a3c9bf55c29d111a5afa04cdca3",
+            "size": 38552249,
+            "url": "https://github.com/Kitware/CMake/releases/download/v3.22.1/cmake-3.22.1-windows-x86_64.zip"
           },
           "win64": {
-            "sha256": "4b1370b3252acda0850d26c75e9bc6b8e019daaa7978a19f5d8dc008450d3548",
-            "size": 32807681,
-            "url": "https://github.com/Kitware/CMake/releases/download/v3.16.3/cmake-3.16.3-win64-x64.zip"
+            "sha256": "35fbbb7d9ffa491834bbc79cdfefc6c360088a3c9bf55c29d111a5afa04cdca3",
+            "size": 38552249,
+            "url": "https://github.com/Kitware/CMake/releases/download/v3.22.1/cmake-3.22.1-windows-x86_64.zip"
           }
         }
       ]
@@ -672,46 +694,51 @@
       "versions": [
         {
           "linux-amd64": {
-            "sha256": "766293bd7a08900d3536f87a0a7ade960f07266f16e4147f95ca5ce4e15d4c5d",
-            "size": 2489724,
-            "url": "https://github.com/espressif/openocd-esp32/releases/download/v0.12.0-esp32-20250707/openocd-esp32-linux-amd64-0.12.0-esp32-20250707.tar.gz"
+            "sha256": "4b71d1b4d8e4025029466e780161262a04137348b68e965c15250dbeebef03ce",
+            "size": 2700256,
+            "url": "https://github.com/espressif/openocd-esp32/releases/download/v0.12.0-esp32-20260703/openocd-esp32-linux-amd64-0.12.0-esp32-20260703.tar.gz"
           },
           "linux-arm64": {
-            "sha256": "34b6883c372444b49950893b2fc0101aefd10d404a88ef72c97e80199f8544d3",
-            "size": 2371243,
-            "url": "https://github.com/espressif/openocd-esp32/releases/download/v0.12.0-esp32-20250707/openocd-esp32-linux-arm64-0.12.0-esp32-20250707.tar.gz"
+            "sha256": "3ce059a26a543e96b19bef15a29b850aadaff1d4e2dc291e8c1ab45e331a5f1c",
+            "size": 2641141,
+            "url": "https://github.com/espressif/openocd-esp32/releases/download/v0.12.0-esp32-20260703/openocd-esp32-linux-arm64-0.12.0-esp32-20260703.tar.gz"
           },
           "linux-armel": {
-            "sha256": "fd48492cf3ee16577c661fdccc14c349d34a9ab93aac5039ddf72332d4f4b70b",
-            "size": 2517680,
-            "url": "https://github.com/espressif/openocd-esp32/releases/download/v0.12.0-esp32-20250707/openocd-esp32-linux-armel-0.12.0-esp32-20250707.tar.gz"
+            "sha256": "deb167155c994cd60db93626caf92638614364c16bdc145957eec61950e0ad15",
+            "size": 2818366,
+            "url": "https://github.com/espressif/openocd-esp32/releases/download/v0.12.0-esp32-20260703/openocd-esp32-linux-armel-0.12.0-esp32-20260703.tar.gz"
           },
           "linux-armhf": {
-            "sha256": "a468cc108578a1f4553ac0502c814d47791ef79f5997a31e941908fa5119de9c",
-            "size": 2353427,
-            "url": "https://github.com/espressif/openocd-esp32/releases/download/v0.12.0-esp32-20250707/openocd-esp32-linux-armhf-0.12.0-esp32-20250707.tar.gz"
+            "sha256": "0cf9b1209d81bf233d39c86b1bf8f0090905ee5f04797a92fbf8b695b5e97c6d",
+            "size": 2645566,
+            "url": "https://github.com/espressif/openocd-esp32/releases/download/v0.12.0-esp32-20260703/openocd-esp32-linux-armhf-0.12.0-esp32-20260703.tar.gz"
           },
           "macos": {
-            "sha256": "6267be53892a76d535938a1b044b685adc7d292f090447e8a3e3d0f0996474d1",
-            "size": 2585348,
-            "url": "https://github.com/espressif/openocd-esp32/releases/download/v0.12.0-esp32-20250707/openocd-esp32-macos-0.12.0-esp32-20250707.tar.gz"
+            "sha256": "489daa179ecde646ebf1d2288c96d398f1b8b620ac7487b7c57c3bc45cef0202",
+            "size": 2893284,
+            "url": "https://github.com/espressif/openocd-esp32/releases/download/v0.12.0-esp32-20260703/openocd-esp32-macos-0.12.0-esp32-20260703.tar.gz"
           },
           "macos-arm64": {
-            "sha256": "150e938ac48a6ee031ddbc8b31043bc7f2073ab2ee4896b658918d35899673c3",
-            "size": 2628741,
-            "url": "https://github.com/espressif/openocd-esp32/releases/download/v0.12.0-esp32-20250707/openocd-esp32-macos-arm64-0.12.0-esp32-20250707.tar.gz"
+            "sha256": "fe366c8b72fc287fbdf5d62a1178dd882c37dc4a5c29205f126a6c3125aa9f41",
+            "size": 2694457,
+            "url": "https://github.com/espressif/openocd-esp32/releases/download/v0.12.0-esp32-20260703/openocd-esp32-macos-arm64-0.12.0-esp32-20260703.tar.gz"
           },
-          "name": "v0.12.0-esp32-20250707",
+          "name": "v0.12.0-esp32-20260703",
           "status": "recommended",
+          "win-arm64": {
+            "sha256": "20ff818eb708a4e4b8dbcab820394cceb3c9aeb0e0285b9048681e3ed9058f53",
+            "size": 3050450,
+            "url": "https://github.com/espressif/openocd-esp32/releases/download/v0.12.0-esp32-20260703/openocd-esp32-windows-arm64-0.12.0-esp32-20260703.zip"
+          },
           "win32": {
-            "sha256": "666274b04af7f36b430b6d063006051c37b8635b5175735ad5af07a1fbc6f486",
-            "size": 3034680,
-            "url": "https://github.com/espressif/openocd-esp32/releases/download/v0.12.0-esp32-20250707/openocd-esp32-win32-0.12.0-esp32-20250707.zip"
+            "sha256": "b72e45d6629e9370b59b80998ae47c1aaaf954e6795e7bf515c972ec9fc3f026",
+            "size": 3290643,
+            "url": "https://github.com/espressif/openocd-esp32/releases/download/v0.12.0-esp32-20260703/openocd-esp32-win32-0.12.0-esp32-20260703.zip"
           },
           "win64": {
-            "sha256": "5186ba3f7ee29fb6ab68a4ed7bb417211bad76ecdcdf9280a9187ebfd549a3c1",
-            "size": 3034680,
-            "url": "https://github.com/espressif/openocd-esp32/releases/download/v0.12.0-esp32-20250707/openocd-esp32-win64-0.12.0-esp32-20250707.zip"
+            "sha256": "a49147705e49be9cab4af473e58b5730d99a0220d10f0976a04bf725cd0aa960",
+            "size": 3290643,
+            "url": "https://github.com/espressif/openocd-esp32/releases/download/v0.12.0-esp32-20260703/openocd-esp32-win64-0.12.0-esp32-20260703.zip"
           }
         }
       ]
@@ -733,7 +760,8 @@
           "install": "always",
           "platforms": [
             "win32",
-            "win64"
+            "win64",
+            "win-arm64"
           ]
         }
       ],
@@ -753,6 +781,12 @@
             "size": 123084,
             "url": "https://github.com/ninja-build/ninja/releases/download/v1.12.1/ninja-linux.zip"
           },
+          "linux-arm64": {
+            "rename_dist": "ninja-linux-arm64-v1.12.1.zip",
+            "sha256": "5c25c6570b0155e95fce5918cb95f1ad9870df5768653afe128db822301a05a1",
+            "size": 121787,
+            "url": "https://github.com/ninja-build/ninja/releases/download/v1.12.1/ninja-linux-aarch64.zip"
+          },
           "macos": {
             "rename_dist": "ninja-mac-v1.12.1.zip",
             "sha256": "89a287444b5b3e98f88a945afa50ce937b8ffd1dcc59c555ad9b1baf855298c9",
@@ -767,6 +801,12 @@
           },
           "name": "1.12.1",
           "status": "recommended",
+          "win-arm64": {
+            "rename_dist": "ninja-win-arm64-v1.12.1.zip",
+            "sha256": "79c96a50e0deafec212cfa85aa57c6b74003f52d9d1673ddcd1eab1c958c5900",
+            "size": 254317,
+            "url": "https://github.com/ninja-build/ninja/releases/download/v1.12.1/ninja-winarm64.zip"
+          },
           "win64": {
             "rename_dist": "ninja-win-v1.12.1.zip",
             "sha256": "f550fec705b6d6ff58f2db3c374c2277a37691678d6aba463adcbb129108467a",
@@ -826,7 +866,7 @@
       "description": "Ccache (compiler cache)",
       "export_paths": [
         [
-          "ccache-4.11.2-windows-x86_64"
+          "ccache-4.12.1-windows-x86_64"
         ]
       ],
       "export_vars": {
@@ -854,12 +894,12 @@
       "version_regex": "ccache version ([0-9.]+)",
       "versions": [
         {
-          "name": "4.11.2",
+          "name": "4.12.1",
           "status": "recommended",
           "win64": {
-            "sha256": "1f39f3ad5aae3fe915e99ad1302633bc8f6718e58fa7c0de2b0ba7e080f0f08c",
-            "size": 1642225,
-            "url": "https://github.com/ccache/ccache/releases/download/v4.11.2/ccache-4.11.2-windows-x86_64.zip"
+            "sha256": "98aea520d66905b8ba7a8e648a4cc0ca941d5e119d441f1e879a4a9045bf18f6",
+            "size": 1710234,
+            "url": "https://github.com/ccache/ccache/releases/download/v4.12.1/ccache-4.12.1-windows-x86_64.zip"
           }
         }
       ]
@@ -964,31 +1004,31 @@
       "versions": [
         {
           "linux-amd64": {
-            "sha256": "588bfaccd0f929650655d10a580f020c6ba9c131712d8fa519280081b8d126eb",
-            "size": 15648448,
-            "url": "https://github.com/espressif/qemu/releases/download/esp-develop-9.2.2-20250817/qemu-xtensa-softmmu-esp_develop_9.2.2_20250817-x86_64-linux-gnu.tar.xz"
+            "sha256": "0eecb2a34a5586c0e59110f77b9343b7b336e82fdb0e1a30e1dc1bab8a547e35",
+            "size": 15619396,
+            "url": "https://github.com/espressif/qemu/releases/download/esp-develop-9.2.2-20260417/qemu-xtensa-softmmu-esp_develop_9.2.2_20260417-x86_64-linux-gnu.tar.xz"
           },
           "linux-arm64": {
-            "sha256": "317f6e0fd1dba0886d8110709823d909593ef29438822a14f81ebe19d72ce7cd",
-            "size": 15123084,
-            "url": "https://github.com/espressif/qemu/releases/download/esp-develop-9.2.2-20250817/qemu-xtensa-softmmu-esp_develop_9.2.2_20250817-aarch64-linux-gnu.tar.xz"
+            "sha256": "00de5985094c14e47d1b38464a006b8ed64fd0fa7a289c56da24f3a329f65339",
+            "size": 15111492,
+            "url": "https://github.com/espressif/qemu/releases/download/esp-develop-9.2.2-20260417/qemu-xtensa-softmmu-esp_develop_9.2.2_20260417-aarch64-linux-gnu.tar.xz"
           },
           "macos": {
-            "sha256": "00b9dbc2124cf7633cb86f264fbc524226ad4001bce68bbdba43c9bdc4eb026e",
-            "size": 4092932,
-            "url": "https://github.com/espressif/qemu/releases/download/esp-develop-9.2.2-20250817/qemu-xtensa-softmmu-esp_develop_9.2.2_20250817-x86_64-apple-darwin.tar.xz"
+            "sha256": "ae8170fe46bcdfa54a7c0d7afcdb7a066711991be680f72ff7bbc6c4ae3ad88f",
+            "size": 3870980,
+            "url": "https://github.com/espressif/qemu/releases/download/esp-develop-9.2.2-20260417/qemu-xtensa-softmmu-esp_develop_9.2.2_20260417-x86_64-apple-darwin.tar.xz"
           },
           "macos-arm64": {
-            "sha256": "aa92e337461d482f5d9f31cd8efc0bd67b3de8fcfcfb567289cb43a59c184651",
-            "size": 3882404,
-            "url": "https://github.com/espressif/qemu/releases/download/esp-develop-9.2.2-20250817/qemu-xtensa-softmmu-esp_develop_9.2.2_20250817-aarch64-apple-darwin.tar.xz"
+            "sha256": "bb8c15810565d3df1665dc34962430885e11bc95575b228fb44698146be1e9d6",
+            "size": 3867936,
+            "url": "https://github.com/espressif/qemu/releases/download/esp-develop-9.2.2-20260417/qemu-xtensa-softmmu-esp_develop_9.2.2_20260417-aarch64-apple-darwin.tar.xz"
           },
-          "name": "esp_develop_9.2.2_20250817",
+          "name": "esp_develop_9.2.2_20260417",
           "status": "recommended",
           "win64": {
-            "sha256": "ef550b912726997f3c1ff4a4fb13c1569e2b692efdc5c9f9c3c926a8f7c540fa",
-            "size": 34664956,
-            "url": "https://github.com/espressif/qemu/releases/download/esp-develop-9.2.2-20250817/qemu-xtensa-softmmu-esp_develop_9.2.2_20250817-x86_64-w64-mingw32.tar.xz"
+            "sha256": "3c483d77f5350a568df1faf4d8dbc82c95d6bc2b826d0d4be910485e0a68ca2a",
+            "size": 35996720,
+            "url": "https://github.com/espressif/qemu/releases/download/esp-develop-9.2.2-20260417/qemu-xtensa-softmmu-esp_develop_9.2.2_20260417-x86_64-w64-mingw32.tar.xz"
           }
         }
       ]
@@ -1017,31 +1057,101 @@
       "versions": [
         {
           "linux-amd64": {
-            "sha256": "373b37a68bae3ef441ead24a7bfc950fcbfc274cbdd2b628fc6915f179eb1d8e",
-            "size": 16850080,
-            "url": "https://github.com/espressif/qemu/releases/download/esp-develop-9.2.2-20250817/qemu-riscv32-softmmu-esp_develop_9.2.2_20250817-x86_64-linux-gnu.tar.xz"
+            "sha256": "547f03e04701a92cbb699f7f7d015adc1f5b5ef93cbb94c0dd9b7107e2d84e77",
+            "size": 16842920,
+            "url": "https://github.com/espressif/qemu/releases/download/esp-develop-9.2.2-20260417/qemu-riscv32-softmmu-esp_develop_9.2.2_20260417-x86_64-linux-gnu.tar.xz"
           },
           "linux-arm64": {
-            "sha256": "f907a54313058f8a9681d2f48257d518950ff98bcd5a319194b4bee7c10cf223",
-            "size": 16332832,
-            "url": "https://github.com/espressif/qemu/releases/download/esp-develop-9.2.2-20250817/qemu-riscv32-softmmu-esp_develop_9.2.2_20250817-aarch64-linux-gnu.tar.xz"
+            "sha256": "a9f7b98636008edcf7a11c96f10b3a3ec83c2a890fc54c3e3ceb3ec9edace427",
+            "size": 16325180,
+            "url": "https://github.com/espressif/qemu/releases/download/esp-develop-9.2.2-20260417/qemu-riscv32-softmmu-esp_develop_9.2.2_20260417-aarch64-linux-gnu.tar.xz"
           },
           "macos": {
-            "sha256": "820028ee7cd2dd8fe8cd8ca5519ab6e792d15fea9367c4525cf63c0f707c0b1f",
-            "size": 4086872,
-            "url": "https://github.com/espressif/qemu/releases/download/esp-develop-9.2.2-20250817/qemu-riscv32-softmmu-esp_develop_9.2.2_20250817-x86_64-apple-darwin.tar.xz"
+            "sha256": "a47c38c6e2eb9f5028eda9585dce999ce02b8983a2cdf71c48cfb10a14ae25fe",
+            "size": 3763576,
+            "url": "https://github.com/espressif/qemu/releases/download/esp-develop-9.2.2-20260417/qemu-riscv32-softmmu-esp_develop_9.2.2_20260417-x86_64-apple-darwin.tar.xz"
           },
           "macos-arm64": {
-            "sha256": "234690b6fa7c1d5dfe3dbb2bdd0c2810755e7c98999a9f21c389a6046b7eb76d",
-            "size": 3761104,
-            "url": "https://github.com/espressif/qemu/releases/download/esp-develop-9.2.2-20250817/qemu-riscv32-softmmu-esp_develop_9.2.2_20250817-aarch64-apple-darwin.tar.xz"
+            "sha256": "67bff66ff7158f272ce167fc211c0f8f4c1a79b6f6174350678a6d5035644b30",
+            "size": 3763728,
+            "url": "https://github.com/espressif/qemu/releases/download/esp-develop-9.2.2-20260417/qemu-riscv32-softmmu-esp_develop_9.2.2_20260417-aarch64-apple-darwin.tar.xz"
           },
-          "name": "esp_develop_9.2.2_20250817",
+          "name": "esp_develop_9.2.2_20260417",
           "status": "recommended",
           "win64": {
-            "sha256": "9474015f24d27acb7516955ec932e5307226bd9d6652cdc870793ed36010ab73",
-            "size": 37189656,
-            "url": "https://github.com/espressif/qemu/releases/download/esp-develop-9.2.2-20250817/qemu-riscv32-softmmu-esp_develop_9.2.2_20250817-x86_64-w64-mingw32.tar.xz"
+            "sha256": "697aa4800a1f52be0b1693b30e22a684f7ea93c46c489e619384cae7b0e9b87b",
+            "size": 38496020,
+            "url": "https://github.com/espressif/qemu/releases/download/esp-develop-9.2.2-20260417/qemu-riscv32-softmmu-esp_develop_9.2.2_20260417-x86_64-w64-mingw32.tar.xz"
+          }
+        }
+      ]
+    },
+    {
+      "description": "Clangd for all Espressif chips",
+      "export_paths": [
+        [
+          "esp-clangd",
+          "bin"
+        ]
+      ],
+      "export_vars": {},
+      "info_url": "https://github.com/espressif/llvm-project",
+      "install": "always",
+      "license": "Apache-2.0",
+      "name": "esp-clangd",
+      "supported_targets": [
+        "esp32",
+        "esp32s2",
+        "esp32s3",
+        "esp32c3",
+        "esp32c2",
+        "esp32c6",
+        "esp32c5",
+        "esp32h2",
+        "esp32p4",
+        "esp32c61",
+        "esp32h21",
+        "esp32h4",
+        "esp32s31"
+      ],
+      "version_cmd": [
+        "clangd",
+        "--version"
+      ],
+      "version_regex": "\\([^\\s]+\\s+([0-9a-zA-Z\\.\\-_]+)\\)",
+      "versions": [
+        {
+          "linux-amd64": {
+            "sha256": "7133e67db271ca96b30ec9f5c34c903eaf5fe10120cfe44f85eb88db7ddbe230",
+            "size": 17077740,
+            "url": "https://github.com/espressif/llvm-project/releases/download/esp-21.1.3_20260408/clangd-esp-21.1.3_20260408-x86_64-linux-gnu.tar.xz"
+          },
+          "linux-arm64": {
+            "sha256": "468e6fa03def6bcf0c0469d25b8d8b86212e5a94716d0b3db149f21b77791c54",
+            "size": 14706612,
+            "url": "https://github.com/espressif/llvm-project/releases/download/esp-21.1.3_20260408/clangd-esp-21.1.3_20260408-aarch64-linux-gnu.tar.xz"
+          },
+          "linux-armhf": {
+            "sha256": "401a3b08011de2a52af6ed729ddf49f970072047886423b148a3cae980e1ef2d",
+            "size": 15367384,
+            "url": "https://github.com/espressif/llvm-project/releases/download/esp-21.1.3_20260408/clangd-esp-21.1.3_20260408-arm-linux-gnueabihf.tar.xz"
+          },
+          "macos": {
+            "sha256": "cb8ac31ea7f8e20da69cea9e1720500571c8f2bae335eb1721b676f7ef3950fe",
+            "size": 12662520,
+            "url": "https://github.com/espressif/llvm-project/releases/download/esp-21.1.3_20260408/clangd-esp-21.1.3_20260408-x86_64-apple-darwin.tar.xz"
+          },
+          "macos-arm64": {
+            "sha256": "6dccab9acc9766c90383e9b2585fa1cfabad6125bdc32987a86a02cea598970d",
+            "size": 10995644,
+            "url": "https://github.com/espressif/llvm-project/releases/download/esp-21.1.3_20260408/clangd-esp-21.1.3_20260408-aarch64-apple-darwin.tar.xz"
+          },
+          "name": "esp-21.1.3_20260408",
+          "status": "recommended",
+          "win64": {
+            "sha256": "1a91c04bb570e0740eede529b20c98c2dd0be6750eb7d91a7226e19f3d88d490",
+            "size": 14144936,
+            "url": "https://github.com/espressif/llvm-project/releases/download/esp-21.1.3_20260408/clangd-esp-21.1.3_20260408-x86_64-w64-mingw32.tar.xz"
           }
         }
       ]

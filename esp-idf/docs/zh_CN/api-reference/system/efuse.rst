@@ -20,7 +20,7 @@ eFuse 管理器组件中集合了多种工具和 API，可帮助定义、烧录�
 eFuse Manager 与 ``idf.py``
 ---------------------------
 
-``idf.py`` 通过 ``idf.py efuse-<subcommand>`` 命令为 eFuse 管理器提供了部分功能。本文档主要使用基于 ``idf.py`` 的命令，只有在涉及高级功能或罕见情况时，会使用基于 ``espefuse.py`` 的命令。要查看所有可用的命令，请运行 ``idf.py --help`` 并搜索以 ``efuse-`` 为前缀的命令。
+``idf.py`` 通过 ``idf.py efuse-<subcommand>`` 命令为 eFuse 管理器提供了部分功能。本文档主要使用基于 ``idf.py`` 的命令，只有在涉及高级功能或罕见情况时，会使用基于 ``espefuse`` 的命令。要查看所有可用的命令，请运行 ``idf.py --help`` 并搜索以 ``efuse-`` 为前缀的命令。
 
 硬件描述
 --------------------
@@ -75,7 +75,7 @@ eFuse 字段通过 CSV 文件中特定格式的表格进行定义。通过这种
 
 一般情况下，每个记录在定义表格中占据一行，每行包含以下值（也就是列）：
 
-{IDF_TARGET_MAX_EFUSE_BLK:default = "EFUSE_BLK10", esp32 = "EFUSE_BLK3", esp32c2 = "EFUSE_BLK3"}
+{IDF_TARGET_MAX_EFUSE_BLK:default = "EFUSE_BLK10", esp32 = "EFUSE_BLK3", esp32c2 = "EFUSE_BLK3", esp32s31 = "EFUSE_BLK9"}
 
 .. code-block:: none
 
@@ -488,7 +488,7 @@ eFuse 位序采取小字节序（参见下方示例），这说明 eFuse 位按�
 
 要在项目的构建阶段获取 eFuse 状态，可以使用以下两个 CMake 函数：
 
-* ``espefuse_get_json_summary()`` - 调用 ``espefuse.py summary --format json`` 命令并返回一个 JSON 字符串（该字符串不存储在文件中）。
+* ``espefuse_get_json_summary()`` - 调用 ``espefuse summary --format json`` 命令并返回一个 JSON 字符串（该字符串不存储在文件中）。
 * ``espefuse_get_efuse()`` - 在此 JSON 字符串中找到给定的 eFuse 名称并返回其属性。
 
 该 JSON 字符串具有以下属性：
@@ -522,7 +522,7 @@ eFuse 位序采取小字节序（参见下方示例），这说明 eFuse 位按�
     espefuse_get_efuse(ret_data ${efuse_json} "MAC" "value")
     message("MAC:" ${ret_data})
 
-``value`` 属性的格式与 ``espefuse.py summary`` 或 ``idf.py efuse-summary`` 中显示的格式相同。
+``value`` 属性的格式与 ``espefuse summary`` 或 ``idf.py efuse-summary`` 中显示的格式相同。
 
 .. code-block:: none
 
@@ -557,18 +557,25 @@ flash 加密是一项硬件功能，需要物理烧录 eFuse ``key`` 和 ``FLASH
 
 为此，可使用 :cpp:func:`bootloader_flash_write` 函数。但是，如果运行应用程序时芯片已启用 flash 加密，或者以 :ref:`CONFIG_EFUSE_VIRTUAL_KEEP_IN_FLASH` 选项创建了引导加载程序，则 flash 加密/解密操作会正常进行。这意味着数据写入加密 flash 分区时被加密，从加密分区读取时被解密。
 
-``espefuse.py``
-^^^^^^^^^^^^^^^
+``espefuse``
+^^^^^^^^^^^^
 
-esptool 中包含一个用于读取/写入 {IDF_TARGET_NAME} eFuse 位的有用工具： `espefuse.py <https://docs.espressif.com/projects/esptool/en/latest/{IDF_TARGET_PATH_NAME}/espefuse/index.html>`_。
+esptool 中包含一个用于读取/写入 {IDF_TARGET_NAME} eFuse 位的有用工具： `espefuse <https://docs.espressif.com/projects/esptool/en/latest/{IDF_TARGET_PATH_NAME}/espefuse/index.html>`_。
 
-``idf.py`` 命令也可以直接提供上述工具的部分功能。例如，运行 ``idf.py efuse-summary`` 命令，效果等同于 ``espefuse.py summary``。
+``idf.py`` 命令也可以直接提供上述工具的部分功能。例如，运行 ``idf.py efuse-summary`` 命令，效果等同于 ``espefuse summary``。
 
 .. include:: inc/espefuse_summary_{IDF_TARGET_NAME}.rst
 
 获取所有 eFuse 寄存器的转储数据。
 
 .. include:: inc/espefuse_summary_{IDF_TARGET_NAME}_dump.rst
+
+延迟烧写 WR_DIS
+---------------
+
+``WR_DIS`` （写禁用）是一个特殊的 eFuse 字段，用于实现永久写保护。``WR_DIS`` 中的每个位用于禁止进一步烧写一个（或多个）关联的 eFuse 字段。一旦完成烧写，将无法再修改受影响的 eFuse 字段。
+
+烧写 BLOCK0 中的暂存数据时，``WR_DIS`` 的各个位会在所有其他 BLOCK0 数据烧写完成后单独烧写，以确保在出现编码错误时，烧写函数能够通过重试机制进行恢复。这种方式保证了仅在其他 BLOCK0 数据成功烧写后，才对其施加写保护。
 
 应用示例
 -----------------

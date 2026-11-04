@@ -17,7 +17,7 @@
 #endif
 
 #ifndef BOOTLOADER_BUILD
-static __attribute__((unused)) const char *TAG = "secure_boot";
+ESP_LOG_ATTR_TAG(TAG, "secure_boot");
 
 #ifdef CONFIG_SECURE_BOOT
 static void efuse_batch_write_begin(bool *need_fix)
@@ -436,6 +436,7 @@ bool esp_secure_boot_cfg_verify_release_mode(void)
         ESP_LOGW(TAG, "Not enabled Secure Boot using SHA-384 mode (set SECURE_BOOT_SHA384_EN->1)");
     }
 #else
+#if SOC_EFUSE_SECURE_BOOT_P384_WR_DIS
     /* When using Secure Boot with SHA-384, the efuse bit representing Secure Boot with SHA-384 would already be programmed.
      * But in the case of the existing Secure Boot V2 schemes using SHA-256, the efuse bit representing
      * Secure Boot with SHA-384 needs to be write-protected, so that an attacker cannot perform a denial-of-service
@@ -446,6 +447,7 @@ bool esp_secure_boot_cfg_verify_release_mode(void)
     if (!secure) {
         ESP_LOGW(TAG, "Not write-protected secure boot using SHA-384 mode (set WR_DIS_SECURE_BOOT_SHA384_EN->1)");
     }
+#endif
 #endif
 #endif
 

@@ -1164,6 +1164,10 @@ class OTCI(object):
 
                     v = v[1:-1]
                     info['addresses'] = list(map(Ip6Addr, v.split(', ')))
+
+                elif k in ('lease', 'key-lease', 'remaining lease', 'remaining key-lease'):
+                    info[k] = v
+
                 else:
                     raise UnexpectedCommandOutput(output)
 
@@ -1195,6 +1199,8 @@ class OTCI(object):
                     info[k] = list() if v == '(null)' else list(v.split(','))
                 elif k in ('port', 'weight', 'priority', 'ttl', 'lease', 'key-lease'):
                     info[k] = int(v)
+                elif k in ('remaining lease', 'remaining key-lease'):
+                    info[k] = v
                 elif k in ('host',):
                     info[k] = v
                 elif k == 'TXT':
@@ -2430,14 +2436,6 @@ class OTCI(object):
     #
 
     # TODO: bbr mgmt ...
-    def set_bbr_dua_response_status(self, status: int, mliid: Optional[str] = None):
-        """Set Backbone Router Data Unicast Address Response status/coap-code.
-
-        Only for testing/reference devices
-        """
-        _mliid = mliid if mliid is not None else ""
-        self.execute_command(f'bbr mgmt dua {status} {_mliid}')
-
     def set_bbr_mlr_response_status(self, status: int):
         """Set Backbone Router Multicast Listener Response status."""
         self.execute_command(f'bbr mgmt mlr response {status}')
@@ -2577,7 +2575,7 @@ class OTCI(object):
         return listeners
 
     #
-    # Thread 1.2 and DUA/MLR utilities
+    # Thread 1.2 and MLR utilities
     #
 
     def get_domain_name(self) -> str:
@@ -2587,23 +2585,6 @@ class OTCI(object):
     def set_domain_name(self, name: str):
         """Set the Thread Domain Name for Thread 1.2 device."""
         self.execute_command(f'domainname {self.__escape_escapable(name)}')
-
-    def get_dua_iid(self) -> str:
-        """Get the DUA IID for Thread 1.2 device."""
-        raw_iid = self.execute_command('dua iid')
-        if raw_iid:
-            return self.__parse_iid(raw_iid)
-        else:
-            return ''
-
-    def set_dua_iid(self, iid: str):
-        """Set the DUA IID for Thread 1.2 device."""
-        self.__validate_iid(iid)
-        self.execute_command(f'dua iid {iid}')
-
-    def clear_dua_iid(self):
-        """Clear the DUA IID for Thread 1.2 device."""
-        self.execute_command('dua iid clear')
 
     # TODO: mlr reg <ipaddr> ... [timeout]
 
@@ -3286,7 +3267,7 @@ class OTCI(object):
         self.execute_command('diag rawpowersetting disable')
 
     def is_command_supported(self, command: str) -> bool:
-        """Check whether the the given command is supported by the device."""
+        """Check whether the given command is supported by the device."""
         output = self.__otcmd.execute_command(command, timeout=10)
 
         if re.match(r"Error \d+: \w*", output[-1]):

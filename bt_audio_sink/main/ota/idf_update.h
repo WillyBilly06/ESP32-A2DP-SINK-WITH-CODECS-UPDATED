@@ -7,7 +7,7 @@
 #include "esp_ota_ops.h"
 #include "esp_partition.h"
 
-#include "mbedtls/md5.h"
+#include "esp_rom_md5.h"
 
 class IdfUpdate {
 public:
@@ -96,6 +96,6 @@ private:
     uint8_t _md5Expected[16] = {0};
     uint8_t _md5Actual[16] = {0};
     bool _md5Finalized = false;
-    mbedtls_md5_context _md5Ctx;
+    md5_context_t _md5Ctx;
     bool _md5CtxInit = false;
 };

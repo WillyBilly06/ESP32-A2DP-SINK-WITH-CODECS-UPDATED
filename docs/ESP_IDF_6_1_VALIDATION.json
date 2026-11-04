@@ -1,0 +1,320 @@
+{
+  "firmware": "1.0.4-idf6.1",
+  "sdk": "v6.1",
+  "scope": "ESP32 with DAC and Redmagic NX809J; no LED matrix or encoders attached",
+  "checks": {
+    "controls": [
+      {
+        "feature": "discovery_subscriptions",
+        "result": "pass",
+        "detail": "Service, command, status and meters; MTU 517"
+      },
+      {
+        "feature": "full_status",
+        "result": "pass",
+        "detail": "f00000000015190000000000000000000b42444b20535045414b45520c312e302e342d696466362e31"
+      },
+      {
+        "feature": "ping",
+        "result": "pass",
+        "detail": "PONG received"
+      },
+      {
+        "feature": "equalizer",
+        "result": "pass",
+        "detail": "All three bands at -12, 0, +12 with status readback"
+      },
+      {
+        "feature": "sound_options",
+        "result": "pass",
+        "detail": "All 8 bass boost/output swap/full-range combinations"
+      },
+      {
+        "feature": "led_effects",
+        "result": "pass",
+        "detail": "All 22 user effects selected and read back"
+      },
+      {
+        "feature": "led_colors_speed_gradients",
+        "result": "pass",
+        "detail": "Ambient colors, speed and all 5 gradient modes read back"
+      },
+      {
+        "feature": "led_brightness_off",
+        "result": "pass",
+        "detail": "0, 1, 37, 100 including Off; conversion tolerance 1"
+      },
+      {
+        "feature": "rename",
+        "result": "pass",
+        "detail": "Classic/BLE setting status readback"
+      },
+      {
+        "feature": "notification_mute",
+        "result": "pass",
+        "detail": "Mute and unmute status readback"
+      },
+      {
+        "feature": "restore_settings",
+        "result": "pass",
+        "detail": "Original EQ/control/LED/name/mute restored"
+      },
+      {
+        "feature": "meter_packets",
+        "result": "pass",
+        "detail": "240 observed; zero without playback is not a failure"
+      }
+    ],
+    "live_codecs": [
+      {
+        "feature": "discovery_subscriptions",
+        "result": "pass",
+        "detail": "Service, command, status and meters; MTU 517"
+      },
+      {
+        "feature": "codec_before",
+        "result": "pass",
+        "detail": "{codecName:SBC,mCodecType:0,mCodecPriority:0,mSampleRate:0x1(44100),mBitsPerSample:0x1(16),mChannelMode:0x2(STEREO),mCodecSpecific1:0,mCodecSpecific2:0,mCodecSpecific3:0,mCodecSpecific4:0}"
+      },
+      {
+        "feature": "selectable_codec",
+        "result": "pass",
+        "detail": "{codecName:SBC,mCodecType:0,mCodecPriority:0,mSampleRate:0x1(44100),mBitsPerSample:0x1(16),mChannelMode:0x3(MONO|STEREO),mCodecSpecific1:0,mCodecSpecific2:0,mCodecSpecific3:0,mCodecSpecific4:0}"
+      },
+      {
+        "feature": "selectable_codec",
+        "result": "pass",
+        "detail": "{codecName:LDAC,mCodecType:4,mCodecPriority:0,mSampleRate:0xf(44100|48000|88200|96000),mBitsPerSample:0x4(32),mChannelMode:0x2(STEREO),mCodecSpecific1:0,mCodecSpecific2:0,mCodecSpecific3:0,mCodecSpecific4:0}"
+      },
+      {
+        "feature": "selectable_codec",
+        "result": "pass",
+        "detail": "{codecName:aptX HD,mCodecType:3,mCodecPriority:0,mSampleRate:0x3(44100|48000),mBitsPerSample:0x2(24),mChannelMode:0x2(STEREO),mCodecSpecific1:0,mCodecSpecific2:0,mCodecSpecific3:0,mCodecSpecific4:0}"
+      },
+      {
+        "feature": "selectable_codec",
+        "result": "pass",
+        "detail": "{codecName:aptX,mCodecType:2,mCodecPriority:0,mSampleRate:0x3(44100|48000),mBitsPerSample:0x1(16),mChannelMode:0x2(STEREO),mCodecSpecific1:0,mCodecSpecific2:0,mCodecSpecific3:0,mCodecSpecific4:0}"
+      },
+      {
+        "feature": "selectable_codec",
+        "result": "pass",
+        "detail": "{codecName:AAC,mCodecType:1,mCodecPriority:0,mSampleRate:0x1(44100),mBitsPerSample:0x1(16),mChannelMode:0x2(STEREO),mCodecSpecific1:0,mCodecSpecific2:0,mCodecSpecific3:0,mCodecSpecific4:0}"
+      },
+      {
+        "feature": "continuous_audio",
+        "result": "pass",
+        "detail": "Started quiet looping test tone on selected A2DP speaker"
+      },
+      {
+        "feature": "codec_selected",
+        "result": "pass",
+        "detail": "{codecName:SBC,mCodecType:0,mCodecPriority:0,mSampleRate:0x1(44100),mBitsPerSample:0x1(16),mChannelMode:0x2(STEREO),mCodecSpecific1:0,mCodecSpecific2:0,mCodecSpecific3:0,mCodecSpecific4:0}"
+      },
+      {
+        "feature": "live_codec_audio_0",
+        "result": "pass",
+        "detail": "213 meter packets, 213 nonzero; EQ/control readback during continuous playback"
+      },
+      {
+        "feature": "codec_selected",
+        "result": "pass",
+        "detail": "{codecName:LDAC,mCodecType:4,mCodecPriority:0,mSampleRate:0x1(44100),mBitsPerSample:0x4(32),mChannelMode:0x2(STEREO),mCodecSpecific1:0,mCodecSpecific2:0,mCodecSpecific3:0,mCodecSpecific4:0}"
+      },
+      {
+        "feature": "live_codec_audio_4",
+        "result": "pass",
+        "detail": "213 meter packets, 213 nonzero; EQ/control readback during continuous playback"
+      },
+      {
+        "feature": "codec_selected",
+        "result": "pass",
+        "detail": "{codecName:aptX HD,mCodecType:3,mCodecPriority:0,mSampleRate:0x1(44100),mBitsPerSample:0x2(24),mChannelMode:0x2(STEREO),mCodecSpecific1:0,mCodecSpecific2:0,mCodecSpecific3:0,mCodecSpecific4:0}"
+      },
+      {
+        "feature": "live_codec_audio_3",
+        "result": "pass",
+        "detail": "213 meter packets, 213 nonzero; EQ/control readback during continuous playback"
+      },
+      {
+        "feature": "codec_selected",
+        "result": "pass",
+        "detail": "{codecName:aptX,mCodecType:2,mCodecPriority:0,mSampleRate:0x1(44100),mBitsPerSample:0x1(16),mChannelMode:0x2(STEREO),mCodecSpecific1:0,mCodecSpecific2:0,mCodecSpecific3:0,mCodecSpecific4:0}"
+      },
+      {
+        "feature": "live_codec_audio_2",
+        "result": "pass",
+        "detail": "214 meter packets, 214 nonzero; EQ/control readback during continuous playback"
+      },
+      {
+        "feature": "codec_selected",
+        "result": "pass",
+        "detail": "{codecName:AAC,mCodecType:1,mCodecPriority:0,mSampleRate:0x1(44100),mBitsPerSample:0x1(16),mChannelMode:0x2(STEREO),mCodecSpecific1:0,mCodecSpecific2:0,mCodecSpecific3:0,mCodecSpecific4:0}"
+      },
+      {
+        "feature": "live_codec_audio_1",
+        "result": "pass",
+        "detail": "215 meter packets, 207 nonzero; EQ/control readback during continuous playback"
+      },
+      {
+        "feature": "codec_restored",
+        "result": "pass",
+        "detail": "{codecName:SBC,mCodecType:0,mCodecPriority:0,mSampleRate:0x1(44100),mBitsPerSample:0x1(16),mChannelMode:0x2(STEREO),mCodecSpecific1:0,mCodecSpecific2:0,mCodecSpecific3:0,mCodecSpecific4:0}"
+      },
+      {
+        "feature": "meter_packets",
+        "result": "pass",
+        "detail": "1176 observed; zero without playback is not a failure"
+      }
+    ],
+    "live_sounds": [
+      {
+        "feature": "discovery_subscriptions",
+        "result": "pass",
+        "detail": "Service, command, status and meters; MTU 517"
+      },
+      {
+        "feature": "continuous_audio",
+        "result": "pass",
+        "detail": "Started quiet looping test tone on selected A2DP speaker"
+      },
+      {
+        "feature": "sound_upload_0",
+        "result": "pass",
+        "detail": "WAV transfer and completion/presence verified"
+      },
+      {
+        "feature": "sound_delete_0",
+        "result": "pass",
+        "detail": "Deleted test sound and checked status"
+      },
+      {
+        "feature": "sound_upload_1",
+        "result": "pass",
+        "detail": "WAV transfer and completion/presence verified"
+      },
+      {
+        "feature": "sound_delete_1",
+        "result": "pass",
+        "detail": "Deleted test sound and checked status"
+      },
+      {
+        "feature": "sound_upload_2",
+        "result": "pass",
+        "detail": "WAV transfer and completion/presence verified"
+      },
+      {
+        "feature": "sound_delete_2",
+        "result": "pass",
+        "detail": "Deleted test sound and checked status"
+      },
+      {
+        "feature": "sound_upload_3",
+        "result": "pass",
+        "detail": "WAV transfer and completion/presence verified"
+      },
+      {
+        "feature": "sound_delete_3",
+        "result": "pass",
+        "detail": "Deleted test sound and checked status"
+      },
+      {
+        "feature": "sound_audio_coexistence",
+        "result": "pass",
+        "detail": "114 meter packets while sound slots transferred/deleted"
+      },
+      {
+        "feature": "meter_packets",
+        "result": "pass",
+        "detail": "114 observed; zero without playback is not a failure"
+      }
+    ],
+    "ble_ota": [
+      {
+        "feature": "discovery_subscriptions",
+        "result": "pass",
+        "detail": "Service, command, status and meters; MTU 517"
+      },
+      {
+        "feature": "ota_abort",
+        "result": "pass",
+        "detail": "BEGIN/READY/ABORT acknowledgement"
+      },
+      {
+        "feature": "ota_transfer",
+        "result": "pass",
+        "detail": "Raw image with serialized GATT writes, COMPLETE received; verify reboot separately"
+      },
+      {
+        "feature": "meter_packets",
+        "result": "pass",
+        "detail": "16 observed; zero without playback is not a failure"
+      }
+    ],
+    "codec_restoration": [
+      {
+        "feature": "discovery_subscriptions",
+        "result": "pass",
+        "detail": "Service, command, status and meters; MTU 517"
+      },
+      {
+        "feature": "codec_before",
+        "result": "pass",
+        "detail": "{codecName:SBC,mCodecType:0,mCodecPriority:0,mSampleRate:0x1(44100),mBitsPerSample:0x1(16),mChannelMode:0x2(STEREO),mCodecSpecific1:0,mCodecSpecific2:0,mCodecSpecific3:0,mCodecSpecific4:0}"
+      },
+      {
+        "feature": "selectable_codec",
+        "result": "pass",
+        "detail": "{codecName:SBC,mCodecType:0,mCodecPriority:0,mSampleRate:0x1(44100),mBitsPerSample:0x1(16),mChannelMode:0x3(MONO|STEREO),mCodecSpecific1:0,mCodecSpecific2:0,mCodecSpecific3:0,mCodecSpecific4:0}"
+      },
+      {
+        "feature": "selectable_codec",
+        "result": "pass",
+        "detail": "{codecName:LDAC,mCodecType:4,mCodecPriority:0,mSampleRate:0xf(44100|48000|88200|96000),mBitsPerSample:0x4(32),mChannelMode:0x2(STEREO),mCodecSpecific1:0,mCodecSpecific2:0,mCodecSpecific3:0,mCodecSpecific4:0}"
+      },
+      {
+        "feature": "selectable_codec",
+        "result": "pass",
+        "detail": "{codecName:aptX HD,mCodecType:3,mCodecPriority:0,mSampleRate:0x3(44100|48000),mBitsPerSample:0x2(24),mChannelMode:0x2(STEREO),mCodecSpecific1:0,mCodecSpecific2:0,mCodecSpecific3:0,mCodecSpecific4:0}"
+      },
+      {
+        "feature": "selectable_codec",
+        "result": "pass",
+        "detail": "{codecName:aptX,mCodecType:2,mCodecPriority:0,mSampleRate:0x3(44100|48000),mBitsPerSample:0x1(16),mChannelMode:0x2(STEREO),mCodecSpecific1:0,mCodecSpecific2:0,mCodecSpecific3:0,mCodecSpecific4:0}"
+      },
+      {
+        "feature": "selectable_codec",
+        "result": "pass",
+        "detail": "{codecName:AAC,mCodecType:1,mCodecPriority:0,mSampleRate:0x1(44100),mBitsPerSample:0x1(16),mChannelMode:0x2(STEREO),mCodecSpecific1:0,mCodecSpecific2:0,mCodecSpecific3:0,mCodecSpecific4:0}"
+      },
+      {
+        "feature": "original_ldac_restored",
+        "result": "pass",
+        "detail": "{codecName:LDAC,mCodecType:4,mCodecPriority:0,mSampleRate:0x8(96000),mBitsPerSample:0x4(32),mChannelMode:0x2(STEREO),mCodecSpecific1:0,mCodecSpecific2:0,mCodecSpecific3:0,mCodecSpecific4:0}"
+      },
+      {
+        "feature": "meter_packets",
+        "result": "pass",
+        "detail": "8 observed; zero without playback is not a failure"
+      }
+    ]
+  },
+  "limits": [
+    "WiFi recovery hardware test omitted at user request; build and partition fit verified.",
+    "Opus and aptX-LL remain enabled/compiled but are not exposed by this phone.",
+    "No physical LED/encoder or measured analog audio-quality validation."
+  ],
+  "ota_boot_verification": {
+    "from": "ota_1",
+    "to": "ota_0",
+    "app_version": "1.0.4-idf6.1",
+    "idf_version": "v6.1",
+    "system_ready": true,
+    "panic_observed": false
+  },
+  "main_sha256": "041949de223dc71b120374e129b2ad1af5db70f59cb55d6c54fb697e6600392d",
+  "app_unit_tests": {
+    "passed": 174,
+    "scope": "protocol/session/brightness/profiles/import/sound transfer/OTA, app-side tests"
+  }
+}

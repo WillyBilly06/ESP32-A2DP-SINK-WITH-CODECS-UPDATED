@@ -390,14 +390,16 @@ bool MeshForwarder::IsDirectTxQueueOverMaxFrameThreshold(void) const
 
 void MeshForwarder::ApplyDirectTxQueueLimit(Message &aMessage)
 {
+    Error error;
+    bool  originalEvictFlag;
+
     VerifyOrExit(aMessage.IsDirectTransmission());
     VerifyOrExit(IsDirectTxQueueOverMaxFrameThreshold());
 
-#if OPENTHREAD_CONFIG_DELAY_AWARE_QUEUE_MANAGEMENT_ENABLE
-    {
-        bool  originalEvictFlag = aMessage.GetDoNotEvict();
-        Error error;
+    originalEvictFlag = aMessage.GetDoNotEvict();
 
+    do
+    {
         // We mark the "do not evict" flag on the new `aMessage` so
         // that it will not be removed from `RemoveAgedMessages()`.
         // This protects against the unlikely case where the newly
@@ -408,15 +410,15 @@ void MeshForwarder::ApplyDirectTxQueueLimit(Message &aMessage)
         // freed twice.
 
         aMessage.SetDoNotEvict(true);
-        error = RemoveAgedMessages();
+        error = EvictMessage(aMessage.GetPriority(), kEvictReasonDirectTxQueueAtLimit);
         aMessage.SetDoNotEvict(originalEvictFlag);
 
         if (error == kErrorNone)
         {
             VerifyOrExit(IsDirectTxQueueOverMaxFrameThreshold());
         }
-    }
-#endif
+
+    } while (error == kErrorNone);
 
     LogMessage(kMessageFullQueueDrop, aMessage);
     FinalizeMessageDirectTx(aMessage, kErrorDrop);
@@ -764,7 +766,7 @@ Neighbor *MeshForwarder::UpdateNeighborOnSentFrame(Mac::TxFrame       &aFrame,
 #endif // OPENTHREAD_CONFIG_RADIO_LINK_TREL_ENABLE
 
 #if OPENTHREAD_CONFIG_MAC_CSL_RECEIVER_ENABLE
-    if (aFrame.HasCslIe() && aIsDataPoll)
+    if (aFrame.Has<Mac::CslIe>() && aIsDataPoll)
     {
         failLimit = kFailedCslDataPollTransmissions;
     }
@@ -1089,7 +1091,7 @@ void MeshForwarder::HandleFragment(RxInfo &aRxInfo)
         }
 
         // Duplication suppression for a "next fragment" is handled
-        // by the code below where the the datagram offset is
+        // by the code below where the datagram offset is
         // checked against the offset of the corresponding message
         // (same datagram tag and size) in Reassembly List. Note
         // that if there is no matching message in the Reassembly
@@ -1176,7 +1178,7 @@ exit:
 
     if (error == kErrorNone)
     {
-        if (message->GetOffset() >= message->GetLength())
+        if (message->DetermineLengthAfterOffset() == 0)
         {
             mReassemblyList.Dequeue(*message);
             IgnoreError(HandleDatagram(*message, aRxInfo.GetSrcAddr()));
@@ -1197,6 +1199,27 @@ void MeshForwarder::ClearReassemblyList(void)
         mCounters.UpdateOnDrop(message);
         mReassemblyList.DequeueAndFree(message);
     }
+}
+
+Error MeshForwarder::RemoveUnsecureReassemblyMessage(EvictReason aEvictReason)
+{
+    Error error = kErrorNotFound;
+
+    VerifyOrExit(aEvictReason == kEvictReasonNoMessageBuffer);
+
+    for (Message &message : mReassemblyList)
+    {
+        if (!message.IsLinkSecurityEnabled())
+        {
+            LogMessage(kMessageReassemblyDrop, message, kErrorNoBufs);
+            mCounters.UpdateOnDrop(message);
+            mReassemblyList.DequeueAndFree(message);
+            ExitNow(error = kErrorNone);
+        }
+    }
+
+exit:
+    return error;
 }
 
 void MeshForwarder::HandleTimeTick(void)
@@ -1363,42 +1386,28 @@ exit:
 
 const char *MeshForwarder::MessageActionToString(MessageAction aAction, Error aError)
 {
-    static const char *const kMessageActionStrings[] = {
-        "Received",                    // (0) kMessageReceive
-        "Sent",                        // (1) kMessageTransmit
-        "Prepping indir tx",           // (2) kMessagePrepareIndirect
-        "Dropping",                    // (3) kMessageDrop
-        "Dropping (reassembly queue)", // (4) kMessageReassemblyDrop
-        "Evicting",                    // (5) kMessageEvict
+#define MessageActionMapList(_)                              \
+    _(kMessageReceive, "Received")                           \
+    _(kMessageTransmit, "Sent")                              \
+    _(kMessagePrepareIndirect, "Prepping indir tx")          \
+    _(kMessageDrop, "Dropping")                              \
+    _(kMessageReassemblyDrop, "Dropping (reassembly queue)") \
+    _(kMessageEvict, "Evicting (no msg buff)")               \
+    _(kMessageFullQueueEvict, "Evicting (dir queue full)")   \
+    _(kMessageFullQueueDrop, "Dropping (dir queue full)")    \
+    QueueMgmntMessageActionMapList(_)
+
 #if OPENTHREAD_CONFIG_DELAY_AWARE_QUEUE_MANAGEMENT_ENABLE
-        "Marked ECN",            // (6) kMessageMarkEcn
-        "Dropping (queue mgmt)", // (7) kMessageQueueMgmtDrop
+#define QueueMgmntMessageActionMapList(_) \
+    _(kMessageMarkEcn, "Marked ECN")      \
+    _(kMessageQueueMgmtDrop, "Dropping (queue mgmt)")
+#else
+#define QueueMgmntMessageActionMapList(_)
 #endif
-#if (OPENTHREAD_CONFIG_MAX_FRAMES_IN_DIRECT_TX_QUEUE > 0)
-        "Dropping (dir queue full)", // (8) kMessageFullQueueDrop
-#endif
-    };
 
-    const char *string = kMessageActionStrings[aAction];
+    DefineEnumStringArray(MessageActionMapList);
 
-    struct MessageActionChecker
-    {
-        InitEnumValidatorCounter();
-
-        ValidateNextEnum(kMessageReceive);
-        ValidateNextEnum(kMessageTransmit);
-        ValidateNextEnum(kMessagePrepareIndirect);
-        ValidateNextEnum(kMessageDrop);
-        ValidateNextEnum(kMessageReassemblyDrop);
-        ValidateNextEnum(kMessageEvict);
-#if OPENTHREAD_CONFIG_DELAY_AWARE_QUEUE_MANAGEMENT_ENABLE
-        ValidateNextEnum(kMessageMarkEcn);
-        ValidateNextEnum(kMessageQueueMgmtDrop);
-#endif
-#if (OPENTHREAD_CONFIG_MAX_FRAMES_IN_DIRECT_TX_QUEUE > 0)
-        ValidateNextEnum(kMessageFullQueueDrop);
-#endif
-    };
+    const char *string = kStrings[aAction];
 
     if ((aAction == kMessageTransmit) && (aError != kErrorNone))
     {
@@ -1549,18 +1558,17 @@ void MeshForwarder::LogMessage(MessageAction       aAction,
 
     case kMessageDrop:
     case kMessageReassemblyDrop:
+    case kMessageFullQueueDrop:
     case kMessageEvict:
+    case kMessageFullQueueEvict:
 #if OPENTHREAD_CONFIG_DELAY_AWARE_QUEUE_MANAGEMENT_ENABLE
     case kMessageQueueMgmtDrop:
-#endif
-#if (OPENTHREAD_CONFIG_MAX_FRAMES_IN_DIRECT_TX_QUEUE > 0)
-    case kMessageFullQueueDrop:
 #endif
         // default kLogLevelInfo for dropped message
         break;
     }
 
-    VerifyOrExit(Instance::GetLogLevel() >= logLevel);
+    VerifyOrExit(GetInstance().GetLogLevel() >= logLevel);
 
     switch (aMessage.GetType())
     {

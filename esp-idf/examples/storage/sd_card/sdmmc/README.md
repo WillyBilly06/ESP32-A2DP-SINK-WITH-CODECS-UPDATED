@@ -1,5 +1,5 @@
-| Supported Targets | ESP32 | ESP32-P4 | ESP32-S3 |
-| ----------------- | ----- | -------- | -------- |
+| Supported Targets | ESP32 | ESP32-P4 | ESP32-S3 | ESP32-S31 |
+| ----------------- | ----- | -------- | -------- | --------- |
 
 # SD Card example (SDMMC)
 
@@ -88,6 +88,19 @@ Default dedicated pins on ESP32-P4 are able to connect to an ultra high-speed SD
 
 When using different GPIO pins this is not required and `SD power supply comes from internal LDO IO` setting can be disabled.
 
+### Pin assignments for ESP32-S31
+
+On ESP32-S31, SDMMC peripheral is connected to specific GPIO pins using the IO MUX. GPIO pins cannot be customized. Please see the table below for the pin connections.
+
+ESP32-S31 pin | SD card pin | Notes
+--------------|-------------|------------
+GPIO24        | CLK         | 10k pullup
+GPIO25        | CMD         | 10k pullup
+GPIO20        | D0          | 10k pullup
+GPIO21        | D1          | not used in 1-line SD mode; 10k pullup in 4-line mode
+GPIO22        | D2          | not used in 1-line SD mode; 10k pullup in 4-line mode
+GPIO23        | D3          | not used in 1-line SD mode, but card's D3 pin must have a 10k pullup
+
 ### 4-line and 1-line SD modes
 
 By default, this example uses 4 line SD mode, utilizing 6 pins: CLK, CMD, D0 - D3. It is possible to use 1-line mode (CLK, CMD, D0) by changing "SD/MMC bus width" in the example configuration menu (see `CONFIG_EXAMPLE_SDMMC_BUS_WIDTH_1`).
@@ -113,12 +126,12 @@ GPIO12 is used as a bootstrapping pin to select output voltage of an internal re
 The following command can be used to program flash voltage selection efuses **to 3.3V**:
 
 ```sh
-    espefuse.py set_flash_voltage 3.3V
+    espefuse set-flash-voltage 3.3V
 ```
 
 This command will burn the `XPD_SDIO_TIEH`, `XPD_SDIO_FORCE`, and `XPD_SDIO_REG` efuses. With all three burned to value 1, the internal VDD_SDIO flash voltage regulator is permanently enabled at 3.3V. See the technical reference manual for more details.
 
-`espefuse.py` has a `--do-not-confirm` option if running from an automated flashing script.
+`espefuse` has a `--do-not-confirm` option if running from an automated flashing script.
 
 See [the document about pullup requirements](https://docs.espressif.com/projects/esp-idf/en/latest/api-reference/peripherals/sd_pullup_requirements.html) for more details about pullup support and compatibility of modules and development boards.
 

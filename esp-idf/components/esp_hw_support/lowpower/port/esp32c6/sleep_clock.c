@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2022-2024 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2022-2025 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -7,11 +7,11 @@
 #include "esp_private/sleep_clock.h"
 #include "soc/pcr_reg.h"
 #include "soc/pmu_reg.h"
-#include "soc/regi2c_defs.h"
+#include "modem/i2c_ana_mst_reg.h"
 #include "modem/modem_lpcon_reg.h"
 #include "modem/modem_syscon_reg.h"
 
-static const char *TAG = "sleep_clock";
+ESP_LOG_ATTR_TAG(TAG, "sleep_clock");
 
 esp_err_t sleep_clock_system_retention_init(void *arg)
 {
@@ -19,18 +19,18 @@ esp_err_t sleep_clock_system_retention_init(void *arg)
 
     const static sleep_retention_entries_config_t pcr_regs_retention[] = {
         /* Enable i2c master clock */
-        [0] = { .config = REGDMA_LINK_WRITE_INIT     (REGDMA_PCR_LINK(0),   MODEM_LPCON_CLK_CONF_REG,   MODEM_LPCON_CLK_I2C_MST_EN,     MODEM_LPCON_CLK_I2C_MST_EN_M,   1, 0), .owner = ENTRY(0) },
+        [0] = { .config = REGDMA_LINK_WRITE_INIT     (REGDMA_PCR_LINK(0),   MODEM_LPCON_CLK_CONF_REG,       MODEM_LPCON_CLK_I2C_MST_EN,     MODEM_LPCON_CLK_I2C_MST_EN_M,   1, 0), .owner = ENTRY(0) },
         /* Start BBPLL self-calibration */
-        [1] = { .config = REGDMA_LINK_WRITE_INIT     (REGDMA_PCR_LINK(1),   I2C_MST_ANA_CONF0_REG,      0,                              I2C_MST_BBPLL_STOP_FORCE_HIGH,  1, 0), .owner = ENTRY(0) },
-        [2] = { .config = REGDMA_LINK_WRITE_INIT     (REGDMA_PCR_LINK(2),   I2C_MST_ANA_CONF0_REG,      I2C_MST_BBPLL_STOP_FORCE_LOW,   I2C_MST_BBPLL_STOP_FORCE_LOW,   1, 0), .owner = ENTRY(0) },
+        [1] = { .config = REGDMA_LINK_WRITE_INIT     (REGDMA_PCR_LINK(1),   I2C_ANA_MST_ANA_CONF0_REG,      0,                              I2C_MST_BBPLL_STOP_FORCE_HIGH,  1, 0), .owner = ENTRY(0) },
+        [2] = { .config = REGDMA_LINK_WRITE_INIT     (REGDMA_PCR_LINK(2),   I2C_ANA_MST_ANA_CONF0_REG,      I2C_MST_BBPLL_STOP_FORCE_LOW,   I2C_MST_BBPLL_STOP_FORCE_LOW,   1, 0), .owner = ENTRY(0) },
         /* Wait calibration done */
-        [3] = { .config = REGDMA_LINK_WAIT_INIT      (REGDMA_PCR_LINK(3),   I2C_MST_ANA_CONF0_REG,      I2C_MST_BBPLL_CAL_DONE,         I2C_MST_BBPLL_CAL_DONE,         1, 0), .owner = ENTRY(0) },
+        [3] = { .config = REGDMA_LINK_WAIT_INIT      (REGDMA_PCR_LINK(3),   I2C_ANA_MST_ANA_CONF0_REG,      I2C_MST_BBPLL_CAL_DONE,         I2C_MST_BBPLL_CAL_DONE,         1, 0), .owner = ENTRY(0) },
         /* Stop BBPLL self-calibration */
-        [4] = { .config = REGDMA_LINK_WRITE_INIT     (REGDMA_PCR_LINK(4),   I2C_MST_ANA_CONF0_REG,      0,                              I2C_MST_BBPLL_STOP_FORCE_LOW,   1, 0), .owner = ENTRY(0) },
-        [5] = { .config = REGDMA_LINK_WRITE_INIT     (REGDMA_PCR_LINK(5),   I2C_MST_ANA_CONF0_REG,      I2C_MST_BBPLL_STOP_FORCE_HIGH,  I2C_MST_BBPLL_STOP_FORCE_HIGH,  1, 0), .owner = ENTRY(0) },
+        [4] = { .config = REGDMA_LINK_WRITE_INIT     (REGDMA_PCR_LINK(4),   I2C_ANA_MST_ANA_CONF0_REG,      0,                              I2C_MST_BBPLL_STOP_FORCE_LOW,   1, 0), .owner = ENTRY(0) },
+        [5] = { .config = REGDMA_LINK_WRITE_INIT     (REGDMA_PCR_LINK(5),   I2C_ANA_MST_ANA_CONF0_REG,      I2C_MST_BBPLL_STOP_FORCE_HIGH,  I2C_MST_BBPLL_STOP_FORCE_HIGH,  1, 0), .owner = ENTRY(0) },
         /* Clock configuration retention */
-        [6] = { .config = REGDMA_LINK_CONTINUOUS_INIT(REGDMA_PCR_LINK(6),   DR_REG_PCR_BASE,            DR_REG_PCR_BASE,            N_REGS_PCR(),                   0, 0), .owner = ENTRY(0) | ENTRY(2) },
-        [7] = { .config = REGDMA_LINK_CONTINUOUS_INIT(REGDMA_PCR_LINK(7),   PCR_RESET_EVENT_BYPASS_REG, PCR_RESET_EVENT_BYPASS_REG, 1,                              0, 0), .owner = ENTRY(0) | ENTRY(2) },
+        [6] = { .config = REGDMA_LINK_CONTINUOUS_INIT(REGDMA_PCR_LINK(6),   DR_REG_PCR_BASE,                DR_REG_PCR_BASE,            N_REGS_PCR(),                   0, 0), .owner = ENTRY(0) | ENTRY(2) },
+        [7] = { .config = REGDMA_LINK_CONTINUOUS_INIT(REGDMA_PCR_LINK(7),   PCR_RESET_EVENT_BYPASS_REG,     PCR_RESET_EVENT_BYPASS_REG, 1,                              0, 0), .owner = ENTRY(0) | ENTRY(2) },
     };
 
     esp_err_t err = sleep_retention_entries_create(pcr_regs_retention, ARRAY_SIZE(pcr_regs_retention), REGDMA_LINK_PRI_SYS_CLK, SLEEP_RETENTION_MODULE_CLOCK_SYSTEM);
@@ -63,6 +63,7 @@ bool clock_domain_pd_allowed(void)
 {
     const sleep_retention_module_bitmap_t inited_modules = sleep_retention_get_inited_modules();
     const sleep_retention_module_bitmap_t created_modules = sleep_retention_get_created_modules();
+    const sleep_retention_module_bitmap_t retained_modules = sleep_retention_get_retained_modules();
     const sleep_retention_module_bitmap_t sys_clk_dep_modules = (sleep_retention_module_bitmap_t){ .bitmap[SLEEP_RETENTION_MODULE_SYS_PERIPH >> 5] = BIT(SLEEP_RETENTION_MODULE_SYS_PERIPH % 32) };
 
     /* The clock and reset of MODEM (WiFi, BLE and 15.4) modules are managed
@@ -100,21 +101,24 @@ bool clock_domain_pd_allowed(void)
 
     const sleep_retention_module_bitmap_t clock_domain_inited_modules = sleep_retention_module_bitmap_and(inited_modules, mask);
     const sleep_retention_module_bitmap_t clock_domain_created_modules = sleep_retention_module_bitmap_and(created_modules, mask);
-    return sleep_retention_module_bitmap_eq(clock_domain_inited_modules, clock_domain_created_modules);
+    const sleep_retention_module_bitmap_t clock_domain_retained_modules = sleep_retention_module_bitmap_and(retained_modules, mask);
+    bool ic = sleep_retention_module_bitmap_eq(clock_domain_inited_modules, clock_domain_created_modules);
+    bool cr = sleep_retention_module_bitmap_eq(clock_domain_created_modules, clock_domain_retained_modules);
+    return ic && cr;
 }
 
 ESP_SYSTEM_INIT_FN(sleep_clock_startup_init, SECONDARY, BIT(0), 106)
 {
     sleep_retention_module_init_param_t init_param = {
         .cbs       = { .create = { .handle = sleep_clock_system_retention_init, .arg = NULL } },
-        .attribute = SLEEP_RETENTION_MODULE_ATTR_PASSIVE
+        .attribute = SLEEP_RETENTION_MODULE_ATTR_PASSIVE | SLEEP_RETENTION_MODULE_ATTR_ATTACH
     };
     sleep_retention_module_init(SLEEP_RETENTION_MODULE_CLOCK_SYSTEM, &init_param);
 
 #if CONFIG_MAC_BB_PD || CONFIG_BT_LE_SLEEP_ENABLE || CONFIG_IEEE802154_SLEEP_ENABLE
     init_param = (sleep_retention_module_init_param_t) {
         .cbs       = { .create = { .handle = sleep_clock_modem_retention_init, .arg = NULL } },
-        .attribute = SLEEP_RETENTION_MODULE_ATTR_PASSIVE
+        .attribute = SLEEP_RETENTION_MODULE_ATTR_PASSIVE | SLEEP_RETENTION_MODULE_ATTR_ATTACH
     };
     sleep_retention_module_init(SLEEP_RETENTION_MODULE_CLOCK_MODEM, &init_param);
 #endif

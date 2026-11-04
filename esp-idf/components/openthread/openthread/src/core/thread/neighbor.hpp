@@ -31,8 +31,8 @@
  *   This file includes definitions for a Thread `Neighbor`.
  */
 
-#ifndef NEIGHBOR_HPP_
-#define NEIGHBOR_HPP_
+#ifndef OT_CORE_THREAD_NEIGHBOR_HPP_
+#define OT_CORE_THREAD_NEIGHBOR_HPP_
 
 #include "openthread-core-config.h"
 
@@ -289,7 +289,7 @@ public:
      *
      * @returns TRUE if the neighbor state matches the filter, FALSE otherwise.
      */
-    bool MatchesFilter(StateFilter aFilter) const;
+    bool Matches(StateFilter aFilter) const;
 
     /**
      * Indicates whether neighbor matches a given `AddressMatcher`.
@@ -761,7 +761,7 @@ private:
     // and this neighbor is the Subject.
     LinkMetrics::Metrics mEnhAckProbingMetrics;
 #endif
-    uint32_t mConnectionStart;
+    UptimeSec mConnectionStart;
 };
 
 DefineCoreType(otNeighborInfo, Neighbor::Info);
@@ -784,4 +784,4 @@ class CslNeighbor : public Neighbor
 
 } // namespace ot
 
-#endif // NEIGHBOR_HPP_
+#endif // OT_CORE_THREAD_NEIGHBOR_HPP_

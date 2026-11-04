@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2021-2024 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2021-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Unlicense OR CC0-1.0
  */
@@ -14,6 +14,7 @@
 *
 ****************************************************************************/
 
+#include <stdlib.h>
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -57,7 +58,20 @@ typedef struct {
     int                     prepare_len;
 } prepare_type_env_t;
 
+/* Single-connection demo: one prepare-write buffer for the lone GATT link. */
 static prepare_type_env_t prepare_write_env;
+
+static void prepare_write_env_clear(prepare_type_env_t *env)
+{
+    if (env == NULL) {
+        return;
+    }
+    if (env->prepare_buf != NULL) {
+        free(env->prepare_buf);
+        env->prepare_buf = NULL;
+    }
+    env->prepare_len = 0;
+}
 
 #define CONFIG_SET_RAW_ADV_DATA
 #ifdef CONFIG_SET_RAW_ADV_DATA
@@ -94,8 +108,8 @@ static esp_ble_adv_data_t adv_data = {
     .set_scan_rsp        = false,
     .include_name        = true,
     .include_txpower     = true,
-    .min_interval        = 0x0006, //slave connection min interval, Time = min_interval * 1.25 msec
-    .max_interval        = 0x0010, //slave connection max interval, Time = max_interval * 1.25 msec
+    .min_interval        = ESP_BLE_GAP_CONN_ITVL_MS(7.5), //slave connection min interval
+    .max_interval        = ESP_BLE_GAP_CONN_ITVL_MS(20), //slave connection max interval
     .appearance          = 0x00,
     .manufacturer_len    = 0,    //TEST_MANUFACTURER_DATA_LEN,
     .p_manufacturer_data = NULL, //test_manufacturer,
@@ -111,8 +125,8 @@ static esp_ble_adv_data_t scan_rsp_data = {
     .set_scan_rsp        = true,
     .include_name        = true,
     .include_txpower     = true,
-    .min_interval        = 0x0006,
-    .max_interval        = 0x0010,
+    .min_interval        = ESP_BLE_GAP_CONN_ITVL_MS(7.5),
+    .max_interval        = ESP_BLE_GAP_CONN_ITVL_MS(20),
     .appearance          = 0x00,
     .manufacturer_len    = 0, //TEST_MANUFACTURER_DATA_LEN,
     .p_manufacturer_data = NULL, //&test_manufacturer[0],
@@ -125,8 +139,8 @@ static esp_ble_adv_data_t scan_rsp_data = {
 #endif /* CONFIG_SET_RAW_ADV_DATA */
 
 static esp_ble_adv_params_t adv_params = {
-    .adv_int_min         = 0x20,
-    .adv_int_max         = 0x40,
+    .adv_int_min         = ESP_BLE_GAP_ADV_ITVL_MS(20),
+    .adv_int_max         = ESP_BLE_GAP_ADV_ITVL_MS(40),
     .adv_type            = ADV_TYPE_IND,
     .own_addr_type       = BLE_ADDR_TYPE_PUBLIC,
     .channel_map         = ADV_CHNL_ALL,
@@ -288,7 +302,7 @@ void example_prepare_write_event_env(esp_gatt_if_t gatts_if, prepare_type_env_t 
         status = ESP_GATT_INVALID_ATTR_LEN;
     }
     if (status == ESP_GATT_OK && prepare_write_env->prepare_buf == NULL) {
-        prepare_write_env->prepare_buf = (uint8_t *)malloc(PREPARE_BUF_MAX_SIZE * sizeof(uint8_t));
+        prepare_write_env->prepare_buf = (uint8_t *)calloc(PREPARE_BUF_MAX_SIZE, sizeof(uint8_t));
         prepare_write_env->prepare_len = 0;
         if (prepare_write_env->prepare_buf == NULL) {
             ESP_LOGE(GATTS_TABLE_TAG, "%s, Gatt_server prep no mem", __func__);
@@ -321,21 +335,32 @@ void example_prepare_write_event_env(esp_gatt_if_t gatts_if, prepare_type_env_t 
     memcpy(prepare_write_env->prepare_buf + param->write.offset,
            param->write.value,
            param->write.len);
-    prepare_write_env->prepare_len += param->write.len;
+    /* Extent is max(end of fragment), not sum(len); cap to allocated size. */
+    int frag_end = (int)param->write.offset + (int)param->write.len;
+    if (frag_end > prepare_write_env->prepare_len) {
+        prepare_write_env->prepare_len = frag_end;
+    }
+    if (prepare_write_env->prepare_len > PREPARE_BUF_MAX_SIZE) {
+        prepare_write_env->prepare_len = PREPARE_BUF_MAX_SIZE;
+    }
 
 }
 
 void example_exec_write_event_env(prepare_type_env_t *prepare_write_env, esp_ble_gatts_cb_param_t *param){
     if (param->exec_write.exec_write_flag == ESP_GATT_PREP_WRITE_EXEC && prepare_write_env->prepare_buf){
-        ESP_LOG_BUFFER_HEX(GATTS_TABLE_TAG, prepare_write_env->prepare_buf, prepare_write_env->prepare_len);
+        int log_len = prepare_write_env->prepare_len;
+        if (log_len < 0) {
+            log_len = 0;
+        } else if (log_len > PREPARE_BUF_MAX_SIZE) {
+            log_len = PREPARE_BUF_MAX_SIZE;
+        }
+        if (log_len > 0) {
+            ESP_LOG_BUFFER_HEX(GATTS_TABLE_TAG, prepare_write_env->prepare_buf, (size_t)log_len);
+        }
     }else{
         ESP_LOGI(GATTS_TABLE_TAG,"ESP_GATT_PREP_WRITE_CANCEL");
     }
-    if (prepare_write_env->prepare_buf) {
-        free(prepare_write_env->prepare_buf);
-        prepare_write_env->prepare_buf = NULL;
-    }
-    prepare_write_env->prepare_len = 0;
+    prepare_write_env_clear(prepare_write_env);
 }
 
 static void gatts_profile_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if, esp_ble_gatts_cb_param_t *param)
@@ -459,6 +484,7 @@ static void gatts_profile_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_
             break;
         case ESP_GATTS_DISCONNECT_EVT:
             ESP_LOGI(GATTS_TABLE_TAG, "ESP_GATTS_DISCONNECT_EVT, reason = 0x%x", param->disconnect.reason);
+            prepare_write_env_clear(&prepare_write_env);
             esp_ble_gap_start_advertising(&adv_params);
             break;
         case ESP_GATTS_CREAT_ATTR_TAB_EVT:{
@@ -544,7 +570,8 @@ void app_main(void)
         return;
     }
 
-    ret = esp_bluedroid_init();
+    esp_bluedroid_config_t cfg = BT_BLUEDROID_INIT_CONFIG_DEFAULT();
+    ret = esp_bluedroid_init_with_cfg(&cfg);
     if (ret) {
         ESP_LOGE(GATTS_TABLE_TAG, "%s init bluetooth failed: %s", __func__, esp_err_to_name(ret));
         return;

@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2019-2024 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2019-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -8,11 +8,12 @@
 #include "esp_wifi.h"
 #include "esp_netif.h"
 #include "esp_log.h"
+#include "esp_mac.h"
 #include "esp_private/wifi.h"
 #include "esp_wifi_netif.h"
 #include <string.h>
 #include <inttypes.h>
-#ifdef CONFIG_ESP_WIFI_NAN_ENABLE
+#ifdef CONFIG_ESP_WIFI_NAN_SYNC_ENABLE
 #include "apps_private/wifi_apps_private.h"
 #endif
 #if CONFIG_ESP_WIFI_ENABLE_ROAMING_APP
@@ -29,7 +30,7 @@ static esp_netif_t *s_wifi_netifs[MAX_WIFI_IFS] = { NULL };
 static bool wifi_default_handlers_set = false;
 
 static esp_err_t disconnect_and_destroy(esp_netif_t* esp_netif);
-#ifdef CONFIG_ESP_WIFI_NETWORK_ASSISTED_ROAMING_IP_RENEW_SKIP
+#ifdef CONFIG_ESP_WIFI_ROAMING_IP_RENEW_SKIP
 static bool roaming_ongoing = false;
 #endif
 
@@ -42,7 +43,7 @@ static bool roaming_ongoing = false;
  */
 static void wifi_start(void *esp_netif, esp_event_base_t base, int32_t event_id, void *data)
 {
-    uint8_t mac[6];
+    uint8_t mac[WIFI_MAC_ADDR_LEN];
     esp_err_t ret;
 
     ESP_LOGD(TAG, "%s esp-netif:%p event-id%" PRId32 "", __func__, esp_netif, event_id);
@@ -53,7 +54,7 @@ static void wifi_start(void *esp_netif, esp_event_base_t base, int32_t event_id,
         ESP_LOGE(TAG, "esp_wifi_get_mac failed with %d", ret);
         return;
     }
-    ESP_LOGD(TAG, "WIFI mac address: %x %x %x %x %x %x", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+    ESP_LOGD(TAG, "WIFI mac address: " MACSTR, MAC2STR(mac));
 
     if (esp_wifi_is_if_ready_when_started(driver)) {
         if ((ret = esp_wifi_register_if_rxcb(driver,  esp_netif_receive, esp_netif)) != ESP_OK) {
@@ -85,7 +86,7 @@ static void wifi_default_action_sta_stop(void *arg, esp_event_base_t base, int32
 {
 #ifdef CONFIG_ESP_WIFI_ENABLE_ROAMING_APP
     roam_disable_reconnect();
-#ifdef CONFIG_ESP_WIFI_NETWORK_ASSISTED_ROAMING_IP_RENEW_SKIP
+#ifdef CONFIG_ESP_WIFI_ROAMING_IP_RENEW_SKIP
     roaming_ongoing = false;
 #endif
 #endif /* CONFIG_ESP_WIFI_ENABLE_ROAMING_APP */
@@ -98,7 +99,7 @@ static void wifi_default_action_sta_connected(void *arg, esp_event_base_t base, 
 {
 #if CONFIG_ESP_WIFI_ENABLE_ROAMING_APP
     roam_sta_connected();
-#ifdef CONFIG_ESP_WIFI_NETWORK_ASSISTED_ROAMING_IP_RENEW_SKIP
+#ifdef CONFIG_ESP_WIFI_ROAMING_IP_RENEW_SKIP
     if (roaming_ongoing) {
         /* IP stack is already in ready state */
         roaming_ongoing = false;
@@ -119,6 +120,13 @@ static void wifi_default_action_sta_connected(void *arg, esp_event_base_t base, 
             }
         }
 
+#if CONFIG_ESP_WIFI_PRIVACY_ENHANCEMENTS_ENABLED
+        /* Sync netif MAC when STA privacy-enhanced MAC was set internally by the Wi-Fi driver */
+        uint8_t mac[WIFI_MAC_ADDR_LEN];
+        esp_wifi_get_mac(WIFI_IF_STA, mac);
+        esp_netif_set_mac(esp_netif, mac);
+#endif
+
         esp_netif_action_connected(s_wifi_netifs[WIFI_IF_STA], base, event_id, data);
     }
 }
@@ -127,7 +135,7 @@ static void wifi_default_action_sta_disconnected(void *arg, esp_event_base_t bas
 {
 #if CONFIG_ESP_WIFI_ENABLE_ROAMING_APP
     roam_sta_disconnected(data);
-#ifdef CONFIG_ESP_WIFI_NETWORK_ASSISTED_ROAMING_IP_RENEW_SKIP
+#ifdef CONFIG_ESP_WIFI_ROAMING_IP_RENEW_SKIP
     wifi_event_sta_disconnected_t *disconn = data;
     if (disconn->reason == WIFI_REASON_ROAMING) {
         roaming_ongoing = true;
@@ -170,12 +178,19 @@ static void wifi_default_action_sta_got_ip(void *arg, esp_event_base_t base, int
     }
 }
 
-#ifdef CONFIG_ESP_WIFI_NAN_ENABLE
+#ifdef CONFIG_ESP_WIFI_NAN_SYNC_ENABLE
 static void wifi_default_action_nan_started(void *arg, esp_event_base_t base, int32_t event_id, void *data)
 {
     if (s_wifi_netifs[WIFI_IF_NAN] != NULL) {
         wifi_start(s_wifi_netifs[WIFI_IF_NAN], base, event_id, data);
         esp_nan_action_start(s_wifi_netifs[WIFI_IF_NAN]);
+        /* Bring the netif up before esp_netif_create_ip6_linklocal() (a no-op unless
+         * netif_is_up()). esp_netif_up() is private, so use the public action handler;
+         * NAN is non-DHCP, so it only calls esp_netif_up() and ignores the event args. */
+#if CONFIG_LWIP_ND6_SUPPORT_STATIC_ENTRIES
+        esp_netif_action_connected(s_wifi_netifs[WIFI_IF_NAN], NULL, 0, NULL);
+        esp_netif_create_ip6_linklocal(s_wifi_netifs[WIFI_IF_NAN]);
+#endif
     }
 }
 
@@ -202,9 +217,9 @@ static esp_err_t clear_default_wifi_handlers(void)
     esp_event_handler_unregister(WIFI_EVENT, WIFI_EVENT_AP_STOP, wifi_default_action_ap_stop);
 #endif
     esp_event_handler_unregister(IP_EVENT, IP_EVENT_STA_GOT_IP, wifi_default_action_sta_got_ip);
-#ifdef CONFIG_ESP_WIFI_NAN_ENABLE
-    esp_event_handler_unregister(WIFI_EVENT, WIFI_EVENT_NAN_STARTED, wifi_default_action_nan_started);
-    esp_event_handler_unregister(WIFI_EVENT, WIFI_EVENT_NAN_STOPPED, wifi_default_action_nan_stopped);
+#ifdef CONFIG_ESP_WIFI_NAN_SYNC_ENABLE
+    esp_event_handler_unregister(WIFI_EVENT, WIFI_EVENT_NAN_SYNC_STARTED, wifi_default_action_nan_started);
+    esp_event_handler_unregister(WIFI_EVENT, WIFI_EVENT_NAN_SYNC_STOPPED, wifi_default_action_nan_stopped);
 #endif
     esp_unregister_shutdown_handler((shutdown_handler_t)esp_wifi_stop);
     wifi_default_handlers_set = false;
@@ -258,13 +273,13 @@ static esp_err_t set_default_wifi_handlers(void)
         goto fail;
     }
 
-#ifdef CONFIG_ESP_WIFI_NAN_ENABLE
-    err = esp_event_handler_register(WIFI_EVENT, WIFI_EVENT_NAN_STARTED, wifi_default_action_nan_started, NULL);
+#ifdef CONFIG_ESP_WIFI_NAN_SYNC_ENABLE
+    err = esp_event_handler_register(WIFI_EVENT, WIFI_EVENT_NAN_SYNC_STARTED, wifi_default_action_nan_started, NULL);
     if (err != ESP_OK) {
         goto fail;
     }
 
-    err = esp_event_handler_register(WIFI_EVENT, WIFI_EVENT_NAN_STOPPED, wifi_default_action_nan_stopped, NULL);
+    err = esp_event_handler_register(WIFI_EVENT, WIFI_EVENT_NAN_SYNC_STOPPED, wifi_default_action_nan_stopped, NULL);
     if (err != ESP_OK) {
         goto fail;
     }
@@ -364,7 +379,7 @@ static inline esp_err_t esp_netif_attach_wifi(esp_netif_t *esp_netif, wifi_inter
 #ifdef CONFIG_ESP_WIFI_SOFTAP_SUPPORT
                               && wifi_if != WIFI_IF_AP
 #endif
-#ifdef CONFIG_ESP_WIFI_NAN_ENABLE
+#ifdef CONFIG_ESP_WIFI_NAN_SYNC_ENABLE
                               && wifi_if != WIFI_IF_NAN
 #endif
                              )) {
@@ -386,7 +401,7 @@ esp_err_t esp_netif_attach_wifi_ap(esp_netif_t *esp_netif)
 }
 #endif
 
-#ifdef CONFIG_ESP_WIFI_NAN_ENABLE
+#ifdef CONFIG_ESP_WIFI_NAN_SYNC_ENABLE
 esp_err_t esp_netif_attach_wifi_nan(esp_netif_t *esp_netif)
 {
     return esp_netif_attach_wifi(esp_netif, WIFI_IF_NAN);
@@ -425,7 +440,7 @@ esp_netif_t* esp_netif_create_default_wifi_sta(void)
     return netif;
 }
 
-#ifdef CONFIG_ESP_WIFI_NAN_ENABLE
+#ifdef CONFIG_ESP_WIFI_NAN_SYNC_ENABLE
 /**
  * @brief User init default NAN (official API)
  */
@@ -465,7 +480,7 @@ esp_netif_t* esp_netif_create_wifi(wifi_interface_t wifi_if, const esp_netif_inh
     } else if (wifi_if == WIFI_IF_AP) {
         cfg.stack = ESP_NETIF_NETSTACK_DEFAULT_WIFI_AP;
 #endif
-#ifdef CONFIG_ESP_WIFI_NAN_ENABLE
+#ifdef CONFIG_ESP_WIFI_NAN_SYNC_ENABLE
     } else if (wifi_if == WIFI_IF_NAN) {
         cfg.stack = ESP_NETIF_NETSTACK_DEFAULT_WIFI_NAN;
 #endif

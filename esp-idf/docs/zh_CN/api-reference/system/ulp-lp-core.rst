@@ -13,6 +13,10 @@ ULP LP 内核协处理器具有以下功能：
 * 当整个系统处于 active 模式时，可以访问所有的高功耗 (HP) SRAM 和外设。
 * 当 HP 系统处于睡眠模式时，可以访问低功耗 (LP) SRAM 和外设。
 
+.. only:: SOC_LP_CORE_HAS_PMP
+
+    在支持的芯片上，LP 内核提供 RISC-V 物理内存保护（PMP）。启用 :ref:`CONFIG_ULP_LP_CORE_MEMPROT` 后，LP 内核启动时会配置默认拒绝访问的 PMP 布局：LP RAM 分为可执行区（代码与只读数据）与可读写区（可写数据、栈与共享内存），LP 外设地址空间为可读写；启用 :ref:`CONFIG_ULP_HP_UART_CONSOLE_PRINT` 时还会为 HP UART MMIO 增加相应条目。PMP 不能与 :ref:`CONFIG_ULP_COPROC_RUN_FROM_HP_MEM` 同时启用。未落入允许区域的访问将触发加载、存储或取指访问异常。
+
 编译 ULP LP 内核代码
 --------------------
 
@@ -68,7 +72,7 @@ ULP LP 内核代码会与 ESP-IDF 项目共同编译，生成一个单独的二�
 
 .. code-block:: cmake
 
-    cmake_minimum_required(VERSION 3.16)
+    cmake_minimum_required(VERSION 3.22)
 
     # 项目/目标名称由主项目传递，允许 IDF 依赖此目标
     # 将二进制文件嵌入到主应用程序中
@@ -105,7 +109,7 @@ ULP LP 内核代码会与 ESP-IDF 项目共同编译，生成一个单独的二�
 
 若想编译和构建项目，请执行以下操作：
 
-1. 在 menuconfig 中启用 :ref:`CONFIG_ULP_COPROC_ENABLED` 和 :ref:`CONFIG_ULP_COPROC_TYPE` 选项，并将 :ref:`CONFIG_ULP_COPROC_TYPE` 设置为 ``CONFIG_ULP_COPROC_TYPE_LP_CORE``。:ref:`CONFIG_ULP_COPROC_RESERVE_MEM` 选项为 ULP 保留 RTC 内存，因此必须设置为一个足够大的值，以存储 ULP LP 内核代码和数据。如果应用程序组件包含多个 ULP 程序，那么 RTC 内存的大小必须足够容纳其中最大的程序。
+1. 在 menuconfig 中启用 :ref:`CONFIG_ULP_COPROC_ENABLED`，并在 ``ULP Coprocessor types`` 菜单中勾选 :ref:`CONFIG_ULP_COPROC_TYPE_LP_CORE`。:ref:`CONFIG_ULP_COPROC_RESERVE_MEM` 选项为 ULP 保留 RTC 内存，因此必须设置为一个足够大的值，以存储 ULP LP 内核代码和数据。如果应用程序组件包含多个 ULP 程序，那么 RTC 内存的大小必须足够容纳其中最大的程序。
 
 2. 按照常规步骤构建应用程序（例如 ``idf.py app``）。
 
@@ -202,6 +206,17 @@ ULP LP 内核代码会与 ESP-IDF 项目共同编译，生成一个单独的二�
 
     ESP_ERROR_CHECK( ulp_lp_core_run(&cfg) );
 
+从 HP 内存运行 LP 内核
+~~~~~~~~~~~~~~~~~~~~~~
+
+:ref:`CONFIG_ULP_COPROC_RUN_FROM_HP_MEM` 允许将 LP 内核应用的大部分代码和数据放到预留的 HP SRAM 中，而不是仅放在 LP RAM 中。当应用程序过大、无法完全放入 LP RAM 时，这种方式会很有用，同时仍然会将 LP 复位和处理程序代码保留在 LP 内存中。
+
+启用该选项后，:ref:`CONFIG_ULP_COPROC_RESERVE_HP_MEM_BYTES` 会在 HP SRAM 顶部预留一段专供 LP 内核使用的内存窗口。在调用 :cpp:func:`ulp_lp_core_load_binary` 时，位于 LP 内存的段仍会加载到预留的 LP 区域，而映射到 HP 内存窗口的代码段和数据段则会复制到预留的 HP SRAM 区域。
+
+该模式有一个重要限制：芯片进入 Deep-sleep 后，LP 内核无法继续运行，因为该睡眠模式下 HP SRAM 会被断电。因此，这种模式适用于 LP 内核只需要在 HP 系统保持上电时运行的场景；如果应用需要在 Deep-sleep 期间继续运行，则应继续使用默认的纯 LP 内存模式。
+
+:ref:`CONFIG_ULP_LP_CORE_MEMPROT` 不能与 HP 内存模式同时启用。
+
 ULP LP 内核程序流程
 -------------------
 
@@ -234,9 +249,10 @@ ULP LP 内核支持的外设
 .. list::
 
     * LP IO
-    * LP I2C
-    * LP UART
+    :SOC_LP_CORE_SUPPORT_I2C: * LP I2C
+    :SOC_ULP_LP_UART_SUPPORTED: * LP UART
     :SOC_LP_SPI_SUPPORTED: * LP SPI
+    :SOC_LP_MAILBOX_SUPPORTED: * LP 邮箱
 
 .. only:: CONFIG_ESP_ROM_HAS_LP_ROM
 
@@ -276,7 +292,7 @@ ULP LP 内核中断
 ULP LP 内核时钟配置
 -------------------
 
-{IDF_TARGET_XTAL_FREQ:default="未更新", esp32c5="48 MHz", esp32p4="40 MHz"}
+{IDF_TARGET_XTAL_FREQ:default="未更新", esp32c5="48 MHz", esp32p4="40 MHz", esp32s31="40 MHz"}
 
 ULP LP 内核的时钟源来自系统时钟 ``LP_FAST_CLK``，详情请参见 `技术参考手册 <{IDF_TARGET_TRM_CN_URL}>`__ > ``复位和时钟``。
 
@@ -284,7 +300,7 @@ ULP LP 内核的时钟源来自系统时钟 ``LP_FAST_CLK``，详情请参见 `�
 
     在 {IDF_TARGET_NAME} 上，``LP_FAST_CLK`` 支持使用外部 {IDF_TARGET_XTAL_FREQ} 晶振 (XTAL) 作为其时钟源。默认时钟源 ``RTC_FAST_CLOCK`` 的运行频率约为 20 MHz，使用外部晶振时钟后，ULP LP 内核将以更高的频率运行。缺点在于，``LP_FAST_CLK`` 在休眠期间通常会断电以减少功耗，而选择 XTAL 作为时钟源后，休眠期间时钟仍将保持通电，造成功耗增加。因此，如果仅希望在 HP 内核活动时将 LP 内核用作协处理器，则可以使用 XTAL 以提高 LP 内核的性能和频率稳定性。
 
-    要启用此功能，请将 :ref:`CONFIG_RTC_FAST_CLK_SRC` 设置为 ``CONFIG_RTC_FAST_CLK_SRC_XTAL``。
+    要启用此功能，请将 ``CONFIG_RTC_FAST_CLK_SRC`` 设置为 ``CONFIG_RTC_FAST_CLK_SRC_XTAL``。
 
 
 调试 ULP LP 内核应用程序
@@ -292,13 +308,17 @@ ULP LP 内核的时钟源来自系统时钟 ``LP_FAST_CLK``，详情请参见 `�
 
 在编程 LP 内核时，有时很难弄清楚程序未按预期运行的原因。请参考以下策略，调试 LP 内核程序：
 
-* 使用 LP UART 打印：LP 内核可以访问 LP UART 外设，在主 CPU 处于睡眠状态时独立打印信息。有关使用此驱动程序的示例，请参阅 :example:`system/ulp/lp_core/lp_uart/lp_uart_print`。
+.. only:: SOC_ULP_LP_UART_SUPPORTED
+
+    * 使用 LP UART 打印：LP 内核可以访问 LP UART 外设，在主 CPU 处于睡眠状态时独立打印信息。有关使用此驱动程序的示例，请参阅 :example:`system/ulp/lp_core/lp_uart/lp_uart_print`。
 
 * 通过 :ref:`CONFIG_ULP_HP_UART_CONSOLE_PRINT`，将 :cpp:func:`lp_core_printf` 路由到 HP-Core 控制台 UART，可以轻松地将 LP 内核信息打印到已经连接的 HP-Core 控制台 UART。此方法的缺点是需要主 CPU 处于唤醒状态，并且由于 LP 内核与 HP 内未同步，输出可能会交错。
 
 * 通过共享变量共享程序状态：如 :ref:`ulp-lp-core-access-variables` 所述，主 CPU 和 ULP 内核都可以轻松访问 RTC 内存中的全局变量。若想了解 ULP 内核的运行状态，可以将状态信息从 ULP 写入变量中，并通过主 CPU 读取信息。这种方法的缺点在于它需要主 CPU 一直处于唤醒状态，而这通常很难实现。另外，若主 CPU 一直处于唤醒状态，可能会掩盖某些问题，因为部分问题只会在特定电源域断电时发生。
 
-* 紧急处理程序：当检测到异常时，LP 内核的紧急处理程序会把 LP 内核寄存器的状态通过 LP UART 发送出去。将 :ref:`CONFIG_ULP_PANIC_OUTPUT_ENABLE` 选项设置为 ``y``，可以启用紧急处理程序。禁用此选项将减少 LP 内核应用程序的 LP-RAM 使用量。若想从紧急转储中解析栈回溯，可以使用 ``idf.py monitor``。
+.. only:: SOC_ULP_LP_UART_SUPPORTED
+
+    * 紧急处理程序：当检测到异常时，LP 内核的紧急处理程序会把 LP 内核寄存器的状态通过 LP UART 发送出去。将 ``CONFIG_ULP_PANIC_OUTPUT_ENABLE`` 选项设置为 ``y``，可以启用紧急处理程序。禁用此选项将减少 LP 内核应用程序的 LP-RAM 使用量。若想从紧急转储中解析栈回溯，可以使用 ``idf.py monitor``。
 
 .. warning::
 
@@ -357,7 +377,7 @@ LP 内核调试特性
 .. list::
 
     #. 为了方便调试，请在 ULP 应用的 ``CMakeLists.txt`` 文件中添加 ``-O0`` 编译选项。具体操作步骤请参见 :example:`system/ulp/lp_core/debugging/`。
-    :not esp32p4: #. LP 内核支持的硬件异常类型有限，例如，写入地址 `0x0` 不会像在 HP 内核上一样造成系统崩溃。启用 LP 内核应用程序的未定义行为检测器 (`ubsan`) 可以捕捉一些错误，从而在一定程度上弥补这一限制。但请注意，这将显著增加代码量，可能会导致应用程序超出 RTC RAM 的容量限制。要启用 `ubsan`，请在 ``CMakeLists.txt`` 文件中添加 ``-fsanitize=undefined -fno-sanitize=shift-base`` 编译选项。具体操作步骤请参见 :example:`system/ulp/lp_core/debugging/`。
+    :not esp32p4 and not esp32s31: #. LP 内核支持的硬件异常类型有限，例如，写入地址 `0x0` 不会像在 HP 内核上一样造成系统崩溃。启用 LP 内核应用程序的未定义行为检测器 (`ubsan`) 可以捕捉一些错误，从而在一定程度上弥补这一限制。但请注意，这将显著增加代码量，可能会导致应用程序超出 RTC RAM 的容量限制。要启用 `ubsan`，请在 ``CMakeLists.txt`` 文件中添加 ``-fsanitize=undefined -fno-sanitize=shift-base`` 编译选项。具体操作步骤请参见 :example:`system/ulp/lp_core/debugging/`。
     #. 为了调试运行在 LP 内核上的程序，需要先将调试信息和符号加载到 GDB 中。这可以通过 GDB 命令行或在 ``gdbinit`` 文件中完成。具体操作步骤请参见上文。
     #. LP 内核应用程序会在启时会加载到 RAM 中，在此之前设置的所有软件断点都会被覆盖。设置 LP 内核应用断点的最佳时机是在 LP 内核程序运行至 ``main`` 函数之时。
     #. 使用 IDE 时，可能无法配置上述 ``gdbinit`` 文件中的断点操作或命令。因此，请在调试会话开始前预设并禁用所有断点，只保留 ``main`` 函数处的断点。当程序在 ``main`` 处停止时，手动启用其余断点并恢复执行。
@@ -387,10 +407,11 @@ LP 内核调试特性
 .. list::
 
     - :example:`system/ulp/lp_core/gpio` 展示了 ULP LP 内核协处理器在主 CPU 深度睡眠时轮询 GPIO。
-    :esp32c6: - :example:`system/ulp/lp_core/lp_i2c` 展示了 ULP LP 内核协处理器在主 CPU 深度睡眠时读取外部 I2C 环境光传感器 (BH1750)，并在达到阈值时唤醒主 CPU。
-    - :example:`system/ulp/lp_core/lp_uart/lp_uart_echo` 展示了低功耗内核上运行的 LP UART 驱动程序如何读取并回显写入串行控制台的数据。
-    - :example:`system/ulp/lp_core/lp_uart/lp_uart_print` 展示了如何在低功耗内核上使用串口打印功能。
-    - :example:`system/ulp/lp_core/lp_uart/lp_uart_char_seq_wakeup` 展示了如何使用 LP UART 特定字符序列唤醒模式触发唤醒。
+    :SOC_LP_CORE_SUPPORT_I2C: - :example:`system/ulp/lp_core/lp_i2c` 展示了 ULP LP 内核协处理器在主 CPU 深度睡眠时读取外部 I2C 环境光传感器 (BH1750)，并在达到阈值时唤醒主 CPU。
+    :SOC_ULP_LP_UART_SUPPORTED: - :example:`system/ulp/lp_core/lp_uart/lp_uart_echo` 展示了低功耗内核上运行的 LP UART 驱动程序如何读取并回显写入串行控制台的数据。
+    :SOC_ULP_LP_UART_SUPPORTED: - :example:`system/ulp/lp_core/lp_uart/lp_uart_print` 展示了如何在低功耗内核上使用串口打印功能。
+    :SOC_ULP_LP_UART_SUPPORTED: - :example:`system/ulp/lp_core/lp_uart/lp_uart_char_seq_wakeup` 展示了如何使用 LP UART 特定字符序列唤醒模式触发唤醒。
+    :SOC_LP_MAILBOX_SUPPORTED: - :example:`system/ulp/lp_core/lp_mailbox` 展示了如何在 HP 内核和 LP 内核之间使用邮箱进行同步和异步通信。根据目标设备的不同，示例实现可能会使用硬件邮箱控制器（如果可用），或者使用基于中断的纯软件实现。
     - :example:`system/ulp/lp_core/interrupt` 展示了如何在 LP 内核上注册中断处理程序，接收由主 CPU 触发的中断。
     - :example:`system/ulp/lp_core/gpio_intr_pulse_counter` 展示了如何在主 CPU 处于 Deep-sleep 模式时，使用 GPIO 中断为脉冲计数。
     - :example:`system/ulp/lp_core/build_system/` 演示了如何为 ULP 应用程序添加自定义的 ``CMakeLists.txt`` 文件。
@@ -403,8 +424,14 @@ API 参考
 ~~~~~~~~~~~~~~~
 
 .. include-build-file:: inc/ulp_lp_core.inc
-.. include-build-file:: inc/lp_core_i2c.inc
-.. include-build-file:: inc/lp_core_uart.inc
+
+.. only:: SOC_LP_CORE_SUPPORT_I2C
+
+    .. include-build-file:: inc/lp_core_i2c.inc
+
+.. only:: SOC_ULP_LP_UART_SUPPORTED
+
+    .. include-build-file:: inc/lp_core_uart.inc
 
 .. only:: SOC_LP_SPI_SUPPORTED
 
@@ -421,8 +448,19 @@ LP 内核 API 参考
 
 .. include-build-file:: inc/ulp_lp_core_utils.inc
 .. include-build-file:: inc/ulp_lp_core_gpio.inc
-.. include-build-file:: inc/ulp_lp_core_i2c.inc
-.. include-build-file:: inc/ulp_lp_core_uart.inc
+
+.. only:: SOC_LP_CORE_SUPPORT_I2C
+
+    .. include-build-file:: inc/ulp_lp_core_i2c.inc
+
+.. only:: SOC_ULP_LP_UART_SUPPORTED
+
+    .. include-build-file:: inc/ulp_lp_core_uart.inc
+
+.. only:: SOC_LP_MAILBOX_SUPPORTED
+
+    .. include-build-file:: inc/ulp_lp_core_mailbox.inc
+
 .. include-build-file:: inc/ulp_lp_core_print.inc
 .. include-build-file:: inc/ulp_lp_core_interrupts.inc
 

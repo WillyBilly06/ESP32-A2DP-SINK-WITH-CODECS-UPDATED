@@ -1,9 +1,10 @@
 /*
- * SPDX-FileCopyrightText: 2010-2024 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2010-2025 Espressif Systems (Shanghai) CO LTD
  *
- * SPDX-License-Identifier: Apache-2.0
+ * SPDX-License-Identifier: Apache-2.0 OR MIT
  */
 
+#include <stddef.h>
 #include "soc/lldesc.h"
 
 void lldesc_setup_link_constrained(lldesc_t *dmadesc, const void *data, int len, int max_desc_size, bool isrx)

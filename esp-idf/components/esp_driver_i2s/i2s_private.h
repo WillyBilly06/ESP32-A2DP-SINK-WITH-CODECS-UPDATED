@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2022-2025 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2022-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -13,11 +13,13 @@
 #include "freertos/queue.h"
 #include "soc/lldesc.h"
 #include "soc/soc_caps.h"
+#include "hal/i2s_periph.h"
 #include "hal/i2s_hal.h"
 #include "hal/lp_i2s_hal.h"
 #if SOC_LP_I2S_SUPPORTED
 #include "hal/lp_i2s_ll.h"
 #endif
+#include "hal/i2s_types.h"
 #include "driver/i2s_types.h"
 #if CONFIG_IDF_TARGET_ESP32
 #include "esp_clock_output.h"
@@ -27,7 +29,7 @@
 #endif
 #include "esp_private/periph_ctrl.h"
 #include "esp_private/esp_gpio_reserve.h"
-#if SOC_I2S_SUPPORT_SLEEP_RETENTION
+#if SOC_HAS(PAU)
 #include "esp_private/sleep_retention.h"
 #endif
 #include "esp_pm.h"
@@ -49,22 +51,15 @@ extern "C" {
 #endif //CONFIG_I2S_ISR_IRAM_SAFE
 #define I2S_DMA_ALLOC_CAPS      (MALLOC_CAP_INTERNAL | MALLOC_CAP_DMA | MALLOC_CAP_8BIT)
 
-#if SOC_PERIPH_CLK_CTRL_SHARED
-#define I2S_CLOCK_SRC_ATOMIC() PERIPH_RCC_ATOMIC()
-#else
-#define I2S_CLOCK_SRC_ATOMIC()
-#endif
-
-#if !SOC_RCC_IS_INDEPENDENT
-#define I2S_RCC_ATOMIC() PERIPH_RCC_ATOMIC()
-#else
-#define I2S_RCC_ATOMIC()
-#endif
-
-#define I2S_USE_RETENTION_LINK  (SOC_I2S_SUPPORT_SLEEP_RETENTION && CONFIG_PM_POWER_DOWN_PERIPHERAL_IN_LIGHT_SLEEP)
+#define I2S_USE_RETENTION_LINK  (SOC_HAS(PAU) && CONFIG_PM_POWER_DOWN_PERIPHERAL_IN_LIGHT_SLEEP)
 
 #define I2S_NULL_POINTER_CHECK(tag, p)          ESP_RETURN_ON_FALSE((p), ESP_ERR_INVALID_ARG, tag, "input parameter '"#p"' is NULL")
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
+
+/**
+ * @brief Whether this channel uses the DMA memory data path
+ */
+#define I2S_CHANNEL_USES_DMA(handle)   ((handle)->destination == I2S_DESTINATION_DMA)
 
 /**
  * @brief i2s channel state for checking if the operation in under right driver state
@@ -95,6 +90,9 @@ typedef struct {
     i2s_isr_callback_t on_send_q_ovf;       /**< Callback of sending queue overflowed event, only for tx channel
                                              *   The event data includes buffer size that has been overwritten
                                              */
+#if SOC_I2S_SUPPORTS_TX_FIFO_SYNC
+    i2s_tx_fifo_sync_callback_t on_tx_sync_evt;      /**< Callback when the TX sync difference count exceeds the manual threshold */
+#endif
 } i2s_event_callbacks_internal_t;
 
 /**
@@ -127,18 +125,50 @@ typedef struct {
 } i2s_dma_t;
 
 /**
+ * @brief Duplex candidate information extracted from channel configuration
+ * @note  Used by the generic duplex constitution function to check whether two channels can form duplex.
+ *        Two channels can share the BCLK/WS lines only when the BCLK/WS configurations are identical
+ *        and the per-frame bit count (sample_rate * total_frame_bits) is the same. The slot layout,
+ *        clock source, external clock frequency and MCLK configuration are allowed to differ as long
+ *        as the BCLK/WS frequency and frame timing match.
+ */
+typedef struct {
+    int ws_pin;                 /*!< WS GPIO pin number, -1 if unused */
+    int bclk_pin;               /*!< BCLK GPIO pin number, -1 if unused */
+    uint32_t sample_rate_hz;    /*!< Sample rate in Hz */
+    uint32_t total_frame_bits;  /*!< Total bits per frame: total_slot * slot_bit_width */
+    i2s_clock_src_t clk_src;    /*!< Clock source (informational, not compared) */
+    bool bclk_inv;              /*!< Whether the BCLK is inverted */
+    bool ws_inv;                /*!< Whether the WS is inverted */
+} i2s_duplex_candidate_t;
+
+/**
+ * @brief Try to constitute full-duplex between two channels on the same controller
+ * @note  The two channels can constitute full-duplex only when they share the same valid WS/BCK pins,
+ *        the same BCLK/WS invert flags, the same sample rate and the same total frame bits.
+ *        The slot layout, clock source, external clock frequency and MCLK configuration may differ
+ *        as long as the BCLK/WS frequency and frame timing match (e.g. STD 2ch/32bit can pair
+ *        with TDM 4ch/16bit).
+ *        If the conditions match, mark the controller as full-duplex. If both channels are master,
+ *        the later one is forced to slave.
+ * @param handle       Current channel being initialized
+ * @param candidate    Duplex configuration of the current channel
+ */
+void i2s_channel_try_to_constitute_duplex(i2s_chan_handle_t handle, const i2s_duplex_candidate_t *candidate);
+
+/**
  * @brief i2s controller level configurations
  * @note  Both i2s rx and tx channel are under its control
  */
 typedef struct {
-    i2s_port_t              id;             /*!< i2s port id */
+    int                     id;             /*!< i2s port id */
     i2s_hal_context_t       hal;            /*!< hal context */
     uint32_t                chan_occupancy; /*!< channel occupancy (rx/tx) */
     bool                    full_duplex;    /*!< is full_duplex */
     i2s_chan_handle_t       tx_chan;        /*!< tx channel handler */
     i2s_chan_handle_t       rx_chan;        /*!< rx channel handler */
     _lock_t                 mutex;          /*!< mutex for controller */
-#if SOC_I2S_SUPPORT_SLEEP_RETENTION
+#if SOC_HAS(PAU)
     sleep_retention_module_t slp_retention_mod; /*!< Sleep retention module */
     bool                    retention_link_created;  /*!< Whether the retention link is created */
 #endif
@@ -160,21 +190,21 @@ struct i2s_channel_obj_t {
     int                     intr_prio_flags;/*!< i2s interrupt priority flags */
     void                    *mode_info;     /*!< Slot, clock and gpio information of each mode */
     struct {
+        bool                is_port_auto: 1;   /*!< Whether the port is auto-assigned */
         bool                is_etm_start: 1;   /*!< Whether start by etm tasks */
         bool                is_etm_stop: 1;    /*!< Whether stop by etm tasks */
         bool                is_raw_pdm: 1;     /*!< Flag of whether send/receive PDM in raw data, i.e., no PCM2PDM/PDM2PCM filter enabled */
         bool                is_external: 1;    /*!< Whether use external clock */
         bool                full_duplex_slave: 1; /*!< whether the channel is forced to switch to slave role for full duplex */
-#if SOC_I2S_SUPPORTS_APLL
-        bool                apll_en: 1;        /*!< Flag of whether APLL enabled */
-#endif
     };
     uint32_t                active_slot;    /*!< Active slot number */
     uint32_t                total_slot;     /*!< Total slot number */
+    i2s_destination_t       destination;    /*!< Data path destination (DMA memory path vs Bluetooth controller where supported) */
     i2s_clock_src_t         clk_src;        /*!< Clock source */
     uint32_t                sclk_hz;        /*!< Source clock frequency */
     uint32_t                origin_mclk_hz; /*!< Original mclk frequency */
     uint32_t                curr_mclk_hz;   /*!< Current mclk frequency */
+    uint32_t                bclk_hz;        /*!< BCLK frequency */
     /* Locks and queues */
     SemaphoreHandle_t       mutex;          /*!< Mutex semaphore for the channel operations */
     SemaphoreHandle_t       binary;         /*!< Binary semaphore for writing / reading / enabling / disabling */
@@ -185,6 +215,13 @@ struct i2s_channel_obj_t {
     uint64_t                reserve_gpio_mask; /*!< The gpio mask that has been reserved by I2S */
     i2s_event_callbacks_internal_t   callbacks;      /*!< Callback functions */
     void                    *user_data;     /*!< User data for callback functions */
+#if SOC_I2S_SUPPORTS_TX_FIFO_SYNC
+    i2s_tx_fifo_sync_callback_t     on_tx_sync;        /*!< TX FIFO sync manual supplement threshold callback */
+    void                    *sync_user_data; /*!< User data for TX FIFO sync callback */
+    intr_handle_t           i2s_intr;       /*!< I2S peripheral interrupt handle */
+    bool                    tx_fifo_sync_configured; /*!< Whether TX FIFO sync has been configured */
+    bool                    tx_fifo_sync_enabled; /*!< Whether TX FIFO sync is enabled */
+#endif
     void (*start)(i2s_chan_handle_t);       /*!< start tx/rx channel */
     void (*stop)(i2s_chan_handle_t);        /*!< stop tx/rx channel */
 };
@@ -223,11 +260,11 @@ struct lp_i2s_channel_obj_t {
  */
 typedef struct {
     portMUX_TYPE            spinlock;                          /*!< Platform level lock */
-    i2s_controller_t        *controller[SOC_I2S_NUM];          /*!< Controller object */
-    const char              *comp_name[SOC_I2S_NUM];           /*!< The component name that occupied i2s controller */
+    i2s_controller_t        *controller[I2S_LL_GET(INST_NUM)];          /*!< Controller object */
+    const char              *comp_name[I2S_LL_GET(INST_NUM)];           /*!< The component name that occupied i2s controller */
 #if SOC_LP_I2S_SUPPORTED
     lp_i2s_controller_t     *lp_controller[SOC_LP_I2S_NUM];    /*!< LP controller object*/
-    const char              *lp_comp_name[SOC_I2S_NUM];        /*!< The component name that occupied lp i2s controller */
+    const char              *lp_comp_name[I2S_LL_GET(INST_NUM)];        /*!< The component name that occupied lp i2s controller */
 #endif
 } i2s_platform_t;
 
@@ -243,6 +280,18 @@ extern i2s_platform_t g_i2s;  /*!< Global i2s instance for driver internal use *
  *      - ESP_ERR_INVALID_ARG   Wrong port id or NULL pointer
  */
 esp_err_t i2s_init_dma_intr(i2s_chan_handle_t handle, int intr_flag);
+
+#if SOC_I2S_SUPPORTS_TX_FIFO_SYNC
+/**
+ * @brief Initialize I2S peripheral interrupt
+ *
+ * @param handle        I2S channel handle
+ * @return
+ *      - ESP_OK                Initialize interrupt success
+ *      - ESP_ERR_INVALID_ARG   Wrong port id or NULL pointer
+ */
+esp_err_t i2s_init_i2s_intr(i2s_chan_handle_t handle);
+#endif
 
 /**
  * @brief Free I2S DMA descriptor and DMA buffer
@@ -312,7 +361,7 @@ void i2s_gpio_check_and_set(i2s_chan_handle_t handle, int gpio, uint32_t signal_
  *      - ESP_OK                Set mclk output gpio success
  *      - ESP_ERR_INVALID_ARG   Invalid GPIO number
  */
-esp_err_t i2s_check_set_mclk(i2s_chan_handle_t handle, i2s_port_t id, int gpio_num, i2s_clock_src_t clk_src, bool is_invert);
+esp_err_t i2s_check_set_mclk(i2s_chan_handle_t handle, int id, int gpio_num, i2s_clock_src_t clk_src, bool is_invert);
 
 /**
  * @brief Attach data out signal and data in signal to a same gpio
@@ -339,6 +388,19 @@ void i2s_output_gpio_reserve(i2s_chan_handle_t handle, int gpio_num);
  * @param gpio_mask The output gpio mask to be revoked
  */
 void i2s_output_gpio_revoke(i2s_chan_handle_t handle, uint64_t gpio_mask);
+
+#if SOC_I2S_HW_VERSION_1
+/**
+ * @brief Change the port of the I2S channel
+ *
+ * @param handle        I2S channel handle
+ * @param id            I2S port id
+ * @return
+ *      - ESP_OK                Change port success
+ *      - ESP_ERR_NOT_FOUND     No available I2S port found
+ */
+esp_err_t i2s_channel_change_port(i2s_chan_handle_t handle, int id);
+#endif
 
 #ifdef __cplusplus
 }

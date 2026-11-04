@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2023-2025 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2023-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -39,6 +39,11 @@ typedef struct {
     ppa_data_burst_length_t data_burst_length;  /*!< The desired data burst length for all the transactions of the client.
                                                      Use a small burst length will decrease PPA performance, but can save burst bandwidth for other peripheral usages.
                                                      By default, it will be at the maximum burst length, `PPA_DATA_BURST_LENGTH_128` */
+    struct {
+        uint32_t allow_pd: 1;                   /*!< If set, driver allows the power domain to be powered off when system enters sleep mode.
+                                                     This can save power, but at the expense of more RAM being consumed to save register context.
+                                                     All clients must have the same value for this flag. */
+    } flags;                                    /*!< Configuration flags */
 } ppa_client_config_t;
 
 /**
@@ -124,6 +129,7 @@ typedef struct {
         ppa_srm_color_mode_t srm_cm;        /*!< Color mode of the picture in a PPA SRM operation. Supported color mode in `ppa_srm_color_mode_t` */
         ppa_blend_color_mode_t blend_cm;    /*!< Color mode of the picture in a PPA blend operation. Supported color mode in `ppa_blend_color_mode_t` */
         ppa_fill_color_mode_t fill_cm;      /*!< Color mode of the picture in a PPA fill operation. Supported color mode in `ppa_fill_color_mode_t` */
+        esp_color_fourcc_t cm;              /*!< Four Character Code of the color mode */
     };
     ppa_color_range_t yuv_range;            /*!< When the color mode is any YUV color space, this field is to describe its color range */
     ppa_color_conv_std_rgb_yuv_t yuv_std;   /*!< When the color mode is any YUV color space, this field is to describe its YUV<->RGB conversion standard */
@@ -143,6 +149,7 @@ typedef struct {
         ppa_srm_color_mode_t srm_cm;        /*!< Color mode of the picture in a PPA SRM operation. Supported color mode in `ppa_srm_color_mode_t` */
         ppa_blend_color_mode_t blend_cm;    /*!< Color mode of the picture in a PPA blend operation. Supported color mode in `ppa_blend_color_mode_t` */
         ppa_fill_color_mode_t fill_cm;      /*!< Color mode of the picture in a PPA fill operation. Supported color mode in `ppa_fill_color_mode_t` */
+        esp_color_fourcc_t cm;              /*!< Four Character Code of the color mode */
     };
     ppa_color_range_t yuv_range;            /*!< When the color mode is any YUV color space, this field is to describe its color range */
     ppa_color_conv_std_rgb_yuv_t yuv_std;   /*!< When the color mode is any YUV color space, this field is to describe its YUV<->RGB conversion standard */

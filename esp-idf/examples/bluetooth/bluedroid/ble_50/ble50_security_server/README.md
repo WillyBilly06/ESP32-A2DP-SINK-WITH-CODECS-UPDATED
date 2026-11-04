@@ -1,5 +1,5 @@
-| Supported Targets | ESP32-C2 | ESP32-C3 | ESP32-C5 | ESP32-C6 | ESP32-C61 | ESP32-H2 | ESP32-S3 |
-| ----------------- | -------- | -------- | -------- | -------- | --------- | -------- | -------- |
+| Supported Targets | ESP32-C2 | ESP32-C3 | ESP32-C5 | ESP32-C6 | ESP32-C61 | ESP32-H2 | ESP32-H21 | ESP32-H4 | ESP32-S3 | ESP32-S31 |
+| ----------------- | -------- | -------- | -------- | -------- | --------- | -------- | --------- | -------- | -------- | --------- |
 
 # ESP-IDF BLE50 Security Server Example
 
@@ -7,7 +7,7 @@ This example shows how to use the APIs to connect in secure manner with peer dev
 
 To test this example, you can run [ble50_security_client_demo](../ble50_security_client), which starts scanning, connects to and starts encryption with `ble50_sec_gattc_demo` automatically.
 
-Please, check this [tutorial](tutorial/ble50_security_server_Example_Walkthrough.md) for more information about this example.
+Please check this [tutorial](tutorial/ble50_security_server_Example_Walkthrough.md) for more information about this example.
 
 ## How to Use Example
 

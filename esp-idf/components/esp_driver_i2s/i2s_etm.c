@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2024 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2024-2025 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -39,7 +39,7 @@ static esp_err_t s_i2s_del_etm_task(esp_etm_task_t *task)
     if (i2s_task->task_type == I2S_ETM_TASK_START) {
         // The i2s start no longer be controlled by etm
         i2s_task->handle->is_etm_start = false;
-    } else {
+    } else if (i2s_task->task_type == I2S_ETM_TASK_STOP) {
         // The i2s stop no longer be controlled by etm
         i2s_task->handle->is_etm_stop = false;
     }
@@ -84,6 +84,11 @@ esp_err_t i2s_new_etm_task(i2s_chan_handle_t handle, const i2s_etm_task_config_t
 {
     ESP_RETURN_ON_FALSE(handle && config && out_task, ESP_ERR_INVALID_ARG, TAG, "invalid argument");
     ESP_RETURN_ON_FALSE(config->task_type < I2S_ETM_TASK_MAX, ESP_ERR_INVALID_ARG, TAG, "invalid task type");
+#if SOC_I2S_SUPPORTS_TX_FIFO_SYNC
+    ESP_RETURN_ON_FALSE(config->task_type != I2S_ETM_TASK_SYNC_FIFO || handle->dir == I2S_DIR_TX,
+                        ESP_ERR_NOT_SUPPORTED, TAG, "rx does not support sync check");
+#endif
+
     i2s_etm_task_t *task = heap_caps_calloc(1, sizeof(i2s_etm_task_t), ETM_MEM_ALLOC_CAPS);
     ESP_RETURN_ON_FALSE(task, ESP_ERR_NO_MEM, TAG, "no memory for ETM task");
 
@@ -99,7 +104,7 @@ esp_err_t i2s_new_etm_task(i2s_chan_handle_t handle, const i2s_etm_task_config_t
     if (config->task_type == I2S_ETM_TASK_START) {
         // The i2s start will be controlled by etm
         handle->is_etm_start = true;
-    } else {
+    } else if (config->task_type == I2S_ETM_TASK_STOP) {
         // The i2s stop will be controlled by etm
         handle->is_etm_stop = true;
     }

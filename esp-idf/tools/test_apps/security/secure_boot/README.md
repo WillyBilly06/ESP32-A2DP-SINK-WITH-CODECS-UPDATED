@@ -1,5 +1,5 @@
-| Supported Targets | ESP32 | ESP32-C3 | ESP32-C5 | ESP32-C6 | ESP32-H2 | ESP32-P4 | ESP32-S2 | ESP32-S3 |
-| ----------------- | ----- | -------- | -------- | -------- | -------- | -------- | -------- | -------- |
+| Supported Targets | ESP32 | ESP32-C2 | ESP32-C3 | ESP32-C5 | ESP32-C6 | ESP32-C61 | ESP32-H2 | ESP32-H21 | ESP32-P4 | ESP32-S2 | ESP32-S3 |
+| ----------------- | ----- | -------- | -------- | -------- | -------- | --------- | -------- | --------- | -------- | -------- | -------- |
 
 # Secure Boot
 
@@ -23,7 +23,7 @@ idf.py menuconfig
 
 * To change the chip revision, set "Component Config" -> "ESP32- Specific"->"Minimum Supported ESP32 Revision" to Rev 3. Now, set Secure Boot V2 option can now be enabled under "Enable hardware Secure Boot in bootloader" -> "Secure Boot Version".
 
-* Specify the apt secure boot signing key path. If not present generate one using `python $IDF_PATH/components/esptool_py/esptool/espsecure.py generate_signing_key --version {VERSION} secure_boot_signing_key.pem`
+* Specify the apt secure boot signing key path. If not present generate one using `espsecure generate-signing-key --version {VERSION} secure_boot_signing_key.pem`
 
 * Ensure Bootloader log verbosity is Info under Bootloader config.
 
@@ -31,7 +31,7 @@ idf.py menuconfig
 
 ### Build and Flash
 
--  The below steps can be used in any application to enable secure boot. 
+-  The below steps can be used in any application to enable secure boot.
 
 - Secure Boot is an irreversible operation, please read the Secure Boot section in ESP-IDF Programming Manual.
 
@@ -91,7 +91,7 @@ Under `Security features`
 - Install pytest requirements
 
     ```
-    bash $IDF_PATH/install.sh --enable-pytest
+    bash $IDF_PATH/install.sh --enable-ci
     ```
 
 ### Build and test

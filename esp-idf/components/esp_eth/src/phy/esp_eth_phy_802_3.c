@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2022-2024 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2022-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -22,9 +22,6 @@
 
 static const char *TAG = "eth_phy_802_3";
 
-// TODO: IDF-11362 (should be renamed to esp_eth_phy_802_3_reset_hw with the next major release)
-static esp_err_t esp_eth_phy_802_3_reset_hw_internal(phy_802_3_t *phy_802_3);
-
 static esp_err_t set_mediator(esp_eth_phy_t *phy, esp_eth_mediator_t *eth)
 {
     phy_802_3_t *phy_802_3 = esp_eth_phy_into_phy_802_3(phy);
@@ -40,7 +37,7 @@ static esp_err_t reset(esp_eth_phy_t *phy)
 static esp_err_t reset_hw(esp_eth_phy_t *phy)
 {
     phy_802_3_t *phy_802_3 = esp_eth_phy_into_phy_802_3(phy);
-    return esp_eth_phy_802_3_reset_hw_internal(phy_802_3);
+    return esp_eth_phy_802_3_reset_hw(phy_802_3);
 }
 
 static esp_err_t autonego_ctrl(esp_eth_phy_t *phy, eth_phy_autoneg_cmd_t cmd, bool *autonego_en_stat)
@@ -229,6 +226,8 @@ esp_err_t esp_eth_phy_802_3_updt_link_dup_spd(phy_802_3_t *phy_802_3)
     bmsr_reg_t bmsr;
     anar_reg_t anar;
     anlpar_reg_t anlpar;
+    gbcr_reg_t gbcr;
+    gbsr_reg_t gbsr;
 
     ESP_GOTO_ON_ERROR(eth->phy_reg_read(eth, addr, ETH_PHY_BMSR_REG_ADDR, &(bmsr.val)), err, TAG, "read BMSR failed");
     eth_link_t link = bmsr.link_status ? ETH_LINK_UP : ETH_LINK_DOWN;
@@ -240,26 +239,53 @@ esp_err_t esp_eth_phy_802_3_updt_link_dup_spd(phy_802_3_t *phy_802_3)
             ESP_GOTO_ON_ERROR(eth->phy_reg_read(eth, addr, ETH_PHY_ANAR_REG_ADDR, &(anar.val)), err, TAG, "read ANAR failed");
             ESP_GOTO_ON_ERROR(eth->phy_reg_read(eth, addr, ETH_PHY_ANLPAR_REG_ADDR, &(anlpar.val)), err, TAG, "read ANLPAR failed");
             if (bmcr.en_auto_nego) {
-                if (anar.base100_tx_fd && anlpar.base100_tx_fd) {
-                    speed = ETH_SPEED_100M;
-                    duplex = ETH_DUPLEX_FULL;
-                } else if (anar.base100_tx && anlpar.base100_tx) {
-                    speed = ETH_SPEED_100M;
-                    duplex = ETH_DUPLEX_HALF;
-                } else if (anar.base10_t_fd && anlpar.base10_t_fd) {
-                    speed = ETH_SPEED_10M;
-                    duplex = ETH_DUPLEX_FULL;
-                } else if (anar.base10_t && anlpar.base10_t) {
-                    speed = ETH_SPEED_10M;
-                    duplex = ETH_DUPLEX_HALF;
-                } else {
-                    ESP_GOTO_ON_FALSE(false, ESP_FAIL, err, TAG, "invalid auto-nego speed/duplex advertising");
+                bool need_anar_mode = false;
+                if (bmsr.ext_status) {
+                    exsr_reg_t exsr;
+                    ESP_GOTO_ON_ERROR(eth->phy_reg_read(eth, addr, ETH_PHY_EXSR_REG_ADDR, &(exsr.val)), err, TAG, "read EXSR failed");
+                    if (exsr.base1000_t || exsr.base1000_t_fd) {
+                        if (eth->phy_reg_read(eth, addr, ETH_PHY_GBCR_REG_ADDR, &(gbcr.val)) == ESP_OK &&
+                            eth->phy_reg_read(eth, addr, ETH_PHY_GBSR_REG_ADDR, &(gbsr.val)) == ESP_OK) {
+                            if (gbcr.base1000_t_fd && gbsr.lp_base1000_t_fd) {
+                                speed = ETH_SPEED_1000M;
+                                duplex = ETH_DUPLEX_FULL;
+                            } else if (gbcr.base1000_t && gbsr.lp_base1000_t) {
+                                speed = ETH_SPEED_1000M;
+                                duplex = ETH_DUPLEX_HALF;
+                            } else {
+                                need_anar_mode = true;
+                            }
+                        }
+                    }
+                }
+
+                if (!bmsr.ext_status || need_anar_mode) {
+                    bool mode_valid = true;
+                    if (anar.base100_tx_fd && anlpar.base100_tx_fd) {
+                        speed = ETH_SPEED_100M;
+                        duplex = ETH_DUPLEX_FULL;
+                    } else if (anar.base100_tx && anlpar.base100_tx) {
+                        speed = ETH_SPEED_100M;
+                        duplex = ETH_DUPLEX_HALF;
+                    } else if (anar.base10_t_fd && anlpar.base10_t_fd) {
+                        speed = ETH_SPEED_10M;
+                        duplex = ETH_DUPLEX_FULL;
+                    } else if (anar.base10_t && anlpar.base10_t) {
+                        speed = ETH_SPEED_10M;
+                        duplex = ETH_DUPLEX_HALF;
+                    } else {
+                        mode_valid = false;
+                    }
+                    ESP_GOTO_ON_FALSE(mode_valid, ESP_FAIL, err, TAG, "invalid auto-nego speed/duplex advertising");
                 }
             } else {
-                speed = bmcr.speed_select ? ETH_SPEED_100M : ETH_SPEED_10M;
+                if (bmcr.speed_1000) {
+                    speed = ETH_SPEED_1000M;
+                } else {
+                    speed = bmcr.speed_select ? ETH_SPEED_100M : ETH_SPEED_10M;
+                }
                 duplex = bmcr.duplex_mode ? ETH_DUPLEX_FULL : ETH_DUPLEX_HALF;
             }
-
             ESP_GOTO_ON_ERROR(eth->on_state_changed(eth, ETH_STATE_SPEED, (void *)speed), err, TAG, "change speed failed");
             ESP_GOTO_ON_ERROR(eth->on_state_changed(eth, ETH_STATE_DUPLEX, (void *)duplex), err, TAG, "change duplex failed");
             /* if we're in duplex mode, and peer has the flow control ability */
@@ -378,7 +404,27 @@ esp_err_t esp_eth_phy_802_3_set_speed(phy_802_3_t *phy_802_3, eth_speed_t speed)
     /* Set speed */
     bmcr_reg_t bmcr;
     ESP_GOTO_ON_ERROR(eth->phy_reg_read(eth, phy_802_3->addr, ETH_PHY_BMCR_REG_ADDR, &(bmcr.val)), err, TAG, "read BMCR failed");
-    bmcr.speed_select = speed == ETH_SPEED_100M ? 1 : 0;
+    bmsr_reg_t bmsr;
+    ESP_GOTO_ON_ERROR(eth->phy_reg_read(eth, phy_802_3->addr, ETH_PHY_BMSR_REG_ADDR, &(bmsr.val)), err, TAG, "read BMSR failed");
+    bool is_1000_capable = false;
+    if (bmsr.ext_status) {
+        exsr_reg_t exsr;
+        ESP_GOTO_ON_ERROR(eth->phy_reg_read(eth, phy_802_3->addr, ETH_PHY_EXSR_REG_ADDR, &(exsr.val)), err, TAG, "read EXSR failed");
+        is_1000_capable = exsr.base1000_t || exsr.base1000_t_fd;
+    }
+    if (speed == ETH_SPEED_1000M) {
+        if (!is_1000_capable) {
+            ret = ESP_ERR_NOT_SUPPORTED;
+            goto err;
+        }
+        bmcr.speed_1000 = 1;
+        bmcr.speed_select = 0;
+    } else {
+        if (is_1000_capable) {
+            bmcr.speed_1000 = 0;
+        }
+        bmcr.speed_select = speed == ETH_SPEED_100M ? 1 : 0;
+    }
     ESP_GOTO_ON_ERROR(eth->phy_reg_write(eth, phy_802_3->addr, ETH_PHY_BMCR_REG_ADDR, bmcr.val), err, TAG, "write BMCR failed");
 
     return ESP_OK;
@@ -438,39 +484,25 @@ esp_err_t esp_eth_phy_802_3_del(phy_802_3_t *phy_802_3)
     return ESP_OK;
 }
 
-esp_err_t esp_eth_phy_802_3_reset_hw(phy_802_3_t *phy_802_3, uint32_t reset_assert_us)
+esp_err_t esp_eth_phy_802_3_reset_hw(phy_802_3_t *phy_802_3)
 {
+    esp_err_t ret = ESP_OK;
     if (phy_802_3->reset_gpio_num >= 0) {
         gpio_func_sel(phy_802_3->reset_gpio_num, PIN_FUNC_GPIO);
         gpio_set_level(phy_802_3->reset_gpio_num, 0);
         gpio_output_enable(phy_802_3->reset_gpio_num);
-        if (reset_assert_us < 10000) {
-            esp_rom_delay_us(reset_assert_us);
+        if (phy_802_3->hw_reset_assert_time_us < 10000) {
+            esp_rom_delay_us(phy_802_3->hw_reset_assert_time_us);
         } else {
-            vTaskDelay(pdMS_TO_TICKS(reset_assert_us/1000));
+            vTaskDelay(pdMS_TO_TICKS(phy_802_3->hw_reset_assert_time_us/1000));
         }
         gpio_set_level(phy_802_3->reset_gpio_num, 1);
-        return ESP_OK;
-    }
-    return ESP_ERR_NOT_ALLOWED;
-}
-
-/**
- * @brief Hardware reset with internal timing configuration defined during initialization
- *
- * @param phy_802_3 IEEE 802.3 PHY object infostructure
- * @return
- *      - ESP_OK: reset Ethernet PHY successfully
- *      - ESP_ERR_NOT_ALLOWED: reset GPIO not defined
- */
-static esp_err_t esp_eth_phy_802_3_reset_hw_internal(phy_802_3_t *phy_802_3)
-{
-    esp_err_t ret = ESP_OK;
-    if ((ret = esp_eth_phy_802_3_reset_hw(phy_802_3, phy_802_3->hw_reset_assert_time_us)) == ESP_OK) {
         if (phy_802_3->post_hw_reset_delay_ms > 0) {
             vTaskDelay(pdMS_TO_TICKS(phy_802_3->post_hw_reset_delay_ms));
         }
+        return ESP_OK;
     }
+
     return ret;
 }
 

@@ -90,6 +90,11 @@ SD 上拉需求
         - :ref:`sd_pull-up_no_pull-ups`
         - :ref:`strapping_conflicts_dat2`
 
+    - ESP32-WROVER-E 系列模组，包括 ESP32-WROVER-E 和 ESP32-WROVER-IE
+
+        - :ref:`sd_pull-up_no_pull-ups`
+        - :ref:`strapping_conflicts_dat2`
+
 
 .. only:: esp32
 
@@ -218,25 +223,37 @@ SD 上拉需求
 
         烧录 eFuse 是不可逆的！上述问题清单可能已经过时，因此请确保要烧录的模组内嵌 3.3 V flash 芯片，可前往 https://www.espressif.com/ 进行确认。如果在带有 1.8 V flash 芯片的模组上烧录 3.3 V eFuse，模组将停止工作。
 
-    如果确定要烧录 eFuse，请转到 ESP-IDF 目录下，通过 ``espefuse.py`` 工具运行以下命令：
+    如果确定要烧录 eFuse，请转到 ESP-IDF 目录下，通过 ``espefuse`` 工具运行以下命令：
 
     .. code-block:: bash
 
-        components/esptool_py/esptool/espefuse.py set_flash_voltage 3.3V
+        espefuse set-flash-voltage 3.3V
 
     此命令将烧录 ``XPD_SDIO_TIEH``、``XPD_SDIO_FORCE`` 和 ``XPD_SDIO_REG`` eFuse。当以上三个 eFuse 被烧录为 1 时，内部 VDD_SDIO flash 电压调节器将被永久设置为 3.3 V。如果烧录成功，将看到以下日志：
 
     .. code-block:: bash
 
-        espefuse.py v2.6
+        espefuse v5.0.2
         Connecting....
 
-        Enable internal flash voltage regulator (VDD_SDIO) to 3.3 V.
+        === Run "set-flash-voltage" command ===
+        Enable internal flash voltage regulator (VDD_SDIO) to 3.3V.
         The following eFuses are burned: XPD_SDIO_FORCE, XPD_SDIO_REG, XPD_SDIO_TIEH.
-        This is an irreversible operation.
+        VDD_SDIO setting complete.
+
+        Check all blocks for burn...
+        idx, BLOCK_NAME,          Conclusion
+        [00] BLOCK0               is not empty
+                (written ): 0x0000000400182226000004320000a8b0002bc8f09e47e69800000000
+                (to write): 0x00000000000000000001c00000000000000000000000000000000000
+                (coding scheme = NONE)
+        .
+        This is an irreversible operation!
         Type 'BURN' (all capitals) to continue.
         BURN
-        VDD_SDIO setting complete.
+        BURN BLOCK0  - OK (write block == read block)
+        Reading updated eFuses...
+        Successful.
 
     要检查 eFuse 的状态，请运行：
 
@@ -244,7 +261,7 @@ SD 上拉需求
 
         idf.py efuse-summary
 
-    如果运行自动烧录脚本，最好使用独立的 eFuse 工具 ``espefuse.py``。此工具还具有 ``--do-not-confirm`` 选项，可在无需确认的情况下烧录 eFuse。
+    如果运行自动烧录脚本，最好使用独立的 eFuse 工具 ``espefuse``。此工具还具有 ``--do-not-confirm`` 选项，可在无需确认的情况下烧录 eFuse。
 
     有关烧录 eFuse 的更多信息，请参阅 **{IDF_TARGET_NAME} 技术参考手册** [`PDF <{IDF_TARGET_TRM_CN_URL}#efuse>`__]。
 
@@ -294,7 +311,7 @@ SD 上拉需求
 
     MTDI (GPIO12) 为 strapping 管脚，用于选择内部调节器 (VDD_SDIO) 的输出电压，为 flash 芯片供电。该管脚带有内部下拉电阻，因此若处于未连接状态，MTDI 管脚将在启动时读取低电平，选择默认的 3.3 V 操作。
 
-    除 ESP32-WROVER-B 外的所有 ESP32-WROVER 模组都使用 1.8 V flash，并在 GPIO12 上有内部上拉电阻。使用 3.3 V flash 的其他模组在 GPIO12 管脚上没有上拉电阻，并在芯片内部 GPIO12 管脚默认使能弱下拉。
+    使用 1.8 V flash 的 ESP32 模组（如 ESP32-WROVER 和 ESP32-WROVER-I），在 GPIO12 上有上拉电阻。使用 3.3 V flash 的其他 ESP32 模组，在 GPIO12 上无上拉电阻，该管脚在芯片内部为弱下拉。
 
     为 GPIO12 添加上拉电阻以进行 SD 卡操作时，请考虑以下事项：
 

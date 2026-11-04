@@ -9,10 +9,10 @@
 #include "sdkconfig.h"
 #if CONFIG_LCD_ENABLE_DEBUG_LOG
 // The local log level must be defined before including esp_log.h
-// Set the maximum log level for gptimer driver
+// Set the maximum log level for dsi lcd driver
 #define LOG_LOCAL_LEVEL ESP_LOG_VERBOSE
 #endif
-#include "soc/mipi_dsi_periph.h"
+#include "hal/mipi_dsi_periph.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/semphr.h"
@@ -46,7 +46,11 @@ extern "C" {
 typedef struct esp_lcd_dsi_bus_t {
     int bus_id;
     mipi_dsi_hal_context_t hal;
+    soc_module_clk_t phy_pllref_clk_src; // PHY PLL reference clock source, SOC_MOD_CLK_INVALID if not enabled
+    soc_module_clk_t phy_cfg_clk_src;    // PHY config clock source, SOC_MOD_CLK_INVALID if not enabled
+#if CONFIG_PM_ENABLE
     esp_pm_lock_handle_t pm_lock;
+#endif
 } esp_lcd_dsi_bus_t;
 
 #ifdef __cplusplus

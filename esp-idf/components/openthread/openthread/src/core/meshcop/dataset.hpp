@@ -31,8 +31,8 @@
  *   This file includes definitions for managing MeshCoP Datasets.
  */
 
-#ifndef MESHCOP_DATASET_HPP_
-#define MESHCOP_DATASET_HPP_
+#ifndef OT_CORE_MESHCOP_DATASET_HPP_
+#define OT_CORE_MESHCOP_DATASET_HPP_
 
 #include "openthread-core-config.h"
 
@@ -627,6 +627,22 @@ public:
     const Tlv *GetTlvsEnd(void) const { return reinterpret_cast<const Tlv *>(mTlvs + mLength); }
 
     /**
+     * Determines whether this Dataset equals another Dataset.
+     *
+     * Two datasets are considered matching if they contain the exact same set of TLVs (same types and values).
+     * The order of TLVs within the datasets does not matter.
+     *
+     * This method assumes that both `this` and `aOther` datasets are valid and do not contain duplicate TLVs of
+     * the same type. The behavior is undefined if a dataset contains duplicates.
+     *
+     * @param[in] aOther   The other Dataset to check against.
+     *
+     * @retval TRUE   The current Dataset equals @p aOther.
+     * @retval FALSE  The current Dataset does not match @p aOther.
+     */
+    bool Equals(const Dataset &aOther) const;
+
+    /**
      * Determines whether this Dataset is a subset of another Dataset.
      *
      * The Dataset is considered a subset if all of its TLVs, excluding Active/Pending Timestamp and Delay Timer TLVs,
@@ -638,6 +654,36 @@ public:
      * @retval FALSE  The current Dataset is not a subset of @p aOther.
      */
     bool IsSubsetOf(const Dataset &aOther) const;
+
+    /**
+     * Indicates whether or not the Dataset affects connectivity.
+     *
+     * A Dataset affects connectivity if it contains a different Channel, PAN ID, Mesh Local Prefix, Network Key, or
+     * Security Policy than the current values in use.
+     *
+     * The following security policy changes are considered to affect connectivity:
+     * - Disabling routers (R bit: 1 to 0).
+     * - Enabling non-CCM routers (NCR bit: 0 to 1).
+     * - Increasing the version threshold for routing (VR field).
+     *
+     * @param[in] aInstance  The OpenThread instance.
+     *
+     * @retval TRUE   The Dataset affects connectivity.
+     * @retval FALSE  The Dataset does not affect connectivity.
+     */
+    bool AffectsConnectivity(Instance &aInstance) const;
+
+    /**
+     * Indicates whether or not the Dataset affects the Network Key.
+     *
+     * A Dataset affects the Network Key if it contains a different Network Key than the current value in use.
+     *
+     * @param[in] aInstance  The OpenThread instance.
+     *
+     * @retval TRUE   The Dataset affects the Network Key.
+     * @retval FALSE  The Dataset does not affect the Network Key.
+     */
+    bool AffectsNetworkKey(Instance &aInstance) const;
 
     /**
      * Converts a Dataset Type to a string.
@@ -785,4 +831,4 @@ DefineCoreType(otOperationalDataset, MeshCoP::Dataset::Info);
 
 } // namespace ot
 
-#endif // MESHCOP_DATASET_HPP_
+#endif // OT_CORE_MESHCOP_DATASET_HPP_

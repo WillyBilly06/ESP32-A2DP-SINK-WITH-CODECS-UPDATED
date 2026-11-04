@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2022-2025 Espressif Systems (Shanghai) CO LTD
+# SPDX-FileCopyrightText: 2022-2026 Espressif Systems (Shanghai) CO LTD
 # SPDX-License-Identifier: Apache-2.0
 import pytest
 from pytest_embedded import Dut
@@ -67,4 +67,17 @@ def test_flash_mmap_psram(dut: Dut) -> None:
 )
 @idf_parametrize('target', ['supported_targets'], indirect=['target'])
 def test_flash_mmap_xip_psram_rom_impl(dut: Dut) -> None:
+    dut.run_all_single_board_cases(timeout=30)
+
+
+@pytest.mark.flash_suspend
+@pytest.mark.parametrize(
+    'config',
+    [
+        'suspend_with_rom_impl',
+    ],
+    indirect=True,
+)
+@idf_parametrize('target', ['esp32c3'], indirect=['target'])
+def test_flash_mmap_suspend_with_rom_impl(dut: Dut) -> None:
     dut.run_all_single_board_cases(timeout=30)

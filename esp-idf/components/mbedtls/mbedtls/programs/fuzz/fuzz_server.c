@@ -1,17 +1,13 @@
 #include "mbedtls/ssl.h"
-#include "mbedtls/entropy.h"
-#include "mbedtls/ctr_drbg.h"
 #include "mbedtls/ssl_ticket.h"
 #include "test/certs.h"
-#include "common.h"
+#include "fuzz_common.h"
 #include <string.h>
 #include <stdlib.h>
 #include <stdint.h>
 
 
-#if defined(MBEDTLS_SSL_SRV_C) && \
-    defined(MBEDTLS_ENTROPY_C) && \
-    defined(MBEDTLS_CTR_DRBG_C)
+#if defined(MBEDTLS_SSL_SRV_C)
 const char *pers = "fuzz_server";
 static int initialized = 0;
 #if defined(MBEDTLS_X509_CRT_PARSE_C) && defined(MBEDTLS_PEM_PARSE_C)
@@ -27,20 +23,16 @@ const unsigned char psk[] = {
 };
 const char psk_id[] = "Client_identity";
 #endif
-#endif // MBEDTLS_SSL_SRV_C && MBEDTLS_ENTROPY_C && MBEDTLS_CTR_DRBG_C
+#endif // MBEDTLS_SSL_SRV_C
 
 
 int LLVMFuzzerTestOneInput(const uint8_t *Data, size_t Size)
 {
-#if defined(MBEDTLS_SSL_SRV_C) && \
-    defined(MBEDTLS_ENTROPY_C) && \
-    defined(MBEDTLS_CTR_DRBG_C)
+#if defined(MBEDTLS_SSL_SRV_C)
     int ret;
     size_t len;
     mbedtls_ssl_context ssl;
     mbedtls_ssl_config conf;
-    mbedtls_ctr_drbg_context ctr_drbg;
-    mbedtls_entropy_context entropy;
 #if defined(MBEDTLS_SSL_SESSION_TICKETS) && defined(MBEDTLS_SSL_TICKET_C)
     mbedtls_ssl_ticket_context ticket_ctx;
 #endif
@@ -54,8 +46,6 @@ int LLVMFuzzerTestOneInput(const uint8_t *Data, size_t Size)
     }
     options = Data[Size - 1];
 
-    mbedtls_ctr_drbg_init(&ctr_drbg);
-    mbedtls_entropy_init(&entropy);
 #if defined(MBEDTLS_X509_CRT_PARSE_C) && defined(MBEDTLS_PEM_PARSE_C)
     mbedtls_x509_crt_init(&srvcert);
     mbedtls_pk_init(&pkey);
@@ -65,16 +55,9 @@ int LLVMFuzzerTestOneInput(const uint8_t *Data, size_t Size)
 #if defined(MBEDTLS_SSL_SESSION_TICKETS) && defined(MBEDTLS_SSL_TICKET_C)
     mbedtls_ssl_ticket_init(&ticket_ctx);
 #endif
-#if defined(MBEDTLS_USE_PSA_CRYPTO)
     psa_status_t status = psa_crypto_init();
     if (status != PSA_SUCCESS) {
         goto exit;
-    }
-#endif /* MBEDTLS_USE_PSA_CRYPTO */
-
-    if (mbedtls_ctr_drbg_seed(&ctr_drbg, dummy_entropy, &entropy,
-                              (const unsigned char *) pers, strlen(pers)) != 0) {
-        return 1;
     }
 
     if (initialized == 0) {
@@ -89,8 +72,7 @@ int LLVMFuzzerTestOneInput(const uint8_t *Data, size_t Size)
             return 1;
         }
         if (mbedtls_pk_parse_key(&pkey, (const unsigned char *) mbedtls_test_srv_key,
-                                 mbedtls_test_srv_key_len, NULL, 0,
-                                 dummy_random, &ctr_drbg) != 0) {
+                                 mbedtls_test_srv_key_len, NULL, 0) != 0) {
             return 1;
         }
 #endif
@@ -111,9 +93,6 @@ int LLVMFuzzerTestOneInput(const uint8_t *Data, size_t Size)
         goto exit;
     }
 
-    srand(1);
-    mbedtls_ssl_conf_rng(&conf, dummy_random, &ctr_drbg);
-
 #if defined(MBEDTLS_X509_CRT_PARSE_C) && defined(MBEDTLS_PEM_PARSE_C)
     mbedtls_ssl_conf_ca_chain(&conf, srvcert.next, NULL);
     if (mbedtls_ssl_conf_own_cert(&conf, &srvcert, &pkey) != 0) {
@@ -131,10 +110,11 @@ int LLVMFuzzerTestOneInput(const uint8_t *Data, size_t Size)
 #endif
 #if defined(MBEDTLS_SSL_SESSION_TICKETS) && defined(MBEDTLS_SSL_TICKET_C)
     if (options & 0x4) {
-        if (mbedtls_ssl_ticket_setup(&ticket_ctx,
-                                     dummy_random, &ctr_drbg,
-                                     MBEDTLS_CIPHER_AES_256_GCM,
-                                     86400) != 0) {
+        if (mbedtls_ssl_ticket_setup(&ticket_ctx, //context
+                                     PSA_ALG_GCM, //alg
+                                     PSA_KEY_TYPE_AES, //key_type
+                                     256, //key_bits
+                                     86400) != 0) { //lifetime
             goto exit;
         }
 
@@ -195,22 +175,18 @@ int LLVMFuzzerTestOneInput(const uint8_t *Data, size_t Size)
 exit:
 #if defined(MBEDTLS_SSL_SESSION_TICKETS) && defined(MBEDTLS_SSL_TICKET_C)
     mbedtls_ssl_ticket_free(&ticket_ctx);
-#endif
-    mbedtls_entropy_free(&entropy);
-    mbedtls_ctr_drbg_free(&ctr_drbg);
+#endif /* MBEDTLS_SSL_SESSION_TICKETS && MBEDTLS_SSL_TICKET_C */
     mbedtls_ssl_config_free(&conf);
 #if defined(MBEDTLS_X509_CRT_PARSE_C) && defined(MBEDTLS_PEM_PARSE_C)
     mbedtls_x509_crt_free(&srvcert);
     mbedtls_pk_free(&pkey);
-#endif
+#endif /* MBEDTLS_X509_CRT_PARSE_C && MBEDTLS_PEM_PARSE_C */
     mbedtls_ssl_free(&ssl);
-#if defined(MBEDTLS_USE_PSA_CRYPTO)
     mbedtls_psa_crypto_free();
-#endif
-#else
+#else /* MBEDTLS_SSL_SRV_C */
     (void) Data;
     (void) Size;
-#endif /* MBEDTLS_SSL_SRV_C && MBEDTLS_ENTROPY_C && MBEDTLS_CTR_DRBG_C */
+#endif /* MBEDTLS_SSL_SRV_C */
 
     return 0;
 }

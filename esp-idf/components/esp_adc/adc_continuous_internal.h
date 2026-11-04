@@ -90,7 +90,9 @@ struct adc_continuous_ctx_t {
     adc_digi_output_format_t        format;                     //ADC DMA conversion output format
     adc_continuous_evt_cbs_t        cbs;                        //Callbacks
     void                            *user_data;                 //User context
+#if CONFIG_PM_ENABLE
     esp_pm_lock_handle_t            pm_lock;                    //For power management
+#endif
     struct {
         uint32_t flush_pool: 1;     //Flush the internal pool when the pool is full. With this flag, the `on_pool_ovf` event will not happen.
     } flags;

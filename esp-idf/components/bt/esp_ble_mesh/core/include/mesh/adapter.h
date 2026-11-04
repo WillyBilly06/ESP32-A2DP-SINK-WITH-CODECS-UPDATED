@@ -15,6 +15,7 @@
 #include "mesh/utils.h"
 #include "mesh/uuid.h"
 #include "mesh/buf.h"
+#include "mesh/crypto.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -37,21 +38,12 @@ extern "C" {
 */
 #ifdef CONFIG_BT_BLUEDROID_ENABLED
 #if CONFIG_IDF_TARGET_ESP32
-#define BLE_MESH_MAX_CONN   1
+#define BLE_MESH_MAX_CONN   MIN(CONFIG_BT_ACL_CONNECTIONS, CONFIG_BTDM_CTRL_BLE_MAX_CONN)
 #elif (CONFIG_IDF_TARGET_ESP32C3 || CONFIG_IDF_TARGET_ESP32S3)
-/* @todo: must ensure CONFIG_BT_CTRL_BLE_MAX_ACT is greater than 2 */
-#if CONFIG_BT_ACL_CONNECTIONS > (CONFIG_BT_CTRL_BLE_MAX_ACT - 2)
-/* decrease the adv,scan */
-#define BLE_MESH_MAX_CONN   (CONFIG_BT_CTRL_BLE_MAX_ACT - 2)
-#else
-#define BLE_MESH_MAX_CONN   CONFIG_BT_ACL_CONNECTIONS
-#endif /* CONFIG_BT_ACL_CONNECTIONS > (CONFIG_BT_CTRL_BLE_MAX_ACT - 2) */
-#elif CONFIG_IDF_TARGET_ESP32C6 || CONFIG_IDF_TARGET_ESP32H2 || CONFIG_IDF_TARGET_ESP32C5
-#if CONFIG_BT_ACL_CONNECTIONS > CONFIG_BT_LE_MAX_CONNECTIONS
-#define BLE_MESH_MAX_CONN   CONFIG_BT_LE_MAX_CONNECTIONS
-#else
-#define BLE_MESH_MAX_CONN   CONFIG_BT_ACL_CONNECTIONS
-#endif /* CONFIG_BT_ACL_CONNECTIONS > CONFIG_BT_LE_MAX_CONNECTIONS */
+#define BLE_MESH_MAX_CONN   MIN(CONFIG_BT_ACL_CONNECTIONS, (CONFIG_BT_CTRL_BLE_MAX_ACT - 2))
+#elif (CONFIG_IDF_TARGET_ESP32C6 || CONFIG_IDF_TARGET_ESP32H2 || \
+       CONFIG_IDF_TARGET_ESP32C5 || CONFIG_IDF_TARGET_ESP32C61)
+#define BLE_MESH_MAX_CONN   MIN(CONFIG_BT_ACL_CONNECTIONS, CONFIG_BT_LE_MAX_CONNECTIONS)
 #else
 /* default setting */
 #define BLE_MESH_MAX_CONN   1
@@ -60,16 +52,11 @@ extern "C" {
 
 #ifdef CONFIG_BT_NIMBLE_ENABLED
 #if CONFIG_IDF_TARGET_ESP32
-#define BLE_MESH_MAX_CONN   1
+#define BLE_MESH_MAX_CONN   MIN(CONFIG_BT_NIMBLE_MAX_CONNECTIONS, CONFIG_BTDM_CTRL_BLE_MAX_CONN)
 #elif (CONFIG_IDF_TARGET_ESP32C3 || CONFIG_IDF_TARGET_ESP32S3)
-/* @todo: must ensure CONFIG_BT_CTRL_BLE_MAX_ACT is greater than 2 */
-#if CONFIG_BT_NIMBLE_MAX_CONNECTIONS > (CONFIG_BT_CTRL_BLE_MAX_ACT - 2)
-/* decrease the adv,scan */
-#define BLE_MESH_MAX_CONN   (CONFIG_BT_CTRL_BLE_MAX_ACT - 2)
-#else
-#define BLE_MESH_MAX_CONN   CONFIG_BT_NIMBLE_MAX_CONNECTIONS
-#endif /* CONFIG_BT_NIMBLE_MAX_CONNECTIONS > (CONFIG_BT_CTRL_BLE_MAX_ACT - 2) */
-#elif CONFIG_IDF_TARGET_ESP32C6 || CONFIG_IDF_TARGET_ESP32H2 || CONFIG_IDF_TARGET_ESP32C5
+#define BLE_MESH_MAX_CONN   MIN(CONFIG_BT_NIMBLE_MAX_CONNECTIONS, (CONFIG_BT_CTRL_BLE_MAX_ACT - 2))
+#elif (CONFIG_IDF_TARGET_ESP32C6 || CONFIG_IDF_TARGET_ESP32H2 || \
+       CONFIG_IDF_TARGET_ESP32C5 || CONFIG_IDF_TARGET_ESP32C61)
 #define BLE_MESH_MAX_CONN   CONFIG_BT_NIMBLE_MAX_CONNECTIONS
 #else
 /* default setting */
@@ -512,20 +499,20 @@ struct bt_mesh_adv_param {
 #define ADV_TASK_ADV_INST_EVT(inst_id) BIT(inst_id)
 
 enum bt_mesh_adv_inst_type {
-    BLE_MESH_ADV_INS,
+    BLE_MESH_ADV_INST,
 #if CONFIG_BLE_MESH_SUPPORT_MULTI_ADV
 #if (CONFIG_BLE_MESH_NODE && CONFIG_BLE_MESH_PB_GATT) || \
      CONFIG_BLE_MESH_GATT_PROXY_SERVER
-    BLE_MESH_ADV_PROXY_INS,
+    BLE_MESH_ADV_PROXY_INST,
 #endif
 #if CONFIG_BLE_MESH_SEPARATE_RELAY_ADV_INSTANCE
-    BLE_MESH_RELAY_ADV_INS,
+    BLE_MESH_RELAY_ADV_INST,
 #endif
 #if CONFIG_BLE_MESH_SEPARATE_BLE_ADV_INSTANCE
-    BLE_MESH_BLE_ADV_INS,
+    BLE_MESH_BLE_ADV_INST,
 #endif
 #endif /* CONFIG_BLE_MESH_SUPPORT_MULTI_ADV */
-    BLE_MESH_ADV_INS_TYPES_NUM,
+    BLE_MESH_ADV_INST_TYPES_NUM,
 };
 
 #if CONFIG_BLE_MESH_SUPPORT_BLE_ADV
@@ -945,20 +932,6 @@ void bt_mesh_gatt_init(void);
 void bt_mesh_gatt_deinit(void);
 
 void bt_mesh_adapt_init(void);
-
-void bt_mesh_set_private_key(const uint8_t pri_key[32]);
-
-const uint8_t *bt_mesh_pub_key_get(void);
-
-bool bt_mesh_check_public_key(const uint8_t key[64]);
-
-int bt_mesh_dh_key_gen(const uint8_t remote_pub_key[64], uint8_t dhkey[32]);
-
-int bt_mesh_encrypt_le(const uint8_t key[16], const uint8_t plaintext[16],
-                       uint8_t enc_data[16]);
-
-int bt_mesh_encrypt_be(const uint8_t key[16], const uint8_t plaintext[16],
-                       uint8_t enc_data[16]);
 
 enum {
     BLE_MESH_EXCEP_LIST_SUB_CODE_ADD = 0,

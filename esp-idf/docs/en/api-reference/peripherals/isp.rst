@@ -47,13 +47,14 @@ ISP Pipeline
         isp_chs [label = "Contrast &\n Hue & Saturation", width = 150, height = 70];
         isp_yuv [label = "YUV Limit\n YUB2RGB", width = 120, height = 70];
 
-        isp_header -> BLC -> BF -> LSC -> Demosaic -> CCM -> Gamma -> RGB2YUV -> SHARP -> isp_chs -> isp_yuv -> isp_tail;
+        isp_header -> BLC -> BF -> LSC -> Demosaic -> WBG -> CCM -> Gamma -> RGB2YUV -> SHARP -> isp_chs -> isp_yuv -> CROP -> isp_tail;
 
         LSC -> HIST
+        Demosaic -> WBG
         Demosaic -> AWB
         Demosaic -> AE
         Demosaic -> HIST
-        CCM -> AWB
+        WBG -> AWB
         Gamma -> AE
         RGB2YUV -> HIST
         RGB2YUV -> AF
@@ -77,6 +78,7 @@ The ISP driver offers following services:
 - :ref:`isp-demosaic` - covers how to configure the Demosaic function.
 - :ref:`isp-gamma-correction` - covers how to enable and configure gamma correction.
 - :ref:`isp-sharpen` - covers how to configure the sharpening function.
+- :ref:`isp-crop` - covers how to enable and configure image cropping function.
 - :ref:`isp-callback` - covers how to hook user specific code to ISP driver event callback function.
 - :ref:`isp-thread-safety` - lists which APIs are guaranteed to be thread safe by the driver.
 - :ref:`isp-kconfig-options` - lists the supported Kconfig options that can bring different effects to the driver.
@@ -143,7 +145,7 @@ If an :cpp:type:`esp_isp_awb_config_t` configuration is specified, you can call 
     uint32_t image_height = 600;
     /* The AWB configuration, please refer to the API comment for how to tune these parameters */
     esp_isp_awb_config_t awb_config = {
-        .sample_point = ISP_AWB_SAMPLE_POINT_AFTER_CCM,
+        .sample_point = ISP_AWB_SAMPLE_POINT_1,
         ...
     };
     ESP_ERROR_CHECK(esp_isp_new_awb_controller(isp_proc, &awb_config, &awb_ctlr));
@@ -160,7 +162,7 @@ If the configurations in :cpp:type:`esp_isp_ae_config_t` is specified, call :cpp
 .. code-block:: c
 
     esp_isp_ae_config_t ae_config = {
-        .sample_point = ISP_AE_SAMPLE_POINT_AFTER_DEMOSAIC,
+        .sample_point = ISP_AE_SAMPLE_POINT_0,
         ...
     };
     isp_ae_ctlr_t ae_ctlr = NULL;
@@ -341,7 +343,7 @@ Note that if you want to use the continuous statistics, you need to register the
     uint32_t image_height = 600;
     /* The AWB configuration, please refer to the API comment for how to tune these parameters */
     esp_isp_awb_config_t awb_config = {
-        .sample_point = ISP_AWB_SAMPLE_POINT_AFTER_CCM,
+        .sample_point = ISP_AWB_SAMPLE_POINT_1,
         ...
     };
     isp_awb_stat_result_t stat_res = {};
@@ -400,7 +402,7 @@ Note that if you want to use the continuous statistics, you need to register the
 .. code-block:: c
 
     esp_isp_ae_config_t ae_config = {
-        .sample_point = ISP_AE_SAMPLE_POINT_AFTER_DEMOSAIC,
+        .sample_point = ISP_AE_SAMPLE_POINT_0,
     };
     isp_ae_ctlr_t ae_ctlr = NULL;
     ESP_ERROR_CHECK(esp_isp_new_ae_controller(isp_proc, &ae_config, &ae_ctlr));
@@ -518,6 +520,7 @@ After calling :cpp:func:`esp_isp_bf_configure`, you need to enable the ISP BF co
 
 Calling :cpp:func:`esp_isp_bf_disable` does the opposite, that is, put the driver back to the **init** state.
 
+
 .. _isp-blc:
 
 ISP BLC Controller
@@ -624,7 +627,7 @@ Calling :cpp:func:`esp_isp_color_configure` to configure color function, you can
 {IDF_TARGET_SOC_ISP_COLOR_SATURATION_MAX:default="1.0", esp32p4="1.0"}
 {IDF_TARGET_SOC_ISP_COLOR_SATURATION_DEFAULT:default="1.0", esp32p4="1.0"}
 
-{IDF_TARGET_SOC_ISP_COLOR_HUE_MAX:default="360", esp32p4="360"}
+{IDF_TARGET_SOC_ISP_COLOR_HUE_MAX:default="359", esp32p4="359"}
 {IDF_TARGET_SOC_ISP_COLOR_HUE_DEFAULT:default="0", esp32p4="0"}
 
 {IDF_TARGET_SOC_ISP_COLOR_BRIGHTNESS_MIN:default="-127", esp32p4="-127"}
@@ -800,6 +803,51 @@ Calling :cpp:func:`esp_isp_sharpen_disable` does the opposite, that is, put the 
 
 :cpp:func:`esp_isp_sharpen_configure` is allowed to be called even if the driver is in **init** state, but the sharpen configurations will only be taken into effect when in **enable** state.
 
+.. _isp-crop:
+
+ISP Image Crop Controller
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The ISP image crop function can extract a specified region from the original image, reducing the amount of data for subsequent processing and improving processing efficiency. The crop function is executed at the end of the ISP pipeline and can output a smaller region than the input image.
+
+.. note::
+
+    The ISP image crop function is only available on ESP32-P4 revision 3.0 and above.
+
+Calling :cpp:func:`esp_isp_crop_configure` to configure the image crop function, you can take the following code as reference:
+
+.. code-block:: c
+
+    esp_isp_crop_config_t crop_config = {
+        .window = {
+            .top_left = {
+                .x = 100,  // Top-left X coordinate of crop region
+                .y = 100,  // Top-left Y coordinate of crop region
+            },
+            .btm_right = {
+                .x = 699,  // Bottom-right X coordinate of crop region
+                .y = 499,  // Bottom-right Y coordinate of crop region
+            }
+        }
+    };
+    ESP_ERROR_CHECK(esp_isp_crop_configure(isp_proc, &crop_config));
+    ESP_ERROR_CHECK(esp_isp_crop_enable(isp_proc));
+
+After calling :cpp:func:`esp_isp_crop_configure`, you need to enable the ISP image crop controller by calling :cpp:func:`esp_isp_crop_enable`. This function:
+
+* Switches the driver state from **init** to **enable**.
+
+Calling :cpp:func:`esp_isp_crop_disable` does the opposite, that is, put the driver back to the **init** state.
+
+:cpp:func:`esp_isp_crop_configure` is allowed to be called even if the driver is in **init** state, but the crop configurations will only be taken into effect when in **enable** state.
+
+.. note::
+
+    - The top-left coordinates (top_left) of the crop region must be smaller than the bottom-right coordinates (btm_right)
+    - The top-left coordinates (top_left) of the crop region must be even, and the bottom-right coordinates (btm_right) must be odd
+    - The crop region cannot exceed the boundaries of the original image
+    - Adjust the display medium (such as LCD) size according to the cropped resolution to ensure complete display and avoid black borders or stretching.
+
 
 .. _isp-callback:
 
@@ -910,6 +958,7 @@ Application Examples
 --------------------
 
 * :example:`peripherals/isp/multi_pipelines` demonstrates how to use the ISP pipelines to process the image signals from camera sensors and display the video on LCD screen via DSI peripheral.
+* `esp_video/examples <https://github.com/espressif/esp-video-components/tree/master/esp_video/examples>`_ provides some examples of enabling ISP control algorithms.
 
 API Reference
 -------------
@@ -927,6 +976,7 @@ API Reference
 .. include-build-file:: inc/isp_gamma.inc
 .. include-build-file:: inc/isp_hist.inc
 .. include-build-file:: inc/isp_color.inc
+.. include-build-file:: inc/isp_crop.inc
 .. include-build-file:: inc/isp_core.inc
 .. include-build-file:: inc/components/esp_driver_isp/include/driver/isp_types.inc
-.. include-build-file:: inc/components/hal/include/hal/isp_types.inc
+.. include-build-file:: inc/components/esp_hal_cam/include/hal/isp_types.inc

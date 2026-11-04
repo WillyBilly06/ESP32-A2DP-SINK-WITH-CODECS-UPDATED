@@ -28,7 +28,11 @@ list(APPEND srcs "soc/${target}/esp_tee_secure_sys_cfg.c"
                  "soc/${target}/esp_tee_apm_prot_cfg.c")
 
 list(APPEND srcs "soc/common/esp_tee_apm_intr.c"
-                 "soc/common/esp_tee_aes_intr.c")
+                 "soc/common/esp_tee_crypto_reset.c")
+
+if(CONFIG_SOC_AES_SUPPORTED)
+    list(APPEND srcs "soc/common/esp_tee_aes_intr.c")
+endif()
 
 # Common module implementation for TEE
 
@@ -44,11 +48,18 @@ list(APPEND include "include"
                     "soc/common/include"
                     "soc/${target}/include")
 
+if(CONFIG_SOC_INT_PLIC_SUPPORTED)
+    list(APPEND include "include/plic")
+elseif(CONFIG_SOC_INT_CLIC_SUPPORTED)
+    list(APPEND include "include/clic")
+endif()
+
 # Heap
 list(APPEND srcs "common/multi_heap.c")
 
 # TLSF implementation for heap
 list(APPEND include "${heap_dir}/tlsf")
+list(APPEND include "${heap_dir}/rom_patches/include")
 
 # esp_app_desc_t configuration structure for TEE
 list(APPEND srcs "common/esp_app_desc_tee.c")
@@ -59,9 +70,9 @@ list(APPEND srcs "common/syscall_stubs.c")
 idf_component_register(SRCS ${srcs}
                        INCLUDE_DIRS ${include})
 
-# NOTE: The ESP32-H2 ROM does not have sprintf/snprintf implementation,
+# NOTE: The ESP32-H2 and C61 ROM does not have sprintf/snprintf implementation,
 # thus newlib-nano implementation from the toolchain has been used.
-if(CONFIG_IDF_TARGET_ESP32H2)
+if(CONFIG_LIBC_NEWLIB AND (CONFIG_IDF_TARGET_ESP32H2 OR CONFIG_IDF_TARGET_ESP32C61))
     target_link_libraries(${COMPONENT_LIB} INTERFACE "--specs=nano.specs")
 endif()
 
@@ -75,6 +86,8 @@ target_link_libraries(${COMPONENT_LIB} PRIVATE "-u esp_app_desc_tee_include_impl
 
 # Newlib syscalls stub implementation: Linking symbol
 target_link_libraries(${COMPONENT_LIB} PRIVATE "-u esp_tee_include_syscalls_impl")
+
+target_link_libraries(${COMPONENT_LIB} PRIVATE "-u esp_tee_include_heap_impl")
 
 # cut PROJECT_VER and PROJECT_NAME to required 32 characters.
 idf_build_get_property(project_ver PROJECT_VER)

@@ -19,7 +19,7 @@
 
 /**
  * This file implements a simple in-RAM key database for BLE host security
- * material and CCCDs.  As this database is only ble_store_ramd in RAM, its
+ * material and CCCDs.  As this database is only stored in RAM, its
  * contents are lost when the application terminates.
  */
 
@@ -34,6 +34,7 @@
 #include "syscfg/syscfg.h"
 #include "host/ble_hs.h"
 #include "store/ram/ble_store_ram.h"
+#include "host/ble_hs_log.h"
 
 #if !MYNEWT_VAL(BLE_USED_IN_IDF)
 #if MYNEWT_VAL(BLE_STORE_MAX_BONDS)
@@ -175,6 +176,7 @@ ble_store_ram_write_our_sec(const struct ble_store_value_sec *value_sec)
         if (ble_store_ram_num_our_secs >= MYNEWT_VAL(BLE_STORE_MAX_BONDS)) {
             BLE_HS_LOG(DEBUG, "error persisting our sec; too many entries "
                               "(%d)\n", ble_store_ram_num_our_secs);
+            BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_ESTORE_CAP);
             return BLE_HS_ESTORE_CAP;
         }
 
@@ -191,14 +193,15 @@ ble_store_ram_write_our_sec(const struct ble_store_value_sec *value_sec)
 
 }
 
-#if MYNEWT_VAL(BLE_STORE_MAX_BONDS) || MYNEWT_VAL(BLE_STORE_MAX_CCCDS)
+#if MYNEWT_VAL(BLE_STORE_MAX_BONDS) || MYNEWT_VAL(BLE_STORE_MAX_CCCDS) || \
+    MYNEWT_VAL(BLE_STORE_MAX_CSFCS) || MYNEWT_VAL(ENC_ADV_DATA)
 static int
 ble_store_ram_delete_obj(void *values, int value_size, int idx,
                          int *num_values)
 {
     uint8_t *dst;
     uint8_t *src;
-    uint8_t move_count;
+    int move_count;
 
     (*num_values)--;
     if (idx < *num_values) {
@@ -207,7 +210,7 @@ ble_store_ram_delete_obj(void *values, int value_size, int idx,
         src = dst + value_size;
 
         move_count = *num_values - idx;
-        memmove(dst, src, move_count);
+        memmove(dst, src, (size_t)move_count * value_size);
     }
 
     return 0;
@@ -312,6 +315,7 @@ ble_store_ram_write_peer_sec(const struct ble_store_value_sec *value_sec)
         if (ble_store_ram_num_peer_secs >= MYNEWT_VAL(BLE_STORE_MAX_BONDS)) {
             BLE_HS_LOG(DEBUG, "error persisting peer sec; too many entries "
                              "(%d)\n", ble_store_ram_num_peer_secs);
+            BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_ESTORE_CAP);
             return BLE_HS_ESTORE_CAP;
         }
 
@@ -426,6 +430,7 @@ ble_store_ram_write_cccd(const struct ble_store_value_cccd *value_cccd)
         if (ble_store_ram_num_cccds >= MYNEWT_VAL(BLE_STORE_MAX_CCCDS)) {
             BLE_HS_LOG(DEBUG, "error persisting cccd; too many entries (%d)\n",
                        ble_store_ram_num_cccds);
+            BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_ESTORE_CAP);
             return BLE_HS_ESTORE_CAP;
         }
 
@@ -533,6 +538,7 @@ ble_store_ram_write_csfc(const struct ble_store_value_csfc *value_csfc)
         if (ble_store_ram_num_csfcs >= MYNEWT_VAL(BLE_STORE_MAX_CSFCS)) {
             BLE_HS_LOG(DEBUG, "error persisting csfc; too many entries (%d)\n",
                        ble_store_ram_num_csfcs);
+            BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_ESTORE_CAP);
             return BLE_HS_ESTORE_CAP;
         }
 
@@ -627,6 +633,7 @@ ble_store_ram_write_ead(const struct ble_store_value_ead *value_ead)
         if (ble_store_ram_num_eads >= MYNEWT_VAL(BLE_STORE_MAX_EADS)) {
             BLE_HS_LOG(DEBUG, "error persisting ead; too many entries (%d)\n",
                        ble_store_ram_num_eads);
+            BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_ESTORE_CAP);
             return BLE_HS_ESTORE_CAP;
         }
 

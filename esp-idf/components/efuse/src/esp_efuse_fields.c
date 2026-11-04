@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2017-2025 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2017-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -27,7 +27,7 @@
 #include "hal/ecdsa_ll.h"
 #endif /* SOC_ECDSA_SUPPORTED */
 
-static __attribute__((unused)) const char *TAG = "efuse";
+ESP_LOG_ATTR_TAG(TAG, "efuse");
 
 #ifdef CONFIG_BOOTLOADER_APP_SEC_VER_SIZE_EFUSE_FIELD
 #define APP_SEC_VER_SIZE_EFUSE_FIELD CONFIG_BOOTLOADER_APP_SEC_VER_SIZE_EFUSE_FIELD
@@ -44,7 +44,8 @@ void esp_efuse_reset(void)
 uint32_t esp_efuse_read_secure_version(void)
 {
     uint32_t secure_version = 0;
-    size_t size = MIN(APP_SEC_VER_SIZE_EFUSE_FIELD, esp_efuse_get_field_size(ESP_EFUSE_SECURE_VERSION));
+    size_t field_size = esp_efuse_get_field_size(ESP_EFUSE_SECURE_VERSION);
+    size_t size = MIN(APP_SEC_VER_SIZE_EFUSE_FIELD, field_size);
     esp_efuse_read_field_blob(ESP_EFUSE_SECURE_VERSION, &secure_version, size);
     return __builtin_popcount(secure_version & ((1ULL << size) - 1));
 }
@@ -66,7 +67,8 @@ bool esp_efuse_check_secure_version(uint32_t secure_version)
 
 esp_err_t esp_efuse_update_secure_version(uint32_t secure_version)
 {
-    size_t size = MIN(APP_SEC_VER_SIZE_EFUSE_FIELD, esp_efuse_get_field_size(ESP_EFUSE_SECURE_VERSION));
+    size_t field_size = esp_efuse_get_field_size(ESP_EFUSE_SECURE_VERSION);
+    size_t size = MIN(APP_SEC_VER_SIZE_EFUSE_FIELD, field_size);
     if (size < secure_version) {
         ESP_LOGE(TAG, "Max secure version is %u. Given %"PRIu32" version can not be written.", (unsigned)size, secure_version);
         return ESP_ERR_INVALID_ARG;
@@ -158,6 +160,11 @@ esp_err_t esp_efuse_enable_ecdsa_p192_curve_mode(void)
 #if SOC_RECOVERY_BOOTLOADER_SUPPORTED
 esp_err_t esp_efuse_set_recovery_bootloader_offset(const uint32_t offset)
 {
+#if CONFIG_IDF_TARGET_ESP32P4 && !EFUSE_LL_HAS_RECOVERY_BOOTLOADER
+    // esp32p4 with version < 3.0 does not have recovery bootloader feature.
+    ESP_LOGE(TAG, "Recovery bootloader eFuse field is not available for this chip revision");
+    return ESP_ERR_NOT_SUPPORTED;
+#else
     // The eFuse field stores the sector number instead of the full address to conserve eFuse bits.
     if (efuse_ll_get_recovery_bootloader_sector() == 0) {
         ESP_LOGI(TAG, "Recovery bootloader offset has not been set yet.");
@@ -183,5 +190,29 @@ esp_err_t esp_efuse_set_recovery_bootloader_offset(const uint32_t offset)
 
     ESP_LOGI(TAG, "Recovery bootloader offset in eFuse = 0x%" PRIx32, programmed_offset);
     return ESP_OK;
+#endif
 }
 #endif // SOC_RECOVERY_BOOTLOADER_SUPPORTED
+
+bool IRAM_ATTR esp_efuse_is_flash_encryption_enabled(void)
+{
+#ifndef CONFIG_EFUSE_VIRTUAL_KEEP_IN_FLASH
+    return efuse_hal_flash_encryption_enabled();
+#else
+    uint32_t flash_crypt_cnt = 0;
+#if CONFIG_IDF_TARGET_ESP32
+    esp_efuse_read_field_blob(ESP_EFUSE_FLASH_CRYPT_CNT, &flash_crypt_cnt, ESP_EFUSE_FLASH_CRYPT_CNT[0]->bit_count);
+#else
+    esp_efuse_read_field_blob(ESP_EFUSE_SPI_BOOT_CRYPT_CNT, &flash_crypt_cnt, ESP_EFUSE_SPI_BOOT_CRYPT_CNT[0]->bit_count);
+#endif
+    /* __builtin_parity is in flash, so we calculate parity inline */
+    bool enabled = false;
+    while (flash_crypt_cnt) {
+        if (flash_crypt_cnt & 1) {
+            enabled = !enabled;
+        }
+        flash_crypt_cnt >>= 1;
+    }
+    return enabled;
+#endif // CONFIG_EFUSE_VIRTUAL_KEEP_IN_FLASH
+}

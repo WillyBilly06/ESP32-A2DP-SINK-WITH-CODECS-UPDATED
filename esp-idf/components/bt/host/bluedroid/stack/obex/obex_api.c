@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2024 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2024-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -38,7 +38,7 @@ static inline void obex_server_to_tl_server(tOBEX_SVR_INFO *server, tOBEX_TL_SVR
     }
 }
 
-static inline void obex_updata_packet_length(BT_HDR *p_buf, UINT16 len)
+static inline void obex_update_packet_length(BT_HDR *p_buf, UINT16 len)
 {
     UINT8 *p_pkt_len = (UINT8 *)(p_buf + 1) + p_buf->offset + 1;
     UINT16_TO_BE_FIELD(p_pkt_len, len);
@@ -66,12 +66,12 @@ UINT16 OBEX_Init(void)
 #endif /* #if (OBEX_DYNAMIC_MEMORY) */
     memset(&obex_cb, 0, sizeof(tOBEX_CB));
     obex_cb.tl_ops[OBEX_OVER_L2CAP] = obex_tl_l2cap_ops_get();
-    if (obex_cb.tl_ops[OBEX_OVER_L2CAP]->init != NULL) {
+    if (obex_cb.tl_ops[OBEX_OVER_L2CAP] && obex_cb.tl_ops[OBEX_OVER_L2CAP]->init) {
         obex_cb.tl_ops[OBEX_OVER_L2CAP]->init(obex_tl_l2cap_callback);
     }
 #if (RFCOMM_INCLUDED == TRUE)
     obex_cb.tl_ops[OBEX_OVER_RFCOMM] = obex_tl_rfcomm_ops_get();
-    if (obex_cb.tl_ops[OBEX_OVER_RFCOMM]->init != NULL) {
+    if (obex_cb.tl_ops[OBEX_OVER_RFCOMM] && obex_cb.tl_ops[OBEX_OVER_RFCOMM]->init) {
         obex_cb.tl_ops[OBEX_OVER_RFCOMM]->init(obex_tl_rfcomm_callback);
     }
 #endif
@@ -89,11 +89,11 @@ UINT16 OBEX_Init(void)
 *******************************************************************************/
 void OBEX_Deinit(void)
 {
-    if (obex_cb.tl_ops[OBEX_OVER_L2CAP]->deinit != NULL) {
+    if (obex_cb.tl_ops[OBEX_OVER_L2CAP] && obex_cb.tl_ops[OBEX_OVER_L2CAP]->deinit) {
         obex_cb.tl_ops[OBEX_OVER_L2CAP]->deinit();
     }
 #if (RFCOMM_INCLUDED == TRUE)
-    if (obex_cb.tl_ops[OBEX_OVER_RFCOMM]->deinit != NULL) {
+    if (obex_cb.tl_ops[OBEX_OVER_RFCOMM] && obex_cb.tl_ops[OBEX_OVER_RFCOMM]->deinit) {
         obex_cb.tl_ops[OBEX_OVER_RFCOMM]->deinit();
     }
 #endif
@@ -121,7 +121,7 @@ UINT16 OBEX_CreateConn(tOBEX_SVR_INFO *server, tOBEX_MSG_CBACK callback, UINT16 
     tOBEX_CCB *p_ccb = NULL;
 
     do {
-        if (server->tl >= OBEX_NUM_TL) {
+        if (!server || (server->tl >= OBEX_NUM_TL)) {
             ret = OBEX_INVALID_PARAM;
             break;
         }
@@ -144,7 +144,9 @@ UINT16 OBEX_CreateConn(tOBEX_SVR_INFO *server, tOBEX_MSG_CBACK callback, UINT16 
         p_ccb->callback = callback;
         p_ccb->role = OBEX_ROLE_CLIENT;
         p_ccb->state = OBEX_STATE_OPENING;
-        *out_handle = p_ccb->allocated;
+        if (out_handle) {
+            *out_handle = p_ccb->allocated;
+        }
     } while (0);
 
     if (ret != OBEX_SUCCESS && p_ccb != NULL) {
@@ -325,7 +327,7 @@ UINT16 OBEX_BuildRequest(tOBEX_PARSE_INFO *info, UINT16 buff_size, BT_HDR **out_
     }
     buff_size += sizeof(BT_HDR) + OBEX_BT_HDR_MIN_OFFSET + OBEX_BT_HDR_RESERVE_LEN;
 
-    BT_HDR *p_buf= (BT_HDR *)osi_malloc(buff_size);
+    BT_HDR *p_buf = (BT_HDR *)osi_malloc(buff_size);
     if (p_buf == NULL) {
         return OBEX_NO_RESOURCES;
     }
@@ -627,20 +629,35 @@ UINT16 OBEX_ParseRequest(BT_HDR *pkt, tOBEX_PARSE_INFO *info)
     }
 
     UINT8 *p_data = (UINT8 *)(pkt + 1) + pkt->offset;
+    UINT16 len = pkt->len;
+
+    if (len < 1) {
+        return OBEX_FAILURE;
+    }
+
     info->opcode = *p_data;
     switch (info->opcode)
     {
     case OBEX_OPCODE_CONNECT:
+        if (len < 7) {
+            return OBEX_FAILURE;
+        }
         info->obex_version_number = p_data[3];
         info->flags = p_data[4];
         info->max_packet_length = (p_data[5] << 8) + p_data[6];
         info->next_header_pos = 7;
         break;
     case OBEX_OPCODE_SETPATH:
+        if (len < 5) {
+            return OBEX_FAILURE;
+        }
         info->flags = p_data[3];
         info->next_header_pos = 5;
         break;
     default:
+        if (len < 3) {
+            return OBEX_FAILURE;
+        }
         info->next_header_pos = 3;
         break;
     }
@@ -663,17 +680,29 @@ UINT16 OBEX_ParseResponse(BT_HDR *pkt, UINT8 opcode, tOBEX_PARSE_INFO *info)
     }
 
     UINT8 *p_data = (UINT8 *)(pkt + 1) + pkt->offset;
+    UINT16 len = pkt->len;
+
+    if (len < 1) {
+        return OBEX_FAILURE;
+    }
+
     info->opcode = opcode;
     info->response_code = *p_data;
     switch (opcode)
     {
     case OBEX_OPCODE_CONNECT:
+        if (len < 7) {
+            return OBEX_FAILURE;
+        }
         info->obex_version_number = p_data[3];
         info->flags = p_data[4];
         info->max_packet_length = (p_data[5] << 8) + p_data[6];
         info->next_header_pos = 7;
         break;
     default:
+        if (len < 3) {
+            return OBEX_FAILURE;
+        }
         info->next_header_pos = 3;
         break;
     }
@@ -691,7 +720,7 @@ UINT16 OBEX_ParseResponse(BT_HDR *pkt, UINT8 opcode, tOBEX_PARSE_INFO *info)
 *******************************************************************************/
 BOOLEAN OBEX_CheckFinalBit(BT_HDR *pkt)
 {
-    if (pkt == NULL) {
+    if (pkt == NULL || pkt->len < 1) {
         return FALSE;
     }
     UINT8 *p_data = (UINT8 *)(pkt + 1) + pkt->offset;
@@ -709,7 +738,7 @@ BOOLEAN OBEX_CheckFinalBit(BT_HDR *pkt)
 *******************************************************************************/
 BOOLEAN OBEX_CheckContinueResponse(BT_HDR *pkt)
 {
-    if (pkt == NULL) {
+    if (pkt == NULL || pkt->len < 1) {
         return FALSE;
     }
     UINT8 *p_data = (UINT8 *)(pkt + 1) + pkt->offset;
@@ -725,15 +754,26 @@ BOOLEAN OBEX_CheckContinueResponse(BT_HDR *pkt)
 ** Returns          header length
 **
 *******************************************************************************/
-UINT16 OBEX_GetHeaderLength(UINT8 *header)
+UINT16 OBEX_GetHeaderLength(UINT8 *header, UINT8 *pkt_end)
 {
+    if (header == NULL || pkt_end == NULL || header >= pkt_end) {
+        return 0;
+    }
+
+    UINT16 remaining_len = (UINT16)(pkt_end - header);
     UINT16 header_len = 0;
     UINT8 header_id = *header;
+
     switch (header_id & OBEX_HEADER_ID_U2B_MASK)
     {
     case OBEX_HEADER_ID_U2B_TYPE1:
     case OBEX_HEADER_ID_U2B_TYPE2:
-        header_len = (header[1] << 8) + header[2];
+        if (remaining_len >= 3) {
+            header_len = (header[1] << 8) + header[2];
+        }
+        if (header_len < 3) {
+            header_len = 0;
+        }
         break;
     case OBEX_HEADER_ID_U2B_TYPE3:
         header_len = 2;
@@ -745,6 +785,11 @@ UINT16 OBEX_GetHeaderLength(UINT8 *header)
         /* unreachable */
         break;
     }
+
+    if (header_len > remaining_len) {
+        return 0;
+    }
+
     return header_len;
 }
 
@@ -763,12 +808,16 @@ UINT8 *OBEX_GetNextHeader(BT_HDR *pkt, tOBEX_PARSE_INFO *info)
     if (pkt == NULL || info == NULL) {
         return NULL;
     }
-    UINT8 *p_data = (UINT8 *)(pkt + 1) + pkt->offset;
     if (info->next_header_pos == 0 || info->next_header_pos >= pkt->len) {
         return NULL;
     }
+    UINT8 *p_data = (UINT8 *)(pkt + 1) + pkt->offset;
     UINT8 *header = p_data + info->next_header_pos;
-    UINT16 header_len = OBEX_GetHeaderLength(header);
+    UINT8 *pkt_end = p_data + pkt->len;
+    UINT16 header_len = OBEX_GetHeaderLength(header, pkt_end);
+    if (header_len == 0) {
+        return NULL;
+    }
     info->next_header_pos += header_len;
     return header;
 }

@@ -31,8 +31,8 @@
  *   This file includes definitions for MAC radio links.
  */
 
-#ifndef MAC_LINKS_HPP_
-#define MAC_LINKS_HPP_
+#ifndef OT_CORE_MAC_MAC_LINKS_HPP_
+#define OT_CORE_MAC_MAC_LINKS_HPP_
 
 #include "openthread-core-config.h"
 
@@ -517,18 +517,22 @@ public:
     }
 
     /**
-     * Gets the radio transmit frames.
+     * Initializes and retrieves the radio transmit frames `TxFrames`.
      *
      * @returns The transmit frames.
      */
-    TxFrames &GetTxFrames(void) { return mTxFrames; }
+    TxFrames &InitTxFrames(void)
+    {
+        mTxFrames.Clear();
+        return mTxFrames;
+    }
 
 #if !OPENTHREAD_CONFIG_MULTI_RADIO
 
     /**
      * Sends a prepared frame.
      *
-     * The prepared frame is from `GetTxFrames()`. This method is available only in single radio link mode.
+     * The prepared frame is from `InitTxFrames()`. This method is available only in single radio link mode.
      */
     void Send(void)
     {
@@ -545,12 +549,23 @@ public:
     /**
      * Sends prepared frames over a given set of radio links.
      *
-     * The prepared frame must be from `GetTxFrames()`. This method is available only in multi radio link mode.
+     * The prepared frame must be from `InitTxFrames()`. This method is available only in multi radio link mode.
      *
      * @param[in] aFrame       A reference to a prepared frame.
      * @param[in] aRadioTypes  A set of radio types to send on.
      */
     void Send(TxFrame &aFrame, RadioTypes aRadioTypes);
+
+    /**
+     * Gets the required radio types (`GetRequiredRadioTypes()`) from `TxFrames`.
+     *
+     * This set specifies the radio links for which we expect the frame tx to be successful to consider the overall tx
+     * successful. If the set is empty, successful tx over any radio link is sufficient for overall tx to be considered
+     * successful. The required radio type set is expected to be a subset of selected radio types.
+     *
+     * @returns The required radio types.
+     */
+    RadioTypes GetTxFramesRequiredRadioTypes(void) const { return mTxFrames.GetRequiredRadioTypes(); }
 
 #endif // !OPENTHREAD_CONFIG_MULTI_RADIO
 
@@ -696,4 +711,4 @@ private:
 } // namespace Mac
 } // namespace ot
 
-#endif // MAC_LINKS_HPP_
+#endif // OT_CORE_MAC_MAC_LINKS_HPP_

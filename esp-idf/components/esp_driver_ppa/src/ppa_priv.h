@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2024-2025 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2024-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -15,9 +15,12 @@
 #include "freertos/semphr.h"
 #include "esp_private/dma2d.h"
 #include "hal/dma2d_types.h"
+#include "hal/dma2d_ll.h"
 #include "hal/ppa_types.h"
 #include "hal/ppa_hal.h"
 #include "esp_pm.h"
+#include "soc/soc_caps.h"
+#include "soc/regdma.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -28,16 +31,22 @@ extern "C" {
 #define PPA_PM_LOCK_NAME_LEN_MAX 16
 
 #define PPA_CHECK_CM_SUPPORT_BYTE_SWAP(str, color_type_id) \
-            ESP_RETURN_ON_FALSE(color_type_id == COLOR_TYPE_ID(COLOR_SPACE_ARGB, COLOR_PIXEL_ARGB8888) || color_type_id == COLOR_TYPE_ID(COLOR_SPACE_RGB, COLOR_PIXEL_RGB565), \
+            ESP_RETURN_ON_FALSE((color_type_id == ESP_COLOR_FOURCC_BGRA32) || (color_type_id == ESP_COLOR_FOURCC_RGB16), \
                                 ESP_ERR_INVALID_ARG, TAG, str "_cm does not support byte_swap");
 
 #define PPA_CHECK_CM_SUPPORT_RGB_SWAP(str, color_type_id) \
-            ESP_RETURN_ON_FALSE(COLOR_SPACE_TYPE(color_type_id) == COLOR_SPACE_ARGB || COLOR_SPACE_TYPE(color_type_id) == COLOR_SPACE_RGB, \
+            ESP_RETURN_ON_FALSE((color_type_id == ESP_COLOR_FOURCC_BGRA32) || (color_type_id == ESP_COLOR_FOURCC_BGR24) || (color_type_id == ESP_COLOR_FOURCC_RGB16), \
                                 ESP_ERR_INVALID_ARG, TAG, str "_cm does not support rgb_swap");
 
 #define PPA_IS_CM_YUV422(color_type_id) \
-            (color_type_id == COLOR_TYPE_ID(COLOR_SPACE_YUV, COLOR_PIXEL_UYVY422) || color_type_id == COLOR_TYPE_ID(COLOR_SPACE_YUV, COLOR_PIXEL_VYUY422) || \
-             color_type_id == COLOR_TYPE_ID(COLOR_SPACE_YUV, COLOR_PIXEL_YUYV422) || color_type_id == COLOR_TYPE_ID(COLOR_SPACE_YUV, COLOR_PIXEL_YVYU422))
+            (color_type_id == ESP_COLOR_FOURCC_UYVY || color_type_id == ESP_COLOR_FOURCC_VYUY || \
+             color_type_id == ESP_COLOR_FOURCC_YUYV || color_type_id == ESP_COLOR_FOURCC_YVYU)
+
+#define PPA_IS_CM_YUV(color_type_id) \
+            (color_type_id == ESP_COLOR_FOURCC_OUYY_EVYY || color_type_id == ESP_COLOR_FOURCC_YUV || PPA_IS_CM_YUV422(color_type_id))
+
+#define PPA_IS_CM_ALPHA(color_type_id) \
+            (color_type_id == ESP_COLOR_FOURCC_ALPHA8 || color_type_id == ESP_COLOR_FOURCC_ALPHA4)
 
 #define PPA_ALIGN_UP(num, align)    (((num) + ((align) - 1)) & ~((align) - 1))
 #define PPA_ALIGN_DOWN(num, align)  ((num) & ~((align) - 1))
@@ -75,6 +84,9 @@ typedef struct ppa_blend_engine_t {
 
 typedef struct {
     ppa_engine_type_t engine;                     // Engine type
+    struct {
+        uint32_t allow_pd: 1;                     // If set, engine allows the power domain to be powered off when system enters sleep mode
+    } flags;                                      // Configuration flags
 } ppa_engine_config_t;
 
 /******************************** CLIENT *************************************/
@@ -225,6 +237,8 @@ bool ppa_transaction_done_cb(dma2d_channel_handle_t dma2d_chan, dma2d_event_data
 
 bool ppa_recycle_transaction(ppa_client_handle_t ppa_client, ppa_trans_t *trans_elm);
 
+bool ppa_check_buffer_alignment(ppa_client_handle_t ppa_client, const void *pic_blk_config, bool is_input, uint32_t block_width);
+
 /****************************** PPA DRIVER ***********************************/
 
 struct ppa_platform_t {
@@ -236,9 +250,24 @@ struct ppa_platform_t {
     ppa_blend_engine_t *blending;               // Pointer to the PPA blending engine
     uint32_t srm_engine_ref_count;              // Reference count used to protect PPA SRM engine acquire and release
     uint32_t blend_engine_ref_count;            // Reference count used to protect PPA blending engine acquire and release
-    size_t buf_alignment_size;                  // Alignment requirement for the outgoing buffer addr and size to satisfy cache line size
+    size_t int_mem_align;                       // Alignment requirement for the internal outgoing buffer to satisfy cache line size
+    size_t ext_mem_align;                       // Alignment requirement for the external outgoing buffer to satisfy cache line size
     uint32_t dma_desc_mem_size;                 // Alignment requirement for the 2D-DMA descriptor to satisfy cache line size
+    struct {
+        uint32_t allow_pd: 1;                   // If set, driver allows the power domain to be powered off when system enters sleep mode
+    } flags;                                    // Configuration flags
 };
+
+#if SOC_PAU_SUPPORTED
+#include "soc/retention_periph_defs.h"
+typedef struct {
+    const periph_retention_module_t module;
+    const regdma_entries_config_t *regdma_entry_array;
+    uint32_t array_size;
+} ppa_retention_desc_t;
+
+extern const ppa_retention_desc_t ppa_reg_retention_info;
+#endif // SOC_PAU_SUPPORTED
 
 #ifdef __cplusplus
 }

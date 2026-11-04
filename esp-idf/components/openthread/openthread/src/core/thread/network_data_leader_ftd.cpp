@@ -219,18 +219,18 @@ void Leader::RemoveBorderRouter(uint16_t aRloc16, MatchMode aMatchMode)
     IncrementVersions(flags);
 }
 
-template <> void Leader::HandleTmf<kUriServerData>(Coap::Message &aMessage, const Ip6::MessageInfo &aMessageInfo)
+template <> void Leader::HandleTmf<kUriServerData>(Coap::Msg &aMsg)
 {
-    ThreadNetworkDataTlv networkDataTlv;
-    uint16_t             rloc16;
+    uint16_t    rloc16;
+    OffsetRange offsetRange;
 
     VerifyOrExit(Get<Mle::Mle>().IsLeader() && !mWaitingForNetDataSync);
 
     LogInfo("Received %s", UriToString<kUriServerData>());
 
-    VerifyOrExit(aMessageInfo.GetPeerAddr().GetIid().IsRoutingLocator());
+    VerifyOrExit(aMsg.mMessageInfo.GetPeerAddr().GetIid().IsRoutingLocator());
 
-    switch (Tlv::Find<ThreadRloc16Tlv>(aMessage, rloc16))
+    switch (Tlv::Find<ThreadRloc16Tlv>(aMsg.mMessage, rloc16))
     {
     case kErrorNone:
         RemoveBorderRouter(rloc16, kMatchModeRloc16);
@@ -241,18 +241,22 @@ template <> void Leader::HandleTmf<kUriServerData>(Coap::Message &aMessage, cons
         ExitNow();
     }
 
-    if (Tlv::FindTlv(aMessage, networkDataTlv) == kErrorNone)
+    if (Tlv::FindTlvValueOffsetRange(aMsg.mMessage, ThreadNetworkDataTlv::kType, offsetRange) == kErrorNone)
     {
-        VerifyOrExit(networkDataTlv.IsValid());
+        uint8_t bytes[kMaxSize];
+
+        VerifyOrExit(offsetRange.GetLength() <= kMaxSize);
+
+        aMsg.mMessage.ReadBytes(offsetRange, bytes);
 
         {
-            NetworkData networkData(GetInstance(), networkDataTlv.GetTlvs(), networkDataTlv.GetLength());
+            NetworkData networkData(GetInstance(), bytes, static_cast<uint8_t>(offsetRange.GetLength()));
 
-            RegisterNetworkData(aMessageInfo.GetPeerAddr().GetIid().GetLocator(), networkData);
+            RegisterNetworkData(aMsg.mMessageInfo.GetPeerAddr().GetIid().GetLocator(), networkData);
         }
     }
 
-    SuccessOrExit(Get<Tmf::Agent>().SendEmptyAck(aMessage, aMessageInfo));
+    SuccessOrExit(Get<Tmf::Agent>().SendAckResponse(aMsg));
 
     LogInfo("Sent %s ack", UriToString<kUriServerData>());
 
@@ -260,7 +264,7 @@ exit:
     return;
 }
 
-template <> void Leader::HandleTmf<kUriCommissionerSet>(Coap::Message &aMessage, const Ip6::MessageInfo &aMessageInfo)
+template <> void Leader::HandleTmf<kUriCommissionerSet>(Coap::Msg &aMsg)
 {
     MeshCoP::StateTlv::State state = MeshCoP::StateTlv::kReject;
     uint16_t                 borderAgentRloc;
@@ -272,9 +276,9 @@ template <> void Leader::HandleTmf<kUriCommissionerSet>(Coap::Message &aMessage,
     // Validate that there is no Border Agent Locator TLV. This also
     // validates that all included TLVs are properly formatted.
 
-    VerifyOrExit(Tlv::Find<MeshCoP::BorderAgentLocatorTlv>(aMessage, borderAgentRloc) == kErrorNotFound);
+    VerifyOrExit(Tlv::Find<MeshCoP::BorderAgentLocatorTlv>(aMsg.mMessage, borderAgentRloc) == kErrorNotFound);
 
-    SuccessOrExit(Tlv::Find<MeshCoP::CommissionerSessionIdTlv>(aMessage, sessionId));
+    SuccessOrExit(Tlv::Find<MeshCoP::CommissionerSessionIdTlv>(aMsg.mMessage, sessionId));
 
     if (FindCommissioningSessionId(localSessionId) == kErrorNone)
     {
@@ -285,55 +289,46 @@ template <> void Leader::HandleTmf<kUriCommissionerSet>(Coap::Message &aMessage,
 
     if (FindBorderAgentRloc(borderAgentRloc) == kErrorNone)
     {
-        SuccessOrExit(Tlv::Append<MeshCoP::BorderAgentLocatorTlv>(aMessage, borderAgentRloc));
+        SuccessOrExit(Tlv::Append<MeshCoP::BorderAgentLocatorTlv>(aMsg.mMessage, borderAgentRloc));
     }
 
-    SuccessOrExit(SetCommissioningData(aMessage));
+    SuccessOrExit(SetCommissioningData(aMsg.mMessage));
 
     state = MeshCoP::StateTlv::kAccept;
 
 exit:
     if (Get<Mle::Mle>().IsLeader())
     {
-        SendCommissioningSetResponse(aMessage, aMessageInfo, state);
+        SendCommissioningSetResponse(aMsg, state);
     }
 }
 
-template <> void Leader::HandleTmf<kUriCommissionerGet>(Coap::Message &aMessage, const Ip6::MessageInfo &aMessageInfo)
+template <> void Leader::HandleTmf<kUriCommissionerGet>(Coap::Msg &aMsg)
 {
     Error          error    = kErrorNone;
     Coap::Message *response = nullptr;
 
     VerifyOrExit(Get<Mle::Mle>().IsLeader() && !mWaitingForNetDataSync, error = kErrorInvalidState);
 
-    response = ProcessCommissionerGetRequest(aMessage);
+    response = ProcessCommissionerGetRequest(aMsg.mMessage);
     VerifyOrExit(response != nullptr, error = kErrorParse);
-    SuccessOrExit(error = Get<Tmf::Agent>().SendMessage(*response, aMessageInfo));
+    SuccessOrExit(error = Get<Tmf::Agent>().SendMessage(*response, aMsg.mMessageInfo));
 
     LogInfo("Sent %s response to %s", UriToString<kUriCommissionerGet>(),
-            aMessageInfo.GetPeerAddr().ToString().AsCString());
+            aMsg.mMessageInfo.GetPeerAddr().ToString().AsCString());
 
 exit:
     LogWarnOnError(error, "send CommissionerGet response");
     FreeMessageOnError(response, error);
 }
 
-void Leader::SendCommissioningSetResponse(const Coap::Message     &aRequest,
-                                          const Ip6::MessageInfo  &aMessageInfo,
-                                          MeshCoP::StateTlv::State aState)
+void Leader::SendCommissioningSetResponse(const Coap::Msg &aMsg, MeshCoP::StateTlv::State aState)
 {
-    Coap::Message *message = Get<Tmf::Agent>().NewPriorityResponseMessage(aRequest);
-
-    VerifyOrExit(message != nullptr);
-    SuccessOrExit(Tlv::Append<MeshCoP::StateTlv>(*message, aState));
-
-    SuccessOrExit(Get<Tmf::Agent>().SendMessage(*message, aMessageInfo));
-    message = nullptr; // `SendMessage` takes ownership on success
-
+    SuccessOrExit(Get<Tmf::Agent>().SendResponseWithStateTlv(aMsg, aState));
     LogInfo("Sent %s response", UriToString<kUriCommissionerSet>());
 
 exit:
-    FreeMessage(message);
+    return;
 }
 
 bool Leader::RlocMatch(uint16_t aFirstRloc16, uint16_t aSecondRloc16, MatchMode aMatchMode)

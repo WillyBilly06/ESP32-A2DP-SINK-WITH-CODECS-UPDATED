@@ -81,7 +81,8 @@ void MeshForwarder::SendMessage(OwnedPtr<Message> aMessagePtr)
 
                 for (Child &child : Get<ChildTable>().Iterate(Child::kInStateValidOrRestoring))
                 {
-                    if (!child.IsRxOnWhenIdle() && (destinedForAll || child.HasIp6Address(destination)))
+                    if (!child.IsRxOnWhenIdle() && (destinedForAll || child.HasIp6Address(destination)) &&
+                        !child.HasIp6Address(ip6Header.GetSource()))
                     {
                         mIndirectSender.AddMessageForSleepyChild(message, child);
                     }
@@ -164,28 +165,6 @@ void MeshForwarder::HandleResolved(const Ip6::Address &aEid, Error aError)
             continue;
         }
 
-#if OPENTHREAD_CONFIG_BACKBONE_ROUTER_ENABLE
-        // Pass back to IPv6 layer for DUA destination resolved
-        // by Backbone Query
-        if (Get<BackboneRouter::Local>().IsPrimary() && Get<BackboneRouter::Leader>().IsDomainUnicast(ip6Dst) &&
-            Get<Mle::Mle>().HasRloc16(Get<AddressResolver>().LookUp(ip6Dst)))
-        {
-            uint8_t hopLimit;
-
-            mSendQueue.Dequeue(message);
-
-            // Avoid decreasing Hop Limit twice
-            IgnoreError(message.Read(Ip6::Header::kHopLimitFieldOffset, hopLimit));
-            hopLimit++;
-            message.Write(Ip6::Header::kHopLimitFieldOffset, hopLimit);
-            message.SetLoopbackToHostAllowed(true);
-            message.SetOrigin(Message::kOriginHostTrusted);
-
-            IgnoreError(Get<Ip6::Ip6>().HandleDatagram(OwnedPtr<Message>(&message)));
-            continue;
-        }
-#endif
-
         message.SetResolvingAddress(false);
         didUpdate = true;
     }
@@ -196,10 +175,13 @@ void MeshForwarder::HandleResolved(const Ip6::Address &aEid, Error aError)
     }
 }
 
-Error MeshForwarder::EvictMessage(Message::Priority aPriority)
+Error MeshForwarder::EvictMessage(Message::Priority aPriority, EvictReason aEvictReason)
 {
     Error    error = kErrorNotFound;
     Message *evict = nullptr;
+
+    error = RemoveUnsecureReassemblyMessage(aEvictReason);
+    VerifyOrExit(error == kErrorNotFound);
 
 #if OPENTHREAD_CONFIG_DELAY_AWARE_QUEUE_MANAGEMENT_ENABLE
     error = RemoveAgedMessages();
@@ -222,11 +204,18 @@ Error MeshForwarder::EvictMessage(Message::Priority aPriority)
                 continue;
             }
 
+            if ((aEvictReason == kEvictReasonDirectTxQueueAtLimit) && !message->IsDirectTransmission())
+            {
+                continue;
+            }
+
             evict = message;
             error = kErrorNone;
             ExitNow();
         }
     }
+
+    VerifyOrExit(aEvictReason == kEvictReasonNoMessageBuffer);
 
     for (uint8_t priority = aPriority; priority < Message::kNumPriorities; priority++)
     {
@@ -254,7 +243,16 @@ Error MeshForwarder::EvictMessage(Message::Priority aPriority)
 exit:
     if ((error == kErrorNone) && (evict != nullptr))
     {
-        FinalizeAndRemoveMessage(*evict, kErrorNoBufs, kMessageEvict);
+        switch (aEvictReason)
+        {
+        case kEvictReasonDirectTxQueueAtLimit:
+            FinalizeAndRemoveMessage(*evict, kErrorDrop, kMessageFullQueueEvict);
+            break;
+
+        case kEvictReasonNoMessageBuffer:
+            FinalizeAndRemoveMessage(*evict, kErrorNoBufs, kMessageEvict);
+            break;
+        }
     }
 
     return error;
@@ -541,10 +539,10 @@ void MeshForwarder::SendDestinationUnreachable(uint16_t aMeshSource, const Ip6::
 {
     Ip6::MessageInfo messageInfo;
 
-    messageInfo.GetPeerAddr().SetToRoutingLocator(Get<Mle::Mle>().GetMeshLocalPrefix(), aMeshSource);
+    Get<Mle::Mle>().ComposeRloc(aMeshSource, messageInfo.GetPeerAddr());
 
-    IgnoreError(Get<Ip6::Icmp>().SendError(Ip6::Icmp::Header::kTypeDstUnreach,
-                                           Ip6::Icmp::Header::kCodeDstUnreachNoRoute, messageInfo, aIp6Headers));
+    IgnoreError(Get<Ip6::Icmp>().SendError(Ip6::Icmp6Header::kTypeDstUnreach, Ip6::Icmp6Header::kCodeDstUnreachNoRoute,
+                                           messageInfo, aIp6Headers));
 }
 
 void MeshForwarder::HandleMesh(RxInfo &aRxInfo)
@@ -652,6 +650,7 @@ void MeshForwarder::UpdateEidRlocCacheAndStaleChild(RxInfo &aRxInfo)
 {
     Neighbor *neighbor;
 
+    VerifyOrExit(aRxInfo.IsLinkSecurityEnabled());
     VerifyOrExit(!aRxInfo.GetDstAddr().IsBroadcast() && aRxInfo.GetSrcAddr().IsShort());
 
     SuccessOrExit(aRxInfo.ParseIp6Headers());
@@ -809,12 +808,9 @@ void MeshForwarder::GetForwardFramePriority(RxInfo &aRxInfo, Message::Priority &
     error = GetFramePriority(aRxInfo, aPriority);
 
 exit:
-    if (error != kErrorNone)
-    {
-        LogInfo("Failed to get forwarded frame priority, error:%s, %s", ErrorToString(error),
-                aRxInfo.ToString().AsCString());
-    }
-    else if (isFragment)
+    LogDebgOnError(error, "get forwarded frame priority %s", aRxInfo.ToString().AsCString());
+
+    if ((error == kErrorNone) && isFragment)
     {
         UpdateFragmentPriority(fragmentHeader, aRxInfo.mFrameData.GetLength(), aRxInfo.GetSrcAddr().GetShort(),
                                aPriority);

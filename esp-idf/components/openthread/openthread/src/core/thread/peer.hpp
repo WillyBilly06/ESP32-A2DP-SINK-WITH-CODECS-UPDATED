@@ -31,8 +31,8 @@
  *   This file includes definitions for a Thread P2P `Peer`.
  */
 
-#ifndef PEER_HPP_
-#define PEER_HPP_
+#ifndef OT_CORE_THREAD_PEER_HPP_
+#define OT_CORE_THREAD_PEER_HPP_
 
 #include "openthread-core-config.h"
 
@@ -81,7 +81,10 @@ public:
      *
      * @returns The link local IPv6 address of the peer.
      */
-    void GetLinkLocalIp6Address(Ip6::Address &aIp6Address) const { aIp6Address.SetToLinkLocalAddress(GetExtAddress()); }
+    void GetLinkLocalIp6Address(Ip6::Address &aIp6Address) const
+    {
+        aIp6Address.InitAsLinkLocalAddress(GetExtAddress());
+    }
 
     /**
      * Generates a new challenge value to use during a child attach.
@@ -120,4 +123,4 @@ private:
 
 #endif // OPENTHREAD_CONFIG_P2P_ENABLE
 
-#endif // PEER_HPP_
+#endif // OT_CORE_THREAD_PEER_HPP_

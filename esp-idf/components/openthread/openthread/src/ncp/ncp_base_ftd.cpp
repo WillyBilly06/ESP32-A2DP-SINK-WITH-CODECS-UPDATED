@@ -385,53 +385,6 @@ exit:
 }
 #endif
 
-#if OPENTHREAD_CONFIG_DUA_ENABLE
-template <> otError NcpBase::HandlePropertyGet<SPINEL_PROP_THREAD_DUA_ID>(void)
-{
-    const otIp6InterfaceIdentifier *iid   = otThreadGetFixedDuaInterfaceIdentifier(mInstance);
-    otError                         error = OT_ERROR_NONE;
-
-    if (iid == nullptr)
-    {
-        // send empty response
-    }
-    else
-    {
-        for (uint8_t i : iid->mFields.m8)
-        {
-            SuccessOrExit(error = mEncoder.WriteUint8(i));
-        }
-    }
-
-exit:
-    return error;
-}
-
-template <> otError NcpBase::HandlePropertySet<SPINEL_PROP_THREAD_DUA_ID>(void)
-{
-    otError error = OT_ERROR_NONE;
-
-    if (mDecoder.GetRemainingLength() == 0)
-    {
-        SuccessOrExit(error = otThreadSetFixedDuaInterfaceIdentifier(mInstance, nullptr));
-    }
-    else
-    {
-        otIp6InterfaceIdentifier iid;
-
-        for (uint8_t &i : iid.mFields.m8)
-        {
-            SuccessOrExit(error = mDecoder.ReadUint8(i));
-        }
-
-        SuccessOrExit(error = otThreadSetFixedDuaInterfaceIdentifier(mInstance, &iid));
-    }
-
-exit:
-    return error;
-}
-#endif // OPENTHREAD_CONFIG_DUA_ENABLE
-
 #if OPENTHREAD_CONFIG_BORDER_AGENT_EPHEMERAL_KEY_ENABLE
 
 template <> otError NcpBase::HandlePropertySet<SPINEL_PROP_BORDER_AGENT_EPHEMERAL_KEY_ENABLE>(void)
@@ -483,7 +436,7 @@ template <> otError NcpBase::HandlePropertySet<SPINEL_PROP_BORDER_AGENT_EPHEMERA
         break;
     case OT_BORDER_AGENT_STATE_DISABLED:
         error = OT_ERROR_NOT_CAPABLE;
-        // Fall through
+        OT_FALL_THROUGH;
     case OT_BORDER_AGENT_STATE_STOPPED:
         ExitNow();
     }
@@ -1218,6 +1171,8 @@ exit:
 }
 #endif // #if OPENTHREAD_CONFIG_MLE_STEERING_DATA_SET_OOB_ENABLE
 
+#if OPENTHREAD_CONFIG_REFERENCE_DEVICE_ENABLE
+
 template <> otError NcpBase::HandlePropertyGet<SPINEL_PROP_THREAD_PREFERRED_ROUTER_ID>(void)
 {
     return mEncoder.WriteUint8(mPreferredRouteId);
@@ -1234,6 +1189,8 @@ template <> otError NcpBase::HandlePropertySet<SPINEL_PROP_THREAD_PREFERRED_ROUT
 exit:
     return error;
 }
+
+#endif
 
 template <> otError NcpBase::HandlePropertyRemove<SPINEL_PROP_THREAD_ACTIVE_ROUTER_IDS>(void)
 {
@@ -1648,6 +1605,44 @@ template <> otError NcpBase::HandlePropertyGet<SPINEL_PROP_SRP_SERVER_AUTO_ENABL
 #endif // OPENTHREAD_CONFIG_BORDER_ROUTING_ENABLE
 #endif // OPENTHREAD_CONFIG_SRP_SERVER_ENABLE
 
+#if OPENTHREAD_CONFIG_BORDER_ROUTING_ENABLE && OPENTHREAD_CONFIG_BORDER_ROUTING_DHCP6_PD_ENABLE
+template <> otError NcpBase::HandlePropertySet<SPINEL_PROP_BORDER_ROUTER_DHCP6_PD_ENABLE>(void)
+{
+    otError error = OT_ERROR_NONE;
+    bool    enable;
+
+    SuccessOrExit(error = mDecoder.ReadBool(enable));
+    otBorderRoutingDhcp6PdSetEnabled(mInstance, enable);
+
+exit:
+    return error;
+}
+
+#if !OPENTHREAD_CONFIG_BORDER_ROUTING_DHCP6_PD_CLIENT_ENABLE
+template <> otError NcpBase::HandlePropertySet<SPINEL_PROP_BORDER_ROUTER_DHCP6_PD_PREFIX>(void)
+{
+    otError                         error = OT_ERROR_NONE;
+    otBorderRoutingPrefixTableEntry prefixEntry;
+    const otIp6Address             *prefixAddr;
+
+    memset(&prefixEntry, 0, sizeof(prefixEntry));
+
+    SuccessOrExit(error = mDecoder.ReadIp6Address(prefixAddr));
+    prefixEntry.mPrefix.mPrefix = *prefixAddr;
+    SuccessOrExit(error = mDecoder.ReadUint8(prefixEntry.mPrefix.mLength));
+
+    SuccessOrExit(error = mDecoder.ReadUint32(prefixEntry.mValidLifetime));
+    SuccessOrExit(error = mDecoder.ReadUint32(prefixEntry.mPreferredLifetime));
+
+    otPlatBorderRoutingProcessDhcp6PdPrefix(mInstance, &prefixEntry);
+
+exit:
+    return error;
+}
+#endif
+
+#endif // OPENTHREAD_CONFIG_BORDER_ROUTING_ENABLE && OPENTHREAD_CONFIG_BORDER_ROUTING_DHCP6_PD_ENABLE
+
 #if OPENTHREAD_CONFIG_NCP_DNSSD_ENABLE && OPENTHREAD_CONFIG_PLATFORM_DNSSD_ENABLE
 
 void NcpBase::DnssdRegisterHost(const otPlatDnssdHost      *aHost,
@@ -1692,6 +1687,26 @@ void NcpBase::DnssdUnregisterKey(const otPlatDnssdKey       *aKey,
     DnssdUpdate(aKey, aRequestId, aCallback, /* aRegister */ false);
 }
 
+void NcpBase::DnssdStartBrowser(const otPlatDnssdBrowser *aBrowser)
+{
+    DnssdUpdateDiscovery(aBrowser, /* aStart */ true);
+}
+
+void NcpBase::DnssdStopBrowser(const otPlatDnssdBrowser *aBrowser)
+{
+    DnssdUpdateDiscovery(aBrowser, /* aStart */ false);
+}
+
+void NcpBase::DnssdStartSrvResolver(const otPlatDnssdSrvResolver *aResolver)
+{
+    DnssdUpdateDiscovery(aResolver, /* aStart */ true);
+}
+
+void NcpBase::DnssdStopSrvResolver(const otPlatDnssdSrvResolver *aResolver)
+{
+    DnssdUpdateDiscovery(aResolver, /* aStart */ false);
+}
+
 otPlatDnssdState NcpBase::DnssdGetState(void) { return mDnssdState; }
 
 template <> otError NcpBase::HandlePropertySet<SPINEL_PROP_DNSSD_STATE>(void)
@@ -1731,6 +1746,39 @@ exit:
     return error;
 }
 
+template <> otError NcpBase::HandlePropertySet<SPINEL_PROP_DNSSD_BROWSE_RESULT>(void)
+{
+    otError                   error = OT_ERROR_NONE;
+    otPlatDnssdBrowseResult   browseResult;
+    otPlatDnssdBrowseCallback callback = nullptr;
+    const uint8_t            *context;
+    uint16_t                  contextLen;
+
+    SuccessOrExit(error = DecodeDnssdBrowseResult(mDecoder, browseResult, context, contextLen));
+    VerifyOrExit(contextLen == sizeof(otPlatDnssdBrowseCallback), error = OT_ERROR_PARSE);
+    callback = *reinterpret_cast<const otPlatDnssdBrowseCallback *>(context);
+    callback(mInstance, &browseResult);
+
+exit:
+    return error;
+}
+
+template <> otError NcpBase::HandlePropertySet<SPINEL_PROP_DNSSD_SRV_RESULT>(void)
+{
+    otError                error = OT_ERROR_NONE;
+    otPlatDnssdSrvResult   srvResult;
+    otPlatDnssdSrvCallback callback = nullptr;
+    const uint8_t         *context;
+    uint16_t               contextLen;
+
+    SuccessOrExit(error = DecodeDnssdSrvResult(mDecoder, srvResult, context, contextLen));
+    VerifyOrExit(contextLen == sizeof(otPlatDnssdSrvCallback), error = OT_ERROR_PARSE);
+    callback = *reinterpret_cast<const otPlatDnssdSrvCallback *>(context);
+    callback(mInstance, &srvResult);
+
+exit:
+    return error;
+}
 #endif // OPENTHREAD_CONFIG_NCP_DNSSD_ENABLE && OPENTHREAD_CONFIG_PLATFORM_DNSSD_ENABLE
 
 #if OPENTHREAD_CONFIG_BORDER_AGENT_ENABLE

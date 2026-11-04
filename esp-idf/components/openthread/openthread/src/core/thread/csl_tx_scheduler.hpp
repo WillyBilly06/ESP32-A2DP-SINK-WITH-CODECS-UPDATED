@@ -26,8 +26,8 @@
  *  POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef CSL_TX_SCHEDULER_HPP_
-#define CSL_TX_SCHEDULER_HPP_
+#ifndef OT_CORE_THREAD_CSL_TX_SCHEDULER_HPP_
+#define OT_CORE_THREAD_CSL_TX_SCHEDULER_HPP_
 
 #include "openthread-core-config.h"
 
@@ -95,8 +95,8 @@ public:
         TimeMilli GetCslLastHeard(void) const { return mCslLastHeard; }
         void      SetCslLastHeard(TimeMilli aCslLastHeard) { mCslLastHeard = aCslLastHeard; }
 
-        uint64_t GetLastRxTimestamp(void) const { return mLastRxTimestamp; }
-        void     SetLastRxTimestamp(uint64_t aLastRxTimestamp) { mLastRxTimestamp = aLastRxTimestamp; }
+        RadioTime64 GetLastRxTimestamp(void) const { return mLastRxTimestamp; }
+        void        SetLastRxTimestamp(RadioTime64 aLastRxTimestamp) { mLastRxTimestamp = aLastRxTimestamp; }
 
     private:
         uint8_t  mCslTxAttempts : 7;   ///< Number of CSL triggered tx attempts.
@@ -214,4 +214,4 @@ private:
 
 #endif // OPENTHREAD_CONFIG_MAC_CSL_TRANSMITTER_ENABLE
 
-#endif // CSL_TX_SCHEDULER_HPP_
+#endif // OT_CORE_THREAD_CSL_TX_SCHEDULER_HPP_

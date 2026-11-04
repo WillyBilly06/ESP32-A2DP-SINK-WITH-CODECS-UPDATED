@@ -32,7 +32,7 @@
 #include <openthread/platform/radio.h>
 
 #include "common/error.hpp"
-#include "gmock/gmock.h"
+#include "lib/spinel/openthread-spinel-config.h"
 #include "mac/mac_frame.hpp"
 #include "mac/mac_types.hpp"
 
@@ -66,17 +66,17 @@ TEST(RadioSpinelTransmit, shouldPassDesiredTxPowerToRadioPlatform)
     txFrame.mPsdu = frameBuffer;
 
     {
-        Mac::TxFrame::Info frameInfo;
+        Mac::TxFrame::BuildInfo buildInfo;
 
-        frameInfo.mType    = Mac::Frame::kTypeData;
-        frameInfo.mVersion = Mac::Frame::kVersion2006;
-        frameInfo.mAddrs.mSource.SetShort(kSrcAddr);
-        frameInfo.mAddrs.mDestination.SetExtended(kDstAddr);
-        frameInfo.mPanIds.SetSource(kSrcPanId);
-        frameInfo.mPanIds.SetDestination(kDstPanId);
-        frameInfo.mSecurityLevel = Mac::Frame::kSecurityEncMic32;
+        buildInfo.mType    = Mac::Frame::kTypeData;
+        buildInfo.mVersion = Mac::Frame::kVersion2006;
+        buildInfo.mAddrs.mSource.SetShort(kSrcAddr);
+        buildInfo.mAddrs.mDestination.SetExtended(kDstAddr);
+        buildInfo.mPanIds.SetSource(kSrcPanId);
+        buildInfo.mPanIds.SetDestination(kDstPanId);
+        buildInfo.mSecurityLevel = Mac::Frame::kSecurityEncMic32;
 
-        frameInfo.PrepareHeadersIn(txFrame);
+        buildInfo.PrepareHeadersIn(txFrame);
     }
 
     txFrame.mInfo.mTxInfo.mTxPower = kTxPower;
@@ -110,17 +110,17 @@ TEST(RadioSpinelTransmit, shouldCauseSwitchingToRxChannelAfterTxDone)
     txFrame.mPsdu = frameBuffer;
 
     {
-        Mac::TxFrame::Info frameInfo;
+        Mac::TxFrame::BuildInfo buildInfo;
 
-        frameInfo.mType    = Mac::Frame::kTypeData;
-        frameInfo.mVersion = Mac::Frame::kVersion2006;
-        frameInfo.mAddrs.mSource.SetShort(kSrcAddr);
-        frameInfo.mAddrs.mDestination.SetExtended(kDstAddr);
-        frameInfo.mPanIds.SetSource(kSrcPanId);
-        frameInfo.mPanIds.SetDestination(kDstPanId);
-        frameInfo.mSecurityLevel = Mac::Frame::kSecurityEncMic32;
+        buildInfo.mType    = Mac::Frame::kTypeData;
+        buildInfo.mVersion = Mac::Frame::kVersion2006;
+        buildInfo.mAddrs.mSource.SetShort(kSrcAddr);
+        buildInfo.mAddrs.mDestination.SetExtended(kDstAddr);
+        buildInfo.mPanIds.SetSource(kSrcPanId);
+        buildInfo.mPanIds.SetDestination(kDstPanId);
+        buildInfo.mSecurityLevel = Mac::Frame::kSecurityEncMic32;
 
-        frameInfo.PrepareHeadersIn(txFrame);
+        buildInfo.PrepareHeadersIn(txFrame);
     }
 
     txFrame.mInfo.mTxInfo.mTxPower              = kTxPower;
@@ -156,17 +156,17 @@ TEST(RadioSpinelTransmit, shouldSkipCsmaCaWhenDisabled)
     txFrame.mPsdu = frameBuffer;
 
     {
-        Mac::TxFrame::Info frameInfo;
+        Mac::TxFrame::BuildInfo buildInfo;
 
-        frameInfo.mType    = Mac::Frame::kTypeData;
-        frameInfo.mVersion = Mac::Frame::kVersion2006;
-        frameInfo.mAddrs.mSource.SetShort(kSrcAddr);
-        frameInfo.mAddrs.mDestination.SetExtended(kDstAddr);
-        frameInfo.mPanIds.SetSource(kSrcPanId);
-        frameInfo.mPanIds.SetDestination(kDstPanId);
-        frameInfo.mSecurityLevel = Mac::Frame::kSecurityEncMic32;
+        buildInfo.mType    = Mac::Frame::kTypeData;
+        buildInfo.mVersion = Mac::Frame::kVersion2006;
+        buildInfo.mAddrs.mSource.SetShort(kSrcAddr);
+        buildInfo.mAddrs.mDestination.SetExtended(kDstAddr);
+        buildInfo.mPanIds.SetSource(kSrcPanId);
+        buildInfo.mPanIds.SetDestination(kDstPanId);
+        buildInfo.mSecurityLevel = Mac::Frame::kSecurityEncMic32;
 
-        frameInfo.PrepareHeadersIn(txFrame);
+        buildInfo.PrepareHeadersIn(txFrame);
     }
 
     txFrame.mInfo.mTxInfo.mCsmaCaEnabled = false;
@@ -212,17 +212,17 @@ TEST(RadioSpinelTransmit, shouldPerformCsmaCaWhenEnabled)
     txFrame.mPsdu = frameBuffer;
 
     {
-        Mac::TxFrame::Info frameInfo;
+        Mac::TxFrame::BuildInfo buildInfo;
 
-        frameInfo.mType    = Mac::Frame::kTypeData;
-        frameInfo.mVersion = Mac::Frame::kVersion2006;
-        frameInfo.mAddrs.mSource.SetShort(kSrcAddr);
-        frameInfo.mAddrs.mDestination.SetExtended(kDstAddr);
-        frameInfo.mPanIds.SetSource(kSrcPanId);
-        frameInfo.mPanIds.SetDestination(kDstPanId);
-        frameInfo.mSecurityLevel = Mac::Frame::kSecurityEncMic32;
+        buildInfo.mType    = Mac::Frame::kTypeData;
+        buildInfo.mVersion = Mac::Frame::kVersion2006;
+        buildInfo.mAddrs.mSource.SetShort(kSrcAddr);
+        buildInfo.mAddrs.mDestination.SetExtended(kDstAddr);
+        buildInfo.mPanIds.SetSource(kSrcPanId);
+        buildInfo.mPanIds.SetDestination(kDstPanId);
+        buildInfo.mSecurityLevel = Mac::Frame::kSecurityEncMic32;
 
-        frameInfo.PrepareHeadersIn(txFrame);
+        buildInfo.PrepareHeadersIn(txFrame);
     }
 
     txFrame.mInfo.mTxInfo.mCsmaCaEnabled   = true;
@@ -262,17 +262,17 @@ TEST(RadioSpinelTransmit, shouldNotCauseSwitchingToRxAfterTxDoneIfNotRxOnWhenIdl
     txFrame.mPsdu = frameBuffer;
 
     {
-        Mac::TxFrame::Info frameInfo;
+        Mac::TxFrame::BuildInfo buildInfo;
 
-        frameInfo.mType    = Mac::Frame::kTypeData;
-        frameInfo.mVersion = Mac::Frame::kVersion2006;
-        frameInfo.mAddrs.mSource.SetShort(kSrcAddr);
-        frameInfo.mAddrs.mDestination.SetExtended(kDstAddr);
-        frameInfo.mPanIds.SetSource(kSrcPanId);
-        frameInfo.mPanIds.SetDestination(kDstPanId);
-        frameInfo.mSecurityLevel = Mac::Frame::kSecurityEncMic32;
+        buildInfo.mType    = Mac::Frame::kTypeData;
+        buildInfo.mVersion = Mac::Frame::kVersion2006;
+        buildInfo.mAddrs.mSource.SetShort(kSrcAddr);
+        buildInfo.mAddrs.mDestination.SetExtended(kDstAddr);
+        buildInfo.mPanIds.SetSource(kSrcPanId);
+        buildInfo.mPanIds.SetDestination(kDstPanId);
+        buildInfo.mSecurityLevel = Mac::Frame::kSecurityEncMic32;
 
-        frameInfo.PrepareHeadersIn(txFrame);
+        buildInfo.PrepareHeadersIn(txFrame);
     }
 
     txFrame.mInfo.mTxInfo.mTxPower              = kTxPower;
@@ -338,17 +338,17 @@ TEST(RadioSpinelTransmit, shouldSkipCsmaBackoffWhenCsmaCaIsEnabledAndMaxBackoffs
     txFrame.mPsdu = frameBuffer;
 
     {
-        Mac::TxFrame::Info frameInfo;
+        Mac::TxFrame::BuildInfo buildInfo;
 
-        frameInfo.mType    = Mac::Frame::kTypeData;
-        frameInfo.mVersion = Mac::Frame::kVersion2006;
-        frameInfo.mAddrs.mSource.SetShort(kSrcAddr);
-        frameInfo.mAddrs.mDestination.SetExtended(kDstAddr);
-        frameInfo.mPanIds.SetSource(kSrcPanId);
-        frameInfo.mPanIds.SetDestination(kDstPanId);
-        frameInfo.mSecurityLevel = Mac::Frame::kSecurityEncMic32;
+        buildInfo.mType    = Mac::Frame::kTypeData;
+        buildInfo.mVersion = Mac::Frame::kVersion2006;
+        buildInfo.mAddrs.mSource.SetShort(kSrcAddr);
+        buildInfo.mAddrs.mDestination.SetExtended(kDstAddr);
+        buildInfo.mPanIds.SetSource(kSrcPanId);
+        buildInfo.mPanIds.SetDestination(kDstPanId);
+        buildInfo.mSecurityLevel = Mac::Frame::kSecurityEncMic32;
 
-        frameInfo.PrepareHeadersIn(txFrame);
+        buildInfo.PrepareHeadersIn(txFrame);
     }
 
     txFrame.mInfo.mTxInfo.mCsmaCaEnabled   = true;
@@ -490,3 +490,33 @@ TEST(RadioSpinelSrcMatch, shouldBeAbleToClearAllRadioSrcMatchExtEntres)
 
     ASSERT_EQ(platform.SrcMatchCountExtEntries(), 0);
 }
+
+#if OPENTHREAD_SPINEL_CONFIG_RCP_RESTORATION_MAX_COUNT > 0
+TEST(RadioSpinelSrcMatch, shouldNotDuplicateSrcMatchEntriesOnRestoreProperties)
+{
+    constexpr uint16_t      kTestShortAddr = 0x1234;
+    constexpr otExtAddress  kTestExtAddr{0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88};
+    constexpr otExtAddress  kTestExtAddrReversed{0x88, 0x77, 0x66, 0x55, 0x44, 0x33, 0x22, 0x11};
+    FakeCoprocessorPlatform platform;
+
+    ASSERT_EQ(platform.mRadioSpinel.Enable(FakePlatform::CurrentInstance()), kErrorNone);
+
+    ASSERT_EQ(platform.mRadioSpinel.AddSrcMatchShortEntry(kTestShortAddr), kErrorNone);
+    ASSERT_EQ(platform.mRadioSpinel.AddSrcMatchExtEntry(kTestExtAddr), kErrorNone);
+
+    ASSERT_EQ(platform.SrcMatchCountShortEntries(), 1);
+    ASSERT_EQ(platform.SrcMatchCountExtEntries(), 1);
+    ASSERT_EQ(platform.SrcMatchHasShortEntry(kTestShortAddr), 1);
+    ASSERT_EQ(platform.SrcMatchHasExtEntry(kTestExtAddrReversed), 1);
+
+    // Simulate RCP recovery by calling RestoreProperties multiple times.
+    // Without clearing entries first, this would create duplicates.
+    platform.mRadioSpinel.RestoreProperties();
+    platform.mRadioSpinel.RestoreProperties();
+
+    ASSERT_EQ(platform.SrcMatchCountShortEntries(), 1);
+    ASSERT_EQ(platform.SrcMatchCountExtEntries(), 1);
+    ASSERT_EQ(platform.SrcMatchHasShortEntry(kTestShortAddr), 1);
+    ASSERT_EQ(platform.SrcMatchHasExtEntry(kTestExtAddrReversed), 1);
+}
+#endif // OPENTHREAD_SPINEL_CONFIG_RCP_RESTORATION_MAX_COUNT > 0

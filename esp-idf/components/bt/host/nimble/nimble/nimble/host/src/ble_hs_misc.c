@@ -18,9 +18,9 @@
  */
 
 #include <assert.h>
-#include <stdlib.h>
 #include "os/os.h"
 #include "ble_hs_priv.h"
+#include "host/ble_hs_log.h"
 
 int
 ble_hs_misc_conn_chan_find(uint16_t conn_handle, uint16_t cid,
@@ -114,24 +114,28 @@ ble_hs_misc_peer_addr_type_to_id(uint8_t peer_addr_type)
     }
 }
 
+#if NIMBLE_BLE_CONNECT
 static int
 ble_hs_misc_restore_one_irk(int obj_type, union ble_store_value *val,
                             void *cookie)
 {
     const struct ble_store_value_sec *sec;
-    int rc;
 
     BLE_HS_DBG_ASSERT(obj_type == BLE_STORE_OBJ_TYPE_PEER_SEC);
 
     sec = &val->sec;
     if (sec->irk_present) {
+#if MYNEWT_VAL(BLE_HS_PVCY)
+        int rc;
         rc = ble_hs_pvcy_add_entry(sec->peer_addr.val, sec->peer_addr.type,
                                    sec->irk);
         if (rc != 0) {
             BLE_HS_LOG(ERROR, "failed to configure restored IRK\n");
         }
+#endif
     }
 
+    /* We return 0 ("best effort") even if ble_hs_pvcy_add_entry fails. */
     return 0;
 }
 
@@ -145,3 +149,4 @@ ble_hs_misc_restore_irks(void)
                            NULL);
     return rc;
 }
+#endif

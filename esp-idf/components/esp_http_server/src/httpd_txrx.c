@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2018-2025 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2018-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -122,7 +122,7 @@ int httpd_recv_with_opt(httpd_req_t *r, char *buf, size_t buf_len, httpd_recv_op
     size_t recv_len = pending_len;
     do {
         int ret = ra->sd->recv_fn(ra->sd->handle, ra->sd->fd, buf, buf_len, 0);
-        if (ret < 0) {
+        if (ret <= 0) {
             ESP_LOGD(TAG, LOG_FMT("error in recv_fn"));
             if ((ret == HTTPD_SOCK_ERR_TIMEOUT) && (pending_len != 0)) {
                 /* If recv() timeout occurred, but pending data is
@@ -178,6 +178,12 @@ esp_err_t httpd_resp_set_hdr(httpd_req_t *r, const char *field, const char *valu
         return ESP_ERR_HTTPD_INVALID_REQ;
     }
 
+    /* Reject CRLF in header field or value */
+    if (strpbrk(field, "\r\n") || strpbrk(value, "\r\n")) {
+        ESP_LOGW(TAG, LOG_FMT("rejecting header with CRLF: %.32s"), field);
+        return ESP_ERR_INVALID_ARG;
+    }
+
     struct httpd_req_aux *ra = r->aux;
     struct httpd_data *hd = (struct httpd_data *) r->handle;
 
@@ -209,6 +215,12 @@ esp_err_t httpd_resp_set_status(httpd_req_t *r, const char *status)
         return ESP_ERR_HTTPD_INVALID_REQ;
     }
 
+    /* Reject CRLF in status */
+    if (strpbrk(status, "\r\n")) {
+        ESP_LOGW(TAG, LOG_FMT("rejecting status with CRLF: %.32s"), status);
+        return ESP_ERR_INVALID_ARG;
+    }
+
     struct httpd_req_aux *ra = r->aux;
     ra->status = (char *)status;
     return ESP_OK;
@@ -226,6 +238,12 @@ esp_err_t httpd_resp_set_type(httpd_req_t *r, const char *type)
 
     if (!httpd_valid_req(r)) {
         return ESP_ERR_HTTPD_INVALID_REQ;
+    }
+
+    /* Reject CRLF in content type */
+    if (strpbrk(type, "\r\n")) {
+        ESP_LOGW(TAG, LOG_FMT("rejecting content type with CRLF: %.32s"), type);
+        return ESP_ERR_INVALID_ARG;
     }
 
     struct httpd_req_aux *ra = r->aux;
@@ -302,6 +320,8 @@ esp_err_t httpd_resp_send(httpd_req_t *r, const char *buf, ssize_t buf_len)
     if (httpd_send_all(r, cr_lf_seperator, strlen(cr_lf_seperator)) != ESP_OK) {
         return ESP_ERR_HTTPD_RESP_SEND;
     }
+    struct httpd_data *hd = (struct httpd_data *) r->handle;
+    hd->http_server_state = HTTP_SERVER_EVENT_HEADERS_SENT;
     esp_http_server_dispatch_event(HTTP_SERVER_EVENT_HEADERS_SENT, &(ra->sd->fd), sizeof(int));
 
     /* Sending content */
@@ -314,6 +334,7 @@ esp_err_t httpd_resp_send(httpd_req_t *r, const char *buf, ssize_t buf_len)
         .fd = ra->sd->fd,
         .data_len = buf_len,
     };
+    hd->http_server_state = HTTP_SERVER_EVENT_SENT_DATA;
     esp_http_server_dispatch_event(HTTP_SERVER_EVENT_SENT_DATA, &evt_data, sizeof(esp_http_server_event_data));
     return ESP_OK;
 }
@@ -333,6 +354,7 @@ esp_err_t httpd_resp_send_chunk(httpd_req_t *r, const char *buf, ssize_t buf_len
     }
 
     struct httpd_req_aux *ra = r->aux;
+    struct httpd_data *hd = (struct httpd_data *) r->handle;
     const char *httpd_chunked_hdr_str = "HTTP/1.1 %s\r\nContent-Type: %s\r\nTransfer-Encoding: chunked\r\n";
     const char *colon_separator = ": ";
     const char *cr_lf_seperator = "\r\n";
@@ -412,6 +434,7 @@ esp_err_t httpd_resp_send_chunk(httpd_req_t *r, const char *buf, ssize_t buf_len
         .fd = ra->sd->fd,
         .data_len = buf_len,
     };
+    hd->http_server_state = HTTP_SERVER_EVENT_SENT_DATA;
     esp_http_server_dispatch_event(HTTP_SERVER_EVENT_SENT_DATA, &evt_data, sizeof(esp_http_server_event_data));
 
     return ESP_OK;
@@ -621,6 +644,8 @@ int httpd_req_recv(httpd_req_t *r, char *buf, size_t buf_len)
     }
     ra->remaining_len -= ret;
     ESP_LOGD(TAG, LOG_FMT("received length = %d"), ret);
+    struct httpd_data *hd = (struct httpd_data *) r->handle;
+    hd->http_server_state = HTTP_SERVER_EVENT_ON_DATA;
     esp_http_server_event_data evt_data = {
         .fd = ra->sd->fd,
         .data_len = ret,
@@ -669,6 +694,7 @@ esp_err_t httpd_req_async_handler_begin(httpd_req_t *r, httpd_req_t **out)
 
     async_aux->resp_hdrs = calloc(hd->config.max_resp_headers, sizeof(struct resp_hdr));
     if (async_aux->resp_hdrs == NULL) {
+        free(async_aux->scratch);
         free(async_aux);
         free(async);
         return ESP_ERR_NO_MEM;
@@ -712,9 +738,19 @@ esp_err_t httpd_req_async_handler_complete(httpd_req_t *r)
     // will now re-add this FD to its select() descriptor list. This ensures that subsequent requests
     // on the same FD are processed correctly
     struct httpd_ctrl_data msg = {.hc_msg = HTTPD_CTRL_MAX};
+
+    /* Reserve an mbox slot so we don't overrun ctrl_sock_semaphore's
+     * accounting and starve concurrent httpd_queue_work() producers. The
+     * httpd main task is the consumer and will drain the mbox shortly. */
+    if (xSemaphoreTake(hd->ctrl_sock_semaphore, portMAX_DELAY) != pdTRUE) {
+        ESP_LOGW(TAG, LOG_FMT("failed to acquire ctrl socket semaphore"));
+        return ESP_FAIL;
+    }
+
     int ret = cs_send_to_ctrl_sock(msg_fd, port, &msg, sizeof(msg));
     if (ret < 0) {
         ESP_LOGW(TAG, LOG_FMT("failed to send socket notification"));
+        xSemaphoreGive(hd->ctrl_sock_semaphore);
         return ESP_FAIL;
     }
 

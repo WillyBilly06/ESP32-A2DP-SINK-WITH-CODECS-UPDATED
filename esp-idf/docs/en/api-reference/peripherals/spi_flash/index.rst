@@ -118,7 +118,7 @@ SPI Flash Size
 
 The SPI flash size is configured by writing a field in the ESP-IDF second stage bootloader image header, flashed at offset 0x1000.
 
-By default, the SPI flash size is detected by ``esptool.py`` when this bootloader is written to flash, and the header is updated with the correct size. Alternatively, it is possible to generate a fixed flash size by setting :ref:`CONFIG_ESPTOOLPY_FLASHSIZE` in the project configuration.
+By default, the SPI flash size is detected by ``esptool`` when this bootloader is written to flash, and the header is updated with the correct size. Alternatively, it is possible to generate a fixed flash size by setting :ref:`CONFIG_ESPTOOLPY_FLASHSIZE` in the project configuration.
 
 If it is necessary to override the configured flash size at runtime, it is possible to set the ``chip_size`` member of the ``g_rom_flashchip`` structure. This size is used by ``esp_flash_*`` functions (in both software & ROM) to check the bounds.
 
@@ -172,8 +172,37 @@ Note that since memory mapping happens in pages, it may be possible to read data
 
     mmap is supported by cache, so it can only be used on main flash.
 
+.. only:: not esp32
+
+    .. _blocks_write_flag:
+
+    About the :cpp:enumerator:`SPI_FLASH_MMAP_FLAG_BLOCKS_WRITE` flag
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+        When flash erasing/writing happen while cache mapping exists, it often causes some cache region to be invalidated and reloaded again. To improve the performance, it is suggested to specify this flag when you are sure:
+
+        1. This mapping will end in a short time, and
+        2. Before the mapping ends, you don't need to erase or write the flash.
+
+        This flag will prevent all writes until the corresponding munmap is called. Most ESP-IDF APIs that rely on the mapping to flash internally use this flag.
+
+        .. only:: SOC_SPI_MEM_SUPPORT_AUTO_SUSPEND or SOC_SPIRAM_XIP_SUPPORTED
+
+            This flag also helps to prevent the cache being disabled when you are using following modes. See their documentation for more details.
+
+            .. list::
+
+                :SOC_SPIRAM_XIP_SUPPORTED: - :ref:`xip_from_psram`
+                :SOC_SPI_MEM_SUPPORT_AUTO_SUSPEND: - :ref:`auto-suspend`
+
+        This flag is implemented by a lock in the SPI Flash driver. The lock is taken when :cpp:func:`spi_flash_mmap` (or mmap-like APIs) is called with the flag and released until corresponding unmap is called. There is a reference counter internally allowing concurrent mapping to the flash. Only after the last mapping to Flash with the flag is revoked (counter equals 0) can the flash erasing/writing APIs start execution.
+
 SPI Flash Implementation
 ------------------------
+
+.. note::
+
+    The header files in ``components/spi_flash/include/esp_flash_chips/`` directory are **semi-public** - they are intended for expert users who need to implement custom chip drivers for unsupported flash chips, but they are **not considered stable API** and may change without notice. For most use cases, you should use the public APIs in ``esp_flash.h`` instead.
 
 The ``esp_flash_t`` structure holds chip data as well as three important parts of this API:
 
@@ -184,7 +213,7 @@ The ``esp_flash_t`` structure holds chip data as well as three important parts o
 Host Driver
 ^^^^^^^^^^^
 
-The host driver relies on an interface (``spi_flash_host_driver_t``) defined in the ``spi_flash_types.h`` (in the ``hal/include/hal`` folder). This interface provides some common functions to communicate with the chip.
+The host driver relies on an interface (``spi_flash_host_driver_t``) defined in the ``spi_flash_types.h`` (in the ``esp_hal_mspi/include/hal`` folder). This interface provides some common functions to communicate with the chip.
 
 In other files of the SPI HAL, some of these functions are implemented with existing {IDF_TARGET_NAME} memory-spi functionalities. However, due to the speed limitations of {IDF_TARGET_NAME}, the HAL layer cannot provide high-speed implementations to some reading commands (so the support for it was dropped). The files (``memspi_host_driver.h`` and ``.c``) implement the high-speed version of these commands with the ``common_command`` function provided in the HAL, and wrap these functions as ``spi_flash_host_driver_t`` for upper layer to use.
 
@@ -193,7 +222,7 @@ You can also implement your own host driver, even with the GPIO. As long as all 
 Chip Driver
 ^^^^^^^^^^^
 
-The chip driver, defined in ``spi_flash_chip_driver.h``, wraps basic functions provided by the host driver for the API layer to use.
+The chip driver, defined in ``esp_flash_chips/spi_flash_chip_driver.h``, wraps basic functions provided by the host driver for the API layer to use.
 
 Some operations need some commands to be sent first, or read some status afterwards. Some chips need different commands or values, or need special communication ways.
 

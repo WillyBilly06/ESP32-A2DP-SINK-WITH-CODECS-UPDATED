@@ -23,6 +23,8 @@
 #include "host/ble_sm.h"
 #include "ble_hs_priv.h"
 #include "ble_sm_priv.h"
+#include "esp_nimble_mem.h"
+#include "host/ble_hs_log.h"
 
 #if NIMBLE_BLE_CONNECT
 #if MYNEWT_VAL(BLE_SM_SC)
@@ -30,8 +32,30 @@
 #define BLE_SM_SC_PASSKEY_BYTES     4
 #define BLE_SM_SC_PASSKEY_BITS      20
 
+#if MYNEWT_VAL(BLE_STATIC_TO_DYNAMIC)
+#include "esp_nimble_mem.h"
+
+typedef struct {
+    uint8_t pub_key[64];
+    uint8_t priv_key[32];
+
+#if MYNEWT_VAL(BLE_HS_DEBUG)
+    uint8_t dbg_pub_key[64];
+    uint8_t dbg_priv_key[32];
+#endif
+}ble_sm_sc_ctx_t;
+
+static ble_sm_sc_ctx_t *ble_sm_sc_ctx;
+
+#define ble_sm_sc_pub_key       (ble_sm_sc_ctx->pub_key)
+#define ble_sm_sc_priv_key      (ble_sm_sc_ctx->priv_key)
+#define ble_sm_dbg_sc_pub_key   (ble_sm_sc_ctx->dbg_pub_key)
+#define ble_sm_dbg_sc_priv_key  (ble_sm_sc_ctx->dbg_priv_key)
+
+#else
 static uint8_t ble_sm_sc_pub_key[64];
 static uint8_t ble_sm_sc_priv_key[32];
+#endif
 
 /**
  * Whether our public-private key pair has been generated.  We generate it on
@@ -79,19 +103,48 @@ static const uint8_t ble_sm_sc_resp_ioa[5 /*resp*/ ][5 /*init*/ ] =
       {IOACT_INPUT,   IOACT_NUMCMP, IOACT_DISP,  IOACT_NONE, IOACT_NUMCMP},
 };
 
-#if MYNEWT_VAL(BLE_HS_DEBUG)
+#if MYNEWT_VAL(BLE_STATIC_TO_DYNAMIC)
+int
+ble_sm_sc_ensure_ctx (void)
+{
+    if (ble_sm_sc_ctx) {
+        return 0;
+    }
 
+    ble_sm_sc_ctx = nimble_platform_mem_calloc(1, sizeof(* ble_sm_sc_ctx));
+
+    if (!ble_sm_sc_ctx) {
+        BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_ENOMEM);
+        return BLE_HS_ENOMEM;
+    }
+
+    return 0;
+}
+#endif
+
+#if MYNEWT_VAL(BLE_HS_DEBUG)
+#if !MYNEWT_VAL(BLE_STATIC_TO_DYNAMIC)
 static uint8_t ble_sm_dbg_sc_pub_key[64];
 static uint8_t ble_sm_dbg_sc_priv_key[32];
+#endif
+#define sizeof_ble_sm_dbg_sc_pub_key sizeof(ble_sm_dbg_sc_pub_key)
+#define sizeof_ble_sm_dbg_sc_priv_key sizeof(ble_sm_dbg_sc_priv_key)
+
 static uint8_t ble_sm_dbg_sc_keys_set;
 
 void
 ble_sm_dbg_set_sc_keys(uint8_t *pubkey, uint8_t *privkey)
 {
-    memcpy(ble_sm_dbg_sc_pub_key, pubkey,
-           sizeof ble_sm_dbg_sc_pub_key);
+#if MYNEWT_VAL(BLE_STATIC_TO_DYNAMIC)
+    if (ble_sm_sc_ensure_ctx()) {
+        return ;
+    }
+#endif
+
+   memcpy(ble_sm_dbg_sc_pub_key, pubkey,
+           sizeof_ble_sm_dbg_sc_pub_key);
     memcpy(ble_sm_dbg_sc_priv_key, privkey,
-           sizeof ble_sm_dbg_sc_priv_key);
+           sizeof_ble_sm_dbg_sc_priv_key);
     ble_sm_dbg_sc_keys_set = 1;
 }
 
@@ -104,6 +157,17 @@ ble_sm_sc_io_action(struct ble_sm_proc *proc, uint8_t *action)
 
     pair_req = (struct ble_sm_pair_cmd *) &proc->pair_req[1];
     pair_rsp = (struct ble_sm_pair_cmd *) &proc->pair_rsp[1];
+
+#if MYNEWT_VAL(STATIC_PASSKEY)
+    /* Check if static passkey is enabled - if so, use static passkey action */
+    if (ble_hs_cfg.sm_static_passkey)
+    {
+        *action = BLE_SM_IOACT_STATIC;
+        proc->pair_alg = BLE_SM_PAIR_ALG_PASSKEY;
+        proc->flags |= BLE_SM_PROC_F_AUTHENTICATED;
+        return 0;
+    }
+#endif
 
     if (pair_req->oob_data_flag == BLE_SM_PAIR_OOB_YES ||
         pair_rsp->oob_data_flag == BLE_SM_PAIR_OOB_YES) {
@@ -137,6 +201,13 @@ ble_sm_sc_io_action(struct ble_sm_proc *proc, uint8_t *action)
         proc->flags |= BLE_SM_PROC_F_AUTHENTICATED;
         break;
 
+#if MYNEWT_VAL(STATIC_PASSKEY)
+    case BLE_SM_IOACT_STATIC:
+        proc->pair_alg = BLE_SM_PAIR_ALG_PASSKEY;
+        proc->flags |= BLE_SM_PROC_F_AUTHENTICATED;
+        break;
+#endif
+
     case BLE_SM_IOACT_NUMCMP:
         proc->pair_alg = BLE_SM_PAIR_ALG_NUMCMP;
         proc->flags |= BLE_SM_PROC_F_AUTHENTICATED;
@@ -144,6 +215,7 @@ ble_sm_sc_io_action(struct ble_sm_proc *proc, uint8_t *action)
 
     default:
         BLE_HS_DBG_ASSERT(0);
+        BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_EINVAL);
         return BLE_HS_EINVAL;
     }
 
@@ -158,8 +230,8 @@ ble_sm_gen_pub_priv(uint8_t *pub, uint8_t *priv)
 #if MYNEWT_VAL(BLE_HS_DEBUG)
     if (ble_sm_dbg_sc_keys_set) {
         ble_sm_dbg_sc_keys_set = 0;
-        memcpy(pub, ble_sm_dbg_sc_pub_key, sizeof ble_sm_dbg_sc_pub_key);
-        memcpy(priv, ble_sm_dbg_sc_priv_key, sizeof ble_sm_dbg_sc_priv_key);
+        memcpy(pub, ble_sm_dbg_sc_pub_key, sizeof_ble_sm_dbg_sc_pub_key);
+        memcpy(priv, ble_sm_dbg_sc_priv_key, sizeof_ble_sm_dbg_sc_priv_key);
         return 0;
     }
 #endif
@@ -178,6 +250,12 @@ ble_sm_sc_ensure_keys_generated(void)
     int rc;
 
     if (!ble_sm_sc_keys_generated) {
+#if MYNEWT_VAL(BLE_STATIC_TO_DYNAMIC)
+	if (ble_sm_sc_ensure_ctx()) {
+	    BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_ENOMEM);
+	    return BLE_HS_ENOMEM;
+	}
+#endif
         rc = ble_sm_gen_pub_priv(ble_sm_sc_pub_key, ble_sm_sc_priv_key);
         if (rc != 0) {
             return rc;
@@ -187,10 +265,10 @@ ble_sm_sc_ensure_keys_generated(void)
     }
 
     BLE_HS_LOG(DEBUG, "our pubkey=");
-    ble_hs_log_flat_buf(&ble_sm_sc_pub_key, 64);
+    ble_hs_log_flat_buf(ble_sm_sc_pub_key, 64);
     BLE_HS_LOG(DEBUG, "\n");
     BLE_HS_LOG(DEBUG, "our privkey=");
-    ble_hs_log_flat_buf(&ble_sm_sc_priv_key, 32);
+    ble_hs_log_flat_buf(ble_sm_sc_priv_key, 32);
     BLE_HS_LOG(DEBUG, "\n");
 
     return 0;
@@ -256,6 +334,7 @@ ble_sm_sc_gen_ri(struct ble_sm_proc *proc)
 
     default:
         BLE_HS_DBG_ASSERT(0);
+        BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_EUNKNOWN);
         return BLE_HS_EUNKNOWN;
     }
 }
@@ -400,6 +479,7 @@ ble_sm_sc_random_exec(struct ble_sm_proc *proc, struct ble_sm_result *res)
     cmd = ble_sm_cmd_get(BLE_SM_OP_PAIR_RANDOM, sizeof(*cmd), &txom);
     if (cmd == NULL) {
         rc = BLE_HS_ENOMEM;
+        res->app_status = rc;
         res->enc_cb = 1;
         res->sm_err = BLE_SM_ERR_UNSPECIFIED;
         return;
@@ -425,7 +505,13 @@ ble_sm_sc_random_exec(struct ble_sm_proc *proc, struct ble_sm_result *res)
         }
 
         rc = ble_sm_sc_io_action(proc, &ioact);
-        BLE_HS_DBG_ASSERT(rc == 0);
+        if (rc != 0) {
+            BLE_HS_DBG_ASSERT(0);
+            res->app_status = rc;
+            res->sm_err = BLE_SM_ERR_UNSPECIFIED;
+            res->enc_cb = 1;
+            return;
+        }
 
         if (ble_sm_ioact_state(ioact) == proc->state &&
             !(proc->flags & BLE_SM_PROC_F_IO_INJECTED)) {
@@ -505,11 +591,21 @@ ble_sm_sc_random_rx(struct ble_sm_proc *proc, struct ble_sm_result *res)
     proc->peer_keys.key_size = proc->key_size;
 
     if (proc->flags & BLE_SM_PROC_F_INITIATOR) {
-        ble_sm_sc_random_advance(proc);
+        rc = ble_sm_sc_random_advance(proc);
+        if (rc != 0) {
+            res->app_status = rc;
+            res->enc_cb = 1;
+            res->sm_err = BLE_SM_ERR_UNSPECIFIED;
+            return;
+        }
 
         rc = ble_sm_sc_io_action(proc, &ioact);
         if (rc != 0) {
             BLE_HS_DBG_ASSERT(0);
+            res->app_status = rc;
+            res->sm_err = BLE_SM_ERR_UNSPECIFIED;
+            res->enc_cb = 1;
+            return;
         }
 
         if (ble_sm_ioact_state(ioact) == proc->state &&
@@ -575,6 +671,10 @@ ble_sm_sc_public_key_exec(struct ble_sm_proc *proc, struct ble_sm_result *res,
         rc = ble_sm_sc_io_action(proc, &ioact);
         if (rc != 0) {
             BLE_HS_DBG_ASSERT(0);
+            res->app_status = rc;
+            res->sm_err = BLE_SM_ERR_UNSPECIFIED;
+            res->enc_cb = 1;
+            return;
         }
 
         if (ble_sm_ioact_state(ioact) == proc->state) {
@@ -652,6 +752,11 @@ ble_sm_sc_public_key_rx(uint16_t conn_handle, struct os_mbuf **om,
                 rc = ble_sm_sc_io_action(proc, &ioact);
                 if (rc != 0) {
                         BLE_HS_DBG_ASSERT(0);
+                        res->app_status = rc;
+                        res->sm_err = BLE_SM_ERR_UNSPECIFIED;
+                        res->enc_cb = 1;
+                        ble_hs_unlock();
+                        return;
                 }
 
                 if (ble_sm_ioact_state(ioact) == proc->state) {
@@ -677,6 +782,8 @@ ble_sm_sc_dhkey_addrs(struct ble_sm_proc *proc, ble_addr_t *our_addr,
 {
     struct ble_hs_conn_addrs addrs;
     struct ble_hs_conn *conn;
+
+    BLE_HS_DBG_ASSERT(ble_hs_locked_by_cur_task());
 
     conn = ble_hs_conn_find_assert(proc->conn_handle);
 
@@ -770,7 +877,7 @@ ble_sm_dhkey_check_process(struct ble_sm_proc *proc,
         iocap = &pair_rsp->io_cap;
 
         if (proc->pair_alg == BLE_SM_PAIR_ALG_OOB) {
-            if (pair_rsp->oob_data_flag) {
+            if (pair_rsp->oob_data_flag && proc->oob_data_local) {
                 memcpy(proc->tk, proc->oob_data_local->r, 16);
             } else {
                 memset(proc->tk, 0, 16);
@@ -783,7 +890,7 @@ ble_sm_dhkey_check_process(struct ble_sm_proc *proc,
         iocap = &pair_req->io_cap;
 
         if (proc->pair_alg == BLE_SM_PAIR_ALG_OOB) {
-            if (pair_req->oob_data_flag) {
+            if (pair_req->oob_data_flag && proc->oob_data_local) {
                 memcpy(proc->tk, proc->oob_data_local->r, 16);
             } else {
                 memset(proc->tk, 0, 16);
@@ -820,6 +927,10 @@ ble_sm_dhkey_check_process(struct ble_sm_proc *proc,
     rc = ble_sm_sc_io_action(proc, &ioact);
     if (rc != 0) {
         BLE_HS_DBG_ASSERT(0);
+        res->app_status = rc;
+        res->sm_err = BLE_SM_ERR_UNSPECIFIED;
+        res->enc_cb = 1;
+        return;
     }
 
     if (ble_sm_ioact_state(ioact) == proc->state) {
@@ -883,9 +994,15 @@ ble_sm_sc_oob_data_check(struct ble_sm_proc *proc,
     rsp_oob_present = pair_rsp->oob_data_flag == BLE_SM_PAIR_OOB_YES;
 
     if (proc->flags & BLE_SM_PROC_F_INITIATOR) {
-        return req_oob_present == oob_data_remote_present;
+        /* Verify: our OOB claim matches reality, and if peer expects
+         * our OOB data (rsp flag set), we actually have local data */
+        return (req_oob_present == oob_data_remote_present) &&
+               (!rsp_oob_present || oob_data_local_present);
     } else {
-        return rsp_oob_present == oob_data_remote_present;
+        /* Verify: our OOB claim matches reality, and if peer expects
+         * our OOB data (req flag set), we actually have local data */
+        return (rsp_oob_present == oob_data_remote_present) &&
+               (!req_oob_present || oob_data_local_present);
     }
 }
 
@@ -893,10 +1010,6 @@ int
 ble_sm_sc_oob_generate_data(struct ble_sm_sc_oob_data *oob_data)
 {
     int rc;
-
-#if !MYNEWT_VAL(BLE_SM_SC)
-    return BLE_HS_ENOTSUP;
-#endif
 
     rc = ble_sm_sc_ensure_keys_generated();
     if (rc) {
@@ -923,6 +1036,17 @@ ble_sm_sc_init(void)
     ble_sm_alg_ecc_init();
     ble_sm_sc_keys_generated = 0;
 }
+
+#if MYNEWT_VAL(BLE_STATIC_TO_DYNAMIC)
+void
+ble_sm_sc_deinit(void)
+{
+    if (ble_sm_sc_ctx) {
+        nimble_platform_mem_free(ble_sm_sc_ctx);
+        ble_sm_sc_ctx = NULL;
+    }
+}
+#endif
 
 #endif  /* MYNEWT_VAL(BLE_SM_SC) */
 #endif

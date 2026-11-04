@@ -1,6 +1,6 @@
-========================
+===================
 ESP-IDF pytest 指南
-========================
+===================
 
 :link_to_translation:`en:[English]`
 
@@ -31,15 +31,15 @@ ESP-IDF 在主机端使用 pytest 框架（以及一些 pytest 插件）来自�
     本指南专门面向 ESP-IDF 贡献者。一些概念（如自定义标记）可能不直接适用于使用 ESP-IDF SDK 的个人项目。要在个人项目中运行 pytest-embedded，请参阅 `pytest-embedded 文档 <https://docs.espressif.com/projects/pytest-embedded>`__ 和 `提供的示例 <https://github.com/espressif/pytest-embedded/tree/main/examples/esp-idf>`__。
 
 安装
-============
+====
 
-基础依赖项可以通过执行 ESP-IDF 安装脚本 ``--enable-pytest`` 进行安装：
+基础依赖项可以通过执行 ESP-IDF 安装脚本 ``--enable-ci`` 进行安装：
 
 .. code-block:: bash
 
-    $ install.sh --enable-pytest
+    $ install.sh --enable-ci
 
-额外的测试脚本依赖项可以通过执行 ESP-IDF 安装脚本 ``--enable-pytest-specific`` 进行安装：
+额外的测试脚本依赖项可以通过执行 ESP-IDF 安装脚本 ``--enable-test-specific`` 进行安装：
 
 .. code-block:: bash
 
@@ -48,7 +48,7 @@ ESP-IDF 在主机端使用 pytest 框架（以及一些 pytest 插件）来自�
 上面的脚本已预先实现了一些机制，以确保所有安装过程顺利进行。如果您在安装过程中遇到任何问题，请在 `GitHub Issue 版块 <https://github.com/espressif/esp-idf/issues>`__ 上提交问题说明。
 
 常见概念
-===============
+========
 
 **测试应用程序** 是一组二进制文件，从一个 IDF 项目构建，用于测试项目的特定功能。测试应用程序通常位于 ``${IDF_PATH}/examples``，``${IDF_PATH}/tools/test_apps``，和 ``${IDF_PATH}/components/<COMPONENT_NAME>/test_apps``。
 
@@ -81,49 +81,95 @@ ESP-IDF 在主机端使用 pytest 框架（以及一些 pytest 插件）来自�
     └── pytest_foo_bar.py
 
 在 ESP-IDF 中使用 pytest
-============================
+========================
 
 单个 DUT 测试用例
-------------------
+-----------------
 
 入门教程
-^^^^^^^^^^^^^^^
+^^^^^^^^
 
 .. code-block:: python
 
-    @pytest.mark.esp32
-    @pytest.mark.esp32s2
+    @idf_parametrize('target', ['esp32', 'esp32s2'], indirect=['target'])
     @pytest.mark.generic
     def test_hello_world(dut) -> None:
         dut.expect('Hello world!')
 
 这是一个简单的测试脚本，可以与入门示例 :example:`get-started/hello_world` 一起运行。
 
-前两行是目标标记：
+``idf_parametrize`` 是对 ``pytest.mark.parametrize`` 的一层封装，用于简化并扩展基于字符串的测试参数化功能。使用 ``idf_parametrize`` 可以让参数化测试更加灵活，也更易于维护。
 
-* ``@pytest.mark.esp32`` 是一个标记，表示此测试用例应在 ESP32 上运行。
-* ``@pytest.mark.esp32s2`` 是一个标记，表示此测试用例应在 ESP32-S2 上运行。
+在这个测试脚本中，使用了 ``idf_parametrize`` 装饰器来参数化测试用例。``target`` 是一个特殊的参数，用于指示目标板类型。``indirect=['target']`` 表示此参数在其他 fixture 之前被预先计算。
 
-.. note::
-
-    如果测试用例可以在 ESP-IDF 官方支持的所有目标芯片上运行，调用 ``idf.py --list-targets`` 获取更多详情，可以使用特殊的标记 ``supported_targets`` 来在一行中应用所有目标。
-
-    也支持 ``preview_targets`` 和 ``all_targets`` 作为特殊的目标标记，调用 ``idf.py --list-targets --preview`` 获取包括预览目标的完整目标列表。
-
-环境标记：
-
-* ``@pytest.mark.generic`` 标记表示此测试用例应在 generic 板类型上运行。
+在这个示例中，target 被设置为 ``esp32`` 和 ``esp32s2``，因此测试将分别在 ESP32 和 ESP32-S2 上运行。
 
 .. note::
 
-    有关环境标记的详细解释，请参阅 :idf_file:`ENV_MARKERS 定义 <tools/ci/idf_pytest/constants.py>`。
+    如果测试用例可以在 ESP-IDF 官方支持的所有 target（可通过 ``idf.py --list-targets`` 查看详情）上运行，可以使用特殊参数 ``supported_targets`` 一次性应用所有 target。同时也支持使用 ``preview_targets`` 和 ``all`` 作为特殊取值（可通过 ``idf.py --list-targets --preview`` 查看包含 preview target 在内的完整列表）。例如：``@idf_parametrize('target', ['supported_targets'], indirect=['target'])``。
+
+.. note::
+
+    如果 target 需要通过 ``soc_caps`` 来指定，可以使用 ``soc_filtered_targets`` 进行过滤。例如：``@idf_parametrize('target', soc_filtered_targets('SOC_ULP_SUPPORTED != 1'), indirect=['target'])``。
+
+紧接着是环境标记。``@pytest.mark.generic`` 标记表示此测试用例应在 generic 板类型上运行。
+
+.. note::
+
+    有关环境标记的详细解释，请参阅 :idf_file:`env_markers 定义 <pytest.ini>`。
 
 关于测试函数，使用了一个 ``dut`` fixture。在单一 DUT 测试用例中，``dut`` fixture 是 ``IdfDut`` 类的一个实例，对于多个 DUT 测试用例，它是 ``IdfDut`` 实例的一个元组。有关 ``IdfDut`` 类的更多详细信息，请参阅 `pytest-embedded IdfDut API 参考 <https://docs.espressif.com/projects/pytest-embedded/en/latest/api.html#pytest_embedded_idf.dut.IdfDut>`__。
 
-使用不同的 sdkconfig 文件运行相同的应用程序
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+在 Linux 上运行测试
+^^^^^^^^^^^^^^^^^^^^
 
-某些测试用例可能需要使用不同的 sdkconfig 文件运行相同的应用程序。与 sdkconfig 相关概念的详细文档，请参阅 `idf-build-apps 文档 <https://docs.espressif.com/projects/idf-build-apps/en/latest/find_build.html>`__。
+要在 Linux 主机上执行 pytest 测试用例，请将 ``target`` 设置为 ``linux``。
+
+.. code-block:: python
+
+    @idf_parametrize('target', ['linux'], indirect=['target'])
+    def test_hello_world_linux(dut) -> None:
+        dut.expect('Hello world!')
+
+这是在 Linux 主机上运行与物理硬件相同测试流程的最简单方式。
+
+对于简单的纯 Linux 测试，只需将 ``target`` 设置为 ``linux``，系统会自动选择 ``idf`` 对应的 embedded services。``pytest.mark.host_test`` marker 不再需要。
+
+对于混合运行环境矩阵，则需要为每个用例手动指定 ``embedded_services``。更复杂的示例请参阅 :ref:`在不同运行环境中运行相同的应用程序 <pytest-same-app-different-running-environments>` 小节。
+
+.. only:: TARGET_SUPPORT_QEMU
+
+    在 QEMU 中运行测试
+    ^^^^^^^^^^^^^^^^^^^^^
+
+    要在 QEMU 中执行 pytest 测试用例，请将 ``@pytest.mark.qemu`` 添加到测试函数上。
+
+    .. code-block:: python
+
+        @pytest.mark.qemu
+        @idf_parametrize('target', ['esp32', 'esp32c3'], indirect=['target'])
+        def test_hello_world_qemu(dut) -> None:
+            dut.expect('Hello world!')
+
+    这是在 QEMU 中运行与物理硬件相同测试流程的最简单方式。
+
+    对于简单的纯 QEMU 测试，只需添加 ``pytest.mark.qemu``，系统会自动选择 ``idf,qemu`` 对应的 embedded services。
+
+    对于混合运行环境矩阵，则需要为每个用例手动指定 ``embedded_services``。更复杂的示例请参阅本指南后面的对应小节。
+
+    有关 QEMU 的安装和配置，请参阅页面 :doc:`../api-guides/tools/qemu`。
+
+``pytest.mark.host_test`` 的弃用说明
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+``pytest.mark.host_test`` 已不再需要，也不应再添加到新的测试用例中。
+
+对于 Linux target 测试用例和 QEMU 测试用例，相关行为会由测试框架动态处理。尤其是在简单的纯 Linux 或纯 QEMU 场景下，embedded services 会被自动选择。
+
+使用不同的 sdkconfig 文件运行相同的应用程序
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+某些测试用例可能需要使用不同的 sdkconfig 文件运行相同的应用程序。与 sdkconfig 相关概念的详细文档，请参阅 `idf-build-apps 文档 <https://docs.espressif.com/projects/idf-build-apps/en/latest/explanations/find.html>`__。
 
 以下是一个简单的示例，演示了如何使用不同的 sdkconfig 文件运行相同的应用程序。假设我们有以下文件夹结构：
 
@@ -142,12 +188,14 @@ ESP-IDF 在主机端使用 pytest 框架（以及一些 pytest 插件）来自�
 
 .. code-block:: python
 
-    @pytest.mark.esp32
-    @pytest.mark.esp32s2
-    @pytest.mark.parametrize('config', [    # <-- parameterize the sdkconfig file
-        'foo',                              # <-- run with sdkconfig.ci.foo
-        'bar',                              # <-- run with sdkconfig.ci.bar
-    ], indirect=True)                       # <-- `indirect=True` is required, indicates this param is pre-calculated before other fixtures
+    @idf_parametrize('target', [
+        'esp32',                      # <-- 使用 esp32 运行
+        'esp32s2'                     # <-- 使用 esp32s2 运行
+    ], indirect=['target'])
+    @pytest.mark.parametrize('config', [    # <-- 使用此 marker 指定 sdkconfig 文件；如果不指定，则使用 ``default``（由 ``sdkconfig.ci`` 或 ``sdkconfig.ci.default`` 构建）；如果指定，则采用指定的 ``sdkconfig.ci.<config>``（例如 ``sdkconfig.ci.foo`` 或 ``sdkconfig.ci.bar``）
+        'foo',                              # <-- 使用 sdkconfig.ci.foo 运行
+        'bar',                              # <-- 使用 sdkconfig.ci.bar 运行
+    ], indirect=True)                       # <-- 需要设置 `indirect=True`，表示该参数会先于其他 fixture 被计算
     def test_foo_bar(dut, config) -> None:
         if config == 'foo':
           dut.expect('This is from sdkconfig.ci.foo')
@@ -180,36 +228,72 @@ ESP-IDF 在主机端使用 pytest 框架（以及一些 pytest 插件）来自�
 
     几乎所有 pytest-embedded 的 CLI 选项都支持参数化。要查看所有支持的 CLI 选项，您可以运行 ``pytest --help`` 命令，并检查 ``embedded-...`` 部分以查看普通 pytest-embedded 选项，以及 ``idf`` 部分以查看 ESP-IDF 特定选项。
 
-.. note::
-
-    目标标记，例如 ``@pytest.mark.esp32`` 和 ``@pytest.mark.esp32s2``，是参数化的一种语法糖。它们被定义为：
-
-    .. code-block:: python
-
-        @pytest.mark.parametrize('target', [
-            'esp32',
-            'esp32s2',
-        ], indirect=True)
-
 使用不同的 sdkconfig 文件运行相同的应用程序，支持不同的目标芯片
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-对于某些测试用例，可能需要使用不同的 sdkconfig 文件运行相同的应用程序。这些 sdkconfig 文件支持不同的目标芯片。可以使用 ``pytest.param`` 来实现。使用与上文相同的文件夹结构。
+对于某些测试用例，可能需要使用不同的 sdkconfig 文件运行相同的应用程序。这些 sdkconfig 文件支持不同的目标芯片。可以使用 ``idf_parametrize`` 来实现。使用与上文相同的文件夹结构。
 
 .. code-block:: python
 
-    @pytest.mark.parametrize('config', [
-        pytest.param('foo', marks=[pytest.mark.esp32]),
-        pytest.param('bar', marks=[pytest.mark.esp32s2]),
-    ], indirect=True)
+    @idf_parametrize(
+        'target, config',
+        [
+            ('esp32', 'foo'),
+            ('esp32s2', 'bar')
+        ],
+        indirect=['target', 'config']
+    )
 
 此时，这个测试函数将被复制为 2 个测试用例（测试用例 ID）：
 
 * ``esp32.foo.test_foo_bar``
 * ``esp32s2.bar.test_foo_bar``
 
+.. _pytest-same-app-different-running-environments:
+
+在不同运行环境中运行相同的应用程序
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+有时，同一个应用程序需要在不同的运行环境中进行验证，例如在 Linux target 的主机上、真实硬件上，或在 QEMU 中运行。如果单独使用 ``@pytest.mark.qemu`` 测试还不够，可以在一个 ``idf_parametrize`` 装饰器中组合 ``target``、``config`` 和 ``embedded_services``，并为每种情况附加所需的 marker。
+
+下面的示例改编自 :idf_file:`components/console/test_apps/console/pytest_console.py`：
+
+.. code-block:: python
+
+    @idf_parametrize(
+        'target,config,embedded_services,markers',
+        [
+            ('linux', 'defaults', 'idf', ()),
+            ('esp32', 'defaults', 'esp,idf', (pytest.mark.generic,)),
+            ('esp32c3', 'defaults', 'esp,idf', (pytest.mark.generic,)),
+            ('esp32', 'defaults', 'idf,qemu', (pytest.mark.qemu,)),
+        ],
+        indirect=['target', 'config', 'embedded_services'],
+    )
+    def test_console_repl(dut) -> None:
+        dut.expect_exact('Press ENTER to see the list of tests')
+
+这会为同一个应用程序生成 4 个测试用例：
+
+* 在 Linux 主机上使用 ``idf`` service 运行
+* 在 ESP32 硬件上使用 ``esp,idf`` services 运行
+* 在 ESP32-C3 硬件上使用 ``esp,idf`` services 运行
+* 在 QEMU 中以 ESP32 为目标，使用 ``idf,qemu`` services 运行
+
+在本地运行时，可以按需只选择某一种运行环境：
+
+.. code-block:: shell
+
+    $ pytest --target linux
+    $ pytest -m qemu
+    $ pytest -m qemu --target esp32
+
+``pytest --target linux`` 只选择 Linux target 的测试用例。``pytest -m qemu`` 选择所有带有 QEMU marker 的测试用例。``pytest -m qemu --target esp32`` 会进一步把范围限制为目标芯片为 ESP32 的 QEMU 测试用例。
+
+当测试逻辑相同，但执行环境不同的时候，可使用此模式。
+
 测试串行输出
-^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^
 
 为确保测试在目标芯片上顺利执行，测试脚本可使用 ``dut.expect()`` 函数来测试目标芯片上的串行输出：
 
@@ -226,10 +310,10 @@ ESP-IDF 在主机端使用 pytest 框架（以及一些 pytest 插件）来自�
 如需了解关于 ``expect`` 函数类型的更多信息，请参考 `pytest-embedded 辅助文档 <https://docs.espressif.com/projects/pytest-embedded/en/latest/expecting.html>`__。
 
 多个 DUT 的测试用例
-------------------------------
+-------------------
 
 用同一应用程序进行多个 DUT 测试
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 有时，一个测试可能涉及多个目标芯片运行同一测试程序。在这种情况下，可以使用 ``count`` 将想要进行测试的 DUT 数量参数化。
 
@@ -261,42 +345,8 @@ ESP-IDF 在主机端使用 pytest 框架（以及一些 pytest 插件）来自�
 
     有关详细的多个 DUT 参数化文档，请参阅 `pytest-embedded Multi-DUT 文档 <https://docs.espressif.com/projects/pytest-embedded/en/latest/key_concepts.html#multi-duts>`__。
 
-.. warning::
-
-    在一些测试脚本中，您可能会看到目标标记，如 ``@pytest.mark.esp32`` 和 ``@pytest.mark.esp32s2`` 用于多个 DUT 测试用例。这些脚本已被弃用，应该替换为 ``target`` 参数化。
-
-    例如，
-
-    .. code-block:: python
-
-        @pytest.mark.esp32
-        @pytest.mark.esp32s2
-        @pytest.mark.parametrize('count', [
-            2,
-        ], indirect=True)
-        def test_hello_world(dut) -> None:
-            dut[0].expect('Hello world!')
-            dut[1].expect('Hello world!')
-
-    应该改为：
-
-    .. code-block:: python
-
-        @pytest.mark.parametrize('count', [
-            2,
-        ], indirect=True)
-        @pytest.mark.parametrize('target', [
-            'esp32',
-            'esp32s2',
-        ], indirect=True)
-        def test_hello_world(dut) -> None:
-            dut[0].expect('Hello world!')
-            dut[1].expect('Hello world!')
-
-    这有助于避免多个 DUT 测试用例在运行不同目标芯片时造成歧义。
-
 用不同应用程序和目标芯片进行多目标测试
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 在某些情况下，一个测试可能涉及多个目标芯片运行不同的测试应用程序（例如，将不同的目标用作主节点和从节点）。通常在 ESP-IDF 中，文件夹结构会是这样的：
 
@@ -342,7 +392,7 @@ ESP-IDF 在主机端使用 pytest 框架（以及一些 pytest 插件）来自�
 * dut-0, ESP32-S2 运行 ``master`` 应用程序, dut-1, ESP32运行 ``slave`` 应用程序
 
 运行 Unity 测试用例
------------------------
+-------------------
 
 使用 `Unity 测试框架 <https://github.com/ThrowTheSwitch/Unity>`__ 进行单元测试。共有三种测试用例（ `Unity 测试框架 <https://github.com/ThrowTheSwitch/Unity>`__）：
 
@@ -407,7 +457,7 @@ ESP-IDF 在主机端使用 pytest 框架（以及一些 pytest 插件）来自�
 有关可用函数的完整列表，请参阅 `pytest-embedded case_tester API 参考 <https://docs.espressif.com/projects/pytest-embedded/en/latest/api.html#pytest_embedded_idf.unity_tester.CaseTester>`__。
 
 在 CI 中执行板载测试
-======================
+====================
 
 CI 的工作流程如下所示：
 
@@ -448,7 +498,7 @@ CI 的工作流程如下所示：
 所有编译和目标测试都是由我们的 CI 脚本 :project:`tools/ci/dynamic_pipelines` 自动生成。
 
 编译
------------
+----
 
 在 CI 中，所有位于 ``components``、``examples`` 和 ``tools/test_apps`` 下的 ESP-IDF 项目都会使用所有支持的目标芯片和 sdkconfig 文件进行编译。二进制文件将编译在 ``build_<target>_<config>`` 下。例如：
 
@@ -474,27 +524,49 @@ CI 的工作流程如下所示：
 
 对于 ``build_non_test_related_apps``，在编译完成后，所有编译的二进制文件将被删除。只有编译日志文件将上传到内部 MinIO 服务器。下载链接可以在内部 MR 中发布的编译报告中获取。
 
+由依赖驱动的构建
+^^^^^^^^^^^^^^^^
+
+为了优化 CI 构建时间，我们使用 idf-build-apps 的依赖驱动构建功能，从而只构建受变更组件影响的应用程序。
+
+每个文件夹的清单文件 (``.build-test-rules.yml``) 中定义了依赖驱动构建的规则，每个应用程序可以定义 ``depends_components``。
+
+.. code-block:: yaml
+
+    examples/foo/bar:
+      depends_components:
+        - esp_eth
+        - esp_netif
+
+此外还有一组通用组件（在 :idf_file:`.idf_build_apps.toml` 中定义为 ``common_components``）。``common_components`` 是许多应用程序使用的基础（核心）组件列表。通常情况下，如果这些组件之一发生变更，则需要重新构建和测试依赖该组件的应用程序。
+
+应用程序维护者应明确该应用依赖的关键组件。如果应用程序应该依赖某个 ``common_components``，请将其添加至 ``depends_components``；否则，仅指定真正重要的组件即可。
+
+如果未指定 ``depends_components``，则将使用计算出的组件 (``project_description.json``) 并检查应用程序是否受变更组件的影响。
+
+已弃用（建议使用 ``depends_components`` 和 ``common_components``）：``deactivate_dependency_driven_build_by_components`` 可在指定组件变更时禁用依赖驱动检查。
+
 板载测试任务
-----------------
+------------
 
-在CI中，所有板载测试任务都以 "<targets> - <env_markers>" 格式命名。例如，单个 DUT 测试任务 ``esp32 - generic`` 或多个 DUT 测试任务 ``esp32,esp32 - multi_dut_generic``。
+在CI中，所有板载测试任务都以 "<targets> - <env_markers>" 格式命名。例如，单个 DUT 测试任务 ``esp32 - generic``，或多个 DUT 测试任务 ``esp32,esp32 - multi_dut_generic``。
 
-板载测试任务中的二进制文件是从内部 MinIO 服务器下载的。对于大多数测试用例，仅下载烧录所需的文件（如 .bin 文件、flash_args 文件等）。对于某些测试用例，如 jtag 测试用例，还会下载 .elf 文件。
+板载测试任务中的二进制文件从内部 MinIO 服务器中下载。对于大多数测试用例，仅下载烧录所需的文件（如 ``.bin`` 文件、``flash_args`` 文件等）。对于某些测试用例，如 JTAG 测试用例，还会下载 ``.elf`` 文件。
 
 .. _run_the_tests_locally:
 
 本地测试
-==========
+========
 
 安装
--------
+----
 
 首先，你需为 ESP-IDF 安装 Python 依赖：
 
 .. code-block:: shell
 
     $ cd $IDF_PATH
-    $ bash install.sh --enable-ci --enable-pytest
+    $ bash install.sh --enable-ci
     $ . ./export.sh
 
 编译目录
@@ -544,7 +616,7 @@ CI 的工作流程如下所示：
 .. code-block:: shell
 
     $ cd $IDF_PATH/examples/system/console/basic
-    $ python $IDF_PATH/tools/ci/ci_build_apps.py . --target esp32 -v --pytest-apps
+    $ idf-ci build run --target esp32 --only-test-related
     $ pytest --target esp32
 
 包含 ``sdkconfig.ci.history`` 配置的应用程序会编译到 ``build_esp32_history`` 中，而包含 ``sdkconfig.ci.nohistory`` 配置的应用程序会编译到 ``build_esp32_nohistory`` 中。 ``pytest --target esp32`` 命令会在这两个应用程序上运行测试。
@@ -580,8 +652,8 @@ CI 的工作流程如下所示：
 .. code-block:: shell
 
     $ cd $IDF_PATH/examples/openthread
-    $ python $IDF_PATH/tools/ci/ci_build_apps.py . --target all -v --pytest-apps -k test_thread_connect
-    $ pytest --target esp32c6,esp32h2,esp32s3 -k test_thread_connect
+    $ idf-ci build run --only-test-related -k test_thread_connect
+    $ pytest -k test_thread_connect
 
 .. important::
 
@@ -616,7 +688,7 @@ Pytest 使用技巧
 1. 向一定数量的 DUT 添加更多可复用功能。
 2. 为不同阶段添加自定义的前置和后置函数。
 
-以下代码示例来自 :idf_file:`panic/conftest.py <tools/test_apps/system/panic/conftest.py>`。
+以下代码示例来自 :idf_file:`panic/panic_base/conftest.py <tools/test_apps/system/panic/panic_base/conftest.py>`。
 
 .. code-block:: python
 
@@ -663,7 +735,7 @@ Pytest 使用技巧
 
 可使用 `xfail <https://docs.pytest.org/en/latest/how-to/skipping.html#xfail-mark-test-functions-as-expected-to-fail>`__ marker 来标记此测试用例，并写出原因。
 
-以下代码来自 :idf_file:`pytest_panic.py <tools/test_apps/system/panic/pytest_panic.py>`。
+以下代码来自 :idf_file:`pytest_panic.py <tools/test_apps/system/panic/panic_base/pytest_panic.py>`。
 
 .. code-block:: python
 
@@ -695,11 +767,11 @@ Pytest 使用技巧
 这一 marker 表明，此测试用例仍可以在本地用 ``pytest --target esp32`` 执行，但不会在 CI 中执行。
 
 添加新 marker
-----------------
+-------------
 
 我们目前使用两种自定义 marker。target marker 是指测试用例支持此目标芯片，env marker 是指测试用例应分配到 CI 中具有相应 tag 的 runner 上。
 
-你可以在 :idf_file:`conftest.py` 文件后添加一行新的 marker。如果该 marker 是 target marker，应将其添加到 ``TARGET_MARKERS`` 中。如果该 marker 指定了一类测试环境，应将其添加到 ``ENV_MARKERS`` 中。自定义 marker 格式：``<marker_name>: <marker_description>``。
+你可以通过在 :idf_file:`pytest.ini` 文件中添加一行来添加新的 marker。如果该 marker 指定了一类测试环境，应将其添加到 ``env_markers`` 部分。否则，应将其添加到 ``markers`` 部分。语法应为：``<marker_name>: <marker_description>``。
 
 跳过自动烧录二进制文件
 -------------------------------------
@@ -760,12 +832,12 @@ Pytest 使用技巧
         check_performance('RSA_2048KEY_PUBLIC_OP', 123, 'esp32')
         check_performance('RSA_2048KEY_PUBLIC_OP', 19001, 'esp32')
 
-以上示例会首先从 :idf_file:`components/idf_test/include/idf_performance.h` 和指定目标芯片的 :idf_file:`components/idf_test/include/esp32/idf_performance_target.h` 头文件中获取性能项 ``RSA_2048KEY_PUBLIC_OP`` 的阈值，然后检查该值是否达到了最小值或超过了最大值。
+以上示例会首先从组件特定的性能头文件中获取性能项 ``RSA_2048KEY_PUBLIC_OP`` 的阈值（例如，ADC 性能测试使用 :idf_file:`components/esp_adc/test_apps/adc/include/adc_performance.h`），然后检查该值是否达到了最小值或超过了最大值。
 
 例如，假设 ``IDF_PERFORMANCE_MAX_RSA_2048KEY_PUBLIC_OP`` 的值为 19000，则上例中第一行 ``check_performance`` 会通过测试，第二行会失败并警告：``[Performance] RSA_2048KEY_PUBLIC_OP value is 19001, doesn\'t meet pass standard 19000.0``。
 
 扩展阅读
 =============
 
--  `pytest 文档 <https://docs.pytest.org/en/latest/contents.html/>`_
+-  `pytest 文档 <https://docs.pytest.org/en/stable/>`_
 -  `pytest-embedded 文档 <https://docs.espressif.com/projects/pytest-embedded/en/latest/>`_

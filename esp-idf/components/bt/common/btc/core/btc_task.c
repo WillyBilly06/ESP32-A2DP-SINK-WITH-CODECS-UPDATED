@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2015-2025 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2015-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -89,6 +89,7 @@
 #include "btc_ble_mesh_rpr_model.h"
 #include "btc_ble_mesh_sar_model.h"
 #include "btc_ble_mesh_srpl_model.h"
+#include "btc_ble_mesh_dfu_model.h"
 #endif /* CONFIG_BLE_MESH_V11_SUPPORT */
 #endif /* #if CONFIG_BLE_MESH */
 
@@ -262,6 +263,12 @@ static const btc_func_t profile_tab[BTC_PID_NUM] = {
 #if CONFIG_BLE_MESH_MBT_SRV
     [BTC_PID_MBT_SERVER]        = {btc_ble_mesh_mbt_server_call_handler,        btc_ble_mesh_mbt_server_cb_handler       },
 #endif /* CONFIG_BLE_MESH_MBT_SRV */
+#if CONFIG_BLE_MESH_DFU_CLI
+    [BTC_PID_DFU_CLIENT]        = {btc_ble_mesh_dfu_client_call_handler,        btc_ble_mesh_dfu_client_cb_handler},
+#endif /* CONFIG_BLE_MESH_DFU_CLI */
+#if CONFIG_BLE_MESH_DFD_CLI
+    [BTC_PID_DFD_CLIENT]        = {btc_ble_mesh_dfd_client_call_handler,        btc_ble_mesh_dfd_client_cb_handler},
+#endif /* CONFIG_BLE_MESH_DFD_CLI */
 #if CONFIG_BLE_MESH_BLE_COEX_SUPPORT || CONFIG_BLE_MESH_USE_BLE_50
     [BTC_PID_BLE_MESH_BLE_COEX] = {btc_ble_mesh_ble_call_handler,               btc_ble_mesh_ble_cb_handler              },
 #endif /* CONFIG_BLE_MESH_BLE_COEX_SUPPORT || CONFIG_BLE_MESH_USE_BLE_50 */
@@ -285,6 +292,8 @@ static void btc_thread_handler(void *arg)
     btc_msg_t *msg = (btc_msg_t *)arg;
 
     BTC_TRACE_DEBUG("%s msg %u %u %u %p\n", __func__, msg->sig, msg->pid, msg->act, msg->arg);
+    /* msg->pid is validated at btc_transfer_context() entry; any message that
+     * reaches this handler is guaranteed to carry a valid pid. */
     switch (msg->sig) {
     case BTC_SIG_API_CALL:
         profile_tab[msg->pid].btc_call(msg);
@@ -324,7 +333,12 @@ bt_status_t btc_transfer_context(btc_msg_t *msg, void *arg, int arg_len, btc_arg
     btc_msg_t* lmsg;
     bt_status_t ret;
     //                              arg XOR arg_len
-    if ((msg == NULL) || ((arg == NULL) == !(arg_len == 0))) {
+    if ((msg == NULL) || ((arg == NULL) == !(arg_len == 0)) ||
+        (msg->pid >= BTC_PID_NUM)) {
+        /* Reject invalid pid here, before any deep_copy runs, so the caller's
+         * arg is not yet duplicated into lmsg and there is nothing to free.
+         * This keeps the trust boundary at the single public entry point and
+         * makes the downstream handler unable to encounter an invalid pid. */
         BTC_TRACE_WARNING("%s Invalid parameters\n", __func__);
         return BT_STATUS_PARM_INVALID;
     }
@@ -339,7 +353,10 @@ bt_status_t btc_transfer_context(btc_msg_t *msg, void *arg, int arg_len, btc_arg
 
     memcpy(lmsg, msg, sizeof(btc_msg_t));
     if (arg) {
-        memset(lmsg->arg, 0x00, arg_len);    //important, avoid arg which have no length
+        /* memcpy below covers exactly arg_len bytes, which is the full size of
+         * the destination buffer (it was sized as sizeof(btc_msg_t) + arg_len),
+         * so a prior memset would be redundant. Deep-copy callbacks must only
+         * read fields that were written by the caller-supplied arg. */
         memcpy(lmsg->arg, arg, arg_len);
         if (copy_func) {
             copy_func(lmsg, lmsg->arg, arg);
@@ -557,6 +574,22 @@ bt_status_t btc_init(void)
 
 void btc_deinit(void)
 {
+    if (!btc_thread) {
+        return;
+    }
+
+    /* Reverse order of btc_init():
+     *   1) BLE GAP deinit must run BEFORE btc_deinit_mem(), otherwise under
+     *      BTC_DYNAMIC_MEMORY the gl_bta_adv_data macro expands to
+     *      *(NULL) and btc_cleanup_adv_data() early-returns, leaking the
+     *      inner adv-data fields (p_manu / p_proprietary / p_services...).
+     *   2) BT classic GAP deinit follows.
+     *   3) Then release the dynamic-memory pool.
+     *   4) Finally tear down the BTC worker thread.
+     */
+#if (BLE_INCLUDED == TRUE)
+    btc_gap_ble_deinit();
+#endif  ///BLE_INCLUDED == TRUE
 #if BTC_GAP_BT_INCLUDED
     btc_gap_bt_deinit();
 #endif
@@ -566,9 +599,6 @@ void btc_deinit(void)
 
     osi_thread_free(btc_thread);
     btc_thread = NULL;
-#if (BLE_INCLUDED == TRUE)
-    btc_gap_ble_deinit();
-#endif  ///BLE_INCLUDED == TRUE
 }
 
 int get_btc_work_queue_size(void)

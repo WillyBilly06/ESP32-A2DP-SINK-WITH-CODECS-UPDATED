@@ -1,10 +1,11 @@
 /*
- * SPDX-FileCopyrightText: 2015-2025 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2015-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
 #include <stdlib.h>
 #include <string.h>
+#include <stdbool.h>
 #include <assert.h>
 #include "lwip/dhcp.h"
 #include "lwip/err.h"
@@ -48,8 +49,11 @@
 #define DHCPACK       5
 #define DHCPNAK       6
 #define DHCPRELEASE   7
+#define DHCPINFORM    8
 
+#define DHCP_OPTION_PAD           0
 #define DHCP_OPTION_SUBNET_MASK   1
+#define DHCP_OPTION_HOST_NAME    12
 #define DHCP_OPTION_ROUTER        3
 #define DHCP_OPTION_DNS_SERVER    6
 #define DHCP_OPTION_REQ_IPADDR   50
@@ -64,7 +68,9 @@
 #define DHCP_OPTION_END         255
 
 //#define USE_CLASS_B_NET 1
+#ifndef DHCPS_DEBUG
 #define DHCPS_DEBUG          0
+#endif
 #define DHCPS_LOG printf
 
 #define IS_INVALID_SUBNET_MASK(x)  (((x-1) | x) != 0xFFFFFFFF)
@@ -100,6 +106,7 @@
 #define DHCPS_STATE_NAK 4
 #define DHCPS_STATE_IDLE 5
 #define DHCPS_STATE_RELEASE 6
+#define DHCPS_STATE_INFORM_ACK 7
 
 typedef enum {
     DHCPS_HANDLE_CREATED = 0,
@@ -142,6 +149,11 @@ struct dhcps_t {
     struct udp_pcb *dhcps_pcb;
     dhcps_handle_state state;
     bool has_declined_ip;
+#if CONFIG_LWIP_DHCPS_REPORT_CLIENT_HOSTNAME
+    /* Temporary storage for option 12 parsed from the current packet */
+    char opt_hostname[CONFIG_LWIP_DHCPS_MAX_HOSTNAME_LEN];
+    bool opt_hostname_present;
+#endif
 };
 
 
@@ -185,7 +197,7 @@ void dhcps_delete(dhcps_t *dhcps)
             dhcps->state = DHCPS_HANDLE_DELETE_PENDING;
         } else {
             // otherwise, we're free to delete the handle immediately
-            free(dhcps);
+            mem_free(dhcps);
         }
     }
 }
@@ -427,7 +439,7 @@ static u8_t *add_msg_type(u8_t *optptr, u8_t type)
  * Parameters   : optptr -- the addr of DHCP message option
  * Returns      : the addr of DHCP message option
 *******************************************************************************/
-static u8_t *add_offer_options(dhcps_t *dhcps, u8_t *optptr)
+static u8_t *add_offer_options(dhcps_t *dhcps, u8_t *optptr, bool include_lease_time)
 {
     u32_t i;
     ip4_addr_t ipadd;
@@ -438,12 +450,14 @@ static u8_t *add_offer_options(dhcps_t *dhcps, u8_t *optptr)
     *optptr++ = 4;
     optptr = dhcps_option_ip(optptr, &dhcps->dhcps_mask);
 
-    *optptr++ = DHCP_OPTION_LEASE_TIME;
-    *optptr++ = 4;
-    *optptr++ = ((dhcps->dhcps_lease_time * DHCPS_LEASE_UNIT) >> 24) & 0xFF;
-    *optptr++ = ((dhcps->dhcps_lease_time * DHCPS_LEASE_UNIT) >> 16) & 0xFF;
-    *optptr++ = ((dhcps->dhcps_lease_time * DHCPS_LEASE_UNIT) >> 8) & 0xFF;
-    *optptr++ = ((dhcps->dhcps_lease_time * DHCPS_LEASE_UNIT) >> 0) & 0xFF;
+    if (include_lease_time) {
+        *optptr++ = DHCP_OPTION_LEASE_TIME;
+        *optptr++ = 4;
+        *optptr++ = ((dhcps->dhcps_lease_time * DHCPS_LEASE_UNIT) >> 24) & 0xFF;
+        *optptr++ = ((dhcps->dhcps_lease_time * DHCPS_LEASE_UNIT) >> 16) & 0xFF;
+        *optptr++ = ((dhcps->dhcps_lease_time * DHCPS_LEASE_UNIT) >> 8) & 0xFF;
+        *optptr++ = ((dhcps->dhcps_lease_time * DHCPS_LEASE_UNIT) >> 0) & 0xFF;
+    }
 
     *optptr++ = DHCP_OPTION_SERVER_ID;
     *optptr++ = 4;
@@ -462,27 +476,32 @@ static u8_t *add_offer_options(dhcps_t *dhcps, u8_t *optptr)
         }
     }
 
-    // In order of preference
-    if (dhcps_dns_enabled(dhcps->dhcps_dns)) {
-        uint8_t size = 4;
+    // Add DNS option if either main or backup DNS is set
+    if (dhcps_dns_enabled(dhcps->dhcps_dns) &&
+        (dhcps->dns_server[DNS_TYPE_MAIN].addr || dhcps->dns_server[DNS_TYPE_BACKUP].addr)) {
 
+        uint8_t size = 0;
+
+        if (dhcps->dns_server[DNS_TYPE_MAIN].addr) {
+            size += 4;
+        }
         if (dhcps->dns_server[DNS_TYPE_BACKUP].addr) {
             size += 4;
         }
 
         *optptr++ = DHCP_OPTION_DNS_SERVER;
         *optptr++ = size;
-        optptr = dhcps_option_ip(optptr, &dhcps->dns_server[DNS_TYPE_MAIN]);
 
+        if (dhcps->dns_server[DNS_TYPE_MAIN].addr) {
+            optptr = dhcps_option_ip(optptr, &dhcps->dns_server[DNS_TYPE_MAIN]);
+        }
         if (dhcps->dns_server[DNS_TYPE_BACKUP].addr) {
             optptr = dhcps_option_ip(optptr, &dhcps->dns_server[DNS_TYPE_BACKUP]);
         }
-#ifdef CONFIG_LWIP_DHCPS_ADD_DNS
     } else {
         *optptr++ = DHCP_OPTION_DNS_SERVER;
         *optptr++ = 4;
         optptr = dhcps_option_ip(optptr, &ipadd);
-#endif /* CONFIG_LWIP_DHCPS_ADD_DNS */
     }
 
     ip4_addr_t broadcast_addr = { .addr = (ipadd.addr & dhcps->dhcps_mask.addr) | ~dhcps->dhcps_mask.addr };
@@ -532,6 +551,44 @@ static u8_t *add_end(u8_t *optptr)
 {
     *optptr++ = DHCP_OPTION_END;
     return optptr;
+}
+
+/**
+ * Read DHCP message type (option 53) from the variable-length option area
+ * (starts after the magic cookie at options[4]).
+ */
+static u8_t dhcps_get_option_msg_type(u8_t *optptr, u16_t len)
+{
+    u8_t *end;
+
+    if (len <= 0) {
+        return 0;
+    }
+    end = optptr + len;
+
+    while (optptr < end) {
+        u8_t code = *optptr;
+        if (code == DHCP_OPTION_END) {
+            break;
+        }
+        if (code == 0) {
+            /* Pad */
+            optptr++;
+            continue;
+        }
+        if (optptr + 1 >= end) {
+            break;
+        }
+        u8_t optlen = optptr[1];
+        if ((optptr + 2 + optlen) > end) {
+            break;
+        }
+        if (code == DHCP_OPTION_MSG_TYPE && optlen >= 1) {
+            return optptr[2];
+        }
+        optptr += (u16_t)optlen + 2;
+    }
+    return 0;
 }
 
 /******************************************************************************
@@ -591,7 +648,11 @@ static void dhcps_response_ip_set(dhcps_t *dhcps, struct dhcps_msg *m, ip4_addr_
             /* If the 'giaddr' field is zero and the 'ciaddr' is nonzero,
              * the server unicasts DHCPOFFER and DHCPACK message to the address in 'ciaddr'*/
             ip4_addr_set(ip4_out, &ip4_ciaddr);
-            etharp_add_static_entry(&ip4_ciaddr, &chaddr);
+            /* when 'yiaddr' is zero, means DHCPACK INFO, no need to add static entry */
+            if (!ip4_addr_isany_val(ip4_yiaddr)) {
+                /* add the IP<->MAC as static entry into the arp table. */
+                etharp_add_static_entry(&ip4_ciaddr, &chaddr);
+            }
         } else if (!BROADCAST_BIT_IS_SET(htons(m->flags))) {
             /* If the 'giaddr' is zero and 'ciaddr' is zero, and the broadcast bit is not set,
              * the server unicasts DHCPOFFER and DHCPACK message to the client's hardware address and
@@ -642,7 +703,7 @@ static void send_offer(dhcps_t *dhcps, struct dhcps_msg *m, u16_t len)
     create_msg(dhcps, m);
 
     end = add_msg_type(&m->options[4], DHCPOFFER);
-    end = add_offer_options(dhcps, end);
+    end = add_offer_options(dhcps, end, true);
     LWIP_HOOK_DHCPS_POST_APPEND_OPTS(dhcps->dhcps_netif, dhcps, DHCPOFFER, &end)
     end = add_end(end);
 
@@ -825,7 +886,7 @@ static void send_ack(dhcps_t *dhcps, struct dhcps_msg *m, u16_t len)
     create_msg(dhcps, m);
 
     end = add_msg_type(&m->options[4], DHCPACK);
-    end = add_offer_options(dhcps, end);
+    end = add_offer_options(dhcps, end, true);
     LWIP_HOOK_DHCPS_POST_APPEND_OPTS(dhcps->dhcps_netif, dhcps, DHCPACK, &end)
     end = add_end(end);
 
@@ -881,13 +942,59 @@ static void send_ack(dhcps_t *dhcps, struct dhcps_msg *m, u16_t len)
 #endif
 
     if (SendAck_err_t == ERR_OK) {
-        dhcps->dhcps_cb(dhcps->dhcps_cb_arg, m->yiaddr, m->chaddr);
+        if (dhcps->dhcps_cb) {
+            dhcps->dhcps_cb(dhcps->dhcps_cb_arg, m->yiaddr, m->chaddr);
+        }
     }
 
     if (p->ref != 0) {
 #if DHCPS_DEBUG
         DHCPS_LOG("udhcp: send_ack>>free pbuf\n");
 #endif
+        pbuf_free(p);
+    }
+}
+
+/******************************************************************************
+ * FunctionName : send_ack_inform
+ * Description  : DHCPACK response to DHCPINFORM (RFC 2131: yiaddr = 0, no lease time)
+ * Parameters   : m -- DHCP message info
+ * Returns      : none
+*******************************************************************************/
+static void send_ack_inform(dhcps_t *dhcps, struct dhcps_msg *m, u16_t len)
+{
+    u8_t *end;
+    struct pbuf *p, *q;
+    u8_t *data;
+    u16_t cnt = 0;
+    u16_t i;
+    create_msg(dhcps, m);
+    memset(m->yiaddr, 0, sizeof(m->yiaddr));
+
+    end = add_msg_type(&m->options[4], DHCPACK);
+    end = add_offer_options(dhcps, end, false);
+    LWIP_HOOK_DHCPS_POST_APPEND_OPTS(dhcps->dhcps_netif, dhcps, DHCPACK, &end)
+    end = add_end(end);
+
+    p = dhcps_pbuf_alloc(len);
+    if (p == NULL) {
+        return;
+    }
+
+    q = p;
+    while (q != NULL) {
+        data = (u8_t *)q->payload;
+        for (i = 0; i < q->len; i++) {
+            data[i] = ((u8_t *) m)[cnt++];
+        }
+        q = q->next;
+    }
+
+    ip_addr_t ip_temp = IPADDR4_INIT(0x0);
+    dhcps_response_ip_set(dhcps, m, ip_2_ip4(&ip_temp));
+    udp_sendto(dhcps->dhcps_pcb, p, &ip_temp, DHCPS_CLIENT_PORT);
+
+    if (p->ref != 0) {
         pbuf_free(p);
     }
 }
@@ -902,7 +1009,6 @@ static void send_ack(dhcps_t *dhcps, struct dhcps_msg *m, u16_t len)
 static u8_t parse_options(dhcps_t *dhcps, u8_t *optptr, s16_t len)
 {
     ip4_addr_t client;
-    bool is_dhcp_parse_end = false;
     struct dhcps_state s;
 
     client.addr = *((uint32_t *) &dhcps->client_address);
@@ -917,38 +1023,79 @@ static u8_t parse_options(dhcps_t *dhcps, u8_t *optptr, s16_t len)
         DHCPS_LOG("dhcps: (s16_t)*optptr = %d\n", (s16_t)*optptr);
 #endif
 
+        if (*optptr == DHCP_OPTION_PAD) {
+            optptr++;
+            continue;
+        }
+
+        if (*optptr == DHCP_OPTION_END) {
+            break;
+        }
+
+        if (optptr + 1 >= end) {
+            break;
+        }
+
+        u8_t opt_len = optptr[1];
+
+        if (optptr + 2 + opt_len > end) {
+            break;
+        }
+
         switch ((s16_t) *optptr) {
 
             case DHCP_OPTION_MSG_TYPE:	//53
-                type = *(optptr + 2);
+                if (opt_len >= 1) {
+                    type = optptr[2];
+                }
                 break;
 
+#if CONFIG_LWIP_DHCPS_REPORT_CLIENT_HOSTNAME
+            case DHCP_OPTION_HOST_NAME: {
+                /* option format: code(1) len(1) value(len) */
+                u8_t olen = *(optptr + 1);
+                const u8_t *oval = optptr + 2;
+                if (olen > 0) {
+                    /* clamp to configured max, keep room for NUL */
+                    size_t copy_len = olen;
+                    if (copy_len >= CONFIG_LWIP_DHCPS_MAX_HOSTNAME_LEN) {
+                        copy_len = CONFIG_LWIP_DHCPS_MAX_HOSTNAME_LEN - 1;
+                    }
+                    size_t j = 0;
+                    for (; j < copy_len; ++j) {
+                        char c = (char)oval[j];
+                        if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '.' || c == '-' || c == '_') {
+                            dhcps->opt_hostname[j] = c;
+                        } else {
+                            dhcps->opt_hostname[j] = '-';
+                        }
+                    }
+                    dhcps->opt_hostname[j] = '\0';
+                    dhcps->opt_hostname_present = true;
+                }
+                break;
+            }
+#endif
+
             case DHCP_OPTION_REQ_IPADDR://50
-                if (memcmp((char *) &client.addr, (char *) optptr + 2, 4) == 0) {
+                if (opt_len >= 4) {
+                    if (memcmp((char *) &client.addr, (char *) optptr + 2, 4) == 0) {
 #if DHCPS_DEBUG
-                    DHCPS_LOG("dhcps: DHCP_OPTION_REQ_IPADDR = 0 ok\n");
+                        DHCPS_LOG("dhcps: DHCP_OPTION_REQ_IPADDR = 0 ok\n");
 #endif
-                    s.state = DHCPS_STATE_ACK;
-                } else {
+                        s.state = DHCPS_STATE_ACK;
+                    } else {
 #if DHCPS_DEBUG
-                    DHCPS_LOG("dhcps: DHCP_OPTION_REQ_IPADDR != 0 err\n");
+                        DHCPS_LOG("dhcps: DHCP_OPTION_REQ_IPADDR != 0 err\n");
 #endif
-                    s.state = DHCPS_STATE_NAK;
+                        s.state = DHCPS_STATE_NAK;
+                    }
                 }
 
                 break;
-
-            case DHCP_OPTION_END: {
-                is_dhcp_parse_end = true;
-            }
-            break;
         }
 
-        if (is_dhcp_parse_end) {
-            break;
-        }
-
-        optptr += optptr[1] + 2;
+        optptr += opt_len + 2;
     }
 
     switch (type) {
@@ -1011,6 +1158,23 @@ static s16_t parse_msg(dhcps_t *dhcps, struct dhcps_msg *m, u16_t len)
 #if DHCPS_DEBUG
         DHCPS_LOG("dhcps: len = %d\n", len);
 #endif
+        {
+            u8_t msg_type = dhcps_get_option_msg_type(&m->options[4], (s16_t)len);
+            if (msg_type == DHCPINFORM) {
+                ip4_addr_t ciaddr;
+                memcpy(&ciaddr.addr, m->ciaddr, sizeof(ciaddr.addr));
+                if (ip4_addr_isany(&ciaddr)) {
+                    /* RFC 2131: client MUST set ciaddr to its configured address */
+                    return 0;
+                }
+                if (!ip4_addr_netcmp(&ciaddr, &dhcps->server_address, &dhcps->dhcps_mask)) {
+                    /* No configuration for this client */
+                    return 0;
+                }
+                return DHCPS_STATE_INFORM_ACK;
+            }
+        }
+
         ip4_addr_t addr_tmp;
 
         struct dhcps_pool *pdhcps_pool = NULL;
@@ -1075,11 +1239,19 @@ static s16_t parse_msg(dhcps_t *dhcps, struct dhcps_msg *m, u16_t len)
             pnode = NULL;
         } else {
             pdhcps_pool = (struct dhcps_pool *)mem_calloc(1, sizeof(struct dhcps_pool));
+            if (pdhcps_pool == NULL) {
+                return 0;
+            }
 
             pdhcps_pool->ip.addr = dhcps->client_address.addr;
             memcpy(pdhcps_pool->mac, m->chaddr, sizeof(pdhcps_pool->mac));
             pdhcps_pool->lease_timer = lease_timer;
             pnode = (list_node *)mem_calloc(1, sizeof(list_node));
+            if (pnode == NULL) {
+                mem_free(pdhcps_pool);
+                pdhcps_pool = NULL;
+                return 0;
+            }
 
             pnode->pnode = pdhcps_pool;
             pnode->pnext = NULL;
@@ -1099,29 +1271,29 @@ POOL_CHECK:
         if ((dhcps->client_address.addr > dhcps->dhcps_poll.end_ip.addr) || (ip4_addr_isany(&dhcps->client_address))) {
             if (pnode != NULL) {
                 node_remove_from_list(&dhcps->plist, pnode);
-                free(pnode);
+                mem_free(pnode);
                 pnode = NULL;
             }
 
             if (pdhcps_pool != NULL) {
-                free(pdhcps_pool);
+                mem_free(pdhcps_pool);
                 pdhcps_pool = NULL;
             }
 
             return 4;
         }
 
-        s16_t ret = parse_options(dhcps, &m->options[4], len);;
+        s16_t ret = parse_options(dhcps, &m->options[4], len);
 
         if (ret == DHCPS_STATE_RELEASE || ret == DHCPS_STATE_NAK || ret ==  DHCPS_STATE_DECLINE) {
             if (pnode != NULL) {
                 node_remove_from_list(&dhcps->plist, pnode);
-                free(pnode);
+                mem_free(pnode);
                 pnode = NULL;
             }
 
             if (pdhcps_pool != NULL) {
-                free(pdhcps_pool);
+                mem_free(pdhcps_pool);
                 pdhcps_pool = NULL;
             }
 
@@ -1130,6 +1302,21 @@ POOL_CHECK:
             }
             memset(&dhcps->client_address, 0x0, sizeof(dhcps->client_address));
         }
+
+#if CONFIG_LWIP_DHCPS_REPORT_CLIENT_HOSTNAME
+        /* If we parsed a hostname from options and we have a lease entry, store it */
+        if (pdhcps_pool != NULL) {
+            if (dhcps->opt_hostname_present) {
+                size_t n = strnlen(dhcps->opt_hostname, CONFIG_LWIP_DHCPS_MAX_HOSTNAME_LEN);
+                if (n > 0) {
+                    memset(pdhcps_pool->hostname, 0, sizeof(pdhcps_pool->hostname));
+                    memcpy(pdhcps_pool->hostname, dhcps->opt_hostname, n);
+                } else {
+                    pdhcps_pool->hostname[0] = '\0';
+                }
+            }
+        }
+#endif
 
 #if DHCPS_DEBUG
         DHCPS_LOG("dhcps: xid changed\n");
@@ -1159,11 +1346,8 @@ static void handle_dhcp(void *arg,
 {
     struct dhcps_t *dhcps = arg;
     struct dhcps_msg *pmsg_dhcps = NULL;
-    s16_t tlen, malloc_len;
-    u16_t i;
-    u16_t dhcps_msg_cnt = 0;
+    u16_t tlen, malloc_len;
     u8_t *p_dhcps_msg = NULL;
-    u8_t *data;
     s16_t state;
 
 #if DHCPS_DEBUG
@@ -1171,6 +1355,11 @@ static void handle_dhcp(void *arg,
 #endif
 
     if (p == NULL) {
+        return;
+    }
+
+    if (p->tot_len > 1500) {
+        pbuf_free(p);
         return;
     }
 
@@ -1190,52 +1379,23 @@ static void handle_dhcp(void *arg,
 
     p_dhcps_msg = (u8_t *)pmsg_dhcps;
     tlen = p->tot_len;
-    data = p->payload;
 
 #if DHCPS_DEBUG
     DHCPS_LOG("dhcps: handle_dhcp-> p->tot_len = %d\n", tlen);
     DHCPS_LOG("dhcps: handle_dhcp-> p->len = %d\n", p->len);
 #endif
 
-    for (i = 0; i < p->len; i++) {
-        p_dhcps_msg[dhcps_msg_cnt++] = data[i];
-#if DHCPS_DEBUG
-        DHCPS_LOG("%02x ", data[i]);
-
-        if ((i + 1) % 16 == 0) {
-            DHCPS_LOG("\n");
-        }
-
-#endif
-    }
-
-    if (p->next != NULL) {
-#if DHCPS_DEBUG
-        DHCPS_LOG("dhcps: handle_dhcp-> p->next != NULL\n");
-        DHCPS_LOG("dhcps: handle_dhcp-> p->next->tot_len = %d\n", p->next->tot_len);
-        DHCPS_LOG("dhcps: handle_dhcp-> p->next->len = %d\n", p->next->len);
-#endif
-
-        data = p->next->payload;
-
-        for (i = 0; i < p->next->len; i++) {
-            p_dhcps_msg[dhcps_msg_cnt++] = data[i];
-#if DHCPS_DEBUG
-            DHCPS_LOG("%02x ", data[i]);
-
-            if ((i + 1) % 16 == 0) {
-                DHCPS_LOG("\n");
-            }
-
-#endif
-        }
+    if (tlen == 0 || pbuf_copy_partial(p, p_dhcps_msg, tlen, 0) != tlen) {
+        pbuf_free(p);
+        mem_free(pmsg_dhcps);
+        return;
     }
 
 #if DHCPS_DEBUG
     DHCPS_LOG("dhcps: handle_dhcp-> parse_msg(p)\n");
 #endif
 
-    state = parse_msg(dhcps, pmsg_dhcps, tlen - 240);
+    state = parse_msg(dhcps, pmsg_dhcps, tlen >= 240 ? (u16_t)(tlen - 240) : 0);
 #ifdef LWIP_HOOK_DHCPS_POST_STATE
     state = LWIP_HOOK_DHCPS_POST_STATE(pmsg_dhcps, malloc_len, state);
 #endif /* LWIP_HOOK_DHCPS_POST_STATE */
@@ -1262,6 +1422,13 @@ static void handle_dhcp(void *arg,
             send_nak(dhcps, pmsg_dhcps, malloc_len);
             break;
 
+        case DHCPS_STATE_INFORM_ACK://7
+#if DHCPS_DEBUG
+            DHCPS_LOG("dhcps: handle_dhcp-> DHCPD_STATE_INFORM_ACK\n");
+#endif
+            send_ack_inform(dhcps, pmsg_dhcps, malloc_len);
+            break;
+
         default :
             break;
     }
@@ -1270,7 +1437,7 @@ static void handle_dhcp(void *arg,
     DHCPS_LOG("dhcps: handle_dhcp-> pbuf_free(p)\n");
 #endif
     pbuf_free(p);
-    free(pmsg_dhcps);
+    mem_free(pmsg_dhcps);
     pmsg_dhcps = NULL;
 }
 
@@ -1423,9 +1590,9 @@ err_t dhcps_stop(dhcps_t *dhcps, struct netif *netif)
         pback_node = pnode;
         pnode = pback_node->pnext;
         node_remove_from_list(&dhcps->plist, pback_node);
-        free(pback_node->pnode);
+        mem_free(pback_node->pnode);
         pback_node->pnode = NULL;
-        free(pback_node);
+        mem_free(pback_node);
         pback_node = NULL;
     }
     sys_untimeout(dhcps_tmr, dhcps);
@@ -1467,9 +1634,9 @@ static void kill_oldest_dhcps_pool(dhcps_t *dhcps)
     } else {
         minpre->pnext = minp->pnext;
     }
-    free(minp->pnode);
+    mem_free(minp->pnode);
     minp->pnode = NULL;
-    free(minp);
+    mem_free(minp);
     minp = NULL;
 }
 
@@ -1484,7 +1651,7 @@ static void dhcps_tmr(void *arg)
     dhcps_t *dhcps = arg;
     dhcps_handle_state state = dhcps->state;
     if (state == DHCPS_HANDLE_DELETE_PENDING) {
-        free(dhcps);
+        mem_free(dhcps);
         return;
     }
 
@@ -1506,9 +1673,9 @@ static void dhcps_tmr(void *arg)
             pback_node = pnode;
             pnode = pback_node->pnext;
             node_remove_from_list(&dhcps->plist, pback_node);
-            free(pback_node->pnode);
+            mem_free(pback_node->pnode);
             pback_node->pnode = NULL;
-            free(pback_node);
+            mem_free(pback_node);
             pback_node = NULL;
         } else {
             pnode = pnode ->pnext;
@@ -1618,5 +1785,55 @@ err_t dhcps_dns_getserver(dhcps_t *dhcps, ip4_addr_t *dnsserver)
 {
     return dhcps_dns_getserver_by_type(dhcps, dnsserver, DNS_TYPE_MAIN);
 }
+
+#if CONFIG_LWIP_DHCPS_REPORT_CLIENT_HOSTNAME
+bool dhcps_get_hostname_on_mac(dhcps_t *dhcps, const u8_t *mac, char *out, size_t out_len)
+{
+    if ((dhcps == NULL) || (mac == NULL) || (out == NULL) || (out_len == 0)) {
+        return false;
+    }
+    list_node *pnode = dhcps->plist;
+    while (pnode) {
+        struct dhcps_pool *pool = pnode->pnode;
+        if (memcmp(pool->mac, mac, sizeof(pool->mac)) == 0) {
+            size_t maxcpy = (out_len > 0) ? out_len - 1 : 0;
+            size_t srclen = 0;
+            /* hostname may be empty string */
+            srclen = strnlen(pool->hostname, CONFIG_LWIP_DHCPS_MAX_HOSTNAME_LEN);
+            if (maxcpy > 0) {
+                if (srclen > maxcpy) srclen = maxcpy;
+                if (srclen) memcpy(out, pool->hostname, srclen);
+                out[srclen] = '\0';
+            }
+            return true;
+        }
+        pnode = pnode->pnext;
+    }
+    return false;
+}
+#else
+bool dhcps_get_hostname_on_mac(dhcps_t *dhcps, const u8_t *mac, char *out, size_t out_len)
+{
+    LWIP_UNUSED_ARG(dhcps);
+    LWIP_UNUSED_ARG(mac);
+    if (out && out_len) {
+        out[0] = '\0';
+    }
+    return false;
+}
+#endif
+#if LWIP_DHCPS_TEST_PARSE_OPTIONS == 1
+u8_t dhcps_test_parse_options(u8_t *optptr, s16_t len)
+{
+    dhcps_t *dhcps = dhcps_new();
+    if (dhcps == NULL) {
+        return 0;
+    }
+    IP4_ADDR(&dhcps->client_address, 192, 168, 4, 2);
+    u8_t result = parse_options(dhcps, optptr, len);
+    mem_free(dhcps);
+    return result;
+}
+#endif /* LWIP_DHCPS_TEST_PARSE_OPTIONS == 1 */
 
 #endif // ESP_DHCPS

@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2021-2024 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2021-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Unlicense OR CC0-1.0
  */
@@ -92,8 +92,8 @@ static esp_ble_scan_params_t ble_scan_params = {
     .scan_type              = BLE_SCAN_TYPE_ACTIVE,
     .own_addr_type          = BLE_ADDR_TYPE_PUBLIC,
     .scan_filter_policy     = BLE_SCAN_FILTER_ALLOW_ALL,
-    .scan_interval          = 0x50,
-    .scan_window            = 0x30,
+    .scan_interval          = ESP_BLE_GAP_SCAN_ITVL_MS(50),
+    .scan_window            = ESP_BLE_GAP_SCAN_WIN_MS(30),
     .scan_duplicate         = BLE_SCAN_DUPLICATE_DISABLE
 };
 
@@ -125,10 +125,11 @@ static struct gattc_profile_inst gl_profile_tab[PROFILE_NUM] = {
 
 };
 
+/* Restarts scanning; does not clear Isconnecting — that flag is tied to enh_open/OPEN_EVT only
+ * so unrelated events (e.g. another profile disconnect) cannot drop the guard mid–connect attempt. */
 static void start_scan(void)
 {
     stop_scan_done = false;
-    Isconnecting = false;
     uint32_t duration = 30;
     esp_ble_gap_start_scanning(duration);
 }
@@ -154,7 +155,8 @@ static void gattc_profile_a_event_handler(esp_gattc_cb_event_t event, esp_gatt_i
             //open failed, ignore the first device, connect the second device
             ESP_LOGE(GATTC_TAG, "connect device failed, status %d", p_data->open.status);
             conn_device_a = false;
-            //start_scan();
+            Isconnecting = false;
+            start_scan();
             break;
         }
         memcpy(gl_profile_tab[PROFILE_A_APP_ID].remote_bda, p_data->open.remote_bda, 6);
@@ -166,6 +168,7 @@ static void gattc_profile_a_event_handler(esp_gattc_cb_event_t event, esp_gatt_i
         if (mtu_ret){
             ESP_LOGE(GATTC_TAG, "config MTU error, error code = %x", mtu_ret);
         }
+        Isconnecting = false;
         break;
     case ESP_GATTC_CFG_MTU_EVT:
         if (param->cfg_mtu.status != ESP_GATT_OK){
@@ -267,6 +270,9 @@ static void gattc_profile_a_event_handler(esp_gattc_cb_event_t event, esp_gatt_i
                                                                      &count);
                 if (ret_status != ESP_GATT_OK){
                     ESP_LOGE(GATTC_TAG, "esp_ble_gattc_get_descr_by_char_handle error");
+                    free(descr_elem_result_a);
+                    descr_elem_result_a = NULL;
+                    break;
                 }
 
                 /* Every char has only one descriptor in our 'ESP_GATTS_DEMO' demo, so we used first 'descr_elem_result' */
@@ -286,6 +292,7 @@ static void gattc_profile_a_event_handler(esp_gattc_cb_event_t event, esp_gatt_i
 
                 /* free descr_elem_result */
                 free(descr_elem_result_a);
+                descr_elem_result_a = NULL;
             }
         }
         else{
@@ -327,8 +334,8 @@ static void gattc_profile_a_event_handler(esp_gattc_cb_event_t event, esp_gatt_i
     case ESP_GATTC_SRVC_CHG_EVT: {
         esp_bd_addr_t bda;
         memcpy(bda, p_data->srvc_chg.remote_bda, sizeof(esp_bd_addr_t));
-        ESP_LOGI(GATTC_TAG, "ESP_GATTC_SRVC_CHG_EVT, bd_addr:%08x%04x",(bda[0] << 24) + (bda[1] << 16) + (bda[2] << 8) + bda[3],
-                 (bda[4] << 8) + bda[5]);
+        ESP_LOGI(GATTC_TAG, "ESP_GATTC_SRVC_CHG_EVT, bd_addr:%02x:%02x:%02x:%02x:%02x:%02x",
+                 bda[0], bda[1], bda[2], bda[3], bda[4], bda[5]);
         break;
     }
     case ESP_GATTC_DISCONNECT_EVT:
@@ -360,7 +367,8 @@ static void gattc_profile_b_event_handler(esp_gattc_cb_event_t event, esp_gatt_i
             //open failed, ignore the second device, connect the third device
             ESP_LOGE(GATTC_TAG, "connect device failed, status %d", p_data->open.status);
             conn_device_b = false;
-            //start_scan();
+            Isconnecting = false;
+            start_scan();
             break;
         }
         memcpy(gl_profile_tab[PROFILE_B_APP_ID].remote_bda, p_data->open.remote_bda, 6);
@@ -372,6 +380,7 @@ static void gattc_profile_b_event_handler(esp_gattc_cb_event_t event, esp_gatt_i
         if (mtu_ret){
             ESP_LOGE(GATTC_TAG, "config MTU error, error code = %x", mtu_ret);
         }
+        Isconnecting = false;
         break;
     case ESP_GATTC_CFG_MTU_EVT:
         if (param->cfg_mtu.status != ESP_GATT_OK){
@@ -538,8 +547,8 @@ static void gattc_profile_b_event_handler(esp_gattc_cb_event_t event, esp_gatt_i
     case ESP_GATTC_SRVC_CHG_EVT: {
         esp_bd_addr_t bda;
         memcpy(bda, p_data->srvc_chg.remote_bda, sizeof(esp_bd_addr_t));
-        ESP_LOGI(GATTC_TAG, "ESP_GATTC_SRVC_CHG_EVT, bd_addr:%08x%04x",(bda[0] << 24) + (bda[1] << 16) + (bda[2] << 8) + bda[3],
-                 (bda[4] << 8) + bda[5]);
+        ESP_LOGI(GATTC_TAG, "ESP_GATTC_SRVC_CHG_EVT, bd_addr:%02x:%02x:%02x:%02x:%02x:%02x",
+                 bda[0], bda[1], bda[2], bda[3], bda[4], bda[5]);
         break;
     }
     case ESP_GATTC_DISCONNECT_EVT:
@@ -568,7 +577,8 @@ static void gattc_profile_c_event_handler(esp_gattc_cb_event_t event, esp_gatt_i
         if (p_data->open.status != ESP_GATT_OK){
             ESP_LOGE(GATTC_TAG, "connect device failed, status %d", p_data->open.status);
             conn_device_c = false;
-            //start_scan();
+            Isconnecting = false;
+            start_scan();
             break;
         }
         memcpy(gl_profile_tab[PROFILE_C_APP_ID].remote_bda, p_data->open.remote_bda, 6);
@@ -580,6 +590,7 @@ static void gattc_profile_c_event_handler(esp_gattc_cb_event_t event, esp_gatt_i
         if (mtu_ret){
             ESP_LOGE(GATTC_TAG, "config MTU error, error code = %x", mtu_ret);
         }
+        Isconnecting = false;
         break;
     case ESP_GATTC_CFG_MTU_EVT:
         if (param->cfg_mtu.status != ESP_GATT_OK){
@@ -746,8 +757,8 @@ static void gattc_profile_c_event_handler(esp_gattc_cb_event_t event, esp_gatt_i
     case ESP_GATTC_SRVC_CHG_EVT: {
         esp_bd_addr_t bda;
         memcpy(bda, p_data->srvc_chg.remote_bda, sizeof(esp_bd_addr_t));
-        ESP_LOGI(GATTC_TAG, "ESP_GATTC_SRVC_CHG_EVT, bd_addr:%08x%04x",(bda[0] << 24) + (bda[1] << 16) + (bda[2] << 8) + bda[3],
-                 (bda[4] << 8) + bda[5]);
+        ESP_LOGI(GATTC_TAG, "ESP_GATTC_SRVC_CHG_EVT, bd_addr:%02x:%02x:%02x:%02x:%02x:%02x",
+                 bda[0], bda[1], bda[2], bda[3], bda[4], bda[5]);
         break;
     }
     case ESP_GATTC_DISCONNECT_EVT:
@@ -954,7 +965,8 @@ void app_main(void)
         return;
     }
 
-    ret = esp_bluedroid_init();
+    esp_bluedroid_config_t cfg = BT_BLUEDROID_INIT_CONFIG_DEFAULT();
+    ret = esp_bluedroid_init_with_cfg(&cfg);
     if (ret) {
         ESP_LOGE(GATTC_TAG, "%s init bluetooth failed: %s", __func__, esp_err_to_name(ret));
         return;

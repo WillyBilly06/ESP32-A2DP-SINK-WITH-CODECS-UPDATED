@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.16)
+cmake_minimum_required(VERSION 3.22)
 
 if(CMAKE_CURRENT_LIST_DIR STREQUAL CMAKE_SOURCE_DIR)
     message(FATAL_ERROR "Current directory '${CMAKE_CURRENT_LIST_DIR}' is not buildable. "
@@ -23,14 +23,15 @@ if(BOOTLOADER_BUILD)
         endif()
         if(CMAKE_C_COMPILER_ID MATCHES "GNU")
             list(APPEND compile_options "-freorder-blocks")
+            if(CONFIG_IDF_TARGET_ARCH_XTENSA)
+                list(APPEND compile_options "-mno-target-align")
+            endif()
         endif()
     elseif(CONFIG_BOOTLOADER_COMPILER_OPTIMIZATION_DEBUG)
         list(APPEND compile_options "-Og")
         if(CMAKE_C_COMPILER_ID MATCHES "GNU" AND NOT CONFIG_IDF_TARGET_LINUX)
             list(APPEND compile_options "-fno-shrink-wrap")  # Disable shrink-wrapping to reduce binary size
         endif()
-    elseif(CONFIG_BOOTLOADER_COMPILER_OPTIMIZATION_NONE)
-        list(APPEND compile_options "-O0")
     elseif(CONFIG_BOOTLOADER_COMPILER_OPTIMIZATION_PERF)
         list(APPEND compile_options "-O2")
     endif()
@@ -54,6 +55,9 @@ else()
         endif()
         if(CMAKE_C_COMPILER_ID MATCHES "GNU")
             list(APPEND compile_options "-freorder-blocks")
+            if(CONFIG_IDF_TARGET_ARCH_XTENSA)
+                list(APPEND compile_options "-mno-target-align")
+            endif()
         endif()
     elseif(CONFIG_COMPILER_OPTIMIZATION_DEBUG)
         list(APPEND compile_options "-Og")
@@ -74,11 +78,22 @@ else()
     list(APPEND cxx_compile_options "-fno-exceptions")
 endif()
 
-if(CONFIG_COMPILER_CXX_RTTI)
-    list(APPEND cxx_compile_options "-frtti")
-else()
-    list(APPEND cxx_compile_options "-fno-rtti")
-    list(APPEND link_options "-fno-rtti")           # used to invoke correct multilib variant (no-rtti) during linking
+if(CONFIG_IDF_TOOLCHAIN_GCC)
+    if(CONFIG_COMPILER_CXX_RTTI)
+        idf_toolchain_remove_flags(CXX_COMPILE_OPTIONS "-fno-rtti"
+                                   LINK_OPTIONS "-fno-rtti")
+    else()
+        idf_toolchain_add_flags(CXX_COMPILE_OPTIONS "-fno-rtti"
+                                LINK_OPTIONS "-fno-rtti")
+    endif()
+    idf_toolchain_rerun_abi_detection()
+else() # TODO IDF-14338
+    if(CONFIG_COMPILER_CXX_RTTI)
+        list(APPEND cxx_compile_options "-frtti")
+    else()
+        list(APPEND cxx_compile_options "-fno-rtti")
+        list(APPEND link_options "-fno-rtti")        # used to invoke correct multilib variant (no-rtti) during linking
+    endif()
 endif()
 
 if(CONFIG_COMPILER_SAVE_RESTORE_LIBCALLS)
@@ -105,8 +120,6 @@ if(CMAKE_C_COMPILER_ID MATCHES "Clang")
     list(APPEND compile_options "-Wno-char-subscripts")
     # Clang seems to notice format string issues which GCC doesn't.
     list(APPEND compile_options "-Wno-format-security")
-    # Logic bug in essl component
-    list(APPEND compile_options "-Wno-tautological-overlap-compare")
     # Some pointer checks in mDNS component check addresses which can't be NULL
     list(APPEND compile_options "-Wno-tautological-pointer-compare")
     # Similar to the above, in tcp_transport
@@ -142,6 +155,9 @@ if(CMAKE_C_COMPILER_ID MATCHES "Clang")
         # warning: implicit truncation from 'int' to a one-bit wide bit-field changes value from 1 to -1
         list(APPEND compile_options "-Wno-single-bit-bitfield-constant-conversion")
     endif()
+    # warning: initializer overrides prior initialization of this subobject
+    # in esp32c61 pmu_param.c when static unions are initialized (e.g. in pmu_hp_system_analog_param_default)
+    list(APPEND compile_options "-Wno-initializer-overrides")
 endif()
 # More warnings may exist in unit tests and example projects.
 
@@ -157,6 +173,10 @@ if(CONFIG_COMPILER_NO_MERGE_CONSTANTS)
     list(APPEND compile_options "-fno-merge-constants")
 endif()
 
+if(CONFIG_COMPILER_ENABLE_TEXT_SECTION_LITERALS)
+    list(APPEND compile_options "-mtext-section-literals")
+endif()
+
 if(CONFIG_COMPILER_STACK_CHECK_MODE_NORM)
     list(APPEND compile_options "-fstack-protector")
 elseif(CONFIG_COMPILER_STACK_CHECK_MODE_STRONG)
@@ -167,6 +187,18 @@ endif()
 
 if(CONFIG_COMPILER_DUMP_RTL_FILES)
     list(APPEND compile_options "-fdump-rtl-expand")
+endif()
+
+if(CMAKE_C_COMPILER_ID MATCHES "GNU" AND CMAKE_C_COMPILER_VERSION VERSION_GREATER 15.0)
+    list(APPEND c_compile_options "-fzero-init-padding-bits=all" "-fno-malloc-dce")
+endif()
+
+if(CONFIG_COMPILER_CXX_GLIBCXX_CONSTEXPR_COLD_CONSTEXPR)
+    list(APPEND cxx_compile_options "-D_GLIBCXX20_CONSTEXPR=__attribute__((cold)) constexpr")
+    list(APPEND cxx_compile_options "-D_GLIBCXX23_CONSTEXPR=__attribute__((cold)) constexpr")
+elseif(CONFIG_COMPILER_CXX_GLIBCXX_CONSTEXPR_COLD)
+    list(APPEND cxx_compile_options "-D_GLIBCXX20_CONSTEXPR=__attribute__((cold))")
+    list(APPEND cxx_compile_options "-D_GLIBCXX23_CONSTEXPR=__attribute__((cold))")
 endif()
 
 __generate_prefix_map(prefix_map_compile_options)
@@ -186,6 +218,15 @@ endif()
 
 if(CONFIG_COMPILER_DISABLE_GCC14_WARNINGS)
     list(APPEND compile_options "-Wno-calloc-transposed-args")
+endif()
+
+if(CONFIG_COMPILER_DISABLE_GCC15_WARNINGS)
+    list(APPEND c_compile_options "-Wno-unterminated-string-initialization")
+    list(APPEND c_compile_options "-Wno-header-guard")
+    list(APPEND cxx_compile_options "-Wno-self-move")
+    list(APPEND cxx_compile_options "-Wno-template-body")
+    list(APPEND cxx_compile_options "-Wno-dangling-reference")
+    list(APPEND cxx_compile_options "-Wno-defaulted-function-deleted")
 endif()
 
 if(CONFIG_COMPILER_DISABLE_DEFAULT_ERRORS)
@@ -305,3 +346,12 @@ foreach(component_target ${build_component_targets})
     endif()
     set(__idf_component_context 0)
 endforeach()
+
+# Run component validation checks after all components have been processed
+# Only run validation for the main project, not subprojects like bootloader
+idf_build_get_property(bootloader_build BOOTLOADER_BUILD)
+idf_build_get_property(esp_tee_build ESP_TEE_BUILD)
+if(NOT bootloader_build AND NOT esp_tee_build)
+    include("${CMAKE_CURRENT_LIST_DIR}/tools/cmake/component_validation.cmake")
+    __component_validation_run_checks()
+endif()

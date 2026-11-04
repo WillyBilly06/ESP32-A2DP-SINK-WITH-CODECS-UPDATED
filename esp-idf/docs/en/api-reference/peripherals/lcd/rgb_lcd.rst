@@ -16,6 +16,49 @@ RGB LCD panel is created by :cpp:func:`esp_lcd_new_rgb_panel`, with various conf
     - :cpp:member:`esp_lcd_rgb_panel_config_t::num_fbs` specifies how many frame buffers the driver should allocate. For backward compatibility, setting this to ``0`` will allocate a single frame buffer. If you don't want to allocate any frame buffer, use :cpp:member:`esp_lcd_rgb_panel_config_t::no_fb` instead.
     - :cpp:member:`esp_lcd_rgb_panel_config_t::no_fb` determines whether frame buffer will be allocated. When it is set, no frame buffer will be allocated. This is also called the :ref:`bounce_buffer_only` mode.
 
+GPIO Matrix and IOMUX Pins
+--------------------------
+
+.. only:: esp32s31
+
+    On {IDF_TARGET_NAME}, the RGB LCD driver can use IOMUX automatically when all required signals are mapped to dedicated pins:
+
+    - If ``data_gpio_nums``, ``hsync_gpio_num``, ``vsync_gpio_num``, ``pclk_gpio_num``, and ``de_gpio_num`` all match their dedicated IOMUX pins, the driver bypasses the GPIO matrix automatically.
+    - If any one of these signals does not match the dedicated IOMUX pin, the driver falls back to GPIO matrix routing automatically.
+
+    For higher pixel clock configurations, using IOMUX pins is recommended for better timing robustness.
+
+    Dedicated RGB IOMUX pins on {IDF_TARGET_NAME} are listed below:
+
+    - When ``data_width = 8``, ``DATA[0:7]`` is used
+    - When ``data_width = 16``, ``DATA[0:15]`` is used
+    - When ``data_width = 24``, ``DATA[0:23]`` is used
+
+    .. list-table::
+       :widths: 35 65
+       :header-rows: 1
+
+       * - Signal
+         - GPIO
+       * - DATA[0:7]
+         - 8, 9, 10, 11, 12, 13, 14, 15
+       * - DATA[8:15]
+         - 16, 17, 18, 19, 33, 34, 35, 36
+       * - DATA[16:23]
+         - 37, 38, 39, 2, 3, 4, 5, 7
+       * - HSYNC
+         - 44
+       * - VSYNC
+         - 45
+       * - PCLK
+         - 40
+       * - DE
+         - 43
+
+.. only:: not esp32s31
+
+    On {IDF_TARGET_NAME}, RGB signals are routed through the GPIO matrix.
+
 RGB LCD Frame Buffer Operation Modes
 ------------------------------------
 
@@ -150,6 +193,48 @@ To prevent tearing effects, the simplest method is to use two screen-sized frame
     };
     ESP_ERROR_CHECK(esp_lcd_new_rgb_panel(&panel_config, &panel_handle));
 
+.. _user_custom_frame_buffer:
+
+User Custom Frame Buffer
+^^^^^^^^^^^^^^^^^^^^^^^^
+
+User can provide their own frame buffer instead of letting the driver allocate it. In this mode, user needs to manage the lifecycle of the frame buffer by themselves.
+
+.. code:: c
+
+    esp_lcd_panel_handle_t panel_handle = NULL;
+    esp_lcd_rgb_panel_config_t panel_config = {
+        .data_width = 16, // RGB565 in parallel mode, thus 16 bits in width
+        .clk_src = LCD_CLK_SRC_DEFAULT,
+        .disp_gpio_num = EXAMPLE_PIN_NUM_DISP_EN,
+        .pclk_gpio_num = EXAMPLE_PIN_NUM_PCLK,
+        .vsync_gpio_num = EXAMPLE_PIN_NUM_VSYNC,
+        .hsync_gpio_num = EXAMPLE_PIN_NUM_HSYNC,
+        .de_gpio_num = EXAMPLE_PIN_NUM_DE,
+        .data_gpio_nums = {
+            EXAMPLE_PIN_NUM_DATA0,
+            EXAMPLE_PIN_NUM_DATA1,
+            EXAMPLE_PIN_NUM_DATA2,
+            // other GPIOs
+            // The number of GPIOs here should be the same to the value of "data_width" above
+            ...
+        },
+        // The timing parameters should refer to your LCD spec
+        .timings = {
+            .pclk_hz = EXAMPLE_LCD_PIXEL_CLOCK_HZ,
+            .h_res = EXAMPLE_LCD_H_RES,
+            .v_res = EXAMPLE_LCD_V_RES,
+            .hsync_back_porch = 40,
+            .hsync_front_porch = 20,
+            .hsync_pulse_width = 1,
+            .vsync_back_porch = 8,
+            .vsync_front_porch = 4,
+            .vsync_pulse_width = 1,
+        },
+        .user_fbs[0] = user_frame_buffer, // use user custom frame buffer
+    };
+    ESP_ERROR_CHECK(esp_lcd_new_rgb_panel(&panel_config, &panel_handle));
+
 .. _bounce_buffer_with_single_psram_frame_buffer:
 
 Bounce Buffer with Single PSRAM Frame Buffer
@@ -163,7 +248,7 @@ This mode allocates two "bounce buffers" from internal memory and a main frame b
 
 .. note::
 
-    This mode also faces issues due to limited PSRAM bandwidth. For instance, if your draw buffers are in PSRAM and their contents are copied to the internal frame buffer by CPU Core 1, while CPU Core 0 is performing another memory copy in the DMA EOF ISR, both CPUs will be accessing PSRAM via cache, sharing its bandwidth. This significantly increases the memory copy time in the DMA EOF ISR, causing the driver to fail in switching the bounce buffer promptly, resulting in a screen shift. Although the driver can detect this condition and restart in the LCD's VSYNC interrupt handler, you may still notice flickering on the screen.
+    This mode also faces issues due to limited PSRAM bandwidth. For instance, if your draw buffers are in PSRAM and their contents are copied to the internal frame buffer by CPU Core 1, while CPU Core 0 is performing another memory copy in the DMA EOF ISR, both CPUs will be accessing PSRAM via cache, sharing its bandwidth. This significantly increases the memory copy time in the DMA EOF ISR, causing the driver to fail in switching the bounce buffer promptly, resulting in a screen shift. On ESP32-S3, the driver can detect this condition and restart in the LCD's VSYNC interrupt handler, although you may still notice flickering on the screen.
 
 .. code:: c
 
@@ -208,10 +293,12 @@ Bounce Buffer Only
 
 This mode is similar to :ref:`bounce_buffer_with_single_psram_frame_buffer`, but there is no PSRAM frame buffer initialized by the LCD driver. Instead, the user supplies a callback function that is responsible for filling the bounce buffers. As this driver does not care where the written pixels come from, this allows for the callback doing e.g., on-the-fly conversion from a smaller, 8-bit-per-pixel PSRAM frame buffer to a 16-bit LCD, or even procedurally generated frame-buffer-less graphics. This option is selected by setting the :cpp:member:`esp_lcd_rgb_panel_config_t::no_fb` flag and supplying a :cpp:member:`esp_lcd_rgb_panel_config_t::bounce_buffer_size_px` value. And then register the :cpp:member:`esp_lcd_rgb_panel_event_callbacks_t::on_bounce_empty` callback by calling :cpp:func:`esp_lcd_rgb_panel_register_event_callbacks`.
 
-.. note::
+.. only:: esp32s3
 
-    In a well-designed embedded application, situations where the DMA cannot deliver data as fast as the LCD consumes it should be avoided. However, such scenarios can theoretically occur. In the {IDF_TARGET_NAME} hardware, this results in the LCD outputting dummy bytes while the DMA waits for data. If the DMA were to run in a continuous stream, it could cause a desynchronization between the LCD address from which the DMA reads data and the address from which the LCD peripheral outputs data, leading to a **permanently** shifted image.
-    To prevent this, you can either enable the :ref:`CONFIG_LCD_RGB_RESTART_IN_VSYNC` option, allowing the driver to automatically restart the DMA during the VBlank interrupt, or call :cpp:func:`esp_lcd_rgb_panel_restart` to manually restart the DMA. Note that :cpp:func:`esp_lcd_rgb_panel_restart` does not restart the DMA immediately; instead, the DMA will be restarted at the next VSYNC event.
+    .. note::
+
+        In a well-designed embedded application, situations where the DMA cannot deliver data as fast as the LCD consumes it should be avoided. However, such scenarios can theoretically occur. In the {IDF_TARGET_NAME} hardware, this results in the LCD outputting dummy bytes while the DMA waits for data. If the DMA were to run in a continuous stream, it could cause a desynchronization between the LCD address from which the DMA reads data and the address from which the LCD peripheral outputs data, leading to a **permanently** shifted image.
+        To prevent this, you can either enable the :ref:`CONFIG_LCD_RGB_RESTART_IN_VSYNC` option, allowing the driver to automatically restart the DMA during the VBlank interrupt, or call :cpp:func:`esp_lcd_rgb_panel_restart` to manually restart the DMA. Note that :cpp:func:`esp_lcd_rgb_panel_restart` does not restart the DMA immediately; instead, the DMA will be restarted at the next VSYNC event.
 
 API Reference
 -------------

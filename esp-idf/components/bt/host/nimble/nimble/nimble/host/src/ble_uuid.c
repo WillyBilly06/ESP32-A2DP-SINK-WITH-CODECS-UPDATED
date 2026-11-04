@@ -25,15 +25,23 @@
 #include "nimble/ble.h"
 #include "ble_hs_priv.h"
 #include "host/ble_uuid.h"
+#include "host/ble_hs_log.h"
+#if MYNEWT_VAL(BLE_STATIC_TO_DYNAMIC)
+#include "esp_nimble_mem.h"
+#endif
 
 #define BLE_UUID16_STR_MAX_LEN          6
 #define BLE_UUID32_STR_MAX_LEN          10
 #define BLE_UUID128_STR_MAX_LEN         36
 
+#if MYNEWT_VAL(BLE_STATIC_TO_DYNAMIC)
+static uint8_t * ble_uuid_base = NULL;
+#else
 static uint8_t ble_uuid_base[16] = {
     0xfb, 0x34, 0x9b, 0x5f, 0x80, 0x00, 0x00, 0x80,
     0x00, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
 };
+#endif
 
 #if MYNEWT_VAL(BLE_HS_DEBUG)
 #define VERIFY_UUID(uuid)                       \
@@ -54,6 +62,7 @@ hex2val(char c, uint8_t *value)
     } else if (c >= 'A' && c <= 'F') {
         *value = c - 'A' + 10;
     } else {
+        BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_EINVAL);
         return BLE_HS_EINVAL;
     }
     return 0;
@@ -108,6 +117,7 @@ ble_uuid_init_from_buf(ble_uuid_any_t *uuid, const void *buf, size_t len)
         return 0;
     }
 
+    BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_EINVAL);
     return BLE_HS_EINVAL;
 }
 
@@ -125,9 +135,15 @@ ble_uuid_cmp(const ble_uuid_t *uuid1, const ble_uuid_t *uuid2)
     case BLE_UUID_TYPE_16:
         return (int) BLE_UUID16(uuid1)->value - (int) BLE_UUID16(uuid2)->value;
     case BLE_UUID_TYPE_32:
-        return (int) BLE_UUID32(uuid1)->value - (int) BLE_UUID32(uuid2)->value;
+        if (BLE_UUID32(uuid1)->value < BLE_UUID32(uuid2)->value) {
+            return -1;
+        }
+        if (BLE_UUID32(uuid1)->value > BLE_UUID32(uuid2)->value) {
+            return 1;
+        }
+        return 0;
     case BLE_UUID_TYPE_128:
-        return memcmp(BLE_UUID128(uuid1)->value, BLE_UUID128(uuid2)->value, 16);
+        return memcmp(&BLE_UUID128(uuid1)->value, &BLE_UUID128(uuid2)->value, 16);
     }
 
     BLE_HS_DBG_ASSERT(0);
@@ -186,6 +202,31 @@ ble_uuid_to_str(const ble_uuid_t *uuid, char *dst)
     return dst;
 }
 
+#if MYNEWT_VAL(BLE_STATIC_TO_DYNAMIC)
+static int
+ble_uuid_base_init(void)
+{
+    if (ble_uuid_base == NULL) {
+        ble_uuid_base = nimble_platform_mem_calloc(1, sizeof(uint8_t) * 16);
+        if (ble_uuid_base == NULL) {
+            BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_ENOMEM);
+            return BLE_HS_ENOMEM;
+        }
+    }
+
+    ble_uuid_base[0] = 0xfb;
+    ble_uuid_base[1] = 0x34;
+    ble_uuid_base[2] = 0x9b;
+    ble_uuid_base[3] = 0x5f;
+    ble_uuid_base[4] = 0x80;
+    ble_uuid_base[7] = 0x80;
+    ble_uuid_base[9] = 0x10;
+
+    return 0;
+}
+#endif
+
+
 int
 ble_uuid_from_str(ble_uuid_any_t *uuid, const char *str)
 {
@@ -196,7 +237,15 @@ ble_uuid_from_str(ble_uuid_any_t *uuid, const char *str)
     uint32_t u32 = 0;
     int len = (int) strlen(str);
 
+#if MYNEWT_VAL(BLE_STATIC_TO_DYNAMIC)
+    int rc = ble_uuid_base_init();
+    if (rc != 0) {
+        return rc;
+    }
+#endif
+
     if ((len < 4) || (len % 2 != 0)) {
+        BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_EINVAL);
         return BLE_HS_EINVAL;
     }
 
@@ -209,30 +258,38 @@ ble_uuid_from_str(ble_uuid_any_t *uuid, const char *str)
     } else if (len <= BLE_UUID128_STR_MAX_LEN) {
         uuid->u.type = BLE_UUID_TYPE_128;
     } else {
+        BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_EINVAL);
         return BLE_HS_EINVAL;
     }
 
     switch (uuid->u.type) {
     case BLE_UUID_TYPE_128:
-        uuid->u.type = BLE_UUID_TYPE_128;
         u8p = uuid->u128.value;
+        int bytes_parsed = 0;
         for (int i = 0; i < 16; i++) {
             if (hex2bin(str_ptr, u8p, 1) != 1) {
+                BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_EINVAL);
                 return BLE_HS_EINVAL;
             }
+            bytes_parsed++;
 
-            /* Check if string end */
             if (str_ptr == str) {
                 break;
             }
 
-            /* Remove '-' */
             if (*(str_ptr - 1) == '-') {
                 str_ptr--;
             }
 
+            if (str_ptr - str < 2) {
+                break;
+            }
             str_ptr -= 2;
             u8p++;
+        }
+        if (bytes_parsed != 16 || str_ptr != str) {
+            BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_EINVAL);
+            return BLE_HS_EINVAL;
         }
 
         if (memcmp(ble_uuid_base, uuid->u128.value, 12) == 0) {
@@ -254,6 +311,7 @@ ble_uuid_from_str(ble_uuid_any_t *uuid, const char *str)
     case BLE_UUID_TYPE_32:
         for (int i = 0; i < 4; i++) {
             if (hex2bin(str_ptr, &tmp_rslt, 1) != 1) {
+                BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_EINVAL);
                 return BLE_HS_EINVAL;
             }
             u32 |= ((uint32_t) tmp_rslt) << (i * 8);
@@ -268,6 +326,7 @@ ble_uuid_from_str(ble_uuid_any_t *uuid, const char *str)
     case BLE_UUID_TYPE_16:
         for (int i = 0; i < 2; i++) {
             if (hex2bin(str_ptr, &tmp_rslt, 1) != 1) {
+                BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_EINVAL);
                 return BLE_HS_EINVAL;
             }
             u16 |= ((uint32_t) tmp_rslt) << (i * 8);
@@ -280,6 +339,7 @@ ble_uuid_from_str(ble_uuid_any_t *uuid, const char *str)
         uuid->u16.value = u16;
         break;
     default:
+        BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_EINVAL);
         return BLE_HS_EINVAL;
     }
 
@@ -351,6 +411,7 @@ ble_uuid_to_any(const ble_uuid_t *uuid, ble_uuid_any_t *uuid_any)
         memcpy(uuid_any->u128.value, BLE_UUID128(uuid)->value, 16);
         break;
     default:
+        BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_EINVAL);
         return BLE_HS_EINVAL;
     }
 
@@ -367,8 +428,14 @@ ble_uuid_to_mbuf(const ble_uuid_t *uuid, struct os_mbuf *om)
 
     len = ble_uuid_length(uuid);
 
+    /* ble_uuid_flat expands 32-bit UUIDs to full 128-bit base UUID */
+    if (uuid->type == BLE_UUID_TYPE_32) {
+        len = 16;
+    }
+
     buf = os_mbuf_extend(om, len);
     if (buf == NULL) {
+        BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_ENOMEM);
         return BLE_HS_ENOMEM;
     }
 
@@ -382,18 +449,26 @@ ble_uuid_flat(const ble_uuid_t *uuid, void *dst)
 {
     VERIFY_UUID(uuid);
 
+#if MYNEWT_VAL(BLE_STATIC_TO_DYNAMIC)
+    int rc = ble_uuid_base_init();
+    if (rc != 0) {
+        return rc;
+    }
+#endif
+
     switch (uuid->type) {
     case BLE_UUID_TYPE_16:
         put_le16(dst, BLE_UUID16(uuid)->value);
         break;
     case BLE_UUID_TYPE_32:
         memcpy(dst, ble_uuid_base, 16);
-        put_le32(dst + 12, BLE_UUID32(uuid)->value);
+        put_le32((uint8_t *)dst + 12, BLE_UUID32(uuid)->value);
         break;
     case BLE_UUID_TYPE_128:
         memcpy(dst, BLE_UUID128(uuid)->value, 16);
         break;
     default:
+        BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_EINVAL);
         return BLE_HS_EINVAL;
     }
 
@@ -405,5 +480,21 @@ ble_uuid_length(const ble_uuid_t *uuid)
 {
     VERIFY_UUID(uuid);
 
+    if (uuid->type == BLE_UUID_TYPE_32) {
+        return 16;
+    }
+
     return uuid->type >> 3;
 }
+
+
+#if MYNEWT_VAL(BLE_STATIC_TO_DYNAMIC)
+void
+ble_uuid_deinit(void)
+{
+    if (ble_uuid_base) {
+        nimble_platform_mem_free(ble_uuid_base);
+        ble_uuid_base = NULL;
+    }
+}
+#endif

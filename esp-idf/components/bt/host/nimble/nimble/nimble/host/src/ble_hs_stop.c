@@ -23,24 +23,49 @@
 #include "ble_hs_priv.h"
 #include "host/ble_hs_stop.h"
 #include "nimble/nimble_npl.h"
+#include "host/ble_hs_log.h"
 #ifndef MYNEWT
 #include "nimble/nimble_port.h"
 #endif
 
 #define BLE_HOST_STOP_TIMEOUT_MS MYNEWT_VAL(BLE_HS_STOP_ON_SHUTDOWN_TIMEOUT)
 
+SLIST_HEAD(ble_hs_stop_listener_slist, ble_hs_stop_listener);
+
+#if MYNEWT_VAL(BLE_STATIC_TO_DYNAMIC)
+#include "esp_nimble_mem.h"
+
+/**
+ * Global context for Host stop procedure.
+ * Holds listener list, GAP listener, connection count, and timeout callout.
+ */
+struct ble_hs_stop_ctx {
+    struct ble_gap_event_listener gap_listener;      /* GAP stop listener */
+    struct ble_hs_stop_listener_slist listeners;     /* Registered stop listeners */
+    uint8_t conn_cnt;                                /* Number of active connections */
+    struct ble_npl_callout terminate_tmo;            /* Stop termination timeout */
+};
+
+static struct ble_hs_stop_ctx *ble_hs_stop_ctx;
+
+/* Macros for cleaner access */
+#define ble_hs_stop_gap_listener     (ble_hs_stop_ctx->gap_listener)
+#define ble_hs_stop_listeners        (ble_hs_stop_ctx->listeners)
+#define ble_hs_stop_conn_cnt         (ble_hs_stop_ctx->conn_cnt)
+#define ble_hs_stop_terminate_tmo    (ble_hs_stop_ctx->terminate_tmo)
+#else
 static struct ble_gap_event_listener ble_hs_stop_gap_listener;
 
 /**
  * List of stop listeners.  These are notified when a stop procedure completes.
  */
-SLIST_HEAD(ble_hs_stop_listener_slist, ble_hs_stop_listener);
 static struct ble_hs_stop_listener_slist ble_hs_stop_listeners;
 
 /* Track number of connections */
 static uint8_t ble_hs_stop_conn_cnt;
 
 static struct ble_npl_callout ble_hs_stop_terminate_tmo;
+#endif
 
 /**
  * Called when a stop procedure has completed.
@@ -54,6 +79,11 @@ ble_hs_stop_done(int status)
     ble_npl_callout_stop(&ble_hs_stop_terminate_tmo);
 
     ble_hs_lock();
+
+    if (ble_hs_enabled_state != BLE_HS_ENABLED_STATE_STOPPING) {
+        ble_hs_unlock();
+        return;
+    }
 
     ble_gap_event_listener_unregister(&ble_hs_stop_gap_listener);
 
@@ -114,7 +144,7 @@ ble_hs_stop_terminate_conn(struct ble_hs_conn *conn, void *arg)
     int rc;
 
     rc = ble_gap_terminate_with_conn(conn, BLE_ERR_REM_USER_CONN_TERM);
-    if (rc == 0) {
+    if (rc == 0 || rc == BLE_HS_EALREADY) {
         /* Terminate procedure successfully initiated.  Let the GAP event
          * handler deal with the result.
          */
@@ -155,12 +185,17 @@ ble_hs_stop_gap_event(struct ble_gap_event *event, void *arg)
     /* Only process connection termination events. */
     if (event->type == BLE_GAP_EVENT_DISCONNECT ||
         event->type == BLE_GAP_EVENT_TERM_FAILURE) {
+        ble_hs_lock();
+        if (ble_hs_stop_conn_cnt > 0) {
+            ble_hs_stop_conn_cnt--;
 
-        ble_hs_stop_conn_cnt--;
-
-        if (ble_hs_stop_conn_cnt == 0) {
-            ble_hs_stop_done(0);
+            if (ble_hs_stop_conn_cnt == 0) {
+                ble_hs_unlock();
+                ble_hs_stop_done(0);
+                return 0;
+            }
         }
+        ble_hs_unlock();
     }
 
     return 0;
@@ -205,6 +240,7 @@ ble_hs_stop_begin(struct ble_hs_stop_listener *listener,
         if (listener != NULL) {
             ble_hs_stop_register_listener(listener, fn, arg);
         }
+        BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_EBUSY);
         return BLE_HS_EBUSY;
 
     case BLE_HS_ENABLED_STATE_OFF:
@@ -213,6 +249,7 @@ ble_hs_stop_begin(struct ble_hs_stop_listener *listener,
 
     default:
         assert(0);
+        BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_EUNKNOWN);
         return BLE_HS_EUNKNOWN;
     }
 }
@@ -246,6 +283,7 @@ ble_hs_stop(struct ble_hs_stop_listener *listener,
     /* Check for active periodic sync first and terminate it all */
     rc = ble_hs_stop_terminate_all_periodic_sync();
     if (rc != 0) {
+        ble_hs_stop_done(rc);
         return rc;
     }
 #endif
@@ -253,17 +291,21 @@ ble_hs_stop(struct ble_hs_stop_listener *listener,
     rc = ble_gap_event_listener_register(&ble_hs_stop_gap_listener,
                                          ble_hs_stop_gap_event, NULL);
     if (rc != 0) {
+        ble_hs_stop_done(rc);
         return rc;
     }
 
     ble_hs_lock();
+    ble_hs_stop_conn_cnt = 0;
     ble_hs_conn_foreach(ble_hs_stop_terminate_conn, NULL);
-    ble_hs_unlock();
-
-    if (ble_hs_stop_conn_cnt > 0) {
+    uint8_t cnt = ble_hs_stop_conn_cnt;
+    if (cnt > 0) {
         ble_npl_callout_reset(&ble_hs_stop_terminate_tmo,
                               ble_npl_time_ms_to_ticks32(BLE_HOST_STOP_TIMEOUT_MS));
-    } else {
+    }
+    ble_hs_unlock();
+
+    if (cnt == 0) {
         /* No connections, stop is completed */
         ble_hs_stop_done(0);
     }
@@ -274,6 +316,17 @@ ble_hs_stop(struct ble_hs_stop_listener *listener,
 void
 ble_hs_stop_init(void)
 {
+#if MYNEWT_VAL(BLE_STATIC_TO_DYNAMIC)
+    if (!ble_hs_stop_ctx) {
+        ble_hs_stop_ctx = nimble_platform_mem_calloc(1, sizeof(*ble_hs_stop_ctx));
+        if (!ble_hs_stop_ctx) {
+            MODLOG_DFLT(ERROR, "Failed to allocate memory for ble_hs_stop_ctx\n");
+            assert(0);
+            return;
+        }
+    }
+#endif
+
 #ifdef MYNEWT
     ble_npl_callout_init(&ble_hs_stop_terminate_tmo, ble_npl_eventq_dflt_get(),
                          ble_hs_stop_terminate_timeout_cb, NULL);
@@ -287,4 +340,11 @@ void
 ble_hs_stop_deinit(void)
 {
     ble_npl_callout_deinit(&ble_hs_stop_terminate_tmo);
+#if MYNEWT_VAL(BLE_STATIC_TO_DYNAMIC)
+    if (ble_hs_stop_ctx) {
+        nimble_platform_mem_free(ble_hs_stop_ctx);
+        ble_hs_stop_ctx = NULL;
+    }
+#endif
+
 }

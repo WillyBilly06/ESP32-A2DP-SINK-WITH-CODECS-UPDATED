@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2022-2025 Espressif Systems (Shanghai) CO LTD
+# SPDX-FileCopyrightText: 2022-2026 Espressif Systems (Shanghai) CO LTD
 # SPDX-License-Identifier: CC0-1.0
 import logging
 import time
@@ -6,25 +6,6 @@ import time
 import pytest
 from pytest_embedded import Dut
 from pytest_embedded_idf.utils import idf_parametrize
-
-CONFIGS = [
-    pytest.param('esp32_singlecore', marks=[pytest.mark.esp32]),
-    pytest.param(
-        'basic',
-        marks=[
-            pytest.mark.esp32,
-            pytest.mark.esp32s2,
-            pytest.mark.esp32s3,
-            pytest.mark.esp32c3,
-            pytest.mark.esp32c5,
-            pytest.mark.esp32c6,
-            pytest.mark.esp32c61,
-            pytest.mark.esp32h2,
-            pytest.mark.esp32p4,
-            pytest.mark.esp32c2,
-        ],
-    ),
-]
 
 
 @pytest.mark.generic
@@ -41,7 +22,7 @@ def test_deep_sleep(dut: Dut) -> None:
     dut.expect_exact('boot: ESP-IDF')  # first output that's the same on all chips
 
     sleep_time = time.time() - start_sleep
-    logging.info('Host measured sleep time at {:.2f}s'.format(sleep_time))
+    logging.info(f'Host measured sleep time at {sleep_time:.2f}s')
     assert 18 < sleep_time < 22  # note: high tolerance as measuring time on the host may have some timing skew
 
     dut.expect_exact('boot: Fast booting app from partition', timeout=2)

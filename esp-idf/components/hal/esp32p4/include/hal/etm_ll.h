@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2023-2024 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2023-2025 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -11,14 +11,25 @@
 #include <stdbool.h>
 #include "hal/assert.h"
 #include "hal/misc.h"
+#include "hal/etm_types.h"
 #include "soc/soc_etm_struct.h"
 #include "soc/hp_sys_clkrst_struct.h"
+
+#define ETM_LL_GET(_attr) ETM_LL_ ## _attr
+#define ETM_LL_SUPPORT(_feat) ETM_LL_SUPPORT_ ## _feat
+
+// Number of ETM instances
+#define ETM_LL_INST_NUM 1
+
+// Number of channels in each ETM instance
+#define ETM_LL_CHANS_PER_INST 50
+
+// Support to get and clear the status of the ETM event and task
+#define ETM_LL_SUPPORT_STATUS_REG  1
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-#define ETM_LL_SUPPORT_STATUS          1   // Support to get and clear the status of the ETM event and task
 
 /**
  * @brief Enable the bus clock for ETM module
@@ -35,7 +46,34 @@ static inline void _etm_ll_enable_bus_clock(int group_id, bool enable)
 
 /// use a macro to wrap the function, force the caller to use it in a critical section
 /// the critical section needs to declare the __DECLARE_RCC_ATOMIC_ENV variable in advance
-#define etm_ll_enable_bus_clock(...) (void)__DECLARE_RCC_ATOMIC_ENV; _etm_ll_enable_bus_clock(__VA_ARGS__)
+#define etm_ll_enable_bus_clock(...) do { \
+        (void)__DECLARE_RCC_ATOMIC_ENV; \
+        _etm_ll_enable_bus_clock(__VA_ARGS__); \
+    } while(0)
+
+/**
+ * @brief Enable the clock for ETM function
+ *
+ * @param group_id Group ID
+ * @param enable true to enable, false to disable
+ */
+static inline void etm_ll_enable_function_clock(int group_id, bool enable)
+{
+    (void)group_id;
+    (void)enable;
+}
+
+/**
+ * @brief Set the clock source for ETM
+ *
+ * @param group_id Group ID
+ * @param clk_src Clock source
+ */
+static inline void etm_ll_set_clock_source(int group_id, etm_clock_source_t clk_src)
+{
+    (void)group_id;
+    (void)clk_src;
+}
 
 /**
  * @brief Reset the ETM module
@@ -51,7 +89,10 @@ static inline void etm_ll_reset_register(int group_id)
 
 /// use a macro to wrap the function, force the caller to use it in a critical section
 /// the critical section needs to declare the __DECLARE_RCC_ATOMIC_ENV variable in advance
-#define etm_ll_reset_register(...) (void)__DECLARE_RCC_ATOMIC_ENV; etm_ll_reset_register(__VA_ARGS__)
+#define etm_ll_reset_register(...) do { \
+        (void)__DECLARE_RCC_ATOMIC_ENV; \
+        etm_ll_reset_register(__VA_ARGS__); \
+    } while(0)
 
 /**
  * @brief Enable ETM channel

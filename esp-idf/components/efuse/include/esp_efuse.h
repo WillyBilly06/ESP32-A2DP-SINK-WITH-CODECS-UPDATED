@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2017-2025 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2017-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -10,6 +10,7 @@
 #include <stdint.h>
 
 #include "esp_err.h"
+#include "esp_assert.h"
 #include "esp_log.h"
 #include "soc/soc_caps.h"
 #include "sdkconfig.h"
@@ -26,15 +27,18 @@ extern "C" {
 #define ESP_ERR_CODING                            (ESP_ERR_EFUSE + 0x04)      /*!< Error while a encoding operation. */
 #define ESP_ERR_NOT_ENOUGH_UNUSED_KEY_BLOCKS      (ESP_ERR_EFUSE + 0x05)      /*!< Error not enough unused key blocks available */
 #define ESP_ERR_DAMAGED_READING                   (ESP_ERR_EFUSE + 0x06)      /*!< Error. Burn or reset was done during a reading operation leads to damage read data. This error is internal to the efuse component and not returned by any public API. */
+#define ESP_ERR_BURN_WR_DIS                       (ESP_ERR_EFUSE + 0x07)      /*!< Error to burn WR_DIS field. */
 
 /**
  * @brief Type definition for an eFuse field
  */
 typedef struct {
-    esp_efuse_block_t   efuse_block: 8; /**< Block of eFuse */
-    uint8_t             bit_start;      /**< Start bit [0..255] */
+    esp_efuse_block_t   efuse_block: 7; /**< Block of eFuse */
+    uint16_t            bit_start: 9;  /**< Start bit [0..511] */
     uint16_t            bit_count;      /**< Length of bit field [1..-]*/
 } esp_efuse_desc_t;
+
+ESP_STATIC_ASSERT(sizeof(esp_efuse_desc_t) == sizeof(uint32_t), "esp_efuse_desc_t should be 32 bits");
 
 /**
  * @brief Type definition for ROM log scheme
@@ -175,6 +179,7 @@ esp_err_t esp_efuse_write_field_bit(const esp_efuse_desc_t* field[]);
  *    - ESP_ERR_INVALID_ARG: Error in the passed arguments.
  *    - ESP_ERR_EFUSE_CNT_IS_FULL: Not all requested cnt bits is set.
  *    - ESP_ERR_NOT_SUPPORTED: The block does not support this command.
+ *    - ESP_ERR_BURN_WR_DIS: Failed to burn WR_DIS field.
  */
 esp_err_t esp_efuse_set_write_protect(esp_efuse_block_t blk);
 
@@ -498,6 +503,8 @@ esp_err_t esp_efuse_batch_write_cancel(void);
  * @return
  *          - ESP_OK: Successful.
  *          - ESP_ERR_INVALID_STATE: The deferred writing mode was not set.
+ *          - ESP_FAIL: Failed to write efuse fields.
+ *          - ESP_ERR_BURN_WR_DIS: Failed to burn WR_DIS field.
  */
 esp_err_t esp_efuse_batch_write_commit(void);
 
@@ -553,6 +560,7 @@ bool esp_efuse_get_key_dis_write(esp_efuse_block_t block);
  *    - ESP_ERR_INVALID_ARG: Error in the passed arguments.
  *    - ESP_ERR_EFUSE_REPEATED_PROG: Error repeated programming of programmed bits is strictly forbidden.
  *    - ESP_ERR_CODING: Error range of data does not match the coding scheme.
+ *    - ESP_ERR_BURN_WR_DIS: Failed to burn WR_DIS field.
  */
 esp_err_t esp_efuse_set_key_dis_write(esp_efuse_block_t block);
 
@@ -651,6 +659,7 @@ esp_err_t esp_efuse_set_key_purpose(esp_efuse_block_t block, esp_efuse_purpose_t
  *    - ESP_ERR_INVALID_ARG: Error in the passed arguments.
  *    - ESP_ERR_EFUSE_REPEATED_PROG: Error repeated programming of programmed bits is strictly forbidden.
  *    - ESP_ERR_CODING: Error range of data does not match the coding scheme.
+ *    - ESP_ERR_BURN_WR_DIS: Failed to burn WR_DIS field.
  */
 esp_err_t esp_efuse_set_keypurpose_dis_write(esp_efuse_block_t block);
 
@@ -715,6 +724,7 @@ bool esp_efuse_get_write_protect_of_digest_revoke(unsigned num_digest);
  *    - ESP_ERR_INVALID_ARG: Error in the passed arguments.
  *    - ESP_ERR_EFUSE_REPEATED_PROG: Error repeated programming of programmed bits is strictly forbidden.
  *    - ESP_ERR_CODING: Error range of data does not match the coding scheme.
+ *    - ESP_ERR_BURN_WR_DIS: Failed to burn WR_DIS field.
  */
 esp_err_t esp_efuse_set_write_protect_of_digest_revoke(unsigned num_digest);
 
@@ -742,6 +752,7 @@ esp_err_t esp_efuse_set_write_protect_of_digest_revoke(unsigned num_digest);
  *    - ESP_ERR_INVALID_STATE: Error in efuses state, unused block not found.
  *    - ESP_ERR_EFUSE_REPEATED_PROG: Error repeated programming of programmed bits is strictly forbidden.
  *    - ESP_ERR_CODING: Error range of data does not match the coding scheme.
+ *    - ESP_ERR_BURN_WR_DIS: Failed to burn WR_DIS field.
  */
 esp_err_t esp_efuse_write_key(esp_efuse_block_t block, esp_efuse_purpose_t purpose, const void *key, size_t key_size_bytes);
 
@@ -767,6 +778,7 @@ esp_err_t esp_efuse_write_key(esp_efuse_block_t block, esp_efuse_purpose_t purpo
  *    - ESP_ERR_NOT_ENOUGH_UNUSED_KEY_BLOCKS: Error not enough unused key blocks available
  *    - ESP_ERR_EFUSE_REPEATED_PROG: Error repeated programming of programmed bits is strictly forbidden.
  *    - ESP_ERR_CODING: Error range of data does not match the coding scheme.
+ *    - ESP_ERR_BURN_WR_DIS: Failed to burn WR_DIS field.
  */
 esp_err_t esp_efuse_write_keys(const esp_efuse_purpose_t purposes[], uint8_t keys[][32], unsigned number_of_keys);
 
@@ -822,6 +834,13 @@ esp_err_t esp_efuse_check_errors(void);
  *                and read protection can not be set.
  */
 esp_err_t esp_efuse_destroy_block(esp_efuse_block_t block);
+
+/**
+ * @brief Checks if flash encryption is enabled.
+ *
+ * This function checks if the current eFuse configuration supports flash encryption.
+*/
+bool esp_efuse_is_flash_encryption_enabled(void);
 
 #if SOC_ECDSA_SUPPORTED
 /**

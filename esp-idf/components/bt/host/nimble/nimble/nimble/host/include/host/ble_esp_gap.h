@@ -24,6 +24,10 @@ enum gap_status {
 
 typedef enum gap_status gap_status_t;
 
+#define BLE_DUPLICATE_SCAN_EXCEPTIONAL_LIST_SUBCODE_ADD          0
+#define BLE_DUPLICATE_SCAN_EXCEPTIONAL_LIST_SUBCODE_REMOVE       1
+#define BLE_DUPLICATE_SCAN_EXCEPTIONAL_LIST_SUBCODE_CLEAN        2
+
 #define BLE_DUPLICATE_SCAN_EXCEPTIONAL_INFO_ADV_ADDR             0
 #define BLE_DUPLICATE_SCAN_EXCEPTIONAL_INFO_MESH_LINK_ID         1
 #define BLE_DUPLICATE_SCAN_EXCEPTIONAL_INFO_MESH_BEACON_TYPE     2
@@ -246,7 +250,7 @@ int ble_gap_set_auto_pcl_param(struct ble_gap_set_auto_pcl_params *params);
  *
  * @return                0 on success; nonzero on failure.
  */
-int ble_gap_duplicate_exception_list(uint8_t subcode, uint8_t type, uint8_t *value, void *cb);
+int ble_gap_duplicate_exception_list(uint8_t subcode, uint32_t type, uint8_t *value, void *cb);
 
 /**
  * This API is used to clean up residue memory in controller for legacy advertisement
@@ -278,6 +282,40 @@ int ble_gap_set_chan_select(uint8_t select);
  * @return              status, 0 on success; nonzero on failure.
  */
 int ble_gap_set_scan_chan(uint8_t state, uint8_t *bitmap);
+
+#if MYNEWT_VAL(BLE_ADV_SEND_CONSTANT_DID)
+/**
+ * This API is used to make extended adv send with specific DID
+ * 
+ * @param handle 
+ * @param enable 
+ * @param did 
+ * @return int 
+ */
+int ble_gap_set_adv_constant_did(uint16_t handle, uint8_t enable, uint16_t did);
+#endif // MYNEWT_VAL(BLE_ADV_SEND_CONSTANT_DID)
+
+#if MYNEWT_VAL(BLE_SCAN_ALLOW_ENH_ADI_FILTER)
+struct ble_gap_adi_filter_entry {
+    uint8_t sid;
+    uint16_t did_cnt;
+    uint16_t did[0];
+};
+
+/**
+ * This API is used to configure the ADI filter options for the extended scan.
+ * 
+ * @param enable            0: Disable ADI filtering
+ *                          1: Enable ADI filter
+ * @param did_filter        0: Enable filter of SID only
+ *                          1: Enable filter of both DID and SID
+ * @param sid_cnt           Number of SID to allow receiving
+ * @param filter_list       Array of filter list pointers to store the SID 
+ *                          and DID combinations allowed for reception
+ * @return int 
+ */
+int ble_gap_config_ext_scan_adi_filter(uint8_t enable, uint8_t did_filter, uint8_t sid_cnt, struct ble_gap_adi_filter_entry *filter_list[]);
+#endif // MYNEWT_VAL(BLE_SCAN_ALLOW_ENH_ADI_FILTER)
 
 #endif
 
@@ -315,6 +353,20 @@ ble_hs_send_vs_event_mask(uint32_t event_mask);
 void ble_gap_rx_test_evt(const void *buf, uint8_t len);
 void ble_gap_tx_test_evt(const void *buf, uint8_t len);
 void ble_gap_end_test_evt(const void *buf, uint8_t len);
+
+/**
+ * Try to resolve an RPA using all stored peer IRKs and local IRKs.
+ *
+ * - rpa: input Resolvable Private Address
+ * - ida: output Identity Address
+ * - addr_type: output Address type
+ *        * If resolved with peer IRK -> peer identity address is copied
+ *        * If resolved with local IRK -> set to all zeros
+ *        * If not resolved -> unchanged
+ *
+ * Returns: true if resolve, false otherwise.
+ */
+bool ble_gap_rpa_resolve(uint8_t *rpa, uint8_t *ida, uint8_t *addr_type);
 
 #ifdef __cplusplus
 }

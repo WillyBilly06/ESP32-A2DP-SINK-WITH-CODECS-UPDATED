@@ -88,6 +88,9 @@ tL2C_LCB *l2cu_allocate_lcb (BD_ADDR p_bd_addr, BOOLEAN is_bonding, tBT_TRANSPOR
             btu_free_timer(&p_lcb->timer_entry);
             btu_free_timer(&p_lcb->info_timer_entry);
             btu_free_timer(&p_lcb->upda_con_timer);
+#if (CLASSIC_BT_INCLUDED == TRUE)
+            btu_free_timer(&p_lcb->retry_timer_entry);
+#endif
 
             memset (p_lcb, 0, sizeof (tL2C_LCB));
             memcpy (p_lcb->remote_bd_addr, p_bd_addr, BD_ADDR_LEN);
@@ -113,8 +116,11 @@ tL2C_LCB *l2cu_allocate_lcb (BD_ADDR p_bd_addr, BOOLEAN is_bonding, tBT_TRANSPOR
             } else
 #endif
             {
+#if (CLASSIC_BT_INCLUDED == TRUE)
+                p_lcb->retry_timer_entry.param = (TIMER_PARAM_TYPE)p_lcb;
                 l2cb.num_links_active++;
                 l2c_link_adjust_allocation();
+#endif // #if (CLASSIC_BT_INCLUDED == TRUE)
             }
             p_lcb->link_xmit_data_q = list_new(NULL);
             return (p_lcb);
@@ -158,12 +164,19 @@ void l2cu_release_lcb (tL2C_LCB *p_lcb)
 {
     tL2C_CCB    *p_ccb;
 
+    L2CAP_TRACE_DEBUG("%s handle=%u bda="MACSTR"",
+        __func__, p_lcb->handle, MAC2STR(p_lcb->remote_bd_addr));
+
     p_lcb->in_use     = FALSE;
     p_lcb->is_bonding = FALSE;
 #if (BLE_INCLUDED == TRUE)
     p_lcb->retry_create_con = 0;
     p_lcb->start_time_s = 0;
 #endif // #if (BLE_INCLUDED == TRUE)
+
+#if (BT_BLE_FEAT_PAWR_EN == TRUE)
+     p_lcb->is_pawr_synced = FALSE;
+#endif
 
     /* Stop and release timers */
     btu_free_timer (&p_lcb->timer_entry);
@@ -172,6 +185,10 @@ void l2cu_release_lcb (tL2C_LCB *p_lcb)
     memset(&p_lcb->info_timer_entry, 0, sizeof(TIMER_LIST_ENT));
     btu_free_timer(&p_lcb->upda_con_timer);
     memset(&p_lcb->upda_con_timer, 0, sizeof(TIMER_LIST_ENT));
+#if (CLASSIC_BT_INCLUDED == TRUE)
+    btu_free_timer(&p_lcb->retry_timer_entry);
+    memset(&p_lcb->retry_timer_entry, 0, sizeof(TIMER_LIST_ENT));
+#endif
 
     /* Release any unfinished L2CAP packet on this link */
     if (p_lcb->p_hcit_rcv_acl) {
@@ -258,11 +275,13 @@ void l2cu_release_lcb (tL2C_LCB *p_lcb)
     } else
 #endif
     {
+#if (CLASSIC_BT_INCLUDED == TRUE)
         if (l2cb.num_links_active >= 1) {
             l2cb.num_links_active--;
         }
 
         l2c_link_adjust_allocation();
+#endif // #if (CLASSIC_BT_INCLUDED == TRUE)
     }
 
     /* Check for ping outstanding */
@@ -345,18 +364,25 @@ uint8_t l2cu_ble_plcb_active_count(void)
     for (p_node = list_begin(l2cb.p_lcb_pool); p_node; p_node = list_next(p_node)) {
         p_lcb = list_node(p_node);
         if (p_lcb && p_lcb->in_use && p_lcb->transport == BT_TRANSPORT_LE) {
+            L2CAP_TRACE_DEBUG("%s LE PLCB active #%d: remote_addr=%02X:%02X:%02X:%02X:%02X:%02X",
+                              __func__,
+                              active_count,
+                              p_lcb->remote_bd_addr[0],
+                              p_lcb->remote_bd_addr[1],
+                              p_lcb->remote_bd_addr[2],
+                              p_lcb->remote_bd_addr[3],
+                              p_lcb->remote_bd_addr[4],
+                              p_lcb->remote_bd_addr[5]);
             active_count ++;
         }
     }
-    if (active_count >= MAX_L2CAP_CHANNELS) {
-        L2CAP_TRACE_ERROR("error active count");
-        active_count = 0;
-    }
+
     L2CAP_TRACE_DEBUG("plcb active count %d", active_count);
     return active_count;
 
 }
 
+#if (CLASSIC_BT_INCLUDED == TRUE)
 /*******************************************************************************
 **
 ** Function         l2cu_get_conn_role
@@ -373,6 +399,7 @@ UINT8 l2cu_get_conn_role (tL2C_LCB *p_this_lcb)
 {
     return l2cb.desire_role;
 }
+#endif // (CLASSIC_BT_INCLUDED == TRUE)
 
 /*******************************************************************************
 **
@@ -861,7 +888,7 @@ void l2cu_send_peer_config_rsp (tL2C_CCB *p_ccb, tL2CAP_CFG_INFO *p_cfg)
 void l2cu_send_peer_config_rej (tL2C_CCB *p_ccb, UINT8 *p_data, UINT16 data_len, UINT16 rej_len)
 {
     BT_HDR  *p_buf;
-    UINT16  len, cfg_len, buf_space, len1;
+    UINT16  len, cfg_len, buf_space, len1, opt_len;
     UINT8   *p, *p_hci_len, *p_data_end;
     UINT8   cfg_code;
 
@@ -918,38 +945,42 @@ void l2cu_send_peer_config_rej (tL2C_CCB *p_ccb, UINT8 *p_data, UINT16 data_len,
     /* Now, put the rejected options */
     p_data_end = p_data + data_len;
     while (p_data < p_data_end) {
+        if ((p_data_end - p_data) < L2CAP_CFG_OPTION_OVERHEAD) {
+            break;
+        }
         cfg_code = *p_data;
         cfg_len = *(p_data + 1);
+        opt_len = cfg_len + L2CAP_CFG_OPTION_OVERHEAD;
+        if (opt_len > (UINT16)(p_data_end - p_data)) {
+            p_data = p_data_end;
+            break;
+        }
 
         switch (cfg_code & 0x7F) {
         /* skip known options */
         case L2CAP_CFG_TYPE_MTU:
         case L2CAP_CFG_TYPE_FLUSH_TOUT:
         case L2CAP_CFG_TYPE_QOS:
-            p_data += cfg_len + L2CAP_CFG_OPTION_OVERHEAD;
+        case L2CAP_CFG_TYPE_FCR:
+        case L2CAP_CFG_TYPE_FCS:
+        case L2CAP_CFG_TYPE_EXT_FLOW:
+            p_data += opt_len;
             break;
 
         /* unknown options; copy into rsp if not hints */
         default:
-            /* sanity check option length */
-            if ((cfg_len + L2CAP_CFG_OPTION_OVERHEAD) <= data_len) {
-                if ((cfg_code & 0x80) == 0) {
-                    if (buf_space >= (cfg_len + L2CAP_CFG_OPTION_OVERHEAD)) {
-                        memcpy(p, p_data, cfg_len + L2CAP_CFG_OPTION_OVERHEAD);
-                        p += cfg_len + L2CAP_CFG_OPTION_OVERHEAD;
-                        buf_space -= (cfg_len + L2CAP_CFG_OPTION_OVERHEAD);
-                    } else {
-                        L2CAP_TRACE_WARNING("L2CAP - cfg_rej exceeds allocated buffer");
-                        p_data = p_data_end; /* force loop exit */
-                        break;
-                    }
+            if ((cfg_code & 0x80) == 0) {
+                if (buf_space >= opt_len) {
+                    memcpy(p, p_data, opt_len);
+                    p += opt_len;
+                    buf_space -= opt_len;
+                } else {
+                    L2CAP_TRACE_WARNING("L2CAP - cfg_rej exceeds allocated buffer");
+                    p_data = p_data_end; /* force loop exit */
+                    break;
                 }
-                p_data += cfg_len + L2CAP_CFG_OPTION_OVERHEAD;
             }
-            /* bad length; force loop exit */
-            else {
-                p_data = p_data_end;
-            }
+            p_data += opt_len;
             break;
         }
     }
@@ -1794,6 +1825,7 @@ tL2C_CCB *l2cu_find_ccb_by_remote_cid (tL2C_LCB *p_lcb, UINT16 remote_cid)
     return (NULL);
 }
 
+#if (CLASSIC_BT_INCLUDED == TRUE)
 /*******************************************************************************
 **
 ** Function         l2cu_allocate_rcb
@@ -1823,6 +1855,7 @@ tL2C_RCB *l2cu_allocate_rcb (UINT16 psm)
     /* If here, no free RCB found */
     return (NULL);
 }
+#endif // #if (CLASSIC_BT_INCLUDED == TRUE)
 
 #if (BLE_INCLUDED == TRUE)
 /*******************************************************************************
@@ -1887,22 +1920,38 @@ void l2cu_disconnect_chnl (tL2C_CCB *p_ccb)
     UINT16      local_cid = p_ccb->local_cid;
 
     if (local_cid >= L2CAP_BASE_APPL_CID) {
-        tL2CA_DISCONNECT_IND_CB   *p_disc_cb = p_ccb->p_rcb->api.pL2CA_DisconnectInd_Cb;
+        tL2CA_DISCONNECT_IND_CB   *p_disc_cb = NULL;
+
+        if (p_ccb->p_rcb != NULL) {
+            p_disc_cb = p_ccb->p_rcb->api.pL2CA_DisconnectInd_Cb;
+        }
 
         L2CAP_TRACE_WARNING ("L2CAP - disconnect_chnl CID: 0x%04x", local_cid);
 
         l2cu_send_peer_disc_req (p_ccb);
 
+        /*
+         * l2cu_send_peer_disc_req drains xmit_hold_q in basic FCR mode.
+         * Free the queue and NULL it here to prevent l2cu_release_ccb from
+         * calling fixed_queue_free again on already-dequeued buffers.
+         */
+        if (p_ccb->xmit_hold_q != NULL) {
+            fixed_queue_free(p_ccb->xmit_hold_q, osi_free_func);
+            p_ccb->xmit_hold_q = NULL;
+        }
+
         l2cu_release_ccb (p_ccb);
 
-        (*p_disc_cb)(local_cid, FALSE);
+        if (p_disc_cb) {
+            (*p_disc_cb)(local_cid, FALSE);
+        }
     } else {
         /* failure on the AMP channel, probably need to disconnect ACL */
         L2CAP_TRACE_ERROR ("L2CAP - disconnect_chnl CID: 0x%04x Ignored", local_cid);
     }
 }
 
-
+#if (CLASSIC_BT_INCLUDED == TRUE)
 /*******************************************************************************
 **
 ** Function         l2cu_find_rcb_by_psm
@@ -1927,6 +1976,7 @@ tL2C_RCB *l2cu_find_rcb_by_psm (UINT16 psm)
     /* If here, no match found */
     return (NULL);
 }
+#endif // #if (CLASSIC_BT_INCLUDED == TRUE)
 
 #if (BLE_INCLUDED == TRUE)
 /*******************************************************************************
@@ -2271,8 +2321,11 @@ BOOLEAN l2cu_create_conn (tL2C_LCB *p_lcb, tBT_TRANSPORT transport)
 #if BTM_SCO_INCLUDED == TRUE
     BOOLEAN         is_sco_active;
 #endif
+
+#if (CLASSIC_BT_INCLUDED == TRUE)
     list_node_t *p_node     = NULL;
     tL2C_LCB    *p_lcb_cur  = NULL;
+#endif // (CLASSIC_BT_INCLUDED == TRUE)
 
 #if (BLE_INCLUDED == TRUE)
     tBT_DEVICE_TYPE     dev_type;
@@ -2295,6 +2348,7 @@ BOOLEAN l2cu_create_conn (tL2C_LCB *p_lcb, tBT_TRANSPORT transport)
     }
 #endif
 
+#if (CLASSIC_BT_INCLUDED == TRUE)
     /* If there is a connection where we perform as a slave, try to switch roles
        for this connection */
     for (p_node = list_begin(l2cb.p_lcb_pool); p_node; p_node = list_next(p_node)) {
@@ -2338,6 +2392,8 @@ BOOLEAN l2cu_create_conn (tL2C_LCB *p_lcb, tBT_TRANSPORT transport)
     p_lcb->link_state = LST_CONNECTING;
 
     return (l2cu_create_conn_after_switch (p_lcb));
+#endif // (CLASSIC_BT_INCLUDED == TRUE)
+    return false;
 }
 
 /*******************************************************************************
@@ -2364,7 +2420,7 @@ UINT8 l2cu_get_num_hi_priority (void)
     return no_hi;
 }
 
-
+#if (CLASSIC_BT_INCLUDED == TRUE)
 /*******************************************************************************
 **
 ** Function         l2cu_create_conn_after_switch
@@ -2439,7 +2495,7 @@ BOOLEAN l2cu_create_conn_after_switch (tL2C_LCB *p_lcb)
 
     return (TRUE);
 }
-
+#endif // (CLASSIC_BT_INCLUDED == TRUE)
 
 /*******************************************************************************
 **
@@ -3268,7 +3324,7 @@ tL2C_LCB  *l2cu_find_lcb_by_handle (UINT16 handle)
 bool l2cu_find_ccb_in_list(void *p_ccb_node, void *p_local_cid)
 {
     tL2C_CCB *p_ccb = (tL2C_CCB *)p_ccb_node;
-    uint8_t local_cid = *((uint8_t *)p_local_cid);
+    uint16_t local_cid = *((uint16_t *)p_local_cid);
 
     if (p_ccb->local_cid == local_cid && p_ccb->in_use) {
         return FALSE;

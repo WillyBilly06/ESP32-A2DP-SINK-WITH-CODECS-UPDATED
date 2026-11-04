@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2019-2025 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2019-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -30,7 +30,7 @@
 #include "hal/adc_types.h"
 #include "hal/adc_oneshot_hal.h"
 #include "hal/adc_ll.h"
-#include "soc/adc_periph.h"
+#include "hal/adc_periph.h"
 #include "soc/soc_caps.h"
 
 #if CONFIG_ADC_ONESHOT_CTRL_FUNC_IN_IRAM
@@ -122,6 +122,9 @@ esp_err_t adc_oneshot_new_unit(const adc_oneshot_unit_init_cfg_t *init_config, a
         .unit = init_config->unit_id,
         .clk_src = clk_src,
         .clk_src_freq_hz = clk_src_freq_hz,
+#if CONFIG_ADC_DISABLE_DAC_OUTPUT
+        .disable_dac_output = true,
+#endif
     };
 
     switch (init_config->ulp_mode) {
@@ -144,15 +147,15 @@ esp_err_t adc_oneshot_new_unit(const adc_oneshot_unit_init_cfg_t *init_config, a
 
     adc_oneshot_hal_init(&(unit->hal), &config);
 
-#if SOC_ADC_DIG_CTRL_SUPPORTED && !SOC_ADC_RTC_CTRL_SUPPORTED
-    //To enable the APB_SARADC periph if needed
-    _lock_acquire(&s_ctx.mutex);
-    s_ctx.apb_periph_ref_cnts++;
-    if (s_ctx.apb_periph_ref_cnts == 1) {
-        adc_apb_periph_claim();
+    if (ADC_LL_NEED_APB_PERIPH_CLAIM(unit->unit_id)) {
+        //To enable the APB_SARADC periph if needed
+        _lock_acquire(&s_ctx.mutex);
+        s_ctx.apb_periph_ref_cnts++;
+        if (s_ctx.apb_periph_ref_cnts == 1) {
+            adc_apb_periph_claim();
+        }
+        _lock_release(&s_ctx.mutex);
     }
-    _lock_release(&s_ctx.mutex);
-#endif
 
     if (init_config->ulp_mode == ADC_ULP_MODE_DISABLE) {
         sar_periph_ctrl_adc_oneshot_power_acquire();
@@ -164,6 +167,10 @@ esp_err_t adc_oneshot_new_unit(const adc_oneshot_unit_init_cfg_t *init_config, a
         esp_sleep_sub_mode_config(ESP_SLEEP_USE_ADC_TSEN_MONITOR_MODE, true);
 #endif
     }
+#if CONFIG_IDF_TARGET_ESP32
+    // SAR will be used in monitor state, forcibly disable analog lowpower mode to keep system functionality.
+    esp_sleep_sub_mode_force_disable(ESP_SLEEP_ANALOG_LOW_POWER_MODE);
+#endif
 
     ESP_LOGD(TAG, "new adc unit%"PRId32" is created", unit->unit_id);
     *ret_unit = unit;
@@ -193,7 +200,7 @@ esp_err_t adc_oneshot_config_channel(adc_oneshot_unit_handle_t handle, adc_chann
     ESP_RETURN_ON_FALSE(((config->bitwidth >= SOC_ADC_RTC_MIN_BITWIDTH && config->bitwidth <= SOC_ADC_RTC_MAX_BITWIDTH) || config->bitwidth == ADC_BITWIDTH_DEFAULT), ESP_ERR_INVALID_ARG, TAG, "invalid bitwidth");
     ESP_RETURN_ON_FALSE(channel < SOC_ADC_CHANNEL_NUM(handle->unit_id), ESP_ERR_INVALID_ARG, TAG, "invalid channel");
 
-    s_adc_io_init(handle->unit_id, channel);
+    ESP_RETURN_ON_ERROR(s_adc_io_init(handle->unit_id, channel), TAG, "adc io init failed");
 
     adc_oneshot_hal_ctx_t *hal = &(handle->hal);
     adc_oneshot_hal_chan_cfg_t cfg = {
@@ -261,7 +268,7 @@ esp_err_t adc_oneshot_read_isr(adc_oneshot_unit_handle_t handle, adc_channel_t c
     adc_hal_calibration_init(handle->unit_id);
     adc_set_hw_calibration_code(handle->unit_id, atten);
 #endif
-    adc_oneshot_hal_convert(&(handle->hal), out_raw);
+    bool valid = adc_oneshot_hal_convert(&(handle->hal), out_raw);
     ANALOG_CLOCK_DISABLE();
 #if SOC_ADC_DIG_CTRL_SUPPORTED && !SOC_ADC_RTC_CTRL_SUPPORTED
     ESP_ERROR_CHECK(esp_clk_tree_enable_src((soc_module_clk_t)(handle->hal.clk_src), false));
@@ -269,7 +276,7 @@ esp_err_t adc_oneshot_read_isr(adc_oneshot_unit_handle_t handle, adc_channel_t c
 
     portEXIT_CRITICAL_SAFE(&rtc_spinlock);
 
-    return ESP_OK;
+    return valid ? ESP_OK : ESP_ERR_TIMEOUT;
 }
 
 esp_err_t adc_oneshot_del_unit(adc_oneshot_unit_handle_t handle)
@@ -297,18 +304,19 @@ esp_err_t adc_oneshot_del_unit(adc_oneshot_unit_handle_t handle)
 #endif
         ESP_ERROR_CHECK(esp_clk_tree_enable_src((soc_module_clk_t)(handle->hal.clk_src), false));
     }
-    free(handle);
 
-#if SOC_ADC_DIG_CTRL_SUPPORTED && !SOC_ADC_RTC_CTRL_SUPPORTED
-    //To free the APB_SARADC periph if needed
-    _lock_acquire(&s_ctx.mutex);
-    s_ctx.apb_periph_ref_cnts--;
-    assert(s_ctx.apb_periph_ref_cnts >= 0);
-    if (s_ctx.apb_periph_ref_cnts == 0) {
-        adc_apb_periph_free();
+    if (ADC_LL_NEED_APB_PERIPH_CLAIM(handle->unit_id)) {
+        //To free the APB_SARADC periph if needed
+        _lock_acquire(&s_ctx.mutex);
+        s_ctx.apb_periph_ref_cnts--;
+        assert(s_ctx.apb_periph_ref_cnts >= 0);
+        if (s_ctx.apb_periph_ref_cnts == 0) {
+            adc_apb_periph_free();
+        }
+        _lock_release(&s_ctx.mutex);
     }
-    _lock_release(&s_ctx.mutex);
-#endif
+
+    free(handle);
 
 #if CONFIG_PM_POWER_DOWN_PERIPHERAL_IN_LIGHT_SLEEP
     //TODO: IDF-8475: Depends to SLEEP_RETENTION_MODULE_CLOCK_MODEM retention module after ADC retention supported.

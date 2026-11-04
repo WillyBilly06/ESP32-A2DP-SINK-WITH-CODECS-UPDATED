@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2015-2025 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2015-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -171,22 +171,27 @@ HEAP_IRAM_ATTR void *heap_caps_realloc_default( void *ptr, size_t size )
  */
 HEAP_IRAM_ATTR void *heap_caps_malloc_prefer( size_t size, size_t num, ... )
 {
-    va_list argp;
-    va_start( argp, num );
     void *r = NULL;
     uint32_t caps = MALLOC_CAP_DEFAULT;
-    while (num--) {
-        caps = va_arg( argp, uint32_t );
-        r = heap_caps_malloc_base( size, caps );
-        if (r != NULL || size == 0) {
-            break;
+
+    if (num > 0) {
+        va_list argp = {0};
+        va_start(argp, num);
+
+        for ( ; num > 0; --num) {
+            caps = va_arg(argp, uint32_t);
+            r = heap_caps_malloc_base(size, caps);
+            if (r != NULL || size == 0) {
+                break;
+            }
         }
+
+        va_end( argp );
     }
 
-    if (r == NULL && size > 0){
+    if (r == NULL && size > 0) {
         heap_caps_alloc_failed(size, caps, __func__);
     }
-    va_end( argp );
     return r;
 }
 
@@ -195,46 +200,58 @@ HEAP_IRAM_ATTR void *heap_caps_malloc_prefer( size_t size, size_t num, ... )
  */
 HEAP_IRAM_ATTR void *heap_caps_realloc_prefer( void *ptr, size_t size, size_t num, ... )
 {
-    va_list argp;
-    va_start( argp, num );
     void *r = NULL;
     uint32_t caps = MALLOC_CAP_DEFAULT;
-    while (num--) {
-        caps = va_arg( argp, uint32_t );
-        r = heap_caps_realloc_base( ptr, size, caps );
-        if (r != NULL || size == 0) {
-            break;
+
+    if (num > 0) {
+        va_list argp = {0};
+        va_start(argp, num);
+
+        for ( ; num > 0; --num) {
+            caps = va_arg(argp, uint32_t);
+            r = heap_caps_realloc_base(ptr, size, caps);
+            if (r != NULL || size == 0) {
+                break;
+            }
         }
+
+        va_end( argp );
     }
 
-    if (r == NULL && size > 0){
+    if (r == NULL && size > 0) {
         heap_caps_alloc_failed(size, caps, __func__);
     }
-    va_end( argp );
     return r;
 }
+
 
 /*
  Memory callocation as preference in decreasing order.
  */
-HEAP_IRAM_ATTR void *heap_caps_calloc_prefer( size_t n, size_t size, size_t num, ... )
+HEAP_IRAM_ATTR void *heap_caps_calloc_prefer(size_t n, size_t size, size_t num, ...)
 {
-    va_list argp;
-    va_start( argp, num );
     void *r = NULL;
     uint32_t caps = MALLOC_CAP_DEFAULT;
-    while (num--) {
-        caps = va_arg( argp, uint32_t );
-        r = heap_caps_calloc_base( n, size, caps );
-        if (r != NULL || size == 0){
-            break;
+
+    if (num > 0) {
+        va_list argp = {0};
+        va_start(argp, num);
+
+        for (; num > 0; --num) {
+            caps = va_arg(argp, uint32_t);
+            r = heap_caps_calloc_base(n, size, caps);
+            if (r != NULL || size == 0) {
+                break;
+            }
         }
+
+        va_end(argp);
     }
 
-    if (r == NULL && size > 0){
+    if (r == NULL && size > 0) {
         heap_caps_alloc_failed(size, caps, __func__);
     }
-    va_end( argp );
+
     return r;
 }
 
@@ -328,10 +345,12 @@ esp_err_t heap_caps_monitor_local_minimum_free_size_start(void)
 
     heap = SLIST_FIRST(&registered_heaps);
     for (size_t counter = 0; counter < min_free_bytes_monitoring.counter; counter++) {
-        size_t old_minimum = multi_heap_reset_minimum_free_bytes(heap->heap);
+        if (heap->heap != NULL) {
+            size_t old_minimum = multi_heap_reset_minimum_free_bytes(heap->heap);
 
-        if (min_free_bytes_monitoring.values[counter] > old_minimum) {
-            min_free_bytes_monitoring.values[counter] = old_minimum;
+            if (min_free_bytes_monitoring.values[counter] > old_minimum) {
+                min_free_bytes_monitoring.values[counter] = old_minimum;
+            }
         }
 
         heap = SLIST_NEXT(heap, next);
@@ -350,7 +369,9 @@ esp_err_t heap_caps_monitor_local_minimum_free_size_stop(void)
     MULTI_HEAP_LOCK(&min_free_bytes_monitoring.mux);
     heap_t *heap = SLIST_FIRST(&registered_heaps);
     for (size_t counter = 0; counter < min_free_bytes_monitoring.counter; counter++) {
-        multi_heap_restore_minimum_free_bytes(heap->heap, min_free_bytes_monitoring.values[counter]);
+        if (heap->heap != NULL) {
+            multi_heap_restore_minimum_free_bytes(heap->heap, min_free_bytes_monitoring.values[counter]);
+        }
 
         heap = SLIST_NEXT(heap, next);
     }

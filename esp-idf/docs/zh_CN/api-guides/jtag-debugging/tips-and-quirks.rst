@@ -10,8 +10,13 @@
 可用的断点和观察点
 ^^^^^^^^^^^^^^^^^^
 
-{IDF_TARGET_NAME} 调试器支持 {IDF_TARGET_SOC_CPU_BREAKPOINTS_NUM} 个硬件断点和 64 个软件断点。硬件断点是由 {IDF_TARGET_NAME} 芯片内部的逻辑电路实现的，能够设置在代码的任何位置：flash 或者 IRAM 的代码区域。除此以外，OpenOCD 实现了两种软件断点：flash 断点（最多 32 个）和 IRAM 断点（最多 32 个）。目前 GDB 无法在 flash 中设置软件断点，因此除非解决此限制，否则这些断点只能由 OpenOCD 模拟为硬件断点（详细信息可以参阅 :ref:`下文 <jtag-debugging-tip-where-breakpoints>`）。{IDF_TARGET_NAME} 还支持 {IDF_TARGET_SOC_CPU_WATCHPOINTS_NUM} 个观察点，所以可以观察 {IDF_TARGET_SOC_CPU_WATCHPOINTS_NUM} 个变量的变化或者通过 GDB 命令 ``watch myVariable`` 来读取变量的值。请注意 menuconfig 中的 :ref:`CONFIG_FREERTOS_WATCHPOINT_END_OF_STACK` 选项会使用最后一个观察点，如果你想在 OpenOCD 或者 GDB 中再次尝试使用这个观察点，可能不会得到预期的结果。详情请查看 menuconfig 中的帮助文档。
+.. only:: CONFIG_IDF_TARGET_ARCH_XTENSA
 
+    {IDF_TARGET_NAME} 调试器支持 {IDF_TARGET_SOC_CPU_BREAKPOINTS_NUM} 个硬件断点和 64 个软件断点。硬件断点是由 {IDF_TARGET_NAME} 芯片内部的逻辑电路实现的，能够设置在代码的任何位置：flash 或者 IRAM 的代码区域。除此以外，OpenOCD 实现了两种软件断点：flash 断点（最多 32 个）和 IRAM 断点（最多 32 个）。目前 GDB 无法在 flash 中设置软件断点，因此除非解决此限制，否则这些断点只能由 OpenOCD 模拟为硬件断点（详细信息可以参阅 :ref:`下文 <jtag-debugging-tip-where-breakpoints>`）。{IDF_TARGET_NAME} 还支持 {IDF_TARGET_SOC_CPU_WATCHPOINTS_NUM} 个观察点，所以可以观察 {IDF_TARGET_SOC_CPU_WATCHPOINTS_NUM} 个变量的变化或者通过 GDB 命令 ``watch myVariable`` 来读取变量的值。请注意 menuconfig 中的 :ref:`CONFIG_FREERTOS_WATCHPOINT_END_OF_STACK` 选项会使用最后一个观察点，如果你想在 OpenOCD 或者 GDB 中再次尝试使用这个观察点，可能不会得到预期的结果。详情请查看 menuconfig 中的帮助文档。
+
+.. only:: CONFIG_IDF_TARGET_ARCH_RISCV
+
+    {IDF_TARGET_NAME} 调试器支持 {IDF_TARGET_SOC_CPU_BREAKPOINTS_NUM} 个硬件断点和无限数量的软件断点。硬件断点是由 {IDF_TARGET_NAME} 芯片内部的逻辑电路实现的，能够设置在代码的任何位置：flash 或者 IRAM 的代码区域。除此以外，OpenOCD 实现了两种软件断点：flash 断点（最多 32 个）和 IRAM 断点（无限数量）。目前 GDB 无法在 flash 中设置软件断点，因此除非解决此限制，否则这些断点只能由 OpenOCD 模拟为硬件断点（详细信息可以参阅 :ref:`下文 <jtag-debugging-tip-where-breakpoints>`）。{IDF_TARGET_NAME} 还支持 {IDF_TARGET_SOC_CPU_WATCHPOINTS_NUM} 个观察点，所以可以观察 {IDF_TARGET_SOC_CPU_WATCHPOINTS_NUM} 个变量的变化或者通过 GDB 命令 ``watch myVariable`` 来读取变量的值。请注意 menuconfig 中的 :ref:`CONFIG_FREERTOS_WATCHPOINT_END_OF_STACK` 选项会使用最后一个观察点，如果你想在 OpenOCD 或者 GDB 中再次尝试使用这个观察点，可能不会得到预期的结果。详情请查看 menuconfig 中的帮助文档。
 
 .. _jtag-debugging-tip-where-breakpoints:
 
@@ -63,7 +68,7 @@ ESP-IDF 有一些针对 OpenOCD 调试功能的选项可以在编译时进行设
 
 * :ref:`CONFIG_FREERTOS_WATCHPOINT_END_OF_STACK` 默认没有使能。在所有任务堆栈的末尾设置观察点，从 1 号开始索引。这是调试任务堆栈溢出的最准确的方式。
 
-更多有关设置编译时的选项的信息，请参阅 :ref:`项目配置菜单 <get-started-configure>`。
+更多有关设置编译时的选项的信息，请参阅 :ref:`Windows <get-started-configure>`、:ref:`Linux 或 macOS 项目配置菜单<get-started-configure-linux-macos>`。
 
 .. _jtag-debugging-tip-freertos-support:
 
@@ -124,7 +129,7 @@ GDB 具有 FreeRTOS 支持的 Python 扩展模块。在系统要求满足的情�
 在启动时，调试器发出一系列命令来复位芯片并使其在特定的代码行停止运行。这个命令序列（如下所示）支持自定义，用户可以选择在最方便合适的代码行开始调试工作。
 
 * ``set remote hardware-watchpoint-limit {IDF_TARGET_SOC_CPU_WATCHPOINTS_NUM}`` — 限制 GDB 使用芯片支持的硬件观察点数量，{IDF_TARGET_NAME} 支持 {IDF_TARGET_SOC_CPU_WATCHPOINTS_NUM} 个观察点。更多详细信息，请查阅 `GDB 配置远程目标 <https://sourceware.org/gdb/onlinedocs/gdb/Remote-Configuration.html>`_ 。
-* ``mon reset halt`` — 复位芯片并使 CPU 停止运行。
+* ``mon reset halt`` — 复位芯片并使 CPU 停止运行。必须复位目标芯片以禁用内存保护，这是启用 flash 支持所必需的。如果不希望复位，可在 OpenOCD 命令行开头添加额外参数 ``-c 'set ESP_FLASH_SIZE 0'`` 来禁用 flash 支持，详见 :ref:`jtag-debugging-tip-openocd-config-vars`。另一种方法是使用配置选项 :ref:`CONFIG_ESP_SYSTEM_MEMPROT` 来禁用内存保护。
 * ``maintenance flush register-cache`` — monitor (``mon``) 命令无法通知 GDB 目标状态已经更改，GDB 会假设在 ``mon reset halt`` 之前所有的任务堆栈仍然有效。实际上，复位后目标状态将发生变化。执行 ``maintenance flush register-cache`` 是一种强制 GDB 从目标获取最新状态的方法。
 * ``thb app_main`` — 在 ``app_main`` 处插入一个临时的硬件断点，如果有需要，可以将其替换为其他函数名。
 * ``c`` — 恢复程序运行，它将会在 ``app_main`` 的断点处停止运行。
@@ -187,7 +192,7 @@ TCL 语言中为变量赋值的语法是:
     * - ``ESP_RTOS``
       - 设置成 ``none`` 可以关闭 OpenOCD 对 RTOS 的支持，这样的话，你将无法在 GDB 中查看到线程列表。这个功能在调试 FreeRTOS 本身的时候会很有用，可以单步调试调度器的代码。
     * - ``ESP_FLASH_SIZE``
-      - 设置成 ``0`` 可以关闭对 flash 断点的支持。
+      - 设置成 ``0`` 可以关闭对 flash 断点的支持。如果设置为 ``0``，GDB 连接时不会复位目标芯片。
     * - ``ESP_SEMIHOST_BASEDIR``
       - 设置 semihosting 在主机端的默认目录。
     * - ``ESP_ONLYCPU``
@@ -241,21 +246,18 @@ JTAG 管脚是否能用于其他功能
 
 .. _jtag-debugging-security-features:
 
-JTAG 与 flash 加密和安全引导
+JTAG 与 flash 加密和安全启动
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-默认情况下，开启了 flash 加密和（或者）安全引导后，系统在首次启动时，引导加载程序会烧写 eFuse 的某个比特，从而将 JTAG 永久关闭。
+默认情况下，开启了 flash 加密和（或者）安全启动后，系统在首次启动时，引导加载程序会烧写 eFuse 的某个比特，从而将 JTAG 永久关闭。
 
 .. only:: SOC_HMAC_SUPPORTED
 
-    请注意，一旦 JTAG 被永久禁用，就无法重新启用以访问 JTAG。但是我们也提供了暂时禁用 (soft disable) JTAG 的选项。有关如何暂时禁用以及重新启用 JTAG，请参考 :ref:`hmac_for_enabling_jtag`。
+    请注意，一旦 JTAG 被永久禁用，就无法重新启用以访问 JTAG。但是我们也提供了暂时禁用 (soft disable) JTAG 的选项。有关如何暂时禁用以及重新启用 JTAG，请参考 :ref:`HMAC 启用 JTAG 接口 <hmac_for_enabling_jtag>`。
 
-Kconfig 配置项 :ref:`CONFIG_SECURE_BOOT_ALLOW_JTAG` 可以改变这个默认行为，使得用户即使开启了安全引导或者 flash 加密，仍会保留 JTAG 的功能。
+Kconfig 配置项 :ref:`CONFIG_SECURE_BOOT_ALLOW_JTAG` 可以改变这个默认行为，使得用户即使开启了安全启动或者 flash 加密，仍会保留 JTAG 的功能。
 
-然而，因为设置 :ref:`软件断点 <jtag-debugging-tip-where-breakpoints>` 的需要，OpenOCD 会尝试自动读写 flash 中的内容，这会带来两个问题：
-
-- 软件断点和 flash 加密是不兼容的，目前 OpenOCD 尚不支持对 flash 中的内容进行加密和解密。
-- 如果开启了安全引导功能，设置软件断点会改变被签名的程序的摘要，从而使得签名失效。这也意味着，如果设置了软件断点，系统会在下次重启时的签名验证阶段失败，导致无法启动。
+然而，为了设置 :ref:`软件断点 <jtag-debugging-tip-where-breakpoints>`，OpenOCD 可能会尝试自动读写 flash。设置软件断点会改变被签名程序的摘要并使签名失效。这意味着如果启用了安全启动、设置了软件断点，然后进行复位，启动时的签名验证将会失败。
 
 关闭 JTAG 的软件断点功能，可以在启动 OpenOCD 时在命令行额外加一项配置参数 ``-c 'set ESP_FLASH_SIZE 0'``，请参考 :ref:`jtag-debugging-tip-openocd-config-vars`。
 

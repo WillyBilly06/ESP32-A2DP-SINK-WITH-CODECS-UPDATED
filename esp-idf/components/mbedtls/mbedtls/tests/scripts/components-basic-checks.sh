@@ -15,23 +15,39 @@ component_check_recursion () {
 }
 
 component_check_generated_files () {
-    msg "Check: check-generated-files, files generated with make" # 2s
-    make generated_files
-    tests/scripts/check-generated-files.sh
+    msg "Check make_generated_files.py consistency"
+    $MAKE_COMMAND neat
+    scripts/make_generated_files.py
+    scripts/make_generated_files.py --check
+    $MAKE_COMMAND neat
 
-    msg "Check: check-generated-files -u, files present" # 2s
-    tests/scripts/check-generated-files.sh -u
-    # Check that the generated files are considered up to date.
-    tests/scripts/check-generated-files.sh
+    msg "Check files generated with make"
+    MBEDTLS_ROOT_DIR="$PWD"
+    $MAKE_COMMAND generated_files
+    scripts/make_generated_files.py --check
 
-    msg "Check: check-generated-files -u, files absent" # 2s
-    command make neat
-    tests/scripts/check-generated-files.sh -u
-    # Check that the generated files are considered up to date.
-    tests/scripts/check-generated-files.sh
+    cd $TF_PSA_CRYPTO_ROOT_DIR
+    ./framework/scripts/make_generated_files.py --check
+
+    msg "Check files generated with cmake"
+    cd "$MBEDTLS_ROOT_DIR"
+    mkdir "$OUT_OF_SOURCE_DIR"
+    cd "$OUT_OF_SOURCE_DIR"
+    cmake -D GEN_FILES=ON "$MBEDTLS_ROOT_DIR"
+    make
+    cd "$MBEDTLS_ROOT_DIR"
+
+    scripts/make_generated_files.py --root "$OUT_OF_SOURCE_DIR" --check
+
+    cd $TF_PSA_CRYPTO_ROOT_DIR
+    ./framework/scripts/make_generated_files.py --root "$OUT_OF_SOURCE_DIR/tf-psa-crypto" --check
+    cd "$MBEDTLS_ROOT_DIR"
 
     # This component ends with the generated files present in the source tree.
     # This is necessary for subsequent components!
+
+    msg "Check committed generated files"
+    tests/scripts/check_option_lists.py
 }
 
 component_check_doxy_blocks () {
@@ -72,64 +88,6 @@ component_check_test_cases () {
     unset opt
 }
 
-component_check_test_dependencies () {
-    msg "Check: test case dependencies: legacy vs PSA" # < 1s
-    # The purpose of this component is to catch unjustified dependencies on
-    # legacy feature macros (MBEDTLS_xxx) in PSA tests. Generally speaking,
-    # PSA test should use PSA feature macros (PSA_WANT_xxx, more rarely
-    # MBEDTLS_PSA_xxx).
-    #
-    # Most of the time, use of legacy MBEDTLS_xxx macros are mistakes, which
-    # this component is meant to catch. However a few of them are justified,
-    # mostly by the absence of a PSA equivalent, so this component includes a
-    # list of expected exceptions.
-
-    found="check-test-deps-found-$$"
-    expected="check-test-deps-expected-$$"
-
-    # Find legacy dependencies in PSA tests
-    grep 'depends_on' \
-        tests/suites/test_suite_psa*.data tests/suites/test_suite_psa*.function |
-        grep -Eo '!?MBEDTLS_[^: ]*' |
-        grep -v -e MBEDTLS_PSA_ -e MBEDTLS_TEST_ |
-        sort -u > $found
-
-    # Expected ones with justification - keep in sorted order by ASCII table!
-    rm -f $expected
-    # No PSA equivalent - WANT_KEY_TYPE_AES means all sizes
-    echo "!MBEDTLS_AES_ONLY_128_BIT_KEY_LENGTH" >> $expected
-    # No PSA equivalent - used to skip decryption tests in PSA-ECB, CBC/XTS/NIST_KW/DES
-    echo "!MBEDTLS_BLOCK_CIPHER_NO_DECRYPT" >> $expected
-    # MBEDTLS_ASN1_WRITE_C is used by import_rsa_made_up() in test_suite_psa_crypto
-    # in order to build a fake RSA key of the wanted size based on
-    # PSA_VENDOR_RSA_MAX_KEY_BITS. The legacy module is only used by
-    # the test code and that's probably the most convenient way of achieving
-    # the test's goal.
-    echo "MBEDTLS_ASN1_WRITE_C" >> $expected
-    # No PSA equivalent - used in test_suite_psa_crypto to get some "known" size
-    # for raw key generation.
-    echo "MBEDTLS_CTR_DRBG_MAX_REQUEST" >> $expected
-    # No PSA equivalent - we should probably have one in the future.
-    echo "MBEDTLS_ECP_RESTARTABLE" >> $expected
-    # No PSA equivalent - needed by some init tests
-    echo "MBEDTLS_ENTROPY_NV_SEED" >> $expected
-    # No PSA equivalent - required to run threaded tests.
-    echo "MBEDTLS_THREADING_PTHREAD" >> $expected
-
-    # Compare reality with expectation.
-    # We want an exact match, to ensure the above list remains up-to-date.
-    #
-    # The output should be empty. When it's not:
-    # - Each '+' line is a macro that was found but not expected. You want to
-    # find where that macro occurs, and either replace it with PSA macros, or
-    # add it to the exceptions list above with a justification.
-    # - Each '-' line is a macro that was expected but not found; it means the
-    # exceptions list above should be updated by removing that macro.
-    diff -U0 $expected $found
-
-    rm $found $expected
-}
-
 component_check_doxygen_warnings () {
     msg "Check: doxygen warnings (builds the documentation)" # ~ 3s
     ./framework/scripts/doxygen.sh
@@ -161,4 +119,7 @@ component_check_test_helpers () {
 
     msg "unit test: translate_ciphers.py"
     python3 -m unittest framework/scripts/translate_ciphers.py 2>&1
+
+    msg "unit test: generate_config_checks.py"
+    tests/scripts/test_config_checks.py 2>&1
 }

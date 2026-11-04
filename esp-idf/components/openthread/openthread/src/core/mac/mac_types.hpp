@@ -31,8 +31,8 @@
  *   This file includes definitions for MAC types.
  */
 
-#ifndef MAC_TYPES_HPP_
-#define MAC_TYPES_HPP_
+#ifndef OT_CORE_MAC_MAC_TYPES_HPP_
+#define OT_CORE_MAC_MAC_TYPES_HPP_
 
 #include "openthread-core-config.h"
 
@@ -80,6 +80,18 @@ typedef otShortAddress ShortAddress;
 
 constexpr ShortAddress kShortAddrBroadcast = OT_RADIO_BROADCAST_SHORT_ADDR; ///< Broadcast Short Address.
 constexpr ShortAddress kShortAddrInvalid   = OT_RADIO_INVALID_SHORT_ADDR;   ///< Invalid Short Address.
+constexpr bool         kDefaultMacKeysExportable =
+    OPENTHREAD_CONFIG_PLATFORM_MAC_KEYS_EXPORTABLE_ENABLE; ///< Default exportability policy for MAC key refs.
+
+/**
+ * Represents the wake-up identifier.
+ */
+typedef otWakeupId WakeupId;
+
+/**
+ * Represents the MAC layer counters.
+ */
+typedef otMacCounters Counters;
 
 /**
  * Generates a random IEEE 802.15.4 PAN ID.
@@ -216,21 +228,25 @@ public:
     }
 
     /**
-     * Overloads operator `==` to evaluate whether or not two `ExtAddress` instances are equal.
-     *
-     * @param[in]  aOther  The other `ExtAddress` instance to compare with.
-     *
-     * @retval TRUE   If the two `ExtAddress` instances are equal.
-     * @retval FALSE  If the two `ExtAddress` instances are not equal.
-     */
-    bool operator==(const ExtAddress &aOther) const;
-
-    /**
      * Converts an address to a string.
      *
      * @returns An `InfoString` containing the string representation of the Extended Address.
      */
     InfoString ToString(void) const;
+
+    /**
+     * Parses an Extended Address from a string.
+     *
+     * The string must be a hex representation of the address (e.g., "0123456789abcdef").
+     * The parsing is case-insensitive.
+     *
+     * @param[in]  aString  A pointer to the string to parse.
+     *
+     * @retval kErrorNone          Successfully parsed the Extended Address.
+     * @retval kErrorInvalidArgs   @p aString is `nullptr`.
+     * @retval kErrorParse         @p aString is not a valid hex string representation of an Extended Address.
+     */
+    Error FromString(const char *aString);
 
 private:
     static constexpr uint8_t kGroupFlag = (1 << 0);
@@ -960,6 +976,19 @@ private:
     uint8_t mUncertainty;
 };
 
+#if OPENTHREAD_CONFIG_WAKEUP_COORDINATOR_ENABLE || OPENTHREAD_CONFIG_WAKEUP_END_DEVICE_ENABLE
+/**
+ * Gets the length of the wake-up identifier.
+ *
+ * The length is the number of bytes remaining after removing the most significant zero bytes.
+ *
+ * @param[in]  aWakeupId  The wake-up identifier.
+ *
+ * @returns The length of the @p aWakeupId.
+ */
+uint8_t GetWakeupIdLength(WakeupId aWakeupId);
+#endif
+
 #if OPENTHREAD_CONFIG_WAKEUP_COORDINATOR_ENABLE
 /**
  * Represents a wake-up request.
@@ -1003,6 +1032,28 @@ public:
      * @returns A reference to the Extended Address.
      */
     ExtAddress &GetExtAddress(void);
+
+    /**
+     * Gets the Wake-up Identifier of the wake-up request.
+     *
+     * MUST be used only if the wake-up request type is `kTypeWakeupId` or `kTypeGroupWakeupId`.
+     *
+     * @returns The Wake-up Identifier.
+     */
+    WakeupId GetWakeupId(void) const { return mShared.mWakeupId; }
+
+    /**
+     * Sets the wake-up request with the Wake-up Identifier.
+     *
+     * The type is also updated to indicate that the wake-up request type is `kTypeWakeupId`.
+     *
+     * @param[in]  aWakeupId  A Wake-up Identifier.
+     */
+    void SetWakeupId(WakeupId aWakeupId)
+    {
+        SetType(kTypeWakeupId);
+        mShared.mWakeupId = aWakeupId;
+    }
 
     /**
      * Sets the wake-up request type.
@@ -1065,4 +1116,4 @@ DefineMapEnum(otWakeupType, Mac::WakeupRequest::Type);
 
 } // namespace ot
 
-#endif // MAC_TYPES_HPP_
+#endif // OT_CORE_MAC_MAC_TYPES_HPP_

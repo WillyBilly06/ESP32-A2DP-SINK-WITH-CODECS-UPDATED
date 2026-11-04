@@ -1,5 +1,5 @@
 RGB 接口的 LCD
-==================
+==============
 
 :link_to_translation:`en:[English]`
 
@@ -15,6 +15,49 @@ RGB LCD 面板的分配步骤只需一步，即调用函数 :cpp:func:`esp_lcd_n
     - :cpp:member:`esp_lcd_rgb_panel_config_t::fb_in_psram` 设置是否从 PSRAM 中分配 frame buffer。详情请参阅 :ref:`single_frame_buffer_in_psram`。
     - :cpp:member:`esp_lcd_rgb_panel_config_t::num_fbs` 设置由驱动程序分配的 frame buffer 的数量。为了向后兼容，``0`` 表示分配 ``一个`` frame buffer。如果不想分配任何 frame buffer，请设置 :cpp:member:`esp_lcd_rgb_panel_config_t::no_fb`。
     - :cpp:member:`esp_lcd_rgb_panel_config_t::no_fb` 可决定是否分配 frame buffer。设置该字段后将不分配 frame buffer。这也被称为 :ref:`bounce_buffer_only` 模式。
+
+GPIO 矩阵与 IOMUX 管脚
+----------------------
+
+.. only:: esp32s31
+
+    {IDF_TARGET_NAME} 上，RGB LCD 驱动支持在满足专用管脚条件时自动使用 IOMUX，无需额外配置开关：
+
+    - 当 ``data_gpio_nums``、``hsync_gpio_num``、``vsync_gpio_num``、``pclk_gpio_num`` 和 ``de_gpio_num`` 都配置为 RGB 外设的专用 IOMUX 管脚时，驱动会自动绕过 GPIO 矩阵。
+    - 只要上述任一信号未使用专用 IOMUX 管脚，驱动就会自动回退为 GPIO 矩阵路由。
+
+    在较高像素时钟下，建议优先使用 IOMUX 管脚以获得更稳定的时序表现。
+
+    {IDF_TARGET_NAME} 上 RGB 接口可用的专用 IOMUX 管脚如下：
+
+    - 当 ``data_width = 8`` 时，使用 ``DATA[0:7]``
+    - 当 ``data_width = 16`` 时，使用 ``DATA[0:15]``
+    - 当 ``data_width = 24`` 时，使用 ``DATA[0:23]``
+
+    .. list-table::
+       :widths: 35 65
+       :header-rows: 1
+
+       * - 信号
+         - GPIO
+       * - DATA[0:7]
+         - 8, 9, 10, 11, 12, 13, 14, 15
+       * - DATA[8:15]
+         - 16, 17, 18, 19, 33, 34, 35, 36
+       * - DATA[16:23]
+         - 37, 38, 39, 2, 3, 4, 5, 7
+       * - HSYNC
+         - 44
+       * - VSYNC
+         - 45
+       * - PCLK
+         - 40
+       * - DE
+         - 43
+
+.. only:: not esp32s31
+
+    在 {IDF_TARGET_NAME} 上，RGB 信号通过 GPIO 矩阵路由。
 
 RGB LCD frame buffer 操作模式
 ------------------------------
@@ -150,6 +193,48 @@ PSRAM 中的双 frame buffer
     };
     ESP_ERROR_CHECK(esp_lcd_new_rgb_panel(&panel_config, &panel_handle));
 
+.. _user_custom_frame_buffer:
+
+用户自定义 frame buffer
+^^^^^^^^^^^^^^^^^^^^^^^^^
+
+用户可以提供自己分配的 frame buffer，而不是让驱动程序分配。该模式下，用户需要自己管理 frame buffer 的生命周期。
+
+.. code:: c
+
+    esp_lcd_panel_handle_t panel_handle = NULL;
+    esp_lcd_rgb_panel_config_t panel_config = {
+        .data_width = 16, // 并行模式下像素格式为 RGB565，数据宽度为 16 位
+        .clk_src = LCD_CLK_SRC_DEFAULT,
+        .disp_gpio_num = EXAMPLE_PIN_NUM_DISP_EN,
+        .pclk_gpio_num = EXAMPLE_PIN_NUM_PCLK,
+        .vsync_gpio_num = EXAMPLE_PIN_NUM_VSYNC,
+        .hsync_gpio_num = EXAMPLE_PIN_NUM_HSYNC,
+        .de_gpio_num = EXAMPLE_PIN_NUM_DE,
+        .data_gpio_nums = {
+            EXAMPLE_PIN_NUM_DATA0,
+            EXAMPLE_PIN_NUM_DATA1,
+            EXAMPLE_PIN_NUM_DATA2,
+            // 其他 GPIO
+            // 此处 GPIO 的数量应与上文中 "data_width" 的值相同
+            ...
+        },
+        // 参照 LCD 规格书，填写时序参数
+        .timings = {
+            .pclk_hz = EXAMPLE_LCD_PIXEL_CLOCK_HZ,
+            .h_res = EXAMPLE_LCD_H_RES,
+            .v_res = EXAMPLE_LCD_V_RES,
+            .hsync_back_porch = 40,
+            .hsync_front_porch = 20,
+            .hsync_pulse_width = 1,
+            .vsync_back_porch = 8,
+            .vsync_front_porch = 4,
+            .vsync_pulse_width = 1,
+        },
+        .user_fbs[0] = user_frame_buffer, // 使用用户自定义 frame buffer
+    };
+    ESP_ERROR_CHECK(esp_lcd_new_rgb_panel(&panel_config, &panel_handle));
+
 .. _bounce_buffer_with_single_psram_frame_buffer:
 
 bounce buffer 与 PSRAM frame buffer
@@ -163,7 +248,7 @@ bounce buffer 与 PSRAM frame buffer
 
 .. note::
 
-    由于 PSRAM 带宽不足，此模式还可能存在另一个问题。例如，从 PSRAM 中分配绘图 buffer，且 buffer 中的数据被复制到 CPU 核 1 上的内部 frame buffer 中，此时在 CPU 核 0 上，DMA EOF ISR 也在进行内存复制。这种情况下，两个内核都通过 cache 访问 PSRAM 并共享 PSRAM 的带宽，DMA EOF ISR 复制内存的时间大大增加。驱动程序无法及时切换 bounce buffer，造成 LCD 屏幕移位。尽管驱动程序可以检测到这种情况并在 LCD 的 VSYNC 中断处理程序中执行重新启动，但仍会出现屏幕闪烁现象。
+    由于 PSRAM 带宽不足，此模式还可能存在另一个问题。例如，从 PSRAM 中分配绘图 buffer，且 buffer 中的数据被复制到 CPU 核 1 上的内部 frame buffer 中，此时在 CPU 核 0 上，DMA EOF ISR 也在进行内存复制。这种情况下，两个内核都通过 cache 访问 PSRAM 并共享 PSRAM 的带宽，DMA EOF ISR 复制内存的时间大大增加。驱动程序无法及时切换 bounce buffer，造成 LCD 屏幕移位。在 ESP32-S3 上，驱动程序可以检测到这种情况并在 LCD 的 VSYNC 中断处理程序中执行重新启动，但仍会出现屏幕闪烁现象。
 
 .. code:: c
 
@@ -208,10 +293,12 @@ bounce buffer 与 PSRAM frame buffer
 
 该模式与 :ref:`bounce_buffer_with_single_psram_frame_buffer` 模式类似，但 LCD 驱动程序不会初始化 PSRAM frame buffer。相反，该模式依赖用户提供的回调函数来填充 bounce buffer。LCD 驱动程序无需指定写入像素的来源，因此回调函数可以执行一些操作：例如，将较小的每像素 8 位 PSRAM frame buffer 即时转换为 16 位 LCD 数据，甚至还可以转换为无 frame buffer 图形。若想选择此模式，可以设置 :cpp:member:`esp_lcd_rgb_panel_config_t::no_fb` 标志并提供 :cpp:member:`esp_lcd_rgb_panel_config_t::bounce_buffer_size_px` 值。然后通过调用 :cpp:func:`esp_lcd_rgb_panel_register_event_callbacks` 注册回调函数 :cpp:member:`esp_lcd_rgb_panel_event_callbacks_t::on_bounce_empty`。
 
-.. note::
+.. only:: esp32s3
 
-    虽说在设计良好的嵌入式应用程序中, DMA 传递数据的速度不应该赶不上 LCD 读取数据的速度。但理论上，此种情况还是有可能出现的。在 {IDF_TARGET_NAME} 的硬件中，这种情况会导致 LCD 在 DMA 等待数据时单纯输出 dummy 字节。若以流式传输运行 DMA，则 DMA 会将读取到的数据传输到某个 LCD 地址，同时 LCD 也会将数据输出到某个 LCD 地址，但上述两个地址可能会不同步，导致图像 **永久** 偏移。
-    为防止类似情况发生，可以启用 :ref:`CONFIG_LCD_RGB_RESTART_IN_VSYNC` 选项，以便驱动程序在 VBlank 中断时自动重启 DMA；或者也可以调用 :cpp:func:`esp_lcd_rgb_panel_restart`，手动重启 DMA。请注意，调用 :cpp:func:`esp_lcd_rgb_panel_restart` 不会立即重启 DMA，DMA 只会在下一个 VSYNC 事件中重启。
+    .. note::
+
+        虽说在设计良好的嵌入式应用程序中, DMA 传递数据的速度不应该赶不上 LCD 读取数据的速度。但理论上，此种情况还是有可能出现的。在 {IDF_TARGET_NAME} 的硬件中，这种情况会导致 LCD 在 DMA 等待数据时单纯输出 dummy 字节。若以流式传输运行 DMA，则 DMA 会将读取到的数据传输到某个 LCD 地址，同时 LCD 也会将数据输出到某个 LCD 地址，但上述两个地址可能会不同步，导致图像 **永久** 偏移。
+        为防止类似情况发生，可以启用 :ref:`CONFIG_LCD_RGB_RESTART_IN_VSYNC` 选项，以便驱动程序在 VBlank 中断时自动重启 DMA；或者也可以调用 :cpp:func:`esp_lcd_rgb_panel_restart`，手动重启 DMA。请注意，调用 :cpp:func:`esp_lcd_rgb_panel_restart` 不会立即重启 DMA，DMA 只会在下一个 VSYNC 事件中重启。
 
 API 参考
 --------

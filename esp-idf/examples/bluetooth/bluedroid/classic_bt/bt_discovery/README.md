@@ -1,5 +1,5 @@
-| Supported Targets | ESP32 |
-| ----------------- | ----- |
+| Supported Targets | ESP32 | ESP32-S31 |
+| ----------------- | ----- | --------- |
 
 # ESP-IDF BT-DISCOVERY Example
 
@@ -11,7 +11,7 @@ This is the example of using APIs to perform inquiry to search for a target devi
 
 ### Hardware Required
 
-This example is designed to run on commonly available ESP32 development board, e.g. ESP32-DevKitC.
+This example is designed to run on commonly available ESP32 and ESP32-S31 development boards, e.g. ESP32-DevKitC and so on.
 
 ### Configure the project
 
@@ -31,7 +31,7 @@ To exit the serial monitor, type `Ctrl-]`.
 
 See the [Getting Started Guide](https://docs.espressif.com/projects/esp-idf/en/latest/get-started/index.html) for full steps to configure and use ESP-IDF to build projects.
 
-# TUTORIAL
+## Tutorial
 
 ## Includes
 
@@ -59,7 +59,7 @@ These `includes` are required for the FreeRTOS and underlying system components 
 
 ## Main Entry Point
 
-The program’s entry point is the `app_main()` function.
+The program's entry point is the `app_main()` function.
 
 ### Non-volatile Storage Library Initialization
 

@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2018-2025 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2018-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -12,7 +12,7 @@
 #include "esp_log.h"
 
 #include "esp_rom_sys.h"
-#include "esp_rom_uart.h"
+#include "esp_rom_serial_output.h"
 #include "sdkconfig.h"
 #if CONFIG_IDF_TARGET_ESP32
 #include "esp32/rom/cache.h"
@@ -24,7 +24,6 @@
 #include "soc/rtc.h"
 #include "soc/efuse_periph.h"
 #include "soc/rtc_periph.h"
-#include "soc/timer_periph.h"
 #include "hal/mmu_hal.h"
 #include "hal/mmu_ll.h"
 #include "hal/cache_types.h"
@@ -37,9 +36,6 @@
 #include "esp_app_desc.h"
 #include "esp_secure_boot.h"
 #include "esp_flash_encrypt.h"
-#ifndef BOOTLOADER_BUILD
-#include "spi_flash_mmap.h"
-#endif
 #include "esp_flash_partitions.h"
 #include "bootloader_flash_priv.h"
 #include "bootloader_random.h"
@@ -57,7 +53,7 @@
 #include "bootloader_utility_tee.h"
 #endif
 
-static const char *TAG = "boot";
+ESP_LOG_ATTR_TAG(TAG, "boot");
 
 /* Reduce literal size for some generic string literals */
 #define MAP_ERR_MSG "Image contains multiple %s segments. Only the last one will be mapped."
@@ -158,6 +154,7 @@ bool bootloader_utility_load_partition_table(bootloader_state_t *bs)
     err = esp_partition_table_verify(partitions, true, &num_partitions);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "Failed to verify partition table");
+        bootloader_munmap(partitions);
         return false;
     }
 
@@ -168,7 +165,7 @@ bool bootloader_utility_load_partition_table(bootloader_state_t *bs)
         const esp_partition_info_t *partition = &partitions[i];
         ESP_LOGD(TAG, "load partition table entry 0x%x", (intptr_t)partition);
         ESP_LOGD(TAG, "type=%x subtype=%x", partition->type, partition->subtype);
-        partition_usage = "unknown";
+        partition_usage = ESP_LOG_ATTR_STR("unknown");
 
         /* valid partition table */
         switch (partition->type) {
@@ -176,17 +173,17 @@ bool bootloader_utility_load_partition_table(bootloader_state_t *bs)
             switch (partition->subtype) {
             case PART_SUBTYPE_FACTORY: /* factory binary */
                 bs->factory = partition->pos;
-                partition_usage = "factory app";
+                partition_usage = ESP_LOG_ATTR_STR("factory app");
                 break;
             case PART_SUBTYPE_TEST: /* test binary */
                 bs->test = partition->pos;
-                partition_usage = "test app";
+                partition_usage = ESP_LOG_ATTR_STR("test app");
                 break;
 #if CONFIG_SECURE_ENABLE_TEE
             case PART_SUBTYPE_TEE_0: /* TEE binary */
             case PART_SUBTYPE_TEE_1:
                 bs->tee[partition->subtype & 0x01] = partition->pos;
-                partition_usage = "TEE app";
+                partition_usage = ESP_LOG_ATTR_STR("TEE app");
                 break;
 #endif
             default:
@@ -194,9 +191,9 @@ bool bootloader_utility_load_partition_table(bootloader_state_t *bs)
                 if ((partition->subtype & ~PART_SUBTYPE_OTA_MASK) == PART_SUBTYPE_OTA_FLAG) {
                     bs->ota[partition->subtype & PART_SUBTYPE_OTA_MASK] = partition->pos;
                     ++bs->app_count;
-                    partition_usage = "OTA app";
+                    partition_usage = ESP_LOG_ATTR_STR("OTA app");
                 } else {
-                    partition_usage = "Unknown app";
+                    partition_usage = ESP_LOG_ATTR_STR("Unknown app");
                 }
                 break;
             }
@@ -205,19 +202,19 @@ bool bootloader_utility_load_partition_table(bootloader_state_t *bs)
             switch (partition->subtype) {
             case PART_SUBTYPE_DATA_OTA: /* ota data */
                 bs->ota_info = partition->pos;
-                partition_usage = "OTA data";
+                partition_usage = ESP_LOG_ATTR_STR("OTA data");
                 break;
             case PART_SUBTYPE_DATA_RF:
-                partition_usage = "RF data";
+                partition_usage = ESP_LOG_ATTR_STR("RF data");
                 break;
             case PART_SUBTYPE_DATA_WIFI:
-                partition_usage = "WiFi data";
+                partition_usage = ESP_LOG_ATTR_STR("WiFi data");
                 break;
             case PART_SUBTYPE_DATA_NVS_KEYS:
-                partition_usage = "NVS keys";
+                partition_usage = ESP_LOG_ATTR_STR("NVS keys");
                 break;
             case PART_SUBTYPE_DATA_EFUSE_EM:
-                partition_usage = "efuse";
+                partition_usage = ESP_LOG_ATTR_STR("efuse");
 #ifdef CONFIG_EFUSE_VIRTUAL_KEEP_IN_FLASH
                 esp_efuse_init_virtual_mode_in_flash(partition->pos.offset, partition->pos.size);
 #endif
@@ -225,34 +222,34 @@ bool bootloader_utility_load_partition_table(bootloader_state_t *bs)
 #if CONFIG_SECURE_ENABLE_TEE
             case PART_SUBTYPE_DATA_TEE_OTA: /* TEE ota data */
                 bs->tee_ota_info = partition->pos;
-                partition_usage = "TEE OTA data";
+                partition_usage = ESP_LOG_ATTR_STR("TEE OTA data");
                 break;
 #endif
             default:
-                partition_usage = "Unknown data";
+                partition_usage = ESP_LOG_ATTR_STR("Unknown data");
                 break;
             }
             break; /* PARTITION_USAGE_DATA */
         case PART_TYPE_BOOTLOADER: /* Bootloader partition */
             switch (partition->subtype) {
             case PART_SUBTYPE_BOOTLOADER_PRIMARY:
-                partition_usage = "primary bootloader";
+                partition_usage = ESP_LOG_ATTR_STR("primary bootloader");
                 break;
             case PART_SUBTYPE_BOOTLOADER_OTA:
-                partition_usage = "ota bootloader";
+                partition_usage = ESP_LOG_ATTR_STR("ota bootloader");
                 break;
             case PART_SUBTYPE_BOOTLOADER_RECOVERY:
-                partition_usage = "recovery bootloader";
+                partition_usage = ESP_LOG_ATTR_STR("recovery bootloader");
                 break;
             }
             break; /* PART_TYPE_BOOTLOADER */
         case PART_TYPE_PARTITION_TABLE: /* Partition table partition */
             switch (partition->subtype) {
             case PART_SUBTYPE_PARTITION_TABLE_PRIMARY:
-                partition_usage = "primary partition_table";
+                partition_usage = ESP_LOG_ATTR_STR("primary partition_table");
                 break;
             case PART_SUBTYPE_PARTITION_TABLE_OTA:
-                partition_usage = "ota partition_table";
+                partition_usage = ESP_LOG_ATTR_STR("ota partition_table");
                 break;
             }
             break; /* PART_TYPE_PARTITION_TABLE */
@@ -293,7 +290,7 @@ static esp_partition_pos_t index_to_partition(const bootloader_state_t *bs, int 
 
 static void log_invalid_app_partition(int index)
 {
-    const char *not_bootable = " is not bootable"; /* save a few string literal bytes */
+    const char *not_bootable = ESP_LOG_ATTR_STR(" is not bootable"); /* save a few string literal bytes */
     switch (index) {
     case FACTORY_INDEX:
         ESP_LOGE(TAG, "Factory app partition%s", not_bootable);
@@ -394,7 +391,7 @@ int bootloader_utility_get_selected_boot_partition(const bootloader_state_t *bs)
     ESP_LOGD(TAG, "otadata[1]: sequence values 0x%08"PRIx32, otadata[1].ota_seq);
 
 #ifdef CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE
-    bool write_encrypted = esp_flash_encryption_enabled();
+    bool write_encrypted = esp_efuse_is_flash_encryption_enabled();
     for (int i = 0; i < 2; ++i) {
         if (otadata[i].ota_state == ESP_OTA_IMG_PENDING_VERIFY) {
             ESP_LOGD(TAG, "otadata[%d] is marking as ABORTED", i);
@@ -497,7 +494,7 @@ static void set_actual_ota_seq(const bootloader_state_t *bs, int index)
         otadata.ota_state = ESP_OTA_IMG_VALID;
         otadata.crc = bootloader_common_ota_select_crc(&otadata);
 
-        bool write_encrypted = esp_flash_encryption_enabled();
+        bool write_encrypted = esp_efuse_is_flash_encryption_enabled();
         write_otadata(&otadata, bs->ota_info.offset + FLASH_SECTOR_SIZE * 0, write_encrypted);
         ESP_LOGI(TAG, "Set actual ota_seq=%"PRIu32" in otadata[0]", otadata.ota_seq);
 #ifdef CONFIG_BOOTLOADER_APP_ANTI_ROLLBACK
@@ -685,7 +682,7 @@ static void load_image(const esp_image_metadata_t *image_data)
         return;
     }
 
-    if (!esp_secure_boot_enabled() || !esp_flash_encryption_enabled()) {
+    if (!esp_secure_boot_enabled() || !esp_efuse_is_flash_encryption_enabled()) {
         esp_efuse_batch_write_begin();
     }
 #endif // CONFIG_SECURE_BOOT_FLASH_ENC_KEYS_BURN_TOGETHER
@@ -778,7 +775,7 @@ static void load_image(const esp_image_metadata_t *image_data)
 #endif
 
 #ifdef CONFIG_SECURE_FLASH_ENC_ENABLED
-    if (!flash_encryption_enabled && esp_flash_encryption_enabled()) {
+    if (!flash_encryption_enabled && esp_efuse_is_flash_encryption_enabled()) {
         /* Flash encryption was just enabled for the first time,
            so issue a system reset to ensure flash encryption
            cache resets properly */
@@ -867,9 +864,9 @@ static void unpack_load_app(const esp_image_metadata_t *data)
         const esp_image_segment_header_t *header = &data->segments[i];
         if (header->load_addr >= SOC_DROM_LOW && header->load_addr < SOC_DROM_HIGH) {
             if (drom_addr != 0) {
-                ESP_EARLY_LOGE(TAG, MAP_ERR_MSG, "DROM");
+                ESP_EARLY_LOGE(TAG, MAP_ERR_MSG, ESP_LOG_ATTR_STR("DROM"));
             } else {
-                ESP_EARLY_LOGD(TAG, "Mapping segment %d as %s", i, "DROM");
+                ESP_EARLY_LOGD(TAG, "Mapping segment %d as %s", i, ESP_LOG_ATTR_STR("DROM"));
             }
             drom_addr = data->segment_data[i];
             drom_load_addr = header->load_addr;
@@ -877,9 +874,9 @@ static void unpack_load_app(const esp_image_metadata_t *data)
         }
         if (header->load_addr >= SOC_IROM_LOW && header->load_addr < SOC_IROM_HIGH) {
             if (irom_addr != 0) {
-                ESP_EARLY_LOGE(TAG, MAP_ERR_MSG, "IROM");
+                ESP_EARLY_LOGE(TAG, MAP_ERR_MSG, ESP_LOG_ATTR_STR("IROM"));
             } else {
-                ESP_EARLY_LOGD(TAG, "Mapping segment %d as %s", i, "IROM");
+                ESP_EARLY_LOGD(TAG, "Mapping segment %d as %s", i, ESP_LOG_ATTR_STR("IROM"));
             }
             irom_addr = data->segment_data[i];
             irom_load_addr = header->load_addr;

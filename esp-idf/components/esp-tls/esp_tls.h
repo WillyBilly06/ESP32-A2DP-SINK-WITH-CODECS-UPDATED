@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2017-2025 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2017-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -9,18 +9,14 @@
 #include <stdbool.h>
 #include "esp_err.h"
 #include "esp_tls_errors.h"
+#include "esp_key_config.h"
 #include "sdkconfig.h"
 #ifdef CONFIG_ESP_TLS_USING_MBEDTLS
 #include "mbedtls/ssl.h"
 #include "mbedtls/x509_crt.h"
 #ifdef CONFIG_ESP_TLS_SERVER_SESSION_TICKETS
 #include "mbedtls/ssl_ticket.h"
-#include "mbedtls/entropy.h"
-#include "mbedtls/ctr_drbg.h"
 #endif
-#elif CONFIG_ESP_TLS_USING_WOLFSSL
-#include "wolfssl/wolfcrypt/settings.h"
-#include "wolfssl/ssl.h"
 #endif
 
 
@@ -165,6 +161,10 @@ typedef struct esp_tls_cfg {
     const unsigned char *clientkey_pem_buf; /*!< Client key legacy name */
     };
 
+    const esp_key_config_t *client_key;     /*!< Unified key config. Must remain valid for session lifetime.
+                                                 Any PSA key referenced here remains owned by the caller; ESP-TLS does not
+                                                 destroy it on cleanup, so the application must release it with psa_destroy_key(). */
+
     union {
     unsigned int clientkey_bytes;           /*!< Size of client key pointed to by
                                                  clientkey_pem_buf
@@ -189,8 +189,12 @@ typedef struct esp_tls_cfg {
                                                  underneath socket will be configured in non
                                                  blocking mode after tls session is established */
 
-    bool use_secure_element;                /*!< Enable this option to use secure element or
-                                                 atecc608a chip */
+    bool use_secure_element;                /*!< @deprecated No longer functional; setting this to true
+                                                 makes the connection fail with ESP_ERR_NOT_SUPPORTED.
+                                                 Use `client_key` (esp_key_config_t) together with
+                                                 CONFIG_MBEDTLS_SECURE_ELEMENT_DRIVER_ENABLED instead.
+                                                 Kept only for source compatibility; will be removed in
+                                                 the next major release. */
 
     int timeout_ms;                         /*!< Network timeout in milliseconds.
                                                  Note: If this value is not set, by default the timeout is
@@ -203,7 +207,14 @@ typedef struct esp_tls_cfg {
     const char *common_name;                /*!< If non-NULL, server certificate CN must match this name.
                                                  If NULL, server certificate CN must match hostname. */
 
-    bool skip_common_name;                  /*!< Skip any validation of server certificate CN field */
+    bool skip_common_name;                  /*!< When true, esp-tls skips the call to
+                                                 mbedtls_ssl_set_hostname(). This disables BOTH
+                                                 server-hostname matching against the certificate
+                                                 (CN/SAN) and Server Name Indication (SNI), not just
+                                                 the legacy CN field. Only set on loopback / debug
+                                                 clients that can tolerate the loss of hostname
+                                                 authentication. Must be false for SNI to function
+                                                 correctly. */
 
     tls_keep_alive_cfg_t *keep_alive_cfg;   /*!< Enable TCP keep-alive timeout for SSL connection */
 
@@ -245,11 +256,6 @@ typedef struct esp_tls_cfg {
  * @brief Data structures necessary to support TLS session tickets according to RFC5077
  */
 typedef struct esp_tls_server_session_ticket_ctx {
-    mbedtls_entropy_context entropy;                                            /*!< mbedTLS entropy context structure */
-
-    mbedtls_ctr_drbg_context ctr_drbg;                                          /*!< mbedTLS ctr drbg context structure.
-                                                                                     CTR_DRBG is deterministic random
-                                                                                     bit generation based on AES-256 */
     mbedtls_ssl_ticket_context ticket_ctx;                                     /*!< Session ticket generation context */
 } esp_tls_server_session_ticket_ctx_t;
 #endif
@@ -296,6 +302,10 @@ typedef struct esp_tls_cfg_server {
     unsigned int cacert_pem_bytes;          /*!< Size of client CA certificate legacy name */
     };
 
+#ifdef CONFIG_ESP_TLS_SERVER_MIN_AUTH_MODE_OPTIONAL
+    bool client_cert_authmode_optional;              /*!< Set client certificate authentication mode to optional.
+                                                     By default, client certificate authentication mode is set to required */
+#endif // CONFIG_ESP_TLS_SERVER_MIN_AUTH_MODE_OPTIONAL
     union {
     const unsigned char *servercert_buf;        /*!< Server certificate in a buffer
                                                      This buffer should be NULL terminated */
@@ -313,6 +323,10 @@ typedef struct esp_tls_cfg_server {
                                                      This buffer should be NULL terminated */
     const unsigned char *serverkey_pem_buf;     /*!< Server key legacy name */
     };
+
+    const esp_key_config_t *server_key;         /*!< Unified key config. Must remain valid for session lifetime.
+                                                     Any PSA key referenced here remains owned by the caller; ESP-TLS does not
+                                                     destroy it on cleanup, so the application must release it with psa_destroy_key(). */
 
     union {
     unsigned int serverkey_bytes;               /*!< Size of server key pointed to by
@@ -333,8 +347,12 @@ typedef struct esp_tls_cfg_server {
 
     esp_tls_ecdsa_curve_t ecdsa_curve;          /*!< ECDSA curve to use (SECP256R1 or SECP384R1) */
 
-    bool use_secure_element;                    /*!< Enable this option to use secure element or
-                                                 atecc608a chip */
+    bool use_secure_element;                    /*!< @deprecated No longer functional; setting this to true
+                                                     makes the connection fail with ESP_ERR_NOT_SUPPORTED.
+                                                     Use `server_key` (esp_key_config_t) together with
+                                                     CONFIG_MBEDTLS_SECURE_ELEMENT_DRIVER_ENABLED instead.
+                                                     Kept only for source compatibility; will be removed in
+                                                     the next major release. */
 
     uint32_t tls_handshake_timeout_ms;                   /*!< TLS handshake timeout in milliseconds.
                                                     Note: If this value is not set, by default the timeout is
@@ -363,6 +381,12 @@ typedef struct esp_tls_cfg_server {
                                                   Important note: the pointer must be valid for connection */
 #endif
 
+    esp_tls_proto_ver_t tls_version;            /*!< TLS protocol version for this server, e.g., TLS 1.2, TLS 1.3
+                                                     (default - no preference). Enables TLS version control per server instance. */
+
+    const int *ciphersuites_list;               /*!< Pointer to a zero-terminated array of IANA identifiers of TLS ciphersuites.
+                                                     Please check the list validity by esp_tls_get_ciphersuites_list() API.
+                                                     This allows per-server cipher suite configuration. */
 } esp_tls_cfg_server_t;
 
 /**
@@ -402,21 +426,6 @@ typedef struct esp_tls esp_tls_t;
  */
 esp_tls_t *esp_tls_init(void);
 
-/**
- * @brief      Create a new blocking TLS/SSL connection with a given "HTTP" url
- *
- * Note: This API is present for backward compatibility reasons. Alternative function
- * with the same functionality is `esp_tls_conn_http_new_sync` (and its asynchronous version
- * `esp_tls_conn_http_new_async`)
- *
- * @param[in]  url  url of host.
- * @param[in]  cfg  TLS configuration as esp_tls_cfg_t. If you wish to open
- *                  non-TLS connection, keep this NULL. For TLS connection,
- *                  a pass pointer to 'esp_tls_cfg_t'. At a minimum, this
- *                  structure should be zero-initialized.
- * @return pointer to esp_tls_t, or NULL if connection couldn't be opened.
- */
-esp_tls_t *esp_tls_conn_http_new(const char *url, const esp_tls_cfg_t *cfg) __attribute__((deprecated("Please use esp_tls_conn_http_new_sync (or its asynchronous version esp_tls_conn_http_new_async) instead")));
 
 /**
  * @brief      Create a new blocking TLS/SSL connection
@@ -434,10 +443,17 @@ esp_tls_t *esp_tls_conn_http_new(const char *url, const esp_tls_cfg_t *cfg) __at
  *                       structure should be zero-initialized
  * @param[in]  tls       Pointer to esp-tls as esp-tls handle.
  *
+ * @note       The cfg->timeout_ms parameter controls the connection timeout:
+ *             - timeout_ms > 0:  The connection attempt will be aborted if it does not
+ *                                complete within the specified duration.
+ *             - timeout_ms <= 0: No application-level timeout is applied. The connection
+ *                                relies on the underlying socket timeout (ESP_TLS_DEFAULT_CONN_TIMEOUT).
+ *             On timeout, the function returns -1 and records
+ *             ESP_ERR_ESP_TLS_CONNECTION_TIMEOUT in the error handle.
+ *
  * @return
- *             - -1      If connection establishment fails.
+ *             - -1      If connection establishment fails (including timeout).
  *             -  1      If connection establishment is successful.
- *             -  0      If connection state is in progress.
  */
 int esp_tls_conn_new_sync(const char *hostname, int hostlen, int port, const esp_tls_cfg_t *cfg, esp_tls_t *tls);
 

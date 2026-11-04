@@ -39,7 +39,22 @@ To fetch the MAC address for a specific network interface (e.g., Wi-Fi, Bluetoot
 
 In ESP-IDF, the MAC addresses for the various network interfaces are calculated from a single **base MAC address**. By default, the Espressif base MAC address is used. This base MAC address is pre-programmed into the {IDF_TARGET_NAME} eFuse in the factory during production.
 
-.. only:: not esp32s2
+.. only:: esp32p4
+
+    .. list-table::
+        :widths: 20 80
+        :header-rows: 1
+
+        * - Interface
+          - MAC Address (1 universally administered, default)
+        * - Ethernet
+          - base_mac
+
+    .. note::
+
+        On ESP32-P4, :ref:`CONFIG_{IDF_TARGET_CFG_PREFIX}_UNIVERSAL_MAC_ADDRESSES` is fixed to one universally administered MAC address.
+
+.. only:: (not esp32s2) and (not esp32p4) and (not esp32h2) and (not esp32h21) and (not esp32h4) and (not esp32s31)
 
     .. list-table::
         :widths: 20 40 40
@@ -64,6 +79,49 @@ In ESP-IDF, the MAC addresses for the various network interfaces are calculated 
     .. note::
 
         The :ref:`configuration <CONFIG_{IDF_TARGET_CFG_PREFIX}_UNIVERSAL_MAC_ADDRESSES>` configures the number of universally administered MAC addresses that are provided by Espressif.
+
+.. only:: esp32s31
+
+    .. list-table::
+        :widths: 20 40 40
+        :header-rows: 1
+
+        * - Interface
+          - MAC Address (2 universally administered, default)
+          - MAC Address (4 universally administered)
+        * - Wi-Fi Station
+          - base_mac
+          - base_mac
+        * - Wi-Fi SoftAP
+          - :ref:`Local MAC <local-mac-addresses>` (derived from Wi-Fi Station MAC)
+          - base_mac, +1 to the last octet
+        * - Bluetooth
+          - base_mac, +1 to the last octet
+          - base_mac, +2 to the last octet
+        * - Ethernet
+          - :ref:`Local MAC <local-mac-addresses>` (derived from Bluetooth MAC)
+          - base_mac, +3 to the last octet
+
+    .. note::
+
+        {IDF_TARGET_NAME} only provides two universally administered MAC addresses in eFuse, so :ref:`CONFIG_{IDF_TARGET_CFG_PREFIX}_UNIVERSAL_MAC_ADDRESSES` defaults to two. The "Four" option may only be used when a customer-provided custom base MAC range is used (see :ref:`Custom Base MAC <MAC-Address-Allocation>`), where four universally administered MAC addresses are allocated per device. Using "Four" with the default Espressif eFuse base MAC leads to SoftAP and Ethernet consuming global MAC slots (base+1/+3) that are not allocated on this chip and may collide with the Bluetooth MAC.
+
+.. only:: esp32h2 or esp32h21 or esp32h4
+
+    .. list-table::
+        :widths: 20 80
+        :header-rows: 1
+
+        * - Interface
+          - MAC Address (1 universally administered, default)
+        * - IEEE 802.15.4
+          - EUI-64 derived from base_mac and MAC_EXT (base_mac[0:2] ‖ MAC_EXT ‖ base_mac[3:5], MAC_EXT defaults to ff:fe)
+        * - Bluetooth
+          - base_mac
+
+    .. note::
+
+        {IDF_TARGET_NAME} provides a single universally administered MAC address in eFuse (MAC_FACTORY) plus the MAC_EXT field used to build the IEEE 802.15.4 EUI-64. :ref:`CONFIG_{IDF_TARGET_CFG_PREFIX}_UNIVERSAL_MAC_ADDRESSES` is fixed to one. Bluetooth reuses the base MAC as-is — the BT offset is not applied because {IDF_TARGET_NAME} has no Wi-Fi, so no second universal MAC slot is required.
 
 .. only:: esp32s2
 
@@ -213,6 +271,18 @@ To get the version at build time, additional version macros are provided. They c
       #endif
 
 
+Debug Helpers
+-------------
+
+The debug helper APIs in ``esp_debug_helpers.h`` provide utilities for run-time debugging and stack backtrace output.
+
+- :cpp:func:`esp_backtrace_print` prints the current stack backtrace.
+- :cpp:func:`esp_backtrace_print_all_tasks` prints backtraces for all tasks.
+- :cpp:func:`esp_backtrace_get_start` and :cpp:func:`esp_backtrace_get_next_frame` allow manual iteration over backtrace frames.
+
+These APIs are useful when diagnosing crashes, watchdog timeouts, or unexpected control flow.
+
+
 .. _app-version:
 
 App Version
@@ -237,4 +307,5 @@ API Reference
 .. include-build-file:: inc/esp_mac.inc
 .. include-build-file:: inc/esp_chip_info.inc
 .. include-build-file:: inc/esp_cpu.inc
+.. include-build-file:: inc/esp_debug_helpers.inc
 .. include-build-file:: inc/esp_app_desc.inc

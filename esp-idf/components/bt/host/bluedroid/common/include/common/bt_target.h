@@ -73,10 +73,14 @@
 #define SDP_INCLUDED                TRUE
 #define BTA_DM_QOS_INCLUDED         TRUE
 
+#define BR_EDR_MAX_RECONNECT_ON_COLLISION UC_BT_CLASSIC_MAX_RECONNECT_ON_COLLISION
+
 #define ENC_KEY_SIZE_CTRL_MODE_NONE 0
 #define ENC_KEY_SIZE_CTRL_MODE_STD  1
 #define ENC_KEY_SIZE_CTRL_MODE_VSC  2
 #define ENC_KEY_SIZE_CTRL_MODE      UC_BT_ENC_KEY_SIZE_CTRL_MODE
+
+#define ESP_BT_CLASSIC_ENABLE_POWER_CTRL_VSC UC_BT_CLASSIC_ENABLE_POWER_CTRL_VSC
 
 #if (UC_BT_A2DP_ENABLED == TRUE)
 #define BTA_AR_INCLUDED             TRUE
@@ -110,6 +114,11 @@
 #else
 #define SBC_DEC_INCLUDED            TRUE
 #define SBC_ENC_INCLUDED            TRUE
+#endif
+#if (UC_BT_A2DP_CODEC_AAC_ENABLED == TRUE)
+#define BTC_AV_CODEC_AAC_INCLUDED   TRUE
+#define BTA_AV_CODEC_AAC_INCLUDED   TRUE
+#define A2D_AV_CODEC_AAC_INCLUDED   TRUE
 #endif
 #if UC_BT_AVRCP_CT_COVER_ART_ENABLED
 #define BTA_AV_CA_INCLUDED          TRUE
@@ -334,6 +343,12 @@
 #define BLE_FEAT_CREATE_SYNC_ENH   FALSE
 #endif
 
+#ifdef UC_BT_BLE_FEAT_CREATE_SYNC_RETRY_MAX
+#define BLE_FEAT_CREATE_SYNC_RETRY_MAX   UC_BT_BLE_FEAT_CREATE_SYNC_RETRY_MAX
+#else
+#define BLE_FEAT_CREATE_SYNC_RETRY_MAX   3
+#endif
+
 #if (UC_BT_BLE_FEAT_ISO_EN == TRUE)
 #define BLE_FEAT_ISO_EN     TRUE
 #else
@@ -346,10 +361,10 @@
 #define BLE_FEAT_ISO_60_EN     FALSE
 #endif
 
-#if (UC_BT_BLE_FEAT_ISO_BIG_BROCASTER == TRUE)
-#define BLE_FEAT_ISO_BIG_BROCASTER_EN   TRUE
+#if (UC_BT_BLE_FEAT_ISO_BIG_BROADCASTER == TRUE)
+#define BLE_FEAT_ISO_BIG_BROADCASTER_EN   TRUE
 #else
-#define BLE_FEAT_ISO_BIG_BROCASTER_EN   FALSE
+#define BLE_FEAT_ISO_BIG_BROADCASTER_EN   FALSE
 #endif
 
 #if (UC_BT_BLE_FEAT_ISO_BIG_SYNCER == TRUE)
@@ -382,8 +397,8 @@
 #define BLE_ISO_CIS_MAX_COUNT   (0)
 #endif
 
-#ifdef CONFIG_BT_BLE_ISO_BIS_MAX_COUNT
-#define BLE_ISO_BIS_MAX_COUNT   CONFIG_BT_BLE_ISO_BIS_MAX_COUNT
+#ifdef UC_BT_BLE_ISO_BIS_MAX_COUNT
+#define BLE_ISO_BIS_MAX_COUNT   UC_BT_BLE_ISO_BIS_MAX_COUNT
 #else
 #define BLE_ISO_BIS_MAX_COUNT   (0)
 #endif
@@ -430,6 +445,67 @@
 #define BLE_FEAT_CONN_SUBRATING     FALSE
 #endif
 
+#if (UC_BT_BLE_FEAT_PAWR_EN == TRUE)
+#define BT_BLE_FEAT_PAWR_EN     TRUE
+#else
+#define BT_BLE_FEAT_PAWR_EN     FALSE
+#endif
+
+#if (UC_BT_BLE_FEAT_ADV_CODING_SELECTION == TRUE)
+#define BT_BLE_FEAT_ADV_CODING_SELECTION     TRUE
+#else
+#define BT_BLE_FEAT_ADV_CODING_SELECTION     FALSE
+#endif
+
+#if (UC_BT_BLE_FEAT_CHANNEL_SOUNDING == TRUE)
+#define BT_BLE_FEAT_CHANNEL_SOUNDING     TRUE
+#else
+#define BT_BLE_FEAT_CHANNEL_SOUNDING     FALSE
+#endif
+
+#if (BT_BLE_FEAT_CHANNEL_SOUNDING == TRUE) && (UC_BT_BLE_FEAT_CS_SECURITY_REQUIREMENTS == TRUE)
+#define BT_BLE_FEAT_CS_SECURITY_REQUIREMENTS     TRUE
+#else
+#define BT_BLE_FEAT_CS_SECURITY_REQUIREMENTS     FALSE
+#endif
+
+/* LE Monitor Advertisement (Bluetooth Core 6.0) */
+#if (BLE_50_FEATURE_SUPPORT == TRUE) && (defined UC_BT_BLE_FEAT_ADV_MONITOR) && (UC_BT_BLE_FEAT_ADV_MONITOR == TRUE)
+#define BLE_FEAT_ADV_MONITOR     TRUE
+#else
+#define BLE_FEAT_ADV_MONITOR     FALSE
+#endif
+
+#if (BLE_50_FEATURE_SUPPORT == TRUE) && (UC_BT_BLE_FEAT_DBAF == TRUE)
+#define BLE_FEAT_DBAF     TRUE
+#else
+#define BLE_FEAT_DBAF     FALSE
+#endif
+
+#if (BLE_50_FEATURE_SUPPORT == TRUE) && (UC_BT_BLE_FEAT_FRAME_SPACE_UPDATE == TRUE)
+#define BLE_FEAT_FRAME_SPACE_UPDATE     TRUE
+#else
+#define BLE_FEAT_FRAME_SPACE_UPDATE     FALSE
+#endif
+
+#if (BLE_50_FEATURE_SUPPORT == TRUE) && (UC_BT_BLE_FEAT_LL_EXT_FEAT == TRUE)
+#define BLE_FEAT_LL_EXT_FEAT     TRUE
+#else
+#define BLE_FEAT_LL_EXT_FEAT     FALSE
+#endif
+
+#if (BLE_50_FEATURE_SUPPORT == TRUE) && (UC_BT_BLE_FEAT_SHORTER_CONN_INTERVALS == TRUE)
+#define BLE_FEAT_SHORTER_CONN_INTERVALS     TRUE
+#else
+#define BLE_FEAT_SHORTER_CONN_INTERVALS     FALSE
+#endif
+
+#if (BLE_50_FEATURE_SUPPORT == TRUE) && (UC_BT_BLE_FEAT_LE_UTP == TRUE)
+#define BLE_FEAT_LE_UTP     TRUE
+#else
+#define BLE_FEAT_LE_UTP     FALSE
+#endif
+
 #if (UC_BT_BLE_VENDOR_HCI_EN == TRUE)
 #define BLE_VENDOR_HCI_EN TRUE
 #else
@@ -442,19 +518,37 @@
 #define BLE_HIGH_DUTY_ADV_INTERVAL FALSE
 #endif
 
+/* Host-side parameter validation floor (in 1.25 ms units) for the BLE
+ * connection interval. Internal to the Bluedroid host: not sent on air, not
+ * exposed via the GATT Preferred Connection Parameters Characteristic, and
+ * not a public API constant - those use BTM_BLE_CONN_INT_MIN (0x0006).
+ *
+ * When UC_BT_BLE_HOST_ALLOW_SUB_SPEC_MIN_CONN_INT == 1 the host stops
+ * enforcing a minimum (the actual lower limit is then defined entirely by
+ * the controller). 0x0001 is used rather than 0x0000 so the existing
+ * `uint16_t < MIN` range checks remain well-defined under GCC
+ * `-Wtype-limits`. */
+#ifndef BLE_CONN_INT_MIN_HOST_CHECK
+#if (UC_BT_BLE_HOST_ALLOW_SUB_SPEC_MIN_CONN_INT == 1)
+#define BLE_CONN_INT_MIN_HOST_CHECK             0x0001
+#else
+#define BLE_CONN_INT_MIN_HOST_CHECK             0x0006
+#endif
+#endif
+
 #if (UC_BT_BLE_RPA_SUPPORTED  == TRUE)
 #define CONTROLLER_RPA_LIST_ENABLE   TRUE
 #else
 #define CONTROLLER_RPA_LIST_ENABLE   FALSE
 #endif
 
-#if (UC_BT_GATTS_ENABLE)
+#if (UC_BT_GATTS_ENABLE == TRUE)
 #define GATTS_INCLUDED              TRUE
 #else
 #define GATTS_INCLUDED              FALSE
 #endif /* UC_BT_GATTS_ENABLE */
 
-#if (UC_BT_GATTC_ENABLE)
+#if (UC_BT_GATTC_ENABLE == TRUE)
 #define GATTC_INCLUDED              TRUE
 #else
 #define GATTC_INCLUDED              FALSE
@@ -513,6 +607,24 @@
 #else
 #define BLE_SMP_BOND_NVS_FLASH      FALSE
 #endif
+
+#if (UC_BT_SMP_CRYPTO_STACK_NATIVE)
+#define SMP_CRYPTO_STACK_NATIVE     TRUE
+#else
+#define SMP_CRYPTO_STACK_NATIVE     FALSE
+#endif /* UC_BT_SMP_CRYPTO_STACK_NATIVE */
+
+#if (UC_BT_SMP_CRYPTO_MBEDTLS)
+#define SMP_CRYPTO_MBEDTLS          TRUE
+#else
+#define SMP_CRYPTO_MBEDTLS          FALSE
+#endif /* UC_BT_SMP_CRYPTO_MBEDTLS */
+
+#if (UC_BT_SMP_CRYPTO_TINYCRYPT)
+#define SMP_CRYPTO_TINYCRYPT        TRUE
+#else
+#define SMP_CRYPTO_TINYCRYPT        FALSE
+#endif /* UC_BT_SMP_CRYPTO_TINYCRYPT */
 
 #ifdef UC_BTDM_BLE_ADV_REPORT_FLOW_CTRL_SUPP
 #define BLE_ADV_REPORT_FLOW_CONTROL         (UC_BTDM_BLE_ADV_REPORT_FLOW_CTRL_SUPP && BLE_INCLUDED)
@@ -650,10 +762,6 @@
 
 #ifndef BTA_DM_QOS_INCLUDED
 #define BTA_DM_QOS_INCLUDED FALSE
-#endif
-
-#ifndef BTA_PAN_INCLUDED
-#define BTA_PAN_INCLUDED FALSE
 #endif
 
 #ifndef BTA_HD_INCLUDED
@@ -801,6 +909,18 @@
 #define GATTS_APPEARANCE_WRITABLE FALSE
 #endif
 
+#if (UC_BT_GATTS_SECURITY_LEVELS_CHAR == TRUE)
+#define BT_GATTS_SECURITY_LEVELS_CHAR TRUE
+#else
+#define BT_GATTS_SECURITY_LEVELS_CHAR FALSE
+#endif
+
+#if (UC_BT_GATTS_KEY_MATERIAL_CHAR == TRUE)
+#define BT_GATTS_KEY_MATERIAL_CHAR TRUE
+#else
+#define BT_GATTS_KEY_MATERIAL_CHAR FALSE
+#endif
+
 #ifdef UC_BT_BLE_ACT_SCAN_REP_ADV_SCAN
 #define BTM_BLE_ACTIVE_SCAN_REPORT_ADV_SCAN_RSP_INDIVIDUALLY    UC_BT_BLE_ACT_SCAN_REP_ADV_SCAN
 #endif
@@ -813,11 +933,6 @@
 #define BT_CLASSIC_BQB_INCLUDED TRUE
 #else
 #define BT_CLASSIC_BQB_INCLUDED FALSE
-#endif
-
-/* This feature is used to enable interleaved scan*/
-#ifndef BTA_HOST_INTERLEAVE_SEARCH
-#define BTA_HOST_INTERLEAVE_SEARCH FALSE
 #endif
 
 #ifndef BT_USE_TRACES
@@ -1376,6 +1491,19 @@
 #define BTM_BLE_CONFORMANCE_TESTING           FALSE
 #endif
 
+#if (CLASSIC_BT_INCLUDED == TRUE)
+#if (BT_CONTROLLER_INCLUDED == TRUE) && (CONFIG_IDF_TARGET_ESP32)
+#define BR_EDR_SET_CTRL_SCO_DATAPATH     (TRUE)
+#else
+#define BR_EDR_SET_CTRL_SCO_DATAPATH     (FALSE)
+#endif
+
+#if (BT_CONTROLLER_INCLUDED == TRUE) && (CONFIG_IDF_TARGET_ESP32)
+#define BR_EDR_GET_EIR_TX_PWR_LEVEL      (TRUE)
+#else
+#define BR_EDR_GET_EIR_TX_PWR_LEVEL      (FALSE)
+#endif
+#endif
 /******************************************************************************
 **
 ** CONTROLLER TO HOST FLOW CONTROL
@@ -1584,71 +1712,6 @@
 #define BLE_INCLUDED            FALSE
 #endif
 
-#ifndef BLE_ANDROID_CONTROLLER_SCAN_FILTER
-#define BLE_ANDROID_CONTROLLER_SCAN_FILTER            FALSE
-#endif
-
-#ifndef BLE_HOST_BLE_MULTI_ADV_EN
-#define BLE_HOST_BLE_MULTI_ADV_EN                     FALSE
-#endif
-
-#ifndef BLE_HOST_TRACK_ADVERTISER_EN
-#define BLE_HOST_TRACK_ADVERTISER_EN                  FALSE
-#endif
-
-#ifndef BLE_HOST_ENERGY_INFO_EN
-#define BLE_HOST_ENERGY_INFO_EN                  FALSE
-#endif
-
-
-#ifndef BLE_HOST_ENABLE_TEST_MODE_EN
-#define BLE_HOST_ENABLE_TEST_MODE_EN                  FALSE
-#endif
-
-#ifndef BLE_HOST_EXECUTE_CBACK_EN
-#define BLE_HOST_EXECUTE_CBACK_EN                  FALSE
-#endif
-
-#ifndef BLE_HOST_REMOVE_ALL_ACL_EN
-#define BLE_HOST_REMOVE_ALL_ACL_EN                  FALSE
-#endif
-
-#ifndef BLE_HOST_REMOVE_AN_ACL_EN
-#define BLE_HOST_REMOVE_AN_ACL_EN                  FALSE
-#endif
-
-#ifndef BLE_HOST_READ_TX_POWER_EN
-#define BLE_HOST_READ_TX_POWER_EN                  FALSE
-#endif
-
-#ifndef BLE_HOST_STOP_ADV_UNUSED
-#define BLE_HOST_STOP_ADV_UNUSED                  FALSE
-#endif
-
-#ifndef BLE_HOST_BLE_OBSERVE_EN
-#define BLE_HOST_BLE_OBSERVE_EN                  FALSE
-#endif
-
-#ifndef BLE_HOST_BLE_SCAN_PARAM_UNUSED
-#define BLE_HOST_BLE_SCAN_PARAM_UNUSED           FALSE
-#endif
-
-#ifndef BLE_HOST_CONN_SCAN_PARAM_EN
-#define BLE_HOST_CONN_SCAN_PARAM_EN              FALSE
-#endif
-
-#ifndef BLE_HOST_SETUP_STORAGE_EN
-#define BLE_HOST_SETUP_STORAGE_EN              FALSE
-#endif
-
-#ifndef BLE_HOST_READ_SCAN_REPORTS_EN
-#define BLE_HOST_READ_SCAN_REPORTS_EN              FALSE
-#endif
-
-#ifndef BLE_HOST_BATCH_SCAN_EN
-#define BLE_HOST_BATCH_SCAN_EN              FALSE
-#endif
-
 #ifndef BLE_HOST_BG_CONNECT_EN
 #define BLE_HOST_BG_CONNECT_EN              FALSE
 #endif
@@ -1670,14 +1733,6 @@
  */
 #ifndef BLE_LOCAL_PRIVACY_ENABLED
 #define BLE_LOCAL_PRIVACY_ENABLED         TRUE
-#endif
-
-/*
- * Toggles support for vendor specific extensions such as RPA offloading,
- * feature discovery, multi-adv etc.
- */
-#ifndef BLE_VND_INCLUDED
-#define BLE_VND_INCLUDED        FALSE
 #endif
 
 #ifndef BTM_BLE_ADV_TX_POWER
@@ -1702,11 +1757,6 @@
 #else
 #define BTM_TX_POWER_LEVEL_MAX 15
 #endif
-#endif
-
-
-#ifndef BLE_BATCH_SCAN_INCLUDED
-#define BLE_BATCH_SCAN_INCLUDED  TRUE
 #endif
 
 /******************************************************************************
@@ -2012,7 +2062,7 @@
 
 /* The port receive queue low watermark level, in number of buffers. */
 #ifndef PORT_RX_BUF_LOW_WM
-#define PORT_RX_BUF_LOW_WM          4
+#define PORT_RX_BUF_LOW_WM          6
 #endif
 
 /* The port receive queue high watermark level, in number of buffers. */
@@ -2127,7 +2177,7 @@
  * in basic and streaming modes. Range: 1 - 63
  */
 #ifndef OBX_FCR_OPT_TX_WINDOW_SIZE_BR_EDR
-#define OBX_FCR_OPT_TX_WINDOW_SIZE_BR_EDR       20
+#define OBX_FCR_OPT_TX_WINDOW_SIZE_BR_EDR       10
 #endif
 
 /*

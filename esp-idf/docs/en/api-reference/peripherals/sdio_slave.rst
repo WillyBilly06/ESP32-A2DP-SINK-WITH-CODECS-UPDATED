@@ -149,11 +149,11 @@ The SDIO slave driver uses the following terms:
 Communication with ESP SDIO Slave
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-The host should initialize the {IDF_TARGET_NAME} SDIO slave according to the standard SDIO initialization process (Sector 3.1.2 of `SDIO Simplified Specification <https://www.sdcard.org/downloads/pls/pdf/?p=PartE1_SDIO_Simplified_Specification_Ver3.00.jpg&f=PartE1_SDIO_Simplified_Specification_Ver3.00.pdf&e=EN_SSE1>`_), which is described briefly in :ref:`esp_slave_init`.
+The host should initialize the {IDF_TARGET_NAME} SDIO slave according to the standard SDIO initialization process (Sector 3.1.2 of `SDIO Simplified Specification <https://www.sdcard.org/downloads/pls/pdf/?p=PartE1_SDIO_Simplified_Specification_Ver3.00.jpg&f=PartE1_SDIO_Simplified_Specification_Ver3.00.pdf&e=EN_SSE1>`_), which is described briefly in `ESP SDIO Slave Initialization <https://espressif.github.io/idf-extra-components/latest/esp_serial_slave_link/sdio_slave_protocol.html#esp-sdio-slave-initialization>`_.
 
-Furthermore, there is an {IDF_TARGET_NAME}-specific upper-level communication protocol built upon the foundation of CMD52/CMD53 to Function 1. Within this particular communication protocol, the master and slave engage in data exchange and communication through the utilization of CMD52/CMD53 commands. For more detailed information, please consult the :ref:`esp_slave_protocol_layer` section.
+Furthermore, there is an {IDF_TARGET_NAME}-specific upper-level communication protocol built upon the foundation of CMD52/CMD53 to Function 1. Within this particular communication protocol, the master and slave engage in data exchange and communication through the utilization of CMD52/CMD53 commands. For more detailed information, please consult the `ESP SDIO Slave Protocol <https://espressif.github.io/idf-extra-components/latest/esp_serial_slave_link/sdio_slave_protocol.html#esp-sdio-slave-protocol>`_ section.
 
-There is also a component :doc:`/api-reference/protocols/esp_serial_slave_link` designed for {IDF_TARGET_NAME} master to communicate with {IDF_TARGET_NAME} SDIO slave. See example :example:`peripherals/sdio` when programming your host.
+There is also a component `ESSL <https://components.espressif.com/components/espressif/esp_serial_slave_link>`_ designed for {IDF_TARGET_NAME} master to communicate with {IDF_TARGET_NAME} SDIO slave. See example :example:`peripherals/sdio` when programming your host.
 
 
 .. _interrupts:
@@ -223,7 +223,7 @@ Each time the slave has data to send, it raises an interrupt, and the host reque
 
   To avoid overhead from copying data, the driver itself does not have any buffer inside. Namely, the DMA takes data directly from the buffer provided by the application. The application should not touch the buffer until the sending is finished, so as to ensure that the data is transferred correctly.
 
-The sending mode can be set in the ``sending_mode`` member of ``sdio_slave_config_t``, and the buffer numbers can be set in the ``send_queue_size``. All the buffers are restricted to be no larger than 4092 bytes. Though in the stream mode, several buffers can be sent in one transfer, each buffer is still counted as one in the queue.
+The sending mode can be set in the ``sending_mode`` member of ``sdio_slave_config_t``, and the buffer numbers can be set in the ``send_queue_size``. Each buffer is restricted by the maximum size supported by a single SDIO slave DMA descriptor, which is chip-dependent. Though in the stream mode, several buffers can be sent in one transfer, each buffer is still counted as one in the queue.
 
 The application can call ``sdio_slave_transmit`` to send packets. In this case, the function returns when the transfer is successfully done, so the queue is not fully used. When higher efficiency is required, the application can use the following functions instead:
 
@@ -276,6 +276,16 @@ There are several ways to use the ``arg`` in the queue parameter:
 
        For more about this, see :example:`peripherals/sdio`.
 
+Reset SDIO
+^^^^^^^^^^^^
+
+Calling ``sdio_slave_reset`` can reset PKT_LEN (Packet length accumulator value) and TOKEN1 (Receiving buffers accumulated number) at the SDIO slave driver software level to resynchronize the transmit and receive counts with the host.
+
+If there is a usage scenario where the ESP chip remains powered on but the HOST is powered off. During the power-off period of the HOST, some unknown signals may be generated on the SDIO signal line, causing the SDIO hardware state machine to be abnormal. The HOST restarts and executes the card identification process, and the ESP will not respond normally. In this case, consider calling ``sdio_slave_reset_hw`` to reset the SDIO hardware.
+
+.. note::
+
+  Reset the SDIO hardware. The interrupt enable status and shared register values ​​will be lost. You may need to call ``sdio_slave_set_host_intena`` and ``sdio_slave_write_reg`` to set them.
 
 Application Example
 -------------------

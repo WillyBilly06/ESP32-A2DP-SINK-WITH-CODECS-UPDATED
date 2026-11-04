@@ -1583,6 +1583,25 @@ struct ble_hci_le_enable_monitor_adv_cp {
     uint8_t enable;
 } __attribute__((packed));
 
+#define BLE_HCI_OCF_LE_FRAME_SPACE_UPDATE             (0x009D)
+struct ble_hci_le_frame_space_update_cp {
+    uint16_t conn_handle;
+    uint16_t frame_space_min;
+    uint16_t frame_space_max;
+    uint8_t  phys;
+    uint16_t spacing_types;
+} __attribute__((packed));
+
+#define BLE_HCI_OCF_LE_ENABLE_UTP_OTA_MODE                (0x009F)
+struct ble_hci_le_enable_utp_ota_mode_cp {
+    uint8_t enable;
+} __attribute__((packed));
+
+#define BLE_HCI_OCF_LE_UTP_SEND                           (0x00A0)
+struct ble_hci_le_utp_send_cp {
+    uint8_t len;
+} __attribute__((packed));
+
 /* --- Vendor specific commands (OGF 0x003F) */
 /* Read Random Static Address */
 #define BLE_HCI_OCF_VS_RD_STATIC_ADDR                   (MYNEWT_VAL(BLE_HCI_VS_OCF_OFFSET) + (0x0001))
@@ -1663,6 +1682,8 @@ struct ble_hci_vs_duplicate_exception_list_cp {
 #define BLE_HCI_OCF_VS_SET_EVT_MASK                     (MYNEWT_VAL(BLE_HCI_VS_OCF_OFFSET) + (0x0116))
 
 #define BLE_HCI_OCF_VS_SET_SCAN_CHAN                    (MYNEWT_VAL(BLE_HCI_VS_OCF_OFFSET) + (0x0119))
+#define BLE_HCI_OCF_VS_SET_ADV_DID                      (MYNEWT_VAL(BLE_HCI_VS_OCF_OFFSET) + (0x012A))
+#define BLE_HCI_OCF_VS_SET_SCAN_SID                     (MYNEWT_VAL(BLE_HCI_VS_OCF_OFFSET) + (0x012B))
 
 struct ble_hci_vs_set_event_mask_cp {
     uint32_t event_mask;
@@ -1804,7 +1825,20 @@ struct ble_hci_vs_set_event_mask_cp {
 #define BLE_HCI_CONN_FILT_NO_WL             (0)
 #define BLE_HCI_CONN_FILT_USE_WL            (1)
 #define BLE_HCI_CONN_FILT_MAX               (1)
+/* Bluetooth Core Spec minimum connection interval (7.5 ms in 1.25 ms units). */
 #define BLE_HCI_CONN_ITVL_MIN               (0x0006)
+/* Host-side validation floor for connection interval (1.25 ms units). When
+ * CONFIG_BT_BLE_HOST_ALLOW_SUB_SPEC_MIN_CONN_INT is enabled, the host accepts
+ * sub-spec intervals and defers the real lower bound to the controller; 0x0001
+ * is used instead of 0 so uint16_t range checks stay well-defined under
+ * -Wtype-limits. For spec-visible values (e.g. PPCP) use BLE_HCI_CONN_ITVL_MIN.
+ */
+#if defined(CONFIG_BT_BLE_HOST_ALLOW_SUB_SPEC_MIN_CONN_INT) && \
+    (CONFIG_BT_BLE_HOST_ALLOW_SUB_SPEC_MIN_CONN_INT)
+#define BLE_HOST_CONN_PARAM_ITVL_MIN        (0x0001)
+#else
+#define BLE_HOST_CONN_PARAM_ITVL_MIN        BLE_HCI_CONN_ITVL_MIN
+#endif
 #define BLE_HCI_CONN_ITVL_MAX               (0x0c80)
 #define BLE_HCI_CONN_LATENCY_MIN            (0x0000)
 #define BLE_HCI_CONN_LATENCY_MAX            (0x01f3)
@@ -2604,6 +2638,23 @@ struct ble_hci_ev_le_subev_monitor_adv_report {
     uint8_t addr_type;
     uint8_t address[6];
     uint8_t condition;
+} __attribute__((packed));
+
+#define BLE_HCI_LE_SUBEV_FRAME_SPACE_UPDATE_COMPLETE      (0x35)
+struct ble_hci_ev_le_subev_frame_space_update_complete {
+    uint8_t  subev_code;
+    uint8_t  status;
+    uint16_t conn_handle;
+    uint8_t  initiator;
+    uint16_t frame_space;
+    uint8_t  phys;
+    uint16_t spacing_types;
+} __attribute__((packed));
+
+#define BLE_HCI_LE_SUBEV_UTP_RECEIVE                      (0x36)
+struct ble_hci_ev_le_subev_utp_receive {
+    uint8_t subev_code;
+    uint8_t len;
 } __attribute__((packed));
 
 #if (BLE_ADV_REPORT_FLOW_CONTROL == TRUE)

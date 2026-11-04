@@ -1,7 +1,7 @@
-| Supported Targets | ESP32 |
-| ----------------- | ----- |
+| Supported Targets | ESP32 | ESP32-S31 |
+| ----------------- | ----- | --------- |
 
-# ESP-IDF BT-SPP-INITATOR demo
+# ESP-IDF BT-SPP-INITIATOR demo
 
 This example is to show how to use the APIs of **Serial Port Protocol** (**SPP**) to create an SPP initiator which performs as a client, and it will register into the VFS. we aggregate **Secure Simple Pair** (**SSP**) into this demo to show how to use SPP when creating your own APPs. We also provide the demo `bt_spp_acceptor` or the demo `bt_spp_vfs_acceptor` to create an SPP acceptor which performs as a server. In fact, you can create SPP acceptors and SPP initiators on a single device at the same time.
 
@@ -9,7 +9,7 @@ This example is to show how to use the APIs of **Serial Port Protocol** (**SPP**
 
 ### Hardware Required
 
-This example is designed to run on commonly available ESP32 development board, e.g. ESP32-DevKitC. To operate the example, you should be connect to an SPP acceptor running on a smartphone, a computer or on another ESP32 development board.
+This example is designed to run on commonly available ESP32 and ESP32-S31 development boards, e.g. ESP32-DevKitC and so on. To operate the example, you should be connect to an SPP acceptor running on a smartphone, a computer or on another ESP32 or ESP32-S31 development board.
 
 ### Configure the project
 1. Open the project configuration menu:

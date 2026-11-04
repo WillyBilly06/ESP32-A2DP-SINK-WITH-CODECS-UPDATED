@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2024-2025 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2024-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -64,7 +64,12 @@ static int s_trel_event_fd = -1;
 static void trel_browse_notifier(mdns_result_t *result)
 {
     while (result) {
-        if (result->addr && result->addr->addr.type == IPADDR_TYPE_V6) {
+        mdns_ip_addr_t *addr = result->addr;
+        while (addr && addr->addr.type != IPADDR_TYPE_V6) {
+            addr = addr->next;
+        }
+
+        if (addr) {
             otPlatTrelPeerInfo info;
             uint8_t *trel_txt = NULL;
             size_t trel_txt_len = 0;
@@ -86,7 +91,7 @@ static void trel_browse_notifier(mdns_result_t *result)
                 result = result->next;
                 continue;
             }
-            trel_txt = malloc(trel_txt_len);
+            trel_txt = calloc(1, trel_txt_len);
             ESP_RETURN_ON_FALSE(trel_txt != NULL, , OT_PLAT_LOG_TAG, "Failed to malloc buffer for TREL TXT");
 
             size_t offset = 0;
@@ -104,9 +109,9 @@ static void trel_browse_notifier(mdns_result_t *result)
             info.mTxtData = trel_txt;
             info.mTxtLength = trel_txt_len;
             info.mSockAddr.mPort = result->port;
-            memcpy(info.mSockAddr.mAddress.mFields.m32, result->addr->addr.u_addr.ip6.addr, OT_IP6_ADDRESS_SIZE);
+            memcpy(info.mSockAddr.mAddress.mFields.m32, addr->addr.u_addr.ip6.addr, OT_IP6_ADDRESS_SIZE);
             info.mRemoved = (result->ttl == 0);
-            ESP_LOGI(OT_PLAT_LOG_TAG, "%s TREL peer: address: %s, port:%d", info.mRemoved ? "Remove" : "Found", ip6addr_ntoa((ip6_addr_t*)(&result->addr->addr.u_addr.ip6)), info.mSockAddr.mPort);
+            ESP_LOGI(OT_PLAT_LOG_TAG, "%s TREL peer: address: %s, port:%d", info.mRemoved ? "Remove" : "Found", ip6addr_ntoa((ip6_addr_t*)(&addr->addr.u_addr.ip6)), info.mSockAddr.mPort);
             esp_openthread_task_switching_lock_acquire(portMAX_DELAY);
             otPlatTrelHandleDiscoveredPeerInfo(esp_openthread_get_instance(), &info);
             esp_openthread_task_switching_lock_release();
@@ -123,10 +128,9 @@ static void handle_trel_udp_recv(void *ctx, struct udp_pcb *pcb, struct pbuf *p,
     uint64_t event_trel_rx = 1;
     ESP_LOGD(OT_PLAT_LOG_TAG, "Receive from %s:%d", ip6addr_ntoa(&(addr->u_addr.ip6)), port);
     ESP_GOTO_ON_FALSE(atomic_load(&s_recv_queue.used) < CONFIG_OPENTHREAD_TREL_BUFFER_SIZE, ESP_ERR_NO_MEM, exit, OT_PLAT_LOG_TAG, "trel receive buffer full!");
-    source_addr = (otSockAddr *)malloc(sizeof(otSockAddr));
+    source_addr = (otSockAddr *)calloc(1, sizeof(otSockAddr));
     ESP_GOTO_ON_FALSE(source_addr, ESP_ERR_NO_MEM, exit, OT_PLAT_LOG_TAG, "Failed to allocate buf for Thread TREL");
 
-    memset(source_addr, 0, sizeof(otSockAddr));
     source_addr->mPort = port;
     memcpy(&source_addr->mAddress.mFields.m32, addr->u_addr.ip6.addr, sizeof(addr->u_addr.ip6.addr));
     s_trel_receive_buffer[s_recv_queue.tail].source_addr = source_addr;
@@ -180,7 +184,7 @@ esp_err_t esp_openthread_trel_process(otInstance *aInstance, const esp_openthrea
             source_addr = s_trel_receive_buffer[s_recv_queue.head].source_addr;
 
             if (recv_buf->next != NULL) {
-                data_buf = (uint8_t *)malloc(recv_buf->tot_len);
+                data_buf = (uint8_t *)calloc(1, recv_buf->tot_len);
                 if (data_buf) {
                     pbuf_copy_partial(recv_buf, data_buf, recv_buf->tot_len, 0);
                 } else {
@@ -191,6 +195,8 @@ esp_err_t esp_openthread_trel_process(otInstance *aInstance, const esp_openthrea
             }
             if (should_handle) {
                 otPlatTrelHandleReceived(aInstance, data_buf, length, source_addr);
+                s_trel_counters.mRxPackets++;
+                s_trel_counters.mRxBytes += length;
             }
             pbuf_free(recv_buf);
             free(data_buf_to_free);
@@ -255,7 +261,13 @@ void otPlatTrelSend(otInstance       *aInstance,
     esp_openthread_task_switching_lock_release();
     err = esp_netif_tcpip_exec(trel_send_task, &task);
     esp_openthread_task_switching_lock_acquire(portMAX_DELAY);
-    ESP_RETURN_ON_FALSE(err == ESP_OK, , OT_PLAT_LOG_TAG, "Failed to send TREL message");
+    if (err == ESP_OK) {
+        s_trel_counters.mTxPackets++;
+        s_trel_counters.mTxBytes += aUdpPayloadLen;
+    } else {
+        s_trel_counters.mTxFailure++;
+        ESP_LOGW(OT_PLAT_LOG_TAG, "Failed to send TREL message");
+    }
 }
 
 void otPlatTrelNotifyPeerSocketAddressDifference(otInstance       *aInstance,
@@ -284,8 +296,10 @@ void otPlatTrelRegisterService(otInstance *aInstance, uint16_t aPort, const uint
     s_is_service_registered = true;
     uint16_t index = 0;
     while (index < aTxtLength) {
-        const uint8_t *item_header = aTxtData + index + 1;
         uint8_t item_len = aTxtData[index];
+        ESP_GOTO_ON_FALSE(index + 1 + item_len <= aTxtLength, ESP_FAIL, exit, OT_PLAT_LOG_TAG,
+                          "Malformed _trel._udp TXT record: item exceeds data length");
+        const uint8_t *item_header = aTxtData + index + 1;
 
         char key[UINT8_MAX + 1];
         for (uint16_t i = 0; i < item_len; i++) {
@@ -348,6 +362,7 @@ void otPlatTrelDisable(otInstance *aInstance)
     free_all_buffer();
     close(s_trel_event_fd);
     s_trel_event_fd = -1;
+    s_trel_netif = NULL;
 }
 
 const otPlatTrelCounters *otPlatTrelGetCounters(otInstance *aInstance)

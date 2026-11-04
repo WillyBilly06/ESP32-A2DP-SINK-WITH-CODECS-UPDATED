@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2024-2025 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2024-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -24,7 +24,7 @@
 #include "esp_aes_internal.h"
 #include "esp_crypto_dma.h"
 
-#include "mbedtls/aes.h"
+#include "psa/crypto.h"
 #include "mbedtls/platform_util.h"
 
 #if !ESP_TEE_BUILD
@@ -36,6 +36,8 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
 #endif
+
+#define MBEDTLS_ERR_AES_INVALID_INPUT_LENGTH            -0x0022  /**< Invalid data input length. */
 
 #if SOC_AES_SUPPORT_GCM
 #include "aes/esp_aes_gcm.h"
@@ -242,6 +244,7 @@ static int esp_aes_process_dma_ext_ram(esp_aes_context *ctx, const unsigned char
     unsigned char *output_buf = NULL;
     const unsigned char *dma_input;
     chunk_len = MIN(AES_MAX_CHUNK_WRITE_SIZE, len);
+    const size_t alloc_chunk_len = chunk_len;
 
     size_t input_alignment = 1;
     size_t output_alignment = 1;
@@ -252,8 +255,10 @@ static int esp_aes_process_dma_ext_ram(esp_aes_context *ctx, const unsigned char
 #if SOC_CACHE_INTERNAL_MEM_VIA_L1CACHE
     if (efuse_hal_flash_encryption_enabled()) {
         if (esp_ptr_external_ram(input) || esp_ptr_external_ram(output) || esp_ptr_in_drom(input) || esp_ptr_in_drom(output)) {
-            input_alignment = MAX(get_cache_line_size(input), SOC_GDMA_EXT_MEM_ENC_ALIGNMENT);
-            output_alignment = MAX(get_cache_line_size(output), SOC_GDMA_EXT_MEM_ENC_ALIGNMENT);
+            size_t input_cache_line_size = get_cache_line_size(input);
+            size_t output_cache_line_size = get_cache_line_size(output);
+            input_alignment = MAX(input_cache_line_size, SOC_GDMA_EXT_MEM_ENC_ALIGNMENT);
+            output_alignment = MAX(output_cache_line_size, SOC_GDMA_EXT_MEM_ENC_ALIGNMENT);
 
             input_heap_caps = MALLOC_CAP_8BIT | (esp_ptr_external_ram(input) ? MALLOC_CAP_SPIRAM : MALLOC_CAP_DMA | MALLOC_CAP_INTERNAL);
             output_heap_caps = MALLOC_CAP_8BIT | (esp_ptr_external_ram(output) ? MALLOC_CAP_SPIRAM : MALLOC_CAP_DMA | MALLOC_CAP_INTERNAL);
@@ -309,10 +314,12 @@ static int esp_aes_process_dma_ext_ram(esp_aes_context *ctx, const unsigned char
 
 cleanup:
 
-    if (realloc_input) {
+    if (realloc_input && input_buf) {
+        mbedtls_platform_zeroize(input_buf, alloc_chunk_len);
         free(input_buf);
     }
-    if (realloc_output) {
+    if (realloc_output && output_buf) {
+        mbedtls_platform_zeroize(output_buf, alloc_chunk_len);
         free(output_buf);
     }
 
@@ -455,7 +462,7 @@ static esp_err_t generate_descriptor_list(const uint8_t *buffer, const size_t le
     dma_descriptors = (crypto_dma_desc_t *) aes_dma_calloc(dma_descs_needed, sizeof(crypto_dma_desc_t), MALLOC_CAP_DMA | MALLOC_CAP_INTERNAL, NULL);
     if (dma_descriptors == NULL) {
         ESP_LOGE(TAG, "Failed to allocate memory for the array of DMA descriptors");
-        return ESP_FAIL;
+        goto err;
     }
 
     size_t populated_dma_descs = 0;
@@ -464,7 +471,7 @@ static esp_err_t generate_descriptor_list(const uint8_t *buffer, const size_t le
         start_alignment_stream_buffer = aes_dma_calloc(alignment_buffer_size, sizeof(uint8_t), AES_DMA_ALLOC_CAPS | (esp_ptr_external_ram(buffer) ? MALLOC_CAP_SPIRAM : MALLOC_CAP_INTERNAL) , NULL);
         if (start_alignment_stream_buffer == NULL) {
             ESP_LOGE(TAG, "Failed to allocate memory for start alignment buffer");
-            return ESP_FAIL;
+            goto err;
         }
 
         memset(start_alignment_stream_buffer, 0, unaligned_start_bytes);
@@ -486,7 +493,7 @@ static esp_err_t generate_descriptor_list(const uint8_t *buffer, const size_t le
         end_alignment_stream_buffer = aes_dma_calloc(alignment_buffer_size, sizeof(uint8_t), AES_DMA_ALLOC_CAPS | (esp_ptr_external_ram(buffer) ? MALLOC_CAP_SPIRAM : MALLOC_CAP_INTERNAL), NULL);
         if (end_alignment_stream_buffer == NULL) {
             ESP_LOGE(TAG, "Failed to allocate memory for end alignment buffer");
-            return ESP_FAIL;
+            goto err;
         }
 
         memset(end_alignment_stream_buffer, 0, unaligned_end_bytes);
@@ -500,7 +507,7 @@ static esp_err_t generate_descriptor_list(const uint8_t *buffer, const size_t le
 
     if (dma_desc_link(dma_descriptors, dma_descs_needed, cache_line_size) != ESP_OK) {
         ESP_LOGE(TAG, "DMA descriptors cache sync C2M failed");
-        return ESP_FAIL;
+        goto err;
     }
 
 ret:
@@ -521,6 +528,18 @@ ret:
     *end_alignment_buffer = end_alignment_stream_buffer;
 
     return ESP_OK;
+
+err:
+    if (start_alignment_stream_buffer) {
+        mbedtls_platform_zeroize(start_alignment_stream_buffer, alignment_buffer_size);
+        free(start_alignment_stream_buffer);
+    }
+    if (end_alignment_stream_buffer) {
+        mbedtls_platform_zeroize(end_alignment_stream_buffer, alignment_buffer_size);
+        free(end_alignment_stream_buffer);
+    }
+    free(dma_descriptors);
+    return ESP_FAIL;
 }
 
 int esp_aes_process_dma(esp_aes_context *ctx, const unsigned char *input, unsigned char *output, size_t len, uint8_t *stream_out)
@@ -585,18 +604,11 @@ int esp_aes_process_dma(esp_aes_context *ctx, const unsigned char *input, unsign
     }
 
     size_t input_alignment_buffer_size = MAX(2 * input_cache_line_size, AES_BLOCK_BYTES);
+    size_t output_alignment_buffer_size = MAX(2 * output_cache_line_size, AES_BLOCK_BYTES);
 
     crypto_dma_desc_t *input_desc = NULL;
     uint8_t *input_start_stream_buffer = NULL;
     uint8_t *input_end_stream_buffer = NULL;
-
-    if (generate_descriptor_list(input, len, &input_start_stream_buffer, &input_end_stream_buffer, input_alignment_buffer_size, input_cache_line_size, NULL, NULL, &input_desc, NULL, false) != ESP_OK) {
-        mbedtls_platform_zeroize(output, len);
-        ESP_LOGE(TAG, "Generating input DMA descriptors failed");
-        return -1;
-    }
-
-    size_t output_alignment_buffer_size = MAX(2 * output_cache_line_size, AES_BLOCK_BYTES);
 
     crypto_dma_desc_t *output_desc = NULL;
     uint8_t *output_start_stream_buffer = NULL;
@@ -605,10 +617,16 @@ int esp_aes_process_dma(esp_aes_context *ctx, const unsigned char *input, unsign
     size_t output_end_alignment = 0;
     size_t output_dma_desc_num = 0;
 
+    if (generate_descriptor_list(input, len, &input_start_stream_buffer, &input_end_stream_buffer, input_alignment_buffer_size, input_cache_line_size, NULL, NULL, &input_desc, NULL, false) != ESP_OK) {
+        ESP_LOGE(TAG, "Generating input DMA descriptors failed");
+        ret = -1;
+        goto cleanup;
+    }
+
     if (generate_descriptor_list(output, len, &output_start_stream_buffer, &output_end_stream_buffer, output_alignment_buffer_size, output_cache_line_size, &output_start_alignment, &output_end_alignment, &output_desc, &output_dma_desc_num, true) != ESP_OK) {
-        mbedtls_platform_zeroize(output, len);
         ESP_LOGE(TAG, "Generating output DMA descriptors failed");
-        return -1;
+        ret = -1;
+        goto cleanup;
     }
 
     crypto_dma_desc_t *out_desc_tail = &output_desc[output_dma_desc_num - 1];
@@ -701,11 +719,23 @@ cleanup:
         mbedtls_platform_zeroize(output, len);
     }
 
-    free(input_start_stream_buffer);
-    free(input_end_stream_buffer);
+    if (input_start_stream_buffer) {
+        mbedtls_platform_zeroize(input_start_stream_buffer, input_alignment_buffer_size);
+        free(input_start_stream_buffer);
+    }
+    if (input_end_stream_buffer) {
+        mbedtls_platform_zeroize(input_end_stream_buffer, input_alignment_buffer_size);
+        free(input_end_stream_buffer);
+    }
 
-    free(output_start_stream_buffer);
-    free(output_end_stream_buffer);
+    if (output_start_stream_buffer) {
+        mbedtls_platform_zeroize(output_start_stream_buffer, output_alignment_buffer_size);
+        free(output_start_stream_buffer);
+    }
+    if (output_end_stream_buffer) {
+        mbedtls_platform_zeroize(output_end_stream_buffer, output_alignment_buffer_size);
+        free(output_end_stream_buffer);
+    }
 
     free(input_desc);
     free(output_desc);
@@ -914,12 +944,24 @@ cleanup:
     free(aad_end_stream_buffer);
     free(aad_desc);
 
-    free(input_start_stream_buffer);
-    free(input_end_stream_buffer);
+    if (input_start_stream_buffer) {
+        mbedtls_platform_zeroize(input_start_stream_buffer, input_alignment_buffer_size);
+        free(input_start_stream_buffer);
+    }
+    if (input_end_stream_buffer) {
+        mbedtls_platform_zeroize(input_end_stream_buffer, input_alignment_buffer_size);
+        free(input_end_stream_buffer);
+    }
     free(input_desc);
 
-    free(output_start_stream_buffer);
-    free(output_end_stream_buffer);
+    if (output_start_stream_buffer) {
+        mbedtls_platform_zeroize(output_start_stream_buffer, output_alignment_buffer_size);
+        free(output_start_stream_buffer);
+    }
+    if (output_end_stream_buffer) {
+        mbedtls_platform_zeroize(output_end_stream_buffer, output_alignment_buffer_size);
+        free(output_end_stream_buffer);
+    }
     free(output_desc);
 
     free(len_buf);
@@ -1040,6 +1082,7 @@ int esp_aes_process_dma(esp_aes_context *ctx, const unsigned char *input, unsign
                 return -1;
             }
         }
+
         if (esp_ptr_external_ram(output)) {
             size_t dcache_line_size;
             ret = esp_cache_get_alignment(MALLOC_CAP_SPIRAM, &dcache_line_size);
@@ -1066,11 +1109,24 @@ int esp_aes_process_dma(esp_aes_context *ctx, const unsigned char *input, unsign
             return esp_aes_process_dma_ext_ram(ctx, input, output, len, stream_out, input_needs_realloc, output_needs_realloc);
         }
 
+#if (CONFIG_SPIRAM && SOC_PSRAM_DMA_CAPABLE)
+        // When a DMA engine (AES-DMA operations) writes into a PSRAM destination buffer that previously contained dirty D-cache lines,
+        // later cache eviction can write back stale data and corrupt the DMA result.
+        // Fix this by cleaning the destination buffers before starting DMA transfers.
+        if (esp_ptr_external_ram(output)) {
+            if (esp_cache_msync((void *)output, block_bytes, ESP_CACHE_MSYNC_FLAG_DIR_M2C) != ESP_OK) {
+                mbedtls_platform_zeroize(output, len);
+                ESP_LOGE(TAG, "Cache sync failed for the output in external RAM");
+                return -1;
+            }
+        }
+#endif
+
         /* Set up dma descriptors for input and output considering the 16 byte alignment requirement for EDMA */
         crypto_dma_desc_num = dma_desc_get_required_num(block_bytes, DMA_DESCRIPTOR_BUFFER_MAX_SIZE_16B_ALIGNED);
 
         /* Allocate both in and out descriptors to save a malloc/free per function call */
-        block_desc = heap_caps_aligned_calloc(8, crypto_dma_desc_num * 2, sizeof(crypto_dma_desc_t), MALLOC_CAP_DMA);
+        block_desc = heap_caps_aligned_calloc(DMA_DESC_MEM_ALIGN_SIZE, crypto_dma_desc_num * 2, sizeof(crypto_dma_desc_t), MALLOC_CAP_DMA);
         if (block_desc == NULL) {
             mbedtls_platform_zeroize(output, len);
             ESP_LOGE(TAG, "Failed to allocate memory");
@@ -1155,17 +1211,6 @@ int esp_aes_process_dma(esp_aes_context *ctx, const unsigned char *input, unsign
         goto cleanup;
     }
 
-#if (CONFIG_SPIRAM && SOC_PSRAM_DMA_CAPABLE)
-    if (block_bytes > 0) {
-        if (esp_ptr_external_ram(output)) {
-            if(esp_cache_msync((void*)output, block_bytes, ESP_CACHE_MSYNC_FLAG_DIR_M2C) != ESP_OK) {
-                mbedtls_platform_zeroize(output, len);
-                ESP_LOGE(TAG, "Cache sync failed for the output in external RAM");
-                return -1;
-            }
-        }
-    }
-#endif
     aes_hal_transform_dma_finish();
 
     if (stream_bytes > 0) {
@@ -1254,7 +1299,7 @@ int esp_aes_process_dma_gcm(esp_aes_context *ctx, const unsigned char *input, un
     crypto_dma_desc_num = dma_desc_get_required_num(block_bytes, DMA_DESCRIPTOR_BUFFER_MAX_SIZE_4B_ALIGNED);
 
     /* Allocate both in and out descriptors to save a malloc/free per function call, add 1 for length descriptor */
-    block_desc = heap_caps_calloc((crypto_dma_desc_num * 2) + 1, sizeof(crypto_dma_desc_t), MALLOC_CAP_DMA);
+    block_desc = heap_caps_aligned_calloc(DMA_DESC_MEM_ALIGN_SIZE, (crypto_dma_desc_num * 2) + 1, sizeof(crypto_dma_desc_t), MALLOC_CAP_DMA);
     if (block_desc == NULL) {
         mbedtls_platform_zeroize(output, len);
         ESP_LOGE(TAG, "Failed to allocate memory");

@@ -171,7 +171,6 @@ struct hci_conn_update;
 #define BLE_GAP_EVENT_PER_SUBEV_DATA_REQ    40
 #define BLE_GAP_EVENT_PER_SUBEV_RESP        41
 #define BLE_GAP_EVENT_PERIODIC_TRANSFER_V2  42
-#define BLE_GAP_EVENT_CACHE_ASSOC           43
 
 /* ISO events */
 #define BLE_GAP_EVENT_CIS_ESTAB             43
@@ -185,6 +184,10 @@ struct hci_conn_update;
 
 #define BLE_GAP_EVENT_RD_ALL_REM_FEAT       51
 #define BLE_GAP_EVENT_MONITOR_ADV_REPORT    52
+
+#define BLE_GAP_EVENT_CACHE_ASSOC           53
+#define BLE_GAP_EVENT_FRAME_SPACE_UPDATE    54
+#define BLE_GAP_EVENT_UTP_RECEIVE           55
 
 /* DTM events */
 #define BLE_GAP_DTM_TX_START_EVT            0
@@ -416,6 +419,7 @@ struct ble_gap_passkey_params {
      *  - BLE_SM_IOACT_INPUT
      *  - BLE_SM_IOACT_DISP
      *  - BLE_SM_IOACT_NUMCMP
+     *  - BLE_SM_IOACT_STATIC
      */
     uint8_t action;
 
@@ -525,6 +529,19 @@ struct ble_gap_disc_desc {
      * event type (BLE_ADDR_ANY otherwise).
      */
     ble_addr_t direct_addr;
+#if MYNEWT_VAL(BLE_HOST_BASED_PRIVACY)
+    /** Over-the-air advertiser address as received from the controller.
+     *
+     * When host-based privacy is enabled and the peer is a bonded device using
+     * a resolvable private address (RPA), `addr` is replaced with the stored
+     * identity address so applications can correlate against their bond
+     * records. This field always carries the original on-air address (RPA
+     * when resolvable, or the same value as `addr` otherwise) so applications
+     * that need the OTA address (e.g. for display or direct connect) can use
+     * it. Populated only when BLE_HOST_BASED_PRIVACY is enabled.
+     */
+    ble_addr_t ota_addr;
+#endif
 };
 
 struct ble_gap_repeat_pairing {
@@ -1991,7 +2008,7 @@ struct ble_gap_event {
 #endif /* MYNEWT_VAL(BLE_ISO) */
 
         /**
-         * Represents a read all remote features complet event
+         * Represents a read all remote features complete event
          * Valid for the following event types:
          *     o BLE_GAP_EVENT_RD_ALL_REM_FEAT
          */
@@ -2020,7 +2037,7 @@ struct ble_gap_event {
 
 #if MYNEWT_VAL(BLE_MONITOR_ADV)
 	/**
-         * Represents a read all remote features complet event
+         * Represents a monitor advertising report event
          * Valid for the following event types:
          *     o BLE_GAP_EVENT_MONITOR_ADV_REPORT
          */
@@ -2029,12 +2046,60 @@ struct ble_gap_event {
             uint8_t addr_type;
 
             /** Device Address */
-            uint16_t address[6];
+            uint8_t address[6];
 
-	    /** Represents weather RSSI threshold condition is met */
+	    /** Represents whether RSSI threshold condition is met */
             uint8_t condition;
 
         } monitor_adv_report;
+#endif
+
+#if MYNEWT_VAL(BLE_FRAME_SPACE_UPDATE)
+        /*
+         * Represents a change in the Inter-Frame Space (IFS).
+         */
+        struct {
+            /* The status of the frame space update attempt (0 on success). */
+            int status;
+
+            /* The handle of the connection where the update occurred. */
+            uint16_t conn_handle;
+
+            /*
+             * Indicates whether the local Host initiated the update.
+             * 0: Controller initiated
+             * 1: Local Host initiated
+             */
+            uint8_t initiator;
+
+            /* The new frame space value in microseconds. */
+            uint16_t frame_space;
+
+            /* Bitmask indicating the PHYs to which the frame space applies. */
+            uint8_t phys;
+
+            /* Bitmask indicating the spacing types. */
+            uint16_t spacing_types;
+        } frame_space_update;
+#endif
+
+#if MYNEWT_VAL(BLE_UTP_OTA)
+        /*
+         * Represents a received Unified Test Protocol (UTP) packet.
+         */
+        struct {
+            /* The connection handle associated with the packet.
+             * Note: Currently set to BLE_HS_CONN_HANDLE_NONE as the
+             * controller event does not provide a handle.
+             */
+            uint16_t conn_handle;
+
+            /* The length of the UTP data payload. */
+            uint8_t len;
+
+            /* Pointer to the UTP data payload. */
+            const uint8_t *data;
+        } utp_receive;
 #endif
     };
 };
@@ -2684,6 +2749,14 @@ struct ble_gap_set_periodic_adv_subev_data_params {
 };
 #endif
 
+#if MYNEWT_VAL(BLE_ADV_SEND_CONSTANT_DID)
+struct ble_gap_adv_const_did_cmd_params {
+    uint16_t handle;
+    uint8_t enable;
+    uint16_t did;
+};
+#endif // MYNEWT_VAL(BLE_ADV_SEND_CONSTANT_DID)
+
 /**
  * Configure periodic advertising for specified advertising instance
  *
@@ -3197,6 +3270,7 @@ int ble_gap_connect(uint8_t own_addr_type, const ble_addr_t *peer_addr,
                     const struct ble_gap_conn_params *params,
                     ble_gap_event_fn *cb, void *cb_arg);
 
+#if MYNEWT_VAL(BLE_PERIODIC_ADV_WITH_RESPONSES)
 /**
  * Initiates an Sync connect procedure for PAwR.
  *
@@ -3262,6 +3336,7 @@ int ble_gap_connect_with_synced(uint8_t own_addr_type, uint8_t advertising_handl
                 const struct ble_gap_conn_params *phy_2m_conn_params,
                 const struct ble_gap_conn_params *phy_coded_conn_params,
                 ble_gap_event_fn *cb, void *cb_arg);
+#endif
 /**
  * Initiates an extended connect procedure.
  *
@@ -4029,6 +4104,7 @@ int ble_gap_set_path_loss_reporting_param(uint16_t conn_handle, uint8_t high_thr
                                           uint8_t low_hysteresis, uint16_t min_time_spent);
 #endif
 
+#if MYNEWT_VAL(BLE_UTIL_API)
 /**
  * Set Data Related Address Changes Param
  *
@@ -4038,7 +4114,9 @@ int ble_gap_set_path_loss_reporting_param(uint16_t conn_handle, uint8_t high_thr
  * @return                  0 on success; nonzero on failure.
  */
 int ble_gap_set_data_related_addr_change_param(uint8_t adv_handle, uint8_t change_reason);
+#endif
 
+#if MYNEWT_VAL(BLE_DTM_MODE_TEST)
 /**
  * Start a test where the DUT generates reference packets at a fixed interval.
  *
@@ -4103,6 +4181,7 @@ int ble_gap_dtm_enh_tx_start(uint8_t tx_chan, uint8_t test_data_len, uint8_t pay
  * @return                0 on success; nonzero on failure
  */
 int ble_gap_dtm_enh_rx_start(uint8_t rx_chan, uint8_t index, uint8_t phy);
+#endif
 
 /**
  * Set Read Remote Version Information is used to retrieve the version, manufacturer,
@@ -4118,6 +4197,7 @@ int ble_gap_dtm_enh_rx_start(uint8_t rx_chan, uint8_t index, uint8_t phy);
 
 int ble_gap_read_rem_ver_info(uint16_t conn_handle, uint8_t *version, uint16_t *manufacturer, uint16_t *subversion);
 
+#if MYNEWT_VAL(BLE_UTIL_API)
 /**
  * Read local resolvable address command
  *
@@ -4132,6 +4212,17 @@ int ble_gap_read_rem_ver_info(uint16_t conn_handle, uint8_t *version, uint16_t *
 
 int ble_gap_rd_local_resolv_addr(uint8_t peer_addr_type, const ble_addr_t *peer_addr,
                                  uint8_t *out_addr);
+#endif
+
+/**
+ * Read local IRK command
+ *
+ * @param out_irk           Local Identity Resolving Key received from the Host
+ *
+ * @return                  0 on success; BLE_HS_EINVAL if @param out_irk is NULL
+ *
+ */
+int ble_gap_read_local_irk(uint8_t * out_irk);
 
 #if MYNEWT_VAL(BLE_CHANNEL_SOUNDING)
 /**
@@ -4140,11 +4231,29 @@ int ble_gap_rd_local_resolv_addr(uint8_t peer_addr_type, const ble_addr_t *peer_
  *
  * @param bit_num        Bit position in the FeatureSet
  *
- * @param                The Host feature is disabled or enabled (0 & 1)
+ * @param bit_val        The Host feature is disabled or enabled (0 & 1)
  *
  * return                0 on success; nonzero on failure
  */
 int ble_gap_set_host_feat(uint8_t bit_num,uint8_t bit_val);
+#endif
+
+#if MYNEWT_VAL(BLE_FRAME_SPACE_UPDATE)
+/* * Request a Frame Space Update.
+ * phys: Bitmask of PHYs (0=1M, 1=2M, 2=Coded)
+ * spacing_types: Bitmask of spacing types to update
+ */
+int ble_gap_frame_space_update(uint16_t conn_handle,
+                               uint16_t frame_space_min,
+                               uint16_t frame_space_max,
+                               uint8_t phys,
+                               uint16_t spacing_types);
+#endif
+
+#if MYNEWT_VAL(BLE_UTP_OTA)
+int ble_gap_enable_utp_ota_mode(uint8_t enable);
+
+int ble_gap_utp_send(uint8_t len, const uint8_t *data);
 #endif
 
 #ifdef __cplusplus

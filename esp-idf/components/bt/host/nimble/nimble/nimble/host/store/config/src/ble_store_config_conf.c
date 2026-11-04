@@ -51,17 +51,21 @@ static struct conf_handler ble_store_config_conf_handler = {
 #define BLE_STORE_CONFIG_SEC_SET_ENCODE_SZ  \
     (MYNEWT_VAL(BLE_STORE_MAX_BONDS) * BLE_STORE_CONFIG_SEC_ENCODE_SZ + 1)
 
+#if MYNEWT_VAL(BLE_STORE_MAX_CCCDS)
 #define BLE_STORE_CONFIG_CCCD_ENCODE_SZ     \
     BASE64_ENCODE_SIZE(sizeof (struct ble_store_value_cccd))
 
 #define BLE_STORE_CONFIG_CCCD_SET_ENCODE_SZ \
     (MYNEWT_VAL(BLE_STORE_MAX_CCCDS) * BLE_STORE_CONFIG_CCCD_ENCODE_SZ + 1)
+#endif
 
+#if MYNEWT_VAL(BLE_STORE_MAX_CSFCS)
 #define BLE_STORE_CONFIG_CSFC_ENCODE_SZ     \
     BASE64_ENCODE_SIZE(sizeof (struct ble_store_value_csfc))
 
 #define BLE_STORE_CONFIG_CSFC_SET_ENCODE_SZ     \
     (MYNEWT_VAL(BLE_STORE_MAX_CSFCS) * BLE_STORE_CONFIG_CSFC_ENCODE_SZ + 1)
+#endif
 
 #if MYNEWT_VAL(ENC_ADV_DATA)
 #define BLE_STORE_CONFIG_EAD_ENCODE_SZ     \
@@ -93,16 +97,32 @@ static int
 ble_store_config_deserialize_arr(const char *enc,
                                  void *out_arr,
                                  int obj_sz,
+                                 int max_objs,
                                  int *out_num_objs)
 {
-    int len;
+    size_t dec_len;
+    unsigned char *dec_data = base64_decode(enc, strlen(enc), &dec_len);
 
-    len = base64_decode(enc, out_arr);
-    if (len < 0) {
+    if (dec_data == NULL) {
         return OS_EINVAL;
     }
 
-    *out_num_objs = len / obj_sz;
+    if (dec_len % obj_sz != 0) {
+        free(dec_data);
+        return OS_EINVAL;
+    }
+
+    /* Validate decoded data fits within destination array */
+    if ((int)(dec_len / obj_sz) > max_objs) {
+        free(dec_data);
+        return OS_EINVAL;
+    }
+
+    memcpy(out_arr, dec_data, dec_len);
+    *out_num_objs = dec_len / obj_sz;
+
+    free(dec_data);
+
     return 0;
 }
 
@@ -111,12 +131,17 @@ ble_store_config_conf_set(int argc, char **argv, char *val)
 {
     int rc;
 
+    if (val == NULL) {
+        return OS_EINVAL;
+    }
+
     if (argc == 1) {
         if (strcmp(argv[0], "our_sec") == 0) {
             rc = ble_store_config_deserialize_arr(
                     val,
                     ble_store_config_our_secs,
                     sizeof *ble_store_config_our_secs,
+                    MYNEWT_VAL(BLE_STORE_MAX_BONDS),
                     &ble_store_config_num_our_secs);
             return rc;
         } else if (strcmp(argv[0], "peer_sec") == 0) {
@@ -124,6 +149,7 @@ ble_store_config_conf_set(int argc, char **argv, char *val)
                     val,
                     ble_store_config_peer_secs,
                     sizeof *ble_store_config_peer_secs,
+                    MYNEWT_VAL(BLE_STORE_MAX_BONDS),
                     &ble_store_config_num_peer_secs);
             return rc;
         } else if (strcmp(argv[0], "cccd") == 0) {
@@ -131,34 +157,43 @@ ble_store_config_conf_set(int argc, char **argv, char *val)
                     val,
                     ble_store_config_cccds,
                     sizeof *ble_store_config_cccds,
+                    MYNEWT_VAL(BLE_STORE_MAX_CCCDS),
                     &ble_store_config_num_cccds);
             return rc;
-        } else if (strcmp(argv[0], "csfc") == 0) {
+        }
+#if MYNEWT_VAL(BLE_STORE_MAX_CSFCS)
+        else if (strcmp(argv[0], "csfc") == 0) {
             rc = ble_store_config_deserialize_arr(
                     val,
                     ble_store_config_csfcs,
                     sizeof *ble_store_config_csfcs,
-                    &&ble_store_config_num_csfcs);
+                    MYNEWT_VAL(BLE_STORE_MAX_CSFCS),
+                    &ble_store_config_num_csfcs);
             return rc;
         }
+#endif
 #if MYNEWT_VAL(ENC_ADV_DATA)
         else if (strcmp(argv[0], "ead") == 0) {
             rc = ble_store_config_deserialize_arr(
                     val,
                     ble_store_config_eads,
                     sizeof *ble_store_config_eads,
+                    MYNEWT_VAL(BLE_STORE_MAX_EADS),
                     &ble_store_config_num_eads);
             return rc;
         }
 #endif
-        else if (strcmp(argv[0],"rpa_rec") == 0){
+#if MYNEWT_VAL(BLE_STORE_MAX_BONDS)
+        else if (strcmp(argv[0],"rpa_rec") == 0) {
             rc = ble_store_config_deserialize_arr(
                     val,
                     ble_store_config_rpa_recs,
                     sizeof *ble_store_config_rpa_recs,
+                    MYNEWT_VAL(BLE_STORE_MAX_BONDS),
                     &ble_store_config_num_rpa_recs);
             return rc;
         }
+#endif
     }
     return OS_ENOENT;
 }
@@ -171,6 +206,12 @@ ble_store_config_conf_export(void (*func)(char *name, char *val),
         char sec[BLE_STORE_CONFIG_SEC_SET_ENCODE_SZ];
         char cccd[BLE_STORE_CONFIG_CCCD_SET_ENCODE_SZ];
         char rpa_rec[BLE_STORE_CONFIG_RPA_REC_SET_ENCODE_SZ];
+#if MYNEWT_VAL(BLE_STORE_MAX_CSFCS)
+        char csfc[BLE_STORE_CONFIG_CSFC_SET_ENCODE_SZ];
+#endif
+#if MYNEWT_VAL(ENC_ADV_DATA)
+        char ead[BLE_STORE_CONFIG_EAD_SET_ENCODE_SZ];
+#endif
     } buf;
 
     ble_store_config_serialize_arr(ble_store_config_our_secs,
@@ -193,14 +234,14 @@ ble_store_config_conf_export(void (*func)(char *name, char *val),
                                    buf.cccd,
                                    sizeof buf.cccd);
     func("ble_hs/cccd", buf.cccd);
-
+#if MYNEWT_VAL(BLE_STORE_MAX_CSFCS)
     ble_store_config_serialize_arr(ble_store_config_csfcs,
                                    sizeof *ble_store_config_csfcs,
                                    ble_store_config_num_csfcs,
                                    buf.csfc,
                                    sizeof buf.csfc);
     func("ble_hs/csfc", buf.csfc);
-
+#endif
 #if MYNEWT_VAL(ENC_ADV_DATA)
     ble_store_config_serialize_arr(ble_store_config_eads,
                                    sizeof *ble_store_config_eads,
@@ -209,11 +250,14 @@ ble_store_config_conf_export(void (*func)(char *name, char *val),
                                    sizeof buf.ead);
     func("ble_hs/ead", buf.ead);
 #endif
+#if MYNEWT_VAL(BLE_STORE_MAX_BONDS)
     ble_store_config_serialize_arr(ble_store_config_rpa_recs,
                                    sizeof *ble_store_config_rpa_recs,
                                    ble_store_config_num_rpa_recs,
                                    buf.rpa_rec,
                                    sizeof buf.rpa_rec);
+    func("ble_hs/rpa_rec", buf.rpa_rec);
+#endif
     return 0;
 }
 
@@ -283,7 +327,7 @@ ble_store_config_persist_cccds(void)
 
     return 0;
 }
-
+#if MYNEWT_VAL(BLE_STORE_MAX_CSFCS)
 int
 ble_store_config_persist_csfcs(void)
 {
@@ -302,12 +346,13 @@ ble_store_config_persist_csfcs(void)
 
     return 0;
 }
+#endif
 
 #if MYNEWT_VAL(ENC_ADV_DATA)
 int
 ble_store_config_persist_eads(void)
 {
-    char buf[BLE_STORE_CONFIG_CCCD_SET_ENCODE_SZ];
+    char buf[BLE_STORE_CONFIG_EAD_SET_ENCODE_SZ];
     int rc;
     ble_store_config_serialize_arr(ble_store_config_eads,
                                    sizeof *ble_store_config_eads,
@@ -321,6 +366,8 @@ ble_store_config_persist_eads(void)
     return 0;
 }
 #endif
+
+#if MYNEWT_VAL(BLE_STORE_MAX_BONDS)
 int
 ble_store_config_persist_rpa_recs(void)
 {
@@ -337,6 +384,8 @@ ble_store_config_persist_rpa_recs(void)
     }
     return 0;
 }
+#endif
+
 void
 ble_store_config_conf_init(void)
 {

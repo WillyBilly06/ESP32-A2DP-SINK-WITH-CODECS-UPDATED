@@ -479,7 +479,9 @@ s32_t SPIFFS_write(spiffs *fs, spiffs_file fh, void *buf, s32_t len) {
   }
 
   if ((fd->flags & SPIFFS_O_APPEND)) {
-    fd->fdoffset = fd->size == SPIFFS_UNDEFINED_LEN ? 0 : fd->size;
+    if (fd->size != SPIFFS_UNDEFINED_LEN && fd->size > fd->fdoffset) {
+      fd->fdoffset = fd->size;
+    }
   }
   offset = fd->fdoffset;
 
@@ -1081,7 +1083,8 @@ static s32_t spiffs_read_dir_v(
           (SPIFFS_PH_FLAG_DELET | SPIFFS_PH_FLAG_IXDELE)) {
     struct spiffs_dirent *e = (struct spiffs_dirent*)user_var_p;
     e->obj_id = obj_id;
-    strcpy((char *)e->name, (char *)objix_hdr.name);
+    strncpy((char *)e->name, (char *)objix_hdr.name, sizeof(e->name) - 1);
+    e->name[sizeof(e->name) - 1] = '\0';
     e->type = objix_hdr.type;
     e->size = objix_hdr.size == SPIFFS_UNDEFINED_LEN ? 0 : objix_hdr.size;
     e->pix = pix;

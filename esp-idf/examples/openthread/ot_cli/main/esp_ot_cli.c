@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2021-2025 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2021-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: CC0-1.0
  *
@@ -39,6 +39,10 @@
 #include "esp_ot_cli_extension.h"
 #endif // CONFIG_OPENTHREAD_CLI_ESP_EXTENSION
 
+#if CONFIG_ESP_COEX_EXTERNAL_COEXIST_ENABLE
+#include "ext_coex_cmd.h"
+#endif
+
 #define TAG "ot_esp_cli"
 
 void app_main(void)
@@ -53,15 +57,23 @@ void app_main(void)
 
     ESP_ERROR_CHECK(nvs_flash_init());
     ESP_ERROR_CHECK(esp_event_loop_create_default());
+#if CONFIG_OPENTHREAD_PLATFORM_NETIF
     ESP_ERROR_CHECK(esp_netif_init());
+#endif
     ESP_ERROR_CHECK(esp_vfs_eventfd_register(&eventfd_config));
 
 #if CONFIG_OPENTHREAD_CLI
     ot_console_start();
+    ot_register_external_commands();
+#if CONFIG_ESP_COEX_EXTERNAL_COEXIST_ENABLE
+    register_cmd_extcoex();
+#endif
 #endif
 
     static esp_openthread_config_t config = {
+#if CONFIG_OPENTHREAD_PLATFORM_NETIF
         .netif_config = ESP_NETIF_DEFAULT_OPENTHREAD(),
+#endif
         .platform_config = {
             .radio_config = ESP_OPENTHREAD_DEFAULT_RADIO_CONFIG(),
             .host_config = ESP_OPENTHREAD_DEFAULT_HOST_CONFIG(),
@@ -72,6 +84,9 @@ void app_main(void)
     ESP_ERROR_CHECK(esp_openthread_start(&config));
 #if CONFIG_OPENTHREAD_CLI_ESP_EXTENSION
     esp_cli_custom_command_init();
+#endif
+#if CONFIG_OPENTHREAD_STATE_INDICATOR_ENABLE
+    ESP_ERROR_CHECK(esp_openthread_state_indicator_init(esp_openthread_get_instance()));
 #endif
 #if CONFIG_OPENTHREAD_NETWORK_AUTO_START
     ot_network_auto_start();

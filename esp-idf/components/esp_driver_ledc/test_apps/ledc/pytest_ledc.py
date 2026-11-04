@@ -1,8 +1,9 @@
-# SPDX-FileCopyrightText: 2021-2025 Espressif Systems (Shanghai) CO LTD
+# SPDX-FileCopyrightText: 2021-2026 Espressif Systems (Shanghai) CO LTD
 # SPDX-License-Identifier: CC0-1.0
 import pytest
 from pytest_embedded_idf import IdfDut
 from pytest_embedded_idf.utils import idf_parametrize
+from pytest_embedded_idf.utils import soc_filtered_targets
 
 
 @pytest.mark.temp_skip_ci(targets=['esp32s3'], reason='skip due to duplication with test_ledc_psram')
@@ -15,9 +16,37 @@ from pytest_embedded_idf.utils import idf_parametrize
     ],
     indirect=True,
 )
-@idf_parametrize('target', ['supported_targets'], indirect=['target'])
-@pytest.mark.temp_skip_ci(targets=['esp32p4'], reason='p4 rev3 migration # TODO: IDF-14398')
+@idf_parametrize(
+    'target', soc_filtered_targets('SOC_LEDC_SUPPORTED == 1 and IDF_TARGET not in ["esp32c5"]'), indirect=['target']
+)
 def test_ledc(dut: IdfDut) -> None:
+    dut.run_all_single_board_cases(reset=True)
+
+
+@pytest.mark.generic
+@pytest.mark.parametrize(
+    'config',
+    [
+        'iram_safe',
+    ],
+    indirect=True,
+)
+@idf_parametrize('target', ['esp32c5'], indirect=['target'])
+def test_ledc_esp32c5(dut: IdfDut) -> None:
+    dut.run_all_single_board_cases(reset=True)
+
+
+@pytest.mark.generic
+@pytest.mark.esp32c5_rev1
+@pytest.mark.parametrize(
+    'config',
+    [
+        'release',
+    ],
+    indirect=True,
+)
+@idf_parametrize('target', ['esp32c5'], indirect=['target'])
+def test_ledc_esp32c5_rev1(dut: IdfDut) -> None:
     dut.run_all_single_board_cases(reset=True)
 
 
@@ -36,7 +65,8 @@ def test_ledc_psram(dut: IdfDut) -> None:
 
 
 @pytest.mark.temp_skip_ci(targets=['esp32s3'], reason='s3 multi device runner has no psram')
-@pytest.mark.temp_skip_ci(targets=['esp32p4'], reason='p4 rev3 migration # TODO: IDF-14398')
+@pytest.mark.temp_skip_ci(targets=['esp32h4'], reason='cannot pass')  # TODO: IDF-15610
+@pytest.mark.temp_skip_ci(targets=['esp32s31'], reason='cannot pass')  # TODO: IDF-15610
 @pytest.mark.generic_multi_device
 @pytest.mark.parametrize(
     'count, config',

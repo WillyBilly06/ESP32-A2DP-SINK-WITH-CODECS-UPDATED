@@ -286,6 +286,7 @@ typedef enum otMeshcopTlvType
     OT_MESHCOP_TLV_JOINER_IID               = 19,  ///< meshcop Joiner IID TLV
     OT_MESHCOP_TLV_JOINER_RLOC              = 20,  ///< meshcop Joiner Router Locator TLV
     OT_MESHCOP_TLV_JOINER_ROUTER_KEK        = 21,  ///< meshcop Joiner Router KEK TLV
+    OT_MESHCOP_TLV_DURATION                 = 23,  ///< meshcop Duration TLV
     OT_MESHCOP_TLV_PROVISIONING_URL         = 32,  ///< meshcop Provisioning URL TLV
     OT_MESHCOP_TLV_VENDOR_NAME_TLV          = 33,  ///< meshcop Vendor Name TLV
     OT_MESHCOP_TLV_VENDOR_MODEL_TLV         = 34,  ///< meshcop Vendor Model TLV
@@ -303,9 +304,12 @@ typedef enum otMeshcopTlvType
     OT_MESHCOP_TLV_ENERGY_LIST              = 57,  ///< meshcop Energy List TLV
     OT_MESHCOP_TLV_THREAD_DOMAIN_NAME       = 59,  ///< meshcop Thread Domain Name TLV
     OT_MESHCOP_TLV_WAKEUP_CHANNEL           = 74,  ///< meshcop Wake-up Channel TLV
+    OT_MESHCOP_TLV_ADMITTER_STATE           = 90,  ///< meshcop Admitter State TLV
+    OT_MESHCOP_TLV_ENROLLER_ID              = 91,  ///< meshcop Enroller ID TLV
+    OT_MESHCOP_TLV_ENROLLER_MODE            = 92,  ///< meshcop Enroller Mode TLV
     OT_MESHCOP_TLV_DISCOVERYREQUEST         = 128, ///< meshcop Discovery Request TLV
     OT_MESHCOP_TLV_DISCOVERYRESPONSE        = 129, ///< meshcop Discovery Response TLV
-    OT_MESHCOP_TLV_JOINERADVERTISEMENT      = 241, ///< meshcop Joiner Advertisement TLV
+    OT_MESHCOP_TLV_JOINERADVERTISEMENT      = 241, ///< meshcop Joiner Advertisement TLV (experimental)
 } otMeshcopTlvType;
 
 /**
@@ -564,6 +568,24 @@ otError otDatasetGeneratePskc(const char            *aPassPhrase,
 otError otNetworkNameFromString(otNetworkName *aNetworkName, const char *aNameString);
 
 /**
+ * Indicates whether or not the given Operational Dataset TLVs is a valid Active or Pending Dataset.
+ *
+ * A valid Active Dataset MUST contain all the required TLVs (Active Timestamp, Channel, Channel Mask, Extended PAN ID,
+ * Mesh-Local Prefix, Network Key, Network Name, PAN ID, PSKc, and Security Policy).
+ *
+ * A valid Pending Dataset MUST contain all the required TLVs for an Active Dataset and additionally MUST contain
+ * Pending Timestamp and Delay Timer TLVs.
+ *
+ * This method also checks whether there are duplicated TLVs or the TLVs are not well-formed in the @p aDatasetTlvs.
+ *
+ * @param[in]  aDatasetTlvs  A pointer to dataset TLVs.
+ * @param[in]  aActive       TRUE for Active Dataset, FALSE for Pending Dataset.
+ *
+ * @returns TRUE if @p aDatasetTlvs is a valid Dataset, FALSE otherwise.
+ */
+bool otDatasetIsValid(const otOperationalDatasetTlvs *aDatasetTlvs, bool aActive);
+
+/**
  * Parses an Operational Dataset from a given `otOperationalDatasetTlvs`.
  *
  * @param[in]  aDatasetTlvs  A pointer to dataset TLVs.
@@ -573,6 +595,21 @@ otError otNetworkNameFromString(otNetworkName *aNetworkName, const char *aNameSt
  * @retval OT_ERROR_INVALID_ARGS  @p aDatasetTlvs's length is longer than `OT_OPERATIONAL_DATASET_MAX_LENGTH`.
  */
 otError otDatasetParseTlvs(const otOperationalDatasetTlvs *aDatasetTlvs, otOperationalDataset *aDataset);
+
+/**
+ * Compares two Operational Dataset TLVs to determine if they contain the same set of TLVs.
+ *
+ * This function performs a deep comparison. It parses both @p aDatasetTlvsA and @p aDatasetTlvsB and checks if
+ * they contain the exact same set of TLVs (same type and same value). The order of TLVs within the
+ * `otOperationalDatasetTlvs` does not matter.
+ *
+ * @param[in]  aDatasetTlvsA  A pointer to dataset TLVs A. Must not be NULL.
+ * @param[in]  aDatasetTlvsB  A pointer to dataset TLVs B. Must not be NULL.
+ *
+ * @returns TRUE if the two Operational Dataset TLVs match, FALSE otherwise (e.g., if any TLV differs,
+ *          is missing, or if the TLVs are not well-formed).
+ */
+bool otDatasetTlvsCompare(const otOperationalDatasetTlvs *aDatasetTlvsA, const otOperationalDatasetTlvs *aDatasetTlvsB);
 
 /**
  * Converts a given Operational Dataset to `otOperationalDatasetTlvs`.
@@ -595,6 +632,24 @@ void otDatasetConvertToTlvs(const otOperationalDataset *aDataset, otOperationalD
  * @retval OT_ERROR_NO_BUFS       Not enough space space in @p aDatasetTlvs to apply the update.
  */
 otError otDatasetUpdateTlvs(const otOperationalDataset *aDataset, otOperationalDatasetTlvs *aDatasetTlvs);
+
+/**
+ * Indicates whether or not a given Operational Dataset (in TLVs format) affects connectivity.
+ *
+ * A Dataset affects connectivity if it contains a different Channel, PAN ID, Mesh Local Prefix, Network Key, or
+ * Security Policy than the current values in use.
+ *
+ * The following security policy changes are considered to affect connectivity:
+ * - Disabling routers (R bit: 1 to 0).
+ * - Enabling non-CCM routers (NCR bit: 0 to 1).
+ * - Increasing the version threshold for routing (VR field).
+ *
+ * @param[in]  aInstance     A pointer to an OpenThread instance.
+ * @param[in]  aDatasetTlvs  A pointer to Operational Dataset TLVs.
+ *
+ * @returns TRUE if @p aDatasetTlvs affects connectivity, FALSE otherwise.
+ */
+bool otDatasetAffectsConnectivity(otInstance *aInstance, const otOperationalDatasetTlvs *aDatasetTlvs);
 
 /**
  * @}

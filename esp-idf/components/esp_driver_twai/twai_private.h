@@ -10,6 +10,7 @@
 #include <string.h>
 #include <sys/cdefs.h>
 #include <sys/lock.h>
+#include <sys/param.h>
 #include <stdatomic.h>
 #include "sdkconfig.h"
 #if CONFIG_TWAI_ENABLE_DEBUG_LOG
@@ -25,9 +26,6 @@
 #include "esp_check.h"
 #include "esp_err.h"
 #include "soc/soc_caps.h"
-#include "soc/twai_periph.h"
-#include "soc/io_mux_reg.h"
-#include "hal/twai_hal.h"
 #include "esp_intr_alloc.h"
 #include "esp_heap_caps.h"
 #include "esp_clk_tree.h"

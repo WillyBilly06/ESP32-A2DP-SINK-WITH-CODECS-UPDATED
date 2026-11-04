@@ -15,7 +15,6 @@
 #include "driver/isp_types.h"
 #include "driver/gpio.h"
 #include "hal/isp_hal.h"
-#include "hal/gpio_hal.h"
 #include "hal/isp_ll.h"
 #include "hal/mipi_csi_brg_ll.h"
 #include "hal/mipi_csi_ll.h"
@@ -30,6 +29,10 @@
 #include "esp_cache.h"
 #include "esp_cam_ctlr_isp_dvp.h"
 #include "../../dvp_share_ctrl.h"
+
+#if CONFIG_PM_ENABLE
+#include "esp_pm.h"
+#endif
 
 #if CONFIG_CAM_CTLR_ISP_DVP_ISR_CACHE_SAFE
 #define ISP_DVP_MEM_ALLOC_CAPS   (MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT)
@@ -55,12 +58,15 @@ typedef struct isp_dvp_controller_t {
     dw_gdma_channel_handle_t  dma_chan;           //dwgdma channel handle
     size_t                    dvp_transfer_size;  //csi transfer size for dwgdma
     bool                      isr_installed;      //is isr installed
+#if CONFIG_PM_ENABLE
+    esp_pm_lock_handle_t      pm_lock;            //Power management lock
+#endif
     esp_cam_ctlr_t base;
 } isp_dvp_controller_t;
 
 typedef struct isp_dvp_ctx_t {
     _lock_t              mutex;
-    isp_dvp_controller_t *dvp_ctlr[SOC_ISP_DVP_CTLR_NUMS];
+    isp_dvp_controller_t *dvp_ctlr[ISP_LL_DVP_CTLR_NUMS];
 } isp_dvp_ctx_t;
 
 static const char *TAG = "ISP_DVP";
@@ -104,12 +110,12 @@ esp_err_t esp_cam_new_isp_dvp_ctlr(isp_proc_handle_t isp_proc, const esp_cam_ctl
     dvp_ctlr->trans_que = xQueueCreateWithCaps(ctlr_config->queue_items, sizeof(esp_cam_ctlr_trans_t), MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
     ESP_GOTO_ON_FALSE(dvp_ctlr->trans_que, ESP_ERR_NO_MEM, err, TAG, "no memory for transaction queue");
     //in color type
-    int in_bits_per_pixel = color_hal_pixel_format_get_bit_depth(isp_proc->in_color_format);
+    int in_bits_per_pixel = color_hal_pixel_format_fourcc_get_bit_depth(isp_proc->in_color_format);
     dvp_ctlr->in_bpp = in_bits_per_pixel;
     ESP_LOGD(TAG, "dvp_ctlr->in_bpp: 0d %d", dvp_ctlr->in_bpp);
 
     //out color type
-    int out_bits_per_pixel = color_hal_pixel_format_get_bit_depth(isp_proc->out_color_format);
+    int out_bits_per_pixel = color_hal_pixel_format_fourcc_get_bit_depth(isp_proc->out_color_format);
     dvp_ctlr->out_bpp = out_bits_per_pixel;
     ESP_LOGD(TAG, "dvp_ctlr->out_bpp: 0d %d", dvp_ctlr->out_bpp);
 
@@ -182,6 +188,11 @@ esp_err_t esp_cam_new_isp_dvp_ctlr(isp_proc_handle_t isp_proc, const esp_cam_ctl
     mipi_csi_brg_ll_set_burst_len(isp_proc->csi_brg_hw, 512);
 
     esp_cam_ctlr_t *cam_ctlr = &(dvp_ctlr->base);
+
+#if CONFIG_PM_ENABLE
+    ESP_GOTO_ON_ERROR(esp_pm_lock_create(ESP_PM_APB_FREQ_MAX, 0, "isp_dvp_cam_ctlr", &dvp_ctlr->pm_lock), err, TAG, "failed to create pm lock");
+#endif //CONFIG_PM_ENABLE
+
     cam_ctlr->del = s_isp_del_dvp_controller;
     cam_ctlr->enable = s_isp_dvp_enable;
     cam_ctlr->start = s_isp_dvp_start;
@@ -225,6 +236,12 @@ esp_err_t s_isp_del_dvp_controller(esp_cam_ctlr_handle_t handle)
     if (dvp_ctlr->trans_que) {
         vQueueDeleteWithCaps(dvp_ctlr->trans_que);
     }
+#if CONFIG_PM_ENABLE
+    if (dvp_ctlr->pm_lock) {
+        ESP_RETURN_ON_ERROR(esp_pm_lock_delete(dvp_ctlr->pm_lock), TAG, "delete pm_lock failed");
+    }
+#endif // CONFIG_PM_ENABLE
+
     free(dvp_ctlr);
 
     return ESP_OK;
@@ -298,6 +315,11 @@ static esp_err_t s_isp_dvp_enable(esp_cam_ctlr_handle_t handle)
 
     portENTER_CRITICAL(&dvp_ctlr->spinlock);
     dvp_ctlr->fsm = ISP_FSM_ENABLE;
+#if CONFIG_PM_ENABLE
+    if (dvp_ctlr->pm_lock) {
+        ESP_RETURN_ON_ERROR(esp_pm_lock_acquire(dvp_ctlr->pm_lock), TAG, "acquire pm_lock failed");
+    }
+#endif // CONFIG_PM_ENABLE
     portEXIT_CRITICAL(&dvp_ctlr->spinlock);
 
     return ESP_OK;
@@ -311,6 +333,11 @@ static esp_err_t s_isp_dvp_disable(esp_cam_ctlr_handle_t handle)
 
     portENTER_CRITICAL(&dvp_ctlr->spinlock);
     dvp_ctlr->fsm = ISP_FSM_INIT;
+#if CONFIG_PM_ENABLE
+    if (dvp_ctlr->pm_lock) {
+        ESP_RETURN_ON_ERROR(esp_pm_lock_release(dvp_ctlr->pm_lock), TAG, "release pm_lock failed");
+    }
+#endif // CONFIG_PM_ENABLE
     portEXIT_CRITICAL(&dvp_ctlr->spinlock);
 
     return ESP_OK;
@@ -345,6 +372,9 @@ static esp_err_t s_isp_dvp_start(esp_cam_ctlr_handle_t handle)
             ESP_RETURN_ON_FALSE(false, ESP_ERR_INVALID_STATE, TAG, "no ready transaction, and no backup buffer");
         }
     }
+
+    ESP_RETURN_ON_ERROR(esp_cache_msync((void *)(trans.buffer), trans.buflen, ESP_CACHE_MSYNC_FLAG_DIR_M2C),
+                        TAG, "failed to sync(M2C) trans buffer");
 
     ESP_LOGD(TAG, "trans.buffer: %p, trans.buflen: %d", trans.buffer, trans.buflen);
     dvp_ctlr->trans = trans;
@@ -469,6 +499,10 @@ IRAM_ATTR static bool s_dvp_dma_trans_done_callback(dw_gdma_channel_handle_t cha
         }
     }
 
+    esp_err_t ret = esp_cache_msync((void *)(new_trans.buffer), new_trans.buflen, ESP_CACHE_MSYNC_FLAG_DIR_M2C);
+    assert(ret == ESP_OK);
+    (void)ret;
+
     ESP_EARLY_LOGD(TAG, "new_trans.buffer: %p, new_trans.buflen: %d", new_trans.buffer, new_trans.buflen);
     dw_gdma_channel_config_transfer(chan, &dvp_dma_transfer_config);
     dw_gdma_channel_enable_ctrl(chan, true);
@@ -476,6 +510,7 @@ IRAM_ATTR static bool s_dvp_dma_trans_done_callback(dw_gdma_channel_handle_t cha
     if ((dvp_ctlr->trans.buffer != dvp_ctlr->backup_buffer) || dvp_ctlr->bk_buffer_exposed) {
         esp_err_t ret = esp_cache_msync((void *)(dvp_ctlr->trans.buffer), dvp_ctlr->trans.received_size, ESP_CACHE_MSYNC_FLAG_DIR_M2C);
         assert(ret == ESP_OK);
+        (void)ret;
         assert(dvp_ctlr->cbs.on_trans_finished);
         if (dvp_ctlr->cbs.on_trans_finished) {
             dvp_ctlr->trans.received_size = dvp_ctlr->fb_size_in_bytes;
@@ -496,8 +531,8 @@ static esp_err_t s_isp_io_init(isp_dvp_controller_t *dvp_ctlr, const esp_cam_ctl
     gpio_config_t gpio_conf = {
         .intr_type = GPIO_INTR_DISABLE,
         .mode = GPIO_MODE_INPUT,
-        .pull_down_en = false,
-        .pull_up_en = true,
+        .pull_down_en = GPIO_PULLDOWN_DISABLE,
+        .pull_up_en = GPIO_PULLUP_ENABLE,
     };
 
     if (ctlr_config->pclk_io >= 0) {
@@ -544,7 +579,7 @@ static esp_err_t s_isp_claim_dvp_controller(isp_proc_handle_t isp_proc, isp_dvp_
 
     _lock_acquire(&s_ctx.mutex);
     bool found = false;
-    for (int i = 0; i < SOC_ISP_DVP_CTLR_NUMS; i++) {
+    for (int i = 0; i < ISP_LL_DVP_CTLR_NUMS; i++) {
         found = !s_ctx.dvp_ctlr[i];
         if (found) {
             s_ctx.dvp_ctlr[i] = dvp_ctlr;

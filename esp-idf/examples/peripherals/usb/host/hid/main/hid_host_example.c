@@ -502,8 +502,9 @@ void hid_host_interface_callback(hid_host_device_handle_t hid_device_handle,
                  hid_proto_name_str[dev_params.proto]);
         break;
     default:
-        ESP_LOGE(TAG, "HID Device, protocol '%s' Unhandled event",
-                 hid_proto_name_str[dev_params.proto]);
+        ESP_LOGW(TAG, "HID Device, protocol '%s' Unhandled event: %d (possibly suspend/resume)",
+                 hid_proto_name_str[dev_params.proto],
+                 event);
         break;
     }
 }
@@ -532,14 +533,16 @@ void hid_host_device_event(hid_host_device_handle_t hid_device_handle,
             .callback_arg = NULL
         };
 
-        ESP_ERROR_CHECK(hid_host_device_open(hid_device_handle, &dev_config));
-        if (HID_SUBCLASS_BOOT_INTERFACE == dev_params.sub_class) {
-            ESP_ERROR_CHECK(hid_class_request_set_protocol(hid_device_handle, HID_REPORT_PROTOCOL_BOOT));
-            if (HID_PROTOCOL_KEYBOARD == dev_params.proto) {
-                ESP_ERROR_CHECK(hid_class_request_set_idle(hid_device_handle, 0, 0));
+        if (dev_params.proto != HID_PROTOCOL_NONE) {
+            ESP_ERROR_CHECK(hid_host_device_open(hid_device_handle, &dev_config));
+            if (HID_SUBCLASS_BOOT_INTERFACE == dev_params.sub_class) {
+                ESP_ERROR_CHECK(hid_class_request_set_protocol(hid_device_handle, HID_REPORT_PROTOCOL_BOOT));
+                if (HID_PROTOCOL_KEYBOARD == dev_params.proto) {
+                    ESP_ERROR_CHECK(hid_class_request_set_idle(hid_device_handle, 0, 0));
+                }
             }
+            ESP_ERROR_CHECK(hid_host_device_start(hid_device_handle));
         }
-        ESP_ERROR_CHECK(hid_host_device_start(hid_device_handle));
         break;
     default:
         break;
@@ -555,7 +558,7 @@ static void usb_lib_task(void *arg)
 {
     const usb_host_config_t host_config = {
         .skip_phy_setup = false,
-        .intr_flags = ESP_INTR_FLAG_LEVEL1,
+        .intr_flags = ESP_INTR_FLAG_LOWMED,
     };
 
     ESP_ERROR_CHECK(usb_host_install(&host_config));
@@ -643,7 +646,7 @@ void app_main(void)
         .intr_type = GPIO_INTR_NEGEDGE,
     };
     ESP_ERROR_CHECK(gpio_config(&input_pin));
-    ESP_ERROR_CHECK(gpio_install_isr_service(ESP_INTR_FLAG_LEVEL1));
+    ESP_ERROR_CHECK(gpio_install_isr_service(ESP_INTR_FLAG_LOWMED));
     ESP_ERROR_CHECK(gpio_isr_handler_add(APP_QUIT_PIN, gpio_isr_cb, NULL));
 
     /*

@@ -22,13 +22,16 @@
 #include "sysinit/sysinit.h"
 #include "host/ble_hs.h"
 #include "services/ipss/ble_svc_ipss.h"
+#include "host/ble_hs_log.h"
 
 #if MYNEWT_VAL(BLE_GATTS) && CONFIG_BT_NIMBLE_IPSS_SERVICE
+static const ble_uuid16_t uuid_svc_ipss = BLE_UUID16_INIT(BLE_SVC_IPSS_UUID16);
+
 static const struct ble_gatt_svc_def ble_svc_ipss_defs[] = {
     {
-        /*** Service: GATT */
+        /*** Service: IPSS */
         .type = BLE_GATT_SVC_TYPE_PRIMARY,
-        .uuid = BLE_UUID16_DECLARE(BLE_SVC_IPSS_UUID16),
+        .uuid = &uuid_svc_ipss.u,
         .characteristics = NULL,
     },
     {

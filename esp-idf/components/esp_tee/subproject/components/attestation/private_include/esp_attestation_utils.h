@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2024 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2024-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -12,6 +12,10 @@
 #include "esp_app_desc.h"
 
 #include "esp_attestation.h"
+#include "psa/crypto.h"
+#include "psa/initial_attestation.h"
+
+#include "sdkconfig.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -33,18 +37,25 @@ extern "C" {
 #define ESP_ATT_HDR_JSON_MAX_SZ     (128)
 
 #define ESP_ATT_EAT_DEV_ID_SZ       (32)
+#define ESP_ATT_EAT_UEID_MAC_SZ     (6)   /* eFuse MAC */
+#define ESP_ATT_EAT_UEID_OPT_ID_SZ  (16)  /* eFuse OPTIONAL_UNIQUE_ID */
 #define ESP_ATT_CLAIM_JSON_MAX_SZ   (448)
-#define ESP_ATT_EAT_JSON_MAX_SZ     (1344)
+#define ESP_ATT_EAT_JSON_MAX_SZ     (1600)
 
 #define ESP_ATT_PUBKEY_JSON_MAX_SZ  (128)
 #define ESP_ATT_SIGN_JSON_MAX_SZ    (192)
 
 #define ESP_ATT_TK_MIN_SIZE         (ESP_ATT_HDR_JSON_MAX_SZ + ESP_ATT_EAT_JSON_MAX_SZ + ESP_ATT_PUBKEY_JSON_MAX_SZ + ESP_ATT_SIGN_JSON_MAX_SZ)
+#if ESP_ATT_TK_MIN_SIZE > PSA_INITIAL_ATTEST_MAX_TOKEN_SIZE
+#error "Attestation token size may exceed the bounds set by the PSA interface"
+#endif
 
 #if ESP_TEE_BUILD && CONFIG_SECURE_TEE_ATTESTATION
-#define ESP_ATT_TK_KEY_ID  (CONFIG_SECURE_TEE_ATT_KEY_STR_ID)
+#define ESP_ATT_TK_KEY_ID        (CONFIG_SECURE_TEE_ATT_KEY_STR_ID)
+#define ESP_ATT_TK_PSA_CERT_REF  (CONFIG_SECURE_TEE_ATT_PSA_CERT_REF)
 #else
-#define ESP_ATT_TK_KEY_ID  ("NULL")
+#define ESP_ATT_TK_KEY_ID        ("NULL")
+#define ESP_ATT_TK_PSA_CERT_REF  ("NULL")
 #endif
 
 /**
@@ -110,14 +121,19 @@ typedef struct {
  * @brief Structure to hold the Entity Attestation Token initial configuration
  */
 typedef struct {
-    uint32_t nonce;                        /**< Nonce value */
-    uint32_t client_id;                    /**< Client identifier (Attestation relying party) */
-    uint32_t device_ver;                   /**< Device version */
-    uint8_t device_id[SHA256_DIGEST_SZ];   /**< Device identifier */
-    uint8_t instance_id[SHA256_DIGEST_SZ]; /**< Instance identifier */
-    char psa_cert_ref[32];                 /**< PSA certificate reference */
-    uint8_t device_stat;                   /**< Flags indicating device status */
+    uint8_t *auth_challenge;                         /**< Authentication challenge */
+    size_t challenge_size;                           /**< Challenge size */
+    uint32_t client_id;                              /**< Client identifier (Attestation relying party) */
+    uint32_t chip_id;                                /**< Chip identifier */
+    uint32_t device_ver;                             /**< Device version */
+    uint8_t ueid_mac[ESP_ATT_EAT_UEID_MAC_SZ];       /**< Device UEID: MAC from eFuse*/
+    uint8_t ueid_opt_id[ESP_ATT_EAT_UEID_OPT_ID_SZ]; /**< Device UEID: OPTIONAL_UNIQUE_ID from eFuse*/
+    uint8_t device_id[SHA256_DIGEST_SZ];             /**< Device identifier (SHA-256 of MAC) */
+    uint8_t instance_id[SHA256_DIGEST_SZ];           /**< Instance identifier */
+    char psa_cert_ref[32];                           /**< PSA certificate reference */
+    uint8_t device_stat;                             /**< Flags indicating device status */
 } esp_att_token_cfg_t;
+
 /**
  * @brief Structure to hold an ECDSA key pair
  */

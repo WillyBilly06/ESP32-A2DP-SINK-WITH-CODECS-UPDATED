@@ -119,14 +119,17 @@ struct ble_svc_dis_data {
 /**
  * Variable holding data for the main characteristics.
  */
+#if MYNEWT_VAL(BLE_STATIC_TO_DYNAMIC)
+extern struct ble_svc_dis_data *ble_svc_dis_data;
+#else
 extern struct ble_svc_dis_data ble_svc_dis_data;
-
+#endif
 /**
  * Service initialisation.
  * Automatically called during package initialisation.
  */
 void ble_svc_dis_init(void);
-
+void ble_svc_dis_deinit(void);
 /**
  * Service initialisation as an included service.
  */

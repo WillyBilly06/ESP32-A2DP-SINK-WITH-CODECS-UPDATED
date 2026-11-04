@@ -287,21 +287,32 @@ public:
         }
     }
 
-    void updateEq(int8_t bass, int8_t mid, int8_t treble) {
+    void updateEq(int8_t bass, int8_t mid, int8_t treble, bool notify = true) {
         m_eqValue[0] = bass;
         m_eqValue[1] = mid;
         m_eqValue[2] = treble;
-        notifyStatus(BleResp::STATUS_EQ, (uint8_t*)m_eqValue, 3);
+        if (notify) notifyStatus(BleResp::STATUS_EQ, (uint8_t*)m_eqValue, 3);
     }
 
-    void updateControl(uint8_t controlByte) {
+    void updateControl(uint8_t controlByte, bool notify = true) {
         m_controlValue = controlByte;
-        notifyStatus(BleResp::STATUS_CONTROL, &m_controlValue, 1);
+        if (notify) notifyStatus(BleResp::STATUS_CONTROL, &m_controlValue, 1);
     }
 
     void updateName(const char* name) {
         strncpy(m_nameValue, name, sizeof(m_nameValue) - 1);
         m_nameValue[sizeof(m_nameValue) - 1] = '\0';
+        // Classic and BLE share the public address. Android caches both names
+        // on the same device, so both transports must use the canonical name.
+        esp_ble_gap_set_device_name(m_nameValue);
+        if (m_gattsIf != ESP_GATT_IF_NONE) {
+            esp_ble_adv_data_t scan_rsp = {};
+            scan_rsp.set_scan_rsp = true;
+            scan_rsp.include_name = true;
+            scan_rsp.include_txpower = false; // Already present in advertising; leave room for the name.
+            m_advConfigDone |= SCAN_RSP_CONFIG_FLAG;
+            esp_ble_gap_config_adv_data(&scan_rsp);
+        }
         notifyStatus(BleResp::STATUS_NAME, (uint8_t*)m_nameValue, strlen(m_nameValue));
     }
 
@@ -318,7 +329,7 @@ public:
         return (v * 25 + 32) >> 6;
     }
     
-    void updateLed(const uint8_t* data, size_t len) {
+    void updateLed(const uint8_t* data, size_t len, bool notify = true) {
         // data is in old internal format: [brightness(0-255), r1, g1, b1, r2, g2, b2, gradient, speed, effectId]
         if (len > sizeof(m_ledValue)) len = sizeof(m_ledValue);
         memcpy(m_ledValue, data, len);
@@ -337,10 +348,10 @@ public:
         unified[8] = m_ledValue[6];  // b2
         unified[9] = m_ledValue[7];  // gradient
         
-        notifyStatus(BleResp::STATUS_LED, unified, 10);
+        if (notify) notifyStatus(BleResp::STATUS_LED, unified, 10);
     }
 
-    void updateLedEffect(uint8_t effectId) {
+    void updateLedEffect(uint8_t effectId, bool notify = true) {
         m_ledValue[9] = effectId;  // effectId in old format is at index 9
         
         // Convert to unified format - map brightness 0-255 to 0-100 using fast multiply+shift
@@ -356,10 +367,10 @@ public:
         unified[8] = m_ledValue[6];  // b2
         unified[9] = m_ledValue[7];  // gradient
         
-        notifyStatus(BleResp::STATUS_LED, unified, 10);
+        if (notify) notifyStatus(BleResp::STATUS_LED, unified, 10);
     }
 
-    void updateLedBrightness(uint8_t brightness) {
+    void updateLedBrightness(uint8_t brightness, bool notify = true) {
         m_ledValue[0] = brightness;  // brightness in old format is at index 0
         
         // Convert to unified format - map brightness 0-255 to 0-100 using fast multiply+shift
@@ -375,7 +386,7 @@ public:
         unified[8] = m_ledValue[6];  // b2
         unified[9] = m_ledValue[7];  // gradient
         
-        notifyStatus(BleResp::STATUS_LED, unified, 10);
+        if (notify) notifyStatus(BleResp::STATUS_LED, unified, 10);
     }
 
     void updateSoundStatus(uint8_t status) {
@@ -759,11 +770,10 @@ private:
         scan_rsp.include_name = true;
         scan_rsp.include_txpower = true;
 
-        // Use a different name for BLE to avoid confusion with Classic BT A2DP
-        // Windows sometimes connects to BLE instead of Classic BT for audio
-        char bleName[64];
-        snprintf(bleName, sizeof(bleName), "%s BLE", m_nameValue);
-        esp_ble_gap_set_device_name(bleName);
+        // A dual-mode device shares one public identity. Different Classic/BLE
+        // names cause Android's cached name to alternate during BLE scans.
+        scan_rsp.include_txpower = false;
+        esp_ble_gap_set_device_name(m_nameValue);
         
         m_advConfigDone = ADV_CONFIG_FLAG | SCAN_RSP_CONFIG_FLAG;
         esp_ble_gap_config_adv_data(&adv_data);

@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2023-2025 Espressif Systems (Shanghai) CO LTD
+# SPDX-FileCopyrightText: 2023-2026 Espressif Systems (Shanghai) CO LTD
 # SPDX-License-Identifier: CC0-1.0
 import pytest
 from pytest_embedded import Dut
@@ -15,21 +15,18 @@ from pytest_embedded_idf.utils import soc_filtered_targets
     ],
     indirect=True,
 )
-@pytest.mark.temp_skip_ci(targets=['esp32p4'], reason='p4 rev3 migration # TODO: IDF-14395')
 @idf_parametrize('target', ['supported_targets'], indirect=['target'])
 def test_i2c(dut: Dut) -> None:
     dut.run_all_single_board_cases()
 
 
 @pytest.mark.generic_multi_device
-@pytest.mark.temp_skip_ci(targets=['esp32p4'], reason='p4 rev3 migration # TODO: IDF-14395')
 @pytest.mark.parametrize(
     'count, config',
     [
         (2, 'defaults'),
         (2, 'release'),
         (2, 'iram_safe'),
-        (2, 'slave_v2'),
     ],
     indirect=True,
 )

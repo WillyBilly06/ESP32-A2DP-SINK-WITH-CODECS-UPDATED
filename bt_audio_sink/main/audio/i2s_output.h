@@ -50,7 +50,7 @@ public:
             return ESP_ERR_NO_MEM;
         }
 
-        i2s_chan_config_t chan_cfg = I2S_CHANNEL_DEFAULT_CONFIG((i2s_port_t)APP_I2S_PORT, I2S_ROLE_MASTER);
+        i2s_chan_config_t chan_cfg = I2S_CHANNEL_DEFAULT_CONFIG(APP_I2S_PORT, I2S_ROLE_MASTER);
         chan_cfg.auto_clear = true;
         // Keep the DMA as a SMALL bridge (3x256 = 768 frames, ~8 ms @ 96k / ~17 ms
         // @ 44.1k) -- just enough to cover render scheduling latency. The jitter

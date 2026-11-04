@@ -51,10 +51,10 @@ void app_main(void)
      * ISP convert to RGB565
      */
     //---------------DSI Init------------------//
-    example_dsi_resource_alloc(&mipi_dsi_bus, &mipi_dbi_io, &mipi_dpi_panel, &frame_buffer);
+    example_dsi_resource_alloc(NULL, &mipi_dsi_bus, &mipi_dbi_io, &mipi_dpi_panel, &frame_buffer, NULL);
 
     //---------------Necessary variable config------------------//
-    frame_buffer_size = CONFIG_EXAMPLE_MIPI_CSI_DISP_HRES * CONFIG_EXAMPLE_MIPI_DSI_DISP_VRES * EXAMPLE_RGB565_BITS_PER_PIXEL / 8;
+    frame_buffer_size = CONFIG_EXAMPLE_MIPI_CSI_DISP_HRES * CONFIG_EXAMPLE_MIPI_DSI_DISP_VRES * EXAMPLE_RGB565_BYTES_PER_PIXEL;
 
     ESP_LOGD(TAG, "CONFIG_EXAMPLE_MIPI_CSI_DISP_HRES: %d, CONFIG_EXAMPLE_MIPI_DSI_DISP_VRES: %d, bits per pixel: %d", CONFIG_EXAMPLE_MIPI_CSI_DISP_HRES, CONFIG_EXAMPLE_MIPI_DSI_DISP_VRES, EXAMPLE_RGB565_BITS_PER_PIXEL);
     ESP_LOGD(TAG, "frame_buffer_size: %zu", frame_buffer_size);
@@ -74,6 +74,9 @@ void app_main(void)
         .i2c_port_num = I2C_NUM_0,
         .i2c_sda_io_num = EXAMPLE_MIPI_CSI_CAM_SCCB_SDA_IO,
         .i2c_scl_io_num = EXAMPLE_MIPI_CSI_CAM_SCCB_SCL_IO,
+        .reset_pin = -1,
+        .pwdn_pin = -1,
+        .xclk_pin = -1,
         .port = ESP_CAM_SENSOR_MIPI_CSI,
         .format_name = EXAMPLE_CAM_FORMAT,
     };

@@ -63,6 +63,11 @@ static BT_HDR *avct_lcb_msg_asmbl(tAVCT_LCB *p_lcb, BT_HDR *p_buf)
     p = (UINT8 *)(p_buf + 1) + p_buf->offset;
     AVCT_PRS_PKT_TYPE(p, pkt_type);
 
+    if (pkt_type > AVCT_PKT_TYPE_END) {
+        osi_free(p_buf);
+        return NULL;
+    }
+
     /* quick sanity check on length */
     if (p_buf->len < avct_lcb_pkt_type_len[pkt_type]) {
         osi_free(p_buf);
@@ -86,6 +91,11 @@ static BT_HDR *avct_lcb_msg_asmbl(tAVCT_LCB *p_lcb, BT_HDR *p_buf)
             AVCT_TRACE_WARNING("Got start during reassembly");
         }
         osi_free(p_lcb->p_rx_msg);
+        p_lcb->p_rx_msg = NULL;
+        if (sizeof(BT_HDR) + p_buf->offset + p_buf->len > BT_DEFAULT_BUFFER_SIZE) {
+            osi_free(p_buf);
+            return NULL;
+        }
         /* Allocate bigger buffer for reassembly. As lower layers are
          * not aware of possible packet size after reassembly they
          * would have allocated smaller buffer.
@@ -109,6 +119,11 @@ static BT_HDR *avct_lcb_msg_asmbl(tAVCT_LCB *p_lcb, BT_HDR *p_buf)
             /* set offset to point to where to copy next */
             p_lcb->p_rx_msg->offset += p_lcb->p_rx_msg->len;
 
+            if (p_lcb->p_rx_msg->len < 1) {
+                osi_free(p_lcb->p_rx_msg);
+                p_lcb->p_rx_msg = NULL;
+                return NULL;
+            }
             /* adjust length for packet header */
             p_lcb->p_rx_msg->len -= 1;
         }
@@ -137,6 +152,11 @@ static BT_HDR *avct_lcb_msg_asmbl(tAVCT_LCB *p_lcb, BT_HDR *p_buf)
             if ((p_lcb->p_rx_msg->offset + p_buf->len) > buf_len) {
                 /* won't fit; free everything */
                 AVCT_TRACE_WARNING("%s: Fragmented message too big!", __func__);
+                osi_free(p_lcb->p_rx_msg);
+                p_lcb->p_rx_msg = NULL;
+                osi_free(p_buf);
+                p_ret = NULL;
+            } else if ((UINT32)p_lcb->p_rx_msg->len + p_buf->len > 0xFFFF) {
                 osi_free(p_lcb->p_rx_msg);
                 p_lcb->p_rx_msg = NULL;
                 osi_free(p_buf);
@@ -245,8 +265,10 @@ void avct_lcb_open_ind(tAVCT_LCB *p_lcb, tAVCT_LCB_EVT *p_data)
             if (p_ccb->p_lcb == p_lcb) {
                 bind = TRUE;
                 L2CA_SetTxPriority(p_lcb->ch_lcid, L2CAP_CHNL_PRIORITY_HIGH);
-                p_ccb->cc.p_ctrl_cback(avct_ccb_to_idx(p_ccb), AVCT_CONNECT_CFM_EVT,
-                                       0, p_lcb->peer_addr);
+                if (p_ccb->cc.p_ctrl_cback) {
+                    p_ccb->cc.p_ctrl_cback(avct_ccb_to_idx(p_ccb), AVCT_CONNECT_CFM_EVT,
+                                        0, p_lcb->peer_addr);
+                }
             }
             /* if unbound acceptor and lcb doesn't already have a ccb for this PID */
             else if ((p_ccb->p_lcb == NULL) && (p_ccb->cc.role == AVCT_ACP) &&
@@ -255,8 +277,10 @@ void avct_lcb_open_ind(tAVCT_LCB *p_lcb, tAVCT_LCB_EVT *p_data)
                 bind = TRUE;
                 p_ccb->p_lcb = p_lcb;
                 L2CA_SetTxPriority(p_lcb->ch_lcid, L2CAP_CHNL_PRIORITY_HIGH);
-                p_ccb->cc.p_ctrl_cback(avct_ccb_to_idx(p_ccb), AVCT_CONNECT_IND_EVT,
-                                       0, p_lcb->peer_addr);
+                if (p_ccb->cc.p_ctrl_cback) {
+                    p_ccb->cc.p_ctrl_cback(avct_ccb_to_idx(p_ccb), AVCT_CONNECT_IND_EVT,
+                                        0, p_lcb->peer_addr);
+                }
             }
         }
     }
@@ -315,8 +339,10 @@ void avct_lcb_close_ind(tAVCT_LCB *p_lcb, tAVCT_LCB_EVT *p_data)
                                  0, p_lcb->peer_addr);
             } else {
                 p_ccb->p_lcb = NULL;
-                (*p_ccb->cc.p_ctrl_cback)(avct_ccb_to_idx(p_ccb), AVCT_DISCONNECT_IND_EVT,
-                                          0, p_lcb->peer_addr);
+                if (p_ccb->cc.p_ctrl_cback) {
+                    (*p_ccb->cc.p_ctrl_cback)(avct_ccb_to_idx(p_ccb), AVCT_DISCONNECT_IND_EVT,
+                                            0, p_lcb->peer_addr);
+                }
             }
         }
     }
@@ -353,8 +379,10 @@ void avct_lcb_close_cfm(tAVCT_LCB *p_lcb, tAVCT_LCB_EVT *p_data)
                 avct_ccb_dealloc(p_ccb, event, p_data->result, p_lcb->peer_addr);
             } else {
                 p_ccb->p_lcb = NULL;
-                (*p_ccb->cc.p_ctrl_cback)(avct_ccb_to_idx(p_ccb), event,
-                                          p_data->result, p_lcb->peer_addr);
+                if (p_ccb->cc.p_ctrl_cback) {
+                    (*p_ccb->cc.p_ctrl_cback)(avct_ccb_to_idx(p_ccb), event,
+                                            p_data->result, p_lcb->peer_addr);
+                }
             }
         }
     }
@@ -373,8 +401,10 @@ void avct_lcb_close_cfm(tAVCT_LCB *p_lcb, tAVCT_LCB_EVT *p_data)
 void avct_lcb_bind_conn(tAVCT_LCB *p_lcb, tAVCT_LCB_EVT *p_data)
 {
     p_data->p_ccb->p_lcb = p_lcb;
-    (*p_data->p_ccb->cc.p_ctrl_cback)(avct_ccb_to_idx(p_data->p_ccb),
-                                      AVCT_CONNECT_CFM_EVT, 0, p_lcb->peer_addr);
+    if (p_data->p_ccb->cc.p_ctrl_cback) {
+        (*p_data->p_ccb->cc.p_ctrl_cback)(avct_ccb_to_idx(p_data->p_ccb),
+                                        AVCT_CONNECT_CFM_EVT, 0, p_lcb->peer_addr);
+    }
 }
 
 /*******************************************************************************
@@ -419,7 +449,12 @@ void avct_lcb_chnl_disc(tAVCT_LCB *p_lcb, tAVCT_LCB_EVT *p_data)
 {
     UNUSED(p_data);
 
-    L2CA_DisconnectReq(p_lcb->ch_lcid);
+    tAVCT_LCB_EVT evt;
+
+    if (!L2CA_DisconnectReq(p_lcb->ch_lcid)) {
+        evt.result = AVCT_RESULT_FAIL;
+        avct_lcb_event(p_lcb, AVCT_LCB_LL_CLOSE_EVT, &evt);
+    }
 }
 
 /*******************************************************************************
@@ -468,6 +503,7 @@ void avct_lcb_cong_ind(tAVCT_LCB *p_lcb, tAVCT_LCB_EVT *p_data)
             if (L2CA_DataWrite(p_lcb->ch_lcid, p_buf) == L2CAP_DW_CONGESTED)
             {
                 p_lcb->cong = TRUE;
+                event = AVCT_CONG_IND_EVT;
             }
         }
     }
@@ -475,7 +511,9 @@ void avct_lcb_cong_ind(tAVCT_LCB *p_lcb, tAVCT_LCB_EVT *p_data)
     /* send event to all ccbs on this lcb */
     for (i = 0; i < AVCT_NUM_CONN; i++, p_ccb++) {
         if (p_ccb->allocated && (p_ccb->p_lcb == p_lcb)) {
-            (*p_ccb->cc.p_ctrl_cback)(avct_ccb_to_idx(p_ccb), event, 0, p_lcb->peer_addr);
+            if (p_ccb->cc.p_ctrl_cback) {
+                (*p_ccb->cc.p_ctrl_cback)(avct_ccb_to_idx(p_ccb), event, 0, p_lcb->peer_addr);
+            }
         }
     }
 }
@@ -550,6 +588,7 @@ void avct_lcb_send_msg(tAVCT_LCB *p_lcb, tAVCT_LCB_EVT *p_data)
                 /* whoops; free original msg buf and bail */
                 AVCT_TRACE_ERROR ("avct_lcb_send_msg cannot alloc buffer!!");
                 osi_free(p_data->ul_msg.p_buf);
+                p_data->ul_msg.p_buf = NULL;
                 break;
             }
 
@@ -564,6 +603,7 @@ void avct_lcb_send_msg(tAVCT_LCB *p_lcb, tAVCT_LCB_EVT *p_data)
             p_data->ul_msg.p_buf->len -= p_buf->len;
         } else {
             p_buf = p_data->ul_msg.p_buf;
+            p_data->ul_msg.p_buf = NULL;
         }
 
         curr_msg_len -= p_buf->len;
@@ -675,7 +715,12 @@ void avct_lcb_msg_ind(tAVCT_LCB *p_lcb, tAVCT_LCB_EVT *p_data)
         /* PID found; send msg up, adjust bt hdr and call msg callback */
         p_data->p_buf->offset += AVCT_HDR_LEN_SINGLE;
         p_data->p_buf->len -= AVCT_HDR_LEN_SINGLE;
-        (*p_ccb->cc.p_msg_cback)(avct_ccb_to_idx(p_ccb), label, cr_ipid, p_data->p_buf);
+        if (p_ccb->cc.p_msg_cback) {
+            (*p_ccb->cc.p_msg_cback)(avct_ccb_to_idx(p_ccb), label, cr_ipid, p_data->p_buf);
+        } else {
+            osi_free(p_data->p_buf);
+            p_data->p_buf = NULL;
+        }
     } else {
         /* PID not found; drop message */
         AVCT_TRACE_WARNING("No ccb for PID=%x", pid);

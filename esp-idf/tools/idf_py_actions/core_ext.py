@@ -10,16 +10,13 @@ import shutil
 import subprocess
 import sys
 from typing import Any
-from typing import Dict
-from typing import List
-from typing import Optional
 from urllib.error import URLError
 from urllib.request import Request
 from urllib.request import urlopen
 from webbrowser import open_new_tab
 
-import click
-from click.core import Context
+import rich_click as click
+from rich_click import Context
 
 from idf_py_actions.constants import GENERATORS
 from idf_py_actions.constants import PREVIEW_TARGETS
@@ -34,12 +31,14 @@ from idf_py_actions.tools import generate_hints
 from idf_py_actions.tools import get_target
 from idf_py_actions.tools import idf_version
 from idf_py_actions.tools import merge_action_lists
-from idf_py_actions.tools import print_warning
 from idf_py_actions.tools import run_target
 from idf_py_actions.tools import yellow_print
 
+# If a CMake preset with this name exists, it will be used by default when no '--preset' argument is given.
+DEFAULT_CMAKE_PRESET_NAME = 'default'
 
-def action_extensions(base_actions: Dict, project_path: str) -> Any:
+
+def action_extensions(base_actions: dict, project_path: str) -> Any:
     def build_target(target_name: str, ctx: Context, args: PropertyDict) -> None:
         """
         Execute the target build system to build target 'target_name'
@@ -81,14 +80,15 @@ def action_extensions(base_actions: Dict, project_path: str) -> Any:
             else:
                 raise
 
+    def config_report_target(target_name: str, ctx: Context, args: PropertyDict) -> None:
+        """
+        Generate a JSON file with the project configuration report in the build/config directory.
+        """
+        ensure_build_directory(args, ctx.info_name)
+        run_target(target_name, args)
+
     def size_target(
-        target_name: str,
-        ctx: Context,
-        args: PropertyDict,
-        output_format: str,
-        output_file: str,
-        diff_map_file: str,
-        legacy: bool,
+        target_name: str, ctx: Context, args: PropertyDict, output_format: str, output_file: str, diff_map_file: str
     ) -> None:
         """
         Builds the app and then executes a size-related target passed in 'target_name'.
@@ -100,29 +100,9 @@ def action_extensions(base_actions: Dict, project_path: str) -> Any:
             for hint in generate_hints(stdout, stderr):
                 yellow_print(hint)
 
-        env: Dict[str, Any] = {}
+        env: dict[str, Any] = {}
 
-        if not legacy and output_format != 'json':
-            try:
-                import esp_idf_size.ng  # noqa: F401
-            except ImportError:
-                print_warning('WARNING: refactored esp-idf-size not installed, using legacy mode')
-                legacy = True
-            else:
-                # Legacy mode is used only when explicitly requested with --legacy option
-                # or when "--format json" option is specified. Here we enable the
-                # esp-idf-size refactored version with ESP_IDF_SIZE_NG env. variable.
-                env['ESP_IDF_SIZE_NG'] = '1'
-                # ESP_IDF_SIZE_FORCE_TERMINAL is set to force terminal control codes even
-                # if stdout is not attached to terminal. This is set to pass color codes
-                # from esp-idf-size to idf.py.
-                env['ESP_IDF_SIZE_FORCE_TERMINAL'] = '1'
-
-        if legacy and output_format in ['json2', 'raw', 'tree']:
-            # These formats are supported in new version only.
-            # We would get error from the esp-idf-size anyway, so print error early.
-            raise FatalError(f'Legacy esp-idf-size does not support {output_format} format')
-
+        env['ESP_IDF_SIZE_FORCE_TERMINAL'] = '1'
         env['SIZE_OUTPUT_FORMAT'] = output_format
         if output_file:
             env['SIZE_OUTPUT_FILE'] = os.path.abspath(output_file)
@@ -158,29 +138,20 @@ def action_extensions(base_actions: Dict, project_path: str) -> Any:
         build_target('help', ctx, args)
 
     def menuconfig(target_name: str, ctx: Context, args: PropertyDict, style: str) -> None:
-        """
-        Menuconfig target is build_target extended with the style argument for setting the value for the environment
-        variable.
-        """
-        if sys.platform != 'win32':
-            try:
-                import curses  # noqa: F401
-            except ImportError:
-                raise FatalError(
-                    '\n'.join(
-                        [
-                            '',
-                            "menuconfig failed to import the standard Python 'curses' library.",
-                            'Please re-run the install script which might be able to fix the issue.',
-                        ]
-                    )
-                )
-        if sys.version_info[0] < 3:
-            # The subprocess lib cannot accept environment variables as "unicode".
-            # This encoding step is required only in Python 2.
-            style = style.encode(sys.getfilesystemencoding() or 'utf-8')
-        os.environ['MENUCONFIG_STYLE'] = style
+        """Run the menuconfig configuration tool."""
         args.no_hints = True
+        if style == 'dark':
+            style = 'textual-dark'
+        elif style == 'light':
+            style = 'textual-light'
+
+        # Compatibility with legacy names
+        if style in ['aquatic', 'monochrome', 'default']:
+            print('NOTE: Legacy menuconfig styles are deprecated. Using dark style instead.')
+            style = 'textual-dark'
+
+        if style:
+            os.environ['MENUCONFIG_STYLE'] = style
         build_target(target_name, ctx, args)
 
     def save_defconfig(target_name: str, ctx: Context, args: PropertyDict, add_menu_labels: bool) -> None:
@@ -190,6 +161,10 @@ def action_extensions(base_actions: Dict, project_path: str) -> Any:
             # unset variable
             os.environ.pop('ESP_IDF_KCONFIG_MIN_LABELS', None)
         build_target(target_name, ctx, args)
+
+    def refresh_config(action: str, ctx: Context, args: PropertyDict, policy: str) -> None:
+        ensure_build_directory(args, ctx.info_name)
+        run_target('refresh-config', args=args, env={'KCONFIG_DEFAULTS_POLICY': policy}, interactive=True)
 
     def fallback_target(target_name: str, ctx: Context, args: PropertyDict) -> None:
         """
@@ -203,17 +178,15 @@ def action_extensions(base_actions: Dict, project_path: str) -> Any:
         except Exception:
             if target_name in ['clang-check', 'clang-html-report']:
                 raise FatalError(
-                    'command "{}" requires an additional plugin "pyclang". '
-                    'Please install it via "pip install --upgrade pyclang"'.format(target_name)
+                    f'command "{target_name}" requires an additional plugin "pyclang". '
+                    'Please install it via "pip install --upgrade pyclang"'
                 )
 
-            raise FatalError(
-                'command "%s" is not known to idf.py and is not a %s target' % (target_name, args.generator)
-            )
+            raise FatalError(f'command "{target_name}" is not known to idf.py and is not a {args.generator} target')
 
         run_target(target_name, args)
 
-    def verbose_callback(ctx: Context, param: List, value: str) -> Optional[str]:
+    def verbose_callback(ctx: Context, param: list, value: str) -> str | None:
         if not value or ctx.resilient_parsing:
             return None
 
@@ -224,23 +197,23 @@ def action_extensions(base_actions: Dict, project_path: str) -> Any:
 
     def clean(action: str, ctx: Context, args: PropertyDict) -> None:
         if not os.path.isdir(args.build_dir):
-            print("Build directory '%s' not found. Nothing to clean." % args.build_dir)
+            print(f"Build directory '{args.build_dir}' not found. Nothing to clean.")
             return
         build_target('clean', ctx, args)
 
     def fullclean(action: str, ctx: Context, args: PropertyDict) -> None:
         build_dir = args.build_dir
         if not os.path.isdir(build_dir):
-            print("Build directory '%s' not found. Nothing to clean." % build_dir)
+            print(f"Build directory '{build_dir}' not found. Nothing to clean.")
             return
         if len(os.listdir(build_dir)) == 0:
-            print("Build directory '%s' is empty. Nothing to clean." % build_dir)
+            print(f"Build directory '{build_dir}' is empty. Nothing to clean.")
             return
 
         if not os.path.exists(os.path.join(build_dir, 'CMakeCache.txt')):
             raise FatalError(
-                "Directory '%s' doesn't seem to be a CMake build directory. Refusing to automatically "
-                "delete files in this directory. Delete the directory manually to 'clean' it." % build_dir
+                f"Directory '{build_dir}' doesn't seem to be a CMake build directory. Refusing to automatically "
+                "delete files in this directory. Delete the directory manually to 'clean' it."
             )
         red_flags = ['CMakeLists.txt', '.git', '.svn']
         for red in red_flags:
@@ -251,11 +224,12 @@ def action_extensions(base_actions: Dict, project_path: str) -> Any:
                     "Delete files manually if you're sure."
                 )
         if args.verbose and len(build_dir) > 1:
-            print('The following symlinks were identified and removed:\n%s' % '\n'.join(build_dir))
+            symlinks_list = '\n'.join(build_dir)
+            print(f'The following symlinks were identified and removed:\n{symlinks_list}')
         for f in os.listdir(build_dir):  # TODO: once we are Python 3 only, this can be os.scandir()
             f = os.path.join(build_dir, f)
             if args.verbose:
-                print('Removing: %s' % f)
+                print(f'Removing: {f}')
             if os.path.isdir(f):
                 shutil.rmtree(f)
             else:
@@ -267,19 +241,19 @@ def action_extensions(base_actions: Dict, project_path: str) -> Any:
                 if d == '__pycache__':
                     dir_to_delete = os.path.join(root, d)
                     if args.verbose:
-                        print('Removing: %s' % dir_to_delete)
+                        print(f'Removing: {dir_to_delete}')
                     shutil.rmtree(dir_to_delete)
             for filename in fnmatch.filter(filenames, '*.py[co]'):
                 file_to_delete = os.path.join(root, filename)
                 if args.verbose:
-                    print('Removing: %s' % file_to_delete)
+                    print(f'Removing: {file_to_delete}')
                 os.remove(file_to_delete)
 
     def set_target(action: str, ctx: Context, args: PropertyDict, idf_target: str) -> None:
         if not args['preview'] and idf_target in PREVIEW_TARGETS:
             raise FatalError(
-                "%s is still in preview. You have to append '--preview' option after idf.py to use any preview feature."
-                % idf_target
+                f"{idf_target} is still in preview. You have to append '--preview' option after "
+                'idf.py to use any preview feature.'
             )
         args.define_cache_entry.append('IDF_TARGET=' + idf_target)
         print(f'Set Target to: {idf_target}, new sdkconfig will be created.')
@@ -289,16 +263,102 @@ def action_extensions(base_actions: Dict, project_path: str) -> Any:
     def reconfigure(action: str, ctx: Context, args: PropertyDict) -> None:
         ensure_build_directory(args, ctx.info_name, True)
 
-    def validate_root_options(ctx: Context, args: PropertyDict, tasks: List) -> None:
+    def validate_root_options(ctx: Context, args: PropertyDict, tasks: list) -> None:
         args.project_dir = os.path.realpath(args.project_dir)
         if args.build_dir is not None and args.project_dir == os.path.realpath(args.build_dir):
             raise FatalError(
                 'Setting the build directory to the project directory is not supported. Suggest dropping '
                 "--build-dir option, the default is a 'build' subdirectory inside the project directory."
             )
+
+        # CMake presets have to be initialized once the project directory is known
+        # but before falling back to the default build directory
+        initialize_cmake_presets(args)
+
         if args.build_dir is None:
             args.build_dir = os.path.join(args.project_dir, 'build')
         args.build_dir = os.path.realpath(args.build_dir)
+
+    def initialize_cmake_presets(args: PropertyDict) -> None:
+        """
+        Initialize and validate the use of CMake presets.
+        Parse preset, extract variables (like build_dir, generator, preset), and update fields in args accordingly
+        to ensure ESP-IDF actions use correct values from chosen preset.
+        """
+        preset_name = args.preset
+
+        # Load CMake presets from the project directory
+        cmakepresets_file_names = ['CMakePresets.json', 'CMakeUserPresets.json']
+        config_presets_info = []
+
+        for cmakepresets_file_name in cmakepresets_file_names:
+            cmakepresets_file_path = os.path.join(args.project_dir, cmakepresets_file_name)
+            if not os.path.exists(cmakepresets_file_path):
+                continue
+            try:
+                with open(cmakepresets_file_path) as f_in:
+                    presets_info = json.load(f_in)
+
+                    if not presets_info.get('version'):
+                        raise FatalError(
+                            f'Found CMake preset file without a version in {cmakepresets_file_name}, '
+                            'field "version" is required. '
+                            'Current recommended version is 3, as minimal supported cmake version by ESP-IDF is 3.22.1'
+                        )
+
+                    for config_preset in presets_info['configurePresets']:
+                        if not config_preset.get('name'):
+                            raise FatalError(
+                                f'Found CMake preset without a name in {cmakepresets_file_name}, '
+                                'field "name" is required'
+                            )
+                        config_presets_info.append(config_preset)
+            except FatalError as err:
+                raise err
+            except Exception as err:
+                yellow_print(f'Failed to load CMake presets from {cmakepresets_file_name}, {str(err)}')
+
+        if not config_presets_info:
+            if preset_name:
+                raise FatalError(f"Preset '{preset_name}' specified, but no CMake presets found")
+            return
+
+        preset_names = [preset['name'] for preset in config_presets_info]
+
+        # Determine which preset to use
+        if not preset_name and DEFAULT_CMAKE_PRESET_NAME in preset_names:
+            yellow_print(
+                f"CMake presets file found but no preset name given; using '{DEFAULT_CMAKE_PRESET_NAME}' preset"
+            )
+            preset_name = DEFAULT_CMAKE_PRESET_NAME
+        elif not preset_name:
+            preset_name = preset_names[0]
+            yellow_print(f"CMake presets file found but no preset name given; using first preset: '{preset_name}'")
+        elif preset_name not in preset_names:
+            raise FatalError(f"No preset '{preset_name}' found in CMake presets")
+
+        selected_preset_info = next((p_info for p_info in config_presets_info if p_info['name'] == preset_name), None)
+
+        if selected_preset_info:
+            if selected_preset_info.get('inherits'):
+                yellow_print(f"Preset '{preset_name}' uses inheritance, which is not yet supported.")
+
+            # Set build directory from preset
+            binary_dir = selected_preset_info.get('binaryDir')
+            if binary_dir and not args.build_dir:
+                if not os.path.isabs(binary_dir):
+                    binary_dir = os.path.join(args.project_dir, binary_dir)
+                args.build_dir = binary_dir
+            elif not binary_dir and not args.build_dir:
+                yellow_print(f'Warning: preset {preset_name} does not specify the build directory ("binaryDir")')
+
+            # Set generator from preset if specified
+            generator = selected_preset_info.get('generator', None)
+            if generator and not args.generator:
+                args.generator = generator
+
+            # Store preset name for cmake (we still need to pass --preset to cmake)
+            args.preset = preset_name
 
     def idf_version_callback(ctx: Context, param: str, value: str) -> None:
         if not value or ctx.resilient_parsing:
@@ -309,10 +369,10 @@ def action_extensions(base_actions: Dict, project_path: str) -> Any:
         if not version:
             raise FatalError('ESP-IDF version cannot be determined')
 
-        print('ESP-IDF %s' % version)
+        print(f'ESP-IDF {version}')
         sys.exit(0)
 
-    def list_targets_callback(ctx: Context, param: List, value: int) -> None:
+    def list_targets_callback(ctx: Context, param: list, value: int) -> None:
         if not value or ctx.resilient_parsing:
             return
 
@@ -373,7 +433,7 @@ def action_extensions(base_actions: Dict, project_path: str) -> Any:
             language = 'en'
         return language
 
-    def help_and_exit(action: str, ctx: Context, param: List, json_option: bool, add_options: bool) -> None:
+    def help_and_exit(action: str, ctx: Context, param: list, json_option: bool, add_options: bool) -> None:
         if json_option:
             output_dict = {}
             output_dict['target'] = get_target(param.project_dir)  # type: ignore
@@ -418,6 +478,12 @@ def action_extensions(base_actions: Dict, project_path: str) -> Any:
                 'names': ['-B', '--build-dir'],
                 'help': 'Build directory.',
                 'type': click.Path(),
+                'default': None,
+            },
+            {
+                'names': ['--preset'],
+                'help': 'Configuration preset to use (defined in CMakePresets.json or CMakeUserPresets.json)',
+                'envvar': 'IDF_PRESET',
                 'default': None,
             },
             {
@@ -480,15 +546,9 @@ def action_extensions(base_actions: Dict, project_path: str) -> Any:
     size_options = [
         {
             'names': ['--format', 'output_format'],
-            'type': click.Choice(['default', 'text', 'csv', 'json', 'json2', 'tree', 'raw']),
-            'help': 'Specify output format: text (same as "default"), csv, json, json2, tree or raw.',
+            'type': click.Choice(['default', 'text', 'csv', 'json2', 'tree', 'raw']),
+            'help': 'Specify output format: text (same as "default"), csv, json2, tree or raw.',
             'default': 'default',
-        },
-        {
-            'names': ['--legacy', '-l'],
-            'is_flag': True,
-            'default': os.environ.get('ESP_IDF_SIZE_LEGACY', '0') == '1',
-            'help': 'Use legacy esp-idf-size version',
         },
         {
             'names': ['--diff', 'diff_map_file'],
@@ -536,17 +596,15 @@ def action_extensions(base_actions: Dict, project_path: str) -> Any:
                     {
                         'names': ['--style', '--color-scheme', 'style'],
                         'help': (
-                            'Menuconfig style.\n'
+                            'Menuconfig color scheme.\n'
                             'The built-in styles include:\n\n'
-                            '- default - a yellowish theme,\n\n'
-                            '- monochrome -  a black and white theme, or\n\n'
-                            '- aquatic - a blue theme.\n\n'
-                            'It is possible to customize these themes further'
-                            ' as it is described in the Color schemes section of the kconfiglib documentation.\n'
-                            'The default value is "aquatic".'
+                            '- dark (default)\n\n'
+                            '- light\n\n'
+                            'More styles can be found in menuconfig TUI under [p]alette - Themes.\n\n'
+                            'Legacy names are still accepted, but will map to default style.'
                         ),
                         'envvar': 'MENUCONFIG_STYLE',
-                        'default': 'aquatic',
+                        'default': '',
                     }
                 ],
             },
@@ -567,6 +625,11 @@ def action_extensions(base_actions: Dict, project_path: str) -> Any:
                         'envvar': 'IDF_CONFSERVER_BUFFER_SIZE',
                     }
                 ],
+            },
+            'config-report': {
+                'callback': config_report_target,
+                'help': 'Generate a JSON file with the project configuration report in the build directory.',
+                'options': global_options,
             },
             'size': {
                 'callback': size_target,
@@ -660,6 +723,21 @@ def action_extensions(base_actions: Dict, project_path: str) -> Any:
                         'is_flag': True,
                         'help': 'Add menu labels to minimal config.',
                     }
+                ],
+            },
+            'refresh-config': {
+                'callback': refresh_config,
+                'help': 'Resolve conflicts in default values of config options in the configuration',
+                'options': [
+                    {
+                        'names': ['--policy'],
+                        'help': (
+                            'Policy for handling defaults in the configuration. '
+                            'If no policy specified, sdkconfig default values will be used.'
+                        ),
+                        'type': click.Choice(['kconfig', 'interactive', 'sdkconfig']),
+                        'default': 'sdkconfig',
+                    },
                 ],
             },
         }

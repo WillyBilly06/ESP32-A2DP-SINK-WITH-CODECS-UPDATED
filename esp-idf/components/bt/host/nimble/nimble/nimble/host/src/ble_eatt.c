@@ -29,6 +29,9 @@
 #include "ble_l2cap_priv.h"
 #include "ble_eatt_priv.h"
 #include "services/gatt/ble_svc_gatt.h"
+#if MYNEWT_VAL(BLE_STATIC_TO_DYNAMIC)
+#include "esp_nimble_mem.h"
+#endif
 
 struct ble_eatt {
     SLIST_ENTRY(ble_eatt) next;
@@ -45,14 +48,13 @@ struct ble_eatt {
 
 SLIST_HEAD(ble_eatt_list, ble_eatt);
 
-static struct ble_eatt_list g_ble_eatt_list;
 static ble_eatt_att_rx_fn ble_eatt_att_rx_cb;
 
-#define BLE_EATT_DATABUF_SIZE  ( \
-        MYNEWT_VAL(BLE_EATT_MTU) + \
-        2 + \
-        sizeof (struct os_mbuf_pkthdr) +   \
-        sizeof (struct os_mbuf))
+#define BLE_EATT_DATABUF_SIZE (     \
+        MYNEWT_VAL(BLE_EATT_MTU) +      \
+        2 +                             \
+        sizeof(struct os_mbuf_pkthdr) + \
+        sizeof(struct os_mbuf))
 
 #define BLE_EATT_MEMBLOCK_SIZE   \
     (OS_ALIGN(BLE_EATT_DATABUF_SIZE, 4))
@@ -60,6 +62,7 @@ static ble_eatt_att_rx_fn ble_eatt_att_rx_cb;
 #define BLE_EATT_MEMPOOL_SIZE    \
     OS_MEMPOOL_SIZE(MYNEWT_VAL(BLE_EATT_CHAN_NUM) + 1, BLE_EATT_MEMBLOCK_SIZE)
 
+#if !MYNEWT_VAL(BLE_STATIC_TO_DYNAMIC)
 #if MYNEWT_VAL(MP_RUNTIME_ALLOC)
 static os_membuf_t *ble_eatt_conn_mem = NULL;
 static os_membuf_t *ble_eatt_sdu_coc_mem = NULL;
@@ -73,14 +76,48 @@ static os_membuf_t ble_eatt_sdu_coc_mem[BLE_EATT_MEMPOOL_SIZE];
 static struct os_mempool ble_eatt_conn_pool;
 struct os_mbuf_pool ble_eatt_sdu_os_mbuf_pool;
 static struct os_mempool ble_eatt_sdu_mbuf_mempool;
-
 static struct ble_gap_event_listener ble_eatt_listener;
 
 static struct ble_npl_event g_read_sup_cl_feat_ev;
 static struct ble_npl_event g_read_sup_srv_feat_ev;
+static struct ble_eatt_list g_ble_eatt_list;
+#endif
+
+#if MYNEWT_VAL(BLE_STATIC_TO_DYNAMIC)
+typedef struct {
+    /* Connection pool and memory */
+    os_membuf_t *conn_mem;
+    struct os_mempool conn_pool;
+
+    /* SDU memory and mbuf pool */
+    os_membuf_t *sdu_coc_mem;
+    struct os_mbuf_pool sdu_os_mbuf_pool;
+    struct os_mempool sdu_mbuf_mempool;
+
+    /* GAP listener */
+    struct ble_gap_event_listener eatt_listener;
+
+    /* Events */
+    struct ble_npl_event read_sup_cl_feat_ev;
+    struct ble_npl_event read_sup_srv_feat_ev;
+    struct ble_eatt_list eatt_list;
+} ble_eatt_ctx_t;
+
+static ble_eatt_ctx_t *ble_eatt_ctx;
+#define ble_eatt_conn_pool          (ble_eatt_ctx->conn_pool)
+#define ble_eatt_conn_mem           (ble_eatt_ctx->conn_mem)
+#define ble_eatt_sdu_coc_mem        (ble_eatt_ctx->sdu_coc_mem)
+#define ble_eatt_sdu_os_mbuf_pool   (ble_eatt_ctx->sdu_os_mbuf_pool)
+#define ble_eatt_sdu_mbuf_mempool   (ble_eatt_ctx->sdu_mbuf_mempool)
+#define ble_eatt_listener           (ble_eatt_ctx->eatt_listener)
+#define g_read_sup_cl_feat_ev       (ble_eatt_ctx->read_sup_cl_feat_ev)
+#define g_read_sup_srv_feat_ev      (ble_eatt_ctx->read_sup_srv_feat_ev)
+#define g_ble_eatt_list             (ble_eatt_ctx->eatt_list)
+#endif
 
 static void ble_eatt_setup_cb(struct ble_npl_event *ev);
 static void ble_eatt_start(uint16_t conn_handle);
+static void ble_gatt_eatt_read_cl_uuid(struct ble_npl_event *ev);
 
 static struct ble_eatt *
 ble_eatt_find_not_busy(uint16_t conn_handle)
@@ -133,7 +170,7 @@ ble_eatt_find(uint16_t conn_handle, uint16_t cid)
             (eatt->chan) &&
             (eatt->chan->scid == cid)) {
             return eatt;
-        }
+	}
     }
     return NULL;
 
@@ -148,6 +185,7 @@ ble_eatt_prepare_rx_sdu(struct ble_l2cap_chan *chan)
     om = os_mbuf_get_pkthdr(&ble_eatt_sdu_os_mbuf_pool, 0);
     if (!om) {
         BLE_EATT_LOG_ERROR("eatt: no memory for sdu\n");
+        BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_ENOMEM);
         return BLE_HS_ENOMEM;
     }
 
@@ -167,17 +205,27 @@ ble_eatt_wakeup_cb(struct ble_npl_event *ev)
     struct os_mbuf *txom;
     struct os_mbuf_pkthdr *omp;
     struct ble_l2cap_chan_info info;
+    int rc;
 
     eatt = ble_npl_event_get_arg(ev);
     assert(eatt);
 
-    omp = STAILQ_FIRST(&eatt->eatt_tx_q);
-    if (omp != NULL) {
+    if (!eatt->chan) {
+        return;
+    }
+
+    while ((omp = STAILQ_FIRST(&eatt->eatt_tx_q)) != NULL) {
         STAILQ_REMOVE_HEAD(&eatt->eatt_tx_q, omp_next);
 
         txom = OS_MBUF_PKTHDR_TO_MBUF(omp);
         ble_l2cap_get_chan_info(eatt->chan, &info);
-        ble_eatt_tx(eatt->conn_handle, info.dcid, txom);
+        rc = ble_eatt_tx(eatt->conn_handle, info.scid, txom);
+
+        /* Break if channel is stalled or busy - both will reschedule wakeup */
+        if (rc == BLE_HS_ESTALLED || rc == BLE_HS_EBUSY) {
+            break;
+        }
+        /* On success (0) or other errors: continue to next packet */
     }
 }
 
@@ -238,14 +286,16 @@ ble_eatt_l2cap_event_fn(struct ble_l2cap_event *event, void *arg)
         break;
     case BLE_L2CAP_EVENT_COC_DISCONNECTED:
         BLE_EATT_LOG_DEBUG("eatt: Disconnected \n");
-        ble_eatt_free(eatt);
+        /* Call event handler before freeing to avoid use-after-free */
         ble_gap_eatt_event(event->disconnect.conn_handle, 1, event->disconnect.chan->scid);
+        ble_eatt_free(eatt);
         break;
     case BLE_L2CAP_EVENT_COC_ACCEPT:
         BLE_EATT_LOG_DEBUG("eatt: Accept request\n");
 
         eatt = ble_eatt_alloc();
         if (!eatt) {
+            BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_ENOMEM);
             return BLE_HS_ENOMEM;
         }
         eatt->conn_handle = event->accept.conn_handle;
@@ -261,7 +311,16 @@ ble_eatt_l2cap_event_fn(struct ble_l2cap_event *event, void *arg)
         ble_npl_eventq_put(ble_hs_evq_get(), &eatt->wakeup_ev);
         break;
     case BLE_L2CAP_EVENT_COC_DATA_RECEIVED:
-        assert(eatt->chan == event->receive.chan);
+        if (eatt->chan != event->receive.chan) {
+            os_mbuf_free_chain(event->receive.sdu_rx);
+            BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_EUNKNOWN);
+            return BLE_HS_EUNKNOWN;
+        }
+        if (OS_MBUF_PKTLEN(event->receive.sdu_rx) < 1) {
+            os_mbuf_free_chain(event->receive.sdu_rx);
+            ble_l2cap_disconnect(eatt->chan);
+            return BLE_HS_EREJECT;
+        }
         opcode = event->receive.sdu_rx->om_data[0];
         if (ble_att_is_response_op(opcode)) {
             ble_npl_eventq_put(ble_hs_evq_get(), &eatt->wakeup_ev);
@@ -273,11 +332,16 @@ ble_eatt_l2cap_event_fn(struct ble_l2cap_event *event, void *arg)
              *
              * Disconnect peer with invalid behavior.
              */
+            os_mbuf_free_chain(event->receive.sdu_rx);
             ble_l2cap_disconnect(eatt->chan);
             return BLE_HS_EREJECT;
         }
 
-        assert (!ble_gap_conn_find(event->receive.conn_handle, &desc));
+        if (ble_gap_conn_find(event->receive.conn_handle, &desc)) {
+             os_mbuf_free_chain(event->receive.sdu_rx);
+             ble_l2cap_disconnect(eatt->chan);
+             return BLE_HS_EREJECT;
+        }
         /* As per BLE 5.4 Standard, Vol. 3, Part G, section 5.3.2
          * (ENHANCED ATT BEARER L2CAP INTEROPERABILITY REQUIREMENTS:
          * Channel Requirements):
@@ -287,6 +351,7 @@ ble_eatt_l2cap_event_fn(struct ble_l2cap_event *event, void *arg)
          * encryption.
          */
         if (!desc.sec_state.encrypted) {
+            os_mbuf_free_chain(event->receive.sdu_rx);
             ble_l2cap_disconnect(eatt->chan);
             return BLE_HS_EREJECT;
         }
@@ -298,8 +363,9 @@ ble_eatt_l2cap_event_fn(struct ble_l2cap_event *event, void *arg)
         }
         rc = ble_eatt_prepare_rx_sdu(event->receive.chan);
         if (rc) {
-        /* Receiving L2CAP data is no longer possible, terminate connection */
+            /* Receiving L2CAP data is no longer possible, terminate connection */
             ble_l2cap_disconnect(eatt->chan);
+            BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_ENOMEM);
             return BLE_HS_ENOMEM;
         }
         break;
@@ -362,24 +428,25 @@ ble_gatt_eatt_read_cl_uuid_cb(uint16_t conn_handle,
 
     if (error == NULL || (error->status != 0 && error->status != BLE_HS_EDONE)) {
         BLE_EATT_LOG_DEBUG("eatt: Cannot find Client Supported features on peer device\n");
-        return BLE_HS_EDONE;
-    }
-
-    if (attr == NULL) {
-        BLE_EATT_LOG_ERROR("eatt: Invalid attribute \n");
-        return BLE_HS_EDONE;
+        return 0;
     }
 
     if (error->status == 0) {
+        if (attr == NULL) {
+            BLE_EATT_LOG_ERROR("eatt: Invalid attribute \n");
+            return 0;
+        }
+
         client_supported_feat = MYNEWT_VAL(BLE_CLIENT_SUPPORTED_FEATURES);
         rc = ble_gattc_write_flat(conn_handle, attr->handle, &client_supported_feat, 1,
                                   ble_gatt_eatt_write_cl_cb, NULL);
         BLE_EATT_LOG_DEBUG("eatt: %s , write rc = %d \n", __func__, rc);
-        assert(rc == 0);
-        return 0;
+        if (rc != 0) {
+             return rc;
+        }
     }
 
-    return BLE_HS_EDONE;
+    return 0;
 }
 
 static int
@@ -407,8 +474,11 @@ ble_gatt_eatt_read_uuid_cb(uint16_t conn_handle,
     }
 
     if (supported_features & 0x01) {
-        ble_npl_event_set_arg(&g_read_sup_cl_feat_ev, (void *)((uintptr_t) conn_handle));
-        ble_npl_eventq_put(ble_hs_evq_get(), &g_read_sup_cl_feat_ev);
+        struct ble_npl_event *ev = (struct ble_npl_event *)nimble_platform_mem_calloc(1, sizeof(struct ble_npl_event));
+        if (ev) {
+            ble_npl_event_init(ev, ble_gatt_eatt_read_cl_uuid, (void *)((uintptr_t) conn_handle));
+            ble_npl_eventq_put(ble_hs_evq_get(), ev);
+        }
     }
     return BLE_HS_EDONE;
 }
@@ -419,6 +489,7 @@ ble_gatt_eatt_read_svr_uuid(struct ble_npl_event *ev)
     uint16_t conn_handle;
 
     conn_handle = (uint16_t)((uintptr_t)(ble_npl_event_get_arg(ev)));
+    nimble_platform_mem_free(ev);
 
     ble_gattc_read_by_uuid(conn_handle, 1, 0xffff,
                            BLE_UUID16_DECLARE(BLE_SVC_GATT_CHR_SERVER_SUPPORTED_FEAT_UUID16),
@@ -431,6 +502,7 @@ ble_gatt_eatt_read_cl_uuid(struct ble_npl_event *ev)
     uint16_t conn_handle;
 
     conn_handle = (uint16_t)((uintptr_t)(ble_npl_event_get_arg(ev)));
+    nimble_platform_mem_free(ev);
 
     ble_gattc_read_by_uuid(conn_handle, 1, 0xffff,
                            BLE_UUID16_DECLARE(BLE_SVC_GATT_CHR_CLIENT_SUPPORTED_FEAT_UUID16),
@@ -460,13 +532,23 @@ ble_eatt_gap_event(struct ble_gap_event *event, void *arg)
         BLE_EATT_LOG_DEBUG("eatt: Encryption enabled, connecting EATT (conn_handle=0x%04x)\n",
                            event->enc_change.conn_handle);
 
-        ble_npl_event_set_arg(&g_read_sup_srv_feat_ev, (void *)((uintptr_t)(event->enc_change.conn_handle)));
-        ble_npl_eventq_put(ble_hs_evq_get(), &g_read_sup_srv_feat_ev);
+        struct ble_npl_event *ev = (struct ble_npl_event *)nimble_platform_mem_calloc(1, sizeof(struct ble_npl_event));
+        if (ev) {
+            ble_npl_event_init(ev, ble_gatt_eatt_read_svr_uuid, (void *)((uintptr_t)(event->enc_change.conn_handle)));
+            ble_npl_eventq_put(ble_hs_evq_get(), ev);
+        }
 
         break;
     case BLE_GAP_EVENT_DISCONNECT:
-        eatt = ble_eatt_find_by_conn_handle(event->disconnect.conn.conn_handle);
-        assert(eatt == NULL);
+        while ((eatt = ble_eatt_find_by_conn_handle(event->disconnect.conn.conn_handle)) != NULL) {
+            if (eatt->chan == NULL) {
+                /* No active L2CAP channel; safe to free here */
+                ble_eatt_free(eatt);
+            } else {
+                /* L2CAP disconnect callback will handle cleanup */
+                break;
+            }
+        }
         break;
     default:
         break;
@@ -478,8 +560,10 @@ uint16_t
 ble_eatt_get_available_chan_cid(uint16_t conn_handle, uint8_t op)
 {
     uint16_t default_cid;
+    uint16_t cid;
     struct ble_eatt * eatt;
 
+    ble_hs_lock_nested();
     default_cid = ble_att_get_default_bearer_cid(conn_handle);
     if (default_cid) {
         eatt = ble_eatt_find(conn_handle, default_cid);
@@ -487,27 +571,36 @@ ble_eatt_get_available_chan_cid(uint16_t conn_handle, uint8_t op)
         eatt = ble_eatt_find_not_busy(conn_handle);
     }
     if (!eatt) {
-        return BLE_L2CAP_CID_ATT;
+        cid = BLE_L2CAP_CID_ATT;
+        goto done;
     }
 
     eatt->client_op = op;
-    return eatt->chan->scid;
+    cid = eatt->chan->scid;
+
+done:
+    ble_hs_unlock_nested();
+    return cid;
 }
 
 
 void
 ble_eatt_release_chan(uint16_t conn_handle, uint8_t op)
 {
-    struct ble_eatt * eatt;
+    struct ble_eatt *eatt;
 
+    ble_hs_lock_nested();
     eatt = ble_eatt_find_by_conn_handle_and_busy_op(conn_handle, op);
     if (!eatt) {
+        ble_hs_unlock_nested();
         BLE_EATT_LOG_DEBUG("ble_eatt_release_chan:"
-                          "EATT not found for conn_handle 0x%04x, operation 0x%02\n", conn_handle, op);
+                           "EATT not found for conn_handle 0x%04x, operation 0x%02x\n",
+                           conn_handle, op);
         return;
     }
 
     eatt->client_op = 0;
+    ble_hs_unlock_nested();
 }
 
 int
@@ -524,7 +617,7 @@ ble_eatt_tx(uint16_t conn_handle, uint16_t cid, struct os_mbuf *txom)
         goto error;
     }
 
-    ble_att_truncate_to_mtu(eatt->chan, txom);    
+    ble_att_truncate_to_mtu(eatt->chan, txom);
     rc = ble_l2cap_send(eatt->chan, txom);
     if (rc == 0) {
         goto done;
@@ -532,13 +625,19 @@ ble_eatt_tx(uint16_t conn_handle, uint16_t cid, struct os_mbuf *txom)
 
     if (rc == BLE_HS_ESTALLED) {
         BLE_EATT_LOG_DEBUG("ble_eatt_tx: Eatt stalled");
+        /* L2CAP owns the mbuf; COC_TX_UNSTALLED event will fire when ready */
+        /* Do NOT re-queue - this would cause use-after-free */
+        return rc;
     } else if (rc == BLE_HS_EBUSY) {
         BLE_EATT_LOG_DEBUG("ble_eatt_tx: Message queued");
         STAILQ_INSERT_HEAD(&eatt->eatt_tx_q, OS_MBUF_PKTHDR(txom), omp_next);
         ble_npl_eventq_put(ble_hs_evq_get(), &eatt->wakeup_ev);
+        return rc;
     } else {
         BLE_EATT_LOG_ERROR("eatt: %s, ERROR %d ", __func__, rc);
-        assert(0);
+        /* Free mbuf and return error gracefully instead of crashing */
+        os_mbuf_free_chain(txom);
+        return rc;
     }
 done:
     return 0;
@@ -577,11 +676,74 @@ ble_eatt_start(uint16_t conn_handle)
     }
 }
 
-void
+#if MYNEWT_VAL(BLE_STATIC_TO_DYNAMIC)
+void ble_eatt_deinit(void)
+{
+    if (ble_eatt_ctx == NULL)
+    {
+        return;
+    }
+
+#if !MYNEWT_VAL(MP_RUNTIME_ALLOC)
+    if (ble_eatt_sdu_coc_mem) {
+        nimble_platform_mem_free(ble_eatt_sdu_coc_mem);
+        ble_eatt_sdu_coc_mem = NULL;
+    }
+
+    if (ble_eatt_conn_mem) {
+        nimble_platform_mem_free(ble_eatt_conn_mem);
+        ble_eatt_conn_mem = NULL;
+    }
+#endif
+    os_mempool_unregister(&ble_eatt_sdu_mbuf_mempool);
+    os_mempool_unregister(&ble_eatt_conn_pool);
+    nimble_platform_mem_free(ble_eatt_ctx);
+    ble_eatt_ctx = NULL;
+}
+#endif // BLE_STATIC_TO_DYNAMIC
+
+int
 ble_eatt_init(ble_eatt_att_rx_fn att_rx_cb)
 {
     int rc;
 
+#if MYNEWT_VAL(BLE_STATIC_TO_DYNAMIC)
+    if (!ble_eatt_ctx) {
+        ble_eatt_ctx = nimble_platform_mem_calloc(1, sizeof(*ble_eatt_ctx));
+        if (!ble_eatt_ctx) {
+            BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_ENOMEM);
+            return BLE_HS_ENOMEM;
+        }
+    }
+
+#if !MYNEWT_VAL(MP_RUNTIME_ALLOC)
+    size_t ble_eatt_conn_mem_size = OS_MEMPOOL_SIZE(MYNEWT_VAL(BLE_EATT_CHAN_NUM), sizeof(struct ble_eatt));
+
+    if (!ble_eatt_conn_mem) {
+        ble_eatt_conn_mem = nimble_platform_mem_calloc(1, ble_eatt_conn_mem_size * sizeof(os_membuf_t));
+        if (!ble_eatt_conn_mem) {
+            // free the allocated memory
+            nimble_platform_mem_free(ble_eatt_ctx);
+	    ble_eatt_ctx = NULL;
+            BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_ENOMEM);
+            return BLE_HS_ENOMEM;
+        }
+    }
+
+    if (!ble_eatt_sdu_coc_mem) {
+        ble_eatt_sdu_coc_mem = nimble_platform_mem_calloc(1, BLE_EATT_MEMPOOL_SIZE * sizeof(os_membuf_t));
+        if (!ble_eatt_sdu_coc_mem) {
+            // free the allocated memory
+            nimble_platform_mem_free(ble_eatt_conn_mem);
+            nimble_platform_mem_free(ble_eatt_ctx);
+	    ble_eatt_conn_mem = NULL;
+	    ble_eatt_ctx = NULL;
+            BLE_HS_LOG(ERROR, "%s rc=%d\n", __func__, BLE_HS_ENOMEM);
+            return BLE_HS_ENOMEM;
+        }
+    }
+#endif
+#endif // BLE_STATIC_TO_DYNAMIC
     rc = os_mempool_init(&ble_eatt_sdu_mbuf_mempool,
                          MYNEWT_VAL(BLE_EATT_CHAN_NUM) + 1,
                          BLE_EATT_MEMBLOCK_SIZE,
@@ -601,11 +763,33 @@ ble_eatt_init(ble_eatt_att_rx_fn att_rx_cb)
     BLE_HS_DBG_ASSERT_EVAL(rc == 0);
 
     rc = ble_gap_event_listener_register(&ble_eatt_listener, ble_eatt_gap_event, NULL);
-    ble_l2cap_create_server(BLE_EATT_PSM, MYNEWT_VAL(BLE_EATT_MTU), ble_eatt_l2cap_event_fn, NULL);
+    if (rc != 0) {
+        goto err;
+    }
 
-    ble_npl_event_init(&g_read_sup_srv_feat_ev, ble_gatt_eatt_read_svr_uuid, NULL);
-    ble_npl_event_init(&g_read_sup_cl_feat_ev, ble_gatt_eatt_read_cl_uuid, NULL);
+    rc = ble_l2cap_create_server(BLE_EATT_PSM, MYNEWT_VAL(BLE_EATT_MTU), ble_eatt_l2cap_event_fn, NULL);
+    if (rc != 0) {
+        ble_gap_event_listener_unregister(&ble_eatt_listener);
+        goto err;
+    }
+
+    SLIST_INIT(&g_ble_eatt_list);
 
     ble_eatt_att_rx_cb = att_rx_cb;
+
+    return 0;
+
+err:
+#if MYNEWT_VAL(BLE_STATIC_TO_DYNAMIC)
+#if !MYNEWT_VAL(MP_RUNTIME_ALLOC)
+    nimble_platform_mem_free(ble_eatt_sdu_coc_mem);
+    ble_eatt_sdu_coc_mem = NULL;
+    nimble_platform_mem_free(ble_eatt_conn_mem);
+    ble_eatt_conn_mem = NULL;
+#endif
+    nimble_platform_mem_free(ble_eatt_ctx);
+    ble_eatt_ctx = NULL;
+#endif
+    return rc;
 }
 #endif

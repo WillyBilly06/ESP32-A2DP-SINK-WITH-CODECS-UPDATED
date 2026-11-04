@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2022-2025 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2022-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Unlicense OR CC0-1.0
  */
@@ -64,25 +64,6 @@ TEST_CASE("Malloc/overwrite, then free all available DRAM", "[heap]")
     TEST_ASSERT(m1==m2);
 }
 
-
-#if CONFIG_SPIRAM_USE_MALLOC && (CONFIG_SPIRAM_MALLOC_RESERVE_INTERNAL > 1024)
-TEST_CASE("Check if reserved DMA pool still can allocate even when malloc()'ed memory is exhausted", "[heap][psram]")
-{
-    char** dmaMem=malloc(sizeof(char*)*512);
-    assert(dmaMem);
-    int m=tryAllocMem();
-    int i=0;
-    for (i=0; i<512; i++) {
-        dmaMem[i]=heap_caps_malloc(1024, MALLOC_CAP_DMA);
-        if (dmaMem[i]==NULL) break;
-    }
-    for (int j=0; j<i; j++) free(dmaMem[j]);
-    free(dmaMem);
-    tryAllocMemFree();
-    printf("Could allocate %dK of DMA memory after allocating all of %dK of normal memory.\n", i, m);
-    TEST_ASSERT(i);
-}
-#endif
 
 #if CONFIG_SPIRAM
 TEST_CASE("Check if default cap allocates in external memory in priority", "[heap][psram]")
@@ -154,7 +135,9 @@ TEST_CASE("alloc overflows should all fail", "[heap]")
     /* will overflow when the size is rounded up to word align it */
     TEST_ASSERT_NULL(heap_caps_malloc(SIZE_MAX-1, MALLOC_CAP_32BIT));
 
+#if CONFIG_HEAP_HAS_EXEC_HEAP
     TEST_ASSERT_NULL(heap_caps_malloc(SIZE_MAX-1, MALLOC_CAP_EXEC));
+#endif
 }
 
 TEST_CASE("unreasonable allocs should all fail", "[heap]")
@@ -203,7 +186,7 @@ TEST_CASE("test get allocated size", "[heap]")
     void *ptr_array[iterations];
 
     for (size_t i = 0; i < iterations; i++) {
-        ptr_array[i] = heap_caps_malloc(alloc_sizes[i], MALLOC_CAP_DEFAULT);
+        ptr_array[i] = heap_caps_malloc(alloc_sizes[i], MALLOC_CAP_INTERNAL);
         TEST_ASSERT_NOT_NULL(ptr_array[i]);
 
         // test that the heap_caps_get_allocated_size() returns the right number of bytes (aligned to 4 bytes
@@ -216,7 +199,7 @@ TEST_CASE("test get allocated size", "[heap]")
         // when the pointer to the first, last (calculated from the requested size) and to a byte
         // in the middle of the chunk is passed as parameter
         TEST_ASSERT(aligned_size <= heap_caps_get_containing_block_size(ptr_array[i]));
-        TEST_ASSERT(aligned_size <= heap_caps_get_containing_block_size(ptr_array[i] + alloc_sizes[i]));
+        TEST_ASSERT(aligned_size <= heap_caps_get_containing_block_size(ptr_array[i] + alloc_sizes[i] - 1));
         TEST_ASSERT(aligned_size <= heap_caps_get_containing_block_size(ptr_array[i] + (alloc_sizes[i] / 2)));
 
         heap_caps_free(ptr_array[i]);

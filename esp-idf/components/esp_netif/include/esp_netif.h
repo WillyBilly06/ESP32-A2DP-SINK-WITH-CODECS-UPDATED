@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2019-2024 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2019-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -487,8 +487,45 @@ int esp_netif_get_netif_impl_index(esp_netif_t *esp_netif);
  * @return
  *         - ESP_OK
  *         - ESP_ERR_ESP_NETIF_INVALID_PARAMS
-*/
+ */
 esp_err_t esp_netif_get_netif_impl_name(esp_netif_t *esp_netif, char* name);
+
+/**
+ * @brief  Set interface MTU at runtime
+ *
+ * Updates the underlying stack's MTU for the given interface. This affects
+ * TCP effective MSS calculation and IP fragmentation behavior for future
+ * transmissions on this interface.
+ *
+ * Notes:
+ * - Applies per-interface, not per-connection. Existing TCP connections may
+ *   adjust naturally based on effective MSS calculations during send.
+ * - Some interfaces may renegotiate MTU (e.g., DHCP/PPP) and override this;
+ *   reapply as needed after link events.
+ * - On stacks that do not support runtime MTU updates, returns ESP_ERR_NOT_SUPPORTED.
+ *
+ * @param[in]  esp_netif Handle to esp-netif instance
+ * @param[in]  mtu       New MTU value to set (in bytes)
+ * @return
+ *         - ESP_OK on success
+ *         - ESP_ERR_ESP_NETIF_INVALID_PARAMS if parameters are invalid or interface not ready
+ *         - ESP_ERR_NOT_SUPPORTED if not supported by the current net stack
+ */
+esp_err_t esp_netif_set_mtu(esp_netif_t *esp_netif, uint16_t mtu);
+
+/**
+ * @brief  Get interface MTU
+ *
+ * Reads the underlying stack's MTU for the given interface.
+ *
+ * @param[in]  esp_netif Handle to esp-netif instance
+ * @param[out] mtu       Pointer to store MTU (in bytes)
+ * @return
+ *         - ESP_OK on success
+ *         - ESP_ERR_ESP_NETIF_INVALID_PARAMS if parameters are invalid or interface not ready
+ *         - ESP_ERR_NOT_SUPPORTED if not supported by the current net stack
+ */
+esp_err_t esp_netif_get_mtu(esp_netif_t *esp_netif, uint16_t *mtu);
 
 /**
  * @brief  Enable NAPT on an interface
@@ -682,7 +719,19 @@ esp_err_t esp_netif_dhcps_stop(esp_netif_t *esp_netif);
  */
 esp_err_t esp_netif_dhcps_get_clients_by_mac(esp_netif_t *esp_netif, int num, esp_netif_pair_mac_ip_t *mac_ip_pair);
 
-
+/**
+ * @brief  Populate IP addresses of client from the lwIP ARP cache on this interface
+ *
+ * Walks the ARP table and fills in ip when the Ethernet address matches and the entry belongs to esp_netif.
+ *
+ * @param[in] esp_netif Handle to esp-netif instance
+ * @param[in,out] mac_ip_pair MAC/IP pair to fill in the IP
+ * @return
+ *      - ESP_OK on success (including when nothing was found in ARP)
+ *      - ESP_ERR_ESP_NETIF_INVALID_PARAMS on invalid params
+ *      - ESP_ERR_NOT_SUPPORTED if ARP is disabled in lwIP
+ */
+esp_err_t esp_netif_arp_get_client_by_mac(esp_netif_t *esp_netif, esp_netif_pair_mac_ip_t *mac_ip_pair);
 
 /**
  * @brief  Set DNS Server information
@@ -812,6 +861,43 @@ int esp_netif_get_all_ip6(esp_netif_t *esp_netif, esp_ip6_addr_t if_ip6[]);
  *      number of returned IPv6 addresses
  */
 int esp_netif_get_all_preferred_ip6(esp_netif_t *esp_netif, esp_ip6_addr_t if_ip6[]);
+
+#if CONFIG_LWIP_ND6_SUPPORT_STATIC_ENTRIES
+/**
+ * @brief  Add or update a static (permanent) IPv6 neighbor cache entry
+ *
+ * Installs a fixed IPv6 -> link-layer address mapping that bypasses Neighbor
+ * Discovery: no Neighbor Solicitation/Advertisement is exchanged for this
+ * address, the entry never ages out and is never overwritten by incoming
+ * advertisements. Calling again with the same address updates the mapping.
+ *
+ * @param[in] esp_netif Handle to esp-netif instance
+ * @param[in] addr      Neighbor's IPv6 address
+ * @param[in] mac       Neighbor's link-layer address (interface hwaddr_len bytes)
+ *
+ * @return
+ *      - ESP_OK on success
+ *      - ESP_ERR_ESP_NETIF_INVALID_PARAMS on invalid arguments
+ *      - ESP_FAIL if the entry could not be installed (e.g. neighbor cache full)
+ */
+esp_err_t esp_netif_add_static_neighbor(esp_netif_t *esp_netif, const esp_ip6_addr_t *addr, const uint8_t *mac);
+
+/**
+ * @brief  Remove a static IPv6 neighbor cache entry
+ *
+ * Removes an entry previously added with esp_netif_add_static_neighbor().
+ * Dynamic (non-static) entries are left untouched.
+ *
+ * @param[in] esp_netif Handle to esp-netif instance
+ * @param[in] addr      Neighbor's IPv6 address
+ *
+ * @return
+ *      - ESP_OK on success
+ *      - ESP_ERR_ESP_NETIF_INVALID_PARAMS on invalid arguments
+ *      - ESP_FAIL if no matching static entry exists
+ */
+esp_err_t esp_netif_remove_static_neighbor(esp_netif_t *esp_netif, const esp_ip6_addr_t *addr);
+#endif /* CONFIG_LWIP_ND6_SUPPORT_STATIC_ENTRIES */
 
 /**
  * @brief  Cause the TCP/IP stack to add an IPv6 address to the interface
@@ -980,25 +1066,6 @@ int esp_netif_set_route_prio(esp_netif_t *esp_netif, int route_prio);
  */
 int32_t esp_netif_get_event_id(esp_netif_t *esp_netif, esp_netif_ip_event_type_t event_type);
 
-
-/**
- * @brief Iterates over list of interfaces. Returns first netif if NULL given as parameter
- *
- * @note This API doesn't lock the list, nor the TCPIP context, as this it's usually required
- * to get atomic access between iteration steps rather that within a single iteration.
- * Therefore it is recommended to iterate over the interfaces inside esp_netif_tcpip_exec()
- *
- * @note This API is deprecated. Please use esp_netif_next_unsafe() directly if all the system
- * interfaces are under your control and you can safely iterate over them.
- * Otherwise, iterate over interfaces using esp_netif_tcpip_exec(), or use esp_netif_find_if()
- * to search in the list of netifs with defined predicate.
- *
- * @param[in]  esp_netif Handle to esp-netif instance
- *
- * @return First netif from the list if supplied parameter is NULL, next one otherwise
- */
-esp_netif_t *esp_netif_next(esp_netif_t *esp_netif)
-__attribute__((deprecated("use esp_netif_next_unsafe() either directly or via esp_netif_tcpip_exec")));
 
 /**
  * @brief Iterates over list of interfaces without list locking. Returns first netif if NULL given as parameter

@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2015-2025 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2015-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -20,12 +20,14 @@
 #include "soc/rtc.h"
 #include "soc/rtc_periph.h"
 #include "soc/i2s_reg.h"
+#if SOC_WDT_SUPPORTED || SOC_RTC_WDT_SUPPORTED
 #include "hal/wdt_hal.h"
+#endif
 #include "hal/usb_serial_jtag_ll.h"
 #include "esp_private/periph_ctrl.h"
 #include "esp_private/esp_clk.h"
 #include "soc/syscon_reg.h"
-#include "esp_rom_uart.h"
+#include "esp_rom_serial_output.h"
 #include "esp_rom_sys.h"
 
 /* Number of cycles to wait from the 32k XTAL oscillator to consider it running.
@@ -54,7 +56,7 @@ typedef enum {
 
 static void select_rtc_slow_clk(slow_clk_sel_t slow_clk);
 
-static const char *TAG = "clk";
+ESP_LOG_ATTR_TAG(TAG, "clk");
 
 void esp_rtc_init(void)
 {
@@ -81,7 +83,7 @@ __attribute__((weak)) void esp_clk_init(void)
     rtc_clk_fast_src_set(SOC_RTC_FAST_CLK_SRC_RC_FAST);
 #endif
 
-#ifdef CONFIG_BOOTLOADER_WDT_ENABLE
+#if defined(CONFIG_BOOTLOADER_WDT_ENABLE) && SOC_RTC_WDT_SUPPORTED
     // WDT uses a SLOW_CLK clock source. After a function select_rtc_slow_clk a frequency of this source can changed.
     // If the frequency changes from 150kHz to 32kHz, then the timeout set for the WDT will increase 4.6 times.
     // Therefore, for the time of frequency change, set a new lower timeout value (1.6 sec).
@@ -106,7 +108,7 @@ __attribute__((weak)) void esp_clk_init(void)
     select_rtc_slow_clk(SLOW_CLK_RTC);
 #endif
 
-#ifdef CONFIG_BOOTLOADER_WDT_ENABLE
+#if defined(CONFIG_BOOTLOADER_WDT_ENABLE) && SOC_RTC_WDT_SUPPORTED
     // After changing a frequency WDT timeout needs to be set for new frequency.
     stage_timeout_ticks = (uint32_t)((uint64_t)CONFIG_BOOTLOADER_WDT_TIME_MS * rtc_clk_slow_freq_get_hz() / 1000);
     wdt_hal_write_protect_disable(&rtc_wdt_ctx);
@@ -165,7 +167,7 @@ static void select_rtc_slow_clk(slow_clk_sel_t slow_clk)
             }
             // When SLOW_CLK_CAL_CYCLES is set to 0, clock calibration will not be performed at startup.
             if (SLOW_CLK_CAL_CYCLES > 0) {
-                cal_val = rtc_clk_cal(RTC_CAL_32K_XTAL, SLOW_CLK_CAL_CYCLES);
+                cal_val = rtc_clk_cal(CLK_CAL_32K_XTAL, SLOW_CLK_CAL_CYCLES);
                 if (cal_val == 0) {
                     if (retry_32k_xtal-- > 0) {
                         continue;
@@ -188,7 +190,7 @@ static void select_rtc_slow_clk(slow_clk_sel_t slow_clk)
             /* TODO: 32k XTAL oscillator has some frequency drift at startup.
              * Improve calibration routine to wait until the frequency is stable.
              */
-            cal_val = rtc_clk_cal(RTC_CAL_RTC_MUX, SLOW_CLK_CAL_CYCLES);
+            cal_val = rtc_clk_cal(CLK_CAL_RTC_SLOW, SLOW_CLK_CAL_CYCLES);
         } else {
             const uint64_t cal_dividend = (1ULL << RTC_CLK_CAL_FRACT) * 1000000ULL;
             cal_val = (uint32_t)(cal_dividend / rtc_clk_slow_freq_get_hz());
@@ -297,7 +299,7 @@ __attribute__((weak)) void esp_perip_clk_init(void)
 
 #if !CONFIG_ESP_SYSTEM_HW_PC_RECORD
     /* Disable ASSIST Debug module clock if PC recoreding function is not used,
-     * if stack guard function needs it, it will be re-enabled at esp_hw_stack_guard_init */
+     * if stack guard function needs it, it will be re-enabled at esp_hw_debug_assist_init */
     CLEAR_PERI_REG_MASK(SYSTEM_CPU_PERI_CLK_EN_REG, SYSTEM_CLK_EN_ASSIST_DEBUG);
     SET_PERI_REG_MASK(SYSTEM_CPU_PERI_RST_EN_REG, SYSTEM_RST_EN_ASSIST_DEBUG);
 #endif
