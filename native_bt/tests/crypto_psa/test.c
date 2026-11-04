@@ -36,21 +36,23 @@ static dbt_smp_sc_job_t job(uint32_t generation, uint32_t serial, dbt_smp_sc_job
     for(unsigned i=0;i<6;i++){j.ia[i]=(uint8_t)(i+1);j.ra[i]=(uint8_t)(i+11);}
     return j;
 }
-static void bind(dbt_smp_sc_job_t *j, const dbt_smp_sc_result_t *local, const dbt_smp_sc_result_t *peer) {
+static void bind(dbt_smp_sc_job_t *j, const dbt_smp_sc_result_t *local, const dbt_smp_sc_result_t *peer, bool captured) {
     memcpy(j->local_public, local->public_key, 64); memcpy(j->peer_public, peer->public_key, 64);
     memcpy(j->local_nonce, local->nonce, 16); memcpy(j->peer_nonce, peer->nonce, 16);
+    if(captured){j->preq[1]=4;j->preq[3]=13;j->pres[3]=9;j->preq[5]=j->preq[6]=15;j->pres[5]=2;j->passkey=123456;}
+
 }
-static int secure_connections(void) {
+static int secure_connections(bool captured) {
     dbt_smp_worker_mbedtls_t a={0}, b={0}; dbt_smp_sc_result_t pa,pb,commit,ka,kb;
     REQUIRE(dbt_smp_worker_mbedtls_open(&a,17,random_bytes,0));
     REQUIRE(dbt_smp_worker_mbedtls_open(&b,29,random_bytes,0));
     dbt_smp_sc_job_t ja=job(17,1,DBT_SC_JOB_KEYGEN,true), jb=job(29,1,DBT_SC_JOB_KEYGEN,false);
     REQUIRE(dbt_smp_worker_mbedtls_sc(&a,&ja,&pa)); REQUIRE(dbt_smp_worker_mbedtls_sc(&b,&jb,&pb));
     REQUIRE(memcmp(pa.public_key,pb.public_key,64));
-    jb=job(29,2,DBT_SC_JOB_COMMIT,false); bind(&jb,&pb,&pa);
+    jb=job(29,2,DBT_SC_JOB_COMMIT,false); bind(&jb,&pb,&pa,captured);
     REQUIRE(dbt_smp_worker_mbedtls_sc(&b,&jb,&commit));
-    ja=job(17,2,DBT_SC_JOB_DERIVE,true); bind(&ja,&pa,&pb); memcpy(ja.peer_confirm,commit.confirm,16);
-    jb=job(29,3,DBT_SC_JOB_DERIVE,false); bind(&jb,&pb,&pa);
+    ja=job(17,2,DBT_SC_JOB_DERIVE,true); bind(&ja,&pa,&pb,captured); memcpy(ja.peer_confirm,commit.confirm,16);
+    jb=job(29,3,DBT_SC_JOB_DERIVE,false); bind(&jb,&pb,&pa,captured);
     REQUIRE(dbt_smp_worker_mbedtls_sc(&a,&ja,&ka)); REQUIRE(ka.peer_commitment_valid);
     REQUIRE(dbt_smp_worker_mbedtls_sc(&b,&jb,&kb));
     REQUIRE(!memcmp(ka.ltk,kb.ltk,16)); REQUIRE(!memcmp(ka.local_check,kb.peer_check,16));
@@ -59,9 +61,11 @@ static int secure_connections(void) {
     dbt_smp_worker_mbedtls_close(&a); dbt_smp_worker_mbedtls_close(&b);
     REQUIRE(!a.internal && !b.internal);
     puts("PASS PSA P-256 two-party SC key agreement, commitments, f5/f6, retirement and replay rejection");
+    if(captured){puts("PASS captured MITM/NoIO transcript uses Just Works commitments, ignoring an unrelated passkey field");return 0;}
+
     REQUIRE(dbt_smp_worker_mbedtls_open(&a,31,random_bytes,0));
     ja=job(31,1,DBT_SC_JOB_KEYGEN,true); REQUIRE(dbt_smp_worker_mbedtls_sc(&a,&ja,&pa));
-    ja=job(31,2,DBT_SC_JOB_DERIVE,true); bind(&ja,&pa,&pb); memset(ja.peer_public,0,64);
+    ja=job(31,2,DBT_SC_JOB_DERIVE,true); bind(&ja,&pa,&pb,captured); memset(ja.peer_public,0,64);
     REQUIRE(!dbt_smp_worker_mbedtls_sc(&a,&ja,&ka));
     dbt_smp_sc_result_t zero={0}; REQUIRE(!memcmp(&ka,&zero,sizeof(ka)));
     dbt_smp_worker_mbedtls_close(&a); REQUIRE(!a.internal);
@@ -78,7 +82,7 @@ static int secure_connections(void) {
 }
 int main(void) {
     REQUIRE(psa_crypto_init()==PSA_SUCCESS);
-    if(primitives() || secure_connections()) return 1;
+    if(primitives() || secure_connections(false) || secure_connections(true)) return 1;
     puts("Host PSA provider checks passed; not ESP32 execution, RF or pairing evidence.");
     return 0;
 }

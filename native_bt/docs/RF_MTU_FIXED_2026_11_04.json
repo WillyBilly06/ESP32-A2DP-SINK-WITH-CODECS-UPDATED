@@ -1,0 +1,155 @@
+{
+  "date": "2026-11-04",
+  "source_commit": "61ec62199939caff4619e8109139692cba92e898",
+  "image_sha256": "8d968bd2be09c8896ae5910f0c6df9786caba3f55b2ca47a552222d41a2aa109",
+  "scope": "Finite radio/profile/product-security test with actual codec decode and PCM checksum; A2DP PCM is not forwarded to I2S; no DAC/DSP/headroom qualification",
+  "result": "MTU_REJECTION_REMOVED_BLE_ASSOCIATION_STILL_FAILS",
+  "media_mtu": 1008,
+  "maximum_oversized_dynamic": 0,
+  "pcm_final": {
+    "probe": "sbc_pcm",
+    "frames": 3332,
+    "bytes": 6823936,
+    "fnv1a32": 1555195479,
+    "rate": 96000,
+    "channels": 2,
+    "media_packets": 839,
+    "drops": 5,
+    "resets": 3,
+    "resident": 21881,
+    "codec": 8,
+    "sample_bytes": 4,
+    "faults": 0,
+    "decoder_stack_low_water_bytes": 6260,
+    "internal_heap_free": 135048,
+    "internal_heap_min_free": 108400,
+    "internal_heap_largest": 110592,
+    "i2s_output": false
+  },
+  "peer_pairing_features": [
+    {
+      "probe": "pairing_features",
+      "handle": 0,
+      "generation": 2,
+      "opcode": 1,
+      "io": 4,
+      "oob": 0,
+      "auth": 13,
+      "key_size": 16,
+      "initiator_keys": 15,
+      "responder_keys": 15
+    }
+  ],
+  "smp_trace": [
+    {
+      "probe": "smp_trace",
+      "handle": 0,
+      "generation": 2,
+      "stage": 6,
+      "result": 0,
+      "code": 3,
+      "size": 0,
+      "window": 1
+    },
+    {
+      "probe": "smp_trace",
+      "handle": 0,
+      "generation": 2,
+      "stage": 1,
+      "result": 0,
+      "code": 9,
+      "size": 2,
+      "window": 1
+    },
+    {
+      "probe": "smp_trace",
+      "handle": 0,
+      "generation": 2,
+      "stage": 2,
+      "result": 0,
+      "code": 11,
+      "size": 2,
+      "window": 1
+    },
+    {
+      "probe": "smp_trace",
+      "handle": 0,
+      "generation": 2,
+      "stage": 3,
+      "result": 0,
+      "code": 1,
+      "size": 7,
+      "window": 1
+    },
+    {
+      "probe": "smp_trace",
+      "handle": 0,
+      "generation": 2,
+      "stage": 4,
+      "result": 0,
+      "code": 1,
+      "size": 7,
+      "window": 1
+    },
+    {
+      "probe": "smp_trace",
+      "handle": 0,
+      "generation": 2,
+      "stage": 9,
+      "result": 0,
+      "code": 0,
+      "size": 1,
+      "window": 1
+    },
+    {
+      "probe": "smp_trace",
+      "handle": 0,
+      "generation": 2,
+      "stage": 10,
+      "result": 0,
+      "code": 0,
+      "size": 0,
+      "window": 1
+    },
+    {
+      "probe": "smp_trace",
+      "handle": 0,
+      "generation": 2,
+      "stage": 11,
+      "result": 0,
+      "code": 1,
+      "size": 7,
+      "window": 1
+    },
+    {
+      "probe": "smp_trace",
+      "handle": 0,
+      "generation": 2,
+      "stage": 9,
+      "result": 0,
+      "code": 3,
+      "size": 1,
+      "window": 1
+    }
+  ],
+  "failure_notifications": 1,
+  "disconnects": [
+    {
+      "probe": "hci_disconnect",
+      "handle": 0,
+      "status": 0,
+      "reason": 22
+    }
+  ],
+  "baseline_return": {
+    "baseline_boot_observed": true,
+    "baseline_fatal_marker": false,
+    "prime_capture_bytes": 0
+  },
+  "limits": [
+    "Checksummed A2DP PCM, no I2S/DAC performance pass.",
+    "The captured request reaches feature exchange then fails; IO-table selection is being corrected across all layers.",
+    "Five media drops and three resets were observed in the sampled run; no loss-free-stream qualification.",
+    "The corrected shared association selector has not yet been tested on this hardware image."
+  ]
+}

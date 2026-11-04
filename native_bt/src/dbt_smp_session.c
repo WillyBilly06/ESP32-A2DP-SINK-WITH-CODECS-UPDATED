@@ -1,4 +1,5 @@
 #include "dbt_smp_session.h"
+#include "dbt_smp_association.h"
 #include <string.h>
 #define SMP_CID 6u
 #define LE_ENABLE_ENCRYPTION 0x2019u
@@ -194,6 +195,9 @@ static dbt_result_t setup_selected(dbt_smp_session_t *s) {
   dbt_result_t rc = dbt_smp_features_take(&s->feature, req, rsp, &sc);
   if (rc != DBT_OK)
     return rc;
+  dbt_smp_association_t method=dbt_smp_select_association(sc,((req[3]|rsp[3])&4)!=0,req[2]&&rsp[2],req[1],rsp[1]);
+  if(method==DBT_SMP_ASSOC_INVALID)return DBT_INVALID;
+  if(method==DBT_SMP_ASSOC_JUST_WORKS && (!s->config.allow_just_works || s->config.features.require_mitm))return DBT_UNSUPPORTED;
   size_t bytes = sc ? sizeof(dbt_smp_sc_bearer_t) : sizeof(dbt_smp_bearer_t);
   size_t alignment = sc ? _Alignof(dbt_smp_sc_bearer_t) : _Alignof(dbt_smp_bearer_t);
   uint8_t *raw = s->runtime->hooks.allocate(s->runtime->hooks.context, (uint16_t)(bytes + alignment - 1u));
@@ -206,10 +210,7 @@ static dbt_result_t setup_selected(dbt_smp_session_t *s) {
   s->allocation = raw;
   selected_t references = selected(s);
   selected_t *b = &references;
-  bool oob = req[2] && rsp[2];
-  bool mitm = ((req[3] | rsp[3]) & 4) != 0;
-  bool numeric = sc && mitm && !oob && (req[1] == 1 || req[1] == 4) && (rsp[1] == 1 || rsp[1] == 4);
-  bool passkey = mitm && !oob && !numeric;
+  bool oob=method==DBT_SMP_ASSOC_OOB,passkey=method==DBT_SMP_ASSOC_PASSKEY;
   if (sc) {
     s->bearer_kind = DBT_SMP_SESSION_SC;
     rc = dbt_smp_features_open_sc(&s->feature, &b->sc->engine, s->local_type, s->local, s->peer_type, s->peer,

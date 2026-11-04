@@ -68,7 +68,9 @@ typedef struct {
  * identity address, or an RPA with peer identity-key distribution negotiated.
  * The distributed identity remains provisional until subsequent LTK proof.
  * No implicit downgrade. A fresh generation identifies all
- * link and worker context. */
+ * link and worker context. Association follows the IO table; Just Works
+ * remains unauthenticated. The caller must enforce required-MITM and
+ * allow-Just-Works policy (the feature/session layers do so). */
 dbt_result_t dbt_smp_sc_open(dbt_smp_sc_t *s,uint16_t handle,uint32_t generation,
     uint8_t role,uint8_t local_type,const uint8_t local[6],uint8_t peer_type,const uint8_t peer[6],
     const uint8_t preq[7],const uint8_t pres[7],uint8_t min_key_size,uint32_t now);

@@ -20,6 +20,7 @@ typedef struct {
 } dbt_smp_session_crypto_job_t;
 typedef struct {
     dbt_smp_feature_policy_t features;
+    /* Applies to unauthenticated Just Works in both SC and legacy mode. */
     bool allow_just_works,have_passkey,have_oob,have_local_keys;
     uint32_t passkey;
     uint8_t legacy_oob_tk[16],sc_oob_public[64],sc_local_oob_random[16],sc_peer_oob_random[16],sc_peer_oob_confirm[16];

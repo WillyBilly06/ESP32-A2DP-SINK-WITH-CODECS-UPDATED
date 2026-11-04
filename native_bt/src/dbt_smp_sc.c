@@ -1,4 +1,5 @@
 #include "dbt_smp_sc.h"
+#include "dbt_smp_association.h"
 #include <string.h>
 #define TIMEOUT_MS 30000u
 static void wipe(void *v, unsigned n) {
@@ -91,18 +92,14 @@ dbt_result_t dbt_smp_sc_open(dbt_smp_sc_t *s, uint16_t h, uint32_t gen, uint8_t 
     return DBT_INVALID;
   if (req[0] != 1 || rsp[0] != 2 || req[1] > 4 || rsp[1] > 4 || req[2] > 1 || rsp[2] > 1 ||
       req[2] != rsp[2] || !(req[3] & 8) || !(rsp[3] & 8) || (req[3] & 3) > 1 || (rsp[3] & 3) > 1 ||
-      ((req[3] & 3) != (rsp[3] & 3)) || ((req[5] | req[6]) & ~7) || ((rsp[5] | rsp[6]) & ~6) ||
+      ((req[3] & 3) != (rsp[3] & 3)) || ((req[5] | req[6]) & ~15) || ((rsp[5] | rsp[6]) & ~6) ||
       (rsp[5] & ~req[5]) || (rsp[6] & ~req[6]) || (!(req[3] & 1) && (req[5] || req[6] || rsp[5] || rsp[6])) ||
       req[4] < min || rsp[4] < min || req[4] > 16 || rsp[4] > 16)
     return DBT_UNSUPPORTED;
   bool mitm = ((req[3] | rsp[3]) & 4) != 0;
   bool oob = req[2] != 0;
-  bool numeric = mitm && !oob && (req[1] == 1 || req[1] == 4) && (rsp[1] == 1 || rsp[1] == 4);
-  bool ki = req[1] == 2 || req[1] == 4, kr = rsp[1] == 2 || rsp[1] == 4;
-  bool di = req[1] == 0 || req[1] == 1 || req[1] == 4, dr = rsp[1] == 0 || rsp[1] == 1 || rsp[1] == 4;
-  bool passkey = mitm && !numeric && !oob && ((ki && dr) || (kr && di) || (req[1] == 2 && rsp[1] == 2));
-  if (mitm && !numeric && !passkey && !oob)
-    return DBT_UNSUPPORTED;
+  dbt_smp_association_t method=dbt_smp_select_association(true,mitm,oob,req[1],rsp[1]);
+  bool numeric=method==DBT_SMP_ASSOC_NUMERIC,passkey=method==DBT_SMP_ASSOC_PASSKEY;
   if ((req[3] & 1) && pt == 1 && (peer[5] & 0xc0) != 0xc0) {
     uint8_t peer_mask=role==0 ? rsp[6] : rsp[5];
     bool rpa=(peer[5]&0xc0u)==0x40u &&

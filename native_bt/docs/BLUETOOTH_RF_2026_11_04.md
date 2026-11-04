@@ -212,6 +212,38 @@ work is still retiring. All 179 host groups, the PSA-backed probe fixtures and
 the actual callback-mode tests pass. The secured target image builds/admission
 checks pass. Hardware validation of these corrections remains pending.
 
+## MTU correction and captured association mismatch
+
+Source `61ec6219`, image
+`8d968bd2be09c8896ae5910f0c6df9786caba3f55b2ca47a552222d41a2aa109`,
+reported the advertised 1008-byte media capacity and recorded **zero oversized
+dynamic PDUs**. The queued-payload allocation increased by the expected 2688
+bytes. The failed BLE procedure now emitted one notification. Radio PCM still
+recorded five drops and three resets around the failed app attempt; this is not
+a loss-free/coexistence pass. See [the result](RF_MTU_FIXED_2026_11_04.json).
+
+The actual phone request was IO=4 (KeyboardDisplay), OOB=0, AuthReq=13
+(bonding/MITM preference/SC), key size=16 and distribution offers=15/15. Worker
+preparation and session opening succeeded before feature exchange failed. The
+old code rejected the peer MITM flag despite the speaker's NoInputNoOutput
+capability and explicit allow-Just-Works policy. Further duplicate selectors in
+the SC engine, session setup and crypto worker also incorrectly selected or
+required Passkey for this combination.
+
+These layers, including legacy IO selection, now share the association table.
+Just Works remains unauthenticated. Local required-MITM, disallow-Just-Works,
+16-byte/SC policy, existing authenticated-bond downgrade protection and
+authenticated-attribute permission checks remain enforced. The IO mapping is
+defined in [SIG Table 2.8](https://www.bluetooth.com/wp-content/uploads/Files/Specification/HTML/Core-54/out/en/host/security-manager-specification.html).
+
+Host tests cover all IO combinations in SC/legacy modes, the captured request,
+public SC initialization, legacy and session allow/deny policy, exact transcript
+preservation and authenticated-bond downgrade rejection. The real PSA two-party
+regression initially failed the Just Works commitment check; it passes with the
+shared selector, along with f5/f6 agreement, invalid-point, replay and key-slot
+retirement checks. All 179 host groups pass. The updated target builds; actual
+phone encryption/durable bonding with this latest correction is still pending.
+
 ## Outstanding Bluetooth gates
 
 The full profile build still needs current-image bond reload/reconnection,

@@ -1,5 +1,6 @@
 #include "dbt_smp_worker_mbedtls.h"
 #include "dbt_smp_crypto.h"
+#include "dbt_smp_association.h"
 #include "dbt_crypto.h"
 #if MBEDTLS_VERSION_MAJOR < 4
 #include "mbedtls/ecdh.h"
@@ -285,9 +286,8 @@ bool dbt_smp_worker_mbedtls_sc(dbt_smp_worker_mbedtls_t *w, const dbt_smp_sc_job
   } else if (j->kind == DBT_SC_JOB_DERIVE) {
     bool oob = j->preq[2] && j->pres[2];
     bool mitm = ((j->preq[3] | j->pres[3]) & 4) != 0;
-    bool numeric =
-        mitm && !oob && (j->preq[1] == 1 || j->preq[1] == 4) && (j->pres[1] == 1 || j->pres[1] == 4);
-    bool passkey = mitm && !oob && !numeric;
+    dbt_smp_association_t method=dbt_smp_select_association(true,mitm,oob,j->preq[1],j->pres[1]);
+    bool numeric=method==DBT_SMP_ASSOC_NUMERIC,passkey=method==DBT_SMP_ASSOC_PASSKEY;
     if (oob) {
       reverse(ra, j->initiator ? j->local_oob_random : j->peer_oob_random, 16);
       reverse(rb, j->initiator ? j->peer_oob_random : j->local_oob_random, 16);

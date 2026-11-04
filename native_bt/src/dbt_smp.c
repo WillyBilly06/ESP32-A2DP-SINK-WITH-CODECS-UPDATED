@@ -1,4 +1,5 @@
 #include "dbt_smp.h"
+#include "dbt_smp_association.h"
 #include <string.h>
 #define SMP_MS 30000u
 static void wipe(void *v, unsigned n) {
@@ -168,14 +169,12 @@ static uint8_t features(dbt_smp_t *s, const uint8_t *p) {
     return 10;
   if (s->have_oob && !p[2])
     return 2;
-  if (s->have_passkey) {
-    uint8_t l = s->io_capability, r = p[1];
-    bool lk = l == 2 || l == 4, rk = r == 2 || r == 4;
-    bool ld = l == 0 || l == 1 || l == 4, rd = r == 0 || r == 1 || r == 4;
-    if (!((lk && rd) || (rk && ld) || (l == 2 && r == 2)))
-      return 3;
-  } else if ((p[3] & 4) && !(s->have_oob && s->oob_authenticated))
-    return 3;
+  uint8_t local_io=s->have_passkey?s->io_capability:3;
+  bool mitm=(p[3]&4)!=0 || s->have_passkey || s->oob_authenticated;
+  dbt_smp_association_t method=dbt_smp_select_association(false,mitm,s->have_oob&&p[2],
+      s->initiator?local_io:p[1],s->initiator?p[1]:local_io);
+  if(s->have_passkey && method!=DBT_SMP_ASSOC_PASSKEY)return 3;
+  if(method==DBT_SMP_ASSOC_OOB && mitm && !s->oob_authenticated)return 3;
   if (!s->have_oob && !s->have_passkey && !s->allow_just_works)
     return 3;
   if (p[4] < s->min_key_size)

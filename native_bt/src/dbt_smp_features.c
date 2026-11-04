@@ -1,4 +1,5 @@
 #include "dbt_smp_features.h"
+#include "dbt_smp_association.h"
 #include <string.h>
 #define TIMEOUT_MS 30000u
 static void wipe(void *v, unsigned n) {
@@ -24,13 +25,6 @@ static void fail(dbt_smp_features_t *f, uint8_t reason, bool send, uint32_t now)
     queue(f, p, 2, now);
   }
 }
-static bool io_works(uint8_t a, uint8_t b, bool sc) {
-  if (sc && (a == 1 || a == 4) && (b == 1 || b == 4))
-    return true;
-  bool ak = a == 2 || a == 4, bk = b == 2 || b == 4;
-  bool ad = a == 0 || a == 1 || a == 4, bd = b == 0 || b == 1 || b == 4;
-  return (ak && bd) || (bk && ad) || (a == 2 && b == 2);
-}
 static uint8_t validate(const dbt_smp_features_t *f, const uint8_t req[7], const uint8_t rsp[7]) {
   if (req[0] != 1 || rsp[0] != 2 || req[1] > 4 || rsp[1] > 4 || req[2] > 1 || rsp[2] > 1 ||
       (req[3] & 3) > 1 || (rsp[3] & 3) > 1 || req[4] < 7 || rsp[4] < 7 || req[4] > 16 || rsp[4] > 16 ||
@@ -55,9 +49,9 @@ static uint8_t validate(const dbt_smp_features_t *f, const uint8_t req[7], const
     return 3;
   if (req[2] != rsp[2])
     return 2;
-  if ((req[3] | rsp[3]) & 4)
-    if (!req[2] && !io_works(req[1], rsp[1], sc))
-      return 3;
+  dbt_smp_association_t method=dbt_smp_select_association(sc,((req[3]|rsp[3])&4)!=0,req[2]!=0,req[1],rsp[1]);
+  if(method==DBT_SMP_ASSOC_INVALID)return 10;
+  if(f->policy.require_mitm && method==DBT_SMP_ASSOC_JUST_WORKS)return 3;
   if ((req[4] < rsp[4] ? req[4] : rsp[4]) < f->policy.min_key_size)
     return 6;
   return 0;
