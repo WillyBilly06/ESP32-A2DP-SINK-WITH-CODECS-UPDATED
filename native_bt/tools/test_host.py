@@ -14,6 +14,7 @@ import time
 
 ROOT = Path(__file__).resolve().parents[1]
 TESTS = [
+    "audio_paged_ring_capacity_wrap_mix_and_oom", "audio_paged_render_matches_small_ring",
     "hci_framing", "command_bounds", "queue_wrap_and_copy",
     "control_reserve_preserves_order", "bootstrap_separate_pools",
     "bootstrap_shared_pool", "transport_and_credit_gates",

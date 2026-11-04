@@ -69,7 +69,10 @@ dbt_result_t dbt_audio_init(dbt_audio_t *a,dbt_audio_memory_t memory){
 void dbt_audio_close(dbt_audio_t *a){
     if(!a)return;
     if(a->input.bytes)a->memory.release(a->memory.context,a->input.bytes);
-    if(a->output.bytes)a->memory.release(a->memory.context,a->output.bytes);
+    for(unsigned i=0;i<DBT_AUDIO_OUTPUT_PAGES;++i){
+        if(a->output_pages[i])a->memory.release(a->memory.context,a->output_pages[i]);
+        a->output_pages[i]=0;
+    }
     a->input.bytes=a->output.bytes=0;a->opened=false;a->allocated_bytes=0;a->mix=0;a->mix_context=0;
     dbt_audio_clock_reset(a,0);
 }
@@ -83,10 +86,15 @@ dbt_result_t dbt_audio_open(dbt_audio_t *a,dbt_audio_config_t config){
     uint32_t stride=(uint32_t)config.format*config.channels;
     uint8_t *input=a->memory.allocate(a->memory.context,config.input_frames*stride);
     if(!input)return DBT_NO_SPACE;
-    uint8_t *output=a->memory.allocate(a->memory.context,config.output_frames*8u);
-    if(!output){a->memory.release(a->memory.context,input);return DBT_NO_SPACE;}
-    if((uintptr_t)output%4u){a->memory.release(a->memory.context,input);a->memory.release(a->memory.context,output);return DBT_INVALID;}
-    ring_init(&a->input,input,config.input_frames,stride);ring_init(&a->output,output,config.output_frames,8);
+    ring_init(&a->input,input,config.input_frames,stride);
+    uint32_t page_frames=config.output_frames<DBT_AUDIO_OUTPUT_PAGE_FRAMES?config.output_frames:DBT_AUDIO_OUTPUT_PAGE_FRAMES;
+    unsigned pages=(config.output_frames+DBT_AUDIO_OUTPUT_PAGE_FRAMES-1u)/DBT_AUDIO_OUTPUT_PAGE_FRAMES;
+    for(unsigned i=0;i<pages;++i){
+        a->output_pages[i]=a->memory.allocate(a->memory.context,page_frames*8u);
+        if(!a->output_pages[i]){dbt_audio_close(a);return DBT_NO_SPACE;}
+        if((uintptr_t)a->output_pages[i]%4u){dbt_audio_close(a);return DBT_INVALID;}
+    }
+    ring_init(&a->output,a->output_pages[0],config.output_frames,8);
     a->config=config;a->allocated_bytes=config.input_frames*stride+config.output_frames*8u;
     (void)fixed_dsp_init(&a->dsp,config.rate,90,500,512);
     fixed_dsp_controls(&a->dsp,0,0,0,0,0,true);
@@ -189,11 +197,20 @@ static int32_t interpolate(int32_t current,int32_t next,uint32_t fraction){
     return (int32_t)(value>>32);
 }
 void dbt_audio_set_mix(dbt_audio_t *a,void (*mix)(void *,int32_t *,uint32_t),void *context){if(a){a->mix=mix;a->mix_context=context;}}
+static inline __attribute__((always_inline)) int32_t *output_frame(const dbt_audio_t *a,uint32_t index){
+    uint32_t slot=index&a->output.mask;
+    return (int32_t *)a->output_pages[slot/DBT_AUDIO_OUTPUT_PAGE_FRAMES]+2u*(slot&(DBT_AUDIO_OUTPUT_PAGE_FRAMES-1u));
+}
 static void apply_mix(dbt_audio_t *a,uint32_t out,uint32_t count){
     if(!a->mix || !count)return;
-    uint32_t first=a->output.frames-(out&a->output.mask);if(first>count)first=count;
-    a->mix(a->mix_context,(int32_t *)a->output.bytes+2u*(out&a->output.mask),first);
-    if(first<count)a->mix(a->mix_context,(int32_t *)a->output.bytes,count-first);
+    /* At most nine spans for the maximum legal ring, including one wrap. */
+    while(count){
+        uint32_t slot=out&a->output.mask;
+        uint32_t first=DBT_AUDIO_OUTPUT_PAGE_FRAMES-(slot&(DBT_AUDIO_OUTPUT_PAGE_FRAMES-1u));
+        uint32_t ring_left=a->output.frames-slot;if(first>ring_left)first=ring_left;
+        if(first>count)first=count;
+        a->mix(a->mix_context,output_frame(a,out),first);out+=first;count-=first;
+    }
 }
 uint32_t dbt_audio_render(dbt_audio_t *a,uint32_t budget){
     if(!a || !a->opened)return 0;
@@ -202,7 +219,7 @@ uint32_t dbt_audio_render(dbt_audio_t *a,uint32_t budget){
     uint32_t end=atomic_load_explicit(&a->input.written,memory_order_acquire);
     uint32_t out=atomic_load_explicit(&a->output.written,memory_order_relaxed);
     uint32_t free=a->output.frames-(out-atomic_load_explicit(&a->output.read,memory_order_acquire));
-    uint32_t produced=0;int32_t *destination=(int32_t *)a->output.bytes;
+    uint32_t produced=0;
     while(produced<budget && produced<free){
         uint32_t available=end-in;
         if(!available && !a->drain_remaining)break;
@@ -232,7 +249,7 @@ uint32_t dbt_audio_render(dbt_audio_t *a,uint32_t budget){
             in+=consumed;
         }
         fixed_dsp_process(&a->dsp,&left,&right);
-        uint32_t slot=((out+produced)&a->output.mask)*2u;destination[slot]=left;destination[slot+1u]=right;
+        int32_t *destination=output_frame(a,out+produced);destination[0]=left;destination[1]=right;
         a->fraction=(uint32_t)next;++produced;
     }
     apply_mix(a,out,produced);
@@ -244,8 +261,8 @@ uint32_t dbt_audio_render_silence(dbt_audio_t *a,uint32_t budget){
     if(!a || !a->opened || !a->mix)return 0;
     controls(a);uint32_t out=atomic_load_explicit(&a->output.written,memory_order_relaxed);
     uint32_t free=a->output.frames-(out-atomic_load_explicit(&a->output.read,memory_order_acquire));
-    uint32_t count=budget<free?budget:free;int32_t *destination=(int32_t *)a->output.bytes;
-    for(uint32_t i=0;i<count;++i){uint32_t slot=((out+i)&a->output.mask)*2u;destination[slot]=destination[slot+1]=0;}
+    uint32_t count=budget<free?budget:free;
+    for(uint32_t i=0;i<count;++i){int32_t *destination=output_frame(a,out+i);destination[0]=destination[1]=0;}
     apply_mix(a,out,count);
     atomic_store_explicit(&a->output.written,out+count,memory_order_release);
     atomic_fetch_add_explicit(&a->rendered_frames,count,memory_order_relaxed);return count;
@@ -385,8 +402,7 @@ uint32_t AUDIO_ISR dbt_audio_take(dbt_audio_t *a,int32_t *destination,uint32_t f
     uint32_t read=atomic_load_explicit(&a->output.read,memory_order_relaxed);
     uint32_t count=atomic_load_explicit(&a->output.written,memory_order_acquire)-read;
     if(count>frames)count=frames;
-    const int32_t *source=(const int32_t *)a->output.bytes;
-    for(uint32_t i=0;i<count;++i){uint32_t index=((read+i)&a->output.mask)*2u;destination[2*i]=source[index];destination[2*i+1u]=source[index+1u];}
+    for(uint32_t i=0;i<count;++i){const int32_t *source=output_frame(a,read+i);destination[2*i]=source[0];destination[2*i+1u]=source[1];}
     for(uint32_t i=count;i<frames;++i){destination[2*i]=0;destination[2*i+1u]=0;}
     atomic_store_explicit(&a->output.read,read+count,memory_order_release);
     atomic_store_explicit(&a->taken_frames,atomic_load_explicit(&a->taken_frames,memory_order_relaxed)+count,memory_order_relaxed);

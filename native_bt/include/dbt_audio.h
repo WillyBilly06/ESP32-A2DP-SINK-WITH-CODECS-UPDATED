@@ -5,6 +5,8 @@
 #include "dbt_resampler.h"
 
 typedef enum { DBT_PCM_S16_LE=2, DBT_PCM_S24_LE=3, DBT_PCM_S32_LE=4 } dbt_pcm_format_t;
+#define DBT_AUDIO_OUTPUT_PAGE_FRAMES 4096u
+#define DBT_AUDIO_OUTPUT_PAGES 8u
 typedef struct {
     uint8_t *bytes;
     uint32_t frames,mask,stride;
@@ -33,6 +35,9 @@ typedef struct {
     dbt_audio_memory_t memory;
     dbt_audio_config_t config;
     dbt_audio_ring_t input,output;
+    /* One logical SPSC ring; <=32 KiB allocations fit ESP32 SRAM regions.
+     * output.bytes aliases page zero. Capacity, order and precision are unchanged. */
+    uint8_t *output_pages[DBT_AUDIO_OUTPUT_PAGES];
     fixed_dsp_t dsp;
     dbt_resampler_t resampler;
     _Atomic uint32_t controls_generation,controls_gains,controls_options,controls_lock;
