@@ -1,5 +1,8 @@
-/* Os reference retaining the general split-product accumulation. */
+/* Internal-stage mode keeps the general arithmetic reference. Ordinary
+ * compiler comparison uses the configured algorithm at both Os and O3. */
+#ifdef DBT_DSP_STAGE_PROFILE
 #define FIXED_DSP_FORCE_SPLIT_SUM 1
+#endif
 #define fixed_dsp_init probe_dsp_os_init
 #define fixed_dsp_controls probe_dsp_os_controls
 #define fixed_dsp_process probe_dsp_os_process

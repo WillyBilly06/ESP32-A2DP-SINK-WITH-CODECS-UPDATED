@@ -21,12 +21,14 @@ DECLARE_VARIANT(profile);
 #define SECOND_CONTROLS probe_dsp_profile_controls
 #define SECOND_PROCESS probe_dsp_profile_process
 #define SECOND_NAME "Os_profiled"
+#define REFERENCE_NAME "Os_split_reference"
 #else
 DECLARE_VARIANT(o3);
 #define SECOND_INIT probe_dsp_o3_init
 #define SECOND_CONTROLS probe_dsp_o3_controls
 #define SECOND_PROCESS probe_dsp_o3_process
 #define SECOND_NAME "O3"
+#define REFERENCE_NAME "Os"
 #endif
 #undef DECLARE_VARIANT
 enum {BLOCK_FRAMES=128,BLOCKS=40};
@@ -108,7 +110,7 @@ static bool one_case(context_t *c,unsigned trial,uint32_t rate,uint8_t flags,int
                 probe_diagnostic_stats(c->elapsed[variant]+warm_blocks,BLOCKS-warm_blocks,160000,&steady);
             passed=passed && stats;
             printf("{\"probe\":\"dsp_variant_case\",\"trial\":%u,\"rate\":%u,\"flags\":%u,\"variant\":\"%s\",\"equivalent\":%s,\"frames\":5120,\"block_frames\":128,\"ramp_containing_blocks\":%u,\"ramp_mean_cycles\":%u,\"ramp_max_cycles\":%u,\"steady_blocks\":%u,\"steady_mean_cycles\":%u,\"steady_p95_cycles\":%u,\"steady_max_cycles\":%u,\"pcm_hash\":%u,\"elapsed_core_cycles\":true,\"cpu_mhz\":240}\n",
-                trial,(unsigned)rate,flags,variant?SECOND_NAME:"Os_split_reference",passed?"true":"false",warm_blocks,
+                trial,(unsigned)rate,flags,variant?SECOND_NAME:REFERENCE_NAME,passed?"true":"false",warm_blocks,
                 (unsigned)warm.mean,(unsigned)warm.maximum,BLOCKS-warm_blocks,(unsigned)steady.mean,
                 (unsigned)steady.p95,(unsigned)steady.maximum,(unsigned)hash);
         }
