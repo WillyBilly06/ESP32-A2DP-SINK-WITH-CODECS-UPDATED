@@ -46,6 +46,8 @@ typedef struct {
         struct {uint32_t generation;uint16_t handle;uint8_t change,kind,peer_type,peer[6];bool peer_present;} link;
         struct {uint32_t generation,serial;uint16_t handle,cid,psm,rx_mtu,tx_mtu,result;uint8_t event,reason;} channel;
         struct {uint32_t generation;uint16_t handle;uint8_t flags,key_size;} le_security;
+        dbt_channel_oversize_t oversized;
+        struct {uint32_t generation,window;int result;uint16_t handle,size;uint8_t stage,code;} smp_trace;
     };
     uint8_t event, reason, status,local_record;
 } log_item_t;
@@ -220,6 +222,16 @@ static void logger(void *context) {
                    (unsigned long)item.hashes.ordinal,item.hashes.size,item.hashes.offset,
                    (unsigned long)item.hashes.before,(unsigned long)item.hashes.after,
                    (unsigned long)item.hashes.owner,item.hashes.after_ready?"true":"false");
+            continue;
+        }
+        if(item.local_record==8){
+            printf("{\"probe\":\"smp_trace\",\"handle\":%u,\"generation\":%lu,\"stage\":%u,\"result\":%d,\"code\":%u,\"size\":%u,\"window\":%lu}\n",
+                item.smp_trace.handle,(unsigned long)item.smp_trace.generation,item.smp_trace.stage,item.smp_trace.result,item.smp_trace.code,item.smp_trace.size,(unsigned long)item.smp_trace.window);
+            continue;
+        }
+        if(item.local_record==7){
+            printf("{\"probe\":\"oversized_dynamic\",\"handle\":%u,\"generation\":%lu,\"cid\":%u,\"psm\":%u,\"rx_mtu\":%u,\"received_size\":%u}\n",
+                item.oversized.handle,(unsigned long)item.oversized.generation,item.oversized.cid,item.oversized.psm,item.oversized.rx_mtu,item.oversized.size);
             continue;
         }
         if(item.local_record==6){
@@ -458,6 +470,18 @@ void probe_security_le_state(uint16_t handle,uint32_t generation,uint8_t flags,u
     if(!log_queue)return;
     log_item_t item;wipe(&item,sizeof(item));item.local_record=6;item.le_security.handle=handle;
     item.le_security.generation=generation;item.le_security.flags=flags;item.le_security.key_size=key_size;
+    (void)xQueueSend(log_queue,&item,0);
+}
+void probe_security_oversized(const dbt_channel_oversize_t *data){
+    if(!log_queue || !data)return;
+    log_item_t item;wipe(&item,sizeof(item));item.local_record=7;item.oversized=*data;
+    (void)xQueueSend(log_queue,&item,0);
+}
+void probe_security_smp_trace(uint16_t handle,uint32_t generation,uint8_t stage,int result,uint8_t code,uint16_t size,uint32_t window){
+    if(!log_queue)return;
+    log_item_t item;wipe(&item,sizeof(item));item.local_record=8;
+    item.smp_trace.handle=handle;item.smp_trace.generation=generation;item.smp_trace.stage=stage;
+    item.smp_trace.result=result;item.smp_trace.code=code;item.smp_trace.size=size;item.smp_trace.window=window;
     (void)xQueueSend(log_queue,&item,0);
 }
 

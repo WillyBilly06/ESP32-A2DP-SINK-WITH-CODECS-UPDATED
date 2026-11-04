@@ -1,4 +1,7 @@
 /* Offline queue/provider shim exercising the real probe adapter and SMP manager. */
+#ifdef NDEBUG
+#error "SMP probe fixtures require active assertions"
+#endif
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>

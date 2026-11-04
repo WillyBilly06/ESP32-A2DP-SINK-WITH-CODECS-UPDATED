@@ -611,7 +611,10 @@ dbt_result_t dbt_channels_receive(dbt_channels_t *manager, uint16_t handle, uint
                     ertm_fault(manager,channel);
                 return DBT_OK;
             }
-            if(size>channel->rx_mtu){++manager->oversized_dynamic_pdus;return DBT_OK;}
+            if(size>channel->rx_mtu){
+                manager->last_oversized=(dbt_channel_oversize_t){generation,handle,cid,channel->psm,channel->rx_mtu,size};
+                ++manager->oversized_dynamic_pdus;return DBT_OK;
+            }
             if (!authorized(manager,link,channel->psm,channel->security)) return DBT_UNSUPPORTED;
             if (manager->hooks.data) {
                 manager->in_callback = true;

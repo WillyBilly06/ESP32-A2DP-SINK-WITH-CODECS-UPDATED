@@ -1,4 +1,5 @@
 #include "probe_audio.h"
+#include "probe_security.h"
 #include "dbt_codec.h"
 #include "dbt_sbc_codec.h"
 #ifdef DBT_PROBE_OPUS_BUILD
@@ -413,6 +414,14 @@ void probe_audio_poll(uint32_t now){
     (void)dbt_a2dp_acceptor_poll(&profile,now);
     atomic_store(&ignored_dynamic,profile.runtime->channels.ignored_dynamic_pdus);
     atomic_store(&oversized_dynamic,profile.runtime->channels.oversized_dynamic_pdus);
+#ifdef DBT_PROBE_RF_PROTOCOL_DIAGNOSTIC
+    static uint32_t oversize_seen;static unsigned oversize_logged;
+    uint32_t oversized=profile.runtime->channels.oversized_dynamic_pdus;
+    if(oversized!=oversize_seen){
+        oversize_seen=oversized;
+        if(oversize_logged<4){++oversize_logged;probe_security_oversized(&profile.runtime->channels.last_oversized);}
+    }
+#endif
     uint32_t staged=0;
     for(unsigned i=0;i<DBT_CHANNEL_LIMIT;++i){
         const dbt_channel_t *channel=&profile.runtime->channels.channels[i];

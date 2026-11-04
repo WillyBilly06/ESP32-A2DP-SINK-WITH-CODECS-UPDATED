@@ -119,6 +119,9 @@ EXPORT int test_channels_outgoing_and_asymmetric_mtu(void) {
     CHECK(data_calls==1 && data_cid==local && data_size==3 && received_data[2]==3);
     CHECK(dbt_channels_receive(&manager,1,channel->link_generation,local,body,257)==DBT_OK);
     CHECK(data_calls==1 && manager.oversized_dynamic_pdus==1);
+    CHECK(manager.last_oversized.handle==1 && manager.last_oversized.generation==channel->link_generation &&
+          manager.last_oversized.cid==local && manager.last_oversized.psm==0x19 &&
+          manager.last_oversized.rx_mtu==256 && manager.last_oversized.size==257);
     return 0;
 }
 
@@ -331,6 +334,9 @@ EXPORT int test_channels_late_data_and_reconfiguration(void){
     CHECK(dbt_channels_receive(&manager,1,generation,local,media,sizeof(media))==DBT_OK && data_calls==1);
     CHECK(dbt_channels_receive(&manager,1,generation,local,media,673)==DBT_OK);
     CHECK(data_calls==1 && manager.ignored_dynamic_pdus==0 && manager.oversized_dynamic_pdus==1);
+    CHECK(manager.last_oversized.handle==1 && manager.last_oversized.generation==generation &&
+          manager.last_oversized.cid==local && manager.last_oversized.psm==0x19 &&
+          manager.last_oversized.rx_mtu==672 && manager.last_oversized.size==673);
     return 0;
 }
 EXPORT int test_channels_response_cids_and_closed_disconnect(void){

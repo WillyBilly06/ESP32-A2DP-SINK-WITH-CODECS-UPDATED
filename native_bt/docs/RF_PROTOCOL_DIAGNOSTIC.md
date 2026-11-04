@@ -36,3 +36,18 @@ the new image; record stale-handle errors separately. Only the verified COM6
 phone entry may be re-paired. LE security metadata logs expose state/key size and
 durable completion, never keys. A link or app screen alone does not establish
 full security, command, lifecycle or stress qualification.
+
+Additional diagnostic records identify the first four over-limit Basic-mode
+SDUs by handle/generation/CID/PSM, receive MTU and received length. Validation
+still drops them. SMP metadata is capped at 24 records: stage 1 queues a Security
+Request (code is its authentication flags); stage 2 records transmit completion;
+stage 3 records a received SMP opcode/length; stage 4 records pairing-start
+admission; stage 6 records LE-link policy flags (request enabled, runtime ready,
+active procedure, maintenance, poisoned storage, quarantine, frozen); stage 7
+records LTK-request reconnect admission. No packet contents are logged.
+
+The workspace audit retains its 512 MiB rebuildable-output and 96 MiB reference
+limits. Exact tested images, source receipts, UART captures and original flash/
+NVS backups under `_build/hardware` are reported separately as retained evidence.
+No debug files or hardware evidence were deleted when the old combined counter
+exceeded 512 MiB. Dependency/include boundary checks remain in the audit.

@@ -113,6 +113,13 @@ typedef struct {
     const uint8_t *data;
 } dbt_signal_view_t;
 
+/* Owner-only metadata for the most recent rejected Basic-mode SDU. Never
+ * retains payload bytes or changes the receive MTU/validation policy. */
+typedef struct {
+    uint32_t generation;
+    uint16_t handle,cid,psm,rx_mtu,size;
+} dbt_channel_oversize_t;
+
 typedef struct {
     dbt_acl_t *acl;
     dbt_channel_hooks_t hooks;
@@ -126,6 +133,7 @@ typedef struct {
     uint64_t fixed_mask[2];
     uint32_t serial, rtx_ms, ertx_ms, now_ms;
     uint32_t stale_pdus, unknown_responses, malformed_pdus, ignored_dynamic_pdus, oversized_dynamic_pdus, oversized_signaling_pdus;
+    dbt_channel_oversize_t last_oversized;
     uint16_t maximum_mtu;
     uint8_t tx_head, tx_count, rx_head, rx_count, ertm_cursor;
     uint8_t le_service_count;

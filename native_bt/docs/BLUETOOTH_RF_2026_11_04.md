@@ -157,6 +157,29 @@ should close the app's old GATT connection before swapping firmware and must
 qualify service-database/cache lifecycle behavior before a native release.
 The private `released-phone-restored.xml` records the final app state.
 
+## Radio/decoder-only diagnostic
+
+The explicit finite isolation mode used source `ef5b2323` and image
+`39f96d07ad25fd3f60772f9f87f8a498656bab7003bb97947a2810e0594a7663`.
+All codec endpoints and product security remained enabled; decoded A2DP PCM was
+checksummed without I2S forwarding. LDAC stereo 96 kHz initially progressed with
+zero decoder drops/resets, and ultimately produced 14,123,008 PCM bytes from
+1,724 accepted media packets with no codec-worker fault. Later it recorded 42
+drops, 39 resets and 2,443 oversized dynamic-channel PDUs. This image still did
+not identify those packets' length/PSM/CID, so no MTU limit has been changed.
+
+The phone made an LE connection, then removed its phone bond during the app
+attempt. No completed LE security state or controls test was observed. Classic
+profile/channel state remained available after the phone paused playback. The
+diagnostic returned to the preserved baseline without a fatal boot marker.
+These observations establish an additional transport/interoperability problem
+independent of A2DP rendering; they do not qualify uninterrupted audio or BLE.
+
+See [the diagnostic result](RF_PROTOCOL_2026_11_04.json) and its private archive
+`native_bt/_build/hardware/runs/1793818408254184200-39f96d07ad25`.
+The next image records rejected PDU dimensions and bounded SMP request/receive
+metadata. Receive validation, keys, trust gates and codec support are unchanged.
+
 ## Outstanding Bluetooth gates
 
 The full profile build still needs current-image bond reload/reconnection,

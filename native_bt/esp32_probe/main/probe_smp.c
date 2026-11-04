@@ -6,6 +6,16 @@
 #include "freertos/queue.h"
 #include <nvs.h>
 #include <string.h>
+#ifdef DBT_PROBE_RF_PROTOCOL_DIAGNOSTIC
+#include "probe_security.h"
+/* Owner-only, at most 24 metadata records. No key/nonce/random/PDU contents. */
+static void trace_smp(uint16_t h,uint32_t g,uint8_t stage,int result,uint8_t code,uint16_t size,uint32_t window){
+    static unsigned count;if(count>=24)return;++count;
+    probe_security_smp_trace(h,g,stage,result,code,size,window);
+}
+#else
+#define trace_smp(...) ((void)0)
+#endif
 #ifdef DBT_PROBE_PRODUCT_SECURITY
 #include "probe_admission.h"
 #endif
@@ -109,6 +119,7 @@ static void wipe(void *p,size_t n) { volatile uint8_t *v=p; while (n--) *v++=0; 
 static void security_request_done(void *context,dbt_tx_outcome_t outcome){
     security_request_t *r=context;
     if(!r || !r->loan)return;
+    trace_smp(r->handle,r->generation,2,(int)outcome,0x0b,2,r->queued_window);
     r->loan=false;
     if(outcome==DBT_TX_ADMITTED){
         r->outside_done=true;if(r->queued_window)r->last_window=r->queued_window;
@@ -186,6 +197,7 @@ static void security_request_poll(uint32_t now){
             (configuration.pairing.features.require_mitm?4u:0u)|(configuration.pairing.features.support_sc?8u:0u);
         r->queued_window=window;r->deadline=now+SECURITY_REQUEST_TTL_MS;
         dbt_result_t result=dbt_runtime_send_fixed(runtime,l->handle,SMP_CID,r->bytes,2,security_request_done,r);
+        trace_smp(l->handle,l->generation,1,(int)result,r->bytes[1],2,window);
         if(result==DBT_OK)r->loan=true;
         else {
             r->queued_window=0;r->next_allowed=now+WAIT_MS;
@@ -457,10 +469,13 @@ static void cancel_reconnect_reply(void) {
 dbt_result_t probe_smp_start(const dbt_link_t *l) { return begin(l,true); }
 dbt_result_t probe_smp_receive(const dbt_link_t *l,uint16_t cid,const uint8_t *p,uint16_t n) {
     if (!l || cid!=SMP_CID || !p || !n || n>65) return DBT_INVALID;
+    trace_smp(l->handle,l->generation,3,0,p[0],n,request_window(runtime?runtime->now_ms:0));
     if(p[0]==1 && stop_request(l,runtime?runtime->now_ms:0)!=DBT_OK)return DBT_BUSY;
     if (!slot.active) {
         if (p[0]!=1) return DBT_INVALID;
-        dbt_result_t rc=begin(l,false); if (rc!=DBT_OK) return rc;
+        dbt_result_t rc=begin(l,false);
+        trace_smp(l->handle,l->generation,4,(int)rc,p[0],n,request_window(runtime?runtime->now_ms:0));
+        if (rc!=DBT_OK) return rc;
     }
     if (l->handle!=slot.handle || l->generation!=slot.generation || slot.failed || slot.disconnected)
         return DBT_BUSY;
@@ -470,6 +485,16 @@ dbt_result_t probe_smp_receive(const dbt_link_t *l,uint16_t cid,const uint8_t *p
     memcpy(slot.inbox,p,n); slot.inbox_size=(uint8_t)n; return DBT_OK;
 }
 void probe_smp_link(const dbt_link_change_t *change) {
+#ifdef DBT_PROBE_RF_PROTOCOL_DIAGNOSTIC
+    if(change && change->kind==DBT_LINK_ADDED){
+        const dbt_link_t *l=dbt_acl_find(&runtime->acl,change->handle);
+        if(l && l->generation==change->generation && l->kind==DBT_LINK_LE){
+            uint8_t flags=(configuration.peripheral_security_requests?1:0)|(runtime->ready?2:0)|(slot.active?4:0)|
+                (maintenance.active?8:0)|(storage_poisoned?16:0)|(quarantined(l->handle)?32:0)|(request_frozen()?64:0);
+            trace_smp(l->handle,l->generation,6,0,flags,0,request_window(runtime->now_ms));
+        }
+    }
+#endif
     if(change && change->kind==DBT_LINK_REMOVED){
         security_request_t *r=request_for(change->handle,change->generation);
         if(r){if(r->loan)(void)cancel_request(r,false);if(!r->loan)wipe(r,sizeof(*r));}
@@ -494,7 +519,9 @@ bool probe_smp_event(const dbt_hci_packet_t *p) {
 #ifdef DBT_PROBE_PRODUCT_SECURITY
             if(probe_admission_frozen())return false;
 #endif
-            return begin_reconnect(l,p->payload,false);
+            bool accepted=begin_reconnect(l,p->payload,false);
+            trace_smp(handle,l?l->generation:0,7,accepted?DBT_OK:DBT_INVALID,5,13,request_window(runtime->now_ms));
+            return accepted;
         }
         if (slot.reconnect && handle==slot.handle && l && l->generation==slot.generation) {
             slot.failed=true;
