@@ -12,9 +12,11 @@ static request_t pending_request;
 static response_t pending_response;
 static bool request_pending,response_pending;
 static int64_t test_clock_us;
+static int64_t test_clock_step;
+static unsigned configured_irq_priority;
 void *heap_caps_malloc(size_t n,unsigned flags){(void)flags;void *p=malloc(n);if(p)live++;return p;}
 void heap_caps_free(void *p){if(p){live--;free(p);}}
-int64_t esp_timer_get_time(void){return test_clock_us;}
+int64_t esp_timer_get_time(void){int64_t value=test_clock_us;test_clock_us+=test_clock_step;return value;}
 void xTaskNotifyGive(TaskHandle_t t){
     (void)t;if(!request_pending)return;request_pending=false;
     dbt_result_t r;
@@ -35,7 +37,7 @@ int xQueueSend(QueueHandle_t q,const void *p,unsigned t){
 int xQueueReceive(QueueHandle_t q,void *p,unsigned t){
     (void)t;if(q==(void *)2 && response_pending){*(response_t *)p=pending_response;response_pending=false;return pdTRUE;}return pdFALSE;
 }
-esp_err_t i2s_new_channel(const i2s_chan_config_t *c,i2s_chan_handle_t *ch,void *rx){(void)c;(void)rx;*ch=(void *)1;return ESP_OK;}
+esp_err_t i2s_new_channel(const i2s_chan_config_t *c,i2s_chan_handle_t *ch,void *rx){configured_irq_priority=(unsigned)c->intr_priority;(void)rx;*ch=(void *)1;return ESP_OK;}
 esp_err_t i2s_del_channel(i2s_chan_handle_t ch){(void)ch;return ESP_OK;}
 esp_err_t i2s_channel_init_std_mode(i2s_chan_handle_t ch,const i2s_std_config_t *c){(void)ch;(void)c;return ESP_OK;}
 esp_err_t i2s_channel_register_event_callback(i2s_chan_handle_t ch,const i2s_event_callbacks_t *cb,void *ctx){(void)ch;(void)cb;(void)ctx;return ESP_OK;}
@@ -57,6 +59,7 @@ EX int probe_output_formats(void){
         atomic_store(&output.descriptor_expected_index,6);atomic_store(&output.descriptor_observed_index,5);atomic_store(&output.descriptor_observed_size,4);
         atomic_store(&output.descriptor_fault_at_us,3);atomic_store(&output.descriptor_fault_gap_us,2);atomic_store(&output.descriptor_fault_stopping,1);
         CHECK(probe_output_stream_format(true,48000,2,format)==DBT_OK && output.audio.config.format==format && output.audio.input.stride==(i+2)*2u);
+        CHECK(configured_irq_priority==2 && !atomic_load(&output.callback_calls) && !atomic_load(&output.callback_elapsed_us) && !atomic_load(&output.callback_max_us));
         CHECK(!atomic_load(&output.descriptor_shape_errors) && !atomic_load(&output.descriptor_pool_errors) && !atomic_load(&output.descriptor_order_errors));
         CHECK(!atomic_load(&output.descriptor_expected_index) && !atomic_load(&output.descriptor_observed_index) && !atomic_load(&output.descriptor_observed_size));
         CHECK(!atomic_load(&output.descriptor_fault_at_us) && !atomic_load(&output.descriptor_fault_gap_us) && !atomic_load(&output.descriptor_fault_stopping));
@@ -95,5 +98,8 @@ EX int probe_output_descriptor_diagnostics(void){
     CHECK(atomic_load(&output.descriptor_errors)==3 && atomic_load(&output.descriptor_order_errors)==1);
     CHECK(!atomic_load(&output.descriptor_expected_index) && atomic_load(&output.descriptor_observed_index)==2);
     CHECK(atomic_load(&output.descriptor_fault_at_us)==201000 && atomic_load(&output.descriptor_fault_gap_us)==1000 && atomic_load(&output.descriptor_fault_stopping)==1);
-    test_clock_us=0;return 0;
+    CHECK(atomic_load(&output.callback_calls)==3 && !atomic_load(&output.callback_elapsed_us));
+    test_clock_us=300000;test_clock_step=10;event.size=0;(void)sent(0,&event,&output);
+    CHECK(atomic_load(&output.callback_calls)==4 && atomic_load(&output.callback_elapsed_us)==10 && atomic_load(&output.callback_max_us)==10);
+    test_clock_step=0;test_clock_us=0;return 0;
 }

@@ -23,6 +23,7 @@ extern void dbt_output_test_step(unsigned);
 #endif
 #define DMA_FRAMES 128u
 #define DMA_DESCRIPTORS 3u
+#define DMA_IRQ_PRIORITY 2
 static TickType_t event_wait_ticks(uint32_t ms) {
   TickType_t ticks = pdMS_TO_TICKS(ms);
   return ticks ? ticks : 1;
@@ -89,6 +90,7 @@ typedef struct {
   _Atomic uint32_t descriptor_shape_errors,descriptor_pool_errors,descriptor_order_errors;
   _Atomic uint32_t descriptor_expected_index,descriptor_observed_index,descriptor_observed_size;
   _Atomic uint32_t descriptor_fault_at_us,descriptor_fault_gap_us,descriptor_fault_stopping;
+  _Atomic uint32_t callback_calls,callback_elapsed_us,callback_max_us,callback_core;
   _Atomic uint32_t maximum_render_us, stop_fill_frames;
   _Atomic uint32_t render_total_us,render_calls;
   _Atomic uint32_t allocation_failed_bytes,allocation_failure_free,allocation_failure_largest;
@@ -152,6 +154,20 @@ static void report_done(uint32_t id, dbt_result_t result) {
 void dbt_output_test_bad_receipt(uint32_t id){report_done(id,DBT_OK);}
 #endif
 
+static bool IRAM_ATTR finish_sent(output_t *o,uint32_t began,BaseType_t wake){
+  uint32_t elapsed=(uint32_t)esp_timer_get_time()-began;
+  if(!atomic_load(&o->callback_calls)){
+#ifdef ESP_PLATFORM
+    atomic_store(&o->callback_core,(uint32_t)xPortGetCoreID());
+#else
+    atomic_store(&o->callback_core,0);
+#endif
+  }
+  atomic_store(&o->callback_calls,atomic_load(&o->callback_calls)+1u);
+  atomic_store(&o->callback_elapsed_us,atomic_load(&o->callback_elapsed_us)+elapsed);
+  if(elapsed>atomic_load(&o->callback_max_us))atomic_store(&o->callback_max_us,elapsed);
+  return wake==pdTRUE;
+}
 static bool IRAM_ATTR sent(i2s_chan_handle_t channel, i2s_event_data_t *event,
                            void *context) {
   (void)channel;
@@ -171,7 +187,7 @@ static bool IRAM_ATTR sent(i2s_chan_handle_t channel, i2s_event_data_t *event,
                  atomic_load(&o->descriptor_errors) + 1u);
     atomic_store(&o->failed, 1);
     vTaskNotifyGiveFromISR(o->task,&wake);
-    return wake==pdTRUE;
+    return finish_sent(o,now,wake);
   }
   if (o->last_eof) {
     if (gap > atomic_load(&o->max_eof_gap_us))
@@ -195,7 +211,7 @@ static bool IRAM_ATTR sent(i2s_chan_handle_t channel, i2s_event_data_t *event,
                    atomic_load(&o->descriptor_errors) + 1u);
       atomic_store(&o->failed, 1);
       vTaskNotifyGiveFromISR(o->task,&wake);
-      return wake==pdTRUE;
+      return finish_sent(o,now,wake);
     }
     o->descriptors[index] = (descriptor_t){event->dma_buf, DMA_FRAMES, false};
     ++o->descriptor_count;
@@ -262,7 +278,7 @@ static bool IRAM_ATTR sent(i2s_chan_handle_t channel, i2s_event_data_t *event,
     dbt_audio_fade(&o->fade, buffer, DMA_FRAMES);
   descriptor->valid = taken;
   vTaskNotifyGiveFromISR(o->task, &wake);
-  return wake == pdTRUE;
+  return finish_sent(o,now,wake);
 }
 static void close_output(void) {
 #ifdef DBT_PROBE_SOUND_BUILD
@@ -299,7 +315,7 @@ static esp_err_t create_channel(uint32_t rate, bool apll) {
   channel.dma_frame_num = DMA_FRAMES;
   channel.auto_clear_after_cb = false;
   channel.auto_clear_before_cb = false;
-  channel.intr_priority = 1;
+  channel.intr_priority = DMA_IRQ_PRIORITY;
   esp_err_t result = i2s_new_channel(&channel, &output.channel, 0);
   if (result != ESP_OK)
     return result;
@@ -376,6 +392,8 @@ static dbt_result_t start_output(uint32_t rate, uint8_t channels,
   atomic_store(&output.descriptor_fault_at_us,0);
   atomic_store(&output.descriptor_fault_gap_us,0);
   atomic_store(&output.descriptor_fault_stopping,0);
+  atomic_store(&output.callback_calls,0);atomic_store(&output.callback_elapsed_us,0);
+  atomic_store(&output.callback_max_us,0);atomic_store(&output.callback_core,UINT32_MAX);
   atomic_store(&output.max_eof_gap_us, 0);
   atomic_store(&output.maximum_render_us, 0);
   atomic_store(&output.render_total_us,0);
@@ -893,6 +911,8 @@ void probe_output_stats(probe_output_stats_t *s) {
   LOAD(descriptor_shape_errors);LOAD(descriptor_pool_errors);LOAD(descriptor_order_errors);
   LOAD(descriptor_expected_index);LOAD(descriptor_observed_index);LOAD(descriptor_observed_size);
   LOAD(descriptor_fault_at_us);LOAD(descriptor_fault_gap_us);LOAD(descriptor_fault_stopping);
+  LOAD(callback_calls);LOAD(callback_elapsed_us);LOAD(callback_max_us);LOAD(callback_core);
+  s->configured_irq_priority=DMA_IRQ_PRIORITY;
   LOAD(max_eof_gap_us);
   LOAD(maximum_render_us);
   LOAD(render_total_us);

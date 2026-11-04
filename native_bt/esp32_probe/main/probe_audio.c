@@ -545,6 +545,10 @@ static void log_loop(void *unused){
 #ifdef DBT_PROBE_AUDIO_OUTPUT
         uint32_t output_snapshot_began=(uint32_t)esp_timer_get_time();
         probe_output_stats_t stats;probe_output_stats(&stats);
+        snapshot_log(output_snapshot_began,"{\"probe\":\"i2s_callback_work\",\"configured_irq_priority\":%" PRIu32
+               ",\"calls\":%" PRIu32 ",\"elapsed_us\":%" PRIu32 ",\"maximum_us\":%" PRIu32 ",\"core\":%" PRIu32
+               ",\"application_callback_only\":true,\"elapsed_includes_preemption\":true}\n",
+               stats.configured_irq_priority,stats.callback_calls,stats.callback_elapsed_us,stats.callback_max_us,stats.callback_core);
         snapshot_log(output_snapshot_began,"{\"probe\":\"render_work\",\"collection_cycle_us\":%" PRIu32 ",\"calls\":%" PRIu32 ",\"elapsed_us\":%" PRIu32
                ",\"maximum_us\":%" PRIu32 ",\"wall_time_includes_preemption\":true,\"input_ready_frames\":%" PRIu32 ",\"render_stack_low_water_bytes\":%" PRIu32
                ",\"allocation_failed_bytes\":%" PRIu32 ",\"allocation_failure_free\":%" PRIu32 ",\"allocation_failure_largest\":%" PRIu32

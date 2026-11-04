@@ -34,5 +34,14 @@ an identical origin or blaming a fault on a stale logger cycle time.
 
 Host tests exercise delayed observation, uint32 clock wrap, bounded formatting
 loss, each actual ISR error class/time/gap/stop state and stream reset. Hardware
-validation of these new time fields is pending; do not use old periodic loop
-timestamps as if they were fault-event timestamps.
+validation is recorded in [the full-output follow-up](RF_CAPTURE_WINDOWS_2026_11_04.json).
+Of 1044 parsed snapshot records, one has inconsistent timestamp fields and is
+excluded from timing analysis; its raw values remain in the report. The cause
+is undetermined. The other 1043 pass the unsigned timestamp invariant. The
+formatting-loss count is zero; that counter does not detect UART/capture
+corruption. The logger retains at least 1568 stack bytes. The watchdog hook was called once
+on core1. An order fault occurred 14807 us after that hook, following a 11677 us
+I2S callback gap, with no stop request. This supports an interrupt-priority
+interference experiment; temporal correlation alone does not prove causality.
+Full output still failed. Do not use old periodic loop timestamps as if they
+were fault-event timestamps.
