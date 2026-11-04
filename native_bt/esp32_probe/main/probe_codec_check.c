@@ -57,6 +57,8 @@ static struct {
     const opus_vector_t *opus;
 #endif
     uint32_t hash,callbacks,sample_frames,word_index,point_index,peak,maximum_error;
+    uint32_t timestamp_hash,deferred_calls,deferred_busy;
+    bool deferred;
     uint32_t live,peak_live,overall_peak,case_max_us,overall_max_us,min_free,overall_min_free;
     uint32_t case_max_cycles,case_deadline_misses,media_bytes;
     uint64_t case_cycles,case_us,callback_us,callback_cycles;
@@ -86,9 +88,10 @@ static uint32_t magnitude(int32_t value){return value<0?(uint32_t)(-(int64_t)val
 static dbt_result_t validate_pcm(void *context,const void *samples,uint16_t frames,const dbt_codec_config_t *config,uint32_t timestamp){
     (void)context;(void)timestamp;
     if(!samples || !config || !frames)return DBT_INVALID;
+    for(unsigned i=0;i<frames;++i)check.timestamp_hash=(check.timestamp_hash^(timestamp+i))*16777619u;
 #ifdef DBT_PROBE_OPUS_BUILD
     if(check.opus){
-        if(config->sample_bytes!=2 || config->rate!=48000 || config->channels!=check.opus->channels || frames!=check.opus->samples)return DBT_INVALID;
+        if(config->sample_bytes!=2 || config->rate!=48000 || config->channels!=check.opus->channels || (!check.deferred && frames!=check.opus->samples))return DBT_INVALID;
         const uint8_t *p=samples;
         for(unsigned i=0;i<(unsigned)frames*config->channels*2u;++i)check.hash=(check.hash^p[i])*16777619u;
         ++check.callbacks;check.sample_frames+=frames;return DBT_OK;
@@ -96,7 +99,7 @@ static dbt_result_t validate_pcm(void *context,const void *samples,uint16_t fram
 #endif
     const probe_codec_vector_t *v=check.vector;
     if(!v || config->sample_bytes!=v->width || config->rate!=v->rate || config->channels!=v->channels ||
-       (v->callback_samples && frames!=v->callback_samples) || check.sample_frames>UINT32_MAX-frames)return DBT_INVALID;
+       (!check.deferred && v->callback_samples && frames!=v->callback_samples) || check.sample_frames>UINT32_MAX-frames)return DBT_INVALID;
     const uint8_t *bytes=samples;unsigned count=(unsigned)frames*v->channels;
     for(unsigned i=0;i<count*v->width;++i)check.hash=(check.hash^bytes[i])*16777619u;
     for(unsigned i=0;i<count;++i){
@@ -122,6 +125,7 @@ static inline uint32_t read_cycles(void){
 #endif
 }
 static dbt_result_t pcm(void *context,const void *samples,uint16_t frames,const dbt_codec_config_t *config,uint32_t timestamp){
+    if(check.deferred && ++check.deferred_calls%3u==0){++check.deferred_busy;return DBT_BUSY;}
     int64_t started=esp_timer_get_time();uint32_t cycles=read_cycles();
     dbt_result_t result=validate_pcm(context,samples,frames,config,timestamp);
     uint32_t duration_cycles=read_cycles()-cycles;
@@ -136,6 +140,7 @@ static void reset_case(void){
     check.opus=0;
 #endif
     check.hash=2166136261u;check.callbacks=check.sample_frames=check.word_index=check.point_index=0;
+    check.timestamp_hash=2166136261u;check.deferred_calls=check.deferred_busy=0;check.deferred=false;
     check.peak=check.maximum_error=check.case_max_us=0;check.peak_live=check.live;
     check.case_max_cycles=check.case_deadline_misses=check.media_bytes=0;
     check.case_cycles=check.case_us=0;
@@ -262,17 +267,114 @@ static bool run_lhdc_maximum(unsigned trial){
     check.vector=0;return pass && deadline;
 }
 #endif
+#ifdef DBT_PROBE_DEFERRED_CODEC_CHECK
+static dbt_codec_worker_t deferred_worker;
+static bool deferred_control(dbt_sink_operation_t operation,const uint8_t *configuration,uint16_t size){
+    dbt_sink_job_t job={1,1,operation,1,configuration,size};
+    if(dbt_codec_worker_submit(&deferred_worker,&job)!=DBT_OK)return false;
+    dbt_codec_worker_step(&deferred_worker,(uint32_t)(esp_timer_get_time()/1000),0);
+    dbt_codec_receipt_t receipt;
+    return dbt_codec_worker_receipt(&deferred_worker,&receipt)==DBT_OK && receipt.result==DBT_SINK_WORK_READY;
+}
+static bool deferred_packet(const probe_codec_vector_t *v,unsigned opus_index,bool maximum,unsigned i,
+                            const uint8_t **data,uint16_t *size,uint32_t *timestamp,bool *marker){
+    (void)opus_index;
+    if(v){*data=v->packet[i];*size=v->bytes[i];*timestamp=i*(v->callback_samples?v->callback_samples:128u);*marker=v->marker!=0;return true;}
+#ifdef DBT_PROBE_LHDC_MAX_CHECK
+    if(maximum){*data=lhdc_max_packets[i].data;*size=lhdc_max_packets[i].size;*timestamp=i*960u;*marker=false;return true;}
+#else
+    (void)maximum;
+#endif
+#ifdef DBT_PROBE_OPUS_BUILD
+    if(opus_index<sizeof(opus_vectors)/sizeof(opus_vectors[0])){
+        const opus_vector_t *o=&opus_vectors[opus_index];*data=o->packet[i];*size=o->bytes[i];*timestamp=i*o->samples;*marker=false;return true;
+    }
+#endif
+    return false;
+}
+static bool run_deferred(const probe_codec_vector_t *v,unsigned opus_index,bool maximum,uint32_t expected_hash,uint32_t expected_timestamps){
+    if(check.live || check.decoder.allocated_bytes)return false;
+    reset_case();check.deferred=true;check.vector=v;
+    const dbt_codec_ops_t *ops=v?v->ops:NULL;const uint8_t *cie=v?v->cie:NULL;
+    uint16_t cie_size=v?v->cie_size:0,packets=v?v->packet_count:0;
+    uint32_t expected_frames=v?v->sample_frames:0;
+#ifdef DBT_PROBE_LHDC_MAX_CHECK
+    const probe_codec_vector_t max_vector={.name="lhdcv5_192000_24_1000",.ops=&dbt_lhdcv5_codec,
+        .cie=lhdc_max_cie,.cie_size=sizeof(lhdc_max_cie),.channels=2,.width=4,.rate=192000,
+        .sample_frames=92160,.minimum_peak=100000000,.callback_samples=960,
+        .points=lhdc_max_points,.point_count=sizeof(lhdc_max_points)/sizeof(lhdc_max_points[0])};
+    if(maximum){check.vector=&max_vector;ops=max_vector.ops;cie=max_vector.cie;cie_size=max_vector.cie_size;packets=96;expected_frames=92160;}
+#else
+    if(maximum)return false;
+#endif
+#ifdef DBT_PROBE_OPUS_BUILD
+    if(!v && !maximum && opus_index<sizeof(opus_vectors)/sizeof(opus_vectors[0])){
+        check.opus=&opus_vectors[opus_index];ops=&dbt_opus_codec;cie=check.opus->cie;cie_size=check.opus->cie_size;packets=3;expected_frames=3u*check.opus->samples;
+    }
+#endif
+    bool pass=ops && cie && packets && cie_size<=DBT_CODEC_CIE_BYTES;uint16_t payload=5;
+    for(unsigned i=0;pass && i<packets;++i){const uint8_t *data;uint16_t n;uint32_t timestamp;bool marker;
+        pass=deferred_packet(v,opus_index,maximum,i,&data,&n,&timestamp,&marker);
+        if(pass && n>payload)payload=n;
+    }
+    const dbt_codec_ops_t *codecs[]={ops};dbt_codec_worker_hooks_t hooks={0};
+    hooks.decoder=(dbt_codec_hooks_t){0,allocate,release,pcm};hooks.codecs=codecs;hooks.codec_count=1;hooks.deferred_pcm=true;
+    bool initialized=pass && dbt_codec_worker_init(&deferred_worker,hooks,payload,2)==DBT_OK;
+    pass=initialized;uint32_t maximum_step=0;
+    if(pass){uint8_t configuration[4+DBT_CODEC_CIE_BYTES]={1,0,7,0};configuration[3]=(uint8_t)cie_size;
+        for(unsigned i=0;i<cie_size;++i)configuration[4+i]=cie[i];
+        pass=deferred_control(DBT_SINK_CONFIGURE,configuration,(uint16_t)(4u+cie_size)) && deferred_control(DBT_SINK_START,NULL,0);
+    }
+    for(unsigned i=0;pass && i<packets;++i){const uint8_t *data;uint16_t n;uint32_t timestamp;bool marker;
+        pass=deferred_packet(v,opus_index,maximum,i,&data,&n,&timestamp,&marker);
+        if(!pass)break;
+        dbt_avdtp_media_t packet={data,timestamp,1,n,(uint16_t)i,96,marker};
+        pass=dbt_codec_worker_media(&deferred_worker,&packet)==DBT_OK;
+        for(unsigned work=0;pass && work<16384 && atomic_load(&deferred_worker.media_read)!=atomic_load(&deferred_worker.media_written);++work){
+            int64_t began=esp_timer_get_time();uint16_t made=dbt_codec_worker_step(&deferred_worker,(uint32_t)(began/1000),1);
+            int64_t duration=esp_timer_get_time()-began;
+            if(duration<0 || duration>UINT32_MAX || made>1)pass=false;
+            else if((uint32_t)duration>maximum_step)maximum_step=(uint32_t)duration;
+            if(atomic_load(&deferred_worker.media_drops) || atomic_load(&deferred_worker.faults))pass=false;
+            if(!made || deferred_worker.output_blocked)vTaskDelay(pdMS_TO_TICKS(1));else taskYIELD();
+        }
+        if(atomic_load(&deferred_worker.media_read)!=atomic_load(&deferred_worker.media_written))pass=false;
+    }
+    if(pass)pass=check.sample_frames==expected_frames && check.hash==expected_hash && check.timestamp_hash==expected_timestamps && check.deferred_busy;
+    if(initialized && !deferred_control(DBT_SINK_DROP,NULL,0))pass=false;
+    if(check.live || (initialized && deferred_worker.decoder.allocated_bytes))pass=false;
+    unsigned low=(unsigned)uxTaskGetStackHighWaterMark(NULL);if(low<CHECK_STACK_FLOOR_BYTES)pass=false;
+    printf("{\"probe\":\"target_deferred_codec\",\"codec\":\"%s\",\"index\":%u,\"passed\":%s,\"sample_frames\":%u,\"pcm_hash\":%u,\"timestamp_hash\":%u,\"busy_attempts\":%u,\"maximum_step_us\":%u,\"cold_initialization_included\":true,\"tracked_peak_bytes\":%u,\"stack_low_water_bytes\":%u,\"simulated_output_backpressure\":true,\"i2s_test\":false,\"rf_test\":false}\n",
+        ops?ops->name:"invalid",opus_index,pass?"true":"false",(unsigned)check.sample_frames,(unsigned)check.hash,(unsigned)check.timestamp_hash,
+        (unsigned)check.deferred_busy,(unsigned)maximum_step,(unsigned)check.peak_live,low);
+    check.deferred=false;check.vector=NULL;
+#ifdef DBT_PROBE_OPUS_BUILD
+    check.opus=NULL;
+#endif
+    return pass;
+}
+#endif
 static void run(void *unused){
     (void)unused;check.passed=true;check.live=check.overall_peak=check.overall_max_us=0;
     check.overall_min_free=(uint32_t)heap_caps_get_free_size(MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT);
     dbt_codec_hooks_t hooks={0,allocate,release,pcm};
     if(dbt_codec_init(&check.decoder,hooks)!=DBT_OK)check.passed=false;
     unsigned completed=0,selected=0,callbacks=0;
+#ifdef DBT_PROBE_DEFERRED_CODEC_CHECK
+    uint32_t vector_hashes[sizeof(probe_codec_vectors)/sizeof(probe_codec_vectors[0])]={0},vector_timestamps[sizeof(probe_codec_vectors)/sizeof(probe_codec_vectors[0])]={0};
+#ifdef DBT_PROBE_OPUS_BUILD
+    uint32_t opus_hashes[sizeof(opus_vectors)/sizeof(opus_vectors[0])],opus_timestamps[sizeof(opus_vectors)/sizeof(opus_vectors[0])];
+    for(unsigned i=0;i<sizeof(opus_hashes)/sizeof(opus_hashes[0]);++i)opus_hashes[i]=opus_timestamps[i]=0;
+#endif
+#endif
 #ifdef DBT_PROBE_OPUS_BUILD
     unsigned opus_completed=0;bool opus_pass=check.passed;
     for(unsigned i=0;opus_pass && i<sizeof(opus_vectors)/sizeof(opus_vectors[0]);++i){
         if(run_opus(&opus_vectors[i],i)){++opus_completed;++completed;callbacks+=check.callbacks;}
         else opus_pass=false;
+#ifdef DBT_PROBE_DEFERRED_CODEC_CHECK
+        opus_hashes[i]=check.hash;opus_timestamps[i]=check.timestamp_hash;
+#endif
     }
     selected+=(unsigned)(sizeof(opus_vectors)/sizeof(opus_vectors[0]));
     unsigned opus_low=(unsigned)uxTaskGetStackHighWaterMark(NULL);
@@ -285,10 +387,27 @@ static void run(void *unused){
         const probe_codec_vector_t *v=&probe_codec_vectors[i];if(!v->name)continue;++selected;
         if(check.live || check.decoder.allocated_bytes){check.passed=false;continue;}
         if(run_vector(v)){++completed;callbacks+=check.callbacks;}else check.passed=false;
+#ifdef DBT_PROBE_DEFERRED_CODEC_CHECK
+        vector_hashes[i]=check.hash;vector_timestamps[i]=check.timestamp_hash;
+#endif
     }
     dbt_codec_close(&check.decoder);
 #ifdef DBT_PROBE_LHDC_MAX_CHECK
     for(unsigned trial=0;trial<3;++trial)if(!run_lhdc_maximum(trial))check.passed=false;
+#endif
+#ifdef DBT_PROBE_DEFERRED_CODEC_CHECK
+#ifdef DBT_PROBE_LHDC_MAX_CHECK
+    uint32_t maximum_hash=check.hash,maximum_timestamps=check.timestamp_hash;
+#endif
+    for(unsigned i=0;i<sizeof(probe_codec_vectors)/sizeof(probe_codec_vectors[0]);++i)if(probe_codec_vectors[i].name)
+        if(!run_deferred(&probe_codec_vectors[i],i,false,vector_hashes[i],vector_timestamps[i]))check.passed=false;
+#ifdef DBT_PROBE_OPUS_BUILD
+    for(unsigned i=0;i<sizeof(opus_vectors)/sizeof(opus_vectors[0]);++i)
+        if(!run_deferred(NULL,i,false,opus_hashes[i],opus_timestamps[i]))check.passed=false;
+#endif
+#ifdef DBT_PROBE_LHDC_MAX_CHECK
+    if(!run_deferred(NULL,0,true,maximum_hash,maximum_timestamps))check.passed=false;
+#endif
 #endif
     unsigned low=(unsigned)uxTaskGetStackHighWaterMark(NULL);
     if(!selected || low<CHECK_STACK_FLOOR_BYTES || check.live || check.decoder.allocated_bytes || completed!=selected)check.passed=false;

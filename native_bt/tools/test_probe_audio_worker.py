@@ -12,12 +12,18 @@ try:
         data=subprocess.check_output(f'call "{vc}" >nul && set',shell=True,text=True)
         env.update(dict(x.split('=',1) for x in data.splitlines() if '=' in x and not x.startswith('=')))
     cc=shutil.which('clang',path=env.get('PATH')) or (r'C:\Program Files\LLVM\bin\clang.exe' if os.name=='nt' else 'cc')
+    cache=shutil.which('ccache',path=env.get('PATH'))
+    if not cache and os.name=='nt':
+        candidates=list((pathlib.Path.home()/'.espressif/tools/ccache').glob('*/ccache-*/ccache.exe'))
+        if candidates:cache=str(sorted(candidates)[-1])
+    if not cache:raise RuntimeError('ccache is required for guarded Opus compilation')
+    env.pop('CCACHE_DISABLE',None)
     ninja=shutil.which('ninja',path=env.get('PATH')) or str(pathlib.Path(env.get('USERPROFILE',''))/'.espressif/tools/ninja/1.12.1/ninja.exe')
     ffmpeg=shutil.which('ffmpeg',path=env.get('PATH'))
     if not ffmpeg:raise SystemExit('FFmpeg is required for an offline SBC vector')
     build=out/'probe_opus_guarded';override=(root/'codecs/opus/scratch/dbt_opus_scratch_override.h').as_posix()
     subprocess.run(['cmake','-S',str(opus),'-B',str(build),'-G','Ninja',f'-DCMAKE_MAKE_PROGRAM={ninja}',f'-DCMAKE_C_COMPILER={cc}',
-        '-DCMAKE_BUILD_TYPE=Release',f'-DCMAKE_C_FLAGS=-include "{override}" -DDBT_OPUS_GUARDED_API=1 -std=c11 -fwrapv',
+        '-DCMAKE_BUILD_TYPE=Release',f'-DCMAKE_C_COMPILER_LAUNCHER={cache}',f'-DCMAKE_C_FLAGS=-include "{override}" -DDBT_OPUS_GUARDED_API=1 -std=c11 -fwrapv',
         '-DOPUS_BUILD_SHARED_LIBRARY=OFF','-DOPUS_BUILD_TESTING=OFF','-DOPUS_BUILD_PROGRAMS=OFF',
         '-DOPUS_FIXED_POINT=ON','-DOPUS_ENABLE_FLOAT_API=OFF','-DOPUS_DISABLE_INTRINSICS=ON'],env=env,check=True,stdout=subprocess.DEVNULL)
     subprocess.run(['cmake','--build',str(build),'--parallel','4'],env=env,check=True,stdout=subprocess.DEVNULL)

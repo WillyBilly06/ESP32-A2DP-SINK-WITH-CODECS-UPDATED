@@ -7,7 +7,7 @@ typedef struct {
   OpusDecoder *codec;
   uint8_t *allocation;
   dbt_opus_scratch scratch;
-  bool usable;
+  bool usable,pending_pcm;
   uint8_t *fragment;
   uint32_t fragment_at, timestamp, ssrc, last_ssrc;
   uint16_t fragment_size, fragment_capacity, next_sequence, last_sequence;
@@ -149,6 +149,7 @@ static dbt_result_t reset_decoder(dbt_codec_decoder_t *d) {
   if (!s)
     return DBT_INVALID;
   clear_fragment(d);
+  s->pending_pcm = false;
   s->sequence_valid = false;
   s->usable = opus_decoder_ctl(s->codec, OPUS_RESET_STATE) == OPUS_OK;
   return s->usable ? DBT_OK : DBT_INVALID;
@@ -226,13 +227,14 @@ static dbt_result_t decode(dbt_codec_decoder_t *d, const uint8_t *p,
   }
   dbt_result_t r = d->hooks.pcm(d->hooks.context, pcm(s), (uint16_t)samples,
                                 &d->config, timestamp);
-  if (r == DBT_OK)
+  if (r == DBT_OK || r == DBT_PENDING)
     ++d->frames;
+  s->pending_pcm = r == DBT_PENDING;
   return r;
 }
 static void expire(dbt_codec_decoder_t *d, uint32_t now) {
   opus_state_t *s = d->state;
-  if (s && s->fragment && now - s->fragment_at >= 100u)
+  if (s && !s->pending_pcm && s->fragment && now - s->fragment_at >= 100u)
     (void)reset_decoder(d);
 }
 static dbt_result_t media(dbt_codec_decoder_t *d, const dbt_avdtp_media_t *p,
@@ -240,6 +242,8 @@ static dbt_result_t media(dbt_codec_decoder_t *d, const dbt_avdtp_media_t *p,
   opus_state_t *s = d->state;
   if (!s || !p || !p->payload || p->size < 2 || p->payload_type < 96)
     return DBT_INVALID;
+  if (s->pending_pcm)
+    return DBT_BUSY;
   expire(d, now);
   if (s->sequence_valid && (p->ssrc != s->last_ssrc ||
                             p->sequence != (uint16_t)(s->last_sequence + 1u))) {
@@ -317,7 +321,17 @@ static dbt_result_t media(dbt_codec_decoder_t *d, const dbt_avdtp_media_t *p,
   clear_fragment(d);
   return result;
 }
+static dbt_result_t resume(dbt_codec_decoder_t *d,uint32_t now){
+  (void)now;opus_state_t *s=d->state;
+  if(!s || !s->usable)return DBT_INVALID;
+  s->pending_pcm=false;return DBT_OK;
+}
+static bool deadline(const dbt_codec_decoder_t *d,uint32_t *when){
+  const opus_state_t *s=d->state;
+  if(!s || !when || !s->fragment || s->pending_pcm)return false;
+  *when=s->fragment_at+100u;return true;
+}
 const dbt_codec_ops_t dbt_opus_codec = {"Opus",        dbt_opus_configure,
                                         open_decoder,  close_decoder,
                                         reset_decoder, media,
-                                        expire};
+                                        expire, resume, deadline};

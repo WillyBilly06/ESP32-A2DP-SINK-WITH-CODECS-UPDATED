@@ -94,10 +94,10 @@ static dbt_result_t fake_reset(dbt_codec_decoder_t *d){fixture_t *p=d->hooks.con
 static dbt_result_t fake_media(dbt_codec_decoder_t *d,const dbt_avdtp_media_t *packet,uint32_t now){
     (void)now;fixture_t *p=d->hooks.context;++p->media;p->received=packet->payload[0];p->timestamp=packet->timestamp;return DBT_OK;}
 static dbt_result_t stream(void *context,bool start,const dbt_codec_config_t *config){(void)start;(void)config;return ((fixture_t *)context)->stream_bad?DBT_BUSY:DBT_OK;}
-static const dbt_codec_ops_t fake_sbc={"ownership SBC",fake_configure,fake_open,fake_close,fake_reset,fake_media,0};
-static const dbt_codec_ops_t fake_aac={"ownership AAC",dbt_aac_configure,fake_open,fake_close,fake_reset,fake_media,0};
+static const dbt_codec_ops_t fake_sbc={"ownership SBC",fake_configure,fake_open,fake_close,fake_reset,fake_media,0,0,0};
+static const dbt_codec_ops_t fake_aac={"ownership AAC",dbt_aac_configure,fake_open,fake_close,fake_reset,fake_media,0,0,0};
 static const dbt_codec_ops_t *const codecs[]={&fake_sbc,&fake_aac};
-static bool setup(void){zero(&f,sizeof(f));dbt_codec_worker_hooks_t h={{&f,allocate,release,pcm},codecs,2,0,0,stream};return dbt_codec_worker_init(&f.worker,h,128,2)==DBT_OK;}
+static bool setup(void){zero(&f,sizeof(f));dbt_codec_worker_hooks_t h={{&f,allocate,release,pcm},codecs,2,0,0,stream,false};return dbt_codec_worker_init(&f.worker,h,128,2)==DBT_OK;}
 static dbt_result_t submit(dbt_sink_operation_t operation,uint32_t binding,uint32_t token,bool aac){
     uint8_t sbc[]={1,0,7,6,0,0,0x21,0x15,2,53},aac_config[12]={1,0,7,8};
     for(unsigned i=0;i<8;++i)aac_config[4+i]=aac_cie[i];

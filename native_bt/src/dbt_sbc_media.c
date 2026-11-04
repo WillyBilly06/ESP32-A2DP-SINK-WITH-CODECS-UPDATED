@@ -49,6 +49,7 @@ void dbt_sbc_media_reset(dbt_sbc_media_t *s){
     if(!s || !s->initialized)return;
     if(s->fragment)s->hooks.release(s->hooks.context,s->fragment);
     s->fragment=0;s->size=s->capacity=s->remaining=0;
+    s->batch=0;s->batch_size=s->batch_cursor=0;s->batch_remaining=s->batch_index=0;s->pending=false;
 }
 dbt_result_t dbt_sbc_media_init(dbt_sbc_media_t *s,dbt_sbc_media_hooks_t hooks,dbt_sbc_config_t config,uint32_t fragment_ms){
     if(!s || !hooks.allocate || !hooks.release || !hooks.frame || !fragment_ms || fragment_ms>INT32_MAX ||
@@ -57,13 +58,29 @@ dbt_result_t dbt_sbc_media_init(dbt_sbc_media_t *s,dbt_sbc_media_hooks_t hooks,d
     s->hooks=hooks;s->config=config;s->fragment_ms=fragment_ms;s->initialized=true;return DBT_OK;
 }
 void dbt_sbc_media_expire(dbt_sbc_media_t *s,uint32_t now){
-    if(s && s->fragment && (int32_t)(now-s->deadline)>=0){++s->rejected;dbt_sbc_media_reset(s);}
+    if(s && !s->pending && !s->batch && s->fragment && (int32_t)(now-s->deadline)>=0){++s->rejected;dbt_sbc_media_reset(s);}
 }
 static dbt_result_t bad(dbt_sbc_media_t *s,dbt_result_t result){
     ++s->rejected;dbt_sbc_media_reset(s);return result;
 }
+dbt_result_t dbt_sbc_media_resume(dbt_sbc_media_t *s){
+    if(!s || !s->initialized)return DBT_INVALID;
+    s->pending=false;
+    if(!s->batch){if(s->fragment && !s->remaining)dbt_sbc_media_reset(s);return DBT_OK;}
+    while(s->batch_remaining){
+        dbt_sbc_frame_t frame;
+        if(dbt_sbc_frame_decode(&s->config,s->batch+s->batch_cursor,(uint16_t)(s->batch_size-s->batch_cursor),&frame)!=DBT_OK)
+            return bad(s,DBT_INVALID);
+        dbt_result_t result=s->hooks.frame(s->hooks.context,&frame,s->batch_timestamp+(uint32_t)s->batch_index*s->config.samples);
+        if(result!=DBT_OK && result!=DBT_PENDING)return bad(s,result);
+        ++s->frames;s->batch_cursor=(uint16_t)(s->batch_cursor+frame.size);--s->batch_remaining;++s->batch_index;
+        if(result==DBT_PENDING){s->pending=true;return result;}
+    }
+    s->batch=0;s->batch_size=s->batch_cursor=0;s->batch_index=0;return DBT_OK;
+}
 dbt_result_t dbt_sbc_media_receive(dbt_sbc_media_t *s,const dbt_avdtp_media_t *m,uint32_t now){
     if(!s || !s->initialized)return DBT_INVALID;
+    if(s->pending || s->batch)return DBT_BUSY;
     if(!m || !m->payload || m->size<2 || m->marker || m->payload_type<96)return bad(s,DBT_INVALID);
     dbt_sbc_media_expire(s,now);++s->packets;
     uint8_t header=m->payload[0],count=header&15u;bool fragmented=(header&128u)!=0,start=(header&64u)!=0,last=(header&32u)!=0;
@@ -77,14 +94,8 @@ dbt_result_t dbt_sbc_media_receive(dbt_sbc_media_t *s,const dbt_avdtp_media_t *m
             cursor=(uint16_t)(cursor+frame.size);
         }
         if(cursor!=size)return bad(s,DBT_INVALID);
-        cursor=0;
-        for(unsigned i=0;i<count;++i){
-            (void)dbt_sbc_frame_decode(&s->config,p+cursor,(uint16_t)(size-cursor),&frame);
-            dbt_result_t result=s->hooks.frame(s->hooks.context,&frame,m->timestamp+i*s->config.samples);
-            if(result!=DBT_OK)return bad(s,result);
-            ++s->frames;cursor=(uint16_t)(cursor+frame.size);
-        }
-        return DBT_OK;
+        s->batch=p;s->batch_size=size;s->batch_cursor=0;s->batch_remaining=count;s->batch_index=0;s->batch_timestamp=m->timestamp;
+        return dbt_sbc_media_resume(s);
     }
     if(!count || (start && last) || (last && count!=1) || (!last && count==1))return bad(s,DBT_INVALID);
     if(start){
@@ -106,7 +117,8 @@ dbt_result_t dbt_sbc_media_receive(dbt_sbc_media_t *s,const dbt_avdtp_media_t *m
         dbt_sbc_frame_t frame;
         if(s->size!=s->capacity || dbt_sbc_frame_decode(&s->config,s->fragment,s->size,&frame)!=DBT_OK)return bad(s,DBT_INVALID);
         dbt_result_t result=s->hooks.frame(s->hooks.context,&frame,s->timestamp);
-        if(result==DBT_OK)++s->frames;else ++s->rejected;
+        if(result==DBT_OK || result==DBT_PENDING)++s->frames;else ++s->rejected;
+        if(result==DBT_PENDING){s->pending=true;return result;}
         dbt_sbc_media_reset(s);return result;
     }
     return DBT_OK;

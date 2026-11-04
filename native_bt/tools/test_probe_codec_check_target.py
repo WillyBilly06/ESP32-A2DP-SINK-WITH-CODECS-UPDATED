@@ -42,6 +42,7 @@ def main():
     args=[x for x in args if not any(x.startswith('-DDBT_PROBE_'+n+'_BUILD') for n in features)]
     args=[x for x in args if not x.startswith('-DDBT_PROBE_LHDC_MAX_CHECK')]
     args=[x for x in args if not x.startswith('-DDBT_PROBE_LHDC_STAGE_PROFILE')]
+    args=[x for x in args if not x.startswith('-DDBT_PROBE_DEFERRED_CODEC_CHECK')]
     include=['-I'+str(ROOT/'codecs'/n) for n in ('common','sbc','opus','aac','aptx','ldac','lhdcv5')]
     include+=['-I'+str(ROOT/'esp32_probe/main')]
     source=ROOT/'esp32_probe/main/probe_codec_check.c'

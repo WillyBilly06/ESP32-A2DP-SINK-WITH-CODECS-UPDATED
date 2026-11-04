@@ -16,6 +16,10 @@ typedef struct {
     uint16_t fragment_size,fragment_capacity,next_sequence,last_sequence;
     uint8_t remaining;
     bool sequence_valid;
+    const uint8_t *batch;
+    uint32_t batch_timestamp;
+    uint16_t batch_size,batch_pos,batch_index;
+    bool batch_fragment;
 } lhdc_state_t;
 /* Decoder caches are process-global. The audio product has one worker and
  * this binding prohibits two active owners. All cache allocations are charged
@@ -68,6 +72,7 @@ static void close_decoder(dbt_codec_decoder_t *d){
 }
 static dbt_result_t reset_decoder(dbt_codec_decoder_t *d){
     lhdc_state_t *s=d->state;if(!s || !s->codec)return DBT_INVALID;
+    s->batch=0;s->batch_fragment=false;s->batch_size=s->batch_pos=s->batch_index=0;
     clear_fragment(d);s->sequence_valid=false;lhdc_dec_reset(s->codec);return DBT_OK;
 }
 static dbt_result_t open_decoder(dbt_codec_decoder_t *d){
@@ -85,6 +90,31 @@ static dbt_result_t open_decoder(dbt_codec_decoder_t *d){
     s->codec=lhdc_dec_init(workspace(s),&c);
     return s->codec && dbt_lhdc_entropy_ready() && !allocation_failed?DBT_OK:DBT_NO_SPACE;
 }
+static dbt_result_t batch_finish(dbt_codec_decoder_t *d,dbt_result_t result){
+    lhdc_state_t *s=d->state;bool fragmented=s->batch_fragment;
+    s->batch=0;s->batch_fragment=false;s->batch_size=s->batch_pos=s->batch_index=0;
+    if(fragmented)clear_fragment(d);
+    return result;
+}
+static dbt_result_t resume(dbt_codec_decoder_t *d,uint32_t now){
+    (void)now;lhdc_state_t *s=d->state;if(!s)return DBT_INVALID;
+    if(!s->batch)return DBT_OK;
+    while(s->batch_pos<s->batch_size){
+        const uint8_t *p=s->batch;unsigned pos=s->batch_pos;
+        unsigned expected=2u+2u*(((unsigned)p[pos]|((unsigned)p[pos+1]<<8))&1023u);
+        size_t consumed=0;uint32_t generated=0;lhdc_dec_frame_info_t info={0};allocation_failed=false;
+        lhdc_dec_ret_t r=lhdc_dec_decode_frame(s->codec,p+pos,expected,pcm(s),d->config.samples,&consumed,&generated,&info);
+        if(r!=LHDC_DEC_OK || allocation_failed || consumed!=expected || generated!=d->config.samples || info.samples_per_channel!=generated ||
+           info.channels!=d->config.channels || info.sample_rate!=d->config.rate || info.bit_depth!=8u*d->config.sample_bytes || info.frame_duration_ms!=5)
+            return batch_finish(d,DBT_INVALID);
+        dbt_result_t result=d->hooks.pcm(d->hooks.context,pcm(s),(uint16_t)generated,&d->config,
+            s->batch_timestamp+(uint32_t)s->batch_index*generated);
+        if(result!=DBT_OK && result!=DBT_PENDING)return batch_finish(d,result);
+        ++d->frames;s->batch_pos=(uint16_t)(pos+expected);++s->batch_index;
+        if(result==DBT_PENDING)return result;
+    }
+    return batch_finish(d,DBT_OK);
+}
 static dbt_result_t decode_payload(dbt_codec_decoder_t *d,const uint8_t *p,uint16_t size,uint32_t timestamp){
     lhdc_state_t *s=d->state;if(size<4)return DBT_INVALID;
     unsigned pos=1,frames=0;
@@ -95,22 +125,18 @@ static dbt_result_t decode_payload(dbt_codec_decoder_t *d,const uint8_t *p,uint1
         pos+=n+2u;++frames;
     }
     if(!frames)return DBT_INVALID;
-    pos=1;
-    for(unsigned i=0;i<frames;++i){
-        unsigned expected=2u+2u*(((unsigned)p[pos]|((unsigned)p[pos+1]<<8))&1023u);
-        size_t consumed=0;uint32_t generated=0;lhdc_dec_frame_info_t info={0};allocation_failed=false;
-        lhdc_dec_ret_t r=lhdc_dec_decode_frame(s->codec,p+pos,expected,pcm(s),d->config.samples,&consumed,&generated,&info);
-        if(r!=LHDC_DEC_OK || allocation_failed || consumed!=expected || generated!=d->config.samples || info.samples_per_channel!=generated ||
-           info.channels!=d->config.channels || info.sample_rate!=d->config.rate || info.bit_depth!=8u*d->config.sample_bytes || info.frame_duration_ms!=5)return DBT_INVALID;
-        dbt_result_t result=d->hooks.pcm(d->hooks.context,pcm(s),(uint16_t)generated,&d->config,timestamp+i*generated);
-        if(result!=DBT_OK)return result;
-        ++d->frames;pos+=expected;
-    }
-    return DBT_OK;
+    s->batch=p;s->batch_size=size;s->batch_pos=1;s->batch_index=0;
+    s->batch_timestamp=timestamp;s->batch_fragment=p==s->fragment;
+    return resume(d,0);
 }
-static void expire(dbt_codec_decoder_t *d,uint32_t now){lhdc_state_t *s=d->state;if(s && s->fragment && now-s->fragment_at>=100u)(void)reset_decoder(d);}
+static void expire(dbt_codec_decoder_t *d,uint32_t now){lhdc_state_t *s=d->state;if(s && !s->batch && s->fragment && now-s->fragment_at>=100u)(void)reset_decoder(d);}
+static bool deadline(const dbt_codec_decoder_t *d,uint32_t *when){
+    const lhdc_state_t *s=d->state;if(!s || !when || !s->fragment || s->batch)return false;
+    *when=s->fragment_at+100u;return true;
+}
 static dbt_result_t media(dbt_codec_decoder_t *d,const dbt_avdtp_media_t *p,uint32_t now){
     lhdc_state_t *s=d->state;if(!s || !p || !p->payload || p->size<2 || p->payload_type<96)return DBT_INVALID;
+    if(s->batch)return DBT_BUSY;
     expire(d,now);
     if(s->sequence_valid && (p->ssrc!=s->last_ssrc || p->sequence!=(uint16_t)(s->last_sequence+1u)))if(reset_decoder(d)!=DBT_OK)return DBT_INVALID;
     s->sequence_valid=true;s->last_ssrc=p->ssrc;s->last_sequence=p->sequence;
@@ -128,6 +154,8 @@ static dbt_result_t media(dbt_codec_decoder_t *d,const dbt_avdtp_media_t *p,uint
     }
     copy(s->fragment+s->fragment_size,data,size);s->fragment_size=(uint16_t)needed;--s->remaining;++s->next_sequence;
     if(!last)return DBT_OK;
-    dbt_result_t result=decode_payload(d,s->fragment,s->fragment_size,s->timestamp);clear_fragment(d);return result;
+    dbt_result_t result=decode_payload(d,s->fragment,s->fragment_size,s->timestamp);
+    if(result!=DBT_PENDING)clear_fragment(d);
+    return result;
 }
-const dbt_codec_ops_t dbt_lhdcv5_codec={"LHDC V5",dbt_lhdcv5_configure,open_decoder,close_decoder,reset_decoder,media,expire};
+const dbt_codec_ops_t dbt_lhdcv5_codec={"LHDC V5",dbt_lhdcv5_configure,open_decoder,close_decoder,reset_decoder,media,expire,resume,deadline};

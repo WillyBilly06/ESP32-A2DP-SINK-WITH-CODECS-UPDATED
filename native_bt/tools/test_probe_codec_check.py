@@ -6,6 +6,8 @@ from pathlib import Path
 import shutil
 import subprocess
 import sys
+import argparse
+import re
 
 ROOT=Path(__file__).resolve().parents[1]
 WS=ROOT.parent
@@ -26,13 +28,31 @@ def run(args,**kwargs):
 
 
 def main():
+    global LHDC,OUT
+    parser=argparse.ArgumentParser()
+    parser.add_argument('--lhdc-source',type=Path,help='Sibling LHDC repository or decoder directory')
+    parser.add_argument('--deferred',action='store_true',help='Compare real synchronous/deferred PCM with simulated renderer backpressure')
+    parser.add_argument('--sanitize',action='store_true',help='AddressSanitizer for deferred adapters and all codec sources including guarded Opus')
+    args=parser.parse_args()
+    if args.lhdc_source:
+        LHDC=args.lhdc_source.resolve()
+        if not (LHDC/'lhdc_dec.c').is_file():LHDC=LHDC/'decoder'
+    if args.sanitize and not args.deferred:raise RuntimeError('--sanitize requires --deferred')
+    if args.deferred:OUT=ROOT/('_build/native_codecs/deferred_asan' if args.sanitize else '_build/native_codecs/deferred_host')
     OUT.mkdir(parents=True,exist_ok=True);env=os.environ.copy()
     if os.name=='nt':
         vc=Path(r'C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Auxiliary\Build\vcvars64.bat')
         values=subprocess.check_output(f'call "{vc}" >nul && set',shell=True,text=True)
         env.update(dict(s.split('=',1) for s in values.splitlines() if '=' in s and not s.startswith('=')))
-    for key in ('LHDC_WINFILE','LHDC_PKALL','LHDC_FORCE_REF'):env.pop(key,None)
+    for key in list(env):
+        if key.startswith('LHDC_'):env.pop(key,None)
     compiler=shutil.which('clang') or r'C:\Program Files\LLVM\bin\clang.exe'
+    cache=shutil.which('ccache',path=env.get('PATH'))
+    if not cache and os.name=='nt':
+        matches=list((Path.home()/'.espressif/tools/ccache').glob('*/ccache-*/ccache.exe'))
+        if matches:cache=str(sorted(matches)[-1])
+    if not cache:raise RuntimeError('ccache is required for host codec compilation')
+    env.pop('CCACHE_DISABLE',None)
     port=OUT/'sbc_port';aacport=OUT/'aac_port';ldacport=OUT/'ldac_port';lhdcport=OUT/'lhdc_port'
     for script,source,destination in (
         ('sbc/prepare_port.py',SBC/'srce',port),('aac/prepare_port.py',AAC/'aacdec.c',aacport),
@@ -40,7 +60,8 @@ def main():
         run([sys.executable,str(ROOT/'codecs'/script),'--source',str(source),'--output',str(destination)],env=env)
     sbc_names='alloc bitalloc-sbc bitalloc bitstream-decode decoder-oina decoder-private decoder-sbc dequant framing-sbc framing oi_codec_version synthesis-8-generated synthesis-dct8 synthesis-sbc'.split()
     aac_names='aactabs bitstream buffers dct4 decelmnt dequant fft filefmt huffman hufftabs imdct noiseless pns stproc tns trigtabs'.split()
-    sources=[ROOT/'tests/codecs/probe_codec_selftest_host.c',
+    harness='codec_deferred_real.c' if args.deferred else 'probe_codec_selftest_host.c'
+    sources=[ROOT/'tests/codecs'/harness,
              ROOT/'codecs/common/dbt_codec.c',ROOT/'src/dbt_avdtp_caps.c',ROOT/'src/dbt_sbc_media.c',
              ROOT/'codecs/sbc/dbt_sbc_codec.c',ROOT/'codecs/sbc/dbt_sbc_decoder.c',
              ROOT/'codecs/opus/dbt_opus.c',ROOT/'codecs/opus/scratch/dbt_opus_scratch.c',
@@ -58,6 +79,19 @@ def main():
          ROOT/'codecs/sbc',ROOT/'codecs/sbc/port',SBC/'include',ROOT/'codecs/opus',OPUS/'include',
          ROOT/'codecs/aac',AAC,ROOT/'codecs/aptx',APTX,ROOT/'codecs/ldac',ldacport,LDAC/'inc',LDAC/'src',ROOT/'codecs/lhdcv5',LHDC]
     opus_lib=ROOT/'_build/avrcp/probe_opus_guarded/opus.lib'
+    if args.sanitize:
+        opus_build=ROOT/'_build/avrcp/probe_opus_guarded_asan'
+        ninja=shutil.which('ninja',path=env.get('PATH')) or str(Path.home()/'.espressif/tools/ninja/1.12.1/ninja.exe')
+        override=(ROOT/'codecs/opus/scratch/dbt_opus_scratch_override.h').as_posix()
+        cflags=f'-include "{override}" -DDBT_OPUS_GUARDED_API=1 -std=c11 -fwrapv -fsanitize=address -fno-omit-frame-pointer'
+        run(['cmake','-S',str(OPUS),'-B',str(opus_build),'-G','Ninja',f'-DCMAKE_MAKE_PROGRAM={ninja}',f'-DCMAKE_C_COMPILER={compiler}',
+             '-DCMAKE_BUILD_TYPE=Release',f'-DCMAKE_C_COMPILER_LAUNCHER={cache}',f'-DCMAKE_C_FLAGS={cflags}',
+             '-DOPUS_BUILD_SHARED_LIBRARY=OFF','-DOPUS_BUILD_TESTING=OFF','-DOPUS_BUILD_PROGRAMS=OFF','-DOPUS_FIXED_POINT=ON',
+             '-DOPUS_ENABLE_FLOAT_API=OFF','-DOPUS_DISABLE_INTRINSICS=ON'],env=env)
+        run(['cmake','--build',str(opus_build),'--parallel','4'],env=env)
+        matches=list(opus_build.rglob('opus.lib' if os.name=='nt' else 'libopus.a'))
+        if len(matches)!=1:raise RuntimeError('Expected one instrumented guarded Opus library')
+        opus_lib=matches[0]
     if not opus_lib.is_file():raise RuntimeError('Run test_probe_audio_worker.py to build the guarded host Opus library')
     tracked=sources+[opus_lib,ROOT/'esp32_probe/main/probe_codec_check.c',ROOT/'esp32_probe/main/probe_codec_vectors.h',ROOT/'esp32_probe/main/probe_opus_vectors.h',Path(__file__).resolve()]
     # Include textual dependencies used by the SDK amalgamations and all headers.
@@ -66,29 +100,60 @@ def main():
     before={str(p):hashlib.sha256(p.read_bytes()).hexdigest() for p in tracked}
     flags=[compiler,'-std=c11','-O2','-fwrapv','-D_CRT_SECURE_NO_WARNINGS','-DUSE_DEFAULT_STDLIB','-DAAC_MAX_NCHANS=2',
            '-DLHDC_HOST_BUILD','-DDBT_LHDC_NO_HOST_WINFILE','-DDBT_OPUS_GUARDED_API=1']
+    if args.sanitize:
+        flags+=['-fsanitize=address','-fno-omit-frame-pointer']
+        if os.name=='nt':flags+=['-fms-runtime-lib=dll']
     flags+=['-DDBT_PROBE_'+x+'_BUILD=1' for x in ('SBC','OPUS','AAC','APTX','LDAC','LHDC')]
     flags+=['-I'+str(p) for p in inc]
     exe=OUT/('probe_codec_selftest.exe' if os.name=='nt' else 'probe_codec_selftest')
-    # Select ESP32's portable arithmetic only for SDK AAC translation units;
-    # other codecs and their golden values retain their existing flags.
-    aac_objects=[]
-    for unit in aac_sources:
-        obj=OUT/('aac_'+unit.stem+('.obj' if os.name=='nt' else '.o'))
-        run(flags+['-funsigned-char','-include',str(ROOT/'codecs/aac/host_target_math.h'),'-c',str(unit),'-o',str(obj)],env=env,cwd=OUT)
-        aac_objects.append(obj)
-    others=[unit for unit in sources if unit not in aac_sources]
-    run(flags+[str(s) for s in others]+[str(o) for o in aac_objects]+[str(opus_lib)]+([] if os.name=='nt' else ['-lm'])+['-o',str(exe)],env=env,cwd=OUT)
+    # Cache individual translation units. Select ESP32's portable arithmetic
+    # only for AAC SDK units, preserving the other codecs' arithmetic flags.
+    objects=[]
+    undefined_checked={ROOT/name for name in (
+        'tests/codecs/codec_deferred_real.c','codecs/common/dbt_codec.c','src/dbt_sbc_media.c',
+        'codecs/sbc/dbt_sbc_codec.c','codecs/sbc/dbt_sbc_decoder.c','codecs/aac/dbt_aac_decoder.c',
+        'codecs/aac/dbt_aac_transport.c','codecs/aptx/dbt_aptx.c','codecs/ldac/dbt_ldac_decoder.c',
+        'codecs/opus/dbt_opus.c','codecs/lhdcv5/dbt_lhdcv5_codec.c')}
+    for index,unit in enumerate(sources):
+        obj=OUT/(str(index)+'_'+unit.stem+('.obj' if os.name=='nt' else '.o'));objects.append(obj)
+        extra=['-funsigned-char','-include',str(ROOT/'codecs/aac/host_target_math.h')] if unit in aac_sources else []
+        if args.sanitize and unit in undefined_checked:extra+=['-fsanitize=undefined','-fno-sanitize-recover=undefined']
+        run([cache]+flags+extra+['-c',str(unit),'-o',str(obj)],env=env,cwd=OUT)
+    link_flags=['-fsanitize=address,undefined'] if args.sanitize else []
+    if args.sanitize and os.name=='nt':
+        # The clang GNU driver selects the ASan DLL thunk from _DLL at the
+        # final object-only link; -fms-runtime-lib alone leaves a static thunk.
+        link_flags+=['-fms-runtime-lib=dll','-D_DLL','-Wl,/NODEFAULTLIB:libcmt']
+    run([compiler]+link_flags+[str(o) for o in objects]+[str(opus_lib)]+([] if os.name=='nt' else ['-lm'])+['-o',str(exe)],env=env,cwd=OUT)
+    if args.sanitize and os.name=='nt':
+        resource=Path(run([compiler,'-print-resource-dir']).strip())
+        runtime=resource/'lib/windows/clang_rt.asan_dynamic-x86_64.dll'
+        if not runtime.is_file():runtime=Path(compiler).parent/runtime.name
+        if not runtime.is_file():raise RuntimeError('Selected compiler ASan runtime is missing')
+        shutil.copy2(runtime,OUT/runtime.name)
     output=run([str(exe)],env=env,cwd=OUT)
     events=[]
     for line in output.splitlines():
         try:events.append(json.loads(line))
         except ValueError:pass
+    if args.deferred:
+        cases=[e for e in events if e.get('probe')=='deferred_codec_case']
+        summaries=[e for e in events if e.get('probe')=='deferred_codec_summary']
+        assert len(summaries)==1 and summaries[0]['passed'] and summaries[0]['cases']==len(cases)
+        assert len([c for c in cases if c['mode']==0])==38
+        assert all(c['passed'] and c['live_bytes']==0 and c['busy_attempts'] for c in cases)
+        assert all(hashlib.sha256(Path(path).read_bytes()).hexdigest()==sha for path,sha in before.items())
+        report={'passed':True,'scope':'real host codec algorithms and worker, byte/sample-timestamp comparison with simulated output backpressure and 150 ms pause; no target/RF timing',
+                'sanitizers':['address for all source-built codecs','undefined for owned adapters/worker/test harness'] if args.sanitize else [],'guarded_opus_instrumented':args.sanitize,
+                'summary':summaries[0],'cases':cases,'source_sha256':before}
+        (OUT/'results.json').write_text(json.dumps(report,indent=2)+'\n')
+        print(f'PASS {len(cases)} real-codec deferred cases: every PCM byte/timestamp identical; fragmentation, batching, all 37 configurations and maximum LHDC fixture; host only')
+        return
     opus=[e for e in events if e.get('probe')=='target_opus_selftest']
     overall=[e for e in events if e.get('probe')=='target_codec_selftest']
     cases=[e for e in events if e.get('probe')=='target_codec_case']
     assert len(opus)==1 and opus[0]['passed'] and opus[0]['frames']==48
-    vector_receipt=json.loads((ROOT/'_build/native_codecs/probe_codec_vectors.json').read_text())
-    selected=16+len(vector_receipt['cases'])
+    selected=16+len(re.findall(r'^\{"[^"\n]+",&dbt_', (ROOT/'esp32_probe/main/probe_codec_vectors.h').read_text(),re.M))
     assert len(overall)==1 and overall[0]['passed'] and overall[0]['configurations']==selected and overall[0]['selected']==selected
     assert len(cases)==selected+4 and all(c['passed'] for c in cases[:selected]) and not any(c['passed'] for c in cases[selected:])
     injected=run([str(exe),'allocation-failure'],env=env,cwd=OUT)

@@ -21,7 +21,8 @@ typedef struct {
     void (*release)(void *context,uint8_t *data);
     /* Worker only, borrowed exact validated frame. Codec/PCM work may run here.
      * Timestamp belongs to this frame, with samples added for each following
-     * frame in an unfragmented packet. A callback error stops the packet. */
+     * frame in an unfragmented packet. PENDING accepts a retained frame view;
+     * consume it before resume/reset. Any other callback error stops the packet. */
     dbt_result_t (*frame)(void *context,const dbt_sbc_frame_t *frame,uint32_t timestamp);
 } dbt_sbc_media_hooks_t;
 typedef struct {
@@ -32,7 +33,11 @@ typedef struct {
     uint32_t packets,frames,rejected,gaps;
     uint16_t size,capacity,chunk_size,next_sequence;
     uint8_t remaining;
-    bool initialized;
+    bool initialized,pending;
+    const uint8_t *batch;
+    uint32_t batch_timestamp;
+    uint16_t batch_size,batch_cursor;
+    uint8_t batch_remaining,batch_index;
 } dbt_sbc_media_t;
 
 /* The Media Codec category body: audio/type SBC + four CIE bytes. No allocation. */
@@ -43,13 +48,16 @@ dbt_result_t dbt_sbc_configure(const uint8_t *codec,uint16_t size,dbt_sbc_config
 dbt_result_t dbt_sbc_frame_decode(const dbt_sbc_config_t *config,const uint8_t *data,
     uint16_t size,dbt_sbc_frame_t *frame);
 dbt_result_t dbt_sbc_frame_bytes(const dbt_sbc_config_t *config,uint8_t bitpool,uint16_t *size);
-/* One decoder worker owns init/receive/expire/reset. No retained RTP pointers.
+/* One decoder worker owns init/receive/resume/expire/reset. After PENDING, the
+ * caller retains the original unfragmented RTP bytes until resume completes or
+ * reset cancels them. A completed fragmented view keeps its private allocation.
  * Unfragmented media allocates nothing and validates the entire packet before
  * dispatch. Fragment storage is lazy, capped by the actual frame header, and
  * released on completion, error, discontinuity or expiry. */
 dbt_result_t dbt_sbc_media_init(dbt_sbc_media_t *stream,dbt_sbc_media_hooks_t hooks,
     dbt_sbc_config_t config,uint32_t fragment_ms);
 dbt_result_t dbt_sbc_media_receive(dbt_sbc_media_t *stream,const dbt_avdtp_media_t *media,uint32_t now_ms);
+dbt_result_t dbt_sbc_media_resume(dbt_sbc_media_t *stream);
 void dbt_sbc_media_expire(dbt_sbc_media_t *stream,uint32_t now_ms);
 void dbt_sbc_media_reset(dbt_sbc_media_t *stream);
 

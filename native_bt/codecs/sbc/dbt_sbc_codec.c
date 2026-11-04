@@ -22,7 +22,7 @@ static dbt_result_t pcm(void *context, const int16_t *samples, uint16_t frames,
 
   dbt_result_t r =
       d->hooks.pcm(d->hooks.context, samples, frames, &d->config, timestamp);
-  if (r == DBT_OK)
+  if (r == DBT_OK || r == DBT_PENDING)
     ++d->frames;
   return r;
 }
@@ -102,6 +102,15 @@ static void expire(dbt_codec_decoder_t *d, uint32_t now) {
   if (s)
     dbt_sbc_media_expire(&s->media, now);
 }
+static dbt_result_t resume(dbt_codec_decoder_t *d,uint32_t now){
+  (void)now;sbc_state_t *s=d->state;
+  return s?dbt_sbc_media_resume(&s->media):DBT_INVALID;
+}
+static bool deadline(const dbt_codec_decoder_t *d,uint32_t *when){
+  const sbc_state_t *s=d->state;
+  if(!s || !when || !s->media.fragment || s->media.pending || s->media.batch)return false;
+  *when=s->media.deadline;return true;
+}
 const dbt_codec_ops_t dbt_sbc_codec = {
     "SBC",         configure, open_decoder, close_decoder,
-    reset_decoder, media,     expire};
+    reset_decoder, media,     expire,resume,deadline};

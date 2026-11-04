@@ -48,16 +48,38 @@ dbt_result_t dbt_codec_open(dbt_codec_decoder_t *d,const dbt_codec_config_t *con
 static bool enabled(const dbt_codec_worker_t *w){uint32_t start=atomic_load_explicit(&w->started_epoch,memory_order_acquire);return start && start==atomic_load_explicit(&w->gate_epoch,memory_order_acquire);}
 static void wake_worker(dbt_codec_worker_t *w){if(w->hooks.wake_worker)w->hooks.wake_worker(w->hooks.decoder.context);}
 static void wake_owner(dbt_codec_worker_t *w){if(w->hooks.wake_owner)w->hooks.wake_owner(w->hooks.decoder.context);}
+static void pending_clear(dbt_codec_worker_t *w){
+    w->pending_pcm=0;w->pending_frames=w->pending_offset=0;w->output_blocked=false;
+}
+static uint8_t *deferred_allocate(void *context,uint32_t bytes){
+    dbt_codec_worker_t *w=context;return w->hooks.decoder.allocate(w->hooks.decoder.context,bytes);
+}
+static void deferred_release(void *context,uint8_t *bytes){
+    dbt_codec_worker_t *w=context;w->hooks.decoder.release(w->hooks.decoder.context,bytes);
+}
+static dbt_result_t deferred_pcm(void *context,const void *samples,uint16_t frames,
+                                const dbt_codec_config_t *config,uint32_t timestamp){
+    dbt_codec_worker_t *w=context;
+    if(!samples || !frames || !config || !w->configured || !w->streaming || w->pending_pcm ||
+       config->rate!=w->decoder.config.rate || config->channels!=w->decoder.config.channels ||
+       config->sample_bytes!=w->decoder.config.sample_bytes)return DBT_INVALID;
+    w->pending_pcm=samples;w->pending_frames=frames;w->pending_offset=0;
+    w->pending_timestamp=timestamp;w->output_blocked=false;return DBT_PENDING;
+}
 dbt_result_t dbt_codec_worker_init(dbt_codec_worker_t *w,dbt_codec_worker_hooks_t hooks,uint16_t payload,uint8_t depth){
     uint32_t stride=(sizeof(media_t)+payload+3u)&~3u;
     if(!w || !hooks.codecs || !hooks.codec_count || hooks.codec_count>8 || payload<5 || payload>4096 ||
        !depth || depth>16 || (depth&(depth-1u)) || stride*depth>UINT16_MAX)return DBT_INVALID;
-    for(unsigned i=0;i<hooks.codec_count;++i){const dbt_codec_ops_t *o=hooks.codecs[i];if(!o || !o->configure || !o->open || !o->close || !o->reset || !o->media)return DBT_INVALID;}
+    for(unsigned i=0;i<hooks.codec_count;++i){const dbt_codec_ops_t *o=hooks.codecs[i];if(!o || !o->configure || !o->open || !o->close || !o->reset || !o->media || (hooks.deferred_pcm && !o->resume))return DBT_INVALID;}
+    if(hooks.deferred_pcm && (!hooks.decoder.allocate || !hooks.decoder.release || !hooks.decoder.pcm))return DBT_INVALID;
     zero(w,sizeof(*w));w->hooks=hooks;w->maximum_payload=payload;w->stride=(uint16_t)stride;w->depth=depth;
     atomic_init(&w->job_written,0);atomic_init(&w->job_read,0);atomic_init(&w->receipt_written,0);atomic_init(&w->receipt_read,0);
     atomic_init(&w->gate_epoch,0);atomic_init(&w->started_epoch,0);atomic_init(&w->media_written,0);atomic_init(&w->media_read,0);
     atomic_init(&w->packets,0);atomic_init(&w->media_drops,0);atomic_init(&w->resets,0);atomic_init(&w->faults,0);atomic_init(&w->resident_bytes,0);
-    return dbt_codec_init(&w->decoder,hooks.decoder);
+    atomic_init(&w->pcm_backpressure,0);atomic_init(&w->pcm_timeouts,0);atomic_init(&w->pcm_delivered_frames,0);
+    dbt_codec_hooks_t decoder=hooks.decoder;
+    if(hooks.deferred_pcm)decoder=(dbt_codec_hooks_t){w,deferred_allocate,deferred_release,deferred_pcm};
+    return dbt_codec_init(&w->decoder,decoder);
 }
 dbt_result_t dbt_codec_worker_submit(void *context,const dbt_sink_job_t *request){
     dbt_codec_worker_t *w=context;
@@ -98,6 +120,7 @@ dbt_result_t dbt_codec_worker_receipt(dbt_codec_worker_t *w,dbt_codec_receipt_t 
 }
 static void clear(dbt_codec_worker_t *w){
     atomic_store_explicit(&w->started_epoch,0,memory_order_release);
+    pending_clear(w);w->media_active=false;
     if(w->packet_storage)dbt_codec_release(&w->decoder,w->packet_storage);
     w->packet_storage=0;dbt_codec_close(&w->decoder);w->configured=w->streaming=w->sequence_valid=false;
     atomic_store(&w->resident_bytes,w->decoder.allocated_bytes);
@@ -110,6 +133,7 @@ static dbt_result_t construct(dbt_codec_worker_t *w,const dbt_codec_config_t *co
 }
 static void fault(dbt_codec_worker_t *w){
     atomic_store_explicit(&w->started_epoch,0,memory_order_release);
+    pending_clear(w);w->media_active=false;
     w->streaming=w->sequence_valid=false;
     if(w->hooks.stream)(void)w->hooks.stream(w->hooks.decoder.context,false,&w->decoder.config);
     atomic_fetch_add(&w->faults,1);
@@ -136,12 +160,87 @@ static dbt_sink_work_result_t control(dbt_codec_worker_t *w,const dbt_codec_job_
         bool start=job->operation==DBT_SINK_START;
         dbt_result_t result=w->hooks.stream?w->hooks.stream(w->hooks.decoder.context,start,&w->decoder.config):DBT_OK;
         if(result!=DBT_OK){if(w->streaming)atomic_store(&w->started_epoch,job->epoch);return DBT_SINK_WORK_REJECTED;}
+        pending_clear(w);w->media_active=false;
         w->sequence_valid=false;atomic_store(&w->media_read,atomic_load(&w->media_written));
         if(w->decoder.config.ops->reset(&w->decoder)!=DBT_OK){fault(w);return DBT_SINK_WORK_FATAL;}
         w->streaming=start;if(start)atomic_store_explicit(&w->started_epoch,job->epoch,memory_order_release);
         return DBT_SINK_WORK_READY;
     }
     return DBT_SINK_WORK_REJECTED;
+}
+static void retire_media(dbt_codec_worker_t *w,uint32_t read,dbt_result_t result){
+    if(result!=DBT_OK){
+        pending_clear(w);atomic_fetch_add(&w->media_drops,1);
+        if(w->decoder.config.ops->reset(&w->decoder)!=DBT_OK)fault(w);
+    }
+    w->media_active=false;atomic_fetch_add(&w->packets,1);
+    atomic_store_explicit(&w->media_read,read+1u,memory_order_release);
+}
+static void fail_media(dbt_codec_worker_t *w,uint32_t read){
+    /* Fatal output/decoder failure needs no replacement codec allocation.
+     * Disable admission, retire the lease, and let the owner's DROP reclaim. */
+    atomic_fetch_add(&w->media_drops,1);fault(w);retire_media(w,read,DBT_OK);
+}
+static uint16_t deferred_step(dbt_codec_worker_t *w,uint32_t now,uint16_t budget){
+    uint16_t done=0;
+    while(done<budget && enabled(w)){
+        uint32_t read=atomic_load_explicit(&w->media_read,memory_order_relaxed);
+        if(w->pending_pcm){
+            uint16_t remaining=(uint16_t)(w->pending_frames-w->pending_offset);
+            uint16_t take=remaining>DBT_CODEC_PCM_CHUNK_FRAMES?DBT_CODEC_PCM_CHUNK_FRAMES:remaining;
+            uint32_t stride=(uint32_t)w->decoder.config.channels*w->decoder.config.sample_bytes;
+            dbt_result_t result=w->hooks.decoder.pcm(w->hooks.decoder.context,
+                w->pending_pcm+(uint32_t)w->pending_offset*stride,take,&w->decoder.config,
+                w->pending_timestamp+w->pending_offset);
+            if(result==DBT_BUSY){
+                w->output_blocked=true;atomic_fetch_add(&w->pcm_backpressure,1);
+                if(now-w->last_progress>=DBT_CODEC_PCM_STALL_MS){
+                    atomic_fetch_add(&w->pcm_timeouts,1);fail_media(w,read);
+                }
+                break;
+            }
+            ++done;
+            if(result!=DBT_OK){fail_media(w,read);break;}
+            w->pending_offset=(uint16_t)(w->pending_offset+take);w->last_progress=now;w->output_blocked=false;
+            atomic_fetch_add(&w->pcm_delivered_frames,take);
+            if(w->pending_offset==w->pending_frames)pending_clear(w);
+            continue;
+        }
+        dbt_result_t result;
+        if(w->media_active)result=w->decoder.config.ops->resume(&w->decoder,now);
+        else {
+            if(read==atomic_load_explicit(&w->media_written,memory_order_acquire))break;
+            media_t *slot=(media_t *)(w->packet_storage+(read%w->depth)*w->stride);
+            if(w->sequence_valid && (slot->sequence!=(uint16_t)(w->last_sequence+1u) || slot->ssrc!=w->last_ssrc)){
+                atomic_fetch_add(&w->resets,1);
+                if(w->decoder.config.ops->reset(&w->decoder)!=DBT_OK){fail_media(w,read);++done;break;}
+            }
+            w->sequence_valid=true;w->last_sequence=slot->sequence;w->last_ssrc=slot->ssrc;
+            dbt_avdtp_media_t packet={slot->bytes,slot->timestamp,slot->ssrc,slot->size,slot->sequence,slot->payload_type,slot->marker};
+            w->last_progress=now;result=w->decoder.config.ops->media(&w->decoder,&packet,now);
+        }
+        ++done;
+        if(result==DBT_PENDING && w->pending_pcm){w->media_active=true;w->last_progress=now;continue;}
+        /* PENDING without an accepted view, or OK after ignoring a view's
+         * PENDING return, is a codec contract violation, never a retry spin. */
+        if(result==DBT_PENDING || w->pending_pcm)result=DBT_INVALID;
+        retire_media(w,read,result);
+    }
+    return done;
+}
+bool dbt_codec_worker_runnable(const dbt_codec_worker_t *w){
+    if(!w)return false;
+    if(atomic_load(&w->job_read)!=atomic_load_explicit(&w->job_written,memory_order_acquire) &&
+       atomic_load(&w->receipt_written)-atomic_load_explicit(&w->receipt_read,memory_order_acquire)<DBT_CODEC_WORKER_JOBS)return true;
+    return enabled(w) && !w->output_blocked && (w->media_active || w->pending_pcm ||
+        atomic_load(&w->media_read)!=atomic_load_explicit(&w->media_written,memory_order_acquire));
+}
+bool dbt_codec_worker_deadline(const dbt_codec_worker_t *w,uint32_t *when){
+    if(!w || !when)return false;
+    if(enabled(w) && w->pending_pcm && w->output_blocked){*when=w->last_progress+DBT_CODEC_PCM_STALL_MS;return true;}
+    if(w->configured && !w->media_active && !w->pending_pcm && w->decoder.config.ops->deadline)
+        return w->decoder.config.ops->deadline(&w->decoder,when);
+    return false;
 }
 uint16_t dbt_codec_worker_step(dbt_codec_worker_t *w,uint32_t now,uint16_t budget){
     if(!w)return 0;
@@ -155,7 +254,8 @@ uint16_t dbt_codec_worker_step(dbt_codec_worker_t *w,uint32_t now,uint16_t budge
         atomic_store_explicit(&w->receipt_written,written+1u,memory_order_release);wake_owner(w);
     }
     uint16_t count=0;
-    while(count<budget && enabled(w)){
+    if(w->hooks.deferred_pcm)count=deferred_step(w,now,budget);
+    while(!w->hooks.deferred_pcm && count<budget && enabled(w)){
         uint32_t read=atomic_load_explicit(&w->media_read,memory_order_relaxed);if(read==atomic_load_explicit(&w->media_written,memory_order_acquire))break;
         media_t *slot=(media_t *)(w->packet_storage+(read%w->depth)*w->stride);
         if(w->sequence_valid && (slot->sequence!=(uint16_t)(w->last_sequence+1u) || slot->ssrc!=w->last_ssrc)){
@@ -172,6 +272,6 @@ uint16_t dbt_codec_worker_step(dbt_codec_worker_t *w,uint32_t now,uint16_t budge
         }
         atomic_fetch_add(&w->packets,1);atomic_store_explicit(&w->media_read,read+1u,memory_order_release);++count;
     }
-    if(w->configured && w->decoder.config.ops->expire)w->decoder.config.ops->expire(&w->decoder,now);
+    if(w->configured && !w->media_active && !w->pending_pcm && w->decoder.config.ops->expire)w->decoder.config.ops->expire(&w->decoder,now);
     atomic_store(&w->resident_bytes,w->decoder.allocated_bytes);return count;
 }

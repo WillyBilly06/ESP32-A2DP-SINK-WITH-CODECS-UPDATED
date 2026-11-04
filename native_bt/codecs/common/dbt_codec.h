@@ -18,6 +18,10 @@ typedef struct {
     void (*release)(void *context,uint8_t *bytes);
     dbt_result_t (*pcm)(void *context,const void *samples,uint16_t frames,
         const dbt_codec_config_t *config,uint32_t timestamp);
+    /* PCM returns OK after consuming/copying the entire view. PENDING accepts
+     * a borrowed view: caller retains this buffer and the media input until
+     * resume/reset/close, and must not overwrite it. BUSY/error does not accept
+     * it and retains the legacy reset-on-error semantics. No callback waits. */
 } dbt_codec_hooks_t;
 typedef struct {
     dbt_codec_hooks_t hooks;
@@ -34,6 +38,12 @@ typedef struct dbt_codec_ops {
     dbt_result_t (*reset)(dbt_codec_decoder_t *decoder);
     dbt_result_t (*media)(dbt_codec_decoder_t *decoder,const dbt_avdtp_media_t *packet,uint32_t now_ms);
     void (*expire)(dbt_codec_decoder_t *decoder,uint32_t now_ms);
+    /* Continue after accepted PENDING PCM has been consumed. Emits at most one
+     * further view when that callback again returns PENDING. No input replay.
+     * A caller keeps the original media bytes live until OK/error/reset/close. */
+    dbt_result_t (*resume)(dbt_codec_decoder_t *decoder,uint32_t now_ms);
+    /* Decoder-owner query only. False means no fragment expiry is armed. */
+    bool (*deadline)(const dbt_codec_decoder_t *decoder,uint32_t *when_ms);
 } dbt_codec_ops_t;
 
 dbt_result_t dbt_codec_init(dbt_codec_decoder_t *decoder,dbt_codec_hooks_t hooks);
@@ -46,6 +56,8 @@ uint8_t *dbt_codec_allocate(dbt_codec_decoder_t *decoder,uint32_t bytes);
 void dbt_codec_release(dbt_codec_decoder_t *decoder,void *bytes);
 
 #define DBT_CODEC_WORKER_JOBS 4u
+#define DBT_CODEC_PCM_CHUNK_FRAMES 256u
+#define DBT_CODEC_PCM_STALL_MS 200u
 typedef struct {
     uint32_t binding,token,epoch;
     dbt_sink_operation_t operation;
@@ -59,6 +71,10 @@ typedef struct {
     void (*wake_worker)(void *context);
     void (*wake_owner)(void *context);
     dbt_result_t (*stream)(void *context,bool start,const dbt_codec_config_t *config);
+    /* Requires resumable codecs and nonblocking providers. PCM is copied by
+     * the provider in chunks <=256 frames; BUSY consumes nothing. Stream hooks
+     * must also be nonblocking/transactional before product integration. */
+    bool deferred_pcm;
 } dbt_codec_worker_hooks_t;
 typedef struct {
     dbt_codec_worker_hooks_t hooks;
@@ -69,11 +85,18 @@ typedef struct {
     _Atomic uint32_t gate_epoch,started_epoch,media_written,media_read;
     /* Owner polls faults and retires the sink on change; DROP reclaims state. */
     _Atomic uint32_t packets,media_drops,resets,faults,resident_bytes;
+    _Atomic uint32_t pcm_backpressure,pcm_timeouts,pcm_delivered_frames;
     uint8_t *packet_storage;
     uint32_t binding,last_ssrc;
     uint16_t maximum_payload,stride,last_sequence;
     uint8_t depth;
     bool configured,streaming,sequence_valid;
+    /* Worker-owned borrow, not another PCM allocation. media_read pins the
+     * input slot until all output and the codec's saved frame cursor retire. */
+    const uint8_t *pending_pcm;
+    uint32_t pending_timestamp,last_progress;
+    uint16_t pending_frames,pending_offset;
+    bool media_active,output_blocked;
 } dbt_codec_worker_t;
 
 /* One host producer and a separate decode consumer, with copied jobs/receipts
@@ -83,5 +106,12 @@ dbt_result_t dbt_codec_worker_init(dbt_codec_worker_t *worker,dbt_codec_worker_h
 dbt_result_t dbt_codec_worker_submit(void *worker,const dbt_sink_job_t *job);
 dbt_result_t dbt_codec_worker_media(void *worker,const dbt_avdtp_media_t *packet);
 dbt_result_t dbt_codec_worker_receipt(dbt_codec_worker_t *worker,dbt_codec_receipt_t *receipt);
+/* At most four control receipts, then the requested media work budget. Legacy
+ * mode counts packets; deferred mode counts one codec emission/resume or one
+ * <=256-frame PCM chunk. A BUSY provider is attempted once and then returns. */
 uint16_t dbt_codec_worker_step(dbt_codec_worker_t *worker,uint32_t now_ms,uint16_t media_budget);
+/* Worker-only scheduling queries. Arm one deadline/notification wait when not
+ * runnable. The render provider wakes the worker when space becomes available. */
+bool dbt_codec_worker_runnable(const dbt_codec_worker_t *worker);
+bool dbt_codec_worker_deadline(const dbt_codec_worker_t *worker,uint32_t *when_ms);
 #endif

@@ -176,6 +176,7 @@ def main():
             returns=[e for e in events if e.get('probe')=='codec_diagnostic_return']
             summaries=[e for e in events if e.get('probe')=='target_codec_selftest']
             maximum=[e for e in events if e.get('probe')=='lhdc_max_selftest']
+            deferred=[e for e in events if e.get('probe')=='target_deferred_codec']
             report['scope']='Finite isolated codec execution; no controller/NVS/I2S initialization, no RF or product qualification'
             report['cases']=[e for e in events if e.get('probe')=='target_codec_case']
             report['codec_summary']=summaries[-1] if summaries else None
@@ -185,15 +186,19 @@ def main():
             report['lhdc_decoder_estimates']=[e for e in events if e.get('probe')=='lhdc_decoder_estimate']
             report['lhdc_stage_cycles']=[e for e in events if e.get('probe')=='lhdc_stage_cycles']
             report['lhdc_pcm_hashes']=[e for e in events if e.get('probe')=='lhdc_pcm_hash']
+            report['deferred_codec_checks']=deferred
+            if 'DBT_PROBE_DEFERRED_CODEC_CHECK:BOOL=ON' in cache and not (deferred and all(e.get('passed') for e in deferred)):
+                report['deferred_codec_checks_missing_or_failed']=True
             report['baseline_boot_observed']=bool(returns and returns[-1].get('baseline_selected') and
                 'Loaded app from partition at offset 0x110000' in text and '1.0.4-idf6.1' in text)
             report['boot_fatal_marker']=any(token in text for token in ('Guru Meditation Error','abort() was called','***ERROR***'))
             report['all_codec_checks_passed']=bool(summaries and summaries[-1].get('passed') and summaries[-1].get('configurations')==summaries[-1].get('selected'))
+            if report.get('deferred_codec_checks_missing_or_failed'):report['all_codec_checks_passed']=False
             report['codec_vectors_passed']=bool(summaries and summaries[-1].get('configurations')==summaries[-1].get('selected') and report['cases'] and all(c.get('passed') for c in report['cases']))
             report['boot_capture']=destination.with_suffix('.bin').name
             destination.with_suffix('.json').write_text(json.dumps(report,indent=2)+'\n',encoding='utf-8')
             for suffix in ('.json','.bin','.txt'):shutil.copy2(destination.with_suffix(suffix),archive/destination.with_suffix(suffix).name)
-            print(json.dumps({k:v for k,v in report.items() if k not in ('cases','lhdc_stage_cycles','lhdc_maximum_trials','lhdc_decoder_estimates')},indent=2))
+            print(json.dumps({k:v for k,v in report.items() if k not in ('cases','lhdc_stage_cycles','lhdc_maximum_trials','lhdc_decoder_estimates','deferred_codec_checks')},indent=2))
             if not report['baseline_boot_observed'] or report['boot_fatal_marker']:raise RuntimeError('Baseline return was not cleanly observed; inspect preserved capture')
             if not report['all_codec_checks_passed']:raise RuntimeError('Baseline restored; diagnostic has a failing correctness or deadline gate')
             return

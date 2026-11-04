@@ -20,6 +20,12 @@ typedef struct {
     uint32_t last_ssrc,discard_timestamp,discard_ssrc;
     uint16_t last_sequence;
     bool sequence_valid,discard_active;
+    const uint8_t *batch;
+    dbt_aac_unit_t units[DBT_AAC_MAX_SUBFRAMES];
+    uint32_t batch_timestamp;
+    uint16_t batch_size;
+    uint8_t batch_count,batch_index;
+    bool batch_fragment;
     /* Aligned workspace, PCM and padded raw input follow this header. */
 } aac_state_t;
 static uint32_t align8(uint32_t n){return (n+7u)&~7u;}
@@ -45,6 +51,7 @@ static void close_decoder(dbt_codec_decoder_t *d){
 }
 static dbt_result_t reset_decoder(dbt_codec_decoder_t *d){
     aac_state_t *s=d->state;if(!s)return DBT_INVALID;
+    s->batch=0;s->batch_fragment=false;s->batch_count=s->batch_index=0;
     abandon_fragment(d);s->sequence_valid=false;
     if(AACFlushCodec(s->codec)!=ERR_AAC_NONE)return DBT_INVALID;
     AACFrameInfo info;zero(&info,sizeof(info));info.nChans=d->config.channels;info.sampRateCore=(int)d->config.rate;info.profile=AAC_PROFILE_LC;
@@ -64,32 +71,51 @@ static dbt_result_t open_decoder(dbt_codec_decoder_t *d){
     if(!s->codec)return DBT_INVALID;
     return reset_decoder(d);
 }
-static dbt_result_t decode_mux(dbt_codec_decoder_t *d,const uint8_t *data,uint16_t size,uint32_t timestamp){
-    aac_state_t *s=d->state;dbt_aac_unit_t units[DBT_AAC_MAX_SUBFRAMES];uint8_t count=0;
-    dbt_result_t result=dbt_aac_latm_parse(&s->mux,&d->config,data,size,units,DBT_AAC_MAX_SUBFRAMES,&count);
-    if(result!=DBT_OK)return result;
-    for(unsigned i=0;i<count;++i){
+static dbt_result_t batch_finish(dbt_codec_decoder_t *d,dbt_result_t result){
+    aac_state_t *s=d->state;bool fragmented=s->batch_fragment;
+    s->batch=0;s->batch_fragment=false;s->batch_count=s->batch_index=0;
+    if(fragmented)fragment_clear(d);
+    return result;
+}
+static dbt_result_t resume(dbt_codec_decoder_t *d,uint32_t now){
+    (void)now;aac_state_t *s=d->state;if(!s)return DBT_INVALID;
+    if(!s->batch)return DBT_OK;
+    while(s->batch_index<s->batch_count){
+        unsigned i=s->batch_index;dbt_aac_unit_t unit=s->units[i];
         uint8_t *input=raw(s);
-        result=dbt_aac_latm_copy(data,size,units[i],input,(uint16_t)(768u*d->config.channels));
-        if(result!=DBT_OK)return result;
-        for(unsigned n=0;n<4;++n)input[units[i].size+n]=0;
-        unsigned char *cursor=input;int left=units[i].size;
-        if(AACDecode(s->codec,&cursor,&left,pcm(s))!=ERR_AAC_NONE || left)return DBT_INVALID;
+        dbt_result_t result=dbt_aac_latm_copy(s->batch,s->batch_size,unit,input,(uint16_t)(768u*d->config.channels));
+        if(result!=DBT_OK)return batch_finish(d,result);
+        for(unsigned n=0;n<4;++n)input[unit.size+n]=0;
+        unsigned char *cursor=input;int left=unit.size;
+        if(AACDecode(s->codec,&cursor,&left,pcm(s))!=ERR_AAC_NONE || left)return batch_finish(d,DBT_INVALID);
         AACFrameInfo info;AACGetLastFrameInfo(s->codec,&info);
         if(info.nChans!=d->config.channels || info.sampRateOut!=(int)d->config.rate ||
-           info.outputSamps!=1024*d->config.channels || info.bitsPerSample!=16 || info.profile!=AAC_PROFILE_LC)return DBT_INVALID;
-        result=d->hooks.pcm(d->hooks.context,pcm(s),1024,&d->config,timestamp+i*1024u);
-        if(result!=DBT_OK)return result;
-        ++d->frames;
+           info.outputSamps!=1024*d->config.channels || info.bitsPerSample!=16 || info.profile!=AAC_PROFILE_LC)return batch_finish(d,DBT_INVALID);
+        result=d->hooks.pcm(d->hooks.context,pcm(s),1024,&d->config,s->batch_timestamp+i*1024u);
+        if(result!=DBT_OK && result!=DBT_PENDING)return batch_finish(d,result);
+        ++d->frames;++s->batch_index;
+        if(result==DBT_PENDING)return result;
     }
-    return DBT_OK;
+    return batch_finish(d,DBT_OK);
+}
+static dbt_result_t decode_mux(dbt_codec_decoder_t *d,const uint8_t *data,uint16_t size,uint32_t timestamp){
+    aac_state_t *s=d->state;uint8_t count=0;
+    dbt_result_t result=dbt_aac_latm_parse(&s->mux,&d->config,data,size,s->units,DBT_AAC_MAX_SUBFRAMES,&count);
+    if(result!=DBT_OK)return result;
+    s->batch=data;s->batch_size=size;s->batch_timestamp=timestamp;s->batch_count=count;s->batch_index=0;s->batch_fragment=data==s->fragment;
+    return resume(d,0);
 }
 static void expire(dbt_codec_decoder_t *d,uint32_t now){
-    aac_state_t *s=d->state;if(s && s->fragment && now-s->fragment_at>=100u)abandon_fragment(d);
+    aac_state_t *s=d->state;if(s && !s->batch && s->fragment && now-s->fragment_at>=100u)abandon_fragment(d);
+}
+static bool deadline(const dbt_codec_decoder_t *d,uint32_t *when){
+    const aac_state_t *s=d->state;if(!s || !when || !s->fragment || s->batch)return false;
+    *when=s->fragment_at+100u;return true;
 }
 static dbt_result_t media(dbt_codec_decoder_t *d,const dbt_avdtp_media_t *p,uint32_t now){
     aac_state_t *s=d->state;
     if(!s || !p || !p->payload || !p->size || p->payload_type<96)return DBT_INVALID;
+    if(s->batch)return DBT_BUSY;
     expire(d,now);
     if(s->sequence_valid && (p->ssrc!=s->last_ssrc || p->sequence!=(uint16_t)(s->last_sequence+1u))){
         if(reset_decoder(d)!=DBT_OK)return DBT_INVALID;
@@ -117,6 +143,8 @@ static dbt_result_t media(dbt_codec_decoder_t *d,const dbt_avdtp_media_t *p,uint
     for(unsigned i=0;i<p->size;++i)s->fragment[s->fragment_size+i]=p->payload[i];
     s->fragment_size=(uint16_t)needed;
     if(!p->marker)return DBT_OK;
-    dbt_result_t result=decode_mux(d,s->fragment,s->fragment_size,s->fragment_timestamp);fragment_clear(d);return result;
+    dbt_result_t result=decode_mux(d,s->fragment,s->fragment_size,s->fragment_timestamp);
+    if(result!=DBT_PENDING)fragment_clear(d);
+    return result;
 }
-const dbt_codec_ops_t dbt_aac_codec={"AAC-LC",dbt_aac_configure,open_decoder,close_decoder,reset_decoder,media,expire};
+const dbt_codec_ops_t dbt_aac_codec={"AAC-LC",dbt_aac_configure,open_decoder,close_decoder,reset_decoder,media,expire,resume,deadline};

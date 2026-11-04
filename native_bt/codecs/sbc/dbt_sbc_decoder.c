@@ -68,6 +68,6 @@ dbt_result_t dbt_sbc_decoder_frame(void *context,const dbt_sbc_frame_t *frame,ui
     OI_STATUS status=OI_CODEC_SBC_DecodeFrame(&s->codec,&cursor,&left,pcm,&written);
     if(status!=OI_OK || left || cursor!=input+frame->size || written!=s->pcm_bytes){++d->failures;return DBT_INVALID;}
     dbt_result_t result=d->hooks.pcm(d->hooks.context,pcm,d->config.samples,d->config.channels,d->config.rate,timestamp);
-    if(result==DBT_OK)++d->frames;else ++d->failures;
+    if(result==DBT_OK || result==DBT_PENDING)++d->frames;else ++d->failures;
     return result;
 }

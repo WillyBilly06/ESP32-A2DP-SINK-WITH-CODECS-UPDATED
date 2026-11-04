@@ -3,7 +3,10 @@
 
 extern size_t dbt_aptx_backend_size(void);
 extern struct aptx_context *dbt_aptx_backend_init(void *memory,int hd);
-typedef struct {struct aptx_context *codec;uint32_t workspace_bytes,next_timestamp;bool clock_valid;} aptx_state_t;
+typedef struct {
+    struct aptx_context *codec;uint32_t workspace_bytes,next_timestamp;bool clock_valid;
+    const uint8_t *batch;uint16_t batch_size,batch_offset;
+} aptx_state_t;
 static uint32_t align8(uint32_t n){return (n+7u)&~7u;}
 static uint32_t le32(const uint8_t *p){return (uint32_t)p[0]|((uint32_t)p[1]<<8)|((uint32_t)p[2]<<16)|((uint32_t)p[3]<<24);}
 static unsigned le16(const uint8_t *p){return (unsigned)p[0]|((unsigned)p[1]<<8);}
@@ -33,7 +36,7 @@ uint8_t dbt_a2dp_aptx_validate(const dbt_avdtp_endpoint_t *endpoint,const dbt_av
 static uint8_t *workspace(aptx_state_t *s){return (uint8_t *)s+align8(sizeof(*s));}
 static uint8_t *pcm(aptx_state_t *s){return workspace(s)+s->workspace_bytes;}
 static void close_decoder(dbt_codec_decoder_t *d){if(d->state){dbt_codec_release(d,d->state);d->state=0;}}
-static dbt_result_t reset_decoder(dbt_codec_decoder_t *d){aptx_state_t *s=d->state;if(!s)return DBT_INVALID;aptx_reset(s->codec);s->clock_valid=false;return DBT_OK;}
+static dbt_result_t reset_decoder(dbt_codec_decoder_t *d){aptx_state_t *s=d->state;if(!s)return DBT_INVALID;aptx_reset(s->codec);s->clock_valid=false;s->batch=0;s->batch_size=s->batch_offset=0;return DBT_OK;}
 static dbt_result_t open_decoder(dbt_codec_decoder_t *d){
     dbt_codec_config_t c;
     if(dbt_aptx_configure(d->config.cie,d->config.cie_size,&c)!=DBT_OK || c.rate!=d->config.rate || c.channels!=d->config.channels ||
@@ -44,19 +47,31 @@ static dbt_result_t open_decoder(dbt_codec_decoder_t *d){
     *s=(aptx_state_t){0};d->state=s;s->workspace_bytes=work;s->codec=dbt_aptx_backend_init(workspace(s),hd(c.cie));
     return s->codec?DBT_OK:DBT_INVALID;
 }
-static dbt_result_t media(dbt_codec_decoder_t *d,const dbt_avdtp_media_t *p,uint32_t now){
+static dbt_result_t batch_finish(aptx_state_t *s,dbt_result_t result){
+    s->batch=0;s->batch_size=s->batch_offset=0;return result;
+}
+static dbt_result_t resume(dbt_codec_decoder_t *d,uint32_t now){
     (void)now;aptx_state_t *s=d->state;
+    if(!s)return DBT_INVALID;
+    if(!s->batch)return DBT_OK;
+    unsigned quantum=hd(d->config.cie)?6u:4u;
+    while(s->batch_offset<s->batch_size){
+        size_t left=s->batch_size-s->batch_offset;
+        size_t written=0,processed=aptx_decode32(s->codec,s->batch+s->batch_offset,left,pcm(s),1024,&written);
+        if(!processed || processed>left || processed%quantum || written>1024 || written%8)return batch_finish(s,DBT_INVALID);
+        s->batch_offset=(uint16_t)(s->batch_offset+processed);
+        if(written){uint16_t frames=(uint16_t)(written/8u);dbt_result_t r=d->hooks.pcm(d->hooks.context,pcm(s),frames,&d->config,s->next_timestamp);
+            if(r!=DBT_OK && r!=DBT_PENDING)return batch_finish(s,r);
+            s->next_timestamp+=frames;d->frames+=frames;if(r==DBT_PENDING)return r;}
+    }
+    return batch_finish(s,DBT_OK);
+}
+static dbt_result_t media(dbt_codec_decoder_t *d,const dbt_avdtp_media_t *p,uint32_t now){
+    aptx_state_t *s=d->state;
     if(!s || !p || !p->payload || !p->size || p->payload_type<96)return DBT_INVALID;
+    if(s->batch)return DBT_BUSY;
     unsigned quantum=hd(d->config.cie)?6u:4u;if(p->size%quantum)return DBT_INVALID;
     if(!s->clock_valid){s->next_timestamp=p->timestamp;s->clock_valid=true;}
-    size_t offset=0;
-    while(offset<p->size){
-        size_t written=0,processed=aptx_decode32(s->codec,p->payload+offset,p->size-offset,pcm(s),1024,&written);
-        if(!processed || processed>p->size-offset || processed%quantum || written>1024 || written%8)return DBT_INVALID;
-        offset+=processed;
-        if(written){uint16_t frames=(uint16_t)(written/8u);dbt_result_t r=d->hooks.pcm(d->hooks.context,pcm(s),frames,&d->config,s->next_timestamp);
-            if(r!=DBT_OK)return r;s->next_timestamp+=frames;d->frames+=frames;}
-    }
-    return DBT_OK;
+    s->batch=p->payload;s->batch_size=p->size;s->batch_offset=0;return resume(d,now);
 }
-const dbt_codec_ops_t dbt_aptx_codec={"aptX",dbt_aptx_configure,open_decoder,close_decoder,reset_decoder,media,0};
+const dbt_codec_ops_t dbt_aptx_codec={"aptX",dbt_aptx_configure,open_decoder,close_decoder,reset_decoder,media,0,resume,0};

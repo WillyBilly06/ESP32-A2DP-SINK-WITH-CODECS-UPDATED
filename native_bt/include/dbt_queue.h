@@ -16,7 +16,10 @@ typedef enum {
     DBT_INVALID,
     DBT_NO_SPACE,
     DBT_UNSUPPORTED,
-    DBT_BUSY
+    DBT_BUSY,
+    /* Accepted work with a retained, explicitly resumable lifetime. This is
+     * an internal completion state, never a wire-protocol success response. */
+    DBT_PENDING
 } dbt_result_t;
 
 typedef struct {

@@ -14,6 +14,8 @@ entry_name='probe_codec_diagnostic.c' if diagnostic else 'probe_main.c'
 main_command=next(entry['command'] for entry in commands if Path(entry['file']).name==entry_name)
 cache=(a.image.parent/'CMakeCache.txt').read_text()
 assert ('DBT_PROBE_CODEC_DIAGNOSTIC_ONLY:BOOL=ON' in cache)==diagnostic
+assert ('DBT_PROBE_DEFERRED_CODEC_CHECK:BOOL=ON' in cache)==bool(build_status.get('deferred_codec_check'))
+assert bool(re.search(r'(?:^|\s)-DDBT_PROBE_DEFERRED_CODEC_CHECK=1(?:\s|$)',main_command))==bool(build_status.get('deferred_codec_check'))
 assert ('DBT_PROBE_LHDC_MAX_CHECK:BOOL=ON' in cache)==bool(build_status.get('lhdc_maximum_check'))
 assert ('DBT_PROBE_LHDC_STAGE_PROFILE:BOOL=ON' in cache)==bool(build_status.get('lhdc_stage_profile'))
 if diagnostic:

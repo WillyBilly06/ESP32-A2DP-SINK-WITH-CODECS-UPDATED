@@ -6,7 +6,13 @@ static dbt_codec_decoder_t *active;
 static bool allocation_failed;
 uint32_t dbt_ldac_port_bit_limit;
 int dbt_ldac_port_overread;
-typedef struct {HANDLE_LDAC_BT codec;uint32_t pcm_bytes;} ldac_state_t;
+typedef struct {
+    HANDLE_LDAC_BT codec;uint32_t pcm_bytes;
+    const uint8_t *batch;
+    dbt_ldac_frame_t batch_frames[DBT_LDAC_MAX_FRAMES];
+    uint32_t batch_timestamp;
+    uint8_t batch_count,batch_index;
+} ldac_state_t;
 void *dbt_ldac_mem_alloc(size_t size){
     if(!active || !size || size>UINT32_MAX){allocation_failed=true;return 0;}
     void *p=dbt_codec_allocate(active,(uint32_t)size);if(!p)allocation_failed=true;return p;
@@ -29,6 +35,7 @@ static void close_decoder(dbt_codec_decoder_t *d){
 }
 static dbt_result_t reset_decoder(dbt_codec_decoder_t *d){
     ldac_state_t *s=d->state;if(!s || !s->codec)return DBT_INVALID;
+    s->batch=0;s->batch_count=s->batch_index=0;
     allocation_failed=false;
     int result=ldacBT_init_handle_decode(s->codec,d->config.cie[9],(int)d->config.rate,0,0,0);
     if(result || allocation_failed || !dbt_ldac_bind_pcm(s->codec,planar(s),d->config.samples,d->config.channels)){
@@ -54,25 +61,38 @@ static dbt_result_t open_decoder(dbt_codec_decoder_t *d){
     s->codec=ldacBT_get_handle();if(!s->codec || allocation_failed)return DBT_NO_SPACE;
     return reset_decoder(d);
 }
-static dbt_result_t media(dbt_codec_decoder_t *d,const dbt_avdtp_media_t *p,uint32_t now){
+static dbt_result_t batch_finish(ldac_state_t *s,dbt_result_t result){
+    s->batch=0;s->batch_count=s->batch_index=0;return result;
+}
+static dbt_result_t resume(dbt_codec_decoder_t *d,uint32_t now){
     (void)now;ldac_state_t *s=d->state;
-    if(!s || !p || !p->payload || p->payload_type<96)return DBT_INVALID;
-    dbt_ldac_frame_t frames[DBT_LDAC_MAX_FRAMES];uint8_t count=0;
-    dbt_result_t result=dbt_ldac_packet_parse(&d->config,p->payload,p->size,frames,DBT_LDAC_MAX_FRAMES,&count);
-    if(result!=DBT_OK)return result;
-    for(unsigned i=0;i<count;++i){
-        uint16_t n=frames[i].size;uint8_t *input=encoded(s);
-        if(n>515u)return DBT_INVALID;
-        for(unsigned j=0;j<n;++j)input[j]=p->payload[frames[i].offset+j];
+    if(!s)return DBT_INVALID;
+    if(!s->batch)return DBT_OK;
+    while(s->batch_index<s->batch_count){
+        unsigned i=s->batch_index;
+        uint16_t n=s->batch_frames[i].size;uint8_t *input=encoded(s);
+        if(n>515u)return batch_finish(s,DBT_INVALID);
+        for(unsigned j=0;j<n;++j)input[j]=s->batch[s->batch_frames[i].offset+j];
         input[n]=input[n+1]=0;
         dbt_ldac_port_bit_limit=(uint32_t)(n-3u)*8u;dbt_ldac_port_overread=0;allocation_failed=false;
         int used=0,written=0;
         int r=ldacBT_decode(s->codec,input,pcm(s),LDACBT_SMPL_FMT_S32,n,&used,&written);
-        if(r || allocation_failed || dbt_ldac_port_overread || used!=n || written!=(int)s->pcm_bytes)return DBT_INVALID;
-        result=d->hooks.pcm(d->hooks.context,pcm(s),d->config.samples,&d->config,p->timestamp+i*d->config.samples);
-        if(result!=DBT_OK)return result;
-        ++d->frames;
+        if(r || allocation_failed || dbt_ldac_port_overread || used!=n || written!=(int)s->pcm_bytes)return batch_finish(s,DBT_INVALID);
+        dbt_result_t result=d->hooks.pcm(d->hooks.context,pcm(s),d->config.samples,&d->config,s->batch_timestamp+i*d->config.samples);
+        if(result!=DBT_OK && result!=DBT_PENDING)return batch_finish(s,result);
+        ++d->frames;++s->batch_index;
+        if(result==DBT_PENDING)return result;
     }
-    return DBT_OK;
+    return batch_finish(s,DBT_OK);
 }
-const dbt_codec_ops_t dbt_ldac_codec={"LDAC",dbt_ldac_configure,open_decoder,close_decoder,reset_decoder,media,0};
+static dbt_result_t media(dbt_codec_decoder_t *d,const dbt_avdtp_media_t *p,uint32_t now){
+    ldac_state_t *s=d->state;
+    if(!s || !p || !p->payload || p->payload_type<96)return DBT_INVALID;
+    if(s->batch)return DBT_BUSY;
+    uint8_t count=0;
+    dbt_result_t result=dbt_ldac_packet_parse(&d->config,p->payload,p->size,s->batch_frames,DBT_LDAC_MAX_FRAMES,&count);
+    if(result!=DBT_OK)return result;
+    s->batch=p->payload;s->batch_timestamp=p->timestamp;s->batch_count=count;s->batch_index=0;
+    return resume(d,now);
+}
+const dbt_codec_ops_t dbt_ldac_codec={"LDAC",dbt_ldac_configure,open_decoder,close_decoder,reset_decoder,media,0,resume,0};
