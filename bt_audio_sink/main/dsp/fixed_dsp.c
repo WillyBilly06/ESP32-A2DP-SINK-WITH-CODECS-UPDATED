@@ -94,12 +94,7 @@ static inline void ramp_advance(fdsp_ramp_t *state) {
     if (--state->remaining == 0) state->value = state->target;
 }
 
-#if FDSP_PROVEN_SUM_ENABLED
-#define FILTER_HOT DSP_HOT
-#else
-#define FILTER_HOT
-#endif
-static inline int32_t FILTER_HOT filter(const int32_t c[5],
+static inline int32_t filter(const int32_t c[5],
                               fdsp_history_t *history, int32_t input) {
     int32_t output;
     if (c[0] == COEFF_ONE && c[1] == 0 && c[2] == 0 && c[3] == 0 && c[4] == 0) {

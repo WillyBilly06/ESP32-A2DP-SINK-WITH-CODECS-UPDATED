@@ -1,11 +1,5 @@
 #include "dbt_resampler.h"
 #include <limits.h>
-#ifdef ESP_PLATFORM
-#include "esp_attr.h"
-#define RESAMPLER_HOT IRAM_ATTR
-#else
-#define RESAMPLER_HOT
-#endif
 
 #include "dbt_resampler_coeffs.inc"
 
@@ -33,7 +27,7 @@ static int32_t saturated(int64_t value){
     if(value<INT32_MIN)return INT32_MIN;
     return (int32_t)value;
 }
-void RESAMPLER_HOT dbt_resampler_filter(dbt_resampler_t *s,int32_t left,int32_t right,uint32_t phase,int32_t *out_left,int32_t *out_right){
+void dbt_resampler_filter(dbt_resampler_t *s,int32_t left,int32_t right,uint32_t phase,int32_t *out_left,int32_t *out_right){
     if(!s || !out_left || !out_right)return;
     if(!s->primed){s->first[0]=left;s->first[1]=right;s->primed=true;}
     uint8_t p=(uint8_t)(phase>>25);uint32_t remainder=phase&0x1ffffffu;

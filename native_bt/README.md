@@ -193,3 +193,7 @@ conversion/resampling retains O3. The maximum-rate pipeline remains unqualified.
 The [exact DSP accumulation checkpoint](docs/IDF61_DSP_ACCUMULATION_2026_11_04.md) proves full-width arithmetic
 and records the measured filter improvement. All 18 target output/state pairs
 match; the maximum-rate pipeline still misses its deadline before DMA starts.
+
+The [render reuse record](docs/IDF61_RENDER_REUSE_2026_11_04.md) retains exact FIR/input improvements and
+records why slower stereo fusion and unhelpful IRAM placement were removed.
+Maximum-rate playback and full feature parity remain unqualified.
