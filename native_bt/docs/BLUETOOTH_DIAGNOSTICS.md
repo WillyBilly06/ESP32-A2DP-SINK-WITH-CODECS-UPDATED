@@ -17,6 +17,8 @@ aggregate drop count. The legacy `sbc_pcm` record applies to every codec.
 | `decoder_reset` | Codec reset calls and their own timing distribution |
 | `pcm_delivery` | PCM provider calls, including output submission and checksum accounting, with their own timing distribution |
 | `native_i2s` / `audio_clock` | Existing DMA EOF gaps, render time, descriptor faults, source frames, underruns, occupancy and clock state |
+| `render_work` | Existing renderer elapsed total/call count, maximum, input occupancy, stack low water and allocation/request failure details |
+| `i2s_descriptor_faults` | Separate invalid buffer shape, exhausted descriptor map and descriptor-order counts, with expected/observed index and event size; original validation remains enforced |
 
 Exception stages are `input_sequence`, `input_ssrc`, `queue_full`,
 `worker_sequence`, `worker_ssrc`, `decode_reject`, `reset_failed`, `pcm_failed`,
@@ -110,9 +112,29 @@ notification/deadline changes and is a separate qualification gate.
 For maximum LHDC V5 checks, preserve actual CIE/phone readback alongside timing.
 AVDTP LHDC bitrate capability limits and an Android 1000 kbps quality request do
 not by themselves prove constant 1000 kbps wire traffic. `media_input` enables
-an RTP-time-based payload throughput estimate, including codec packet framing;
+an elapsed-time payload throughput estimate, including codec packet framing;
 snapshots are separate atomic observations and may differ by an in-flight packet.
+Verify RTP clock frequency independently before using RTP deltas: the captured
+LDAC stream advances timestamps at approximately 48 kHz while producing 96 kHz
+PCM. Do not infer wire bitrate by substituting the PCM rate into RTP time.
 Do not estimate across stream epochs, SSRC changes or timestamp discontinuities.
+
+## Full output is still failing
+
+The [full core-0 trial](RF_FULL_CORE0_2026_11_04.json) used deferred PCM and the
+notification/deadline changes. LDAC 96 kHz reached I2S, then recorded 216,448
+underrun frames, one descriptor fault and one CPU 0 idle-starvation watchdog.
+Its exact ELF maps the watchdog sample to `dbt_resampler_filter` called by
+`dbt_audio_render` / `render_step`. There was no CPU 1 starvation warning.
+Maximum codec call time was 2,917 us, maximum renderer span 12,844 us and maximum
+DMA EOF gap 11,476 us. There were 210 local queue rejections and one PCM failure,
+with zero ingress rejections or incoming RTP gaps. Renderer preemption is
+included in PCM provider elapsed time; these are not CPU-only cycle measurements.
+
+This image failed before LHDC could be selected. The baseline returned cleanly.
+One watchdog sample identifies where the renderer was interrupted, not its
+exclusive CPU cost. Later instrumentation exposes existing renderer totals and
+separates descriptor reasons; their hardware validation remains pending.
 
 ## Existing captured scheduler failure
 

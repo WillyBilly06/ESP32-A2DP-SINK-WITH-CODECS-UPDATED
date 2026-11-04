@@ -70,3 +70,19 @@ EX int probe_output_formats(void){
     CHECK(probe_output_stream_format(true,UINT32_MAX,2,DBT_PCM_S16_LE)==DBT_INVALID);
     return 0;
 }
+EX int probe_output_descriptor_diagnostics(void){
+    memset(&output,0,sizeof(output));static int32_t dma[4][DMA_FRAMES*2];
+    i2s_event_data_t event={0};event.dma_buf=dma[0];event.size=0;
+    (void)sent(0,&event,&output);
+    CHECK(atomic_load(&output.descriptor_errors)==1 && atomic_load(&output.descriptor_shape_errors)==1);
+    CHECK(atomic_load(&output.descriptor_observed_index)==UINT32_MAX && !atomic_load(&output.descriptor_observed_size));
+    output.descriptor_count=DMA_DESCRIPTORS;
+    for(unsigned i=0;i<DMA_DESCRIPTORS;++i)output.descriptors[i].address=dma[i];
+    event.dma_buf=dma[3];event.size=DMA_FRAMES*8u;(void)sent(0,&event,&output);
+    CHECK(atomic_load(&output.descriptor_errors)==2 && atomic_load(&output.descriptor_pool_errors)==1);
+    CHECK(atomic_load(&output.descriptor_observed_index)==3 && atomic_load(&output.descriptor_observed_size)==DMA_FRAMES*8u);
+    event.dma_buf=dma[2];(void)sent(0,&event,&output);
+    CHECK(atomic_load(&output.descriptor_errors)==3 && atomic_load(&output.descriptor_order_errors)==1);
+    CHECK(!atomic_load(&output.descriptor_expected_index) && atomic_load(&output.descriptor_observed_index)==2);
+    return 0;
+}

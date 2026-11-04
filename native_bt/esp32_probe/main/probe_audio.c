@@ -500,6 +500,16 @@ static void log_loop(void *unused){
 #endif
 #ifdef DBT_PROBE_AUDIO_OUTPUT
         probe_output_stats_t stats;probe_output_stats(&stats);
+        printf("{\"probe\":\"render_work\",\"at_us\":%" PRIu32 ",\"calls\":%" PRIu32 ",\"elapsed_us\":%" PRIu32
+               ",\"maximum_us\":%" PRIu32 ",\"wall_time_includes_preemption\":true,\"input_ready_frames\":%" PRIu32 ",\"render_stack_low_water_bytes\":%" PRIu32
+               ",\"allocation_failed_bytes\":%" PRIu32 ",\"allocation_failure_free\":%" PRIu32 ",\"allocation_failure_largest\":%" PRIu32
+               ",\"request_fault\":%" PRIu32 ",\"stale_receipts\":%" PRIu32 "}\n",at,stats.render_calls,stats.render_total_us,
+               stats.maximum_render_us,stats.input_ready_frames,stats.render_stack_low_water_bytes,stats.allocation_failed_bytes,
+               stats.allocation_failure_free,stats.allocation_failure_largest,stats.request_fault,stats.stale_receipts);
+        printf("{\"probe\":\"i2s_descriptor_faults\",\"at_us\":%" PRIu32 ",\"shape\":%" PRIu32 ",\"pool\":%" PRIu32
+               ",\"order\":%" PRIu32 ",\"expected_index\":%" PRIu32 ",\"observed_index\":%" PRIu32 ",\"observed_size\":%" PRIu32 "}\n",
+               at,stats.descriptor_shape_errors,stats.descriptor_pool_errors,stats.descriptor_order_errors,
+               stats.descriptor_expected_index,stats.descriptor_observed_index,stats.descriptor_observed_size);
         printf("{\"probe\":\"native_i2s\",\"running\":%" PRIu32 ",\"failed\":%" PRIu32 ",\"rate\":%" PRIu32
                ",\"requested_bytes\":%" PRIu32 ",\"accepted_frames\":%" PRIu32 ",\"rendered_frames\":%" PRIu32 ",\"ready_frames\":%" PRIu32
                ",\"dma_eofs\":%" PRIu32 ",\"dma_source_frames\":%" PRIu32 ",\"underrun_frames\":%" PRIu32

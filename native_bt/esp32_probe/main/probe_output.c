@@ -86,6 +86,8 @@ typedef struct {
       rendered_frames, ready_frames, input_ready_frames;
   _Atomic uint32_t dma_eofs, dma_source_frames, underrun_frames,
       descriptor_errors, max_eof_gap_us;
+  _Atomic uint32_t descriptor_shape_errors,descriptor_pool_errors,descriptor_order_errors;
+  _Atomic uint32_t descriptor_expected_index,descriptor_observed_index,descriptor_observed_size;
   _Atomic uint32_t maximum_render_us, stop_fill_frames;
   _Atomic uint32_t render_total_us,render_calls;
   _Atomic uint32_t allocation_failed_bytes,allocation_failure_free,allocation_failure_largest;
@@ -155,6 +157,10 @@ static bool IRAM_ATTR sent(i2s_chan_handle_t channel, i2s_event_data_t *event,
   output_t *o = context;
   BaseType_t wake = pdFALSE;
   if (!event->dma_buf || event->size != DMA_FRAMES * 8u) {
+    atomic_store(&o->descriptor_shape_errors,atomic_load(&o->descriptor_shape_errors)+1u);
+    atomic_store(&o->descriptor_expected_index,o->next_descriptor);
+    atomic_store(&o->descriptor_observed_index,UINT32_MAX);
+    atomic_store(&o->descriptor_observed_size,event->size);
     atomic_store(&o->descriptor_errors,
                  atomic_load(&o->descriptor_errors) + 1u);
     atomic_store(&o->failed, 1);
@@ -174,6 +180,10 @@ static bool IRAM_ATTR sent(i2s_chan_handle_t channel, i2s_event_data_t *event,
     ++index;
   if (index == o->descriptor_count) {
     if (index == DMA_DESCRIPTORS) {
+      atomic_store(&o->descriptor_pool_errors,atomic_load(&o->descriptor_pool_errors)+1u);
+      atomic_store(&o->descriptor_expected_index,o->next_descriptor);
+      atomic_store(&o->descriptor_observed_index,index);
+      atomic_store(&o->descriptor_observed_size,event->size);
       atomic_store(&o->descriptor_errors,
                    atomic_load(&o->descriptor_errors) + 1u);
       atomic_store(&o->failed, 1);
@@ -184,6 +194,10 @@ static bool IRAM_ATTR sent(i2s_chan_handle_t channel, i2s_event_data_t *event,
     ++o->descriptor_count;
   }
   if (index != o->next_descriptor) {
+    atomic_store(&o->descriptor_order_errors,atomic_load(&o->descriptor_order_errors)+1u);
+    atomic_store(&o->descriptor_expected_index,o->next_descriptor);
+    atomic_store(&o->descriptor_observed_index,index);
+    atomic_store(&o->descriptor_observed_size,event->size);
     atomic_store(&o->descriptor_errors,
                  atomic_load(&o->descriptor_errors) + 1u);
     atomic_store(&o->failed, 1);
@@ -857,6 +871,8 @@ void probe_output_stats(probe_output_stats_t *s) {
   LOAD(dma_source_frames);
   LOAD(underrun_frames);
   LOAD(descriptor_errors);
+  LOAD(descriptor_shape_errors);LOAD(descriptor_pool_errors);LOAD(descriptor_order_errors);
+  LOAD(descriptor_expected_index);LOAD(descriptor_observed_index);LOAD(descriptor_observed_size);
   LOAD(max_eof_gap_us);
   LOAD(maximum_render_us);
   LOAD(render_total_us);

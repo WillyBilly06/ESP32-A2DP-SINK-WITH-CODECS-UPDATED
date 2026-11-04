@@ -19,5 +19,7 @@ try:
         subprocess.run(cmd+['-DDBT_TEST_TICK_HZ='+str(hz),'-o',str(artifact)],env=env,check=True)
         lib=ctypes.CDLL(str(artifact));line=lib.probe_output_formats()
         if line:raise SystemExit('FAIL production output PCM formats line '+str(line))
+        line=lib.probe_output_descriptor_diagnostics()
+        if line:raise SystemExit('FAIL distinct descriptor diagnostics line '+str(line))
         print(f'PASS production output 16/24/32-bit formats, bounds, teardown and nonzero event waits at {hz} Hz, mocked I2S')
 finally:subprocess.run(check,check=True)

@@ -21,6 +21,12 @@ in longer runs. They do not establish current 6.1 interoperability or reliabilit
 Later isolated decoder/kernel passes supersede only their named numerical gates.
 Compilation and unit tests are not profile completion or production readiness.
 
+The decoder-on-CPU0 checksum trial passed 11,238 LDAC96 packets with secured BLE
+and live EQ, zero drops/resets/watchdogs and queue peak 2/8. The subsequent full
+I2S/deferred-PCM run still failed, with CPU0 renderer starvation, underruns and a
+descriptor fault. Core placement fixes the observed decoder/transport overload
+in the diagnostic workload; it does not qualify the complete audio pipeline.
+
 [Current COM6/Redmagic RF results](BLUETOOTH_RF_2026_11_04.md) retain successful
 pairing/link observations and failed streaming measurements separately. The
 released firmware returned after the latest trial; playback was paused. Its
