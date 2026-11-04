@@ -25,10 +25,19 @@ void *memset(void *d, int v, size_t n) {
   } while (0)
 typedef struct {
   int commits, shows;
-  bool commit_ok, show_ok;
+  bool commit_ok, show_ok,fail_alloc,allocated;
+  size_t peak_alloc;
   uint8_t last[10];
   uint8_t frame[32 * 32 * 3];
 } fake_t;
+static union { max_align_t alignment;uint8_t bytes[1200]; } effect_pool;
+static void *effect_alloc(void *ctx,size_t n) {
+  fake_t *f=ctx;if(f->fail_alloc || f->allocated || n>sizeof(effect_pool.bytes))return NULL;
+  f->allocated=true;if(n>f->peak_alloc)f->peak_alloc=n;return effect_pool.bytes;
+}
+static void effect_free(void *ctx,void *memory) {
+  fake_t *f=ctx;if(memory==effect_pool.bytes)f->allocated=false;
+}
 static bool commit(void *p, const uint8_t *b) {
   fake_t *f = p;
   f->commits++;
@@ -132,6 +141,62 @@ EX int test_led(void) {
   CHECK(f.frame[21] == 0 && f.frame[22] == 255 && f.frame[23] == 0);
   uint8_t unknown[10] = {64, 1, 2, 3, 4, 5, 6, 0, 50, 22};
   CHECK(!dbt_led_init(&l, 4, 4, pixels, sizeof pixels, &io, unknown));
+  /* Overlay timings and brightness are based on the baseline controller.
+   * They do not update durable settings or advance the journal. */
+  legacy[0]=0;legacy[9]=21;legacy[7]=0;
+  CHECK(dbt_led_init(&l,4,4,pixels,sizeof pixels,&io,legacy));
+  int before=f.commits;dbt_led_pairing_mode(&l,true);
+  CHECK(dbt_led_render_at(&l,100));
+  CHECK(f.frame[0]>0 && f.frame[1]==0 && f.frame[2]>f.frame[0]);
+  dbt_led_volume(&l,127);CHECK(dbt_led_render_at(&l,133));
+  CHECK(f.frame[1]==0 && l.volume_visible);
+  dbt_led_pairing_success(&l);CHECK(dbt_led_render_at(&l,200));
+  CHECK(f.frame[0]==47 && f.frame[1]==0 && f.frame[2]==60);
+  CHECK(dbt_led_render_at(&l,349));CHECK(f.frame[2]==60);
+  CHECK(dbt_led_render_at(&l,350));CHECK(!(f.frame[0]|f.frame[1]|f.frame[2]));
+  CHECK(dbt_led_render_at(&l,450));CHECK(f.frame[2]==60);
+  CHECK(dbt_led_render_at(&l,600));CHECK(!(f.frame[0]|f.frame[1]|f.frame[2]));
+  CHECK(dbt_led_render_at(&l,700));CHECK(l.pairing_state==0 && l.volume_visible);
+  for(unsigned i=0;i<20;i++)CHECK(dbt_led_render_at(&l,701+i*33));
+  CHECK(f.frame[9*3+1]>0 && l.volume_smooth>60000);
+  CHECK(dbt_led_render_at(&l,1633));unsigned hold=f.frame[9*3+1];
+  CHECK(dbt_led_render_at(&l,2133));CHECK(f.frame[9*3+1]<hold);
+  CHECK(dbt_led_render_at(&l,2633));CHECK(!l.volume_visible && f.frame[1]==0);
+  CHECK(l.legacy[0]==0 && f.commits==before);
+  dbt_led_pairing_mode(&l,true);CHECK(dbt_led_render_at(&l,0xfffffff0u));
+  dbt_led_pairing_success(&l);CHECK(dbt_led_render_at(&l,0xfffffff1u));
+  CHECK(dbt_led_render_at(&l,0x100u) && f.frame[2]==60);
+  CHECK(dbt_led_render_at(&l,0x200u) && l.pairing_state==0);
+  dbt_led_pairing_mode(&l,true);dbt_led_pairing_mode(&l,false);
+  CHECK(dbt_led_render_at(&l,0x300u) && !l.pairing_state);
+  /* The baseline's sine envelope is 60%, 100%, 60%, 20% at these
+   * quarter-period points; integer output differs by at most one level. */
+  legacy[0]=255;CHECK(dbt_led_init(&l,4,4,pixels,sizeof pixels,&io,legacy));
+  dbt_led_pairing_mode(&l,true);CHECK(dbt_led_render_at(&l,1000));
+  CHECK(f.frame[2]>=152 && f.frame[2]<=154);
+  CHECK(dbt_led_render_at(&l,1500) && f.frame[2]>=254);
+  CHECK(dbt_led_render_at(&l,2000) && f.frame[2]>=152 && f.frame[2]<=154);
+  CHECK(dbt_led_render_at(&l,2500) && f.frame[2]>=51 && f.frame[2]<=52);
+  /* Baseline spectrum rises immediately, falls at about 0.85, and holds its
+   * peak for 30 updates. */
+  legacy[9]=0;CHECK(dbt_led_init(&l,4,4,pixels,sizeof pixels,&io,legacy));
+  dbt_led_audio_active(&l,true);dbt_led_meter(&l,100,100,100);
+  CHECK(dbt_led_render_at(&l,0));CHECK(l.effect_state[0]==240 && l.effect_state[16]==15);
+  dbt_led_meter(&l,0,0,0);CHECK(dbt_led_render_at(&l,33));
+  CHECK(l.effect_state[0]>=202 && l.effect_state[0]<=204 && l.effect_state[16]==15);
+  for(unsigned i=1;i<30;i++)CHECK(dbt_led_render_at(&l,33u*(i+1u)));
+  CHECK(l.effect_state[16]==15);CHECK(dbt_led_render_at(&l,1023));CHECK(l.effect_state[16]==14);
+  /* Two explicit detector edges produce two independently propagating rings. */
+  legacy[9]=2;CHECK(dbt_led_init(&l,4,4,pixels,sizeof pixels,&io,legacy));
+  dbt_led_audio_active(&l,true);CHECK(dbt_led_render_at(&l,0));
+  dbt_led_beat(&l,70);CHECK(dbt_led_render_at(&l,33));
+  CHECK(l.effect_state[3] && !l.effect_state[7]);unsigned first_radius=l.effect_state[0];
+  CHECK(dbt_led_render_at(&l,66));CHECK(l.effect_state[0]>first_radius && !l.effect_state[7]);
+  dbt_led_beat(&l,70);CHECK(dbt_led_render_at(&l,99));CHECK(l.effect_state[3] && l.effect_state[7]);
+  legacy[9]=0;CHECK(dbt_led_init(&l,4,4,pixels,sizeof pixels,&io,legacy));
+  CHECK(dbt_led_render_at(&l,200) && !l.effect_state[0]);
+  CHECK(dbt_led_render_at(&l,5200) && !l.effect_state[0]);
+  CHECK(dbt_led_render_at(&l,5201) && l.effect_state[0]);
   return 0;
 }
 
@@ -142,6 +207,7 @@ EX int test_all_effects(void) {
   f.commit_ok = f.show_ok = true;
   dbt_led_io_t io = {commit, show, &f};
   CHECK(dbt_led_init(&l, 16, 16, pixels, sizeof pixels, &io, 0));
+  CHECK(dbt_led_set_allocator(&l,effect_alloc,effect_free,&f));
   dbt_led_audio_active(&l, true);
   uint32_t hashes[22] = {0};
   for (unsigned e = 0; e < 22; e++) {
@@ -189,6 +255,20 @@ EX int test_all_effects(void) {
   CHECK(dbt_led_render(&l));
   CHECK((pixels[center] | pixels[center + 1] | pixels[center + 2]) == 0);
   CHECK((pixels[outer] | pixels[outer + 1] | pixels[outer + 2]) != 0);
+  CHECK(!f.allocated && f.peak_alloc<=1200 && f.peak_alloc>=1000);
+  /* Fail allocation after a durable effect change, retain its receipt and
+   * retry rendering; switching releases the old allocation before acquiring. */
+  dbt_led_request_t burst={0};burst.token=78;burst.operation=DBT_LED_SET_EFFECT;burst.settings.bytes[0]=11;
+  f.fail_alloc=true;CHECK(dbt_led_submit(&l,&burst)==DBT_LED_OK && dbt_led_work(&l));
+  CHECK(dbt_led_receipt(&l,&rr) && rr.committed && rr.result==DBT_LED_NO_MEMORY && !f.allocated);
+  dbt_led_pairing_mode(&l,true);CHECK(dbt_led_render_at(&l,10000));
+  CHECK(l.pairing_state==1 && !f.allocated);
+  dbt_led_pairing_mode(&l,false);
+  f.fail_alloc=false;CHECK(dbt_led_render(&l) && f.allocated);
+  burst.token=79;burst.settings.bytes[0]=9;CHECK(dbt_led_submit(&l,&burst)==DBT_LED_OK && dbt_led_work(&l));
+  CHECK(dbt_led_receipt(&l,&rr) && rr.result==DBT_LED_OK && f.allocated);
+  dbt_led_deinit(&l);
+  CHECK(!f.allocated);
   return 0;
 }
 
@@ -210,6 +290,7 @@ EX int test_matrix_bounds(void) {
                         side * side * 3 - 1, &io, 0));
     CHECK(dbt_led_init(&l, (uint16_t)side, (uint16_t)side, storage + 1,
                        side * side * 3, &io, 0));
+    CHECK(dbt_led_set_allocator(&l,effect_alloc,effect_free,&f));
     dbt_led_audio_active(&l, true);
     for (unsigned e = 0; e < 22; e++)
       for (unsigned g = 0; g < 5; g++) {
@@ -226,6 +307,7 @@ EX int test_matrix_bounds(void) {
         CHECK(dbt_led_receipt(&l, &rec) && rec.result == DBT_LED_OK);
         CHECK(storage[0] == 0x5a && storage[side * side * 3 + 1] == 0xa5);
       }
+    dbt_led_deinit(&l);CHECK(!f.allocated);
   }
   return 0;
 }

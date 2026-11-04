@@ -78,9 +78,24 @@ static void defer_disconnect(const dbt_link_t *link){
 }
 #endif
 #ifdef DBT_PROBE_AVRCP
-static dbt_result_t avrcp_volume(void *context,uint8_t volume){(void)context;return probe_output_volume(volume);}
+#ifdef DBT_PROBE_PRODUCT_IO
+static void product_volume_notify(uint8_t volume);
+#endif
+static dbt_result_t avrcp_volume(void *context,uint8_t volume){(void)context;dbt_result_t r=probe_output_volume(volume);
+#ifdef DBT_PROBE_PRODUCT_IO
+    if(r==DBT_OK)product_volume_notify(volume);
+#endif
+    return r;}
 #endif
 static const char *tag = "native_bt_probe";
+/* app_main runs in the IDF main task, which IDF deletes when app_main returns.
+ * Existing providers, render workers and controller callbacks retain owner.
+ * Park that task for the lifetime of a fault, even if a worker is still
+ * retiring a loan; an unexpected resume simply parks it again. */
+static _Noreturn void owner_fault_park(const char *stage) {
+    ESP_LOGE(tag,"Owner parked after startup failure: %s",stage);
+    for(;;)vTaskSuspend(NULL);
+}
 #if defined(DBT_PROBE_GATT_TEST) && defined(DBT_PROBE_AUDIO_OUTPUT)
 static dbt_ble_control_state_t product_state;
 static char product_name[33];
@@ -97,9 +112,68 @@ static void *product_other_context;
 static _Atomic bool product_io_done;
 static bool product_io_started,product_io_ready,product_io_sound;
 static probe_product_io_owner_t product_io_owner;
+static _Atomic bool startup_sound_release,startup_sound_done;
 #endif
 static uint32_t now_ms(void);
 static void wake_owner(void);
+#ifdef DBT_PROBE_PRODUCT_IO
+static void load_product_io(void *unused);
+static void product_volume_notify(uint8_t volume){
+    probe_avrcp_snapshot_t view;
+    if(probe_avrcp_snapshot(&view)==DBT_OK && view.connected && product_io_owner.audio_connected &&
+       view.generation==product_io_owner.audio_generation)
+        probe_product_io_owner_volume(&product_io_owner,volume,now_ms());
+    else if(product_io_owner.io_ready)probe_product_io_volume_feedback(volume);
+}
+static void product_audio_event(void *unused,probe_audio_product_event_t event,uint16_t handle,uint32_t generation,uint32_t rate,uint32_t now){
+    (void)unused;probe_product_io_owner_audio(&product_io_owner,(unsigned)event,handle,generation,rate,now);
+}
+static void startup_sound_worker(void *unused){
+    (void)unused;
+    do {
+        (void)probe_product_io_worker_poll(NULL,false);
+        vTaskDelay(pdMS_TO_TICKS(10));
+    }while(!atomic_load_explicit(&startup_sound_release,memory_order_acquire) || probe_product_io_sound_busy());
+    atomic_store_explicit(&startup_sound_done,true,memory_order_release);wake_owner();vTaskDelete(NULL);
+}
+static bool product_boot_io(void){
+    if(!product_runtime_ready || probe_audio_output_bootstrap()!=DBT_OK)return false;
+    product_io_started=true;
+    if(xTaskCreatePinnedToCore(load_product_io,"native_product_io",4096,NULL,1,NULL,0)!=pdPASS)return false;
+    int64_t deadline=esp_timer_get_time()+5000000;
+    while(!atomic_load_explicit(&product_io_done,memory_order_acquire)){
+        if(esp_timer_get_time()>=deadline)return false;
+        vTaskDelay(pdMS_TO_TICKS(10));
+    }
+    if(!product_io_ready)return false;
+    product_io_owner.io_ready=true;product_io_owner.sound_enabled=product_io_sound;product_io_owner.gap=&gap;
+    uint8_t sound=product_io_sound?probe_product_io_sound_status():0;
+    if(!probe_product_io_owner_startup_needed(product_io_sound,sound))return true;
+    if(probe_product_io_play(0,48000,true)!=DBT_OK ||
+       xTaskCreatePinnedToCore(startup_sound_worker,"native_boot_sound",4096,NULL,1,NULL,0)!=pdPASS)return false;
+    bool received=false,good=false,cancelled=false;
+    deadline=esp_timer_get_time()+30000000;
+    for(;;){
+        probe_product_io_play_result_t result;
+        if(probe_product_io_take_play_result(&result)){received=true;good=result.type==0 && result.result==DBT_OK;}
+        if(received && !probe_product_io_sound_busy())break;
+        if(esp_timer_get_time()>=deadline){
+            if(cancelled){atomic_store_explicit(&startup_sound_release,true,memory_order_release);return false;}
+            probe_product_io_cancel_sound();cancelled=true;deadline=esp_timer_get_time()+5000000;
+        }
+        vTaskDelay(pdMS_TO_TICKS(10));
+    }
+    atomic_store_explicit(&startup_sound_release,true,memory_order_release);
+    deadline=esp_timer_get_time()+5000000;
+    while(!atomic_load_explicit(&startup_sound_done,memory_order_acquire)){
+        if(esp_timer_get_time()>=deadline)return false;
+        vTaskDelay(pdMS_TO_TICKS(10));
+    }
+    printf("{\"probe\":\"startup_sound\",\"attached\":%s,\"retired\":true,\"cancelled\":%s}\n",good?"true":"false",cancelled?"true":"false");
+    probe_output_stats_t output;probe_output_stats(&output);
+    return !output.failed && !output.request_fault;
+}
+#endif
 static uint32_t product_clock(void *unused){(void)unused;return now_ms();}
 static void product_wake_owner(void *unused){(void)unused;wake_owner();}
 static void product_wake_worker(void *unused){(void)unused;probe_gatt_control_wake();}
@@ -148,9 +222,15 @@ static void load_product_io(void *unused){
         mounted=esp_vfs_spiffs_register(&conf)==ESP_OK && esp_spiffs_mounted("spiffs");
     }
     probe_product_io_hooks_t hooks={0};hooks.peer_valid=product_io_peer;hooks.wake_owner=product_wake_owner;
-    hooks.led=true;hooks.input=true;hooks.sound=mounted;
+    hooks.led=true;hooks.input=true;hooks.input_optional=true;hooks.sound=mounted;
     product_io_ready=probe_product_io_startup_worker(&product_state,&hooks);
     product_io_sound=product_io_ready && mounted;
+    probe_product_io_capabilities_t caps;
+    if(probe_product_io_capabilities(&caps))
+        printf("{\"probe\":\"product_io_capabilities\",\"ready\":%s,\"led\":%s,\"sound\":%s,\"input_available\":%s,\"input_no_ack\":%s,\"input_probe_status\":%u}\n",
+            caps.ready?"true":"false",caps.led?"true":"false",caps.sound?"true":"false",
+            caps.input==PROBE_PRODUCT_INPUT_AVAILABLE?"true":"false",
+            caps.input==PROBE_PRODUCT_INPUT_NO_ACK?"true":"false",(unsigned)caps.input);
     atomic_store_explicit(&product_io_done,true,memory_order_release);wake_owner();vTaskDelete(NULL);
 }
 #endif
@@ -414,15 +494,16 @@ void app_main(void) {
 #endif
     if (dbt_runtime_init(&runtime, transport, hooks, 4096, 2000) != DBT_OK) {
         ESP_LOGE(tag, "core initialization failed");
-        return;
+        owner_fault_park("runtime initialization");
     }
     /* Startup storage work precedes controller enable; never erase user NVS. */
-    ESP_ERROR_CHECK(nvs_flash_init());
+    esp_err_t startup_error=nvs_flash_init();
+    if(startup_error!=ESP_OK){ESP_LOGE(tag,"NVS initialization failed: %d",(int)startup_error);owner_fault_park("NVS initialization");}
 #if defined(DBT_PROBE_GATT_TEST) && defined(DBT_PROBE_AUDIO_OUTPUT)
 #ifdef DBT_PROBE_PRODUCT_IO
-    if(!probe_application_set_other_provider(product_io_other,product_io_busy,NULL)){ESP_LOGE(tag,"Product IO registration failed");return;}
+    if(!probe_application_set_other_provider(product_io_other,product_io_busy,NULL))owner_fault_park("product IO registration");
 #endif
-    if(!product_startup()){ESP_LOGE(tag,"Product settings load failed without erasing NVS");return;}
+    if(!product_startup())owner_fault_park("product settings load");
 #endif
     dbt_gap_config_t gap_config = { .name = "NATIVE_BT_PROBE",
         .advertising = {2, 1, 2}, .advertising_size = 3,
@@ -439,29 +520,36 @@ void app_main(void) {
 #endif
     if (dbt_gap_init(&gap, &runtime.host, gap_config, gap_hooks) != DBT_OK) {
         ESP_LOGE(tag, "GAP initialization failed");
-        return;
+        owner_fault_park("GAP initialization");
     }
 #ifdef DBT_PROBE_PRODUCT_RUNTIME
     if(product_provider_ready)product_runtime_ready=probe_product_runtime_init(&product_runtime,&product,&runtime,&gap,probe_smp_security);
 #endif
+#ifdef DBT_PROBE_PRODUCT_IO
+    probe_audio_product_observer(product_audio_event,NULL);
+    if(!product_boot_io())owner_fault_park("product IO bootstrap; controller not enabled");
+#endif
     /* Existing NVS is preserved. Initialization failure does not erase bonds/settings. */
     /* NVS was initialized before GAP configuration. */
 #ifdef DBT_PROBE_CODEC_CHECK
-    if(!probe_codec_check(owner)){ESP_LOGE(tag,"Target codec check failed; controller not enabled");return;}
+    if(!probe_codec_check(owner))owner_fault_park("target codec check; controller not enabled");
 #endif
 #ifdef DBT_PROBE_CLASSIC_SECURITY_TEST
     if(probe_security_init(&runtime,&gap,owner)!=DBT_OK) {
-        ESP_LOGE(tag,"Classic security/storage initialization failed without erasing NVS");return;
+        owner_fault_park("Classic security/storage initialization");
     }
 #endif
     esp_bt_controller_config_t configuration = BT_CONTROLLER_INIT_CONFIG_DEFAULT();
-    ESP_ERROR_CHECK(esp_bt_controller_init(&configuration));
+    startup_error=esp_bt_controller_init(&configuration);
+    if(startup_error!=ESP_OK){ESP_LOGE(tag,"Controller init failed: %d",(int)startup_error);owner_fault_park("controller initialization");}
     static const esp_vhci_host_callback_t callbacks = { send_available, receive_packet };
-    ESP_ERROR_CHECK(esp_vhci_host_register_callback(&callbacks));
-    ESP_ERROR_CHECK(esp_bt_controller_enable(ESP_BT_MODE_BTDM));
+    startup_error=esp_vhci_host_register_callback(&callbacks);
+    if(startup_error!=ESP_OK){ESP_LOGE(tag,"Controller callback registration failed: %d",(int)startup_error);owner_fault_park("controller callback registration");}
+    startup_error=esp_bt_controller_enable(ESP_BT_MODE_BTDM);
+    if(startup_error!=ESP_OK){ESP_LOGE(tag,"Controller enable failed: %d",(int)startup_error);owner_fault_park("controller enable");}
     if (dbt_runtime_start(&runtime, now_ms()) != DBT_OK) {
         ESP_LOGE(tag, "core start failed");
-        return;
+        owner_fault_park("runtime start after controller enable");
     }
     dbt_host_t *host = &runtime.host;
     dbt_host_state_t previous = DBT_HOST_IDLE;

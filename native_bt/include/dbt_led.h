@@ -18,7 +18,8 @@ typedef enum {
   DBT_LED_INVALID,
   DBT_LED_BUSY,
   DBT_LED_STORAGE_FAILED,
-  DBT_LED_TRANSFER_FAILED
+  DBT_LED_TRANSFER_FAILED,
+  DBT_LED_NO_MEMORY
 } dbt_led_result_t;
 typedef enum {
   DBT_LED_SET_ALL,
@@ -58,13 +59,24 @@ typedef struct {
   dbt_led_io_t io;
   atomic_uint meter;
   atomic_bool audio_active;
+  atomic_uint pairing_event, volume_event,beat_event;
+  uint32_t pairing_seen,volume_seen,beat_seen,render_now_ms,pairing_started,volume_started;
+  uint32_t volume_smooth,overlay_frame;
+  uint8_t pairing_state,volume_target;
+  bool volume_visible;
   dbt_led_request_t requests[DBT_LED_QUEUE_CAPACITY];
   dbt_led_receipt_t receipts[DBT_LED_QUEUE_CAPACITY];
   atomic_uint request_head, request_tail, receipt_head, receipt_tail;
   uint32_t frame_number;
+  uint16_t random_state;
   uint8_t previous_bass, pulse, active_effect, effect_hue;
+  void *effect_dynamic;
+  void *effect_alloc_context;
+  void *(*effect_allocate)(void *context,size_t bytes);
+  void (*effect_release)(void *context,void *memory);
   uint8_t effect_state[256];
-  uint16_t inactive_frames;
+  uint32_t inactive_since_ms;
+  bool idle_timer_started;
 } dbt_led_t;
 
 /* One producer (control owner) and one LED worker; receipts flow in reverse.
@@ -75,6 +87,12 @@ typedef struct {
 bool dbt_led_init(dbt_led_t *led, uint16_t width, uint16_t height,
                   uint8_t *frame, size_t frame_bytes, const dbt_led_io_t *io,
                   const uint8_t legacy_blob[10]);
+/* Install before first render. Only the active particle effect allocates;
+ * switching releases it before allocating its successor. */
+bool dbt_led_set_allocator(dbt_led_t *led,void *(*allocate)(void *,size_t),
+                           void (*release)(void *,void *),void *context);
+/* After worker has stopped and producers are quiescent. */
+void dbt_led_deinit(dbt_led_t *led);
 bool dbt_led_effect_supported(uint8_t effect);
 bool dbt_led_settings_valid(const dbt_led_settings_t *settings);
 void dbt_led_default(dbt_led_settings_t *settings);
@@ -84,6 +102,14 @@ void dbt_led_to_legacy(uint8_t out[10], const dbt_led_settings_t *settings);
 void dbt_led_meter(dbt_led_t *led, uint8_t bass, uint8_t mid, uint8_t treble);
 /* Playback state for the baseline five-second idle demo timer. */
 void dbt_led_audio_active(dbt_led_t *led, bool active);
+/* Optional detector edge and its intensity (0..100); once used, this source
+ * replaces the approximate onset heuristic until the engine is reinitialized. */
+void dbt_led_beat(dbt_led_t *led,uint8_t intensity);
+/* Single control owner publishes events; LED worker consumes newest state.
+ * Values are A2DP absolute volume 0..127. These never change saved settings. */
+void dbt_led_volume(dbt_led_t *led,uint8_t volume);
+void dbt_led_pairing_mode(dbt_led_t *led,bool active);
+void dbt_led_pairing_success(dbt_led_t *led);
 dbt_led_result_t dbt_led_submit(dbt_led_t *led,
                                 const dbt_led_request_t *request);
 bool dbt_led_receipt(dbt_led_t *led, dbt_led_receipt_t *receipt);
@@ -92,4 +118,6 @@ bool dbt_led_receipt(dbt_led_t *led, dbt_led_receipt_t *receipt);
 bool dbt_led_work(dbt_led_t *led);
 /* LED worker only, e.g. 30 Hz. False indicates failed SPI transfer. */
 bool dbt_led_render(dbt_led_t *led);
+/* Worker monotonic time, wrapping naturally at 32 bits. */
+bool dbt_led_render_at(dbt_led_t *led,uint32_t now_ms);
 #endif

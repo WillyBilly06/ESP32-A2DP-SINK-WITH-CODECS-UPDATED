@@ -1,8 +1,8 @@
 # Product IO bridge
 
 This bridge is source-implemented and locally tested with fake board/storage
-providers. It has not been enabled in the firmware, linked on target, or run on
-hardware. LED rendering remains an approximation of the baseline visuals; see
+providers; product IO is an opt-in probe build configuration. LED rendering
+remains an approximation of the baseline visuals; see
 `LED_INPUT.md`. No hardware, filesystem mount, NVS, or Bluetooth operation was
 performed by the tests.
 
@@ -11,7 +11,8 @@ at `/spiffs` in the authorized startup path with formatting disabled. Initialize
 output, then call `probe_product_io_startup_worker(initial, hooks)` on the boot
 worker before GATT state configuration. It checks that the `spiffs` partition
 is already mounted; it never mounts or formats it. Flags allow LED, input and
-sound independently, with SPI2/GPIO4/16x16 and I2C1/SDA23/SCL22/address 0x07,
+sound independently, with SPI2/GPIO4/16x16 and I2C1/SDA23/SCL22/addresses
+0x36 then 0x07,
 buttons GPIO18/21/19. These are baseline defaults, not board verification. The
 startup call fills the LED and sound portions of `initial` for enabled
 providers. Before constructing the sound state, startup inspects all four
@@ -24,6 +25,19 @@ filesystem format or blanket cleanup occurs. A startup failure after an IO
 worker was created is not retryable in the same process; restart cleanly after
 resolving the error. The SPI/LED and
 input workers are separate from the host and the GATT general worker.
+
+Input is strict by default. Setting `hooks.input_optional` permits LED, sound
+and the caller's subsequent Bluetooth startup to continue only when both
+identity-register writes return no ACK and both I2C driver deletions succeed.
+No ACK can also mean disconnected wiring or missing power; it is not proof of
+physical absence. A bus timeout, configuration/driver error, unexpected
+hardware/product ID, setup failure or unsuccessful delete remains fatal. On
+failed deletion the provider retains the port reservation and refuses a new
+start on that port; it does not silently reinitialize or delete another owner.
+`probe_product_io_capabilities` returns one atomic snapshot of ready/LED/sound
+and the input outcome, including `NO_ACK`, `FAILED` or `CLEANUP_FAILED` after
+startup. In optional no-ACK mode, input actions and input stats report no
+provider; other command receipts retain their ordinary completion gates.
 
 Route the general GATT command callback through `probe_product_io_command` for
 commands 5..7 and 0x10..0x14, with the existing product mux handling name and
@@ -90,7 +104,8 @@ LED core and sound upload state machine with fake storage, LED transport, task
 and playback manager. It covers all-slot recovery preflight, blocked/error cases and successful
 reconciliation before sound initialization, completion-gated ACK, LED failures
 and late receipts, generation cancellation, real WAV upload, timeout notices,
-input queue handoff, loss before/after LED admission and stale generation,
+input queue handoff, strict/optional no-ACK behavior, retained-driver failure,
+loss before/after LED admission and stale generation,
 relative LED updates, playback gate/receipt, and worker recreation. Recovery in
 this integration test uses a fake backend; the separate in-memory SPIFFS shim
 executes the actual backend across creation and replacement crash boundaries. It does not model

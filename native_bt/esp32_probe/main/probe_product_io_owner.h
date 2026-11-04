@@ -10,6 +10,11 @@ typedef struct {
     dbt_gap_t *gap;
     uint16_t pair_handle;uint32_t pair_generation,pair_token,pair_deadline;
     uint8_t pair_phase,pair_status;bool pair_gone;
+    uint16_t audio_handle;uint32_t audio_generation,audio_connected_at,audio_disconnected_at;
+    uint32_t connected_due,connected_rate,last_max_at;
+    uint32_t sound_rate,sound_admitted,sound_attached,sound_cancelled,sound_dropped;
+    uint8_t sound_type,inflight_type;bool audio_connected,had_disconnect,connected_pending;
+    bool sound_pending,sound_exclusive,sound_inflight,have_max,pairing_active,io_ready;
 } probe_product_io_owner_t;
 /* Host owner only. IO provider must already be started; bounded per poll. */
 void probe_product_io_owner_poll(probe_product_io_owner_t *,uint32_t now_ms);
@@ -17,4 +22,9 @@ uint32_t probe_product_io_owner_wait_ms(const probe_product_io_owner_t *,uint32_
 /* Required on every runtime link change, including before IO startup. Cancels
  * an unsent disconnect synchronously before a reused handle can be submitted. */
 void probe_product_io_owner_link(probe_product_io_owner_t *,const dbt_link_change_t *);
+/* Copied profile identity; event values match probe_audio_product_event_t. */
+void probe_product_io_owner_audio(probe_product_io_owner_t *,unsigned event,uint16_t handle,uint32_t generation,uint32_t rate,uint32_t now_ms);
+void probe_product_io_owner_volume(probe_product_io_owner_t *,uint8_t volume,uint32_t now_ms);
+/* Missing file, muted sound, and disabled provider are optional at boot. */
+bool probe_product_io_owner_startup_needed(bool sound_enabled,uint8_t sound_status);
 #endif

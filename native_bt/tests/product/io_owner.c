@@ -6,6 +6,18 @@ static dbt_input_action_t queue[32];static unsigned head,tail,eq_attempts,eq_suc
 static int8_t steps[8];static bool eq_block,notice_block,required,led_available,notice_available,led_receipt_available;static unsigned flags;
 static dbt_led_settings_t settings={{3,50,2,1,2,3,4,5,6,1}};static dbt_led_receipt_t receipt;
 static uint8_t volume=50,last_op,brightness_raw=128;static unsigned key_down,key_up;
+static uint8_t sound_status=0x85,last_sound;static bool sound_busy,play_result_ready,play_block;
+static dbt_result_t sound_result;static unsigned sound_sends,sound_cancels,pair_modes,pair_success,volume_feedback;
+bool probe_audio_sound_memory_ok(void){return true;}
+bool probe_product_io_sound_busy(void){return sound_busy;}
+dbt_result_t probe_product_io_play(uint8_t type,uint32_t rate,bool exclusive){
+    assert(rate>=8000 && rate<=192000 && (type!=3 || !exclusive));if(play_block)return DBT_BUSY;
+    last_sound=type;sound_sends++;return DBT_OK;
+}
+void probe_product_io_cancel_sound(void){sound_cancels++;}
+void probe_product_io_pairing_mode(bool enabled){if(enabled)pair_modes++;}
+void probe_product_io_pairing_success(void){pair_success++;}
+void probe_product_io_volume_feedback(uint8_t v){assert(v<=127);volume_feedback++;}
 static dbt_link_t active_link;static bool audio_active;static unsigned disconnect_count,scan_count;
 static dbt_result_t enqueue_result=DBT_OK,scan_result=DBT_OK;
 static dbt_command_done_t done;static void *done_context;static bool sent;
@@ -25,9 +37,9 @@ dbt_result_t dbt_gap_set_classic_scan(dbt_gap_t *g,bool discoverable,bool connec
 bool probe_product_io_needs_worker(void){return led_receipt_available;}
 bool probe_product_io_take_input(dbt_input_action_t *a){if(tail==head)return false;*a=queue[tail++];return true;}
 bool probe_product_io_take_local_led(dbt_led_receipt_t *out){if(!led_receipt_available)return false;*out=receipt;led_receipt_available=false;return true;}
-bool probe_product_io_take_play_result(probe_product_io_play_result_t *p){(void)p;return false;}
+bool probe_product_io_take_play_result(probe_product_io_play_result_t *p){if(!play_result_ready)return false;play_result_ready=false;*p=(probe_product_io_play_result_t){last_sound,sound_result};return true;}
 bool probe_product_io_led_snapshot(dbt_led_settings_t *p){if(!led_available)return false;*p=settings;return true;}
-uint8_t probe_product_io_sound_status(void){return 0x85;}
+uint8_t probe_product_io_sound_status(void){return sound_status;}
 bool probe_product_io_take_notice(dbt_ble_control_peer_t *p,uint8_t b[3],uint8_t *n){if(!notice_available)return false;notice_available=false;*p=(dbt_ble_control_peer_t){7,1};b[0]=0x33;b[1]=0x0b;*n=2;return true;}
 dbt_result_t probe_product_io_local_led_relative(dbt_led_operation_t op,int8_t delta,uint32_t token){
     static const uint8_t expected[]={52,54};assert(led_sends<2 && op==DBT_LED_ADJUST_BRIGHTNESS && delta==5 && token);
@@ -39,13 +51,17 @@ dbt_result_t probe_gatt_control_worker_required(bool r){required=r;return DBT_OK
 dbt_result_t probe_gatt_control_eq_delta(uint8_t b,int8_t d){assert(b==0);eq_attempts++;if(eq_block){eq_block=false;return DBT_BUSY;}steps[eq_success++]=d;return DBT_OK;}
 dbt_result_t probe_gatt_control_toggle(uint8_t flag){flags^=flag;return DBT_OK;}
 dbt_result_t probe_gatt_control_led_applied(const uint8_t v[10]){assert(v[1]==50 || v[1]==52 || v[1]==54);return DBT_OK;}
-dbt_result_t probe_gatt_control_sound_applied(uint8_t v){assert(v==0x85);sound_updates++;return DBT_OK;}
+dbt_result_t probe_gatt_control_sound_applied(uint8_t v){assert(v==sound_status);sound_updates++;return DBT_OK;}
 dbt_result_t probe_gatt_control_notify(const dbt_ble_control_peer_t *p,const uint8_t *v,uint8_t n){assert(p->generation==1 && n==2 && v[0]==0x33);if(notice_block){notice_block=false;return DBT_BUSY;}notices++;return DBT_OK;}
 dbt_result_t probe_avrcp_snapshot(probe_avrcp_snapshot_t *s){memset(s,0,sizeof(*s));s->volume=volume;s->playback_status=1;return DBT_OK;}
 dbt_result_t probe_output_volume(uint8_t v){volume=v;return DBT_OK;}
 void probe_avrcp_local_volume(uint8_t v){assert(v==volume);}
 dbt_result_t probe_avrcp_key(uint8_t op,bool release,uint32_t now){(void)now;last_op=op;if(release)key_up++;else key_down++;return DBT_OK;}
 int main(void){
+    assert(!probe_product_io_owner_startup_needed(false,1));
+    assert(!probe_product_io_owner_startup_needed(true,0));
+    assert(!probe_product_io_owner_startup_needed(true,0x81));
+    assert(probe_product_io_owner_startup_needed(true,1));
     probe_product_io_owner_t s={0};s.sound_enabled=true;led_available=true;notice_available=true;notice_block=true;eq_block=true;
     queue[head++]=(dbt_input_action_t){DBT_INPUT_EQ_BASS,1};queue[head++]=(dbt_input_action_t){DBT_INPUT_EQ_BASS,-1};
     queue[head++]=(dbt_input_action_t){DBT_INPUT_BRIGHTNESS,5};queue[head++]=(dbt_input_action_t){DBT_INPUT_BRIGHTNESS,5};queue[head++]=(dbt_input_action_t){DBT_INPUT_VOLUME,3};
@@ -95,5 +111,32 @@ int main(void){
     change.generation=11;active_link.used=false;probe_product_io_owner_link(&s,&change);assert(done);
     active_link.used=true;active_link.generation=12;status(DBT_COMMAND_SUCCESS);probe_product_io_owner_poll(&s,5920);
     assert(!s.have_input && disconnect_count==5 && s.failures==3);
+    /* Profile/generation fence, delayed connected sound, backpressure and
+     * attachment receipt are distinct from completed playback. */
+    probe_product_io_owner_t a={0};a.gap=&gap;a.io_ready=true;a.sound_enabled=true;sound_status=15;pair_modes=0;
+    probe_product_io_owner_audio(&a,0,42,30,0,100);assert(a.audio_connected && sound_cancels==1);
+    probe_product_io_owner_audio(&a,0,42,30,0,101);assert(sound_cancels==1);
+    probe_product_io_owner_audio(&a,2,42,29,44100,110);assert(!a.connected_pending);
+    probe_product_io_owner_audio(&a,2,42,30,44100,110);assert(a.connected_pending);
+    probe_product_io_owner_poll(&a,509);assert(!sound_sends);
+    play_block=true;probe_product_io_owner_poll(&a,510);assert(a.sound_pending && !sound_sends);
+    play_block=false;probe_product_io_owner_poll(&a,530);assert(a.sound_inflight && sound_sends==1 && last_sound==2 && !a.sound_attached);
+    play_result_ready=true;sound_result=DBT_OK;sound_busy=true;probe_product_io_owner_poll(&a,550);assert(a.sound_attached==1 && !a.sound_inflight);
+    probe_product_io_owner_audio(&a,3,42,30,0,560);assert(sound_cancels==2);
+    sound_busy=false;probe_product_io_owner_audio(&a,1,42,29,0,570);assert(a.audio_connected);
+    probe_product_io_owner_audio(&a,1,42,30,0,580);assert(!a.audio_connected && sound_cancels==3);
+    probe_product_io_owner_audio(&a,0,42,31,0,600);probe_product_io_owner_audio(&a,2,42,31,48000,610);assert(!a.connected_pending);
+    /* Volume grace/cooldown, mute and receipt failure handling. */
+    probe_product_io_owner_volume(&a,127,2599);assert(!a.sound_pending);
+    probe_product_io_owner_volume(&a,127,2600);assert(a.sound_pending && volume_feedback==2);
+    sound_status=0x8f;probe_product_io_owner_poll(&a,2600);assert(!a.sound_pending && sound_sends==1);
+    sound_status=15;probe_product_io_owner_volume(&a,127,4500);assert(!a.sound_pending);
+    probe_product_io_owner_volume(&a,127,4600);probe_product_io_owner_poll(&a,4600);assert(sound_sends==2 && last_sound==3);
+    play_result_ready=true;sound_result=DBT_INVALID;probe_product_io_owner_poll(&a,4620);assert(a.failures==1 && !a.sound_inflight);
+    /* Pairing feedback appears only after scan completion; a different
+     * generation is not allowed to cancel the current profile. */
+    audio_active=false;gap.classic_scan=3;queue[head++]=(dbt_input_action_t){DBT_INPUT_PAIR,0};
+    probe_product_io_owner_poll(&a,4700);assert(a.pairing_active && pair_modes==1 && sound_sends==3 && last_sound==1);
+    probe_product_io_owner_audio(&a,0,42,32,0,4800);assert(!a.pairing_active && pair_success==1 && sound_cancels==5);
     return 0;
 }

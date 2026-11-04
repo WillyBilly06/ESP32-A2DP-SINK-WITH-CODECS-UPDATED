@@ -42,8 +42,12 @@ bool dbt_led_init(dbt_led_t *l, uint16_t w, uint16_t h, uint8_t *f, size_t n,
   l->frame_bytes = n;
   l->io = *io;
   l->active_effect = 255;
+  l->random_state=1337;
   atomic_init(&l->meter, 0);
   atomic_init(&l->audio_active, false);
+  atomic_init(&l->pairing_event, 0);
+  atomic_init(&l->volume_event, 0);
+  atomic_init(&l->beat_event, 0);
   atomic_init(&l->request_head, 0);
   atomic_init(&l->request_tail, 0);
   atomic_init(&l->receipt_head, 0);
@@ -60,6 +64,15 @@ bool dbt_led_init(dbt_led_t *l, uint16_t w, uint16_t h, uint8_t *f, size_t n,
   }
   return true;
 }
+bool dbt_led_set_allocator(dbt_led_t *l,void *(*allocate)(void *,size_t),
+                           void (*release)(void *,void *),void *context) {
+  if(!l || l->active_effect!=255 || !allocate || !release)return false;
+  l->effect_allocate=allocate;l->effect_release=release;l->effect_alloc_context=context;return true;
+}
+void dbt_led_deinit(dbt_led_t *l) {
+  if(l && l->effect_dynamic && l->effect_release)l->effect_release(l->effect_alloc_context,l->effect_dynamic);
+  if(l){l->effect_dynamic=NULL;l->active_effect=255;}
+}
 void dbt_led_meter(dbt_led_t *l, uint8_t b, uint8_t m, uint8_t t) {
   if (l)
     atomic_store_explicit(&l->meter,
@@ -70,6 +83,23 @@ void dbt_led_meter(dbt_led_t *l, uint8_t b, uint8_t m, uint8_t t) {
 void dbt_led_audio_active(dbt_led_t *l, bool active) {
   if (l)
     atomic_store_explicit(&l->audio_active, active, memory_order_release);
+}
+static void publish_event(atomic_uint *event,unsigned payload) {
+  unsigned old=atomic_load_explicit(event,memory_order_relaxed),next;
+  do {next=((old+256u)&~255u)|payload;}
+  while(!atomic_compare_exchange_weak_explicit(event,&old,next,memory_order_release,memory_order_relaxed));
+}
+void dbt_led_volume(dbt_led_t *l,uint8_t volume) {
+  if(l)publish_event(&l->volume_event,volume>127?127:volume);
+}
+void dbt_led_pairing_mode(dbt_led_t *l,bool active) {
+  if(l)publish_event(&l->pairing_event,active?1u:0u);
+}
+void dbt_led_pairing_success(dbt_led_t *l) {
+  if(l)publish_event(&l->pairing_event,2u);
+}
+void dbt_led_beat(dbt_led_t *l,uint8_t intensity) {
+  if(l)publish_event(&l->beat_event,clamp100(intensity));
 }
 dbt_led_result_t dbt_led_submit(dbt_led_t *l, const dbt_led_request_t *r) {
   if (!l || !r || !r->token || r->operation < DBT_LED_SET_ALL ||
@@ -109,10 +139,6 @@ bool dbt_led_receipt(dbt_led_t *l, dbt_led_receipt_t *out) {
   atomic_store_explicit(&l->receipt_tail, t + 1, memory_order_release);
   return true;
 }
-static unsigned tri(unsigned v) {
-  v &= 255u;
-  return v < 128u ? v * 2u : (255u - v) * 2u;
-}
 /* Integer parabolic sine matching the baseline's sin8 shape. */
 static unsigned wave(unsigned v) {
   unsigned x = v & 127u;
@@ -125,7 +151,7 @@ static unsigned absdiff(unsigned a, unsigned b) {
   return a > b ? a - b : b - a;
 }
 static unsigned root(unsigned v) {
-  unsigned r = 0, bit = 1u << 14;
+  unsigned r = 0, bit = 1u << 30;
   while (bit > v)
     bit >>= 2;
   while (bit) {
@@ -144,6 +170,83 @@ static uint8_t mix(uint8_t a, uint8_t b, unsigned t) {
 typedef struct {
   uint8_t r, g, b;
 } colour_t;
+typedef struct { int16_t x,y,vx,vy;uint8_t hue,life; } particle_t;
+typedef struct { int16_t x,y,vy;uint8_t hue,active; } rocket_t;
+typedef struct { particle_t particles[100];rocket_t rockets[3]; } fireworks_t;
+static uint8_t random8(dbt_led_t *l) {
+  l->random_state=(uint16_t)(l->random_state*2053u+13849u);return (uint8_t)(l->random_state>>8);
+}
+static unsigned random_below(dbt_led_t *l,unsigned n){return (unsigned)random8(l)*n>>8;}
+static bool activate_effect(dbt_led_t *l,unsigned effect) {
+  if(l->active_effect==effect)return true;
+  dbt_led_deinit(l);
+  size_t n=effect==9?sizeof(fireworks_t):effect==11?80u*sizeof(particle_t):0u;
+  if(n){
+    if(!l->effect_allocate || !l->effect_release)return false;
+    l->effect_dynamic=l->effect_allocate(l->effect_alloc_context,n);
+    if(!l->effect_dynamic)return false;
+    memset(l->effect_dynamic,0,n);
+  }
+  memset(l->effect_state,0,sizeof(l->effect_state));
+  memset(l->frame,0,(size_t)l->width*l->height*3u);
+  if(effect==7)for(unsigned i=0;i<40;i++){
+    uint8_t *s=l->effect_state+i*4u;s[0]=(uint8_t)random_below(l,16);s[1]=(uint8_t)random_below(l,16);
+    s[2]=(uint8_t)(50u+random_below(l,150));int delta=(int)(2u+random_below(l,6));
+    s[3]=(uint8_t)(int8_t)((random8(l)&1u)?-delta:delta);
+  }
+  if(effect==19)for(unsigned i=0;i<5;i++){
+    uint8_t *s=l->effect_state+i*6u;s[0]=(uint8_t)((4u+random_below(l,8))*16u);
+    s[1]=(uint8_t)((4u+random_below(l,8))*16u);s[2]=(uint8_t)(int8_t)((int)random_below(l,9)-4);
+    s[4]=random8(l);s[5]=(uint8_t)(1u+random_below(l,2));
+  }
+  if(effect==18)memset(l->effect_state,8,16);
+  if(effect==20)for(unsigned i=0;i<4;i++){
+    uint8_t *s=l->effect_state+i*6u;s[0]=(uint8_t)((4u+random_below(l,8))*16u);
+    s[1]=(uint8_t)((4u+random_below(l,8))*16u);s[2]=(uint8_t)(int8_t)((int)random_below(l,7)-3);
+    s[3]=(uint8_t)(int8_t)((int)random_below(l,7)-3);s[4]=(uint8_t)((3u+random_below(l,3))*16u);s[5]=random8(l);
+  }
+  l->active_effect=(uint8_t)effect;l->frame_number=0;l->effect_hue=0;l->pulse=0;
+  return true;
+}
+static void particles_step(dbt_led_t *l,unsigned effect,unsigned bass,bool beat) {
+  fireworks_t *fire=effect==9?(fireworks_t *)l->effect_dynamic:NULL;
+  particle_t *p=fire?fire->particles:(particle_t *)l->effect_dynamic;
+  unsigned count=fire?100u:80u;
+  if(beat && fire)for(unsigned i=0;i<3;i++)if(!fire->rockets[i].active){
+    rocket_t *r=&fire->rockets[i];r->active=1;r->x=(int16_t)((4u+random_below(l,8))*256u);
+    r->y=15*256;r->vy=(int16_t)(-128-(int)random8(l)/2);r->hue=random8(l);break;
+  }
+  if(beat && !fire){
+    unsigned n=20u+bass*20u/100u;l->effect_hue=(uint8_t)(l->effect_hue+40u);
+    for(unsigned i=0;i<count && n;i++)if(!p[i].life){
+      unsigned angle=random8(l),speed=(51u+random_below(l,218))*(100u+bass)/100u;
+      p[i].x=p[i].y=7*256+128;
+      p[i].vx=(int16_t)(((int)wave(angle+64u)-128)*(int)speed/128);
+      p[i].vy=(int16_t)(((int)wave(angle)-128)*(int)speed/128);
+      p[i].hue=(uint8_t)(l->effect_hue+random_below(l,40));p[i].life=50;n--;
+    }
+  }
+  if(fire)for(unsigned i=0;i<3;i++)if(fire->rockets[i].active){
+    rocket_t *r=&fire->rockets[i];r->y=(int16_t)(r->y+r->vy);r->vy=(int16_t)(r->vy+3);
+    if(r->y<4*256 || r->vy>-26){
+      unsigned n=20;
+      for(unsigned j=0;j<count && n;j++)if(!p[j].life){
+        unsigned angle=random8(l),speed=77u+random_below(l,164);
+        p[j].x=r->x;p[j].y=r->y;
+        p[j].vx=(int16_t)(((int)wave(angle+64u)-128)*(int)speed/128);
+        p[j].vy=(int16_t)(((int)wave(angle)-128)*(int)speed/128);
+        p[j].hue=(uint8_t)(r->hue+random_below(l,30));p[j].life=(uint8_t)(40u+random_below(l,30));n--;
+      }
+      r->active=0;
+    }
+  }
+  for(unsigned i=0;i<count;i++)if(p[i].life){
+    int x=p[i].x+p[i].vx,y=p[i].y+p[i].vy;
+    if(fire)p[i].vy=(int16_t)(p[i].vy+5);
+    if(!(--p[i].life) || x<0 || x>=16*256 || y<0 || y>=16*256){p[i].life=0;continue;}
+    p[i].x=(int16_t)x;p[i].y=(int16_t)y;
+  }
+}
 static colour_t hsv(unsigned h, unsigned sat, unsigned val) {
   h &= 255u;
   unsigned region = (h * 6u) >> 8, rem = (h * 6u) & 255u;
@@ -181,42 +284,173 @@ static const uint8_t meter_linear[101] = {
     3,  4,  4,  4,  4,  5,  5,  5,  6,  6,  7,  7,  8,  8,  9,  10, 10,
     11, 12, 13, 13, 14, 15, 17, 18, 19, 20, 22, 23, 25, 27, 29, 31, 33,
     35, 38, 41, 44, 47, 50, 54, 58, 62, 66, 71, 76, 81, 87, 93, 100};
+static bool overlay(dbt_led_t *l,uint8_t brightness) {
+  unsigned pair=atomic_load_explicit(&l->pairing_event,memory_order_acquire);
+  unsigned vol=atomic_load_explicit(&l->volume_event,memory_order_acquire);
+  uint32_t now=l->render_now_ms;
+  if(pair!=l->pairing_seen){l->pairing_seen=pair;l->pairing_state=(uint8_t)(pair&255u);l->pairing_started=now;}
+  if(vol!=l->volume_seen){l->volume_seen=vol;l->volume_target=(uint8_t)(vol&255u);l->volume_started=now;l->volume_visible=true;}
+  uint32_t pair_elapsed=now-l->pairing_started,vol_elapsed=now-l->volume_started;
+  if(l->pairing_state==2 && pair_elapsed>=500u)l->pairing_state=0;
+  if(l->volume_visible && vol_elapsed>=2500u)l->volume_visible=false;
+  if(!l->pairing_state && !l->volume_visible)return false;
+  unsigned w=l->width,h=l->height,bright=brightness;
+  if(l->pairing_state){
+    unsigned strength;
+    if(l->pairing_state==2) {
+      strength=(pair_elapsed<150u || (pair_elapsed>=250u && pair_elapsed<400u))?255u:0u;
+      if(!bright)bright=60;
+    } else {
+      strength=51u+wave((pair_elapsed%2000u)*256u/2000u)*204u/255u;
+      if(!bright)bright=40;
+    }
+    unsigned green=strength*(l->pairing_state==2?200u:30u)/255u;
+    for(unsigned i=0;i<w*h;i++){
+      l->frame[3*i]=(uint8_t)(green*bright/255u);l->frame[3*i+1]=0;
+      l->frame[3*i+2]=(uint8_t)(strength*bright/255u);
+    }
+  } else {
+    int32_t target=(int32_t)((uint32_t)l->volume_target*65535u/127u);
+    l->volume_smooth=(uint32_t)((int32_t)l->volume_smooth+(target-(int32_t)l->volume_smooth)*3/10);
+    unsigned rows=(l->volume_smooth*h+32767u)/65535u;
+    unsigned fade=vol_elapsed<1500u?255u:(2500u-vol_elapsed)*255u/1000u;
+    unsigned pulse=217u+wave(l->overlay_frame*6u)*38u/255u;
+    if(bright<10u)bright=10u;
+    for(unsigned y=0;y<h;y++)for(unsigned x=0;x<w;x++) {
+      unsigned row=h-1u-y,pos=(y*w+((y&1u)?w-1u-x:x))*3u;
+      unsigned edge=w>1?absdiff(2u*x,w-1u)*77u/(w-1u):0u;
+      unsigned intensity=row<rows?pulse*fade/255u*(255u-edge)/255u*bright/255u:0u;
+      unsigned white=h>1?(h-1u-row)*255u/(h-1u):255u;
+      l->frame[pos]=(uint8_t)(white*intensity/255u);l->frame[pos+1]=(uint8_t)intensity;
+      l->frame[pos+2]=(uint8_t)(white*intensity/255u);
+    }
+  }
+  ++l->overlay_frame;
+  return true;
+}
 static bool frame(dbt_led_t *l, const dbt_led_settings_t *s, uint8_t bright) {
+  unsigned e=s->bytes[0];
+  if(overlay(l,bright))return l->io.show(l->io.context,l->frame,(size_t)l->width*l->height*3u);
+  if(!activate_effect(l,e))return false;
   unsigned m = atomic_load_explicit(&l->meter, memory_order_acquire),
            bass = m & 255u, mid = (m >> 8) & 255u, high = (m >> 16) & 255u;
-  unsigned raw_bass = bass, raw_mid = mid, raw_high = high;
   bass = meter_linear[bass];
   mid = meter_linear[mid];
   high = meter_linear[high];
-  unsigned e = s->bytes[0], w = l->width, h = l->height;
-  if (l->active_effect != e) {
-    l->active_effect = (uint8_t)e;
-    l->frame_number = 0;
-    l->effect_hue = 0;
-    memset(l->effect_state, 0, sizeof l->effect_state);
-  }
+  unsigned w = l->width, h = l->height;
   unsigned f = ++l->frame_number;
-  if (atomic_load_explicit(&l->audio_active, memory_order_acquire))
-    l->inactive_frames = 0;
-  else if (l->inactive_frames < 151)
-    l->inactive_frames++;
-  bool demo = l->inactive_frames >= 151;
+  if (atomic_load_explicit(&l->audio_active, memory_order_acquire))l->idle_timer_started=false;
+  else if(!l->idle_timer_started){l->idle_timer_started=true;l->inactive_since_ms=l->render_now_ms;}
+  bool demo=l->idle_timer_started && (uint32_t)(l->render_now_ms-l->inactive_since_ms)>5000u;
   if (demo) {
     bass = 30u + wave(f * 2u) * 30u / 255u;
     mid = 20u + wave(f * 3u + 85u) * 20u / 255u;
     high = 10u + wave(f * 4u + 170u) * 20u / 255u;
-    raw_bass = 75u + bass / 4u;
-    raw_mid = 70u + mid / 4u;
-    raw_high = 65u + high / 4u;
+    if(e==0){mid=30u+wave(f*3u+85u)*20u/255u;high=20u+wave(f*4u+170u)*20u/255u;}
+    else if(e==3){bass=30u+wave(f*2u)*20u/255u;mid=high=0;}
+    else if(e==5){bass=30;mid=20;high=20;}
+    else if(e==7){bass=10;mid=high=0;}
+    else if(e==9){bass=mid=high=0;}
+    else if(e==11 || e==19){bass=30;mid=high=0;}
+    else if(e==14){bass=wave(f*3u)>200?80:40;mid=high=0;}
+    else if(e==15){bass=f%20u==0?80:10;mid=high=0;}
   }
   bool beat =
-      (bass > l->previous_bass + 8u && bass > 35u) || (demo && f % 30u == 0);
+      !demo && bass > l->previous_bass + 8u && bass > 35u;
+  if(demo){unsigned period=e==2 || e==19?25u:e==9?45u:e==7 || e==16?40u:
+                          e==1 || e==11 || e==15 || e==20?30u:0u;
+    beat=period && f%period==0;}
+  unsigned beat_event=atomic_load_explicit(&l->beat_event,memory_order_acquire);
+  if(beat_event && !demo) {
+    beat=beat_event!=l->beat_seen;
+    if(beat)l->beat_seen=beat_event;
+  }
+  unsigned beat_intensity=beat_event && !demo?(beat_event&255u):demo && beat?70u:bass;
   if (beat) {
-    l->pulse = 255;
-    l->effect_hue = (uint8_t)(l->effect_hue + 32u);
+    l->pulse = (uint8_t)(demo && e==1?200:255);
+    if(e!=11)l->effect_hue = (uint8_t)(l->effect_hue + 32u);
   } else
-    l->pulse = (uint8_t)(l->pulse * 217u / 256u);
+    l->pulse = (uint8_t)(l->pulse * (demo && e==1?230u:217u) / 256u);
   l->previous_bass = (uint8_t)bass;
+  if(e==9 || e==11)particles_step(l,e,beat_intensity,beat);
+  if(e==0)for(unsigned x=0;x<16;x++){
+    unsigned band=x<5?(bass*(5u-x)+mid*x)/5u:x<10?(mid*(10u-x)+high*(x-5u))/5u:high;
+    band=band*(204u+wave(x*16u+f)*102u/256u)*3u/512u;
+    if(band>100)band=100;
+    unsigned db=0;for(unsigned k=0;k<=100;k++)if(meter_linear[k]<=band)db=k;
+    if(!band)db=0;
+    unsigned target=db*15u/100u,old=l->effect_state[x];
+    l->effect_state[x]=(uint8_t)(target*16u>old?target*16u:old*217u/256u);
+    unsigned height=l->effect_state[x]/16u;
+    if(height>l->effect_state[16+x]){l->effect_state[16+x]=(uint8_t)height;l->effect_state[32+x]=30;}
+    else if(l->effect_state[32+x])--l->effect_state[32+x];
+    else if(l->effect_state[16+x])--l->effect_state[16+x];
+  }
+  if(e==2){
+    if(beat)for(unsigned i=0;i<5;i++){uint8_t *s=l->effect_state+i*4u;if(!s[3]){
+      s[0]=0;s[1]=(uint8_t)(5u+beat_intensity*5u/100u);s[2]=random8(l);s[3]=1;break;}}
+    for(unsigned i=0;i<5;i++){uint8_t *s=l->effect_state+i*4u;if(s[3]){
+      unsigned radius=s[0]+s[1];if(radius>240u)s[3]=0;else s[0]=(uint8_t)radius;}}
+  }
+  if(e==5)for(unsigned x=0;x<16;x++){
+    uint8_t *s=l->effect_state+x*4u;
+    if(!s[3] && random8(l)<30u+high*40u/100u){s[3]=1;s[0]=(uint8_t)(64u-(1u+random_below(l,7))*8u);
+      s[1]=(uint8_t)(2u+random_below(l,5));s[2]=(uint8_t)(3u+random_below(l,8));}
+    if(s[3]){unsigned step=s[1]*(30u+bass/2u+mid*3u/10u)/100u;if(!step)step=1;
+      unsigned y=s[0]+step;if(y>64u+(16u+s[2])*8u || y>255u)s[3]=0;else s[0]=(uint8_t)y;}
+  }
+  if(e==6){
+    unsigned target=(bass*6u+mid*3u+high)*2u*15u*8u/1000u;
+    if(target>255u)target=255u;
+    unsigned target2=target*(230u+wave(f*3u)*51u/255u)/256u;
+    if(target2>255u)target2=255u;
+    for(unsigned i=0;i<2;i++){
+      int t=(int)(i?target2:target),v=l->effect_state[i];v+=(t-v)*3/10;
+      l->effect_state[i]=(uint8_t)v;
+      if(v>l->effect_state[2+i]){l->effect_state[2+i]=(uint8_t)v;l->effect_state[4]=30;}
+    }
+    if(l->effect_state[4])--l->effect_state[4];
+    else for(unsigned i=2;i<4;i++)l->effect_state[i]=l->effect_state[i]>2?l->effect_state[i]-2:0;
+  }
+  if(e==7)for(unsigned i=0;i<40;i++){
+    uint8_t *s=l->effect_state+i*4u;int v=s[2]+(int8_t)s[3];
+    if(v>250 || v<30){s[3]=(uint8_t)(int8_t)(-(int8_t)s[3]);v=s[2]+(int8_t)s[3];}
+    if(v<0)v=0;
+    if(v>255)v=255;
+    s[2]=(uint8_t)v;
+  }
+  if(e==15){
+    if(bass>40u || (beat && beat_intensity>30u))for(unsigned i=0;i<8;i++){
+      uint8_t *s=l->effect_state+i*6u;if(!s[5]){s[0]=0;s[1]=(uint8_t)random_below(l,16);
+        s[2]=(uint8_t)(4u+bass*12u/100u);s[3]=random8(l);s[4]=(uint8_t)(4u+random_below(l,6));s[5]=1;break;}}
+    for(unsigned i=0;i<8;i++){uint8_t *s=l->effect_state+i*6u;if(s[5]){
+      unsigned y=s[0]+s[2];if(y>=(16u+s[4])*8u || y>255u)s[5]=0;else s[0]=(uint8_t)y;}}
+  }
+  if(e==19)for(unsigned i=0;i<5;i++){
+    uint8_t *s=l->effect_state+i*6u;int x=s[0],y=s[1],vx=(int8_t)s[2],vy=(int8_t)s[3],r=s[5];
+    vy+=2+(int)bass*3/100;if(beat)vy-=(int)beat_intensity*32/100;
+    if(vy>100)vy=100;
+    if(vy< -100)vy= -100;
+    x+=vx;y+=vy;
+    if(x<r*16){x=r*16;vx= -vx*8/10;}if(x>=(16-r)*16){x=(15-r)*16;vx= -vx*8/10;}
+    if(y<r*16){y=r*16;vy= -vy*7/10;}if(y>=(16-r)*16){y=(15-r)*16;vy= -vy*7/10;}
+    s[0]=(uint8_t)x;s[1]=(uint8_t)y;s[2]=(uint8_t)(int8_t)vx;s[3]=(uint8_t)(int8_t)vy;s[4]++;
+  }
+  if(e==20)for(unsigned i=0;i<4;i++){
+    uint8_t *s=l->effect_state+i*6u;int x=s[0],y=s[1],vx=(int8_t)s[2],vy=(int8_t)s[3];
+    vx+=((int)wave(f+i*41u)-128)/64+((int)bass-50)/25;
+    vy+=((int)wave(f+64u+i*81u)-128)/64+((int)high-50)/25;
+    vx=vx*95/100;vy=vy*95/100;
+    if(vx>24)vx=24;
+    if(vx< -24)vx= -24;
+    if(vy>24)vy=24;
+    if(vy< -24)vy= -24;
+    x+=vx*(5+(int)mid*15/100)/10;y+=vy*(5+(int)mid*15/100)/10;
+    if(x<32){x=32;vx= -vx;}if(x>208){x=208;vx= -vx;}
+    if(y<32){y=32;vy= -vy;}if(y>208){y=208;vy= -vy;}
+    s[0]=(uint8_t)x;s[1]=(uint8_t)y;s[2]=(uint8_t)(int8_t)vx;s[3]=(uint8_t)(int8_t)vy;
+    s[4]=(uint8_t)(48u+bass*32u/100u+wave(f*2u+i*40u)*8u/255u);s[5]+=(uint8_t)(beat?5:1);
+  }
   if (e == 14) {
     for (unsigned k = 7; k > 0; k--)
       l->effect_state[k] = (uint8_t)(l->effect_state[k - 1] * 230u / 256u);
@@ -225,8 +459,11 @@ static bool frame(dbt_led_t *l, const dbt_led_settings_t *s, uint8_t bright) {
   if (e == 18) {
     for (unsigned k = 0; k < 15; k++)
       l->effect_state[k] = l->effect_state[k + 1];
-    l->effect_state[15] =
-        (uint8_t)(8u + (bass * 5u + mid * 3u + high * 2u) * 7u / 1000u);
+    int sample=(int)(bass*5u+mid*3u+high*2u)*7/1000+
+        ((int)random8(l)-128)*(int)high*21/12800;
+    if(sample< -8)sample= -8;
+    if(sample>7)sample=7;
+    l->effect_state[15]=(uint8_t)(8+sample);
   }
   if (e == 16) {
     unsigned target = (bass * 5u + mid * 3u + high * 2u) * 255u / 1000u;
@@ -259,22 +496,24 @@ static bool frame(dbt_led_t *l, const dbt_led_settings_t *s, uint8_t bright) {
       unsigned hue = 0, value = 0;
       switch (e) {
       case 0: {
-        unsigned band = X < 5 ? (raw_bass * (5u - X) + raw_mid * X) / 5u
-                        : X < 10
-                            ? (raw_mid * (10u - X) + raw_high * (X - 5u)) / 5u
-                            : raw_high;
-        unsigned bar = band * 16u / 100u;
-        if (15u - Y < bar)
-          c = hsv(Y >= 11 ? 96 : Y >= 6 ? 48 : 0, 255, 255);
+        unsigned bar=l->effect_state[X]/16u,peak=l->effect_state[16u+X],row=15u-Y;
+        if(row<bar)c=hsv(row<5?96:row<10?64-(row-5u)*12u:0,255,255);
+        if(peak && peak<16u && row==peak)c=(colour_t){255,255,255};
         break;
       }
       case 1:
-        c = hsv(l->effect_hue, 255, 20u + l->pulse * 235u / 255u);
+        c=hsv(l->effect_hue+128u,demo?200u:255u,demo?20u:bass*30u/100u);
+        if(l->pulse>10u){colour_t p=hsv(l->effect_hue,255,l->pulse);
+          unsigned r=c.r+p.r,g=c.g+p.g,b=c.b+p.b;
+          c=(colour_t){r>255?255:r,g>255?255:g,b>255?255:b};}
         break;
       case 2: {
-        unsigned radius = (255u - l->pulse) / 16u;
-        if (l->pulse && absdiff(dist, radius) <= 1)
-          c = hsv(l->effect_hue, 255, l->pulse);
+        unsigned distance=root((dx*dx+dy*dy)*64u);
+        for(unsigned k=0;k<5;k++){uint8_t *s=l->effect_state+k*4u;
+          unsigned delta=absdiff(distance,s[0]);
+          if(s[3] && delta<16u){unsigned v=(255u-s[0]*15u/16u)*(16u-delta)/16u;
+            colour_t z=hsv(s[2],255,v);unsigned r=c.r+z.r,g=c.g+z.g,b=c.b+z.b;
+            c=(colour_t){r>255?255:r,g>255?255:g,b>255?255:b};}}
         break;
       }
       case 3: {
@@ -293,31 +532,26 @@ static bool frame(dbt_led_t *l, const dbt_led_settings_t *s, uint8_t bright) {
         c = hsv(hue, 255, 128u + wave(hue + f) / 2u);
         break;
       case 5: {
-        unsigned head = (f * (3u + bass / 20u) / 8u + noise(X, 0, 0)) % 24u,
-                 trail = (head + 24u - Y) % 24u;
-        if (trail < 6)
-          c = trail == 0 ? (colour_t){255, 255, 255}
-                         : (colour_t){0, 255u - trail * 40u, 0};
+        uint8_t *s=l->effect_state+X*4u;int head=((int)s[0]-64)/8,trail=head-(int)Y;
+        if(s[3] && trail>=0 && trail<s[2]){
+          unsigned value=255u-(unsigned)trail*255u/s[2];
+          c=trail==0?(colour_t){255,255,255}:(colour_t){0,value,0};}
         break;
       }
       case 6: {
-        unsigned level = (bass * 6u + mid * 3u + high) * 2u / 10u;
-        if (level > 100)
-          level = 100;
         if (X == 7 || X == 8)
           c = hsv(f + Y * 16u + (X == 8 ? 128 : 0), 255, 100);
-        else if ((15u - Y) * 100u < 16u * level)
-          c = hsv(Y >= 11 ? 96 : Y >= 6 ? 48 : 0, 255, 255);
+        else {
+          unsigned side=X<7?0u:1u,row=15u-Y,level=l->effect_state[side]/8u,peak=l->effect_state[2u+side]/8u;
+          if(row<level)c=hsv(row<10?96u-row*8u:0u,255,255);
+          if(peak && peak<16u && row==peak)c=(colour_t){255,255,255};
+        }
         break;
       }
       case 7: {
-        unsigned star = noise(X, Y, 0);
-        if (star > 215)
-          c = (colour_t){wave(f * (2u + star % 6u) + star),
-                         wave(f * (2u + star % 6u) + star),
-                         wave(f * (2u + star % 6u) + star)};
-        else
-          c = hsv(160, 255, bass / 5u);
+        c=hsv(160,255,bass/5u);
+        for(unsigned k=0;k<40;k++){uint8_t *s=l->effect_state+k*4u;
+          if(s[0]==X && s[1]==Y){unsigned v=s[2]+l->pulse/5u;if(v>255)v=255;c=(colour_t){v,v,v};}}
         break;
       }
       case 8: {
@@ -337,12 +571,14 @@ static bool frame(dbt_led_t *l, const dbt_led_settings_t *s, uint8_t bright) {
         break;
       }
       case 9: {
-        unsigned age = (255u - l->pulse) / 6u;
-        unsigned seed = noise(X, Y, age / 12u);
-        if (l->pulse &&
-            ((age < 16 && X == 7 && Y == 15 - age / 2u) ||
-             (age >= 16 && absdiff(dist, (age - 16) / 3u) <= 1 && seed > 100)))
-          c = hsv(l->effect_hue + seed / 8u, 255, l->pulse);
+        fireworks_t *fire=l->effect_dynamic;
+        for(unsigned k=0;k<3;k++)if(fire->rockets[k].active &&
+          fire->rockets[k].x/256==(int)X && fire->rockets[k].y/256==(int)Y)c=(colour_t){255,255,255};
+        for(unsigned k=0;k<100;k++)if(fire->particles[k].life &&
+          fire->particles[k].x/256==(int)X && fire->particles[k].y/256==(int)Y) {
+            unsigned life=fire->particles[k].life;
+            c=hsv(fire->particles[k].hue,255,life>30?255:life*8u);
+          }
         break;
       }
       case 10:
@@ -350,10 +586,10 @@ static bool frame(dbt_led_t *l, const dbt_led_settings_t *s, uint8_t bright) {
         c = hsv(hue, 255, 128u + bass * 127u / 100u);
         break;
       case 11: {
-        unsigned radius = (255u - l->pulse) / 14u;
-        if (l->pulse && absdiff(dist, radius) <= 1 && noise(X, Y, f / 4u) > 90)
-          c = hsv(l->effect_hue + noise(X, Y, 1) / 8u, 255, l->pulse);
-        if (dist <= 1)
+        particle_t *p=l->effect_dynamic;
+        for(unsigned k=0;k<80;k++)if(p[k].life && p[k].x/256==(int)X && p[k].y/256==(int)Y)
+          c=hsv(p[k].hue,255,p[k].life*255u/50u);
+        if (absdiff(X,7u)<=1 && absdiff(Y,7u)<=1)
           c = hsv(l->effect_hue, 255, 50u + bass);
         break;
       }
@@ -368,9 +604,14 @@ static bool frame(dbt_led_t *l, const dbt_led_settings_t *s, uint8_t bright) {
         break;
       }
       case 13: {
-        unsigned a = (X * 17u + Y * 29u + dist * 24u + f * 3u) % 85u;
-        if (a < 12u && dist < 2u + (bass + mid + high) * 6u / 300u)
-          c = hsv((a * 3u + dist * 10u + f) & 255u, 255, 255u - dist * 20u);
+        const unsigned levels[3]={bass,mid,high};
+        for(unsigned arm=0;arm<3;arm++)for(unsigned radius=0;radius<512u+levels[arm]*1536u/100u;radius+=77u){
+          unsigned angle=f*2u+arm*85u+radius*20u/256u;
+          int px=(1920+((int)wave(angle+64u)-128)*(int)radius/128)/256;
+          int py=(1920+((int)wave(angle)-128)*(int)radius/128)/256;
+          if(px==(int)X && py==(int)Y){colour_t z=hsv(arm*85u+radius*10u/256u,255,255u-radius*30u/256u);
+            unsigned r=c.r+z.r,g=c.g+z.g,b=c.b+z.b;c=(colour_t){r>255?255:r,g>255?255:g,b>255?255:b};}
+        }
         break;
       }
       case 14:
@@ -380,10 +621,9 @@ static bool frame(dbt_led_t *l, const dbt_led_settings_t *s, uint8_t bright) {
                       (200u + wave(f * 3u + dist * 30u) / 5u) / 256u);
         break;
       case 15: {
-        unsigned head = (f * 3u + X * 5u + noise(X, 0, 1)) % 26u;
-        unsigned trail = (head + 26u - Y) % 26u;
-        if (trail < 4 && bass > 20)
-          c = hsv(25u + X * 8u, 255, 255u - trail * 60u);
+        for(unsigned k=0;k<8;k++){uint8_t *s=l->effect_state+k*6u;int trail=(int)(s[0]/8u)-(int)Y;
+          if(s[5] && s[1]==X && trail>=0 && trail<s[4])
+            c=hsv(s[3],trail?255:200,255u-(unsigned)trail*255u/s[4]);}
         break;
       }
       case 16:
@@ -406,8 +646,8 @@ static bool frame(dbt_led_t *l, const dbt_led_settings_t *s, uint8_t bright) {
         break;
       }
       case 18: {
-        unsigned yy = l->effect_state[X];
-        if (Y == yy)
+        unsigned yy=l->effect_state[X],previous=X?l->effect_state[X-1u]:yy;
+        if(Y >= (yy<previous?yy:previous) && Y <= (yy>previous?yy:previous))
           c = hsv(160u - absdiff(Y, 8u) * 15u, 255,
                   150u + absdiff(Y, 8u) * 13u);
         else if (Y == 8)
@@ -415,28 +655,23 @@ static bool frame(dbt_led_t *l, const dbt_led_settings_t *s, uint8_t bright) {
         break;
       }
       case 19: {
-        for (unsigned k = 0; k < 3; k++) {
-          unsigned xx = (k * 5u + 3u) % 16u,
-                   yy = 15u - tri(f * (3u + k) + k * 70u) * 12u / 255u;
-          if (absdiff(X, xx) <= 1 && absdiff(Y, yy) <= 1)
-            c = hsv(k * 85u + f, 255, 255);
-        }
+        for(unsigned k=0;k<5;k++){uint8_t *s=l->effect_state+k*6u;
+          int x=(int)X-s[0]/16,y=(int)Y-s[1]/16;
+          if(x*x+y*y<=s[5]*s[5])c=hsv(s[4],255,200u+bass*55u/100u);}
         break;
       }
       case 20: {
         unsigned influence = 0, hues = 0;
         for (unsigned k = 0; k < 4; k++) {
-          unsigned cx = 3u + wave(f * (1u + k) + k * 55u) * 9u / 255u,
-                   cy = 3u + wave(f * (2u + k) + k * 87u) * 9u / 255u;
-          unsigned dd = root(absdiff(X, cx) * absdiff(X, cx) +
-                             absdiff(Y, cy) * absdiff(Y, cy));
-          unsigned q = (3u + bass / 50u) * 64u / (dd + 1u);
+          uint8_t *s=l->effect_state+k*6u;unsigned dx=absdiff(X*16u,s[0]),dy=absdiff(Y*16u,s[1]);
+          unsigned dd=root(dx*dx+dy*dy);
+          unsigned q=(unsigned)s[4]*256u/(dd+8u);
           influence += q;
-          hues += q * (k * 55u + f);
+          hues += q * s[5];
         }
-        if (influence > 100u)
+        if (influence > 256u)
           c = hsv(hues / (influence ? influence : 1), 200,
-                  influence > 200u ? 255u : (influence - 100u) * 255u / 100u);
+                  influence > 512u ? 255u : (influence - 256u)*255u/256u);
         break;
       }
       case 21: {
@@ -471,14 +706,20 @@ static bool frame(dbt_led_t *l, const dbt_led_settings_t *s, uint8_t bright) {
         break;
       }
       unsigned pos = (y * w + ((y & 1u) ? w - 1u - x : x)) * 3u;
-      l->frame[pos] = (uint8_t)((unsigned)c.g * bright / 255u);
-      l->frame[pos + 1] = (uint8_t)((unsigned)c.r * bright / 255u);
-      l->frame[pos + 2] = (uint8_t)((unsigned)c.b * bright / 255u);
+      unsigned trail=e==2?200u:e==5 || e==9 || e==15?180u:e==11?220u:e==13?230u:e==8?200u:0u;
+      unsigned g=(unsigned)c.g*bright/255u,r=(unsigned)c.r*bright/255u,b=(unsigned)c.b*bright/255u;
+      if(trail && !g && !r && !b){g=l->frame[pos]*trail/256u;r=l->frame[pos+1]*trail/256u;b=l->frame[pos+2]*trail/256u;}
+      l->frame[pos]=(uint8_t)g;l->frame[pos+1]=(uint8_t)r;l->frame[pos+2]=(uint8_t)b;
     }
   return l->io.show(l->io.context, l->frame, (size_t)w * h * 3u);
 }
 bool dbt_led_render(dbt_led_t *l) {
-  return l && frame(l, &l->settings, l->legacy[0]);
+  return l && dbt_led_render_at(l,l->render_now_ms+33u);
+}
+bool dbt_led_render_at(dbt_led_t *l,uint32_t now_ms) {
+  if(!l)return false;
+  l->render_now_ms=now_ms;
+  return frame(l,&l->settings,l->legacy[0]);
 }
 bool dbt_led_work(dbt_led_t *l) {
   if (!l)
@@ -534,7 +775,9 @@ bool dbt_led_work(dbt_led_t *l) {
       l->settings = s;
       memcpy(l->legacy, legacy, 10);
     }
-    if (frame(l, &s, legacy[0])) {
+    if (!activate_effect(l,s.bytes[0]))
+      result.result=DBT_LED_NO_MEMORY;
+    else if (frame(l, &s, legacy[0])) {
       result.result = DBT_LED_OK;
       if (!result.committed)
         l->settings = s;

@@ -17,6 +17,7 @@
 typedef struct {
   uint8_t type;
   uint32_t rate;
+  uint32_t epoch;
   bool exclusive;
 } play_job_t;
 typedef struct {
@@ -32,8 +33,11 @@ typedef struct {
   probe_sound_t player;
   atomic_bool ready, retiring, input_done, sound_busy;
   atomic_uint sound_status;
+  atomic_uint sound_epoch;
+  uint32_t sound_worker_epoch;
   TaskHandle_t input_task;
   atomic_bool led_started, input_started, sound_started;
+  probe_product_input_status_t input_status;
   atomic_uint led_sequence, led_words[3];
   atomic_uint led_grant, led_peer_generation, led_peer_handle;
   bool (*led_commit_original)(void *, const uint8_t[10]);
@@ -53,6 +57,23 @@ typedef struct {
   dbt_led_receipt_t ble_receipt;
 } product_io_t;
 static product_io_t io;
+static atomic_uint capabilities_word;
+static void publish_capabilities(void) {
+  unsigned v=(unsigned)io.input_status;
+  bool ready=atomic_load_explicit(&io.ready,memory_order_acquire);
+  if(ready) {
+    v|=1u<<8;
+    if(atomic_load_explicit(&io.led_started,memory_order_acquire))v|=1u<<9;
+    if(atomic_load_explicit(&io.sound_started,memory_order_acquire))v|=1u<<10;
+  }
+  atomic_store_explicit(&capabilities_word,v,memory_order_release);
+}
+bool probe_product_io_capabilities(probe_product_io_capabilities_t *out) {
+  if(!out)return false;
+  unsigned v=atomic_load_explicit(&capabilities_word,memory_order_acquire);
+  out->ready=(v&(1u<<8))!=0;out->led=(v&(1u<<9))!=0;out->sound=(v&(1u<<10))!=0;
+  out->input=(probe_product_input_status_t)(v&255u);return true;
+}
 static uint32_t now_ms(void) {
   return (uint32_t)((uint64_t)esp_timer_get_time() / 1000u);
 }
@@ -127,8 +148,9 @@ static void close_startup(void) {
     io.input_task = NULL;
   }
   if (io.input_started) {
-    dbt_input_esp32_stop(&io.input);
-    io.input_started = false;
+    if(dbt_input_esp32_stop_checked(&io.input)) {
+      io.input_started = false;io.input_status=PROBE_PRODUCT_INPUT_STOPPED;
+    } else io.input_status=PROBE_PRODUCT_INPUT_CLEANUP_FAILED;
   }
   if (io.led_started) {
     (void)dbt_led_esp32_stop(&io.led);
@@ -164,12 +186,15 @@ bool probe_product_io_startup_worker(dbt_ble_control_state_t *initial,
     return false;
   memset(&io, 0, sizeof io);
   io.hooks = *hooks;
+  io.input_status=hooks->input?PROBE_PRODUCT_INPUT_NOT_ATTEMPTED:PROBE_PRODUCT_INPUT_NOT_REQUESTED;
   atomic_init(&io.ready, false);
   atomic_init(&io.retiring, false);
   atomic_init(&io.input_done, false);
   atomic_init(&io.led_waiting, false);
   atomic_init(&io.sound_busy, false);
   atomic_init(&io.sound_status, 0);
+  atomic_init(&io.sound_epoch, 1);
+  io.sound_worker_epoch = 1;
   atomic_init(&io.led_started, false);
   atomic_init(&io.input_started, false);
   atomic_init(&io.sound_started, false);
@@ -189,6 +214,7 @@ bool probe_product_io_startup_worker(dbt_ble_control_state_t *initial,
   atomic_init(&io.pr_tail, 0);
   atomic_init(&io.notice_head, 0);
   atomic_init(&io.notice_tail, 0);
+  publish_capabilities();
   dbt_sound_store_t sound_store;
   bool muted = false;
   if (hooks->sound) {
@@ -208,26 +234,33 @@ bool probe_product_io_startup_worker(dbt_ble_control_state_t *initial,
     led_snapshot_publish(&io.led.led.settings);
   }
   if (hooks->input) {
-    /* Baseline Seesaw default first, then the configured alternate. Each
-     * failed start releases its own I2C driver before the next attempt. */
-    if (!dbt_input_esp32_start(&io.input, I2C_NUM_1, 23, 22, 0x36, 18, 21,
-                               19) &&
-        !dbt_input_esp32_start(&io.input, I2C_NUM_1, 23, 22, 0x07, 18, 21,
-                               19)) {
+    /* Only a clean NACK is eligible for an alternate probe or optional mode. */
+    dbt_input_start_result_t input=dbt_input_esp32_start_checked(&io.input,I2C_NUM_1,23,22,0x36,18,21,19);
+    if(input==DBT_INPUT_START_NO_ACK)
+      input=dbt_input_esp32_start_checked(&io.input,I2C_NUM_1,23,22,0x07,18,21,19);
+    if(input==DBT_INPUT_START_NO_ACK && hooks->input_optional)
+      io.input_status=PROBE_PRODUCT_INPUT_NO_ACK;
+    else if(input!=DBT_INPUT_START_READY) {
+      io.input_status=input==DBT_INPUT_START_CLEANUP_FAILED?PROBE_PRODUCT_INPUT_CLEANUP_FAILED:
+                      input==DBT_INPUT_START_NO_ACK?PROBE_PRODUCT_INPUT_NO_ACK:PROBE_PRODUCT_INPUT_FAILED;
       close_startup();
+      publish_capabilities();
       return false;
     }
-    io.input_started = true;
-    if (xTaskCreate(input_worker, "dbt_inputs", 3072, NULL, 2,
-                    &io.input_task) != pdPASS) {
-      close_startup();
-      return false;
+    if(input==DBT_INPUT_START_READY) {
+      io.input_started = true;io.input_status=PROBE_PRODUCT_INPUT_AVAILABLE;
+      if (xTaskCreate(input_worker, "dbt_inputs", 3072, NULL, 2,
+                      &io.input_task) != pdPASS) {
+        close_startup();publish_capabilities();
+        return false;
+      }
     }
   }
   if (hooks->sound) {
     if (probe_sound_init_with_wake(&io.player, &io.sound, wake_sound, NULL) !=
         DBT_OK) {
       close_startup();
+      publish_capabilities();
       return false;
     }
     io.sound_started = true;
@@ -241,6 +274,7 @@ bool probe_product_io_startup_worker(dbt_ble_control_state_t *initial,
     initial->sound =
         (uint8_t)atomic_load_explicit(&io.sound_status, memory_order_relaxed);
   atomic_store_explicit(&io.ready, true, memory_order_release);
+  publish_capabilities();
   return true;
 }
 static void sound_notice(dbt_sound_peer_t p) {
@@ -355,8 +389,12 @@ static void play_tick(void) {
     return;
   play_job_t job = io.plays[t % QUEUE_CAP];
   atomic_store_explicit(&io.sound_busy, true, memory_order_release);
-  dbt_result_t result =
-      probe_sound_play(&io.player, job.type, job.rate, job.exclusive);
+  dbt_result_t result = job.epoch == atomic_load_explicit(&io.sound_epoch, memory_order_acquire)
+      ? probe_sound_play(&io.player, job.type, job.rate, job.exclusive) : DBT_EMPTY;
+  if(job.epoch!=atomic_load_explicit(&io.sound_epoch,memory_order_acquire)){
+    probe_sound_stop(&io.player);
+    result=DBT_EMPTY;
+  }
   if (!io.player.play && !io.player.token)
     atomic_store_explicit(&io.sound_busy, false, memory_order_release);
   io.play_results[rh % QUEUE_CAP] =
@@ -467,6 +505,8 @@ bool probe_product_io_worker_poll(void *unused, bool retiring) {
   (void)unused;
   if (!atomic_load_explicit(&io.ready, memory_order_acquire))
     return false;
+  uint32_t epoch=atomic_load_explicit(&io.sound_epoch,memory_order_acquire);
+  if(io.sound_worker_epoch!=epoch){io.sound_worker_epoch=epoch;probe_sound_stop(&io.player);}
   if (retiring && io.sound_started) {
     probe_sound_stop(&io.player);
     if (io.sound.active)
@@ -559,11 +599,31 @@ dbt_result_t probe_product_io_play(uint8_t type, uint32_t rate,
            t = atomic_load_explicit(&io.play_tail, memory_order_acquire);
   if (h - t >= QUEUE_CAP)
     return DBT_BUSY;
-  io.plays[h % QUEUE_CAP] = (play_job_t){type, rate, exclusive};
+  uint32_t epoch=atomic_load_explicit(&io.sound_epoch,memory_order_acquire);
+  if(!epoch)return DBT_INVALID; /* exhausted epochs stay fail-closed */
+  io.plays[h % QUEUE_CAP] = (play_job_t){type, rate, epoch, exclusive};
   atomic_store_explicit(&io.play_head, h + 1, memory_order_release);
   probe_gatt_control_wake();
   io.hooks.wake_owner(io.hooks.context);
   return DBT_OK;
+}
+void probe_product_io_cancel_sound(void) {
+  if (!atomic_load_explicit(&io.ready,memory_order_acquire)) return;
+  uint32_t epoch=atomic_load_explicit(&io.sound_epoch,memory_order_relaxed);
+  atomic_store_explicit(&io.sound_epoch,epoch==UINT32_MAX?0:epoch?epoch+1u:0,memory_order_release);
+  probe_gatt_control_wake();
+}
+void probe_product_io_pairing_mode(bool active) {
+  if (atomic_load_explicit(&io.ready,memory_order_acquire) && io.led_started)
+    dbt_led_pairing_mode(&io.led.led,active);
+}
+void probe_product_io_pairing_success(void) {
+  if (atomic_load_explicit(&io.ready,memory_order_acquire) && io.led_started)
+    dbt_led_pairing_success(&io.led.led);
+}
+void probe_product_io_volume_feedback(uint8_t volume) {
+  if (atomic_load_explicit(&io.ready,memory_order_acquire) && io.led_started && volume<=127)
+    dbt_led_volume(&io.led.led,volume);
 }
 bool probe_product_io_sound_busy(void) {
   return atomic_load_explicit(&io.sound_busy, memory_order_acquire);

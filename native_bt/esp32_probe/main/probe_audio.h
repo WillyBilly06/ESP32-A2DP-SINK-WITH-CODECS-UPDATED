@@ -17,4 +17,13 @@ uint32_t probe_audio_wait_ms(uint32_t now_ms);
 dbt_result_t probe_audio_peer(uint16_t *handle,uint32_t *generation);
 /* Resolve the captured identity again immediately before enqueueing work. */
 const dbt_link_t *probe_audio_peer_link(uint16_t handle,uint32_t generation);
+typedef enum { PROBE_AUDIO_CONNECTED,PROBE_AUDIO_DISCONNECTED,
+               PROBE_AUDIO_CONFIGURED,PROBE_AUDIO_STREAMING } probe_audio_product_event_t;
+/* Owner-only synchronous, copied event; no storage or playback in callback. */
+typedef void (*probe_audio_product_event_fn)(void *,probe_audio_product_event_t,
+                                             uint16_t,uint32_t,uint32_t,uint32_t);
+void probe_audio_product_observer(probe_audio_product_event_fn,void *);
+bool probe_audio_sound_memory_ok(void);
+/* Before controller startup, initialize the shared output exactly once. */
+dbt_result_t probe_audio_output_bootstrap(void);
 #endif

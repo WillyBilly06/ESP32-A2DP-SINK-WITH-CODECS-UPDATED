@@ -50,6 +50,11 @@ static dbt_a2dp_acceptor_t profile;
 static dbt_codec_worker_t worker;
 static TaskHandle_t owner,decoder_task,logger_task;
 static bool initialized,failed;
+#ifdef DBT_PROBE_AUDIO_OUTPUT
+static bool output_initialized;
+#endif
+static probe_audio_product_event_fn product_observer;
+static void *product_context;
 static _Atomic uint32_t pcm_generation,pcm_frames,pcm_bytes,pcm_hash,pcm_rate,pcm_channels,pcm_codec,pcm_sample_bytes;
 static _Atomic uint32_t profile_snapshot,event_errors,last_channel_event,last_channel_result;
 static _Atomic uint32_t ignored_dynamic,oversized_dynamic;
@@ -122,6 +127,15 @@ static uint8_t *codec_allocate(void *context,uint32_t bytes){(void)context;retur
 static void release(void *context,uint8_t *bytes){(void)context;heap_caps_free(bytes);}
 static void wake_worker(void *context){(void)context;if(decoder_task)xTaskNotifyGive(decoder_task);}
 static void wake_owner(void *context){(void)context;xTaskNotifyGive(owner);}
+bool probe_audio_sound_memory_ok(void){return heap_caps_get_free_size(MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT)>=24u*1024u;}
+dbt_result_t probe_audio_output_bootstrap(void){
+#ifdef DBT_PROBE_AUDIO_OUTPUT
+    if(output_initialized)return DBT_OK;
+    dbt_result_t r=probe_output_init(wake_worker,0);if(r==DBT_OK)output_initialized=true;return r;
+#else
+    return DBT_UNSUPPORTED;
+#endif
+}
 static dbt_result_t pcm(void *context,const void *samples,uint16_t count,const dbt_codec_config_t *config,uint32_t timestamp){
     (void)context;(void)timestamp;
     if(!config || !samples || !count || config->sample_bytes<2 || config->sample_bytes>4 ||
@@ -271,7 +285,19 @@ static void log_loop(void *unused){
 #endif
     }
 }
-static void sink_event(void *context,dbt_sink_event_t event,dbt_stream_state_t state){(void)context;(void)event;(void)state;}
+void probe_audio_product_observer(probe_audio_product_event_fn fn,void *context){product_observer=fn;product_context=context;}
+static void sink_event(void *context,dbt_sink_event_t event,dbt_stream_state_t state){
+    (void)context;
+    if(!product_observer || event!=DBT_SINK_STATE || !profile.signaling.serial)return;
+    dbt_sink_operation_t operation=profile.sink.pending.operation;
+    if(profile.sink.pending.used && (operation==DBT_SINK_CONFIGURE || operation==DBT_SINK_RECONFIGURE)){
+        uint32_t rate=48000;dbt_avdtp_caps_t caps;dbt_avdtp_cap_error_t error;dbt_codec_config_t config;
+        if(dbt_avdtp_caps_validate(profile.sink.configuration,profile.sink.configuration_size,DBT_AVDTP_CONFIGURATION,&caps,&error)==DBT_OK)
+            for(unsigned i=0;i<sizeof(codecs)/sizeof(codecs[0]);i++)if(codecs[i]->configure(caps.codec.data,caps.codec.size,&config)==DBT_OK){rate=config.rate;break;}
+        product_observer(product_context,PROBE_AUDIO_CONFIGURED,profile.signaling.handle,profile.signaling.generation,rate,now_ms());
+    }else if(state==DBT_STREAM_STREAMING)
+        product_observer(product_context,PROBE_AUDIO_STREAMING,profile.signaling.handle,profile.signaling.generation,0,now_ms());
+}
 dbt_result_t probe_audio_init(dbt_runtime_t *runtime,TaskHandle_t host_owner){
     owner=host_owner;
     dbt_codec_worker_hooks_t hooks={0};hooks.decoder=(dbt_codec_hooks_t){0,codec_allocate,release,pcm};
@@ -284,7 +310,7 @@ dbt_result_t probe_audio_init(dbt_runtime_t *runtime,TaskHandle_t host_owner){
     if(result!=DBT_OK)return result;
     if(xTaskCreatePinnedToCore(decode_loop,"native_decoder",8192,0,5,&decoder_task,1)!=pdPASS)return DBT_NO_SPACE;
 #ifdef DBT_PROBE_AUDIO_OUTPUT
-    result=probe_output_init(wake_worker,0);
+    result=probe_audio_output_bootstrap();
     if(result!=DBT_OK){vTaskDelete(decoder_task);decoder_task=0;return result;}
 #endif
     if(xTaskCreatePinnedToCore(log_loop,"native_pcm_log",4096,0,1,&logger_task,0)!=pdPASS){vTaskDelete(decoder_task);decoder_task=0;return DBT_NO_SPACE;}
@@ -297,7 +323,17 @@ dbt_result_t probe_audio_init(dbt_runtime_t *runtime,TaskHandle_t host_owner){
 bool probe_audio_accept(void *context,const dbt_link_t *link,uint16_t psm){(void)context;return psm!=0x19 || (initialized && dbt_a2dp_acceptor_accept(&profile,link));}
 void probe_audio_event(dbt_channel_event_t event,const dbt_channel_t *channel){
     if(!initialized || channel->psm!=0x19)return;
+    bool was_active=profile.active;
+    bool signal=profile.signaling.serial && channel->serial==profile.signaling.serial &&
+        channel->handle==profile.signaling.handle && channel->link_generation==profile.signaling.generation;
+    uint16_t handle=channel->handle;uint32_t generation=channel->link_generation;
     dbt_result_t result=dbt_a2dp_acceptor_event(&profile,event,channel);
+    if(result==DBT_OK && product_observer){
+        if(event==DBT_CH_EVENT_OPEN && !was_active && profile.active && profile.signaling.serial==channel->serial)
+            product_observer(product_context,PROBE_AUDIO_CONNECTED,handle,generation,0,now_ms());
+        else if(signal && (event==DBT_CH_EVENT_CLOSED || event==DBT_CH_EVENT_FAILED))
+            product_observer(product_context,PROBE_AUDIO_DISCONNECTED,handle,generation,0,now_ms());
+    }
     if(result!=DBT_OK && result!=DBT_EMPTY){
         atomic_store(&last_channel_event,(uint32_t)event);atomic_store(&last_channel_result,(uint32_t)result);
         atomic_fetch_add(&event_errors,1);

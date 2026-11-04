@@ -39,6 +39,9 @@ static bool mounted = true, peer_ok = true, commit_ok = true, show_ok = true,
             stale_on_wait = false;
 static bool fail_input_start, allow_address36, fail_task_create,
     fail_sound_bind;
+static dbt_input_start_result_t forced_input_result;
+static dbt_input_start_result_t forced_alt_result;
+static bool fail_input_stop;
 static unsigned led_stops, input_stops, task_deletes, input_tries;
 static uint8_t tried[4];
 static void fake_task_advance(void);
@@ -138,7 +141,7 @@ dbt_led_result_t dbt_led_esp32_submit(dbt_led_esp32_t *p,
 bool dbt_led_esp32_receipt(dbt_led_esp32_t *p, dbt_led_receipt_t *r) {
   return dbt_led_receipt(&p->led, r);
 }
-bool dbt_input_esp32_start(dbt_input_esp32_t *p, i2c_port_t port, int a, int b,
+dbt_input_start_result_t dbt_input_esp32_start_checked(dbt_input_esp32_t *p, i2c_port_t port, int a, int b,
                            uint8_t addr, int c, int d, int e) {
   (void)port;
   (void)a;
@@ -149,23 +152,35 @@ bool dbt_input_esp32_start(dbt_input_esp32_t *p, i2c_port_t port, int a, int b,
   (void)c;
   (void)d;
   (void)e;
+  if(forced_input_result!=DBT_INPUT_START_READY){
+    if(forced_input_result==DBT_INPUT_START_CLEANUP_FAILED)p->installed=true;
+    return forced_input_result;
+  }
+  if(addr==0x07 && forced_alt_result!=DBT_INPUT_START_READY) {
+    if(forced_alt_result==DBT_INPUT_START_CLEANUP_FAILED)p->installed=true;
+    return forced_alt_result;
+  }
   if (fail_input_start || (addr == 0x36 && !allow_address36))
-    return false;
+    return DBT_INPUT_START_NO_ACK;
   dbt_input_init(&p->input);
   atomic_init(&p->read_errors, 0);
   atomic_init(&p->deferred_samples, 0);
   atomic_init(&p->feedback_errors, 0);
   atomic_init(&p->invalid_channels, 0);
   p->installed = true;
-  return true;
+  return DBT_INPUT_START_READY;
 }
 bool dbt_input_esp32_poll(dbt_input_esp32_t *p) {
   (void)p;
   return true;
 }
 void dbt_input_esp32_stop(dbt_input_esp32_t *p) {
+  (void)dbt_input_esp32_stop_checked(p);
+}
+bool dbt_input_esp32_stop_checked(dbt_input_esp32_t *p) {
   input_stops++;
-  p->installed = false;
+  if(fail_input_stop)return false;
+  p->installed = false;return true;
 }
 static uint8_t temp[128], file_data[4][128];
 static uint32_t file_size[4] = {46, 46, 0, 0}, temp_size;
@@ -331,13 +346,15 @@ EX int test_startup_snapshot(void) {
   for (unsigned j = 0; j < 10; j++)
     initial.led[j] = (uint8_t)(40 + j);
   initial.sound = 0x91;
-  probe_product_io_hooks_t hooks = {0, valid, wake_owner, true, true, false};
+  probe_product_io_hooks_t hooks = {0, valid, wake_owner, true, true, false, false};
   fail_input_start = true;
   input_tries = led_stops = 0;
   CHECK(!probe_product_io_startup_worker(&initial, &hooks));
   CHECK(input_tries == 2 && tried[0] == 0x36 && tried[1] == 0x07 &&
         led_stops == 1);
   CHECK(initial.sound == 0x91);
+  probe_product_io_capabilities_t caps;
+  CHECK(probe_product_io_capabilities(&caps) && !caps.ready && caps.input==PROBE_PRODUCT_INPUT_NO_ACK);
   for (unsigned j = 0; j < 10; j++)
     CHECK(initial.led[j] == 40 + j);
   /* Test-only reset: no fake task was spawned; production never reinitializes
@@ -345,6 +362,36 @@ EX int test_startup_snapshot(void) {
   memset(&io, 0, sizeof io);
   atomic_init(&io.ready, false);
   atomic_init(&io.retiring, false);
+  /* Optional policy continues only after two clean no-ACK results. */
+  hooks.input_optional=true;hooks.sound=true;input_tries=led_stops=0;
+  CHECK(probe_product_io_startup_worker(&initial,&hooks));
+  CHECK(input_tries==2 && !led_stops && probe_product_io_capabilities(&caps) &&
+        caps.ready && caps.led && caps.sound && caps.input==PROBE_PRODUCT_INPUT_NO_ACK);
+  dbt_input_action_t action;probe_product_io_input_stats_t stats;
+  CHECK(!probe_product_io_take_input(&action) && !probe_product_io_input_stats(&stats));
+  CHECK(initial.sound==3 && initial.led[0]==0);
+  dbt_ble_control_peer_t peer={1,2};uint8_t data=45,response[8],size=sizeof(response);
+  CHECK(probe_product_io_command(NULL,&peer,7,&data,1,response,&size) && size==2 && response[0]==0x10);
+  size=sizeof(response);
+  CHECK(probe_product_io_command(NULL,&peer,0x14,NULL,0,response,&size) && size==2 && response[0]==0x33);
+  atomic_store(&io.ready,false);close_startup();
+  memset(&io,0,sizeof io);atomic_init(&io.ready,false);atomic_init(&io.retiring,false);
+  /* A bus/configuration error or a failed cleanup is never optional, and no
+   * alternate address is attempted after an ambiguous retained driver. */
+  forced_input_result=DBT_INPUT_START_FAILED;input_tries=0;
+  CHECK(!probe_product_io_startup_worker(&initial,&hooks) && input_tries==1);
+  CHECK(probe_product_io_capabilities(&caps) && !caps.ready && caps.input==PROBE_PRODUCT_INPUT_FAILED);
+  memset(&io,0,sizeof io);atomic_init(&io.ready,false);atomic_init(&io.retiring,false);
+  forced_input_result=DBT_INPUT_START_READY;forced_alt_result=DBT_INPUT_START_CLEANUP_FAILED;input_tries=0;
+  CHECK(!probe_product_io_startup_worker(&initial,&hooks) && input_tries==2 && io.input.installed);
+  CHECK(probe_product_io_capabilities(&caps) && !caps.ready && caps.input==PROBE_PRODUCT_INPUT_CLEANUP_FAILED);
+  memset(&io,0,sizeof io);atomic_init(&io.ready,false);atomic_init(&io.retiring,false);
+  forced_alt_result=DBT_INPUT_START_READY;
+  forced_input_result=DBT_INPUT_START_CLEANUP_FAILED;input_tries=0;
+  CHECK(!probe_product_io_startup_worker(&initial,&hooks) && input_tries==1 && io.input.installed);
+  CHECK(probe_product_io_capabilities(&caps) && !caps.ready && caps.input==PROBE_PRODUCT_INPUT_CLEANUP_FAILED);
+  memset(&io,0,sizeof io);atomic_init(&io.ready,false);atomic_init(&io.retiring,false);
+  forced_input_result=DBT_INPUT_START_READY;
   provider = 0;
   fail_input_start = false;
   return 0;
@@ -353,7 +400,7 @@ EX int test_startup_cleanup(void) {
   dbt_ble_control_state_t initial = {0};
   initial.led[0] = 55;
   initial.sound = 77;
-  probe_product_io_hooks_t hooks = {0, valid, wake_owner, true, true, true};
+  probe_product_io_hooks_t hooks = {0, valid, wake_owner, true, true, true, false};
   allow_address36 = true;
   fail_task_create = true;
   led_stops = input_stops = task_deletes = input_tries = 0;
@@ -361,6 +408,16 @@ EX int test_startup_cleanup(void) {
   CHECK(led_stops == 1 && input_stops == 1 && task_deletes == 0 &&
         input_tries == 1 && tried[0] == 0x36);
   CHECK(initial.led[0] == 55 && initial.sound == 77);
+  probe_product_io_capabilities_t caps;
+  CHECK(probe_product_io_capabilities(&caps) && !caps.ready && caps.input==PROBE_PRODUCT_INPUT_STOPPED);
+  memset(&io, 0, sizeof io);
+  atomic_init(&io.ready, false);
+  atomic_init(&io.retiring, false);
+  fail_input_stop=true;led_stops=input_stops=input_tries=0;
+  CHECK(!probe_product_io_startup_worker(&initial,&hooks));
+  CHECK(input_tries==1 && input_stops==1 && io.input.installed &&
+        probe_product_io_capabilities(&caps) && !caps.ready && caps.input==PROBE_PRODUCT_INPUT_CLEANUP_FAILED);
+  fail_input_stop=false;CHECK(dbt_input_esp32_stop_checked(&io.input));
   memset(&io, 0, sizeof io);
   atomic_init(&io.ready, false);
   atomic_init(&io.retiring, false);
@@ -382,7 +439,7 @@ EX int test_startup_cleanup(void) {
 }
 EX int test_product_io(void) {
   dbt_ble_control_state_t initial = {0};
-  probe_product_io_hooks_t hooks = {0, valid, wake_owner, true, true, true};
+  probe_product_io_hooks_t hooks = {0, valid, wake_owner, true, true, true, false};
   mounted = false;
   CHECK(!probe_product_io_startup_worker(&initial, &hooks));
   mounted = true;
@@ -402,6 +459,9 @@ EX int test_product_io(void) {
   reconcile_error = -1;
   input_tries = 0;
   CHECK(probe_product_io_startup_worker(&initial, &hooks));
+  probe_product_io_capabilities_t caps;
+  CHECK(probe_product_io_capabilities(&caps) && caps.ready && caps.led && caps.sound &&
+        caps.input==PROBE_PRODUCT_INPUT_AVAILABLE);
   CHECK(input_tries == 2 && tried[0] == 0x36 && tried[1] == 0x07);
   CHECK(reconciled == 3 && recovery_state[0] == DBT_SOUND_RECOVERY_CLEAN &&
         recovery_state[2] == DBT_SOUND_RECOVERY_CLEAN && inspected >= 12);
@@ -550,6 +610,13 @@ EX int test_product_io(void) {
         failed_start.type == 1 && failed_start.result == DBT_INVALID);
   CHECK(!probe_product_io_sound_busy());
   fail_play = false;
+  /* Owner invalidation cancels a copied, not-yet-opened job. */
+  CHECK(probe_product_io_play(0, 48000, true) == DBT_OK);
+  probe_product_io_cancel_sound();
+  CHECK(probe_product_io_worker_poll(0, false));
+  probe_product_io_play_result_t cancelled;
+  CHECK(probe_product_io_take_play_result(&cancelled) && cancelled.type == 0 && cancelled.result == DBT_EMPTY);
+  CHECK(!probe_product_io_sound_busy());retire_play = false;
   CHECK(probe_product_io_play(0, 48000, false) == DBT_OK);
   CHECK(probe_product_io_worker_poll(0, false));
   CHECK(probe_product_io_sound_busy());
@@ -562,7 +629,7 @@ EX int test_product_io(void) {
   CHECK(probe_product_io_worker_poll(0, false));
   dbt_led_receipt_t r;
   CHECK(!probe_product_io_take_local_led(&r));
-  retire_play = true;
+  probe_product_io_cancel_sound();
   CHECK(probe_product_io_worker_poll(0, false));
   CHECK(!probe_product_io_sound_busy());
   CHECK(probe_product_io_worker_poll(0, false));

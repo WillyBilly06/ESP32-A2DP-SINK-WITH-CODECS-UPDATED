@@ -152,6 +152,10 @@ dbt_result_t dbt_channels_credit_begin(dbt_channels_t *manager,uint16_t handle,u
 dbt_result_t dbt_channels_credit_frame(dbt_channels_t *manager,uint16_t handle,uint16_t local_cid,dbt_l2cap_tx_t *frame);
 dbt_result_t dbt_channels_credit_commit(dbt_channels_t *manager,uint16_t handle,uint16_t local_cid,bool *complete);
 bool dbt_channels_credit_ready(const dbt_channels_t *manager,uint16_t handle,uint16_t local_cid);
+/* Request an unchanged or increased receive MTU. The active outgoing SDU must
+ * already be acknowledged; BUSY asks the caller to retry after its completion.
+ * Completion is reported by DBT_CH_EVENT_RECONFIGURED. */
+dbt_result_t dbt_channels_ertm_reconfigure(dbt_channels_t *manager,uint16_t handle,uint16_t local_cid,uint16_t receive_mtu,uint32_t now_ms);
 /* Runtime-only ERTM operations: the caller holds a prepared frame through all
  * ACL fragments and commits or cancels before releasing its borrowed SDU. */
 dbt_result_t dbt_channels_ertm_begin(dbt_channels_t *manager,uint16_t handle,uint16_t local_cid,const uint8_t *data,uint16_t size);

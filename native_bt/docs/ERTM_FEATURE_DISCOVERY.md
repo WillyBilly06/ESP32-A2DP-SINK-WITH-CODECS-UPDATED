@@ -22,8 +22,24 @@ responds to every fragment, and retrieves continued responses with empty request
 Recognized option values and duplicate markers are staged per channel without
 retaining unbounded option bytes; malformed or conflicting options fail closed.
 Results become active only after the final response is admitted, and link
-generation, signaling identifiers, and setup deadlines still apply. ERTM
-reconfiguration after OPEN remains unsupported and causes disconnect.
+generation, signaling identifiers, and setup deadlines still apply.
+
+Live Standard-process ERTM reconfiguration supports an unchanged or increased
+MTU via `dbt_channels_ertm_reconfigure()`, and peer requests for unchanged or
+increased MTU. It waits for an outgoing SDU to be acknowledged before starting
+or responding, blocks new application SDUs until both configuration directions
+finish, and continues the existing engine for incoming data and supervisory
+traffic. The engine, sequence numbers, RX assembly, timers, retransmission window
+and any prepared frame remain in place. The new receive MTU takes effect after
+a positive response; the peer MTU takes effect after the local response is
+admitted. Both directions must finish before the reconfiguration callback.
+A changed RFC mode, window, MaxTransmit or MPS and an MTU decrease are rejected;
+unknown mandatory options that fit the bounded response receive result 3 with
+the option, while oversized unknown-option responses fail closed. The API caps
+local MTU increases at the manager maximum. Caller-selected timer changes, FCS
+mode changes, Extended Flow Specification and arbitrary option negotiation are
+not implemented. Timeouts or cancellation can close the channel. This is
+offline behavior, not external-peer or hardware qualification.
 
 Per-channel engine state is allocated on channel creation. Retransmission
 window metadata, segmented receive SDUs, and encoded outgoing frames allocate
@@ -37,8 +53,10 @@ The offline `test_ertm_features.py` exercises discovery and paired simulated
 controllers through the owned runtime, including segmentation, acknowledgment
 loan, recovery after a deliberately dropped frame, simultaneous directions,
 Basic and LE coexistence, split request/response negotiation with subsequent
-data transfer, malformed and duplicate continuation options, required-mode
-rejection, default FCS, OOM, security
+data transfer, malformed and duplicate continuation options, simultaneous MTU
+reconfiguration, active-SDU draining, post-change data, incompatible option
+rejection, bounded timeout and stale generation, required-mode rejection,
+default FCS, OOM, security
 revocation and link loss with a pinned ACL frame. It also runs 23 existing
 Classic/LE channel tests. These host tests do not establish interoperability with
 an external peer or audio hardware. ESP32 object compilation is not a firmware

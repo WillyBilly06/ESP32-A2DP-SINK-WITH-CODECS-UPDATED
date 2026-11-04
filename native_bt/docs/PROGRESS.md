@@ -14,8 +14,8 @@ user releases the [hardware hold](../_build/hardware/HARDWARE_HOLD.json).
 Local compilation, host tests and artifact creation do not establish a new
 on-device result.
 
-Current local candidate (not flashed): `007bc54d7cb3e74dde159b780fd1e9611ee2ffef2e3389de447f2c31150661d7`,
-1127856 bytes, fitting `ota_1` at `0x390000` with 1493584 bytes
+Current local candidate (not flashed): `305c2004db62d3d658a5982c11db6b9a54c0bcdde8fcf098f10521181d6f2654`,
+1138528 bytes, fitting `ota_1` at `0x390000` with 1482912 bytes
 remaining. The compiled partition bytes match the preserved 8 MB layout.
 COM6 is the user-confirmed target. The managed monitor display is restored at
 http://127.0.0.1:50412/ with its serial reader released.
@@ -24,14 +24,18 @@ The combined build now links product name/OTA, LED/input/sound and bonded
 CCCD providers. Local pairing disconnects only the captured A2DP generation;
 ERTM initial configuration supports bounded request/response continuation.
 Current core tests pass 168/168; focused GATT/SMP/product and artifact-policy
-checks pass. The build receipt binds 1306 source units and compile/configuration
-inputs to the image. Static DRAM is 50,584 bytes and IRAM is 130,243 bytes,
-leaving only 829 bytes of the linked IRAM region; these are not runtime heap
+checks pass. The build receipt binds 1307 source units and compile/configuration
+inputs to the image. Static DRAM is 50,760 bytes and IRAM is 123,179 bytes,
+leaving 7,893 bytes of the linked IRAM region; these are not runtime heap
 or task-stack measurements. I2S ISR IRAM safety remains enabled. LED SPI ISR
 code runs from flash to fit; its delay during flash operations is unqualified.
 
-Broader pairing/OTA authorization UI, automatic sound events, LED visual parity,
-missing protocols/profiles and all new physical behavior remain open. Older
+Broader pairing/OTA authorization UI, LED visual parity,
+missing protocols/profiles and all new physical behavior remain open.
+Startup/connection/pair/max-volume sound events, volume/pairing LED feedback,
+live ERTM MTU increases and owner-fault lifetime handling are now linked.
+The SDK-supported task-only FreeRTOS placement saved 7,064 bytes of static IRAM
+in a same-source/equal-feature comparison; ISR placement protections remain. Older
 Linux sanitizer runs do not certify all current changed sources. The goal
 remains active; no performance advantage or production stability is claimed.
 

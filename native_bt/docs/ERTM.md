@@ -21,8 +21,8 @@ establish a complete firmware link or hardware behavior.
 The engine covers modulo-64 windows, ACK/SREJ distinctions, lazy retransmission
 metadata, busy/poll/final handling, retry limits, admission-based timers, and
 channel-level failure isolation. The binding currently requires the default
-16-bit FCS, supports initial ERTM configuration continuation, and disconnects
-on unsupported ERTM reconfiguration.
+16-bit FCS and supports initial ERTM configuration continuation and a bounded
+live MTU reconfiguration subset. See the integration document for its limits.
 For non-flushable ACL-U, sender timer minima are 2 seconds and 12 seconds;
 requests carry zero timers. Peer MaxTransmit constrains local attempts, with
 zero meaning infinite for ERTM. Information-payload MPS excludes the START SDU

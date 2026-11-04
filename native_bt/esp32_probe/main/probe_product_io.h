@@ -12,7 +12,27 @@ typedef struct {
   bool (*peer_valid)(void *, const dbt_ble_control_peer_t *);
   void (*wake_owner)(void *); /* nonblocking, input task -> owner */
   bool led, input, sound;
+  /* Default false: only two clean no-ACK probes may be optional. */
+  bool input_optional;
 } probe_product_io_hooks_t;
+
+typedef enum {
+  PROBE_PRODUCT_INPUT_NOT_REQUESTED,
+  PROBE_PRODUCT_INPUT_NOT_ATTEMPTED,
+  PROBE_PRODUCT_INPUT_AVAILABLE,
+  PROBE_PRODUCT_INPUT_NO_ACK,
+  PROBE_PRODUCT_INPUT_FAILED,
+  PROBE_PRODUCT_INPUT_CLEANUP_FAILED,
+  PROBE_PRODUCT_INPUT_STOPPED
+} probe_product_input_status_t;
+typedef struct {
+  bool ready,led,sound;
+  probe_product_input_status_t input;
+} probe_product_io_capabilities_t;
+/* One atomic snapshot, including after failed startup. NO_ACK means both
+ * identity-register writes NACKed and both drivers were released; it is not
+ * proof of physical absence, wiring, or device health. */
+bool probe_product_io_capabilities(probe_product_io_capabilities_t *out);
 
 /* Boot worker only; writes initial LED/sound snapshot for GATT configuration.
  * LED defaults SPI2/GPIO4/16x16, input I2C1/SDA23/SCL22/addresses 0x36/0x07 and
@@ -50,6 +70,13 @@ dbt_result_t probe_product_io_local_led_relative(dbt_led_operation_t operation,
 bool probe_product_io_take_local_led(dbt_led_receipt_t *receipt);
 /* Owner only, nonblocking; queue acceptance is not playback completion. */
 dbt_result_t probe_product_io_play(uint8_t type, uint32_t rate, bool exclusive);
+/* Cancel pending and playing UI sounds without freeing an output loan; the
+ * worker performs the normal stop/retirement handshake. Owner only. */
+void probe_product_io_cancel_sound(void);
+/* Atomic nonblocking feedback publication. No settings persistence. */
+void probe_product_io_pairing_mode(bool active);
+void probe_product_io_pairing_success(void);
+void probe_product_io_volume_feedback(uint8_t volume);
 /* FIFO result for each accepted play request; OK means attached/prefilled,
  * not proof that the full sound was rendered or heard. */
 typedef struct {

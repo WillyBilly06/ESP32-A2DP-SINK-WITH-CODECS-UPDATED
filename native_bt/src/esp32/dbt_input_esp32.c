@@ -3,6 +3,10 @@
 #include "esp_rom_sys.h"
 #include "esp_timer.h"
 #include <string.h>
+/* Reserve before touching the driver. A failed delete deliberately retains
+ * this reservation, even if the driver state is ambiguous. */
+static atomic_uint owned_ports;
+static atomic_uintptr_t port_owner[I2C_NUM_MAX];
 static bool readreg(dbt_input_esp32_t *p, uint8_t module, uint8_t reg,
                     uint8_t *b, size_t n, unsigned delay) {
   uint8_t prefix[2] = {module, reg};
@@ -67,15 +71,17 @@ static uint32_t be32(const uint8_t b[4]) {
   return ((uint32_t)b[0] << 24) | ((uint32_t)b[1] << 16) |
          ((uint32_t)b[2] << 8) | b[3];
 }
-bool dbt_input_esp32_start(dbt_input_esp32_t *p, i2c_port_t port, int sda,
-                           int scl, uint8_t address, int b1, int b2,
-                           int effect) {
+dbt_input_start_result_t dbt_input_esp32_start_checked(dbt_input_esp32_t *p, i2c_port_t port, int sda,
+                           int scl, uint8_t address, int b1, int b2, int effect) {
   if (!p || address > 0x7f || sda < 0 || scl < 0 || b1 < 0 || b2 < 0 ||
       effect < 0 || b1 >= 64 || b2 >= 64 || effect >= 64 || b1 == b2 ||
       b1 == effect || b2 == effect || sda == scl || b1 == sda || b1 == scl ||
       b2 == sda || b2 == scl || effect == sda || effect == scl || port < 0 ||
-      port >= I2C_NUM_MAX)
-    return false;
+      port >= I2C_NUM_MAX || (unsigned)port>=sizeof(unsigned)*8u)
+    return DBT_INPUT_START_FAILED;
+  unsigned mask_port=1u<<(unsigned)port;
+  if(atomic_fetch_or_explicit(&owned_ports,mask_port,memory_order_acq_rel)&mask_port)
+    return DBT_INPUT_START_FAILED;
   memset(p, 0, sizeof(*p));
   atomic_init(&p->read_errors, 0);
   atomic_init(&p->deferred_samples, 0);
@@ -95,21 +101,29 @@ bool dbt_input_esp32_start(dbt_input_esp32_t *p, i2c_port_t port, int sda,
   conf.scl_pullup_en = GPIO_PULLUP_ENABLE;
   conf.master.clk_speed = 400000;
   if (i2c_param_config(port, &conf) != ESP_OK ||
-      i2c_driver_install(port, I2C_MODE_MASTER, 0, 0, 0) != ESP_OK)
-    return false;
+      i2c_driver_install(port, I2C_MODE_MASTER, 0, 0, 0) != ESP_OK) {
+    atomic_fetch_and_explicit(&owned_ports,~mask_port,memory_order_release);
+    return DBT_INPUT_START_FAILED;
+  }
+  atomic_store_explicit(&port_owner[port],(uintptr_t)p,memory_order_release);
   p->installed = true;
   uint8_t hardware_id, version[4];
-  if (!readreg(p, 0, 1, &hardware_id, 1, 250) ||
+  uint8_t first_read[2]={0,1};
+  int first=i2c_master_write_to_device(p->port,p->address,first_read,2,pdMS_TO_TICKS(25));
+  if(first!=ESP_OK) {
+    if(!dbt_input_esp32_stop_checked(p))return DBT_INPUT_START_CLEANUP_FAILED;
+    return first==ESP_FAIL?DBT_INPUT_START_NO_ACK:DBT_INPUT_START_FAILED;
+  }
+  esp_rom_delay_us(250);
+  if (i2c_master_read_from_device(p->port,p->address,&hardware_id,1,pdMS_TO_TICKS(25))!=ESP_OK ||
       (hardware_id != 0x55 && (hardware_id < 0x84 || hardware_id > 0x89)) ||
       !readreg(p, 0, 2, version, 4, 250) || ((be32(version) >> 16) != 5752u)) {
-    dbt_input_esp32_stop(p);
-    return false;
+    return dbt_input_esp32_stop_checked(p)?DBT_INPUT_START_FAILED:DBT_INPUT_START_CLEANUP_FAILED;
   }
   uint32_t mask = (1u << 12) | (1u << 14) | (1u << 17) | (1u << 9);
   if (!gpio_mode(p, 3, mask) || !gpio_mode(p, 11, mask) ||
       !gpio_mode(p, 5, mask)) {
-    dbt_input_esp32_stop(p);
-    return false;
+    return dbt_input_esp32_stop_checked(p)?DBT_INPUT_START_FAILED:DBT_INPUT_START_CLEANUP_FAILED;
   }
   gpio_config_t io = {0};
   io.mode = GPIO_MODE_INPUT;
@@ -117,14 +131,16 @@ bool dbt_input_esp32_start(dbt_input_esp32_t *p, i2c_port_t port, int sda,
   io.pin_bit_mask =
       (UINT64_C(1) << b1) | (UINT64_C(1) << b2) | (UINT64_C(1) << effect);
   if (!pixels_init(p)) {
-    dbt_input_esp32_stop(p);
-    return false;
+    return dbt_input_esp32_stop_checked(p)?DBT_INPUT_START_FAILED:DBT_INPUT_START_CLEANUP_FAILED;
   }
   if (gpio_config(&io) != ESP_OK) {
-    dbt_input_esp32_stop(p);
-    return false;
+    return dbt_input_esp32_stop_checked(p)?DBT_INPUT_START_FAILED:DBT_INPUT_START_CLEANUP_FAILED;
   }
-  return true;
+  return DBT_INPUT_START_READY;
+}
+bool dbt_input_esp32_start(dbt_input_esp32_t *p,i2c_port_t port,int sda,int scl,
+                           uint8_t address,int b1,int b2,int effect) {
+  return dbt_input_esp32_start_checked(p,port,sda,scl,address,b1,b2,effect)==DBT_INPUT_START_READY;
 }
 static bool feed_sample(dbt_input_esp32_t *p, const dbt_input_sample_t *s,
                         bool fresh) {
@@ -186,8 +202,15 @@ bool dbt_input_esp32_poll(dbt_input_esp32_t *p) {
   return feed_sample(p, &s, true);
 }
 void dbt_input_esp32_stop(dbt_input_esp32_t *p) {
-  if (p && p->installed) {
-    i2c_driver_delete(p->port);
-    p->installed = false;
-  }
+  (void)dbt_input_esp32_stop_checked(p);
+}
+bool dbt_input_esp32_stop_checked(dbt_input_esp32_t *p) {
+  if(!p)return false;
+  if(!p->installed)return true;
+  if(p->port<0 || p->port>=I2C_NUM_MAX ||
+     atomic_load_explicit(&port_owner[p->port],memory_order_acquire)!=(uintptr_t)p)return false;
+  if(i2c_driver_delete(p->port)!=ESP_OK)return false;
+  atomic_store_explicit(&port_owner[p->port],(uintptr_t)NULL,memory_order_release);
+  atomic_fetch_and_explicit(&owned_ports,~(1u<<(unsigned)p->port),memory_order_release);
+  p->installed=false;return true;
 }

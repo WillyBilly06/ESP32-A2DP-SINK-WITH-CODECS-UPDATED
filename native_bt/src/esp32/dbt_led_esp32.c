@@ -262,6 +262,12 @@ static bool show(void *ctx, const uint8_t *grb, size_t bytes) {
   t.tx_buffer = p->dma;
   return spi_device_transmit(p->spi, &t) == ESP_OK;
 }
+static void *effect_allocate(void *ctx,size_t n) {
+  (void)ctx;return heap_caps_malloc(n,MALLOC_CAP_8BIT);
+}
+static void effect_release(void *ctx,void *memory) {
+  (void)ctx;heap_caps_free(memory);
+}
 static void worker(void *arg) {
   dbt_led_esp32_t *p = arg;
   uint64_t next = 0;
@@ -269,7 +275,7 @@ static void worker(void *arg) {
     (void)dbt_led_work(&p->led);
     uint64_t now = (uint64_t)esp_timer_get_time() / 1000u;
     if (now >= next) {
-      (void)dbt_led_render(&p->led);
+      (void)dbt_led_render_at(&p->led,(uint32_t)now);
       next = now + 33u;
     }
     /* timeout also retries display failures without blocking the host */
@@ -279,6 +285,7 @@ static void worker(void *arg) {
   vTaskSuspend(NULL);
 }
 static void release(dbt_led_esp32_t *p) {
+  dbt_led_deinit(&p->led);
   if (p->spi) {
     spi_bus_remove_device(p->spi);
     p->spi = NULL;
@@ -350,6 +357,9 @@ bool dbt_led_esp32_start(dbt_led_esp32_t *p, spi_host_device_t host, int gpio,
                     present == 1 ? saved : NULL)) {
     release(p);
     return false;
+  }
+  if(!dbt_led_set_allocator(&p->led,effect_allocate,effect_release,NULL)) {
+    release(p);return false;
   }
   if (xTaskCreate(worker, "dbt_led", 3072, p, 2, &p->task) != pdPASS) {
     release(p);

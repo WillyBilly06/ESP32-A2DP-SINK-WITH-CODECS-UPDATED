@@ -1,13 +1,13 @@
 {
   "updated": "2026-11-03",
   "scope": "source-matched local build and offline tests; independent host/product remains incomplete and not hardware-qualified",
-  "image_sha256": "007bc54d7cb3e74dde159b780fd1e9611ee2ffef2e3389de447f2c31150661d7",
-  "image_bytes": 1127856,
+  "image_sha256": "305c2004db62d3d658a5982c11db6b9a54c0bcdde8fcf098f10521181d6f2654",
+  "image_bytes": 1138528,
   "esp32_image_validation": {
     "passed": true,
     "scope": "offline image checksum/digest, ESP32 revision and admitted OTA capacity; no device access or runtime qualification",
-    "image_sha256": "007bc54d7cb3e74dde159b780fd1e9611ee2ffef2e3389de447f2c31150661d7",
-    "image_bytes": 1127856,
+    "image_sha256": "305c2004db62d3d658a5982c11db6b9a54c0bcdde8fcf098f10521181d6f2654",
+    "image_bytes": 1138528,
     "project": "native_bt_probe",
     "chip_id": 0,
     "revision_range": [
@@ -18,13 +18,13 @@
     "digest_verified": true,
     "latest_local_build_completed": true,
     "build_sources_match": true,
-    "build_source_units": 1306,
+    "build_source_units": 1307,
     "product_io": true,
     "controller_only_dual_mode": true,
     "anti_rollback_fuse_updates": false,
     "partition_offset": 3735552,
     "partition_bytes": 2621440,
-    "partition_remaining_bytes": 1493584,
+    "partition_remaining_bytes": 1482912,
     "compiled_table_matches_preserved_layout": true,
     "compiled_table_sha256": "6a5932b101f5a4cf7a011c63cd6e5b75dae885e204584d4a7d62de3e5ecf0151",
     "flash_mode": "DIO",
@@ -42,9 +42,9 @@
     "build_exit": 0,
     "source_check_exit": 0,
     "workspace_check_exit": 0,
-    "source_manifest_sha256": "d8b219b2ccdf255abd7fa9ee69bd73abfc5c06c7491f98c97ff56151fc9f3874",
-    "image_sha256": "007bc54d7cb3e74dde159b780fd1e9611ee2ffef2e3389de447f2c31150661d7",
-    "config_sha256": "adb6c21c01a2260bf97c29b846966e79984cabb5431b8d84e4999493c65f1f99",
+    "source_manifest_sha256": "959b5d13aaff8df6c0cafa1042cb24d21a9ddb0427daef6baf5bf9c522ded5ce",
+    "image_sha256": "305c2004db62d3d658a5982c11db6b9a54c0bcdde8fcf098f10521181d6f2654",
+    "config_sha256": "d994818e3ab8811b5f18c21c9a32e0dae7b85d51e95c9d55324225bf79af94c3",
     "partition_sha256": "6a5932b101f5a4cf7a011c63cd6e5b75dae885e204584d4a7d62de3e5ecf0151"
   },
   "host_groups": 168,
@@ -60,20 +60,20 @@
   "this_candidate_rf_tested": false,
   "current_static_link_size": {
     "dram_data": 21424,
-    "dram_bss": 29160,
+    "dram_bss": 29336,
     "dram_rodata": 0,
     "dram_other": 0,
-    "used_dram": 50584,
+    "used_dram": 50760,
     "dram_total": 124580,
-    "used_dram_ratio": 0.4060362819072082,
-    "dram_remain": 73996,
+    "used_dram_ratio": 0.4074490287365548,
+    "dram_remain": 73820,
     "iram_vectors": 1028,
-    "iram_text": 129215,
+    "iram_text": 122151,
     "iram_other": 0,
-    "used_iram": 130243,
+    "used_iram": 123179,
     "iram_total": 131072,
-    "used_iram_ratio": 0.9936752319335938,
-    "iram_remain": 829,
+    "used_iram_ratio": 0.9397811889648438,
+    "iram_remain": 7893,
     "diram_data": 0,
     "diram_bss": 0,
     "diram_text": 0,
@@ -84,14 +84,14 @@
     "used_diram": 0,
     "used_diram_ratio": 0,
     "diram_remain": 0,
-    "flash_code": 623612,
-    "flash_rodata": 352172,
+    "flash_code": 640968,
+    "flash_rodata": 352556,
     "flash_other": 256,
-    "used_flash_non_ram": 976040,
-    "total_size": 1127707
+    "used_flash_non_ram": 993780,
+    "total_size": 1138383
   },
   "static_size_is_not_free_runtime_heap": true,
-  "build_source_inputs": 1306,
+  "build_source_inputs": 1307,
   "source_content_stable_across_final_build": true,
   "current_local_tests": [
     "test_host.py:168 groups plus20000-packet SPSC/16384-frame audio-owner workloads",
@@ -99,22 +99,32 @@
     "test_probe_smp.py:committed identity/RPA/bond tag and reconnect/NVS shims",
     "test_product.py:owner pairing, product OTA/name/IO glue and main object compile",
     "test_partition_policy.py:preserved layout/slot limits/SDK guard, no hardware",
-    "test_build_receipt.py:five stale/tampered input-manifest rejection cases"
+    "test_build_receipt.py:five stale/tampered input-manifest rejection cases",
+    "test_led.py and focused LED platform: overlays, effect state and allocation failure",
+    "test_product_io.py and test_input_platform.py: sound epochs and optional clean-NACK input/cleanup",
+    "test_probe_sound_output.py: actual output and sound manager with mocked I2S and target objects",
+    "tests/product/owner_fault_lifetime.py: persistent production fault park and startup exits",
+    "test_ertm_features.py: live MTU reconfiguration including pinned in-flight data",
+    "check_iram_placement.py: protected ISR placement and limited direct-call scan"
   ],
   "implemented_target_linked_additions": [
     "initial ERTM configuration continuation",
     "bonded GATT CCCD store/restore via worker and committed identity/key-material digest",
     "generation-bound physical pairing gesture for active A2DP link",
     "name/OTA provider and product LED/input/sound adapters",
-    "full preserved partition metadata and source-bound artifact validation"
+    "full preserved partition metadata and source-bound artifact validation",
+    "startup/A2DP/pair/max-volume sound and LED feedback with epoch cancellation",
+    "owner task retained on startup failures",
+    "optional input only after two clean NACKs and checked driver deletion",
+    "live ERTM unchanged/increased MTU reconfiguration",
+    "SDK-selected non-ISR FreeRTOS functions in flash"
   ],
   "remaining_product_limits": [
-    "new-peer pairing policy remains restricted; sound/animation and full UI parity incomplete",
-    "OTA grant/activation owner APIs exist but genuine user authorization UI is not wired",
-    "LED renderers approximate baseline effects; full visual parity incomplete",
-    "automatic startup/connect/disconnect/max-volume sound triggers incomplete",
+    "new-peer pairing policy remains restricted; genuine OTA user authorization UI incomplete",
+    "LED renderer remains an integer approximation; full visual/beat parity incomplete",
     "historical orphan CCCD blobs need future owned unbond maintenance",
-    "full protocol/profile coverage and equivalent-feature RAM/CPU/latency/continuous Classic-BLE qualification incomplete"
+    "missing protocol/profile coverage and equivalent-feature runtime RAM/CPU/latency/continuous Classic-BLE qualification",
+    "interrupt audit does not prove indirect/vendor paths or actual cache-stall audio behavior"
   ],
   "last_device_qualification": {
     "image_sha256": "06ea0f6e4a2859d64108caa235f505b70b64e152fcabbddc6ebe2ab554774085",
@@ -138,5 +148,229 @@
     "clock_asan_ubsan": true,
     "ble_control_asan_ubsan": true
   },
-  "feature_matrix": "FEATURE_MATRIX.md"
+  "feature_matrix": "FEATURE_MATRIX.md",
+  "iram_placement_comparison": {
+    "passed": true,
+    "scope": "same-source/equal-feature static link comparison of SDK-selected non-ISR placement; no runtime heap/CPU/timing claim",
+    "changed_inputs": [
+      "native_bt/_build/esp32/config/sdkconfig.h",
+      "native_bt/esp32_probe/sdkconfig",
+      "native_bt/esp32_probe/sdkconfig.defaults"
+    ],
+    "same_owned_and_sdk_c_sources": true,
+    "same_enabled_features": true,
+    "before_image_sha256": "9a55729059f1cfe1fa35612036da85052366dca43e03f970cb421fb4be1623cd",
+    "after_image_sha256": "305c2004db62d3d658a5982c11db6b9a54c0bcdde8fcf098f10521181d6f2654",
+    "before": {
+      "dram_data": 21424,
+      "dram_bss": 29336,
+      "dram_rodata": 0,
+      "dram_other": 0,
+      "used_dram": 50760,
+      "dram_total": 124580,
+      "used_dram_ratio": 0.4074490287365548,
+      "dram_remain": 73820,
+      "iram_vectors": 1028,
+      "iram_text": 129215,
+      "iram_other": 0,
+      "used_iram": 130243,
+      "iram_total": 131072,
+      "used_iram_ratio": 0.9936752319335938,
+      "iram_remain": 829,
+      "diram_data": 0,
+      "diram_bss": 0,
+      "diram_text": 0,
+      "diram_vectors": 0,
+      "diram_rodata": 0,
+      "diram_other": 0,
+      "diram_total": 0,
+      "used_diram": 0,
+      "used_diram_ratio": 0,
+      "diram_remain": 0,
+      "flash_code": 632936,
+      "flash_rodata": 352556,
+      "flash_other": 256,
+      "used_flash_non_ram": 985748,
+      "total_size": 1137415
+    },
+    "after": {
+      "dram_data": 21424,
+      "dram_bss": 29336,
+      "dram_rodata": 0,
+      "dram_other": 0,
+      "used_dram": 50760,
+      "dram_total": 124580,
+      "used_dram_ratio": 0.4074490287365548,
+      "dram_remain": 73820,
+      "iram_vectors": 1028,
+      "iram_text": 122151,
+      "iram_other": 0,
+      "used_iram": 123179,
+      "iram_total": 131072,
+      "used_iram_ratio": 0.9397811889648438,
+      "iram_remain": 7893,
+      "diram_data": 0,
+      "diram_bss": 0,
+      "diram_text": 0,
+      "diram_vectors": 0,
+      "diram_rodata": 0,
+      "diram_other": 0,
+      "diram_total": 0,
+      "used_diram": 0,
+      "used_diram_ratio": 0,
+      "diram_remain": 0,
+      "flash_code": 640968,
+      "flash_rodata": 352556,
+      "flash_other": 256,
+      "used_flash_non_ram": 993780,
+      "total_size": 1138383
+    },
+    "iram_bytes_saved": 7064,
+    "dram_bytes_saved": 0,
+    "protected_isr_option_disabled": true,
+    "i2s_iram_safety_enabled": true,
+    "hardware_accessed": false
+  },
+  "iram_callback_audit": {
+    "passed": true,
+    "scope": "offline protected-symbol placement and direct-call scan of I2S/owned audio callback functions; SDK calls are terminal nodes; vendor internals, indirect calls, ROM internals, real cache stalls and timing unproven",
+    "elf_sha256": "9e5231bbe69abfe23742e8d87e1e75b9fcc7b0323e221884fbb7213ffc004b0e",
+    "task_functions_in_flash": true,
+    "protected_symbols": [
+      {
+        "name": "vTaskGenericNotifyGiveFromISR",
+        "address": 1074367740,
+        "size": 383
+      },
+      {
+        "name": "xQueueGenericSendFromISR",
+        "address": 1074365112,
+        "size": 169
+      },
+      {
+        "name": "xQueueGiveFromISR",
+        "address": 1074365284,
+        "size": 145
+      },
+      {
+        "name": "xQueueReceiveFromISR",
+        "address": 1074365432,
+        "size": 114
+      },
+      {
+        "name": "vTaskSwitchContext",
+        "address": 1074366696,
+        "size": 548
+      },
+      {
+        "name": "xTaskIncrementTick",
+        "address": 1074366060,
+        "size": 636
+      }
+    ],
+    "task_only_symbols": [
+      {
+        "name": "xQueueReceive",
+        "address": 1075221780,
+        "size": 223
+      },
+      {
+        "name": "xTaskCreatePinnedToCore",
+        "address": 1075225436,
+        "size": 130
+      },
+      {
+        "name": "xTaskGenericNotify",
+        "address": 1075225752,
+        "size": 402
+      }
+    ],
+    "i2s_roots": [
+      {
+        "name": "sent",
+        "address": 1074277400,
+        "size": 821
+      },
+      {
+        "name": "i2s_dma_tx_callback",
+        "address": 1074299304,
+        "size": 180
+      }
+    ],
+    "direct_functions_walked": 4,
+    "direct_edges": [
+      {
+        "caller": "i2s_dma_tx_callback",
+        "target": "0x4009846c",
+        "callee": "xQueueIsQueueFullFromISR"
+      },
+      {
+        "caller": "i2s_dma_tx_callback",
+        "target": "0x400983f8",
+        "callee": "xQueueReceiveFromISR"
+      },
+      {
+        "caller": "i2s_dma_tx_callback",
+        "target": "0x400982b8",
+        "callee": "xQueueGenericSendFromISR"
+      },
+      {
+        "caller": "i2s_dma_tx_callback",
+        "target": "0x40097c24",
+        "callee": null
+      },
+      {
+        "caller": "sent",
+        "target": "0x4009556c",
+        "callee": "dbt_audio_take"
+      },
+      {
+        "caller": "sent",
+        "target": "0x40098cfc",
+        "callee": "vTaskGenericNotifyGiveFromISR"
+      },
+      {
+        "caller": "sent",
+        "target": "0x40095618",
+        "callee": "dbt_audio_fade"
+      }
+    ],
+    "unresolved_indirect_calls": [
+      {
+        "caller": "i2s_dma_tx_callback",
+        "address": "0x400881e5",
+        "instruction": "callx8\ta8"
+      },
+      {
+        "caller": "i2s_dma_tx_callback",
+        "address": "0x400881f6",
+        "instruction": "callx8\ta8"
+      },
+      {
+        "caller": "i2s_dma_tx_callback",
+        "address": "0x4008821e",
+        "instruction": "callx8\ta8"
+      },
+      {
+        "caller": "i2s_dma_tx_callback",
+        "address": "0x40088232",
+        "instruction": "callx8\ta8"
+      }
+    ],
+    "unsafe_direct_calls": [],
+    "hardware_accessed": false
+  },
+  "input_optional_policy": {
+    "enabled_in_product": true,
+    "strict_default_api": true,
+    "only_two_clean_probe_nacks_with_successful_driver_cleanup_may_continue": true,
+    "nack_is_not_physical_absence_proof": true,
+    "failed_cleanup_retains_driver_ownership": true
+  },
+  "startup_fault_lifetime": {
+    "owner_parked_instead_of_deleted": true,
+    "automatic_reboot": false,
+    "retained_workers_and_loans": "bounded/persistent; actual quiescence may occur later",
+    "post_enable_fault_does_not_claim_controller_disabled": true
+  }
 }

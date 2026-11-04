@@ -10,6 +10,7 @@ typedef int i2c_port_t;
 #ifndef ESP_OK
 #define ESP_OK 0
 #endif
+#define ESP_FAIL -1
 typedef struct {int mode,sda_io_num,scl_io_num,sda_pullup_en,scl_pullup_en;struct {int clk_speed;} master;} i2c_config_t;
 int i2c_param_config(i2c_port_t,const i2c_config_t*);int i2c_driver_install(i2c_port_t,int,int,int,int);int i2c_driver_delete(i2c_port_t);
 int i2c_master_write_to_device(i2c_port_t,uint8_t,const uint8_t*,size_t,unsigned);

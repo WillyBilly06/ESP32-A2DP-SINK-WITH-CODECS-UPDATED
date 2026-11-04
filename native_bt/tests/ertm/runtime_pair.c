@@ -13,7 +13,7 @@ typedef struct {
     bool split_request,split_response,response_wait;
     uint8_t response_rfc[11];uint16_t response_cid;uint32_t resume_at;
     uint16_t wire_size,cid,received_size,fixed_size,basic_size;
-    unsigned sends,errors,allocated,released,opens,done,fixed_done;
+    unsigned sends,errors,allocated,released,opens,done,fixed_done,reconfigured;
     dbt_tx_outcome_t outcome;
     const uint8_t *borrowed;
 } peer_t;
@@ -43,6 +43,7 @@ static void release(void *p,uint8_t *b){
 }
 static void channel_event(void *p,dbt_channel_event_t event,const dbt_channel_t *c,dbt_channel_reason_t reason,uint16_t result){
     peer_t *v=p;(void)reason;(void)result;if(event==DBT_CH_EVENT_OPEN && c->psm==0x1b){v->cid=c->local_cid;++v->opens;}
+    if(event==DBT_CH_EVENT_RECONFIGURED && c->psm==0x1b)++v->reconfigured;
 }
 static void data(void *p,const dbt_channel_t *c,const uint8_t *b,uint16_t n){
     peer_t *v=p;if(c->psm==0x19){if(n>sizeof(v->basic)){++v->errors;return;}copy(v->basic,b,n);v->basic_size=n;return;}
@@ -171,6 +172,84 @@ static int rejected_continuation(unsigned mode){
     CHECK(!dbt_channels_find(&peers[0].runtime.channels,1,cid));
     return shutdown();
 }
+static int reject_live_request(void){
+    int r=setup();if(r)return r;
+    dbt_channels_t *m=&peers[1].runtime.channels;
+    const dbt_link_t *link=dbt_acl_find(m->acl,1);CHECK(link);
+    uint8_t req[]={4,0xe0,8,0,0,0,0,0,1,2,0xff,0};put16(req+4,peers[1].cid);
+    CHECK(dbt_channels_receive(m,1,link->generation,1,req,sizeof(req))==DBT_OK);
+    (void)dbt_channels_poll(m,++now,8);dbt_signal_view_t view;
+    CHECK(dbt_channels_tx_peek(m,&view)==DBT_OK && view.size==10 && view.data[0]==5 && view.data[1]==0xe0 && dbt_read_le16(view.data+8)==2);
+    CHECK(dbt_channels_tx_commit(m,now)==DBT_OK);
+    const dbt_channel_t *c=dbt_channels_find(m,1,peers[1].cid);
+    CHECK(c && c->state==DBT_CH_OPEN && !c->reconfiguring && c->tx_mtu==256);
+    uint8_t rfc[]={4,0xe1,15,0,0,0,0,0,4,9,3,5,3,0,0,0,0,64,0};put16(rfc+4,peers[1].cid);
+    CHECK(dbt_channels_receive(m,1,link->generation,1,rfc,sizeof(rfc))==DBT_OK);
+    (void)dbt_channels_poll(m,++now,8);
+    CHECK(dbt_channels_tx_peek(m,&view)==DBT_OK && view.data[0]==5 && view.data[1]==0xe1 && dbt_read_le16(view.data+8)==2);
+    CHECK(dbt_channels_tx_commit(m,now)==DBT_OK);
+    c=dbt_channels_find(m,1,peers[1].cid);CHECK(c && c->state==DBT_CH_OPEN && !c->reconfiguring && c->tx_mtu==256);
+    uint8_t unknown[]={4,0xe2,7,0,0,0,0,0,0x33,1,0xaa};put16(unknown+4,peers[1].cid);
+    CHECK(dbt_channels_receive(m,1,link->generation,1,unknown,sizeof(unknown))==DBT_OK);
+    (void)dbt_channels_poll(m,++now,8);
+    CHECK(dbt_channels_tx_peek(m,&view)==DBT_OK && view.size==13 && view.data[1]==0xe2 && dbt_read_le16(view.data+8)==3 && view.data[10]==0x33 && view.data[12]==0xaa);
+    CHECK(dbt_channels_tx_commit(m,now)==DBT_OK);
+    c=dbt_channels_find(m,1,peers[1].cid);CHECK(c && c->state==DBT_CH_OPEN && !c->reconfiguring);
+    return shutdown();
+}
+static int reconfigure_timeout_and_stale(void){
+    int r=setup();if(r)return r;dbt_channels_t *m=&peers[0].runtime.channels;
+    const dbt_link_t *link=dbt_acl_find(m->acl,1);CHECK(link);uint32_t generation=link->generation;
+    peers[0].stall=true;
+    CHECK(dbt_channels_ertm_reconfigure(m,1,peers[0].cid,400,now)==DBT_OK);
+    for(unsigned i=0;i<8;++i)step();now+=1001;step();
+    const dbt_channel_t *c=dbt_channels_find(m,1,peers[0].cid);
+    CHECK(c && c->state==DBT_CH_DISCONNECTING && !peers[0].reconfigured);
+    uint8_t removed[]={0,1,0,0x13};CHECK(event(&peers[0],5,removed,sizeof(removed))==DBT_OK);
+    dbt_runtime_poll(&peers[0].runtime,++now,8,0);
+    CHECK(!dbt_channels_find(m,1,peers[0].cid));
+    uint8_t conn[11]={0};put16(conn+1,1);conn[9]=1;CHECK(event(&peers[0],3,conn,sizeof(conn))==DBT_OK);
+    dbt_runtime_poll(&peers[0].runtime,++now,8,0);link=dbt_acl_find(m->acl,1);CHECK(link && link->generation!=generation);
+    uint8_t stale[]={5,0xe1,6,0,0x40,0,0,0,0,0};
+    CHECK(dbt_channels_receive(m,1,generation,1,stale,sizeof(stale))==DBT_INVALID);
+    peers[0].stall=false;return shutdown();
+}
+static int reconfigure_cancel(void){
+    int r=setup();if(r)return r;dbt_channels_t *m=&peers[0].runtime.channels;
+    CHECK(dbt_channels_ertm_reconfigure(m,1,peers[0].cid,400,now)==DBT_OK);
+    dbt_signal_view_t view;CHECK(dbt_channels_tx_select(m,1,&view)==DBT_OK && view.data[0]==4);
+    CHECK(dbt_channels_tx_cancel(m)==DBT_OK);
+    CHECK(!dbt_channels_find(m,1,peers[0].cid) && !peers[0].reconfigured);
+    return shutdown();
+}
+static int reconfigure_pair(void){
+    int r=setup();if(r)return r;uint8_t a[170],b[300];
+    for(unsigned i=0;i<sizeof(a);++i)a[i]=(uint8_t)i;
+    for(unsigned i=0;i<sizeof(b);++i)b[i]=(uint8_t)(255u-i);
+    CHECK(dbt_channels_ertm_reconfigure(&peers[0].runtime.channels,1,peers[0].cid,255,now)==DBT_INVALID);
+    CHECK(dbt_runtime_send(&peers[0].runtime,1,peers[0].cid,a,sizeof(a),done,&peers[0])==DBT_OK);
+    CHECK(dbt_channels_ertm_reconfigure(&peers[0].runtime.channels,1,peers[0].cid,400,now)==DBT_BUSY);
+    dbt_runtime_poll(&peers[0].runtime,++now,8,1);
+    CHECK(!peers[0].ready && peers[0].runtime.ertm_tx[0].active);
+    CHECK(dbt_channels_ertm_reconfigure(&peers[1].runtime.channels,1,peers[1].cid,400,now)==DBT_OK);
+    transfer(&peers[0],&peers[1]);
+    for(unsigned i=0;i<250 && (!peers[0].reconfigured || !peers[1].reconfigured);++i)step();
+    CHECK(peers[0].done==1 && peers[0].outcome==DBT_TX_ADMITTED && peers[1].received_size==sizeof(a));
+    CHECK(peers[0].reconfigured==1 && peers[1].reconfigured==1);
+    peers[0].done=0;peers[1].received_size=0;
+    CHECK(dbt_runtime_send(&peers[0].runtime,1,peers[0].cid,b,sizeof(b),done,&peers[0])==DBT_OK);
+    for(unsigned i=0;i<200 && !peers[0].done;++i)step();
+    CHECK(peers[0].done==1 && peers[1].received_size==sizeof(b));
+    for(unsigned i=0;i<sizeof(b);++i)CHECK(peers[1].received[i]==b[i]);
+    peers[0].fail_next=true;peers[1].fail_next=true; /* no reconfiguration allocation */
+    CHECK(dbt_channels_ertm_reconfigure(&peers[0].runtime.channels,1,peers[0].cid,384,now)==DBT_OK);
+    CHECK(dbt_channels_ertm_reconfigure(&peers[1].runtime.channels,1,peers[1].cid,450,now)==DBT_OK);
+    for(unsigned i=0;i<250 && (peers[0].reconfigured<2 || peers[1].reconfigured<2);++i)step();
+    CHECK(peers[0].reconfigured==2 && peers[1].reconfigured==2 && peers[0].fail_next && peers[1].fail_next);
+    CHECK(dbt_channels_find(&peers[0].runtime.channels,1,peers[0].cid)->rx_mtu==384);
+    CHECK(dbt_channels_find(&peers[1].runtime.channels,1,peers[1].cid)->rx_mtu==450);
+    return shutdown();
+}
 EXPORT int ertm_runtime_pair(void){
     int r=setup();if(r)return r;uint16_t cid=peers[0].cid;
     uint8_t payload[170];for(unsigned i=0;i<sizeof(payload);++i)payload[i]=(uint8_t)i;
@@ -186,7 +265,7 @@ EXPORT int ertm_runtime_pair(void){
     CHECK(peers[0].done==1 && peers[0].outcome==DBT_TX_ADMITTED && peers[1].received_size==sizeof(payload));
     for(unsigned i=0;i<sizeof(payload);++i)CHECK(peers[1].received[i]==payload[i]);
     r=shutdown();if(r)return r;r=rejected_continuation(1);if(r)return r;
-    r=rejected_continuation(2);if(r)return r;return rejected_continuation(3);
+    r=rejected_continuation(2);if(r)return r;r=rejected_continuation(3);if(r)return r;r=reconfigure_pair();if(r)return r;r=reject_live_request();if(r)return r;r=reconfigure_timeout_and_stale();if(r)return r;return reconfigure_cancel();
 }
 EXPORT int ertm_runtime_ack_loan_and_recovery(void){
     int r=setup();if(r)return r;uint8_t payload[10]={1,2,3,4,5,6,7,8,9,10};

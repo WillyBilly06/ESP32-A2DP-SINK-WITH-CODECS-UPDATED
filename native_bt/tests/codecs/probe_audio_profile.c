@@ -12,6 +12,11 @@
 #define CHECK(x) do {if(!(x))return __LINE__;}while(0)
 static unsigned live_allocs,fail_alloc,owner_wakes;
 static uint32_t now;
+static unsigned product_events;static probe_audio_product_event_t last_product_event;
+static uint16_t product_handle;static uint32_t product_generation,product_rate;
+static void product_event(void *ctx,probe_audio_product_event_t e,uint16_t h,uint32_t g,uint32_t r,uint32_t t){
+    (void)ctx;(void)t;product_events++;last_product_event=e;product_handle=h;product_generation=g;product_rate=r;
+}
 const dbt_link_t *dbt_acl_find(const dbt_acl_t *acl,uint16_t handle){
     for(unsigned i=0;i<DBT_MAX_LINKS;i++)if(acl->links[i].used && acl->links[i].handle==handle)return &acl->links[i];
     return 0;
@@ -103,7 +108,11 @@ unsigned uxTaskGetStackHighWaterMark(TaskHandle_t t){(void)t;return 4096;}
 int xTaskCreatePinnedToCore(void (*f)(void *),const char *n,unsigned bytes,void *a,unsigned p,TaskHandle_t *task,int core){(void)f;(void)n;(void)bytes;(void)a;(void)p;(void)core;*task=(void *)1;return pdPASS;}
 dbt_result_t dbt_a2dp_acceptor_init(dbt_a2dp_acceptor_t *p,dbt_runtime_t *r,dbt_avdtp_sink_hooks_t h,const dbt_avdtp_endpoint_t *e,uint8_t n,uint16_t mtu,uint16_t c,uint32_t a,uint32_t b,uint32_t d){(void)h;(void)mtu;(void)c;(void)a;(void)b;(void)d;p->runtime=r;return e==endpoints&&n==sizeof(endpoints)/sizeof(endpoints[0])?DBT_OK:DBT_INVALID;}
 bool dbt_a2dp_acceptor_accept(const dbt_a2dp_acceptor_t *p,const dbt_link_t *l){(void)p;(void)l;return true;}
-dbt_result_t dbt_a2dp_acceptor_event(dbt_a2dp_acceptor_t *p,dbt_channel_event_t e,const dbt_channel_t *c){(void)p;(void)e;(void)c;return DBT_OK;}
+dbt_result_t dbt_a2dp_acceptor_event(dbt_a2dp_acceptor_t *p,dbt_channel_event_t e,const dbt_channel_t *c){
+    if(e==DBT_CH_EVENT_OPEN && !p->active){p->active=true;p->signaling=(dbt_a2dp_channel_t){.serial=c->serial,.generation=c->link_generation,.handle=c->handle};}
+    else if((e==DBT_CH_EVENT_CLOSED || e==DBT_CH_EVENT_FAILED) && p->signaling.serial==c->serial)p->signaling.serial=0;
+    return DBT_OK;
+}
 dbt_result_t dbt_a2dp_acceptor_receive(dbt_a2dp_acceptor_t *p,const dbt_channel_t *c,const uint8_t *d,uint16_t n){(void)p;(void)c;(void)d;(void)n;return DBT_OK;}
 dbt_result_t dbt_a2dp_acceptor_poll(dbt_a2dp_acceptor_t *p,uint32_t t){(void)p;(void)t;return DBT_OK;}
 uint32_t dbt_a2dp_acceptor_wait_ms(const dbt_a2dp_acceptor_t *p,uint32_t t){(void)p;(void)t;return UINT32_MAX;}
@@ -188,6 +197,18 @@ EX int probe_audio_profiles(const uint8_t *sbc,uint16_t n,const uint8_t *sbc_cie
     runtime.acl.links[0].generation=9;CHECK(probe_audio_peer(&handle,&generation)==DBT_EMPTY && !probe_audio_peer_link(12,8));
     runtime.acl.links[0].kind=DBT_LINK_LE;CHECK(!probe_audio_peer_link(12,9));
     profile.active=false;memset(&profile.signaling,0,sizeof(profile.signaling));memset(&runtime.acl,0,sizeof(runtime.acl));
+    probe_audio_product_observer(product_event,0);
+    dbt_channel_t ch={.psm=0x19,.serial=4,.handle=42,.link_generation=30};
+    probe_audio_event(DBT_CH_EVENT_OPEN,&ch);
+    CHECK(product_events==1 && last_product_event==PROBE_AUDIO_CONNECTED && product_handle==42 && product_generation==30);
+    dbt_channel_t media=ch;media.serial=5;probe_audio_event(DBT_CH_EVENT_OPEN,&media);probe_audio_event(DBT_CH_EVENT_CLOSED,&media);CHECK(product_events==1);
+    profile.sink.pending.used=true;profile.sink.pending.operation=DBT_SINK_CONFIGURE;
+    sink_event(0,DBT_SINK_STATE,DBT_STREAM_CONFIGURED);
+    CHECK(product_events==2 && last_product_event==PROBE_AUDIO_CONFIGURED && product_rate==48000);
+    profile.sink.pending.used=false;sink_event(0,DBT_SINK_STATE,DBT_STREAM_STREAMING);
+    CHECK(product_events==3 && last_product_event==PROBE_AUDIO_STREAMING);
+    probe_audio_event(DBT_CH_EVENT_CLOSED,&ch);CHECK(product_events==4 && last_product_event==PROBE_AUDIO_DISCONNECTED);
+    profile.active=false;memset(&profile.signaling,0,sizeof(profile.signaling));memset(&profile.sink,0,sizeof(profile.sink));probe_audio_product_observer(0,0);
     dbt_avdtp_sink_hooks_t hooks={&worker,allocate,release,dbt_codec_worker_submit,sink_event,dbt_codec_worker_media};
     CHECK(dbt_avdtp_sink_init(&sink,hooks,endpoints,(uint8_t)(sizeof(endpoints)/sizeof(endpoints[0])),123,672,672,64,5000,2000,5000)==DBT_OK);
 #ifdef DBT_PROBE_OPUS_BUILD

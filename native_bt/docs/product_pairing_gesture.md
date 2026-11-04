@@ -14,9 +14,40 @@ runtime link hook must forward every link change to
 before the host sends a potentially reused handle. A submitted command is never
 replayed. Other Classic and LE links and all bonds are left alone.
 
-This action does not relax the peer-restricted Classic security test policy.
-Discoverability does not authorize a new peer, demonstrate successful pairing,
-or change that policy. The baseline also plays a pairing sound and shows a
-pairing animation; equivalent feedback and broader product pairing admission
-remain separate, incomplete integration work. No live device observation is
-implied by the host-only tests or target compilation.
+After scanning is confirmed the action requests the pairing sound and LED
+animation. The animation changes to its brief connection feedback only when
+an AVDTP signaling session opens after the gesture. This is connection
+feedback, not proof of a new bond. The action does not relax the peer-restricted
+Classic security test policy; broader product pairing admission remains
+incomplete. No live device observation is implied by host-only tests or target
+compilation.
+
+Before enabling the controller, the output and persistent IO provider start;
+an unmuted, present startup sound is handled by a dedicated boot worker and its
+output loan is retired before enabling Bluetooth. A missing file, muted sounds,
+or unavailable sound provider skips optional feedback. A retained loan or
+failed output prevents controller startup. Startup attachment is reported
+separately from loan retirement and neither proves an acoustic result.
+
+An AVDTP signaling connection carries its ACL generation into the owner.
+Configuration schedules a connected sound after 400 ms unless a reconnect
+followed a disconnect in under five seconds; a started stream, low internal
+heap, or stale connection suppresses it. Volume feedback is gated by that
+profile identity, two-second connection grace and cooldown, and uses overlay
+mode. Disconnect cancels pending connected feedback; the baseline defines no
+disconnect WAV. A sound epoch cancels queued stale jobs, and active playback
+uses the normal worker stop and output-loan retirement path. Cancellation
+that races a worker already opening a sound requests stop as soon as the worker
+regains control; it cannot retroactively undo samples already submitted.
+
+Startup fault lifetime: ESP-IDF deletes its main task when `app_main` returns.
+Startup failures therefore suspend the owner indefinitely instead of returning
+or automatically rebooting. Providers, workers and any unretired output loan
+remain allocated; the bootstrap worker may continue its normal retirement if
+it can. Its owner notifications still refer to a live task. An unexpected task
+resume returns to the suspension loop. Faults before controller enable do not
+enable it; a failure at or after that call retains the actual controller state
+without claiming it was disabled. The owner does not automatically retry the
+failed startup or erase settings. The host harness covers the park loop and
+startup exit structure, not FreeRTOS scheduling, controller behavior, output
+retirement, or acoustic behavior on the target.
