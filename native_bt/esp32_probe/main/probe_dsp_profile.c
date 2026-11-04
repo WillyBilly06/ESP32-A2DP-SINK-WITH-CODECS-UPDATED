@@ -23,3 +23,4 @@ void probe_dsp_profile_reset(void){
     profile.frames=0;last=0;
 }
 void probe_dsp_profile_snapshot(probe_dsp_profile_t *out){if(out)*out=profile;}
+unsigned probe_dsp_profile_sum_enabled(void){return FDSP_PROVEN_SUM_ENABLED;}

@@ -1,4 +1,5 @@
-/* Diagnostic duplicate of this project's integer DSP, compiled at Os. */
+/* Os reference retaining the general split-product accumulation. */
+#define FIXED_DSP_FORCE_SPLIT_SUM 1
 #define fixed_dsp_init probe_dsp_os_init
 #define fixed_dsp_controls probe_dsp_os_controls
 #define fixed_dsp_process probe_dsp_os_process

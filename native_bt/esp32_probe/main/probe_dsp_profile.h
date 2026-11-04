@@ -6,4 +6,5 @@ typedef struct {uint32_t cycles[5],frames;} probe_dsp_profile_t;
  * No publication to a concurrent reader and no real-time product integration. */
 void probe_dsp_profile_reset(void);
 void probe_dsp_profile_snapshot(probe_dsp_profile_t *);
+unsigned probe_dsp_profile_sum_enabled(void);
 #endif

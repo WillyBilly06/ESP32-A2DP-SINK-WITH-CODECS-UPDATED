@@ -2,6 +2,7 @@
 #define FDSP_TABLE_LP_HZ 90u
 #define FDSP_TABLE_HP_HZ 500u
 #define FDSP_RATE_COUNT 13u
+#define FDSP_COEFF_BOX_BOUND 3170260148ULL
 static const uint32_t fdsp_rates[] = {8000,11025,12000,16000,22050,24000,32000,44100,48000,88200,96000,176400,192000};
 static const int32_t fdsp_eq[][3][25][5] = {
 {

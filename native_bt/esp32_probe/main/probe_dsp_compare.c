@@ -108,7 +108,7 @@ static bool one_case(context_t *c,unsigned trial,uint32_t rate,uint8_t flags,int
                 probe_diagnostic_stats(c->elapsed[variant]+warm_blocks,BLOCKS-warm_blocks,160000,&steady);
             passed=passed && stats;
             printf("{\"probe\":\"dsp_variant_case\",\"trial\":%u,\"rate\":%u,\"flags\":%u,\"variant\":\"%s\",\"equivalent\":%s,\"frames\":5120,\"block_frames\":128,\"ramp_containing_blocks\":%u,\"ramp_mean_cycles\":%u,\"ramp_max_cycles\":%u,\"steady_blocks\":%u,\"steady_mean_cycles\":%u,\"steady_p95_cycles\":%u,\"steady_max_cycles\":%u,\"pcm_hash\":%u,\"elapsed_core_cycles\":true,\"cpu_mhz\":240}\n",
-                trial,(unsigned)rate,flags,variant?SECOND_NAME:"Os",passed?"true":"false",warm_blocks,
+                trial,(unsigned)rate,flags,variant?SECOND_NAME:"Os_split_reference",passed?"true":"false",warm_blocks,
                 (unsigned)warm.mean,(unsigned)warm.maximum,BLOCKS-warm_blocks,(unsigned)steady.mean,
                 (unsigned)steady.p95,(unsigned)steady.maximum,(unsigned)hash);
         }
@@ -121,11 +121,11 @@ static bool one_case(context_t *c,unsigned trial,uint32_t rate,uint8_t flags,int
                !probe_diagnostic_stats(c->stages[i]+warm_blocks,BLOCKS-warm_blocks,160000,&s))passed=false;
             warm_mean[i]=w.mean;steady_mean[i]=s.mean;steady_max[i]=s.maximum;
         }
-        printf("{\"probe\":\"dsp_internal_stages\",\"trial\":%u,\"rate\":%u,\"flags\":%u,\"valid\":%s,\"stages\":[\"analysis\",\"ramps_input\",\"eq_comp\",\"cross_boost\",\"mix_limit\"],\"ramp_mean_cycles\":[%u,%u,%u,%u,%u],\"steady_mean_cycles\":[%u,%u,%u,%u,%u],\"steady_max_cycles\":[%u,%u,%u,%u,%u],\"block_frames\":128,\"includes_marker_overhead\":true,\"pipeline_muted_start\":true}\n",
+        printf("{\"probe\":\"dsp_internal_stages\",\"trial\":%u,\"rate\":%u,\"flags\":%u,\"valid\":%s,\"stages\":[\"analysis\",\"ramps_input\",\"eq_comp\",\"cross_boost\",\"mix_limit\"],\"ramp_mean_cycles\":[%u,%u,%u,%u,%u],\"steady_mean_cycles\":[%u,%u,%u,%u,%u],\"steady_max_cycles\":[%u,%u,%u,%u,%u],\"block_frames\":128,\"includes_marker_overhead\":true,\"pipeline_muted_start\":true,\"proven_sum_enabled\":%u}\n",
             trial,(unsigned)rate,flags,passed?"true":"false",
             (unsigned)warm_mean[0],(unsigned)warm_mean[1],(unsigned)warm_mean[2],(unsigned)warm_mean[3],(unsigned)warm_mean[4],
             (unsigned)steady_mean[0],(unsigned)steady_mean[1],(unsigned)steady_mean[2],(unsigned)steady_mean[3],(unsigned)steady_mean[4],
-            (unsigned)steady_max[0],(unsigned)steady_max[1],(unsigned)steady_max[2],(unsigned)steady_max[3],(unsigned)steady_max[4]);
+            (unsigned)steady_max[0],(unsigned)steady_max[1],(unsigned)steady_max[2],(unsigned)steady_max[3],(unsigned)steady_max[4],probe_dsp_profile_sum_enabled());
 #endif
     }
     return passed && completed==BLOCKS;

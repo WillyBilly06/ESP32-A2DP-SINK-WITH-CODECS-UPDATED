@@ -49,7 +49,7 @@ cases=[e for e in events if e['probe']=='dsp_variant_case'];summary=[e for e in 
 assert len(cases)==36 and all(e['equivalent'] for e in cases) and summary[-1]['passed'] and summary[-1]['cases']==18
 if options.profile_stages:
     stages=[e for e in events if e['probe']=='dsp_internal_stages']
-    assert len(stages)==18 and all(e['valid'] and e['pipeline_muted_start'] for e in stages)
+    assert len(stages)==18 and all(e['valid'] and e['pipeline_muted_start'] and e['proven_sum_enabled']==1 for e in stages)
 assert all(hashlib.sha256(pathlib.Path(p).read_bytes()).hexdigest()==digest for p,digest in before.items())
-(OUT/('profile-results.json' if options.profile_stages else 'results.json')).write_text(json.dumps({'passed':True,'case_pairs':18,'variants':['Os','Os_profiled'] if options.profile_stages else ['Os','O3'],'sanitizers':['address','undefined'],'signed_overflow_wrapping':False,'scope':'host actual comparison runner, full PCM/state equality; timer/cycles/RTOS/heap are stubs, no hardware performance evidence','sources':before,'commands':commands,'hardware_accessed':False},indent=2)+'\n')
+(OUT/('profile-results.json' if options.profile_stages else 'results.json')).write_text(json.dumps({'passed':True,'case_pairs':18,'variants':['Os_split_reference','Os_profiled_proven'] if options.profile_stages else ['Os_split_reference','O3_configured'],'sanitizers':['address','undefined'],'signed_overflow_wrapping':False,'scope':'host actual comparison runner, full PCM/state equality; timer/cycles/RTOS/heap are stubs, no hardware performance evidence','sources':before,'commands':commands,'hardware_accessed':False},indent=2)+'\n')
 print('PASS 18 controlled DSP case pairs, profile='+str(options.profile_stages)+', full output/state comparison, host ASan/UBSan; no target timings')

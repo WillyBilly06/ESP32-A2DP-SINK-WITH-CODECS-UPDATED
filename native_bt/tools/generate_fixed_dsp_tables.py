@@ -65,6 +65,15 @@ def generate(low_pass, high_pass):
     lines += ["};", "static const int32_t fdsp_cross[][2][5] = {"]
     lines += ["{" + coefficients("lp", rate, low_pass) + "," + coefficients("hp", rate, high_pass) + "}," for rate in RATES]
     lines += ["};", "static const int32_t fdsp_analysis[][13] = {"]
+    # Every coefficient ramp is component-wise monotone between its current
+    # value and a generated target. A global component box therefore bounds
+    # every legal ramp, including arbitrarily interrupted/restarted ramps.
+    bounds = [Q, 0, 0, 0, 0]
+    for line in lines:
+        for match in re.finditer(r"\{(-?\d+(?:,-?\d+){4})\}", line):
+            for i, value in enumerate(map(int, match.group(1).split(','))):
+                bounds[i] = max(bounds[i], abs(value))
+    lines.insert(4, f"#define FDSP_COEFF_BOX_BOUND {sum(bounds)}ULL")
     for rate in RATES:
         decimation = max(1, (rate+5512)//11025)
         effective = rate // decimation

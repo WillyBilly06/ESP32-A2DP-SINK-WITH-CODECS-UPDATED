@@ -20,6 +20,16 @@
 #define CLIP_THRESHOLD 114085069
 #define CLIP_RANGE (AUDIO_ONE - CLIP_THRESHOLD)
 
+/* abs(sample)<=2^31. This generated component box bounds every legal target
+ * and monotone coefficient ramp. With the prior <2^28 fraction, every partial
+ * five-product sum then fits int64. Unproven/custom tables keep the general
+ * split path; the diagnostic reference can force it for exact comparisons. */
+#if defined(FDSP_COEFF_BOX_BOUND) && FDSP_COEFF_BOX_BOUND <= 4294967295ULL && !defined(FIXED_DSP_FORCE_SPLIT_SUM)
+#define FDSP_PROVEN_SUM_ENABLED 1
+#else
+#define FDSP_PROVEN_SUM_ENABLED 0
+#endif
+
 static inline int32_t clamp32(int64_t value) {
     return value > INT32_MAX ? INT32_MAX : value < INT32_MIN ? INT32_MIN : (int32_t)value;
 }
@@ -91,6 +101,18 @@ static inline int32_t filter(const int32_t c[5],
         output = input;
         history->fraction = 0;
     } else {
+#if FDSP_PROVEN_SUM_ENABLED
+        int64_t sum = history->fraction;
+        sum += (int64_t)c[0] * input;
+        sum += (int64_t)c[1] * history->x1;
+        sum += (int64_t)c[2] * history->x2;
+        sum -= (int64_t)c[3] * history->y1;
+        sum -= (int64_t)c[4] * history->y2;
+        int64_t integer = sum >> 28;
+        history->fraction = (uint32_t)((uint64_t)sum & 0x0fffffffu);
+        output = clamp32(integer);
+        if ((int64_t)output != integer) history->fraction = 0;
+#else
         /* Split the Q55 sum into integer and fractional parts to avoid a
          * five-product int64 overflow. Carry the discarded fraction forward
          * instead of adding five rounding errors to a low-frequency IIR. */
@@ -112,6 +134,7 @@ static inline int32_t filter(const int32_t c[5],
         history->fraction = fraction & 0x0fffffffu;
         output = clamp32(accumulator);
         if ((int64_t)output != accumulator) history->fraction = 0;
+#endif
     }
     history->x2 = history->x1; history->x1 = input;
     history->y2 = history->y1; history->y1 = output;
