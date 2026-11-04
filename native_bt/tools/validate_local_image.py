@@ -9,7 +9,15 @@ build_status=json.loads((a.image.parent/'local-build-status.json').read_text(enc
 assert build_status['passed'] and build_status['state']=='complete', 'Latest build did not complete; refusing a possibly stale binary'
 source_count=verify_manifest(a.image.parent/'local-build-sources.json',build_status['source_manifest_sha256'])
 commands=json.loads((a.image.parent/'compile_commands.json').read_text(encoding='utf-8'))
-main_command=next(entry['command'] for entry in commands if Path(entry['file']).name=='probe_main.c')
+diagnostic=bool(build_status.get('codec_diagnostic_only'))
+entry_name='probe_codec_diagnostic.c' if diagnostic else 'probe_main.c'
+main_command=next(entry['command'] for entry in commands if Path(entry['file']).name==entry_name)
+cache=(a.image.parent/'CMakeCache.txt').read_text()
+assert ('DBT_PROBE_CODEC_DIAGNOSTIC_ONLY:BOOL=ON' in cache)==diagnostic
+assert ('DBT_PROBE_LHDC_MAX_CHECK:BOOL=ON' in cache)==bool(build_status.get('lhdc_maximum_check'))
+if diagnostic:
+    for feature in ('KEEP_OWNED_ACTIVE','PRODUCT_IO','PRODUCT_SECURITY','SMP','AVRCP','RFCOMM','AUDIO_TEST','AUDIO_OUTPUT','GATT_TEST','CLASSIC_SECURITY_TEST','INGRESS_TRACE'):
+        assert f'DBT_PROBE_{feature}:BOOL=ON' not in cache, feature
 product_security=bool(re.search(r'(?:^|\s)-DDBT_PROBE_PRODUCT_SECURITY=1(?:\s|$)',main_command))
 rfcomm=bool(re.search(r'(?:^|\s)-DDBT_PROBE_RFCOMM=1(?:\s|$)',main_command))
 assert product_security==build_status['product_security'] and rfcomm==build_status['rfcomm']
@@ -45,7 +53,7 @@ assert table==original[0x8000:0x8000+len(table)]
 assert image.flash_mode==2 and image.flash_size_freq==0x3f
 assert image.min_rev_full<=301<=image.max_rev_full
 report={'passed':True,'scope':'offline image checksum/digest, ESP32 revision and admitted OTA capacity; no device access or runtime qualification',
- 'image_sha256':hashlib.sha256(blob).hexdigest(),'image_bytes':len(blob),'project':project,'chip_id':image.chip_id,
+ 'image_sha256':hashlib.sha256(blob).hexdigest(),'image_bytes':len(blob),'project':project,'chip_id':image.chip_id,'codec_diagnostic_only':diagnostic,
  'revision_range':[image.min_rev_full,image.max_rev_full],'checksum_verified':True,'digest_verified':bool(image.append_digest),
  'latest_local_build_completed':True,'build_sources_match':True,'build_source_units':source_count,'product_io':bool(build_status.get('product_io')),'product_security':product_security,'rfcomm_profile':rfcomm,'controller_only_dual_mode':True,'anti_rollback_fuse_updates':False,'partition_offset':slot['offset'],'partition_bytes':slot['size'],
  'partition_remaining_bytes':slot['size']-len(blob),'compiled_table_matches_preserved_layout':True,'compiled_table_sha256':hashlib.sha256(table).hexdigest(),'flash_mode':'DIO','flash_mib':8,'flash_mhz':80,'hardware_accessed':False,'runtime_qualified':False}

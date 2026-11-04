@@ -34,14 +34,17 @@ size_t heap_caps_get_free_size(unsigned caps){(void)caps;return 1000000;}
 unsigned uxTaskGetStackHighWaterMark(TaskHandle_t task){(void)task;return low_water;}
 void vTaskDelay(unsigned ticks_to_wait){(void)ticks_to_wait;}
 void vTaskDelete(TaskHandle_t task){(void)task;}
+TaskHandle_t xTaskGetCurrentTaskHandle(void){return (TaskHandle_t)1;}
+void xTaskNotifyGive(TaskHandle_t task){(void)task;}
+unsigned ulTaskNotifyTake(int clear,unsigned wait){(void)clear;(void)wait;return 1;}
 int xTaskCreatePinnedToCore(void (*work)(void *),const char *name,unsigned stack,void *arg,unsigned priority,TaskHandle_t *task,int core){
     (void)name;(void)priority;(void)task;(void)core;if(stack!=8192)return 0;work(arg);return pdPASS;
 }
 #include "../../esp32_probe/main/probe_codec_check.c"
 int main(int argc,char **argv){
     (void)argv;
-    if(argc>1){fail_next=true;return probe_codec_check(0)?1:0;}
-    if(!probe_codec_check(0))return 1;
+    if(argc>1){fail_next=true;return probe_codec_check((TaskHandle_t)1)?1:0;}
+    if(!probe_codec_check((TaskHandle_t)1))return 1;
     const probe_codec_vector_t *exact=0,*bounded=0;
     for(unsigned i=0;i<sizeof(probe_codec_vectors)/sizeof(probe_codec_vectors[0]);++i){
         const probe_codec_vector_t *v=&probe_codec_vectors[i];if(!v->name)continue;

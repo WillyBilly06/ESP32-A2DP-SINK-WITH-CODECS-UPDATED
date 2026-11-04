@@ -97,6 +97,14 @@ marks, transient codec-switch peaks and fragmentation remain mandatory gates.
 
 ## Remaining gates and next work
 
+Updated target evidence: [6.1 codec checkpoint](IDF61_TARGET_CODECS_2026_11_04.md).
+All 37 existing codec configurations now pass on COM6. A real 192 kHz/S24/1000
+kbps fixture passes sparse PCM checks but misses 35/84 isolated 5 ms deadlines
+(maximum 5.190 ms, including PCM validation). This is an open performance gate,
+not production or coexistence qualification. Both runs returned to the released
+Bluedroid baseline. The initial checkpoint JSON above remains a historical
+off-board build record; the target-codec checkpoint records these later runs.
+
 - Finish manual callback/owner bounds and queue saturation/teardown review;
   lexical loop counts do not establish that execution is bounded.
 - Replace remaining blocking legacy output-control wrappers and startup
@@ -105,7 +113,7 @@ marks, transient codec-switch peaks and fragmentation remain mandatory gates.
 - Audit live product parity against the released 6.1 application: source-role
   behavior, SDP client, AVRCP browsing/application providers, BLE security/UI,
   privacy, setting/name restoration, LEDs, inputs, sounds, OTA and recovery.
-- Reconfirm all target codec outputs before enabling radio. Highest priority:
+- Extend target codec qualification before enabling radio. Highest priority:
   real LHDC V5 192 kHz / 24-bit / 1,000 kbps frames, cycle counts by stage,
   deadline distribution and measured spare capacity. No quality reduction is allowed.
 - Establish matching baseline instrumentation for controller/ACL/RTP timing,

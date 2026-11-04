@@ -6,8 +6,11 @@ The current work is on `codex/owned-bt-idf61`, based on the released Bluedroid
 6.1 baseline. Read [the current audit](docs/IDF61_RESTART.md) and
 [the full master goal](docs/MASTER_GOAL_2026_11_04.md) first. The imported owned
 implementation is not a production replacement. Current tests and build evidence
-are kept separate from historical observations below. This checkpoint has not
-accessed hardware; 1.0.4 is the last verified COM6 baseline. The user released
+are kept separate from historical observations below. The
+[current target codec checkpoint](docs/IDF61_TARGET_CODECS_2026_11_04.md) records
+37/37 configurations passing on COM6. The maximum LHDC test passed PCM checks
+but missed 35/84 isolated 5 ms deadlines, including validation overhead. Both
+finite diagnostic runs returned to released 1.0.4 firmware. The user released
 COM6 for testing in this chat; the historical reservation below is superseded.
 
 ## Historical pre-6.1 status

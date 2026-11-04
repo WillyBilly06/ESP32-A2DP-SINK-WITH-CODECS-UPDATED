@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+import shutil
 
 ROOT=Path(__file__).resolve().parents[1]
 BUILD=ROOT/'_build/esp32'
@@ -18,14 +19,25 @@ def main():
     if os.name!='nt':raise RuntimeError('This check uses the existing Windows ESP32 build')
     OUT.mkdir(parents=True,exist_ok=True)
     commands=json.loads((BUILD/'compile_commands.json').read_text())
-    args=argv_windows(next(x['command'] for x in commands if x['file'].endswith('probe_audio.c')))
+    args=argv_windows(next(x['command'] for x in commands if x['file'].endswith('probe_codec_check.c')))
+    launcher=[]
+    if Path(args[0]).name.lower() in ('ccache','ccache.exe'):
+        cache=shutil.which(args[0])
+        if not cache:
+            matches=list((Path.home()/'.espressif/tools/ccache').glob('*/ccache-*/ccache.exe'))
+            if matches:cache=str(sorted(matches)[-1])
+        if not cache:raise RuntimeError('Configured ccache launcher is unavailable')
+        launcher=[cache];args=args[1:]
     args=args[:args.index('-o')]
     features=('SBC','OPUS','AAC','APTX','LDAC','LHDC')
     args=[x for x in args if not any(x.startswith('-DDBT_PROBE_'+n+'_BUILD') for n in features)]
+    args=[x for x in args if not x.startswith('-DDBT_PROBE_LHDC_MAX_CHECK')]
     include=['-I'+str(ROOT/'codecs'/n) for n in ('common','sbc','opus','aac','aptx','ldac','lhdcv5')]
     include+=['-I'+str(ROOT/'esp32_probe/main')]
     source=ROOT/'esp32_probe/main/probe_codec_check.c'
-    tracked=[source,ROOT/'esp32_probe/main/probe_codec_vectors.h',ROOT/'esp32_probe/main/probe_opus_vectors.h',Path(__file__).resolve()]
+    tracked=[source,ROOT/'esp32_probe/main/probe_codec_check.h',ROOT/'esp32_probe/main/probe_codec_vectors.h',ROOT/'esp32_probe/main/probe_opus_vectors.h',Path(__file__).resolve()]
+    maximum=ROOT/'esp32_probe/main/probe_lhdc_max_fixture.h'
+    if maximum.is_file():tracked.append(maximum)
     tracked+=list((ROOT/'include').glob('*.h'))+list((ROOT/'codecs/common').glob('*.h'))
     for name in ('sbc','opus','aac','aptx','ldac','lhdcv5'):tracked+=list((ROOT/'codecs'/name).glob('*.h'))
     before={str(p):hashlib.sha256(p.read_bytes()).hexdigest() for p in tracked}
@@ -34,7 +46,8 @@ def main():
     tools=Path(args[0]).parent;rows=[]
     for name,enabled in variants.items():
         obj=OUT/(name+'.o');flags=['-DDBT_PROBE_'+n+'_BUILD=1' for n in enabled]
-        run(args+include+flags+['-fstack-usage','-o',str(obj),'-c',str(source)],cwd=BUILD)
+        if maximum.is_file() and 'LHDC' in enabled:flags+=['-DDBT_PROBE_LHDC_MAX_CHECK=1']
+        run(launcher+args+include+flags+['-fstack-usage','-o',str(obj),'-c',str(source)],cwd=BUILD)
         undefined=run([str(tools/'xtensa-esp32-elf-nm.exe'),'-u',str(obj)])
         for feature,symbol in (('SBC','dbt_sbc_codec'),('OPUS','dbt_opus_codec'),('AAC','dbt_aac_codec'),
                                ('APTX','dbt_aptx_codec'),('LDAC','dbt_ldac_codec'),('LHDC','dbt_lhdcv5_codec')):

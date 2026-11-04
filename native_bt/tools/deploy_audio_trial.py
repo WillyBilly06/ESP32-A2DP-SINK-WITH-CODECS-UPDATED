@@ -8,6 +8,7 @@ from pathlib import Path
 import struct
 import re
 import sys
+import subprocess
 import time
 import serial.tools.list_ports
 import esptool
@@ -54,11 +55,13 @@ def main():
     parser=argparse.ArgumentParser()
     parser.add_argument('--kind',choices=['audio','probe'],default='probe')
     parser.add_argument('--keep-owned',action='store_true')
+    parser.add_argument('--codec-only',action='store_true',help='Finite non-radio codec diagnostic, always return to the pinned baseline')
     args=parser.parse_args()
     hold=HARDWARE/'HARDWARE_HOLD.json'
     if hold.exists() and json.loads(hold.read_text()).get('active',True):
         raise RuntimeError('ESP32 reserved by user: deployment/reset disabled; perform off-board builds/tests only')
     if args.keep_owned and args.kind!='probe':raise RuntimeError('Persistent owned selection requires the owned probe image')
+    if args.codec_only and (args.kind!='probe' or args.keep_owned):raise RuntimeError('Codec diagnostic cannot keep an image active')
     original=(HARDWARE/'COM6-original-flash.bin').read_bytes()
     receipt=json.loads((HARDWARE/'COM6-original-flash.json').read_text())
     if hashlib.sha256(original).hexdigest()!=receipt['sha256']:raise RuntimeError('Original backup integrity failed')
@@ -69,9 +72,16 @@ def main():
     if not baud_match:raise RuntimeError('Console baud is missing from the actual build configuration')
     console_baud=int(baud_match.group(1))
     cache=(image_path.parent/'CMakeCache.txt').read_text()
+    if ('DBT_PROBE_CODEC_DIAGNOSTIC_ONLY:BOOL=ON' in cache)!=args.codec_only:
+        raise RuntimeError('Codec-only image requires the matching explicit deployment mode')
+    if args.kind=='probe':
+        # Bind the bytes about to be written to a completed source/config build
+        # and the actual preserved physical partition table before serial access.
+        subprocess.run([sys.executable,str(ROOT/'tools/validate_local_image.py'),'--image',str(image_path)],check=True)
+    if args.codec_only and receipt.get('active_partition')!='ota_0':raise RuntimeError('Codec diagnostic requires the preserved baseline active in ota_0')
     if args.keep_owned and 'DBT_PROBE_KEEP_OWNED_ACTIVE:BOOL=ON' not in cache:raise RuntimeError('Candidate was not built to keep the owned host active')
     if args.keep_owned and '#define CONFIG_BOOTLOADER_APP_ANTI_ROLLBACK 1' in configuration:raise RuntimeError('No anti-rollback fuse changes are admitted')
-    destination=HARDWARE/('COM6-owned-active' if args.keep_owned else 'COM6-'+args.kind+'-trial')
+    destination=HARDWARE/('COM6-codec-trial' if args.codec_only else 'COM6-owned-active' if args.keep_owned else 'COM6-'+args.kind+'-trial')
     image=ESP32FirmwareImage(io.BytesIO(candidate));image.verify()
     if candidate[32:36]!=b'\x32\x54\xcd\xab' or candidate[80:112].split(b'\0',1)[0]!=project_name.encode():
         raise RuntimeError('Unexpected candidate descriptor')
@@ -98,7 +108,7 @@ def main():
         mac=':'.join(f'{v:02X}' for v in controller.read_mac())
         if controller.CHIP_NAME!='ESP32' or mac!=receipt['mac']:raise RuntimeError('Chip/MAC identity mismatch')
         if controller.get_secure_boot_enabled() or controller.get_flash_encryption_enabled():raise RuntimeError('Unexpected protection state')
-        controller=controller.run_stub();controller.change_baud(921600)
+        controller=controller.run_stub();controller.change_baud(460800)
         if f'{controller.flash_id():06x}'!=receipt['flash_id']:raise RuntimeError('Flash chip changed')
         if controller.read_flash(0,0x9000)!=original[:0x9000]:raise RuntimeError('Bootloader/partition table differs from the preserved original')
         preserved=controller.read_flash(active['offset'],active['size'])
@@ -107,11 +117,16 @@ def main():
         current=controller.read_flash(selector['offset'],selector['size'])
         nvs=next(p for p in partitions if p['name']=='nvs')
         report['native_bond_flash_state']=native_bond_entries(controller.read_flash(nvs['offset'],nvs['size']))
-        sequences=[]
+        sequences=[];valid_sectors=[]
         for position in [0,4096]:
             row=current[position:position+32];seq=int.from_bytes(row[:4],'little');crc=int.from_bytes(row[28:32],'little')
-            if seq!=0xffffffff and crc==(binascii.crc32(row[:4],0xffffffff)&0xffffffff):sequences.append(seq)
+            state=int.from_bytes(row[24:28],'little')
+            if seq!=0xffffffff and crc==(binascii.crc32(row[:4],0xffffffff)&0xffffffff) and state not in (3,4):
+                sequences.append(seq);valid_sectors.append((seq,position))
         ota_apps=sorted([p for p in partitions if p['type']==0 and 16<=p['subtype']<32],key=lambda p:p['subtype'])
+        if args.codec_only:
+            if not valid_sectors or ota_apps[(max(valid_sectors)[0]-1)%len(ota_apps)]['name']!='ota_0':
+                raise RuntimeError('Live boot selection is not the admitted baseline')
         target_index=next(i for i,p in enumerate(ota_apps) if p['name']=='ota_1')
         sequence=max(sequences,default=0)+1
         while (sequence-1)%len(ota_apps)!=target_index:sequence+=1
@@ -121,7 +136,10 @@ def main():
         struct.pack_into('<I',record,0,sequence);struct.pack_into('<I',record,24,2 if args.keep_owned else 0)
         struct.pack_into('<I',record,28,binascii.crc32(record[:4],0xffffffff)&0xffffffff)
         # Preserve the original valid selector sector, old app, bootloader and user data.
-        report['writes'].append(write_region(controller,selector['offset']+4096,record,selector['offset']+selector['size']))
+        # Write the older selector sector, preserving the newest valid baseline
+        # selector for bootloader rollback if the trial resets before completion.
+        selector_position=4096-max(valid_sectors)[1] if valid_sectors else 4096
+        report['writes'].append(write_region(controller,selector['offset']+selector_position,record,selector['offset']+selector['size']))
         report['ota_sequence']=sequence;report['trial_offset']=trial['offset']
         report['selector_state_written']='VALID development selection' if args.keep_owned else 'NEW trial'
         report['production_qualification']=False
@@ -136,6 +154,29 @@ def main():
         destination.with_suffix('.bin').write_bytes(boot)
         text=boot.decode('utf-8',errors='backslashreplace')
         destination.with_suffix('.txt').write_text(text,encoding='utf-8')
+        if args.codec_only:
+            events=[]
+            for line in text.splitlines():
+                try:events.append(json.loads(line))
+                except (ValueError,AttributeError):pass
+            returns=[e for e in events if e.get('probe')=='codec_diagnostic_return']
+            summaries=[e for e in events if e.get('probe')=='target_codec_selftest']
+            maximum=[e for e in events if e.get('probe')=='lhdc_max_selftest']
+            report['scope']='Finite isolated codec execution; no controller/NVS/I2S initialization, no RF or product qualification'
+            report['cases']=[e for e in events if e.get('probe')=='target_codec_case']
+            report['codec_summary']=summaries[-1] if summaries else None
+            report['return']=returns[-1] if returns else None
+            report['lhdc_maximum_check']=maximum[-1] if maximum else None
+            report['baseline_boot_observed']=bool(returns and returns[-1].get('baseline_selected') and
+                'Loaded app from partition at offset 0x110000' in text and '1.0.4-idf6.1' in text)
+            report['boot_fatal_marker']=any(token in text for token in ('Guru Meditation Error','abort() was called','***ERROR***'))
+            report['all_codec_checks_passed']=bool(summaries and summaries[-1].get('passed') and summaries[-1].get('configurations')==summaries[-1].get('selected'))
+            report['boot_capture']=destination.with_suffix('.bin').name
+            destination.with_suffix('.json').write_text(json.dumps(report,indent=2)+'\n',encoding='utf-8')
+            print(json.dumps({k:v for k,v in report.items() if k!='cases'},indent=2))
+            if not report['baseline_boot_observed'] or report['boot_fatal_marker']:raise RuntimeError('Baseline return was not cleanly observed; inspect preserved capture')
+            if not report['all_codec_checks_passed']:raise RuntimeError('Baseline restored, but target codec checks did not all pass')
+            return
         report['boot_ready_marker']=('audio_candidate_integer_dsp1 slot=0x390000' in text) if args.kind=='audio' else (
             '"probe":"controller_identified"' in text and '"probe":"gap_state","state":2,' in text)
         if audio_probe:report['boot_ready_marker']=report['boot_ready_marker'] and '"probe":"sbc_probe_ready"' in text
