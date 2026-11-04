@@ -34,7 +34,11 @@ static bool io_works(uint8_t a, uint8_t b, bool sc) {
 static uint8_t validate(const dbt_smp_features_t *f, const uint8_t req[7], const uint8_t rsp[7]) {
   if (req[0] != 1 || rsp[0] != 2 || req[1] > 4 || rsp[1] > 4 || req[2] > 1 || rsp[2] > 1 ||
       (req[3] & 3) > 1 || (rsp[3] & 3) > 1 || req[4] < 7 || rsp[4] < 7 || req[4] > 16 || rsp[4] > 16 ||
-      ((req[5] | req[6] | rsp[5] | rsp[6]) & ~7) || (rsp[5] & ~req[5]) || (rsp[6] & ~req[6]))
+      /* LinkKey is a valid peer offer. Local policy never offers CTKD, so the
+       * response must still select only supported distribution bits 0..2.
+       * Preserve the original request transcript for the SC confirmation. */
+      ((req[5] | req[6]) & ~15) || ((rsp[5] | rsp[6]) & ~7) ||
+      (rsp[5] & ~req[5]) || (rsp[6] & ~req[6]))
     return 10;
   bool sc = (req[3] & 8) && (rsp[3] & 8), bond = (req[3] & 1) && (rsp[3] & 1);
   if (f->policy.require_sc && !sc)

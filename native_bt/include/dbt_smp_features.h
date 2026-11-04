@@ -5,8 +5,9 @@
 #include "dbt_smp.h"
 #include "dbt_smp_guard.h"
 /* LE feature exchange, owner only. SC negotiates identity or CSRK masks;
- * legacy bonding requires both LTK masks. It rejects unsupported key masks,
- * unilateral OOB and security downgrades. */
+ * legacy bonding requires both LTK masks. A peer's optional LinkKey offer may
+ * be negotiated out; local CTKD is not offered. Unsupported selected masks,
+ * unilateral OOB and security downgrades are rejected. */
 typedef struct {
     uint8_t io,min_key_size,max_key_size,initiator_keys,responder_keys;
     bool support_sc,require_sc,bonding,require_mitm,oob;

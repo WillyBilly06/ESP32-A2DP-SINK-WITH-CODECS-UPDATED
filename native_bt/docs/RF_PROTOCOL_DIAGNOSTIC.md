@@ -44,7 +44,12 @@ Request (code is its authentication flags); stage 2 records transmit completion;
 stage 3 records a received SMP opcode/length; stage 4 records pairing-start
 admission; stage 6 records LE-link policy flags (request enabled, runtime ready,
 active procedure, maintenance, poisoned storage, quarantine, frozen); stage 7
-records LTK-request reconnect admission. No packet contents are logged.
+records LTK-request reconnect admission. Stage 9 records worker completion kind,
+status and success/existing-record flags; stage 10 records session-open status;
+stage 11 records the initial inbox result/session phase. Public Pairing Request/
+Response feature fields are recorded separately (IO/OOB/authentication/key-size/
+distribution offers). Cryptographic payloads, keys, nonces and randoms are not
+logged.
 
 The workspace audit retains its 512 MiB rebuildable-output and 96 MiB reference
 limits. Exact tested images, source receipts, UART captures and original flash/

@@ -180,6 +180,38 @@ See [the diagnostic result](RF_PROTOCOL_2026_11_04.json) and its private archive
 The next image records rejected PDU dimensions and bounded SMP request/receive
 metadata. Receive validation, keys, trust gates and codec support are unchanged.
 
+## Packet dimensions and SMP admission captured
+
+Source `1d7369cd`, image
+`daac108087fc71973b4a6ed830f498ee1d0e3e03433e225f9a31ea6700810b65`,
+recorded the rejected packets as Classic A2DP media (PSM 25/CID 66), **673-byte
+SDUs against a 672-byte receive MTU**. It also recorded an LE Security Request
+submitted to the controller, a received seven-byte Pairing Request, successful
+procedure-start admission, then a local security failure/disconnect (`0x16`).
+The procedure emitted two failure notifications. The baseline returned cleanly.
+See [the captured metadata](RF_MTU_SMP_2026_11_04.json); raw evidence remains in
+`native_bt/_build/hardware/runs/1793820818840780300-daac108087fc`.
+
+The application now shares a 1008-byte media capacity between its L2CAP profile
+and decoder queue, matching the retained SDK's `BTA_AV_MAX_A2DP_MTU`. Queue depth
+remains eight. The 673-byte case is accepted at that negotiated capacity and a
+1009-byte case remains rejected in the channel tests. Packet validation is not
+bypassed; additional queued payload capacity is bounded to 2688 bytes.
+
+A separate host regression reproduced rejection of a peer's valid optional
+LinkKey offer. Feature negotiation now retains the exact request transcript and
+selects only locally supported distribution keys. Local CTKD is not offered;
+SC/key-size/MITM and selected-mask restrictions remain tested. The responder's
+ability to select a supported subset follows the
+[SIG key-distribution rules](https://www.bluetooth.com/wp-content/uploads/Files/Specification/HTML/Core-54/out/en/host/security-manager-specification.html).
+This is not yet proven to be the phone's failure cause. The next trace records
+public pairing-feature fields and worker/session admission results without keys.
+
+Duplicate failure publication is also fixed and tested while accepted worker
+work is still retiring. All 179 host groups, the PSA-backed probe fixtures and
+the actual callback-mode tests pass. The secured target image builds/admission
+checks pass. Hardware validation of these corrections remains pending.
+
 ## Outstanding Bluetooth gates
 
 The full profile build still needs current-image bond reload/reconnection,

@@ -48,6 +48,7 @@ typedef struct {
         struct {uint32_t generation;uint16_t handle;uint8_t flags,key_size;} le_security;
         dbt_channel_oversize_t oversized;
         struct {uint32_t generation,window;int result;uint16_t handle,size;uint8_t stage,code;} smp_trace;
+        struct {uint32_t generation;uint16_t handle;uint8_t opcode,io,oob,auth,key_size,initiator_keys,responder_keys;} pairing_features;
     };
     uint8_t event, reason, status,local_record;
 } log_item_t;
@@ -222,6 +223,12 @@ static void logger(void *context) {
                    (unsigned long)item.hashes.ordinal,item.hashes.size,item.hashes.offset,
                    (unsigned long)item.hashes.before,(unsigned long)item.hashes.after,
                    (unsigned long)item.hashes.owner,item.hashes.after_ready?"true":"false");
+            continue;
+        }
+        if(item.local_record==9){
+            printf("{\"probe\":\"pairing_features\",\"handle\":%u,\"generation\":%lu,\"opcode\":%u,\"io\":%u,\"oob\":%u,\"auth\":%u,\"key_size\":%u,\"initiator_keys\":%u,\"responder_keys\":%u}\n",
+                item.pairing_features.handle,(unsigned long)item.pairing_features.generation,item.pairing_features.opcode,item.pairing_features.io,
+                item.pairing_features.oob,item.pairing_features.auth,item.pairing_features.key_size,item.pairing_features.initiator_keys,item.pairing_features.responder_keys);
             continue;
         }
         if(item.local_record==8){
@@ -482,6 +489,14 @@ void probe_security_smp_trace(uint16_t handle,uint32_t generation,uint8_t stage,
     log_item_t item;wipe(&item,sizeof(item));item.local_record=8;
     item.smp_trace.handle=handle;item.smp_trace.generation=generation;item.smp_trace.stage=stage;
     item.smp_trace.result=result;item.smp_trace.code=code;item.smp_trace.size=size;item.smp_trace.window=window;
+    (void)xQueueSend(log_queue,&item,0);
+}
+void probe_security_pairing_features(uint16_t handle,uint32_t generation,const uint8_t fields[7]){
+    if(!log_queue || !fields)return;
+    log_item_t item;wipe(&item,sizeof(item));item.local_record=9;
+    item.pairing_features.handle=handle;item.pairing_features.generation=generation;item.pairing_features.opcode=fields[0];
+    item.pairing_features.io=fields[1];item.pairing_features.oob=fields[2];item.pairing_features.auth=fields[3];
+    item.pairing_features.key_size=fields[4];item.pairing_features.initiator_keys=fields[5];item.pairing_features.responder_keys=fields[6];
     (void)xQueueSend(log_queue,&item,0);
 }
 

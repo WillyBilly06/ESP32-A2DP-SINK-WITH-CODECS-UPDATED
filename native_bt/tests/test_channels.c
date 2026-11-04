@@ -122,6 +122,15 @@ EXPORT int test_channels_outgoing_and_asymmetric_mtu(void) {
     CHECK(manager.last_oversized.handle==1 && manager.last_oversized.generation==channel->link_generation &&
           manager.last_oversized.cid==local && manager.last_oversized.psm==0x19 &&
           manager.last_oversized.rx_mtu==256 && manager.last_oversized.size==257);
+    /* The observed 673-byte LDAC SDU fits the released 1008-byte capability.
+     * Validation must still reject a byte beyond that negotiated capacity. */
+    fixture();result=open_channel(1,1008,0x80,1024,&local);if(result)return result;
+    channel=dbt_channels_find(&manager,1,local);uint8_t ldac_sdu[673]={0x80};
+    CHECK(channel && channel->rx_mtu==1008 && channel->tx_mtu==1024);
+    CHECK(dbt_channels_receive(&manager,1,channel->link_generation,local,ldac_sdu,sizeof(ldac_sdu))==DBT_OK);
+    CHECK(data_calls==1 && data_size==673);
+    CHECK(dbt_channels_receive(&manager,1,channel->link_generation,local,ldac_sdu,1009)==DBT_OK);
+    CHECK(data_calls==1 && manager.oversized_dynamic_pdus==1 && manager.last_oversized.size==1009 && manager.last_oversized.rx_mtu==1008);
     return 0;
 }
 

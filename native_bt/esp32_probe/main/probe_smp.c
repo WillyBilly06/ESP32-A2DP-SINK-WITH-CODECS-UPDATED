@@ -75,7 +75,7 @@ static struct {
     uint16_t handle;
     uint32_t generation,prepare_deadline,negative_deadline,reply_token;
     uint8_t peer_type,peer[6],inbox[65],inbox_size;
-    bool active,initiator,prepare_queued,prepared,disconnected,failed,retiring,retired,guard_reported;
+    bool active,initiator,prepare_queued,prepared,disconnected,failed,retiring,retired,guard_reported,failure_reported;
     bool reconnect,reconnect_central,negative_needed,negative_started,reply_pending,reply_accepted,key_ready,verified;
     bool resolved,resolved_candidate,encrypted_verified,promotion_issued;
     uint8_t resolved_type,resolved_identity[6];
@@ -469,6 +469,11 @@ static void cancel_reconnect_reply(void) {
 dbt_result_t probe_smp_start(const dbt_link_t *l) { return begin(l,true); }
 dbt_result_t probe_smp_receive(const dbt_link_t *l,uint16_t cid,const uint8_t *p,uint16_t n) {
     if (!l || cid!=SMP_CID || !p || !n || n>65) return DBT_INVALID;
+#ifdef DBT_PROBE_RF_PROTOCOL_DIAGNOSTIC
+    if(n==7 && (p[0]==1 || p[0]==2)){
+        static unsigned feature_records;if(feature_records<4){++feature_records;probe_security_pairing_features(l->handle,l->generation,p);}
+    }
+#endif
     trace_smp(l->handle,l->generation,3,0,p[0],n,request_window(runtime?runtime->now_ms:0));
     if(p[0]==1 && stop_request(l,runtime?runtime->now_ms:0)!=DBT_OK)return DBT_BUSY;
     if (!slot.active) {
@@ -637,6 +642,8 @@ static void reconnect_reply(uint32_t now) {
     } else if (rc!=DBT_BUSY && rc!=DBT_NO_SPACE) slot.failed=true;
 }
 static void complete(completion_t *done,uint32_t now) {
+    if(slot.active && done->generation==slot.generation)
+        trace_smp(slot.handle,slot.generation,9,(int)done->status,(uint8_t)done->kind,(uint16_t)((done->success?1:0)|(done->existing?2:0)),request_window(now));
     work_inflight=false;
     if (maintenance.active && done->generation==maintenance.generation) {
         if (done->kind==WORK_RETIRE) {
@@ -730,11 +737,13 @@ static void complete(completion_t *done,uint32_t now) {
         dbt_result_t rc=dbt_smp_session_open(&session,runtime,slot.handle,slot.generation,
             configuration.local_address_type,configuration.local_address,slot.peer_type,slot.peer,
             &slot.guard->guard,&cfg,now);
+        trace_smp(slot.handle,slot.generation,10,(int)rc,0,cfg.old_key_size,request_window(now));
         wipe(&cfg,sizeof(cfg));
         if (rc==DBT_OK && slot.initiator) rc=dbt_smp_session_start(&session,now);
         if (rc==DBT_OK && slot.inbox_size) {
             const dbt_link_t *l=dbt_acl_find(&runtime->acl,slot.handle);
             rc=dbt_smp_session_receive(&session,l,SMP_CID,slot.inbox,slot.inbox_size);
+            trace_smp(slot.handle,slot.generation,11,(int)rc,(uint8_t)session.phase,slot.inbox_size,request_window(now));
         }
         wipe(slot.inbox,sizeof(slot.inbox)); slot.inbox_size=0;
         if (rc!=DBT_OK) slot.failed=true; else slot.prepared=true;
@@ -794,8 +803,9 @@ void probe_smp_poll(uint32_t now) {
         wipe(slot.key,sizeof(slot.key)); slot.key_ready=false;
         if (slot.reconnect) cancel_reconnect_reply();
         if (session.uncertain_generation) quarantine(slot.handle);
-        if (slot.failed && !failure.pending) {
+        if (slot.failed && !slot.failure_reported && !failure.pending) {
             failure.pending=true; failure.handle=slot.handle; failure.generation=slot.generation;
+            slot.failure_reported=true;
         }
         if (pending_valid && pending.kind!=WORK_RETIRE) { wipe(&pending,sizeof(pending)); pending_valid=false; }
         if (!slot.reconnect && !session.runtime && !slot.guard_reported) {

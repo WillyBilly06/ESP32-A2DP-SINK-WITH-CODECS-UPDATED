@@ -1,4 +1,5 @@
 #include "probe_audio.h"
+#include "probe_audio_limits.h"
 #include "probe_security.h"
 #include "dbt_codec.h"
 #include "dbt_sbc_codec.h"
@@ -364,10 +365,10 @@ dbt_result_t probe_audio_init(dbt_runtime_t *runtime,TaskHandle_t host_owner){
 #else
     hooks.stream=stream;
 #endif
-    dbt_result_t result=dbt_codec_worker_init(&worker,hooks,672,8);
+    dbt_result_t result=dbt_codec_worker_init(&worker,hooks,PROBE_A2DP_RX_MTU,PROBE_A2DP_MEDIA_SLOTS);
     if(result!=DBT_OK)return result;
     dbt_avdtp_sink_hooks_t client={&worker,allocate,release,dbt_codec_worker_submit,sink_event,dbt_codec_worker_media};
-    result=dbt_a2dp_acceptor_init(&profile,runtime,client,endpoints,(uint8_t)(sizeof(endpoints)/sizeof(endpoints[0])),672,64,5000,2000,5000);
+    result=dbt_a2dp_acceptor_init(&profile,runtime,client,endpoints,(uint8_t)(sizeof(endpoints)/sizeof(endpoints[0])),PROBE_A2DP_RX_MTU,64,5000,2000,5000);
     if(result!=DBT_OK)return result;
     if(xTaskCreatePinnedToCore(decode_loop,"native_decoder",8192,0,5,&decoder_task,1)!=pdPASS)return DBT_NO_SPACE;
 #ifdef DBT_PROBE_AUDIO_OUTPUT
@@ -376,9 +377,9 @@ dbt_result_t probe_audio_init(dbt_runtime_t *runtime,TaskHandle_t host_owner){
 #endif
     if(xTaskCreatePinnedToCore(log_loop,"native_pcm_log",4096,0,1,&logger_task,0)!=pdPASS){vTaskDelete(decoder_task);decoder_task=0;return DBT_NO_SPACE;}
     initialized=true;
-    printf("{\"probe\":\"sbc_probe_ready\",\"psm\":25,\"mtu\":672,\"worker_bytes\":%u,\"profile_bytes\":%u,\"decoder_stack\":8192,"
+    printf("{\"probe\":\"sbc_probe_ready\",\"psm\":25,\"mtu\":%u,\"worker_bytes\":%u,\"profile_bytes\":%u,\"decoder_stack\":8192,"
            "\"logger_stack\":4096,\"codecs\":" AUDIO_CODECS_JSON ",\"diagnostic_only\":true,\"audio_sink_sdp_advertised\":" AUDIO_SDP_JSON ",\"i2s_output\":" AUDIO_OUTPUT_JSON ",\"rf_protocol_diagnostic\":" AUDIO_RF_DIAG_JSON "}\n",
-           (unsigned)sizeof(worker),(unsigned)sizeof(profile));
+           (unsigned)PROBE_A2DP_RX_MTU,(unsigned)sizeof(worker),(unsigned)sizeof(profile));
     return DBT_OK;
 }
 bool probe_audio_accept(void *context,const dbt_link_t *link,uint16_t psm){(void)context;return psm!=0x19 || (initialized && !restart_hold && dbt_a2dp_acceptor_accept(&profile,link));}

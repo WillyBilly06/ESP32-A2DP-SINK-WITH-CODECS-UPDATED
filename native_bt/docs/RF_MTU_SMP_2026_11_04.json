@@ -1,0 +1,136 @@
+{
+  "date": "2026-11-04",
+  "source_commit": "1d7369cd064a0890920d046f46f38513d8b9415c",
+  "image_sha256": "daac108087fc71973b4a6ed830f498ee1d0e3e03433e225f9a31ea6700810b65",
+  "scope": "Finite radio/profile/product-security test with actual codec decode and PCM checksum; A2DP PCM is not forwarded to I2S; no DAC/DSP/headroom qualification",
+  "result": "CONFIRMED_A2DP_RX_CAPACITY_AND_LOCAL_SMP_FAILURE",
+  "oversized_examples": [
+    {
+      "probe": "oversized_dynamic",
+      "handle": 128,
+      "generation": 1,
+      "cid": 66,
+      "psm": 25,
+      "rx_mtu": 672,
+      "received_size": 673
+    },
+    {
+      "probe": "oversized_dynamic",
+      "handle": 128,
+      "generation": 1,
+      "cid": 66,
+      "psm": 25,
+      "rx_mtu": 672,
+      "received_size": 673
+    },
+    {
+      "probe": "oversized_dynamic",
+      "handle": 128,
+      "generation": 1,
+      "cid": 66,
+      "psm": 25,
+      "rx_mtu": 672,
+      "received_size": 673
+    },
+    {
+      "probe": "oversized_dynamic",
+      "handle": 128,
+      "generation": 1,
+      "cid": 66,
+      "psm": 25,
+      "rx_mtu": 672,
+      "received_size": 673
+    }
+  ],
+  "smp_metadata": [
+    {
+      "probe": "smp_trace",
+      "handle": 0,
+      "generation": 2,
+      "stage": 6,
+      "result": 0,
+      "code": 3,
+      "size": 0,
+      "window": 1
+    },
+    {
+      "probe": "smp_trace",
+      "handle": 0,
+      "generation": 2,
+      "stage": 1,
+      "result": 0,
+      "code": 9,
+      "size": 2,
+      "window": 1
+    },
+    {
+      "probe": "smp_trace",
+      "handle": 0,
+      "generation": 2,
+      "stage": 2,
+      "result": 0,
+      "code": 11,
+      "size": 2,
+      "window": 1
+    },
+    {
+      "probe": "smp_trace",
+      "handle": 0,
+      "generation": 2,
+      "stage": 3,
+      "result": 0,
+      "code": 1,
+      "size": 7,
+      "window": 1
+    },
+    {
+      "probe": "smp_trace",
+      "handle": 0,
+      "generation": 2,
+      "stage": 4,
+      "result": 0,
+      "code": 1,
+      "size": 7,
+      "window": 1
+    }
+  ],
+  "le_failures": [
+    {
+      "probe": "le_security_failure",
+      "handle": 0,
+      "generation": 2,
+      "change": 0,
+      "link_kind": 1,
+      "peer_present": false,
+      "peer_type": 0
+    },
+    {
+      "probe": "le_security_failure",
+      "handle": 0,
+      "generation": 2,
+      "change": 0,
+      "link_kind": 1,
+      "peer_present": false,
+      "peer_type": 0
+    }
+  ],
+  "disconnects": [
+    {
+      "probe": "hci_disconnect",
+      "handle": 0,
+      "status": 0,
+      "reason": 22
+    }
+  ],
+  "baseline_return": {
+    "baseline_boot_observed": true,
+    "baseline_fatal_marker": false,
+    "prime_capture_bytes": 0
+  },
+  "limits": [
+    "Audio was not forwarded to I2S in this diagnostic.",
+    "SMP failure occurred after Pairing Request admission; exact cause remains unproven.",
+    "The same procedure produced duplicate failure notifications.",
+    "Optional peer LinkKey-offer parser fix is a separately reproduced host conformance regression; this image did not record the peer feature fields."
+  ]
+}

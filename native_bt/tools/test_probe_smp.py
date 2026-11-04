@@ -36,11 +36,11 @@ try:
         if cache:configure+=['-DCMAKE_C_COMPILER_LAUNCHER='+cache]
         subprocess.run(configure,env=env,check=True)
         subprocess.run([cmake,'--build',str(build),'--parallel','8'],env=env,check=True)
-        for fixture in ('probe_adapter','probe_reconnect'):
+        for fixture in ('probe_adapter','probe_reconnect','feature_exchange'):
             subprocess.run([str(build/(fixture+'_test'+('.exe' if os.name=='nt' else '')))],env=env,check=True)
         print('SMP probe worker lifecycle and real SDK 6.1 PSA/NVS-shim reconnect checks passed; host only.')
         sys.exit(0)
-    for fixture in ('probe_adapter','probe_reconnect'):
+    for fixture in ('probe_adapter','probe_reconnect','feature_exchange'):
         exe=out/(fixture+'_test'+('.exe' if os.name=='nt' else ''))
         command=[cc,'-std=c11','-Wall','-Wextra','-Werror','-I'+str(root/'tests/smp/probe_shim'),
                  '-I'+str(root/'include'),str(root/f'tests/smp/{fixture}.c'),

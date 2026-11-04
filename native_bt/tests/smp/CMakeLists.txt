@@ -16,7 +16,7 @@ foreach(unit queue hci host acl l2cap credit ertm ertm_engine channels rx_flow r
              smp smp_crypto smp_bond smp_guard smp_dist smp_features smp_sc smp_bearer smp_session)
     list(APPEND owned_sources "${native_root}/src/dbt_${unit}.c")
 endforeach()
-foreach(fixture probe_adapter probe_reconnect)
+foreach(fixture probe_adapter probe_reconnect feature_exchange)
     add_executable(${fixture}_test "${CMAKE_CURRENT_LIST_DIR}/${fixture}.c" ${owned_sources})
     if(fixture STREQUAL "probe_reconnect")
         target_sources(${fixture}_test PRIVATE "${native_root}/src/esp32/dbt_smp_nvs.c" "${CMAKE_CURRENT_LIST_DIR}/nvs_mock.c")

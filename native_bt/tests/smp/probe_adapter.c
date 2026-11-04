@@ -3,6 +3,7 @@
 #error "SMP probe fixtures require active assertions"
 #endif
 #include <assert.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include "../../esp32_probe/main/probe_smp.c"
@@ -183,9 +184,14 @@ int main(void) {
     r.now_ms=4000; l->used=true; l->generation=3; l->peer[0]=8;
     assert(probe_smp_receive(l,6,request,sizeof(request))==DBT_OK); probe_smp_poll(4000);
     probe_smp_poll(34001); assert(slot.failed && !session.runtime && work_inflight);
+    assert(probe_smp_take_failure(&handle,&generation) && generation==3);
+    probe_smp_poll(34001); /* Accepted worker job is still pending retirement. */
+    if(probe_smp_take_failure(&handle,&generation)){
+        fputs("FAIL duplicate SMP failure notification before worker retirement\n",stderr);return 1;
+    }
     run_worker(); probe_smp_poll(34002); assert(!session.runtime && slot.active);
     run_worker(); probe_smp_poll(34003); assert(!slot.active);
-    assert(probe_smp_take_failure(&handle,&generation) && generation==3);
+    assert(!probe_smp_take_failure(&handle,&generation));
 
     /* Worker allocation failure never opens or accepts an SMP session. */
     r.now_ms=40000; l->generation=4; l->peer[0]=9; fail_start=1;

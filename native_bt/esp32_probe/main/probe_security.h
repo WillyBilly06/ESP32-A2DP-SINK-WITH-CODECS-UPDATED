@@ -15,6 +15,7 @@ void probe_security_le_failure(uint16_t handle,uint32_t generation);
 void probe_security_le_state(uint16_t handle,uint32_t generation,uint8_t flags,uint8_t key_size);
 void probe_security_oversized(const dbt_channel_oversize_t *);
 void probe_security_smp_trace(uint16_t,uint32_t,uint8_t stage,int result,uint8_t code,uint16_t size,uint32_t window);
+void probe_security_pairing_features(uint16_t,uint32_t,const uint8_t fields[7]);
 void probe_security_channel(dbt_channel_event_t,const dbt_channel_t *,dbt_channel_reason_t,uint16_t result);
 dbt_result_t probe_security_receive(const dbt_hci_packet_t *packet, uint32_t now_ms);
 void probe_security_poll(uint32_t now_ms);
