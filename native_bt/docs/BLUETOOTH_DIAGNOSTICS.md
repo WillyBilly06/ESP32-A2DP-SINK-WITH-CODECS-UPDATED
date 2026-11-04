@@ -8,6 +8,8 @@ aggregate drop count. The legacy `sbc_pcm` record applies to every codec.
 |---|---|
 | `vhci_timing` | Separate HCI packet/ACL/event/byte counts, callback context, receive rejection, callback maximum, first pending receive to host-poll maximum, host-poll maximum and ingress queue high water/rejection |
 | `media_trace` | Individual exception: stage, microsecond timestamp, writer-local ordinal, actual/expected RTP sequence, RTP timestamp, current/previous SSRC, payload size, encoded queue occupancy and result |
+| `codec_configuration` | Actual stream-start CIE bytes, codec ID, negotiated sample rate/channels and PCM container size; container size alone does not establish encoded bit depth |
+| `media_input` | Source media packets/payload bytes and first/latest RTP timestamps, reset on stream epoch; counts input before local queue rejection |
 | `media_drop_reasons` | Separate lifetime counters for queue full, decoder rejection, reset failure, PCM failure, PCM timeout, PCM BUSY attempts and upstream sequence/SSRC changes |
 | `worker_timing` | Bounded worker-step wall time, total, maximum and histogram; a step has budget two and also services control work |
 | `owner_wait_reasons` | Owner iteration count and a separate count for every subsystem requesting an immediate next iteration; distinguishes which wait predicate keeps the owner runnable |
@@ -88,6 +90,29 @@ reason counters are distinct from those diagnostic losses. One latency metric
 clock sample. That metric is excluded from this run. A post-exchange clock read
 and regression correct the race. Other counters and timing spans are independent.
 See [the sanitized reference](RF_CORE1_DIAGNOSTICS_2026_11_04.json).
+
+## Instrumented CPU 0 comparison
+
+Run `1793826207937572100-db937eece724` retained the same phone, LDAC 96 kHz,
+secured BLE reconnect, Deep Bass/Balanced writes and eight-slot queue. It decoded
+**11,238 packets / 92,016,640 PCM bytes**, with **zero drops, resets, ingress
+rejections, upstream sequence breaks or watchdog warnings**. No diagnostic
+records were lost. Queue occupancy peaked at 2/8; maximum codec wall span was
+4,111 us, versus 92,352 us in the CPU 1 reference. Playback was paused and the
+released baseline returned cleanly. See [the result](RF_CORE0_DIAGNOSTICS_2026_11_04.json).
+
+These are live runs at different playback offsets/durations, not identical
+encoded-vector benchmarks. The CPU 0 trial also corrects the diagnostic clock
+race; it retains the old decoder wait loop for the placement comparison. It
+does not include A2DP I2S output. A subsequent full-output image contains the
+notification/deadline changes and is a separate qualification gate.
+
+For maximum LHDC V5 checks, preserve actual CIE/phone readback alongside timing.
+AVDTP LHDC bitrate capability limits and an Android 1000 kbps quality request do
+not by themselves prove constant 1000 kbps wire traffic. `media_input` enables
+an RTP-time-based payload throughput estimate, including codec packet framing;
+snapshots are separate atomic observations and may differ by an in-flight packet.
+Do not estimate across stream epochs, SSRC changes or timestamp discontinuities.
 
 ## Existing captured scheduler failure
 

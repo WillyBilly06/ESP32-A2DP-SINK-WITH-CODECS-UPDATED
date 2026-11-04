@@ -160,6 +160,8 @@ EXPORT int test_codec_diagnostics_classify_local_and_upstream_loss(void){
     p.sequence=65535;CHECK(dbt_codec_worker_media(&f.worker,&p)==DBT_OK);
     p.sequence=0;CHECK(dbt_codec_worker_media(&f.worker,&p)==DBT_NO_SPACE);
     CHECK(atomic_load(&f.worker.queue_full_drops)==1 && atomic_load(&f.worker.queue_high_water)==2);
+    CHECK(atomic_load(&f.worker.input_packets)==3 && atomic_load(&f.worker.input_payload_bytes)==3);
+    CHECK(atomic_load(&f.worker.input_first_timestamp)==1000 && atomic_load(&f.worker.input_last_timestamp)==1000);
     CHECK(!atomic_load(&f.worker.input_sequence_breaks) && f.trace_count==1 && f.traces[0].kind==DBT_CODEC_QUEUE_FULL);
     CHECK(f.traces[0].sequence==0 && f.traces[0].queued==2 && f.traces[0].timestamp==1000 && f.traces[0].bytes==1);
     CHECK(dbt_codec_worker_step(&f.worker,1,2)==2 && !atomic_load(&f.worker.resets));
@@ -176,5 +178,6 @@ EXPORT int test_codec_diagnostics_classify_local_and_upstream_loss(void){
     f.media_bad=false;CHECK(complete(DBT_SINK_SUSPEND,1,false)==DBT_SINK_WORK_READY && complete(DBT_SINK_START,1,false)==DBT_SINK_WORK_READY);
     p.sequence=200;CHECK(dbt_codec_worker_media(&f.worker,&p)==DBT_OK && dbt_codec_worker_step(&f.worker,5,1)==1);
     CHECK(atomic_load(&f.worker.input_sequence_breaks)==1 && f.trace_count==7);
+    CHECK(atomic_load(&f.worker.input_packets)==1 && atomic_load(&f.worker.input_payload_bytes)==1);
     CHECK(complete(DBT_SINK_DROP,1,false)==DBT_SINK_WORK_READY && !f.live && !f.errors);return 0;
 }

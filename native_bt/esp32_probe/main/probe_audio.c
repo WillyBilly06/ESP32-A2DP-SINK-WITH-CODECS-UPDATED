@@ -81,6 +81,7 @@ static bool output_initialized;
 static probe_audio_product_event_fn product_observer;
 static void *product_context;
 static _Atomic uint32_t pcm_generation,pcm_frames,pcm_bytes,pcm_hash,pcm_rate,pcm_channels,pcm_codec,pcm_sample_bytes;
+static _Atomic uint32_t codec_revision,codec_cie_size,codec_cie_words[4];
 static _Atomic uint32_t profile_snapshot,event_errors,last_channel_event,last_channel_result;
 static _Atomic uint32_t ignored_dynamic,oversized_dynamic;
 /* Separate single-writer rings for host admission and decoder events. Logging
@@ -309,6 +310,13 @@ static dbt_result_t publish_stream(bool started,const dbt_codec_config_t *config
         atomic_store_explicit(&pcm_rate,config->rate,memory_order_relaxed);
         atomic_store_explicit(&pcm_channels,config->channels,memory_order_relaxed);
         atomic_store_explicit(&pcm_sample_bytes,config->sample_bytes,memory_order_relaxed);
+        for(unsigned word=0;word<4;++word){
+            uint32_t value=0;
+            for(unsigned byte=0;byte<4;++byte){unsigned at=4u*word+byte;if(at<config->cie_size && at<16u)value|=(uint32_t)config->cie[at]<<(8u*byte);}
+            atomic_store_explicit(&codec_cie_words[word],value,memory_order_relaxed);
+        }
+        atomic_store_explicit(&codec_cie_size,config->cie_size,memory_order_relaxed);
+        atomic_fetch_add_explicit(&codec_revision,1,memory_order_release);
         atomic_fetch_add_explicit(&pcm_generation,1,memory_order_release);
     }
     return DBT_OK;
@@ -400,6 +408,7 @@ static void log_loop(void *unused){
     (void)unused;
     uint32_t previous=UINT32_MAX,previous_errors=UINT32_MAX,previous_ignored=UINT32_MAX,previous_oversized=UINT32_MAX;
     unsigned ticks=0;
+    uint32_t previous_codec_revision=0;
     for(;;){
         vTaskDelay(pdMS_TO_TICKS(100));log_media_trace();
         if(++ticks<10)continue;
@@ -451,7 +460,21 @@ static void log_loop(void *unused){
         uint32_t hash=atomic_load_explicit(&pcm_hash,memory_order_relaxed),rate=atomic_load_explicit(&pcm_rate,memory_order_relaxed);
         uint32_t channels=atomic_load_explicit(&pcm_channels,memory_order_relaxed),codec=atomic_load_explicit(&pcm_codec,memory_order_relaxed);
         uint32_t sample_bytes=atomic_load_explicit(&pcm_sample_bytes,memory_order_relaxed);
+        uint32_t revision=atomic_load_explicit(&codec_revision,memory_order_acquire),cie_size=atomic_load(&codec_cie_size),cie_words[4];
+        for(unsigned i=0;i<4;++i)cie_words[i]=atomic_load(&codec_cie_words[i]);
         if(generation!=atomic_load_explicit(&pcm_generation,memory_order_acquire))continue;
+        if(revision!=previous_codec_revision){
+            static const char hex[]="0123456789abcdef";char cie[33];unsigned n=cie_size>16u?16u:cie_size;
+            for(unsigned i=0;i<n;++i){uint8_t b=(uint8_t)(cie_words[i/4u]>>(8u*(i%4u)));cie[2*i]=hex[b>>4];cie[2*i+1]=hex[b&15u];}
+            cie[2*n]=0;
+            printf("{\"probe\":\"codec_configuration\",\"at_us\":%" PRIu32 ",\"revision\":%" PRIu32 ",\"codec\":%" PRIu32
+                   ",\"rate\":%" PRIu32 ",\"channels\":%" PRIu32 ",\"pcm_container_bytes\":%" PRIu32 ",\"cie_size\":%" PRIu32 ",\"cie_hex\":\"%s\"}\n",
+                   at,revision,codec,rate,channels,sample_bytes,cie_size,cie);previous_codec_revision=revision;
+        }
+        printf("{\"probe\":\"media_input\",\"at_us\":%" PRIu32 ",\"stream_epoch\":%" PRIu32 ",\"packets\":%" PRIu32
+               ",\"payload_bytes\":%" PRIu32 ",\"rtp_first_timestamp\":%" PRIu32 ",\"rtp_last_timestamp\":%" PRIu32 ",\"rate\":%" PRIu32 "}\n",
+               at,atomic_load(&worker.input_stream_epoch),atomic_load(&worker.input_packets),atomic_load(&worker.input_payload_bytes),
+               atomic_load(&worker.input_first_timestamp),atomic_load(&worker.input_last_timestamp),rate);
         printf("{\"probe\":\"sbc_pcm\",\"frames\":%" PRIu32 ",\"bytes\":%" PRIu32 ",\"fnv1a32\":%" PRIu32
                ",\"rate\":%" PRIu32 ",\"channels\":%" PRIu32 ",\"media_packets\":%" PRIu32 ",\"drops\":%" PRIu32
                ",\"resets\":%" PRIu32 ",\"resident\":%" PRIu32 ",\"codec\":%" PRIu32 ",\"sample_bytes\":%" PRIu32

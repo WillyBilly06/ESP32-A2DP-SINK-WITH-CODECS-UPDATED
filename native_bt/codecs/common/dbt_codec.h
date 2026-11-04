@@ -115,6 +115,7 @@ typedef struct {
     _Atomic uint32_t pcm_backpressure,pcm_timeouts,pcm_delivered_frames;
     _Atomic uint32_t queue_full_drops,decode_rejects,reset_failures,pcm_failures;
     _Atomic uint32_t input_sequence_breaks,input_ssrc_changes,queue_high_water;
+    _Atomic uint32_t input_packets,input_payload_bytes,input_first_timestamp,input_last_timestamp,input_stream_epoch;
     /* Host-producer only; compare before queue admission so locally rejected
      * packets do not masquerade as an upstream sequence discontinuity. */
     uint32_t input_epoch,input_ssrc;

@@ -275,6 +275,21 @@ codec media/reset calls, PCM delivery/backpressure, and diagnostic-record loss.
 Runtime watchdog warnings now fail trial runtime health separately from boot
 readiness. Target streaming measurements with this instrumentation are pending.
 
+## Decoder placement comparison
+
+The [CPU 1 instrumented reference](RF_CORE1_DIAGNOSTICS_2026_11_04.json) attributed
+all 1,663 drops to a full decoder queue. Incoming RTP sequences were continuous,
+ingress/decoder error counts were zero and 15 watchdog events reported CPU 1
+idle starvation. The unrelated wake-latency diagnostic underflow is explicitly
+excluded from that record.
+
+Moving only the decoder placement to CPU 0, while retaining codec, queue depth,
+secured BLE and live EQ operations, produced [11,238 decoded packets with zero
+drops/resets/watchdogs](RF_CORE0_DIAGNOSTICS_2026_11_04.json). Queue high water
+was 2/8 and maximum codec wall span 4,111 us. Live playback offsets/durations
+differed; this is not identical-bitstream benchmarking. Both were checksum
+tests. Full I2S and maximum LHDC qualification remain separate outstanding gates.
+
 ## Outstanding Bluetooth gates
 
 The full profile build still needs sustained loss-free A2DP/BLE operation,

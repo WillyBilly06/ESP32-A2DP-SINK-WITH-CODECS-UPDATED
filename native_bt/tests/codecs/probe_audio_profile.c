@@ -71,6 +71,12 @@ EX int probe_audio_diagnostics(void){
     probe_audio_owner_wait((1u<<0)|(1u<<14));probe_audio_owner_wait(1u<<2);
     CHECK(atomic_load(&owner_iterations)==2 && atomic_load(&owner_immediate[0])==1 && atomic_load(&owner_immediate[2])==1);
     CHECK(atomic_load(&owner_immediate[14])==1 && !atomic_load(&owner_immediate[1]));
+    dbt_codec_config_t config={0};config.rate=192000;config.channels=2;config.sample_bytes=4;config.ops=&dbt_sbc_codec;config.cie_size=13;
+    for(unsigned i=0;i<13;++i)config.cie[i]=(uint8_t)i;
+    CHECK(publish_stream(true,&config)==DBT_OK && atomic_load(&codec_revision)==1 && atomic_load(&codec_cie_size)==13);
+    CHECK(atomic_load(&codec_cie_words[0])==0x03020100u && atomic_load(&codec_cie_words[2])==0x0b0a0908u && atomic_load(&codec_cie_words[3])==12);
+    config.cie_size=6;CHECK(publish_stream(true,&config)==DBT_OK && atomic_load(&codec_revision)==2);
+    CHECK(atomic_load(&codec_cie_words[1])==0x00000504u && !atomic_load(&codec_cie_words[2]) && !atomic_load(&codec_cie_words[3]));
     memset(media_trace_rings,0,sizeof(media_trace_rings));now=0;return 0;
 }
 EX int probe_audio_wait_policy(void){

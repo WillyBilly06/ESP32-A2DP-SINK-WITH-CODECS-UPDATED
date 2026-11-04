@@ -108,6 +108,8 @@ dbt_result_t dbt_codec_worker_init(dbt_codec_worker_t *w,dbt_codec_worker_hooks_
     atomic_init(&w->pcm_backpressure,0);atomic_init(&w->pcm_timeouts,0);atomic_init(&w->pcm_delivered_frames,0);
     atomic_init(&w->queue_full_drops,0);atomic_init(&w->decode_rejects,0);atomic_init(&w->reset_failures,0);atomic_init(&w->pcm_failures,0);
     atomic_init(&w->input_sequence_breaks,0);atomic_init(&w->input_ssrc_changes,0);atomic_init(&w->queue_high_water,0);
+    atomic_init(&w->input_packets,0);atomic_init(&w->input_payload_bytes,0);atomic_init(&w->input_first_timestamp,0);
+    atomic_init(&w->input_last_timestamp,0);atomic_init(&w->input_stream_epoch,0);
     dbt_codec_hooks_t decoder=hooks.decoder;
     if(hooks.deferred_pcm)decoder=(dbt_codec_hooks_t){w,deferred_allocate,deferred_release,deferred_pcm};
     return dbt_codec_init(&w->decoder,decoder);
@@ -137,6 +139,12 @@ dbt_result_t dbt_codec_worker_media(void *context,const dbt_avdtp_media_t *packe
     if(!w || !packet || !packet->payload || !packet->size || packet->size>w->maximum_payload)return DBT_INVALID;
     if(!enabled(w))return DBT_BUSY;
     uint32_t epoch=atomic_load_explicit(&w->started_epoch,memory_order_acquire);
+    if(w->input_epoch!=epoch){
+        atomic_store(&w->input_packets,0);atomic_store(&w->input_payload_bytes,0);
+        atomic_store(&w->input_first_timestamp,packet->timestamp);atomic_store(&w->input_stream_epoch,epoch);
+    }
+    atomic_fetch_add(&w->input_packets,1);atomic_fetch_add(&w->input_payload_bytes,packet->size);
+    atomic_store(&w->input_last_timestamp,packet->timestamp);
     media_t input={packet->timestamp,packet->ssrc,packet->sequence,packet->size,packet->payload_type,packet->marker};
     if(w->input_epoch==epoch){
         if(packet->sequence!=(uint16_t)(w->input_sequence+1u)){

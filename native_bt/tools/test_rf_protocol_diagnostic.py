@@ -21,8 +21,9 @@ typedef int dbt_result_t;
 enum {DBT_OK,DBT_BUSY,DBT_INVALID};
 typedef int dbt_pcm_format_t;
 static const int dbt_sbc_codec=1;
-typedef struct {uint32_t rate;uint8_t sample_bytes,channels,cie_size;const int *ops;} dbt_codec_config_t;
+typedef struct {uint32_t rate;uint8_t sample_bytes,channels,cie_size;const int *ops;uint8_t cie[16];} dbt_codec_config_t;
 static _Atomic uint32_t pcm_generation,pcm_frames,pcm_bytes,pcm_hash,pcm_rate,pcm_channels,pcm_codec,pcm_sample_bytes;
+static _Atomic uint32_t codec_revision,codec_cie_size,codec_cie_words[4];
 static unsigned pcm_calls,stream_calls;static bool busy;
 #ifndef DBT_PROBE_ASYNC_AUDIO
 enum {DBT_CODEC_PCM_BEGIN=15,DBT_CODEC_PCM_END=16};
@@ -40,7 +41,7 @@ int main(void){
  uint8_t data[512];for(unsigned i=0;i<sizeof(data);i++)data[i]=(uint8_t)(i*37u+11u);
  uint32_t digest=0;const uint32_t rates[]={44100,48000,96000,192000};unsigned cases=0;
  for(unsigned b=2;b<=4;b++)for(unsigned c=1;c<=2;c++)for(unsigned r=0;r<4;r++){
-  expected=(dbt_codec_config_t){rates[r],(uint8_t)b,(uint8_t)c,0,&dbt_sbc_codec};expected_samples=data;busy=false;
+  expected=(dbt_codec_config_t){rates[r],(uint8_t)b,(uint8_t)c,0,&dbt_sbc_codec,{0}};expected_samples=data;busy=false;
 #ifdef DBT_PROBE_ASYNC_AUDIO
   assert(publish_stream(true,&expected)==DBT_OK);
 #else
