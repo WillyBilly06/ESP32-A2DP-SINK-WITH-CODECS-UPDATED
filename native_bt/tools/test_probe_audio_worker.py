@@ -76,6 +76,8 @@ try:
         if args.eight_mod_16:define+=['-DTEST_EIGHT_MOD16=1']
         subprocess.run(cmd+define+['-o',str(artifact)],env=env,check=True)
         dll=ctypes.CDLL(str(artifact));fn=dll.probe_audio_profiles;u8=ctypes.c_ubyte;fn.argtypes=[ctypes.POINTER(u8),ctypes.c_uint16,ctypes.POINTER(u8),ctypes.POINTER(u8),ctypes.c_uint16,ctypes.POINTER(u8),ctypes.c_uint16]
+        line=dll.probe_audio_snapshot_records()
+        if line:raise SystemExit('FAIL timestamp capture-window/format-loss line '+str(line))
         line=dll.probe_audio_diagnostics()
         if line:raise SystemExit('FAIL detailed diagnostic rings/timing line '+str(line))
         line=dll.probe_audio_wait_policy()

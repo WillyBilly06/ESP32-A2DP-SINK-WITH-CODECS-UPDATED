@@ -168,6 +168,16 @@ This short trial omits A2DP DSP/I2S output and establishes no analog fidelity,
 long-duration stability or full-pipeline headroom guarantee. The separate full
 I2S failure remains open.
 
+## Observation-time correction
+
+Periodic records produced before the [capture-window change](LOG_CAPTURE_WINDOWS_2026_11_04.md)
+used a logger-loop start timestamp. A low-priority logger can be preempted before
+later fields are collected, so those timestamps are not precise fault-event
+times. Final quiescent counters and independently measured work spans remain
+usable. New snapshots expose their collection interval, and the I2S ISR records
+the fault event time/gap/stop state independently. Hardware validation of the
+new timestamp fields is separate from the earlier counter evidence.
+
 The [exact FIR delta change](FIR_DELTA_2026_11_04.md) later reduced isolated
 fractional-phase FIR work by 24.5–27.4% with sample/full-state equality. Its
 maximum-rate full pipeline still fails. This kernel result does not replace

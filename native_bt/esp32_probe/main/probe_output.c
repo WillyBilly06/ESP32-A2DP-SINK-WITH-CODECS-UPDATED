@@ -88,6 +88,7 @@ typedef struct {
       descriptor_errors, max_eof_gap_us;
   _Atomic uint32_t descriptor_shape_errors,descriptor_pool_errors,descriptor_order_errors;
   _Atomic uint32_t descriptor_expected_index,descriptor_observed_index,descriptor_observed_size;
+  _Atomic uint32_t descriptor_fault_at_us,descriptor_fault_gap_us,descriptor_fault_stopping;
   _Atomic uint32_t maximum_render_us, stop_fill_frames;
   _Atomic uint32_t render_total_us,render_calls;
   _Atomic uint32_t allocation_failed_bytes,allocation_failure_free,allocation_failure_largest;
@@ -156,7 +157,12 @@ static bool IRAM_ATTR sent(i2s_chan_handle_t channel, i2s_event_data_t *event,
   (void)channel;
   output_t *o = context;
   BaseType_t wake = pdFALSE;
+  uint32_t now = (uint32_t)esp_timer_get_time();
+  uint32_t gap = o->last_eof?now-o->last_eof:0;
   if (!event->dma_buf || event->size != DMA_FRAMES * 8u) {
+    atomic_store(&o->descriptor_fault_at_us,now);
+    atomic_store(&o->descriptor_fault_gap_us,gap);
+    atomic_store(&o->descriptor_fault_stopping,atomic_load(&o->stop_requested)!=0);
     atomic_store(&o->descriptor_shape_errors,atomic_load(&o->descriptor_shape_errors)+1u);
     atomic_store(&o->descriptor_expected_index,o->next_descriptor);
     atomic_store(&o->descriptor_observed_index,UINT32_MAX);
@@ -167,9 +173,7 @@ static bool IRAM_ATTR sent(i2s_chan_handle_t channel, i2s_event_data_t *event,
     vTaskNotifyGiveFromISR(o->task,&wake);
     return wake==pdTRUE;
   }
-  uint32_t now = (uint32_t)esp_timer_get_time();
   if (o->last_eof) {
-    uint32_t gap = now - o->last_eof;
     if (gap > atomic_load(&o->max_eof_gap_us))
       atomic_store(&o->max_eof_gap_us, gap);
   }
@@ -180,6 +184,9 @@ static bool IRAM_ATTR sent(i2s_chan_handle_t channel, i2s_event_data_t *event,
     ++index;
   if (index == o->descriptor_count) {
     if (index == DMA_DESCRIPTORS) {
+      atomic_store(&o->descriptor_fault_at_us,now);
+      atomic_store(&o->descriptor_fault_gap_us,gap);
+      atomic_store(&o->descriptor_fault_stopping,atomic_load(&o->stop_requested)!=0);
       atomic_store(&o->descriptor_pool_errors,atomic_load(&o->descriptor_pool_errors)+1u);
       atomic_store(&o->descriptor_expected_index,o->next_descriptor);
       atomic_store(&o->descriptor_observed_index,index);
@@ -194,6 +201,9 @@ static bool IRAM_ATTR sent(i2s_chan_handle_t channel, i2s_event_data_t *event,
     ++o->descriptor_count;
   }
   if (index != o->next_descriptor) {
+    atomic_store(&o->descriptor_fault_at_us,now);
+    atomic_store(&o->descriptor_fault_gap_us,gap);
+    atomic_store(&o->descriptor_fault_stopping,atomic_load(&o->stop_requested)!=0);
     atomic_store(&o->descriptor_order_errors,atomic_load(&o->descriptor_order_errors)+1u);
     atomic_store(&o->descriptor_expected_index,o->next_descriptor);
     atomic_store(&o->descriptor_observed_index,index);
@@ -363,6 +373,9 @@ static dbt_result_t start_output(uint32_t rate, uint8_t channels,
   atomic_store(&output.descriptor_expected_index,0);
   atomic_store(&output.descriptor_observed_index,0);
   atomic_store(&output.descriptor_observed_size,0);
+  atomic_store(&output.descriptor_fault_at_us,0);
+  atomic_store(&output.descriptor_fault_gap_us,0);
+  atomic_store(&output.descriptor_fault_stopping,0);
   atomic_store(&output.max_eof_gap_us, 0);
   atomic_store(&output.maximum_render_us, 0);
   atomic_store(&output.render_total_us,0);
@@ -879,6 +892,7 @@ void probe_output_stats(probe_output_stats_t *s) {
   LOAD(descriptor_errors);
   LOAD(descriptor_shape_errors);LOAD(descriptor_pool_errors);LOAD(descriptor_order_errors);
   LOAD(descriptor_expected_index);LOAD(descriptor_observed_index);LOAD(descriptor_observed_size);
+  LOAD(descriptor_fault_at_us);LOAD(descriptor_fault_gap_us);LOAD(descriptor_fault_stopping);
   LOAD(max_eof_gap_us);
   LOAD(maximum_render_us);
   LOAD(render_total_us);

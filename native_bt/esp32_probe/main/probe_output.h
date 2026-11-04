@@ -6,6 +6,7 @@ typedef struct {
     uint32_t dma_eofs,dma_source_frames,underrun_frames,descriptor_errors,max_eof_gap_us;
     uint32_t descriptor_shape_errors,descriptor_pool_errors,descriptor_order_errors;
     uint32_t descriptor_expected_index,descriptor_observed_index,descriptor_observed_size;
+    uint32_t descriptor_fault_at_us,descriptor_fault_gap_us,descriptor_fault_stopping;
     uint32_t maximum_render_us,stop_fill_frames;
     uint32_t render_total_us,render_calls,render_stack_low_water_bytes;
     uint32_t allocation_failed_bytes,allocation_failure_free,allocation_failure_largest;

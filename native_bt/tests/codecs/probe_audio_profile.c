@@ -14,6 +14,21 @@ static unsigned live_allocs,fail_alloc,owner_wakes;
 static int created_decoder_core=-1;
 static dbt_result_t stop_result=DBT_OK;
 static uint32_t now;
+static bool snapshot_for_test(char *line,size_t capacity,uint32_t began,const char *format,...){
+    va_list arguments;va_start(arguments,format);bool ok=snapshot_vformat(line,capacity,began,format,arguments);va_end(arguments);return ok;
+}
+EX int probe_audio_snapshot_records(void){
+    char line[1024],large[1000];now=30;
+    CHECK(snapshot_for_test(line,sizeof(line),1000,"{\"probe\":\"snapshot_test\",\"value\":%u}\n",7u));
+    CHECK(strstr(line,"\"snapshot_begin_us\":1000") && strstr(line,"\"at_us\":30000") && strstr(line,"\"snapshot_span_us\":29000"));
+    now=1;CHECK(snapshot_for_test(line,sizeof(line),UINT32_MAX-1999u,"{\"probe\":\"wrap\"}\n"));
+    CHECK(strstr(line,"\"at_us\":1000") && strstr(line,"\"snapshot_span_us\":3000"));
+    memset(large,'x',sizeof(large)-1);large[sizeof(large)-1]=0;
+    CHECK(!snapshot_for_test(line,sizeof(line),0,"{\"probe\":\"large\",\"value\":\"%s\"}\n",large));
+    CHECK(!snapshot_for_test(line,64,0,"{\"probe\":\"small\"}\n"));
+    CHECK(!snapshot_for_test(line,sizeof(line),0,"not json\n"));
+    CHECK(atomic_load(&snapshot_format_lost)==3);atomic_store(&snapshot_format_lost,0);now=0;return 0;
+}
 static unsigned product_events;static probe_audio_product_event_t last_product_event;
 static uint16_t product_handle;static uint32_t product_generation,product_rate;
 static void product_event(void *ctx,probe_audio_product_event_t e,uint16_t h,uint32_t g,uint32_t r,uint32_t t){

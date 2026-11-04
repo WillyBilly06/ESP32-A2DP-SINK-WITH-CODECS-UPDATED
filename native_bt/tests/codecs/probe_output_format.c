@@ -11,9 +11,10 @@ static unsigned live,queues_created;
 static request_t pending_request;
 static response_t pending_response;
 static bool request_pending,response_pending;
+static int64_t test_clock_us;
 void *heap_caps_malloc(size_t n,unsigned flags){(void)flags;void *p=malloc(n);if(p)live++;return p;}
 void heap_caps_free(void *p){if(p){live--;free(p);}}
-int64_t esp_timer_get_time(void){return 0;}
+int64_t esp_timer_get_time(void){return test_clock_us;}
 void xTaskNotifyGive(TaskHandle_t t){
     (void)t;if(!request_pending)return;request_pending=false;
     dbt_result_t r;
@@ -54,9 +55,11 @@ EX int probe_output_formats(void){
         dbt_pcm_format_t format=(dbt_pcm_format_t)(i+2);size_t bytes=(i+2)*4u;
         atomic_store(&output.descriptor_shape_errors,9);atomic_store(&output.descriptor_pool_errors,8);atomic_store(&output.descriptor_order_errors,7);
         atomic_store(&output.descriptor_expected_index,6);atomic_store(&output.descriptor_observed_index,5);atomic_store(&output.descriptor_observed_size,4);
+        atomic_store(&output.descriptor_fault_at_us,3);atomic_store(&output.descriptor_fault_gap_us,2);atomic_store(&output.descriptor_fault_stopping,1);
         CHECK(probe_output_stream_format(true,48000,2,format)==DBT_OK && output.audio.config.format==format && output.audio.input.stride==(i+2)*2u);
         CHECK(!atomic_load(&output.descriptor_shape_errors) && !atomic_load(&output.descriptor_pool_errors) && !atomic_load(&output.descriptor_order_errors));
         CHECK(!atomic_load(&output.descriptor_expected_index) && !atomic_load(&output.descriptor_observed_index) && !atomic_load(&output.descriptor_observed_size));
+        CHECK(!atomic_load(&output.descriptor_fault_at_us) && !atomic_load(&output.descriptor_fault_gap_us) && !atomic_load(&output.descriptor_fault_stopping));
         CHECK(probe_output_pcm_format(samples[i],2,2,48000,format)==DBT_OK && !memcmp(output.audio.input.bytes,samples[i],bytes));
         CHECK(probe_output_pcm_format(samples[i],2,2,44100,format)==DBT_INVALID);
         CHECK(probe_output_pcm_format(samples[i],2,1,48000,format)==DBT_INVALID);
@@ -76,17 +79,21 @@ EX int probe_output_formats(void){
 }
 EX int probe_output_descriptor_diagnostics(void){
     memset(&output,0,sizeof(output));static int32_t dma[4][DMA_FRAMES*2];
+    test_clock_us=123456;output.last_eof=120000;
     i2s_event_data_t event={0};event.dma_buf=dma[0];event.size=0;
     (void)sent(0,&event,&output);
     CHECK(atomic_load(&output.descriptor_errors)==1 && atomic_load(&output.descriptor_shape_errors)==1);
     CHECK(atomic_load(&output.descriptor_observed_index)==UINT32_MAX && !atomic_load(&output.descriptor_observed_size));
+    CHECK(atomic_load(&output.descriptor_fault_at_us)==123456 && atomic_load(&output.descriptor_fault_gap_us)==3456 && !atomic_load(&output.descriptor_fault_stopping));
     output.descriptor_count=DMA_DESCRIPTORS;
     for(unsigned i=0;i<DMA_DESCRIPTORS;++i)output.descriptors[i].address=dma[i];
-    event.dma_buf=dma[3];event.size=DMA_FRAMES*8u;(void)sent(0,&event,&output);
+    test_clock_us=200000;event.dma_buf=dma[3];event.size=DMA_FRAMES*8u;(void)sent(0,&event,&output);
     CHECK(atomic_load(&output.descriptor_errors)==2 && atomic_load(&output.descriptor_pool_errors)==1);
     CHECK(atomic_load(&output.descriptor_observed_index)==3 && atomic_load(&output.descriptor_observed_size)==DMA_FRAMES*8u);
-    event.dma_buf=dma[2];(void)sent(0,&event,&output);
+    CHECK(atomic_load(&output.descriptor_fault_at_us)==200000 && atomic_load(&output.descriptor_fault_gap_us)==80000);
+    test_clock_us=201000;atomic_store(&output.stop_requested,1);event.dma_buf=dma[2];(void)sent(0,&event,&output);
     CHECK(atomic_load(&output.descriptor_errors)==3 && atomic_load(&output.descriptor_order_errors)==1);
     CHECK(!atomic_load(&output.descriptor_expected_index) && atomic_load(&output.descriptor_observed_index)==2);
-    return 0;
+    CHECK(atomic_load(&output.descriptor_fault_at_us)==201000 && atomic_load(&output.descriptor_fault_gap_us)==1000 && atomic_load(&output.descriptor_fault_stopping)==1);
+    test_clock_us=0;return 0;
 }

@@ -57,6 +57,7 @@
 #include "esp_timer.h"
 #include <inttypes.h>
 #include <stdio.h>
+#include <stdarg.h>
 #ifndef DBT_PROBE_DECODER_CORE
 #define DBT_PROBE_DECODER_CORE 1
 #endif
@@ -98,6 +99,7 @@ static _Atomic uint32_t rx_packets,rx_acl,rx_events,rx_bytes,rx_isr,rx_rejected,
 static _Atomic uint32_t rx_callback_max_us,first_rx_to_poll_max_us,host_poll_max_us;
 static _Atomic uint32_t worker_steps,worker_elapsed_us,worker_step_max_us,worker_hist[8];
 static _Atomic uint32_t owner_iterations,owner_immediate[15];
+static _Atomic uint32_t snapshot_format_lost;
 typedef struct {
     uint32_t began;
     _Atomic uint32_t calls,elapsed_us,maximum_us,hist[8];
@@ -109,6 +111,28 @@ static void maximum(_Atomic uint32_t *value,uint32_t candidate){
     /* Each maximum has one writer; the logger only reads it. */
     if(candidate>atomic_load_explicit(value,memory_order_relaxed))atomic_store_explicit(value,candidate,memory_order_relaxed);
 }
+/* Logger-only. Arguments have been captured before entry; the time range
+ * includes preemption during their collection, never the UART transmission.
+ * One complete JSON write prevents partial-record interleaving. */
+static bool snapshot_vformat(char *line,size_t capacity,uint32_t began,const char *format,va_list arguments){
+    uint32_t ended=(uint32_t)esp_timer_get_time();
+    if(capacity<160u)goto lost;
+    int n=vsnprintf(line,capacity-128u,format,arguments);
+    if(n<2 || (size_t)n>=capacity-128u || line[n-2]!='}' || line[n-1]!='\n')goto lost;
+    int tail=snprintf(line+n-2,capacity-(size_t)n+2u,
+        ",\"snapshot_begin_us\":%" PRIu32 ",\"at_us\":%" PRIu32 ",\"snapshot_span_us\":%" PRIu32 "}\n",
+        began,ended,ended-began);
+    if(tail<0 || (size_t)tail>=capacity-(size_t)n+2u)goto lost;
+    return true;
+lost:
+    atomic_fetch_add_explicit(&snapshot_format_lost,1,memory_order_relaxed);return false;
+}
+static void __attribute__((format(printf,2,3))) snapshot_log(uint32_t began,const char *format,...){
+    char line[1024];va_list arguments;va_start(arguments,format);
+    bool ready=snapshot_vformat(line,sizeof(line),began,format,arguments);va_end(arguments);
+    if(ready)printf("%s",line);
+}
+#define PROBE_SNAPSHOT_LOG(...) do {uint32_t snapshot_began=(uint32_t)esp_timer_get_time();snapshot_log(snapshot_began,__VA_ARGS__);}while(0)
 static void timing_event(unsigned kind){
     unsigned index=(kind-DBT_CODEC_DECODE_BEGIN)/2u;
     if(index>=3)return;
@@ -414,7 +438,7 @@ static void log_loop(void *unused){
         if(++ticks<10)continue;
         ticks=0;
         uint32_t at=(uint32_t)esp_timer_get_time();
-        printf("{\"probe\":\"owner_wait_reasons\",\"at_us\":%" PRIu32 ",\"iterations\":%" PRIu32
+        PROBE_SNAPSHOT_LOG("{\"probe\":\"owner_wait_reasons\",\"collection_cycle_us\":%" PRIu32 ",\"iterations\":%" PRIu32
                ",\"runtime\":%" PRIu32 ",\"admission\":%" PRIu32 ",\"smp\":%" PRIu32 ",\"avrcp\":%" PRIu32
                ",\"restart\":%" PRIu32 ",\"pair_button\":%" PRIu32 ",\"rfcomm\":%" PRIu32 ",\"gap\":%" PRIu32
                ",\"product\":%" PRIu32 ",\"io\":%" PRIu32 ",\"att\":%" PRIu32 ",\"security\":%" PRIu32
@@ -424,22 +448,23 @@ static void log_loop(void *unused){
                atomic_load(&owner_immediate[6]),atomic_load(&owner_immediate[7]),atomic_load(&owner_immediate[8]),
                atomic_load(&owner_immediate[9]),atomic_load(&owner_immediate[10]),atomic_load(&owner_immediate[11]),
                atomic_load(&owner_immediate[12]),atomic_load(&owner_immediate[13]),atomic_load(&owner_immediate[14]));
-        printf("{\"probe\":\"vhci_timing\",\"at_us\":%" PRIu32 ",\"packets\":%" PRIu32 ",\"acl\":%" PRIu32
+        PROBE_SNAPSHOT_LOG("{\"probe\":\"vhci_timing\",\"collection_cycle_us\":%" PRIu32 ",\"packets\":%" PRIu32 ",\"acl\":%" PRIu32
                ",\"events\":%" PRIu32 ",\"bytes\":%" PRIu32 ",\"isr_callbacks\":%" PRIu32 ",\"rejected\":%" PRIu32
                ",\"callback_max_us\":%" PRIu32 ",\"first_rx_to_poll_max_us\":%" PRIu32 ",\"host_poll_max_us\":%" PRIu32
-               ",\"ingress_high_water_bytes\":%" PRIu32 ",\"ingress_rejected\":%" PRIu32 "}\n",
+               ",\"ingress_high_water_bytes\":%" PRIu32 ",\"ingress_rejected\":%" PRIu32 ",\"logger_stack_low_water_bytes\":%u}\n",
                at,atomic_load(&rx_packets),atomic_load(&rx_acl),atomic_load(&rx_events),atomic_load(&rx_bytes),atomic_load(&rx_isr),
                atomic_load(&rx_rejected),atomic_load(&rx_callback_max_us),atomic_load(&first_rx_to_poll_max_us),atomic_load(&host_poll_max_us),
-               atomic_load(&profile.runtime->host.ingress.high_water),atomic_load(&profile.runtime->host.ingress.rejected));
-        printf("{\"probe\":\"media_drop_reasons\",\"at_us\":%" PRIu32 ",\"queue_full\":%" PRIu32 ",\"decode_reject\":%" PRIu32
+               atomic_load(&profile.runtime->host.ingress.high_water),atomic_load(&profile.runtime->host.ingress.rejected),
+               (unsigned)uxTaskGetStackHighWaterMark(logger_task));
+        PROBE_SNAPSHOT_LOG("{\"probe\":\"media_drop_reasons\",\"collection_cycle_us\":%" PRIu32 ",\"queue_full\":%" PRIu32 ",\"decode_reject\":%" PRIu32
                ",\"reset_failed\":%" PRIu32 ",\"pcm_failed\":%" PRIu32 ",\"pcm_timeout\":%" PRIu32 ",\"pcm_busy\":%" PRIu32
                ",\"input_sequence_breaks\":%" PRIu32 ",\"input_ssrc_changes\":%" PRIu32 ",\"queue_high_water\":%" PRIu32
-               ",\"host_trace_lost\":%" PRIu32 ",\"worker_trace_lost\":%" PRIu32 "}\n",at,
+               ",\"host_trace_lost\":%" PRIu32 ",\"worker_trace_lost\":%" PRIu32 ",\"snapshot_records_lost\":%" PRIu32 "}\n",at,
                atomic_load(&worker.queue_full_drops),atomic_load(&worker.decode_rejects),atomic_load(&worker.reset_failures),
                atomic_load(&worker.pcm_failures),atomic_load(&worker.pcm_timeouts),atomic_load(&worker.pcm_backpressure),
                atomic_load(&worker.input_sequence_breaks),atomic_load(&worker.input_ssrc_changes),atomic_load(&worker.queue_high_water),
-               atomic_load(&media_trace_rings[0].lost),atomic_load(&media_trace_rings[1].lost));
-        printf("{\"probe\":\"worker_timing\",\"at_us\":%" PRIu32 ",\"steps\":%" PRIu32 ",\"elapsed_us\":%" PRIu32
+               atomic_load(&media_trace_rings[0].lost),atomic_load(&media_trace_rings[1].lost),atomic_load(&snapshot_format_lost));
+        PROBE_SNAPSHOT_LOG("{\"probe\":\"worker_timing\",\"collection_cycle_us\":%" PRIu32 ",\"steps\":%" PRIu32 ",\"elapsed_us\":%" PRIu32
                ",\"max_step_us\":%" PRIu32 ",\"wall_time_includes_preemption\":true,\"step_budget\":2,\"histogram_us_le\":[125,250,500,1000,2000,4000,8000],\"histogram_counts\":[%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 "]}\n",
                at,atomic_load(&worker_steps),atomic_load(&worker_elapsed_us),atomic_load(&worker_step_max_us),
                atomic_load(&worker_hist[0]),atomic_load(&worker_hist[1]),atomic_load(&worker_hist[2]),atomic_load(&worker_hist[3]),
@@ -447,13 +472,14 @@ static void log_loop(void *unused){
         static const char *const phases[]={"decoder_execution","decoder_reset","pcm_delivery"};
         for(unsigned i=0;i<3;++i){
             phase_timing_t *p=&phase_timing[i];
-            printf("{\"probe\":\"%s\",\"at_us\":%" PRIu32 ",\"calls\":%" PRIu32 ",\"elapsed_us\":%" PRIu32
+            PROBE_SNAPSHOT_LOG("{\"probe\":\"%s\",\"collection_cycle_us\":%" PRIu32 ",\"calls\":%" PRIu32 ",\"elapsed_us\":%" PRIu32
                    ",\"maximum_us\":%" PRIu32 ",\"wall_time_includes_preemption\":true,\"includes_inline_pcm\":%s,\"histogram_us_le\":[125,250,500,1000,2000,4000,8000],\"histogram_counts\":[%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 "]}\n",
                    phases[i],at,atomic_load(&p->calls),atomic_load(&p->elapsed_us),atomic_load(&p->maximum_us),
                    i==0 && !worker.hooks.deferred_pcm?"true":"false",
                    atomic_load(&p->hist[0]),atomic_load(&p->hist[1]),atomic_load(&p->hist[2]),atomic_load(&p->hist[3]),
                    atomic_load(&p->hist[4]),atomic_load(&p->hist[5]),atomic_load(&p->hist[6]),atomic_load(&p->hist[7]));
         }
+        uint32_t pcm_snapshot_began=(uint32_t)esp_timer_get_time();
         uint32_t generation=atomic_load_explicit(&pcm_generation,memory_order_acquire);
         if(generation&1u)continue;
         uint32_t frames=atomic_load_explicit(&pcm_frames,memory_order_relaxed),bytes=atomic_load_explicit(&pcm_bytes,memory_order_relaxed);
@@ -467,15 +493,15 @@ static void log_loop(void *unused){
             static const char hex[]="0123456789abcdef";char cie[2u*DBT_CODEC_CIE_BYTES+1u];unsigned n=cie_size>DBT_CODEC_CIE_BYTES?DBT_CODEC_CIE_BYTES:cie_size;
             for(unsigned i=0;i<n;++i){uint8_t b=(uint8_t)(cie_words[i/4u]>>(8u*(i%4u)));cie[2*i]=hex[b>>4];cie[2*i+1]=hex[b&15u];}
             cie[2*n]=0;
-            printf("{\"probe\":\"codec_configuration\",\"at_us\":%" PRIu32 ",\"revision\":%" PRIu32 ",\"codec\":%" PRIu32
+            snapshot_log(pcm_snapshot_began,"{\"probe\":\"codec_configuration\",\"collection_cycle_us\":%" PRIu32 ",\"revision\":%" PRIu32 ",\"codec\":%" PRIu32
                    ",\"rate\":%" PRIu32 ",\"channels\":%" PRIu32 ",\"pcm_container_bytes\":%" PRIu32 ",\"cie_size\":%" PRIu32 ",\"cie_hex\":\"%s\"}\n",
                    at,revision,codec,rate,channels,sample_bytes,cie_size,cie);previous_codec_revision=revision;
         }
-        printf("{\"probe\":\"media_input\",\"at_us\":%" PRIu32 ",\"stream_epoch\":%" PRIu32 ",\"packets\":%" PRIu32
+        snapshot_log(pcm_snapshot_began,"{\"probe\":\"media_input\",\"collection_cycle_us\":%" PRIu32 ",\"stream_epoch\":%" PRIu32 ",\"packets\":%" PRIu32
                ",\"payload_bytes\":%" PRIu32 ",\"rtp_first_timestamp\":%" PRIu32 ",\"rtp_last_timestamp\":%" PRIu32 ",\"rate\":%" PRIu32 "}\n",
                at,atomic_load(&worker.input_stream_epoch),atomic_load(&worker.input_packets),atomic_load(&worker.input_payload_bytes),
                atomic_load(&worker.input_first_timestamp),atomic_load(&worker.input_last_timestamp),rate);
-        printf("{\"probe\":\"sbc_pcm\",\"frames\":%" PRIu32 ",\"bytes\":%" PRIu32 ",\"fnv1a32\":%" PRIu32
+        snapshot_log(pcm_snapshot_began,"{\"probe\":\"sbc_pcm\",\"frames\":%" PRIu32 ",\"bytes\":%" PRIu32 ",\"fnv1a32\":%" PRIu32
                ",\"rate\":%" PRIu32 ",\"channels\":%" PRIu32 ",\"media_packets\":%" PRIu32 ",\"drops\":%" PRIu32
                ",\"resets\":%" PRIu32 ",\"resident\":%" PRIu32 ",\"codec\":%" PRIu32 ",\"sample_bytes\":%" PRIu32
                ",\"faults\":%" PRIu32 ",\"decoder_stack_low_water_bytes\":%u,\"internal_heap_free\":%u,\"internal_heap_min_free\":%u,\"internal_heap_largest\":%u,\"i2s_output\":" AUDIO_OUTPUT_JSON "}\n",frames,bytes,hash,rate,channels,
@@ -484,12 +510,13 @@ static void log_loop(void *unused){
                (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT),
                (unsigned)heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT),
                (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT));
+        uint32_t profile_snapshot_began=(uint32_t)esp_timer_get_time();
         uint32_t snapshot=atomic_load(&profile_snapshot),errors=atomic_load(&event_errors);
         uint32_t ignored=atomic_load(&ignored_dynamic),oversized=atomic_load(&oversized_dynamic);
         if(snapshot!=previous || errors!=previous_errors || ignored!=previous_ignored || oversized!=previous_oversized){
             previous=snapshot;previous_errors=errors;
             previous_ignored=ignored;previous_oversized=oversized;
-            printf("{\"probe\":\"native_profile\",\"state\":%u,\"active\":%u,\"enabled\":%u,\"draining\":%u,"
+            snapshot_log(profile_snapshot_began,"{\"probe\":\"native_profile\",\"state\":%u,\"active\":%u,\"enabled\":%u,\"draining\":%u,"
                    "\"event_errors\":%" PRIu32 ",\"last_event\":%" PRIu32 ",\"last_result\":%" PRIu32 ",\"detail\":%" PRIu32
                    ",\"ignored_dynamic\":%" PRIu32 ",\"oversized_dynamic\":%" PRIu32 "}\n",
                    (unsigned)(snapshot&255u),(unsigned)((snapshot>>8)&1u),(unsigned)((snapshot>>9)&1u),
@@ -499,18 +526,21 @@ static void log_loop(void *unused){
         (void)log_metadata();
 #endif
 #ifdef DBT_PROBE_AUDIO_OUTPUT
+        uint32_t output_snapshot_began=(uint32_t)esp_timer_get_time();
         probe_output_stats_t stats;probe_output_stats(&stats);
-        printf("{\"probe\":\"render_work\",\"at_us\":%" PRIu32 ",\"calls\":%" PRIu32 ",\"elapsed_us\":%" PRIu32
+        snapshot_log(output_snapshot_began,"{\"probe\":\"render_work\",\"collection_cycle_us\":%" PRIu32 ",\"calls\":%" PRIu32 ",\"elapsed_us\":%" PRIu32
                ",\"maximum_us\":%" PRIu32 ",\"wall_time_includes_preemption\":true,\"input_ready_frames\":%" PRIu32 ",\"render_stack_low_water_bytes\":%" PRIu32
                ",\"allocation_failed_bytes\":%" PRIu32 ",\"allocation_failure_free\":%" PRIu32 ",\"allocation_failure_largest\":%" PRIu32
                ",\"request_fault\":%" PRIu32 ",\"stale_receipts\":%" PRIu32 "}\n",at,stats.render_calls,stats.render_total_us,
                stats.maximum_render_us,stats.input_ready_frames,stats.render_stack_low_water_bytes,stats.allocation_failed_bytes,
                stats.allocation_failure_free,stats.allocation_failure_largest,stats.request_fault,stats.stale_receipts);
-        printf("{\"probe\":\"i2s_descriptor_faults\",\"at_us\":%" PRIu32 ",\"shape\":%" PRIu32 ",\"pool\":%" PRIu32
-               ",\"order\":%" PRIu32 ",\"expected_index\":%" PRIu32 ",\"observed_index\":%" PRIu32 ",\"observed_size\":%" PRIu32 "}\n",
+        snapshot_log(output_snapshot_began,"{\"probe\":\"i2s_descriptor_faults\",\"collection_cycle_us\":%" PRIu32 ",\"shape\":%" PRIu32 ",\"pool\":%" PRIu32
+               ",\"order\":%" PRIu32 ",\"expected_index\":%" PRIu32 ",\"observed_index\":%" PRIu32 ",\"observed_size\":%" PRIu32
+               ",\"fault_at_us\":%" PRIu32 ",\"fault_gap_us\":%" PRIu32 ",\"fault_stopping\":%" PRIu32 "}\n",
                at,stats.descriptor_shape_errors,stats.descriptor_pool_errors,stats.descriptor_order_errors,
-               stats.descriptor_expected_index,stats.descriptor_observed_index,stats.descriptor_observed_size);
-        printf("{\"probe\":\"native_i2s\",\"running\":%" PRIu32 ",\"failed\":%" PRIu32 ",\"rate\":%" PRIu32
+               stats.descriptor_expected_index,stats.descriptor_observed_index,stats.descriptor_observed_size,
+               stats.descriptor_fault_at_us,stats.descriptor_fault_gap_us,stats.descriptor_fault_stopping);
+        snapshot_log(output_snapshot_began,"{\"probe\":\"native_i2s\",\"running\":%" PRIu32 ",\"failed\":%" PRIu32 ",\"rate\":%" PRIu32
                ",\"requested_bytes\":%" PRIu32 ",\"accepted_frames\":%" PRIu32 ",\"rendered_frames\":%" PRIu32 ",\"ready_frames\":%" PRIu32
                ",\"dma_eofs\":%" PRIu32 ",\"dma_source_frames\":%" PRIu32 ",\"underrun_frames\":%" PRIu32
                ",\"descriptor_errors\":%" PRIu32 ",\"max_eof_gap_us\":%" PRIu32 ",\"maximum_render_us\":%" PRIu32
@@ -518,7 +548,7 @@ static void log_loop(void *unused){
                stats.running,stats.failed,stats.rate,stats.requested_bytes,stats.accepted_frames,stats.rendered_frames,stats.ready_frames,
                stats.dma_eofs,stats.dma_source_frames,stats.underrun_frames,stats.descriptor_errors,stats.max_eof_gap_us,stats.maximum_render_us,
                stats.first_underrun_accepted_frames,stats.first_underrun_dma_frames);
-        printf("{\"probe\":\"audio_clock\",\"ppm\":%" PRId32 ",\"observed_ppm\":%" PRId32 ",\"error_frames\":%" PRId32
+        snapshot_log(output_snapshot_began,"{\"probe\":\"audio_clock\",\"ppm\":%" PRId32 ",\"observed_ppm\":%" PRId32 ",\"error_frames\":%" PRId32
                ",\"state\":%" PRIu32 ",\"target_frames\":%" PRIu32 ",\"updates\":%" PRIu32 ",\"disturbances\":%" PRIu32
                ",\"observed_valid\":%" PRIu32 ",\"snapshot_valid\":%" PRIu32 "}\n",stats.clock_ppm,stats.clock_observed_ppm,stats.clock_error_frames,
                stats.clock_state,stats.clock_target_frames,stats.clock_updates,stats.clock_disturbances,stats.clock_observed_valid,stats.clock_snapshot_valid);
