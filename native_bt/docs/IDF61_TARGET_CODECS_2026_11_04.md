@@ -1,5 +1,10 @@
 # ESP-IDF 6.1 target codec checkpoint — 2026-11-04
 
+This page retains the initial target results. The later
+[stage-profile/optimization checkpoint](IDF61_LHDC_PROFILE_2026_11_04.md)
+supersedes its maximum-rate isolated timings for the explicitly identified new
+images; the full master objective remains incomplete.
+
 This is isolated algorithm and control-flow evidence, not a production host,
 RF/coexistence, full audio-chain or acoustic qualification. The released
 Bluedroid application remains the default and is preserved in `ota_0`.

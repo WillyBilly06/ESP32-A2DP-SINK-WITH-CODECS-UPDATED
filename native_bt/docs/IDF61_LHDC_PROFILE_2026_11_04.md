@@ -90,3 +90,53 @@ whole-decoder regression evidence must be gathered separately.
 The profiled run returned cleanly to released Bluedroid firmware. Its complete
 local artifact/receipts are retained in
 `_build/hardware/runs/1793787196186963900-8657d1434919/`.
+
+## Measured FAC-reader candidate
+
+COM6 then ran image
+`babbe17d12a0d9bdbb1b8f0db5ad10eadb610ef77068eb0febd8f10e5115adfa`
+from source checkpoint `428fc2a2`, using the same compiler/configuration,
+stage instrumentation and ordered encoded fixture. All 37 existing configurations
+passed. All three 96-frame trials passed the independent PCM checkpoints and
+matched the baseline's full-output hash `4008775619`.
+
+| Measurement | Before | Candidate |
+|---|---:|---:|
+| Mean entropy stage per stereo frame | 1,597.8 us | 1,305.6 us |
+| Callback-subtracted mean | 3,804 us | 3,511 us |
+| Callback-subtracted worst across trials | 4,131 us | 3,840 us |
+| Mean with validation | 4,777–4,778 us | 4,485 us |
+| Worst with validation | 5,113 us | 4,822 us |
+| Conservative deadline misses / 252 measured frames | 40 | 0 |
+| Tracked decoder peak bytes | 63,672 | 63,672 |
+| Stack low-water bytes | 3,636 | 3,540 |
+
+For this instrumented isolated tone workload, entropy time decreases about
+18.3% and callback-subtracted mean time about 7.7%. The existing scratch size,
+codec configuration and complete output hash are preserved. No RAM advantage
+over an equivalent full product is established. ELF inspection confirms the
+byte-aligned branch links the SDK's ROM `memcpy` symbol at `0x4000c2c8`.
+
+The candidate returned cleanly to released Bluedroid firmware. Its complete
+local records are under
+`_build/hardware/runs/1793788111178011600-babbe17d12a0/` and the sanitized
+comparison is [recorded here](IDF61_LHDC_PROFILE_RESULTS.json).
+
+## Next integration gate
+
+`probe_output_pcm_format()` still waits in a retry/notification loop for up to
+100 ms. `dbt_codec_worker_step()` treats any non-OK media result as a drop/reset,
+and current codec adapters can emit several frames from one packet. Replacing
+the callback with an immediate BUSY alone would therefore lose already-decoded
+PCM or corrupt decoder continuity.
+
+The required replacement must retain one decoded PCM block and its input lease,
+pump bounded chunks as the render ring admits them, and resume the saved codec
+frame cursor without decoding accepted frames again. It must prioritize control
+retirement and release every lease exactly once on suspend, reconfiguration,
+disconnect, failure or drop. Stream-format changes also need asynchronous
+completion. The working path remains until all codecs and lifecycle tests pass.
+
+Complex/noisy/full-scale signals, real DSP/I2S, immediate storage commits and
+simultaneous Classic/BLE/control workloads remain mandatory. These isolated
+measurements do not satisfy the master performance guarantee.

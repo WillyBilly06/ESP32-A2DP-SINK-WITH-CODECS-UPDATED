@@ -8,9 +8,11 @@ The current work is on `codex/owned-bt-idf61`, based on the released Bluedroid
 implementation is not a production replacement. Current tests and build evidence
 are kept separate from historical observations below. The
 [current target codec checkpoint](docs/IDF61_TARGET_CODECS_2026_11_04.md) records
-37/37 configurations passing on COM6. The maximum LHDC test passed PCM checks
-but missed 35/84 isolated 5 ms deadlines, including validation overhead. Both
-finite diagnostic runs returned to released 1.0.4 firmware. The user released
+37/37 configurations passing on COM6. The later
+[LHDC profile and optimization](docs/IDF61_LHDC_PROFILE_2026_11_04.md) retains
+identical PCM hashes and passes all 252 measured isolated 5 ms deadlines at
+192 kHz/stereo/S24/1000 kbps, including validation. Full DSP/I2S/coexistence
+qualification remains open. All finite runs returned to released 1.0.4 firmware. The user released
 COM6 for testing in this chat; the historical reservation below is superseded.
 
 ## Historical pre-6.1 status

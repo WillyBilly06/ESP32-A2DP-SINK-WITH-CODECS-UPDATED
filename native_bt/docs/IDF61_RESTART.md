@@ -14,13 +14,13 @@ released Bluedroid application remains the working fallback and is not retired.
   bundled stable 6.1 sources; Bluedroid/NimBLE hosts are disabled in the probe.
 - The older `FEATURE_MATRIX.md`, `PROGRESS.md` and hardware receipts are
   historical evidence. Their old hardware reservation was explicitly released
-  for COM6 in this chat. No hardware has been accessed for this checkpoint.
+  for COM6 in this chat. Later COM6 codec execution is recorded below.
 - Hardware available: original ESP32 revision 3.1, 8 MB flash, no PSRAM,
   I2S DAC and Redmagic NX809J. No LED matrix/encoders are attached. The earlier
   request to omit WiFi recovery hardware testing remains recorded; its working
   source/build path is retained.
 
-Fresh local results:
+Initial off-board checkpoint results (retained with their original scope):
 
 | Check | Evidence and scope |
 |---|---|
@@ -34,8 +34,9 @@ Fresh local results:
 | Storage/OTA adapter | NVS reconnect and OTA flash/selector model tests pass; target source compilation passes; physical power-loss/selector behavior is unqualified |
 | Full 6.1 probe | All six codec families, SMP/GATT, AVRCP, product IO/security and RFCOMM compile/link. Source stability and forbidden-host dependency checks pass. This is an off-board result |
 
-The probe has not booted or decoded on ESP32 in this work. The historical
-19/37 target codec result is not superseded by a host pass or a new link.
+Later finite diagnostics have now booted and decoded on COM6: 37/37 codec
+configurations pass. The scoped target receipts supersede the historical 19/37
+result for their specific images, without qualifying the complete product host.
 
 ## Audit and RAM budget
 
@@ -97,19 +98,25 @@ marks, transient codec-switch peaks and fragmentation remain mandatory gates.
 
 ## Remaining gates and next work
 
-Updated target evidence: [6.1 codec checkpoint](IDF61_TARGET_CODECS_2026_11_04.md).
-All 37 existing codec configurations now pass on COM6. A real 192 kHz/S24/1000
-kbps fixture passes sparse PCM checks but misses 35/84 isolated 5 ms deadlines
-(maximum 5.190 ms, including PCM validation). This is an open performance gate,
-not production or coexistence qualification. Both runs returned to the released
-Bluedroid baseline. The initial checkpoint JSON above remains a historical
-off-board build record; the target-codec checkpoint records these later runs.
+Updated target evidence: [6.1 codec checkpoint](IDF61_TARGET_CODECS_2026_11_04.md)
+and [LHDC stage profile/optimization](IDF61_LHDC_PROFILE_2026_11_04.md).
+All 37 codec configurations pass on COM6. At 192 kHz/stereo/S24/1000 kbps, an exact
+FAC-reader change reduces the callback-subtracted mean from 3.804 to 3.511 ms.
+All three trials retain the same full PCM hash. All 252 measured frames pass the
+conservative 5 ms gate including validation (maximum 4.822 ms). This is an
+isolated tone-fixture result, not complete DSP/I2S or coexistence qualification.
+Every finite run returned to released Bluedroid firmware. The initial checkpoint
+JSON remains an off-board historical record; later target receipts identify each
+measured image separately.
 
 - Finish manual callback/owner bounds and queue saturation/teardown review;
   lexical loop counts do not establish that execution is bounded.
-- Replace remaining blocking legacy output-control wrappers and startup
-  completion polling before production. The nonzero event-wait fix does not
-  turn those control wrappers into asynchronous operations.
+- Replace remaining blocking legacy output-control/PCM wrappers and startup
+  completion polling. The PCM callback currently waits up to 100 ms, and the
+  worker drops/resets non-OK media results. Retain decoded PCM and media cursors
+  across backpressure, process bounded frame/chunk work, and wake on render
+  progress; simply returning BUSY would lose audio. Qualify every codec and
+  stop/suspend/reconfigure/drop before enabling the replacement path.
 - Audit live product parity against the released 6.1 application: source-role
   behavior, SDP client, AVRCP browsing/application providers, BLE security/UI,
   privacy, setting/name restoration, LEDs, inputs, sounds, OTA and recovery.

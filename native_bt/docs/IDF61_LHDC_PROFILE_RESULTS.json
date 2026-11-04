@@ -340,7 +340,7 @@
       "D:\\bt-owned61\\native_bt\\tests\\codecs\\lhdc_fac_bytes.c": "736f88d7a4604a82b16a901c55f93848f8c33d03a945fe93398b88eb1ec90cec",
       "D:\\ESP32 Bluetooth\\LHDC-V5-Decoder-main\\decoder\\lhdc_bit_reader.c": "81eeba454ebb29aeef03184202b7aa2a84f8b94549475cfc96fef5eeb2dd3a77",
       "D:\\bt-owned61\\native_bt\\codecs\\lhdcv5\\dbt_lhdc_bits.h": "2a94e020da0eca8a902ba1d3ef542e595c0474e454addcf13666e79949094a2e",
-      "D:\\bt-owned61\\native_bt\\tools\\test_lhdc_fac_bytes.py": "4ddc422ee201657d7793e16bcc9eb07a4c6cd20274cb46c922407792c759a25c",
+      "D:\\bt-owned61\\native_bt\\tools\\test_lhdc_fac_bytes.py": "ac753f1bd2eaa8d1c64e446ab216498eec7c45b6a94cf63ef314e7e48f2da1b0",
       "D:\\ESP32 Bluetooth\\LHDC-V5-Decoder-main\\decoder\\lhdc_bit_reader.h": "9148efdbb01b6767cadbf1f3ed5b5b7592b931db05937539ecfa54ea4aa2a21d",
       "D:\\ESP32 Bluetooth\\LHDC-V5-Decoder-main\\decoder\\lhdc_dec.h": "cd59bb9ba2a099a3d26cf526676b4513493fc68edd84609a3c4cd0d3128efaa6",
       "D:\\ESP32 Bluetooth\\LHDC-V5-Decoder-main\\decoder\\lhdc_dec_internal.h": "dece279c95755c35e3f31fce1cbc6164183830db7e1c7d95aedf34bec0c66941",
@@ -377,6 +377,334 @@
       "D:\\ESP32 Bluetooth\\LHDC-V5-Decoder-main\\decoder\\lhdc_tables.h": "980d7442c3466ec44545a0be2bead28e74c4d584688dbb0129d7e980cf60ef62"
     }
   },
-  "candidate_target": null,
+  "candidate_target": {
+    "source_commit": "428fc2a2471717594e48560e70f668213963bb53",
+    "image_sha256": "babbe17d12a0d9bdbb1b8f0db5ad10eadb610ef77068eb0febd8f10e5115adfa",
+    "existing_codec_vectors_passed": true,
+    "baseline_return_observed": true,
+    "maximum_trials": [
+      {
+        "probe": "lhdc_max_selftest",
+        "trial": 0,
+        "correctness_passed": true,
+        "isolated_deadline_passed": true,
+        "rate": 192000,
+        "sample_depth": 24,
+        "channels": 2,
+        "requested_kbps": 1000,
+        "encoded_payload_bps": 1001600,
+        "packets": 96,
+        "measured_packets": 84,
+        "sample_frames": 92160,
+        "reference_points": 56,
+        "maximum_abs_error": 384,
+        "mean_us": 4485,
+        "p50_us": 4344,
+        "p95_us": 4750,
+        "p99_us": 4810,
+        "max_us": 4810,
+        "budget_us": 5000,
+        "deadline_misses": 0,
+        "tracked_peak_bytes": 63672,
+        "stack_low_water_bytes": 3540,
+        "includes_pcm_validation": true,
+        "dsp_i2s_test": false,
+        "rf_test": false
+      },
+      {
+        "probe": "lhdc_max_selftest",
+        "trial": 1,
+        "correctness_passed": true,
+        "isolated_deadline_passed": true,
+        "rate": 192000,
+        "sample_depth": 24,
+        "channels": 2,
+        "requested_kbps": 1000,
+        "encoded_payload_bps": 1001600,
+        "packets": 96,
+        "measured_packets": 84,
+        "sample_frames": 92160,
+        "reference_points": 56,
+        "maximum_abs_error": 384,
+        "mean_us": 4485,
+        "p50_us": 4342,
+        "p95_us": 4750,
+        "p99_us": 4822,
+        "max_us": 4822,
+        "budget_us": 5000,
+        "deadline_misses": 0,
+        "tracked_peak_bytes": 63672,
+        "stack_low_water_bytes": 3540,
+        "includes_pcm_validation": true,
+        "dsp_i2s_test": false,
+        "rf_test": false
+      },
+      {
+        "probe": "lhdc_max_selftest",
+        "trial": 2,
+        "correctness_passed": true,
+        "isolated_deadline_passed": true,
+        "rate": 192000,
+        "sample_depth": 24,
+        "channels": 2,
+        "requested_kbps": 1000,
+        "encoded_payload_bps": 1001600,
+        "packets": 96,
+        "measured_packets": 84,
+        "sample_frames": 92160,
+        "reference_points": 56,
+        "maximum_abs_error": 384,
+        "mean_us": 4485,
+        "p50_us": 4344,
+        "p95_us": 4750,
+        "p99_us": 4810,
+        "max_us": 4810,
+        "budget_us": 5000,
+        "deadline_misses": 0,
+        "tracked_peak_bytes": 63672,
+        "stack_low_water_bytes": 3540,
+        "includes_pcm_validation": true,
+        "dsp_i2s_test": false,
+        "rf_test": false
+      }
+    ],
+    "decoder_estimates": [
+      {
+        "probe": "lhdc_decoder_estimate",
+        "trial": 0,
+        "mean_us": 3511,
+        "p50_us": 3371,
+        "p95_us": 3777,
+        "p99_us": 3827,
+        "max_us": 3827,
+        "deadline_misses": 0,
+        "mean_cycles": 843202,
+        "validation_mean_us": 973,
+        "validation_max_us": 985,
+        "callback_time_subtracted": true,
+        "includes_media_wrapper": true,
+        "dsp_i2s_test": false,
+        "rf_test": false
+      },
+      {
+        "probe": "lhdc_decoder_estimate",
+        "trial": 1,
+        "mean_us": 3511,
+        "p50_us": 3367,
+        "p95_us": 3775,
+        "p99_us": 3840,
+        "max_us": 3840,
+        "deadline_misses": 0,
+        "mean_cycles": 843157,
+        "validation_mean_us": 973,
+        "validation_max_us": 985,
+        "callback_time_subtracted": true,
+        "includes_media_wrapper": true,
+        "dsp_i2s_test": false,
+        "rf_test": false
+      },
+      {
+        "probe": "lhdc_decoder_estimate",
+        "trial": 2,
+        "mean_us": 3511,
+        "p50_us": 3371,
+        "p95_us": 3777,
+        "p99_us": 3827,
+        "max_us": 3827,
+        "deadline_misses": 0,
+        "mean_cycles": 843192,
+        "validation_mean_us": 973,
+        "validation_max_us": 985,
+        "callback_time_subtracted": true,
+        "includes_media_wrapper": true,
+        "dsp_i2s_test": false,
+        "rf_test": false
+      }
+    ],
+    "stage_cycles": [
+      {
+        "probe": "lhdc_stage_cycles",
+        "trial": 0,
+        "stage": "pre",
+        "channel_calls": 168,
+        "sum_cycles": 1068959,
+        "maximum_cycles": 11528,
+        "elapsed_core_cycles": true
+      },
+      {
+        "probe": "lhdc_stage_cycles",
+        "trial": 0,
+        "stage": "entropy",
+        "channel_calls": 168,
+        "sum_cycles": 26320429,
+        "maximum_cycles": 196141,
+        "elapsed_core_cycles": true
+      },
+      {
+        "probe": "lhdc_stage_cycles",
+        "trial": 0,
+        "stage": "mantissa",
+        "channel_calls": 168,
+        "sum_cycles": 12197567,
+        "maximum_cycles": 84618,
+        "elapsed_core_cycles": true
+      },
+      {
+        "probe": "lhdc_stage_cycles",
+        "trial": 0,
+        "stage": "dequant_sns",
+        "channel_calls": 168,
+        "sum_cycles": 3909813,
+        "maximum_cycles": 32528,
+        "elapsed_core_cycles": true
+      },
+      {
+        "probe": "lhdc_stage_cycles",
+        "trial": 0,
+        "stage": "imdct",
+        "channel_calls": 168,
+        "sum_cycles": 16883941,
+        "maximum_cycles": 102412,
+        "elapsed_core_cycles": true
+      },
+      {
+        "probe": "lhdc_stage_cycles",
+        "trial": 0,
+        "stage": "overlap",
+        "channel_calls": 168,
+        "sum_cycles": 1953485,
+        "maximum_cycles": 12437,
+        "elapsed_core_cycles": true
+      },
+      {
+        "probe": "lhdc_stage_cycles",
+        "trial": 1,
+        "stage": "pre",
+        "channel_calls": 168,
+        "sum_cycles": 1068429,
+        "maximum_cycles": 11038,
+        "elapsed_core_cycles": true
+      },
+      {
+        "probe": "lhdc_stage_cycles",
+        "trial": 1,
+        "stage": "entropy",
+        "channel_calls": 168,
+        "sum_cycles": 26321572,
+        "maximum_cycles": 196125,
+        "elapsed_core_cycles": true
+      },
+      {
+        "probe": "lhdc_stage_cycles",
+        "trial": 1,
+        "stage": "mantissa",
+        "channel_calls": 168,
+        "sum_cycles": 12197123,
+        "maximum_cycles": 84618,
+        "elapsed_core_cycles": true
+      },
+      {
+        "probe": "lhdc_stage_cycles",
+        "trial": 1,
+        "stage": "dequant_sns",
+        "channel_calls": 168,
+        "sum_cycles": 3908259,
+        "maximum_cycles": 31558,
+        "elapsed_core_cycles": true
+      },
+      {
+        "probe": "lhdc_stage_cycles",
+        "trial": 1,
+        "stage": "imdct",
+        "channel_calls": 168,
+        "sum_cycles": 16885202,
+        "maximum_cycles": 102408,
+        "elapsed_core_cycles": true
+      },
+      {
+        "probe": "lhdc_stage_cycles",
+        "trial": 1,
+        "stage": "overlap",
+        "channel_calls": 168,
+        "sum_cycles": 1951570,
+        "maximum_cycles": 12437,
+        "elapsed_core_cycles": true
+      },
+      {
+        "probe": "lhdc_stage_cycles",
+        "trial": 2,
+        "stage": "pre",
+        "channel_calls": 168,
+        "sum_cycles": 1068968,
+        "maximum_cycles": 11528,
+        "elapsed_core_cycles": true
+      },
+      {
+        "probe": "lhdc_stage_cycles",
+        "trial": 2,
+        "stage": "entropy",
+        "channel_calls": 168,
+        "sum_cycles": 26320438,
+        "maximum_cycles": 196141,
+        "elapsed_core_cycles": true
+      },
+      {
+        "probe": "lhdc_stage_cycles",
+        "trial": 2,
+        "stage": "mantissa",
+        "channel_calls": 168,
+        "sum_cycles": 12197667,
+        "maximum_cycles": 84618,
+        "elapsed_core_cycles": true
+      },
+      {
+        "probe": "lhdc_stage_cycles",
+        "trial": 2,
+        "stage": "dequant_sns",
+        "channel_calls": 168,
+        "sum_cycles": 3909329,
+        "maximum_cycles": 32528,
+        "elapsed_core_cycles": true
+      },
+      {
+        "probe": "lhdc_stage_cycles",
+        "trial": 2,
+        "stage": "imdct",
+        "channel_calls": 168,
+        "sum_cycles": 16883943,
+        "maximum_cycles": 102412,
+        "elapsed_core_cycles": true
+      },
+      {
+        "probe": "lhdc_stage_cycles",
+        "trial": 2,
+        "stage": "overlap",
+        "channel_calls": 168,
+        "sum_cycles": 1953477,
+        "maximum_cycles": 12437,
+        "elapsed_core_cycles": true
+      }
+    ],
+    "pcm_hashes": [
+      {
+        "probe": "lhdc_pcm_hash",
+        "trial": 0,
+        "sample_frames": 92160,
+        "fnv1a32": 4008775619
+      },
+      {
+        "probe": "lhdc_pcm_hash",
+        "trial": 1,
+        "sample_frames": 92160,
+        "fnv1a32": 4008775619
+      },
+      {
+        "probe": "lhdc_pcm_hash",
+        "trial": 2,
+        "sample_frames": 92160,
+        "fnv1a32": 4008775619
+      }
+    ]
+  },
   "production_qualified": false
 }
