@@ -12,9 +12,9 @@
 void probe_fir_##name##_init(dbt_resampler_t *,uint32_t); \
 void probe_fir_##name##_push(dbt_resampler_t *,int32_t,int32_t); \
 void probe_fir_##name##_filter(dbt_resampler_t *,int32_t,int32_t,uint32_t,int32_t *,int32_t *)
-DECLARE(os);DECLARE(o2);DECLARE(o3);
+DECLARE(wide);DECLARE(os);DECLARE(o2);DECLARE(o3);
 #undef DECLARE
-enum {VARIANTS=3,BLOCK_FRAMES=128,BLOCKS=20,RAW_FRAMES=257};
+enum {VARIANTS=4,BLOCK_FRAMES=128,BLOCKS=20,RAW_FRAMES=257};
 typedef struct {
     void (*init)(dbt_resampler_t *,uint32_t);
     void (*push)(dbt_resampler_t *,int32_t,int32_t);
@@ -22,6 +22,7 @@ typedef struct {
     const char *name;
 } variant_t;
 static const variant_t variants[]={
+    {probe_fir_wide_init,probe_fir_wide_push,probe_fir_wide_filter,"O3_wide_reference"},
     {probe_fir_os_init,probe_fir_os_push,probe_fir_os_filter,"Os"},
     {probe_fir_o2_init,probe_fir_o2_push,probe_fir_o2_filter,"O2"},
     {probe_fir_o3_init,probe_fir_o3_push,probe_fir_o3_filter,"O3"}};
@@ -86,7 +87,7 @@ bool probe_fir_compare(void){
     context_t *c=heap_caps_aligned_alloc(8,sizeof(*c),MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT);
     if(!c){printf("{\"probe\":\"fir_variant_summary\",\"passed\":false,\"allocation_failed\":true}\n");return false;}
     const uint32_t rates[]={48000,96000,192000};const int drift[]={0,500,-500};
-    bool passed=true;unsigned completed=0;int64_t deadline=esp_timer_get_time()+8000000;
+    bool passed=true;unsigned completed=0;int64_t deadline=esp_timer_get_time()+12000000;
     for(unsigned trial=0;passed && trial<3;++trial)
         for(unsigned r=0;passed && r<3;++r)
             for(unsigned d=0;passed && d<3;++d){passed=one_case(c,trial,rates[r],drift[d],deadline);if(passed)++completed;}

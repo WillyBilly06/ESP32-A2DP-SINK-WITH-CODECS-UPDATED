@@ -1,7 +1,23 @@
 """Wide-integer oracle for the actual optimized FIR; host ASan/UBSan only."""
-import hashlib,json,os,pathlib,shutil,subprocess
+import hashlib,json,os,pathlib,re,shutil,subprocess
 ROOT=pathlib.Path(__file__).resolve().parents[1]
 OUT=ROOT/'_build/resampler_exact';OUT.mkdir(exist_ok=True)
+coefficient_text=(ROOT/'src/dbt_resampler_coeffs.inc').read_text()
+claimed_delta=int(re.search(r'#define DBT_RESAMPLER_ADJACENT_DELTA_MAX (\d+)u',coefficient_text).group(1))
+actual_delta=0;interpolation_checks=0
+for taps in (24,48,96):
+    body=re.search(r'coefficients_'+str(taps)+r'\[129\]\['+str(taps)+r'\] = \{(.*?)\n\};',coefficient_text,re.S).group(1)
+    rows=[list(map(int,re.findall(r'-?\d+',line))) for line in body.splitlines() if '{' in line]
+    assert len(rows)==129 and all(len(row)==taps for row in rows)
+    for phase in range(128):
+        for first,next_value in zip(rows[phase],rows[phase+1]):
+            delta=next_value-first;actual_delta=max(actual_delta,abs(delta))
+            for remainder in (0,1,(1<<24)-1,1<<24,(1<<25)-2,(1<<25)-1):
+                product=delta*remainder;offset=product//(1<<25) if product>=0 else -((-product)//(1<<25))
+                result=first+offset
+                assert -(1<<31)<=delta<(1<<31) and min(first,next_value)<=result<=max(first,next_value)
+                assert -(1<<31)<=result<(1<<31);interpolation_checks+=1
+assert actual_delta==claimed_delta and claimed_delta<1<<31
 main=OUT/'oracle.c'
 main.write_text(r'''#include "dbt_resampler.h"
 #include <limits.h>
@@ -49,13 +65,15 @@ cc=shutil.which('clang',path=env.get('PATH')) or (r'C:\Program Files\LLVM\bin\cl
 tracked=[ROOT/'src/dbt_resampler.c',ROOT/'src/dbt_resampler_coeffs.inc',ROOT/'include/dbt_resampler.h',main,pathlib.Path(__file__).resolve()]
 before={str(p):hashlib.sha256(p.read_bytes()).hexdigest() for p in tracked}
 report_path=OUT/'results.json';report_path.write_text(json.dumps({'passed':False,'state':'building'})+'\n')
-exe=OUT/('oracle.exe' if os.name=='nt' else 'oracle')
-args=[cc,'-std=c11','-O3','-g','-Wall','-Wextra','-Werror','-fsanitize=address,undefined','-fno-sanitize-recover=all','-fno-omit-frame-pointer','-I'+str(ROOT/'include'),str(ROOT/'src/dbt_resampler.c'),str(main),'-o',str(exe)]
-if os.name=='nt':args+=['-fms-runtime-lib=dll','-D_DLL','-Wl,/NODEFAULTLIB:libcmt']
-subprocess.run(args,check=True,env=env)
 if os.name=='nt':
     resource=pathlib.Path(subprocess.check_output([cc,'-print-resource-dir'],text=True).strip())
     runtime=resource/'lib/windows/clang_rt.asan_dynamic-x86_64.dll';shutil.copy2(runtime,OUT/runtime.name)
-subprocess.run([str(exe)],check=True,env=env,timeout=60)
+commands=[]
+for mode,flags in (('checked_delta',[]),('wide_reference',['-DDBT_RESAMPLER_FORCE_WIDE_DELTA=1'])):
+    exe=OUT/(mode+('.exe' if os.name=='nt' else ''))
+    args=[cc,'-std=c11','-O3','-g','-Wall','-Wextra','-Werror','-fsanitize=address,undefined','-fno-sanitize-recover=all','-fno-omit-frame-pointer',*flags,'-I'+str(ROOT/'include'),str(ROOT/'src/dbt_resampler.c'),str(main),'-o',str(exe)]
+    if os.name=='nt':args+=['-fms-runtime-lib=dll','-D_DLL','-Wl,/NODEFAULTLIB:libcmt']
+    subprocess.run(args,check=True,env=env);commands.append(args)
+    subprocess.run([str(exe)],check=True,env=env,timeout=60)
 assert all(hashlib.sha256(pathlib.Path(p).read_bytes()).hexdigest()==digest for p,digest in before.items())
-report_path.write_text(json.dumps({'passed':True,'cases':150000,'oracle':'128-bit integer convolution/interpolation','optimization':'O3','sanitizers':['address','undefined'],'scope':'full output/state, all tap lengths across zero/bank-aligned/max/random phases and priming/history states; host only','sources':before,'command':args,'hardware_accessed':False},indent=2)+'\n')
+report_path.write_text(json.dumps({'passed':True,'cases_per_mode':150000,'modes':['checked_delta','wide_reference'],'adjacent_delta_bound':claimed_delta,'coefficient_checks':interpolation_checks,'oracle':'128-bit integer convolution/interpolation','optimization':'O3','sanitizers':['address','undefined'],'scope':'full output/state and table-domain arithmetic proof, all tap lengths across zero/bank-aligned/max/random phases and priming/history states; host only','sources':before,'commands':commands,'hardware_accessed':False},indent=2)+'\n')

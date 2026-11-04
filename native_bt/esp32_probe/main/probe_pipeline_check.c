@@ -227,7 +227,7 @@ bool probe_pipeline_check(void){
     if(xTaskCreatePinnedToCore(run,"pipeline_check",8192,NULL,5,NULL,1)!=pdPASS)return false;
     int64_t deadline=esp_timer_get_time()+
 #ifdef DBT_PROBE_FIR_COMPILER_CHECK
-        15000000;
+        20000000;
 #else
         10000000;
 #endif

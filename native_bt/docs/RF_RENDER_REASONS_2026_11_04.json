@@ -1,0 +1,268 @@
+{
+  "date": "2026-11-04",
+  "source_commit": "fbe7fdb5a2cda09bcacf2608cfbd9f6a1b2f44cf",
+  "image_sha256": "479c59cd9b0284fc0675cb7e0744ef94944862bb9e4c2a3ecfa9e272e4f53d3c",
+  "scope": "Full LDAC96/BLE/deferred-PCM/DSP/I2S diagnostic, decoder0 renderer0 host/controller1",
+  "result": "FAIL_RENDER_THROUGHPUT_AND_DESCRIPTOR_ORDER",
+  "runtime_health": {
+    "task_watchdog_triggers": 3,
+    "idle_starvation_warnings_by_core": {
+      "0": 3,
+      "1": 0
+    },
+    "watchdog_running_task_samples_by_core": {
+      "0": {
+        "native_render": 2,
+        "native_decoder": 1
+      },
+      "1": {
+        "IDLE1": 2,
+        "main": 1
+      }
+    },
+    "interrupt_watchdog_timeouts": 0,
+    "backtrace_records": 3,
+    "runtime_health_passed": false
+  },
+  "last_records": {
+    "owner_wait_reasons": {
+      "probe": "owner_wait_reasons",
+      "at_us": 178967262,
+      "iterations": 9067,
+      "runtime": 1846,
+      "admission": 0,
+      "smp": 1,
+      "avrcp": 0,
+      "restart": 0,
+      "pair_button": 1,
+      "rfcomm": 0,
+      "gap": 0,
+      "product": 0,
+      "io": 0,
+      "att": 1209,
+      "security": 0,
+      "echo": 0,
+      "sdp": 0,
+      "a2dp": 55
+    },
+    "vhci_timing": {
+      "probe": "vhci_timing",
+      "at_us": 178967262,
+      "packets": 2997,
+      "acl": 1638,
+      "events": 1359,
+      "bytes": 961428,
+      "isr_callbacks": 0,
+      "rejected": 0,
+      "callback_max_us": 152,
+      "first_rx_to_poll_max_us": 16335,
+      "host_poll_max_us": 2280,
+      "ingress_high_water_bytes": 1377,
+      "ingress_rejected": 0
+    },
+    "codec_configuration": {
+      "probe": "codec_configuration",
+      "at_us": 68319254,
+      "revision": 1,
+      "codec": 8,
+      "rate": 96000,
+      "channels": 2,
+      "pcm_container_bytes": 4,
+      "cie_size": 10,
+      "cie_hex": "00ff2d010000aa000401"
+    },
+    "media_input": {
+      "probe": "media_input",
+      "at_us": 178967262,
+      "stream_epoch": 6,
+      "packets": 1395,
+      "payload_bytes": 916547,
+      "rtp_first_timestamp": 0,
+      "rtp_last_timestamp": 713728,
+      "rate": 96000
+    },
+    "media_drop_reasons": {
+      "probe": "media_drop_reasons",
+      "at_us": 178967262,
+      "queue_full": 634,
+      "decode_reject": 0,
+      "reset_failed": 0,
+      "pcm_failed": 1,
+      "pcm_timeout": 0,
+      "pcm_busy": 0,
+      "input_sequence_breaks": 0,
+      "input_ssrc_changes": 0,
+      "queue_high_water": 8,
+      "host_trace_lost": 618,
+      "worker_trace_lost": 551
+    },
+    "worker_timing": {
+      "probe": "worker_timing",
+      "at_us": 178967262,
+      "steps": 3398,
+      "elapsed_us": 14788925,
+      "max_step_us": 21628,
+      "wall_time_includes_preemption": true,
+      "step_budget": 2,
+      "histogram_us_le": [
+        125,
+        250,
+        500,
+        1000,
+        2000,
+        4000,
+        8000
+      ],
+      "histogram_counts": [
+        15,
+        1,
+        3,
+        21,
+        358,
+        379,
+        2618,
+        3
+      ]
+    },
+    "decoder_execution": {
+      "probe": "decoder_execution",
+      "at_us": 178967262,
+      "calls": 3752,
+      "elapsed_us": 3081581,
+      "maximum_us": 17899,
+      "wall_time_includes_preemption": true,
+      "includes_inline_pcm": false,
+      "histogram_us_le": [
+        125,
+        250,
+        500,
+        1000,
+        2000,
+        4000,
+        8000
+      ],
+      "histogram_counts": [
+        753,
+        0,
+        0,
+        1165,
+        1831,
+        2,
+        0,
+        1
+      ]
+    },
+    "pcm_delivery": {
+      "probe": "pcm_delivery",
+      "at_us": 178967262,
+      "calls": 2999,
+      "elapsed_us": 11326238,
+      "maximum_us": 16805,
+      "wall_time_includes_preemption": true,
+      "includes_inline_pcm": false,
+      "histogram_us_le": [
+        125,
+        250,
+        500,
+        1000,
+        2000,
+        4000,
+        8000
+      ],
+      "histogram_counts": [
+        1,
+        0,
+        0,
+        0,
+        0,
+        2994,
+        2,
+        2
+      ]
+    },
+    "render_work": {
+      "probe": "render_work",
+      "at_us": 178967262,
+      "calls": 5996,
+      "elapsed_us": 10390550,
+      "maximum_us": 14798,
+      "wall_time_includes_preemption": true,
+      "input_ready_frames": 0,
+      "render_stack_low_water_bytes": 4356,
+      "allocation_failed_bytes": 0,
+      "allocation_failure_free": 0,
+      "allocation_failure_largest": 0,
+      "request_fault": 0,
+      "stale_receipts": 0
+    },
+    "i2s_descriptor_faults": {
+      "probe": "i2s_descriptor_faults",
+      "at_us": 178967262,
+      "shape": 0,
+      "pool": 0,
+      "order": 1,
+      "expected_index": 0,
+      "observed_index": 2,
+      "observed_size": 1024
+    },
+    "native_i2s": {
+      "probe": "native_i2s",
+      "running": 0,
+      "failed": 1,
+      "rate": 96000,
+      "requested_bytes": 0,
+      "accepted_frames": 767488,
+      "rendered_frames": 767488,
+      "ready_frames": 0,
+      "dma_eofs": 11054,
+      "dma_source_frames": 767488,
+      "underrun_frames": 645120,
+      "descriptor_errors": 1,
+      "max_eof_gap_us": 17202,
+      "maximum_render_us": 14798,
+      "first_underrun_accepted_frames": 14080,
+      "first_underrun_dma_frames": 13568
+    },
+    "sbc_pcm": {
+      "probe": "sbc_pcm",
+      "frames": 2998,
+      "bytes": 6139904,
+      "fnv1a32": 4102700053,
+      "rate": 96000,
+      "channels": 2,
+      "media_packets": 754,
+      "drops": 635,
+      "resets": 566,
+      "resident": 0,
+      "codec": 8,
+      "sample_bytes": 4,
+      "faults": 1,
+      "decoder_stack_low_water_bytes": 6196,
+      "internal_heap_free": 154372,
+      "internal_heap_min_free": 15220,
+      "internal_heap_largest": 110592,
+      "i2s_output": true
+    }
+  },
+  "render_budget": {
+    "frames_per_unit": 128,
+    "rate": 96000,
+    "budget_us": 1333.3333333333333,
+    "mean_elapsed_us": 1732.9136090727152,
+    "all_units_full_128_frames": true,
+    "includes_preemption": true
+  },
+  "finite_rf_return": {
+    "baseline_boot_observed": true,
+    "baseline_fatal_marker": false,
+    "prime_capture_bytes": 0
+  },
+  "phone_paused_verified": true,
+  "limits": [
+    "Descriptor order is unexpected, but its counter alone does not identify why the interrupt sequence was missed.",
+    "Renderer elapsed times include interruption; not exclusive CPU usage.",
+    "This source did not yet reset the new reason counters on reconfiguration; only one I2S stream started, so initial counters were zero. The later per-stream reset fix is host-tested.",
+    "No full-pipeline or analog audio pass."
+  ],
+  "raw_evidence": "native_bt/_build/hardware/runs/1793828955831336800-479c59cd9b02"
+}

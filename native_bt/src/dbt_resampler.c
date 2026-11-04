@@ -27,6 +27,17 @@ static int32_t saturated(int64_t value){
     if(value<INT32_MIN)return INT32_MIN;
     return (int32_t)value;
 }
+static inline __attribute__((always_inline)) int32_t coefficient_at(int32_t first,int32_t next,uint32_t remainder){
+#if defined(DBT_RESAMPLER_ADJACENT_DELTA_MAX) && DBT_RESAMPLER_ADJACENT_DELTA_MAX <= 2147483647u && !defined(DBT_RESAMPLER_FORCE_WIDE_DELTA)
+    /* Generator proves every adjacent-row subtraction fits int32. Remainder
+     * is <2^25; truncation keeps the interpolated value between the endpoints.
+     * Keep the same signed division/rounding and complete Q30 precision. */
+    int32_t delta=next-first;
+    return first+(int32_t)(((int64_t)delta*(int32_t)remainder)/33554432ll);
+#else
+    return (int32_t)((int64_t)first+(((int64_t)next-first)*remainder)/33554432ll);
+#endif
+}
 void dbt_resampler_filter(dbt_resampler_t *s,int32_t left,int32_t right,uint32_t phase,int32_t *out_left,int32_t *out_right){
     if(!s || !out_left || !out_right)return;
     if(!s->primed){s->first[0]=left;s->first[1]=right;s->primed=true;}
@@ -36,7 +47,7 @@ void dbt_resampler_filter(dbt_resampler_t *s,int32_t left,int32_t right,uint32_t
     int64_t l=0,r=0;
     if(s->count>=s->taps){
         int32_t coefficient=first[0];
-        if(remainder)coefficient=(int32_t)((int64_t)coefficient+(((int64_t)next[0]-first[0])*remainder)/33554432ll);
+        if(remainder)coefficient=coefficient_at(coefficient,next[0],remainder);
         l=(int64_t)left*coefficient;r=(int64_t)right*coefficient;
         unsigned index=(s->next-1u)&(DBT_RESAMPLER_HISTORY-1u);
         if(!remainder){
@@ -47,14 +58,14 @@ void dbt_resampler_filter(dbt_resampler_t *s,int32_t left,int32_t right,uint32_t
             }
         }else{
             for(unsigned k=1;k<s->taps;++k){
-                int32_t c=(int32_t)((int64_t)first[k]+(((int64_t)next[k]-first[k])*remainder)/33554432ll);
+                int32_t c=coefficient_at(first[k],next[k],remainder);
                 l+=(int64_t)s->history[0][index]*c;r+=(int64_t)s->history[1][index]*c;
                 index=(index-1u)&(DBT_RESAMPLER_HISTORY-1u);
             }
         }
     }else for(unsigned k=0;k<s->taps;++k){
         int32_t coefficient=first[k];
-        if(remainder)coefficient=(int32_t)((int64_t)coefficient+(((int64_t)next[k]-first[k])*remainder)/33554432ll);
+        if(remainder)coefficient=coefficient_at(coefficient,next[k],remainder);
         unsigned index=(s->next-k)&(DBT_RESAMPLER_HISTORY-1u);
         int32_t x=k==0?left:k<=s->count?s->history[0][index]:s->first[0];
         int32_t y=k==0?right:k<=s->count?s->history[1][index]:s->first[1];
