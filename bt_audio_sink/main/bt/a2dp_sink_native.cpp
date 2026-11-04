@@ -17,11 +17,6 @@
 #define A2DP_LDAC_CHANNEL_MODE_MASK   0x07
 #define A2DP_LDAC_CHANNEL_MODE_MONO   0x04
 
-// Opus over A2DP vendor codec constants. This stack decodes Opus to 48 kHz
-// signed 16-bit PCM, so report 48k/16-bit to the render pipeline.
-#define A2DP_OPUS_VENDOR_ID          0x000005F1
-#define A2DP_OPUS_CODEC_ID           0x1005
-
 #define BT_AV_TAG    "BT_AV"
 #define BT_RC_TG_TAG "BT_RC_TG"
 #define BT_RC_CT_TAG "BT_RC_CT"
@@ -170,6 +165,7 @@ void NativeA2DPSink::av_hdl_a2d_evt(uint16_t event, void *p_param) {
     case ESP_A2D_AUDIO_CFG_EVT: {
         esp_a2d_mcc_t *p_mcc = &a2d->audio_cfg.mcc;
         audio_type = p_mcc->type;
+        __atomic_store_n(&opus_variant, (uint32_t)NativeOpusCieResult::Other, __ATOMIC_RELEASE);
         uint32_t sr = 44100; uint8_t bits = 16; uint8_t ch = 2;
         if (audio_type == ESP_A2D_MCT_SBC) {
             if (p_mcc->cie.sbc_info.samp_freq & ESP_A2D_SBC_CIE_SF_32K) sr = 32000;
@@ -202,7 +198,8 @@ void NativeA2DPSink::av_hdl_a2d_evt(uint16_t event, void *p_param) {
             // Vendor codec (aptX, LDAC, etc.): parse raw CIE bytes
             // LDAC layout in 8-byte cie.ldac: vendorId[0-3], codecId[4-5], sampleRate[6], channelMode[7]
             uint8_t *raw = p_mcc->cie.ldac;
-            uint32_t vendorId = raw[0] | (raw[1] << 8) | (raw[2] << 16) | (raw[3] << 24);
+            uint32_t vendorId = (uint32_t)raw[0] | ((uint32_t)raw[1] << 8) |
+                                ((uint32_t)raw[2] << 16) | ((uint32_t)raw[3] << 24);
             uint16_t codecId  = raw[4] | (raw[5] << 8);
             if (vendorId == A2DP_LDAC_VENDOR_ID && codecId == A2DP_LDAC_CODEC_ID) {
                 uint8_t sr_bits = raw[6] & A2DP_LDAC_SAMPLING_FREQ_MASK;
@@ -238,24 +235,32 @@ void NativeA2DPSink::av_hdl_a2d_evt(uint16_t event, void *p_param) {
                 bits = 32;
                 sr = 48000;
                 ESP_LOGI(BT_AV_TAG, "Detected aptX-LL codec sr=%u ch=%u", sr, ch);
-            } else if (vendorId == A2DP_OPUS_VENDOR_ID && codecId == A2DP_OPUS_CODEC_ID) {
-                // A2DP Opus vendor codec. The ESP-IDF Opus decoder path outputs
-                // interleaved opus_int16 PCM at 48 kHz. In the CIE, raw[6] is
-                // channel count and raw[7] is coupled stream count.
-                sr = 48000;
-                bits = 16;
-                ch = raw[6];
-                if (ch == 0 || ch > 2) ch = 2;
-                ESP_LOGI(BT_AV_TAG, "Detected Opus codec sr=%u bits=%u ch=%u coupled=%u",
-                         sr, bits, ch, raw[7]);
             } else {
-                sr = 48000; bits = 32;
-                ESP_LOGI(BT_AV_TAG, "Unknown vendor codec vendorId=0x%08X codecId=0x%04X", vendorId, codecId);
+                NativeOpusPcmFormat opus{};
+                const NativeOpusCieResult opusKind = nativeOpusPcmFormat(
+                    p_mcc->cie.opus, sizeof(p_mcc->cie.opus), &opus);
+                if (opusKind == NativeOpusCieResult::Android || opusKind == NativeOpusCieResult::Opus05) {
+                    __atomic_store_n(&opus_variant, (uint32_t)opusKind, __ATOMIC_RELEASE);
+                    sr = opus.rate; bits = opus.bits; ch = opus.channels;
+                    ESP_LOGI(BT_AV_TAG, "Detected %s codec sr=%u bits=%u ch=%u",
+                             opusKind == NativeOpusCieResult::Android ? "Android Opus" : "Opus 05",
+                             (unsigned)sr, (unsigned)bits, (unsigned)ch);
+                } else if (opusKind == NativeOpusCieResult::Invalid) {
+                    __atomic_store_n(&opus_variant, (uint32_t)opusKind, __ATOMIC_RELEASE);
+                    __atomic_store_n(&pcm_format_ready, 0u, __ATOMIC_RELEASE);
+                    ESP_LOGE(BT_AV_TAG, "Invalid Opus codec configuration vendorId=0x%08X codecId=0x%04X; PCM suppressed",
+                             (unsigned)vendorId, (unsigned)codecId);
+                    break;
+                } else {
+                    sr = 48000; bits = 32;
+                    ESP_LOGI(BT_AV_TAG, "Unknown vendor codec vendorId=0x%08X codecId=0x%04X", vendorId, codecId);
+                }
             }
         }
         m_sample_rate = sr;
         ESP_LOGI(BT_AV_TAG, "codec cfg sr=%u bits=%u ch=%u type=%d", sr, bits, ch, audio_type);
         if (codec_config_cb) codec_config_cb(sr, bits, ch);
+        __atomic_store_n(&pcm_format_ready, 1u, __ATOMIC_RELEASE);
         break;
     }
     case ESP_A2D_SNK_GET_DELAY_VALUE_EVT:
@@ -269,6 +274,7 @@ void NativeA2DPSink::av_hdl_a2d_evt(uint16_t event, void *p_param) {
 }
 
 void NativeA2DPSink::data_cb(const uint8_t *data, uint32_t len) {
+    if (!__atomic_load_n(&pcm_format_ready, __ATOMIC_ACQUIRE)) return;
     if (raw_stream_reader) raw_stream_reader(data, len);
     if (stream_reader) stream_reader(data, len);
     if (data_received) data_received();
@@ -429,3 +435,6 @@ void NativeA2DPSink::set_on_audio_state_changed(a2dp_audio_state_cb cb) { audio_
 void NativeA2DPSink::set_avrc_rn_volumechange(a2dp_volumechange_cb cb) { volumechange_cb = cb; }
 void NativeA2DPSink::set_avrc_rn_volumechange_completed(a2dp_volumechange_cb cb) { volumechange_completed_cb = cb; }
 esp_a2d_mct_t NativeA2DPSink::get_audio_type() { return audio_type; }
+NativeOpusCieResult NativeA2DPSink::get_opus_variant() const {
+    return (NativeOpusCieResult)__atomic_load_n(&opus_variant, __ATOMIC_ACQUIRE);
+}

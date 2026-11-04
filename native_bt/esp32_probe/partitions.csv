@@ -1,0 +1,9 @@
+# Preserved admitted 8 MiB speaker layout. Build metadata only; never auto-flash this table.
+# Name,Type,SubType,Offset,Size,Flags
+nvs,data,nvs,0x9000,0x6000,
+phy_init,data,phy,0xf000,0x1000,
+recovery,app,ota_2,0x10000,0x100000,
+ota_0,app,ota_0,0x110000,0x280000,
+ota_1,app,ota_1,0x390000,0x280000,
+otadata,data,ota,0x610000,0x2000,
+spiffs,data,spiffs,0x612000,0x1ee000,
