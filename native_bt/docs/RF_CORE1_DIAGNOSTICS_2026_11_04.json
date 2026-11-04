@@ -1,0 +1,252 @@
+{
+  "date": "2026-11-04",
+  "source_commit": "c4cf7bd7d2b6a6b5b749fa5f07db4e5b8e412a68",
+  "image_sha256": "cc6321d644997b46897920609c91f5e78a0bdd33d2873642a8ea7bb4a66fe006",
+  "decoder_core": 1,
+  "scope": "Finite radio/profile/product-security test with actual codec decode and PCM checksum; A2DP PCM is not forwarded to I2S; no DAC/DSP/headroom qualification",
+  "result": "FAIL_LOCAL_ENCODED_QUEUE_OVERLOAD_WITH_CPU1_STARVATION",
+  "runtime_health": {
+    "task_watchdog_triggers": 15,
+    "idle_starvation_warnings_by_core": {
+      "0": 0,
+      "1": 15
+    },
+    "watchdog_running_task_samples_by_core": {
+      "0": {
+        "IDLE0": 9,
+        "native_pcm_log": 6
+      },
+      "1": {
+        "main": 9,
+        "native_decoder": 3,
+        "btController": 3
+      }
+    },
+    "interrupt_watchdog_timeouts": 0,
+    "backtrace_records": 15,
+    "runtime_health_passed": false
+  },
+  "last_records": {
+    "vhci_timing": {
+      "probe": "vhci_timing",
+      "at_us": 178346203,
+      "packets": 10938,
+      "acl": 8096,
+      "events": 2842,
+      "bytes": 4973796,
+      "isr_callbacks": 0,
+      "rejected": 0,
+      "callback_max_us": 155,
+      "first_rx_to_poll_max_us": 4294967155,
+      "host_poll_max_us": 57392,
+      "ingress_high_water_bytes": 2050,
+      "ingress_rejected": 0
+    },
+    "media_drop_reasons": {
+      "probe": "media_drop_reasons",
+      "at_us": 178346203,
+      "queue_full": 1663,
+      "decode_reject": 0,
+      "reset_failed": 0,
+      "pcm_failed": 0,
+      "pcm_timeout": 0,
+      "pcm_busy": 0,
+      "input_sequence_breaks": 0,
+      "input_ssrc_changes": 0,
+      "queue_high_water": 8,
+      "host_trace_lost": 784,
+      "worker_trace_lost": 454
+    },
+    "worker_timing": {
+      "probe": "worker_timing",
+      "at_us": 178346203,
+      "steps": 7523,
+      "elapsed_us": 77640112,
+      "max_step_us": 96896,
+      "wall_time_includes_preemption": true,
+      "step_budget": 2,
+      "histogram_us_le": [
+        125,
+        250,
+        500,
+        1000,
+        2000,
+        4000,
+        8000
+      ],
+      "histogram_counts": [
+        4697,
+        9,
+        0,
+        0,
+        0,
+        0,
+        34,
+        2783
+      ]
+    },
+    "decoder_execution": {
+      "probe": "decoder_execution",
+      "at_us": 178346203,
+      "calls": 5625,
+      "elapsed_us": 74928864,
+      "maximum_us": 92352,
+      "wall_time_includes_preemption": true,
+      "includes_inline_pcm": true,
+      "histogram_us_le": [
+        125,
+        250,
+        500,
+        1000,
+        2000,
+        4000,
+        8000
+      ],
+      "histogram_counts": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        534,
+        872,
+        4219
+      ]
+    },
+    "decoder_reset": {
+      "probe": "decoder_reset",
+      "at_us": 178346203,
+      "calls": 1331,
+      "elapsed_us": 1954740,
+      "maximum_us": 60665,
+      "wall_time_includes_preemption": true,
+      "includes_inline_pcm": false,
+      "histogram_us_le": [
+        125,
+        250,
+        500,
+        1000,
+        2000,
+        4000,
+        8000
+      ],
+      "histogram_counts": [
+        0,
+        0,
+        600,
+        569,
+        0,
+        10,
+        105,
+        47
+      ]
+    },
+    "pcm_delivery": {
+      "probe": "pcm_delivery",
+      "at_us": 178346203,
+      "calls": 22484,
+      "elapsed_us": 4831027,
+      "maximum_us": 22243,
+      "wall_time_includes_preemption": true,
+      "includes_inline_pcm": false,
+      "histogram_us_le": [
+        125,
+        250,
+        500,
+        1000,
+        2000,
+        4000,
+        8000
+      ],
+      "histogram_counts": [
+        20514,
+        1569,
+        12,
+        0,
+        0,
+        23,
+        209,
+        157
+      ]
+    },
+    "sbc_pcm": {
+      "probe": "sbc_pcm",
+      "frames": 22484,
+      "bytes": 46047232,
+      "fnv1a32": 1568565187,
+      "rate": 96000,
+      "channels": 2,
+      "media_packets": 5625,
+      "drops": 1663,
+      "resets": 1331,
+      "resident": 21881,
+      "codec": 8,
+      "sample_bytes": 4,
+      "faults": 0,
+      "decoder_stack_low_water_bytes": 6212,
+      "internal_heap_free": 119452,
+      "internal_heap_min_free": 104680,
+      "internal_heap_largest": 110592,
+      "i2s_output": false
+    },
+    "le_security": {
+      "probe": "le_security",
+      "handle": 0,
+      "generation": 2,
+      "encrypted": true,
+      "authenticated": false,
+      "bond_committed": true,
+      "peer_key_verified": true,
+      "phase3_complete": false,
+      "identity_promotion_committed": true,
+      "key_size": 16
+    },
+    "native_profile": {
+      "probe": "native_profile",
+      "state": 2,
+      "active": 1,
+      "enabled": 1,
+      "draining": 0,
+      "event_errors": 0,
+      "last_event": 0,
+      "last_result": 0,
+      "detail": 11284,
+      "ignored_dynamic": 0,
+      "oversized_dynamic": 0
+    }
+  },
+  "exception_records_retained": {
+    "queue_full": 877,
+    "worker_sequence": 875
+  },
+  "invalid_metrics": {
+    "vhci_timing.first_rx_to_poll_max_us": "Excluded: stale preemption timestamp subtraction underflowed to 4294967155. Fixed with a post-exchange clock sample and regression; other counters/spans use independent clocks."
+  },
+  "app_observations": {
+    "codec": "LDAC 96 kHz / 4-byte PCM container",
+    "secured_ble_reconnect": true,
+    "deep_bass_during_stream": [
+      8,
+      -1,
+      -2
+    ],
+    "balanced_restored_during_stream": [
+      0,
+      0,
+      0
+    ],
+    "phone_paused_after_stream": true
+  },
+  "finite_rf_return": {
+    "baseline_boot_observed": true,
+    "baseline_fatal_marker": false,
+    "prime_capture_bytes": 0
+  },
+  "limits": [
+    "Decoder and reset wall spans include controller/host/interrupt preemption, not pure CPU time.",
+    "The exception rings overflowed; lost-record counts are explicit.",
+    "No A2DP I2S rendering in this mode.",
+    "Queue depth eight unchanged; no bitrate/sample-rate reduction."
+  ],
+  "raw_evidence": "native_bt/_build/hardware/runs/1793825586886774600-cc6321d64499"
+}

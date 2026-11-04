@@ -68,7 +68,23 @@ EX int probe_audio_diagnostics(void){
     e.kind=DBT_CODEC_DECODE_END;now=24;media_trace(0,&e);
     CHECK(atomic_load(&phase_timing[0].calls)==1 && atomic_load(&phase_timing[0].elapsed_us)==4000 && atomic_load(&phase_timing[0].hist[5])==1);
     CHECK(atomic_load(&phase_timing[2].calls)==1 && atomic_load(&phase_timing[2].elapsed_us)==1000 && atomic_load(&phase_timing[2].hist[3])==1);
+    probe_audio_owner_wait((1u<<0)|(1u<<14));probe_audio_owner_wait(1u<<2);
+    CHECK(atomic_load(&owner_iterations)==2 && atomic_load(&owner_immediate[0])==1 && atomic_load(&owner_immediate[2])==1);
+    CHECK(atomic_load(&owner_immediate[14])==1 && !atomic_load(&owner_immediate[1]));
     memset(media_trace_rings,0,sizeof(media_trace_rings));now=0;return 0;
+}
+EX int probe_audio_wait_policy(void){
+    dbt_codec_worker_t saved=worker;
+    memset(&worker,0,sizeof(worker));
+    CHECK(decoder_wait_ticks(100)==portMAX_DELAY);
+    worker.control_phase=1;worker.control_since=100;
+    CHECK(decoder_wait_ticks(1500)==pdMS_TO_TICKS(100));
+    CHECK(decoder_wait_ticks(1600)==0 && decoder_wait_ticks(1601)==0);
+    worker.control_since=0xfffffff0u;
+    CHECK(decoder_wait_ticks(0xfffffff5u)==pdMS_TO_TICKS(1495));
+    CHECK(decoder_wait_ticks((uint32_t)(0xfffffff0u+1500u))==0);
+    worker.control_timedout=true;CHECK(decoder_wait_ticks(0)==portMAX_DELAY);
+    worker=saved;return 0;
 }
 #ifdef DBT_PROBE_AUDIO_OUTPUT
 static bool output_started;

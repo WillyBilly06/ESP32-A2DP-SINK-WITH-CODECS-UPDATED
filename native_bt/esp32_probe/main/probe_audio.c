@@ -96,6 +96,7 @@ static media_trace_ring_t media_trace_rings[2];
 static _Atomic uint32_t rx_packets,rx_acl,rx_events,rx_bytes,rx_isr,rx_rejected,rx_pending_us;
 static _Atomic uint32_t rx_callback_max_us,first_rx_to_poll_max_us,host_poll_max_us;
 static _Atomic uint32_t worker_steps,worker_elapsed_us,worker_step_max_us,worker_hist[8];
+static _Atomic uint32_t owner_iterations,owner_immediate[15];
 typedef struct {
     uint32_t began;
     _Atomic uint32_t calls,elapsed_us,maximum_us,hist[8];
@@ -163,6 +164,10 @@ void probe_audio_transport_poll_begin(uint32_t began_us){
     if(pending)maximum(&first_rx_to_poll_max_us,(uint32_t)esp_timer_get_time()-pending);
 }
 void probe_audio_transport_poll_end(uint32_t began_us){maximum(&host_poll_max_us,(uint32_t)esp_timer_get_time()-began_us);}
+void probe_audio_owner_wait(uint32_t immediate_mask){
+    atomic_fetch_add_explicit(&owner_iterations,1,memory_order_relaxed);
+    for(unsigned i=0;i<15;++i)if(immediate_mask&(1u<<i))atomic_fetch_add_explicit(&owner_immediate[i],1,memory_order_relaxed);
+}
 /* Each endpoint is validated independently before an asynchronous worker job.
  * Opus 05 offers forward mono/stereo only; reverse audio is not supported. */
 static const uint8_t sbc_capabilities[]={1,0,7,6,0,0,0x3f,0xff,2,53,8,0};
@@ -334,12 +339,20 @@ static dbt_result_t stream(void *context,bool started,const dbt_codec_config_t *
     return publish_stream(started,config);
 }
 #endif
+static TickType_t decoder_wait_ticks(uint32_t now){
+    uint32_t when;
+    if(!dbt_codec_worker_deadline(&worker,&when))return portMAX_DELAY;
+    int32_t remaining=(int32_t)(when-now);
+    if(remaining<=0)return 0; /* service an expired deadline on the next step */
+    TickType_t ticks=pdMS_TO_TICKS((uint32_t)remaining);
+    return ticks?ticks:1;
+}
 static void decode_loop(void *unused){
     (void)unused;
     uint32_t seen_faults=0;
     for(;;){
         uint32_t began=(uint32_t)esp_timer_get_time();
-        uint16_t done=dbt_codec_worker_step(&worker,now_ms(),2);
+        (void)dbt_codec_worker_step(&worker,now_ms(),2);
         uint32_t elapsed=(uint32_t)esp_timer_get_time()-began;
         atomic_fetch_add(&worker_steps,1);atomic_fetch_add(&worker_elapsed_us,elapsed);maximum(&worker_step_max_us,elapsed);
         unsigned bucket=0;uint32_t bound=125;
@@ -347,20 +360,11 @@ static void decode_loop(void *unused){
         atomic_fetch_add(&worker_hist[bucket],1);
         uint32_t faults=atomic_load_explicit(&worker.faults,memory_order_acquire);
         if(faults!=seen_faults){seen_faults=faults;wake_owner(0);}
-#ifdef DBT_PROBE_ASYNC_AUDIO
-        (void)done;
         if(dbt_codec_worker_runnable(&worker)){taskYIELD();continue;}
-        TickType_t wait=portMAX_DELAY;uint32_t when;
-        if(dbt_codec_worker_deadline(&worker,&when)){
-            int32_t remaining=(int32_t)(when-now_ms());
-            wait=remaining>0?pdMS_TO_TICKS((uint32_t)remaining):1;
-            if(!wait)wait=1;
-        }
+        TickType_t wait=decoder_wait_ticks(now_ms());
+        /* Notifications queued before this call remain pending. No fixed
+         * media polling period and no wait while useful work is runnable. */
         ulTaskNotifyTake(pdTRUE,wait);
-#else
-        if(done==2){taskYIELD();continue;}
-        ulTaskNotifyTake(pdTRUE,pdMS_TO_TICKS(20));
-#endif
     }
 }
 #ifdef DBT_PROBE_AVRCP
@@ -401,6 +405,16 @@ static void log_loop(void *unused){
         if(++ticks<10)continue;
         ticks=0;
         uint32_t at=(uint32_t)esp_timer_get_time();
+        printf("{\"probe\":\"owner_wait_reasons\",\"at_us\":%" PRIu32 ",\"iterations\":%" PRIu32
+               ",\"runtime\":%" PRIu32 ",\"admission\":%" PRIu32 ",\"smp\":%" PRIu32 ",\"avrcp\":%" PRIu32
+               ",\"restart\":%" PRIu32 ",\"pair_button\":%" PRIu32 ",\"rfcomm\":%" PRIu32 ",\"gap\":%" PRIu32
+               ",\"product\":%" PRIu32 ",\"io\":%" PRIu32 ",\"att\":%" PRIu32 ",\"security\":%" PRIu32
+               ",\"echo\":%" PRIu32 ",\"sdp\":%" PRIu32 ",\"a2dp\":%" PRIu32 "}\n",at,atomic_load(&owner_iterations),
+               atomic_load(&owner_immediate[0]),atomic_load(&owner_immediate[1]),atomic_load(&owner_immediate[2]),
+               atomic_load(&owner_immediate[3]),atomic_load(&owner_immediate[4]),atomic_load(&owner_immediate[5]),
+               atomic_load(&owner_immediate[6]),atomic_load(&owner_immediate[7]),atomic_load(&owner_immediate[8]),
+               atomic_load(&owner_immediate[9]),atomic_load(&owner_immediate[10]),atomic_load(&owner_immediate[11]),
+               atomic_load(&owner_immediate[12]),atomic_load(&owner_immediate[13]),atomic_load(&owner_immediate[14]));
         printf("{\"probe\":\"vhci_timing\",\"at_us\":%" PRIu32 ",\"packets\":%" PRIu32 ",\"acl\":%" PRIu32
                ",\"events\":%" PRIu32 ",\"bytes\":%" PRIu32 ",\"isr_callbacks\":%" PRIu32 ",\"rejected\":%" PRIu32
                ",\"callback_max_us\":%" PRIu32 ",\"first_rx_to_poll_max_us\":%" PRIu32 ",\"host_poll_max_us\":%" PRIu32

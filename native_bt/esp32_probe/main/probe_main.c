@@ -1,8 +1,12 @@
 #include <inttypes.h>
 #include <stdio.h>
+#include "probe_wait.h"
 #include "dbt_gap.h"
 #ifdef DBT_PROBE_AUDIO_TEST
 #include "probe_audio.h"
+#define WAIT_TRACE(value,bit) do{if((value)==0)wait_zeros|=1u<<(bit);}while(0)
+#else
+#define WAIT_TRACE(value,bit) ((void)0)
 #endif
 #ifdef DBT_PROBE_GATT_TEST
 #include "probe_gatt.h"
@@ -157,10 +161,7 @@ static bool product_boot_io(void){
     product_io_started=true;
     if(xTaskCreatePinnedToCore(load_product_io,"native_product_io",4096,NULL,1,NULL,0)!=pdPASS)return false;
     int64_t deadline=esp_timer_get_time()+5000000;
-    while(!atomic_load_explicit(&product_io_done,memory_order_acquire)){
-        if(esp_timer_get_time()>=deadline)return false;
-        vTaskDelay(pdMS_TO_TICKS(10));
-    }
+    if(!probe_wait_flag(&product_io_done,deadline))return false;
     if(!product_io_ready)return false;
     product_io_owner.io_ready=true;product_io_owner.sound_enabled=product_io_sound;product_io_owner.gap=&gap;
     uint8_t sound=product_io_sound?probe_product_io_sound_status():0;
@@ -181,10 +182,7 @@ static bool product_boot_io(void){
     }
     atomic_store_explicit(&startup_sound_release,true,memory_order_release);
     deadline=esp_timer_get_time()+5000000;
-    while(!atomic_load_explicit(&startup_sound_done,memory_order_acquire)){
-        if(esp_timer_get_time()>=deadline)return false;
-        vTaskDelay(pdMS_TO_TICKS(10));
-    }
+    if(!probe_wait_flag(&startup_sound_done,deadline))return false;
     printf("{\"probe\":\"startup_sound\",\"attached\":%s,\"retired\":true,\"cancelled\":%s}\n",good?"true":"false",cancelled?"true":"false");
     probe_output_stats_t output;probe_output_stats(&output);
     return !output.failed && !output.request_fault;
@@ -313,7 +311,7 @@ static void load_product(void *unused){
 #else
     product_load_ok=dbt_ble_nvs_load_state(&product_state)==DBT_OK;
 #endif
-    atomic_store_explicit(&product_loaded,true,memory_order_release);vTaskDelete(NULL);
+    atomic_store_explicit(&product_loaded,true,memory_order_release);wake_owner();vTaskDelete(NULL);
 }
 static bool product_startup(void){
     static const uint8_t name[]="BDK SPEAKER",firmware[]="owned-dev";
@@ -326,10 +324,7 @@ static bool product_startup(void){
 #endif
     if(xTaskCreatePinnedToCore(load_product,"native_cfg_load",4096,NULL,1,NULL,0)!=pdPASS)return false;
     int64_t deadline=esp_timer_get_time()+2000000;
-    while(!atomic_load_explicit(&product_loaded,memory_order_acquire)){
-        if(esp_timer_get_time()>=deadline)return false;
-        vTaskDelay(pdMS_TO_TICKS(10));
-    }
+    if(!probe_wait_flag(&product_loaded,deadline))return false;
     if(product_load_ok){for(unsigned i=0;i<product_state.name_size;++i)product_name[i]=(char)product_state.name[i];product_name[product_state.name_size]=0;}
     return product_load_ok;
 }
@@ -948,45 +943,57 @@ void app_main(void) {
                    (unsigned)gap.state, gap.last_status, gap.advertising ? "true" : "false", gap.classic_scan);
         }
         uint32_t wait = dbt_runtime_wait_ms(&runtime, now_ms());
+#ifdef DBT_PROBE_AUDIO_TEST
+        uint32_t wait_zeros=wait==0?1u:0;
+#endif
 #ifdef DBT_PROBE_PRODUCT_SECURITY
-        {uint32_t admission_wait=probe_admission_wait_ms(now_ms());if(admission_wait<wait)wait=admission_wait;}
+        {uint32_t admission_wait=probe_admission_wait_ms(now_ms());WAIT_TRACE(admission_wait,1);if(admission_wait<wait)wait=admission_wait;}
 #endif
 #ifdef DBT_PROBE_SMP
-        if(smp_initialized){uint32_t smp_wait=probe_smp_wait_ms(now_ms());if(smp_wait<wait)wait=smp_wait;}
+        if(smp_initialized){uint32_t smp_wait=probe_smp_wait_ms(now_ms());WAIT_TRACE(smp_wait,2);if(smp_wait<wait)wait=smp_wait;}
 #endif
 #ifdef DBT_PROBE_AVRCP
-        if(echo_initialized){uint32_t avrcp_wait=probe_avrcp_wait_ms(now_ms());if(avrcp_wait<wait)wait=avrcp_wait;}
+        if(echo_initialized){uint32_t avrcp_wait=probe_avrcp_wait_ms(now_ms());WAIT_TRACE(avrcp_wait,3);if(avrcp_wait<wait)wait=avrcp_wait;}
 #endif
 #ifdef DBT_PROBE_PRODUCT_SECURITY
         if(probe_restart_active(&product_restart) && wait>10)wait=10;
-        {uint32_t button_wait=probe_pair_button_wait_ms(now_ms());if(button_wait<wait)wait=button_wait;}
+        {uint32_t button_wait=probe_pair_button_wait_ms(now_ms());WAIT_TRACE(button_wait,5);if(button_wait<wait)wait=button_wait;}
 #endif
 #ifdef DBT_PROBE_RFCOMM
-        {uint32_t rfcomm_wait=probe_rfcomm_wait_ms(now_ms());if(rfcomm_wait<wait)wait=rfcomm_wait;}
+        {uint32_t rfcomm_wait=probe_rfcomm_wait_ms(now_ms());WAIT_TRACE(rfcomm_wait,6);if(rfcomm_wait<wait)wait=rfcomm_wait;}
 #endif
         uint32_t gap_wait = dbt_gap_wait_ms(&gap);
+        WAIT_TRACE(gap_wait,7);
         if (gap_wait < wait) wait = gap_wait;
 #ifdef DBT_PROBE_PRODUCT_RUNTIME
-        if(product_runtime_ready){uint32_t product_wait=probe_product_runtime_wait_ms(&product_runtime,now_ms());if(product_wait<wait)wait=product_wait;}
+        if(product_runtime_ready){uint32_t product_wait=probe_product_runtime_wait_ms(&product_runtime,now_ms());WAIT_TRACE(product_wait,8);if(product_wait<wait)wait=product_wait;}
 #endif
 #ifdef DBT_PROBE_PRODUCT_IO
-        if(product_io_ready){uint32_t io_wait=probe_product_io_owner_wait_ms(&product_io_owner,now_ms());if(io_wait<wait)wait=io_wait;}
+        if(product_io_ready){uint32_t io_wait=probe_product_io_owner_wait_ms(&product_io_owner,now_ms());WAIT_TRACE(io_wait,9);if(io_wait<wait)wait=io_wait;}
 #endif
 #ifdef DBT_PROBE_GATT_TEST
         uint32_t att_wait = probe_gatt_wait_ms(now_ms());
+        WAIT_TRACE(att_wait,10);
         if (att_wait < wait) wait = att_wait;
 #endif
 #ifdef DBT_PROBE_CLASSIC_SECURITY_TEST
         uint32_t security_wait=probe_security_wait_ms(now_ms());
+        WAIT_TRACE(security_wait,11);
         if(security_wait<wait)wait=security_wait;
         uint32_t echo_wait=probe_echo_wait_ms();
+        WAIT_TRACE(echo_wait,12);
         if(echo_wait<wait)wait=echo_wait;
         uint32_t sdp_wait=probe_sdp_wait_ms();
+        WAIT_TRACE(sdp_wait,13);
         if(sdp_wait<wait)wait=sdp_wait;
 #ifdef DBT_PROBE_AUDIO_TEST
         uint32_t audio_wait=probe_audio_wait_ms(now_ms());
+        WAIT_TRACE(audio_wait,14);
         if(audio_wait<wait)wait=audio_wait;
 #endif
+#endif
+#ifdef DBT_PROBE_AUDIO_TEST
+        probe_audio_owner_wait(wait_zeros);
 #endif
         if (wait == 0) continue;
         TickType_t ticks = portMAX_DELAY;

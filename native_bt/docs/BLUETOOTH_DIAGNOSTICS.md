@@ -10,6 +10,7 @@ aggregate drop count. The legacy `sbc_pcm` record applies to every codec.
 | `media_trace` | Individual exception: stage, microsecond timestamp, writer-local ordinal, actual/expected RTP sequence, RTP timestamp, current/previous SSRC, payload size, encoded queue occupancy and result |
 | `media_drop_reasons` | Separate lifetime counters for queue full, decoder rejection, reset failure, PCM failure, PCM timeout, PCM BUSY attempts and upstream sequence/SSRC changes |
 | `worker_timing` | Bounded worker-step wall time, total, maximum and histogram; a step has budget two and also services control work |
+| `owner_wait_reasons` | Owner iteration count and a separate count for every subsystem requesting an immediate next iteration; distinguishes which wait predicate keeps the owner runnable |
 | `decoder_execution` | Codec media/resume calls, elapsed wall time, maximum and histogram |
 | `decoder_reset` | Codec reset calls and their own timing distribution |
 | `pcm_delivery` | PCM provider calls, including output submission and checksum accounting, with their own timing distribution |
@@ -47,6 +48,46 @@ from boot/fatal markers, with idle starvation and sampled running tasks by core.
 A watchdog warning fails runtime health even if boot readiness succeeds. New
 trial archives retain the exact ELF as well as the image and source receipts so
 backtraces can be decoded against the actual executable.
+
+## Scheduling changes under validation
+
+`build_probe.ps1 -DecoderCore 0` or `-DecoderCore 1` selects the experimental
+decoder placement. The build receipt, CMake cache, compiler definition and
+created task must agree. The controller/host stay on CPU 1; renderer priority 6
+and logger priority 1 stay on CPU 0; the decoder retains priority 5. This is a
+measurement switch, not a claim that either arrangement passes every workload.
+
+The decoder now queries actual runnable work and codec/control/output deadlines
+in both output modes. It waits on task notifications when idle and services
+expired deadlines immediately, replacing the old synchronous-mode 20 ms polling
+fallback. The existing bounded media budget remains two. `taskYIELD()` alone
+does not schedule a lower-priority idle task while the decoder remains runnable,
+as specified by the [FreeRTOS kernel documentation](https://www.freertos.org/Documentation/02-Kernel/04-API-references/04-RTOS-kernel-control/00-Kernel-control).
+Changing CPU placement and removing a polling timer are separate changes.
+
+Product-configuration load, product-IO load and startup-sound retirement now use
+completion notifications with absolute deadlines instead of 10 ms flag polls.
+The actual helper passes seven ASan/UBSan host cases covering pending and
+unrelated notifications, deadline expiry, rounding and long uptime. General
+control/provider/name waits and startup sound pumping still need further audit;
+these changes do not establish that every runtime path is fully asynchronous.
+
+## Instrumented CPU 1 reference
+
+Run `1793825586886774600-cc6321d64499` decoded LDAC 96 kHz while maintaining the
+secured BLE connection and live Deep Bass/Balanced writes. It recorded 5,625
+retired packets and **1,663 queue-full drops**, with zero upstream sequence gaps,
+HCI ingress rejections, decoder rejections or PCM failures. Queue occupancy
+reached 8/8. The largest decoder wall span was 92,352 us; 15 watchdog events
+reported CPU 1 idle starvation. This is a software queue/scheduling failure in
+the observed run, not evidence attributing missing packets to RF.
+
+The exception rings reported 784 host and 454 worker records lost; aggregate
+reason counters are distinct from those diagnostic losses. One latency metric
+(`first_rx_to_poll_max_us`) underflowed after a callback preempted its caller's
+clock sample. That metric is excluded from this run. A post-exchange clock read
+and regression correct the race. Other counters and timing spans are independent.
+See [the sanitized reference](RF_CORE1_DIAGNOSTICS_2026_11_04.json).
 
 ## Existing captured scheduler failure
 
