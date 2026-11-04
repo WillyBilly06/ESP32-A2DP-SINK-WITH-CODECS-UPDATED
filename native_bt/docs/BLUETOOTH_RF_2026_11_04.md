@@ -112,6 +112,51 @@ The next Bluetooth baseline uses SBC selected on the phone, with every codec
 endpoint retained. LDAC 96 kHz remains a recorded failure. The next trace also
 records negotiated channel MTUs and the actual HCI disconnect reason.
 
+## Saved-bond reuse, codec selection and short BLE coexistence
+
+The next trial bound source `81b0e955` to image
+`abd119497ab135c4e22f8be88a2de07fbbfcb7a18e11c27ec8db81374f7f2c42`.
+COM6 reconnected using the saved native Classic bond, reached 16-byte encryption
+without a new key-store event, and opened SDP, AVDTP and AVRCP channels. Android's
+codec chooser selected SBC before playback; the app and native PCM report agreed
+on stereo 44.1 kHz/S16. The media channel closed/reopened during selection while
+the signaling and AVRCP channels remained present.
+
+SBC decoded 1,941,504 PCM bytes and delivered 484,096 source frames through I2S.
+The BDK app briefly displayed its normal control screen and the native trace
+recorded an LE connection alongside the Classic link. This does not establish
+full BLE security, every command or long-duration coexistence.
+
+**SBC output also failed:** 157,568 underrun frames, one DMA descriptor error,
+242 drops and 229 resets. Its maximum observed EOF gap was 12,635 us and render
+span 15,687 us. The global oversized-PDU count stayed zero, so oversized packets
+do not explain this SBC failure. The shared output/scheduling path needs further
+isolation; no specific interrupt or CPU bottleneck has yet been established.
+Both recorded HCI disconnections had status 0/reason `0x13` (remote termination).
+No LE security-failure event was logged; absence of a diagnostic event is not a
+complete security pass.
+
+The preserved baseline boot was verified and phone playback is paused. See
+[the sanitized result](RF_SBC441_2026_11_04.json); raw evidence remains in
+`native_bt/_build/hardware/runs/1793816091087576200-abd119497ab1`.
+Bluetooth qualification should next isolate radio/profile/control exchanges
+from the failing I2S path. Every production codec/output path remains retained;
+neither streaming configuration is qualified for release.
+
+## Released firmware restored
+
+After the native trials, COM6 booted the preserved `1.0.4-idf6.1` application.
+The phone was paired back to that verified address and its LDAC preference was
+restored. The first app synchronization returned an invalid-handle error after
+the database swap. Restarting only the BDK app resolved it: the app subsequently
+showed `Connected · 1.0.4-idf6.1`, LDAC 96 kHz and the normal speaker controls.
+Playback was verified paused. No app data or unrelated bonds were cleared.
+
+The cause of the stale-handle behavior has not been established. Future trials
+should close the app's old GATT connection before swapping firmware and must
+qualify service-database/cache lifecycle behavior before a native release.
+The private `released-phone-restored.xml` records the final app state.
+
 ## Outstanding Bluetooth gates
 
 The full profile build still needs current-image bond reload/reconnection,
