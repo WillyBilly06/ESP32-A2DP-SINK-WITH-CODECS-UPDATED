@@ -45,6 +45,7 @@ typedef struct {
         struct {uint8_t address[6];bool accepted,known,window;} admission;
         struct {uint32_t generation;uint16_t handle;uint8_t change,kind,peer_type,peer[6];bool peer_present;} link;
         struct {uint32_t generation,serial;uint16_t handle,cid,psm,rx_mtu,tx_mtu,result;uint8_t event,reason;} channel;
+        struct {uint32_t generation;uint16_t handle;uint8_t flags,key_size;} le_security;
     };
     uint8_t event, reason, status,local_record;
 } log_item_t;
@@ -219,6 +220,13 @@ static void logger(void *context) {
                    (unsigned long)item.hashes.ordinal,item.hashes.size,item.hashes.offset,
                    (unsigned long)item.hashes.before,(unsigned long)item.hashes.after,
                    (unsigned long)item.hashes.owner,item.hashes.after_ready?"true":"false");
+            continue;
+        }
+        if(item.local_record==6){
+            uint8_t f=item.le_security.flags;
+            printf("{\"probe\":\"le_security\",\"handle\":%u,\"generation\":%lu,\"encrypted\":%s,\"authenticated\":%s,\"bond_committed\":%s,\"peer_key_verified\":%s,\"phase3_complete\":%s,\"identity_promotion_committed\":%s,\"key_size\":%u}\n",
+                item.le_security.handle,(unsigned long)item.le_security.generation,f&1?"true":"false",f&2?"true":"false",f&4?"true":"false",
+                f&8?"true":"false",f&16?"true":"false",f&32?"true":"false",item.le_security.key_size);
             continue;
         }
         if(item.local_record==4){
@@ -444,6 +452,12 @@ void probe_security_link(const dbt_link_change_t *change) {
 void probe_security_le_failure(uint16_t handle,uint32_t generation){
     if(!log_queue)return;
     log_item_t item;wipe(&item,sizeof(item));item.local_record=3;item.link.handle=handle;item.link.generation=generation;item.link.kind=DBT_LINK_LE;
+    (void)xQueueSend(log_queue,&item,0);
+}
+void probe_security_le_state(uint16_t handle,uint32_t generation,uint8_t flags,uint8_t key_size){
+    if(!log_queue)return;
+    log_item_t item;wipe(&item,sizeof(item));item.local_record=6;item.le_security.handle=handle;
+    item.le_security.generation=generation;item.le_security.flags=flags;item.le_security.key_size=key_size;
     (void)xQueueSend(log_queue,&item,0);
 }
 

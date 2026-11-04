@@ -108,6 +108,7 @@ def main():
     parser.add_argument('--codec-only',action='store_true',help='Finite non-radio codec diagnostic, always return to the pinned baseline')
     parser.add_argument('--pipeline-only',action='store_true',help='Finite non-radio decoder/DSP/I2S diagnostic; always return to pinned baseline')
     parser.add_argument('--finite-rf',action='store_true',help='Finite native controller/GAP/profile boot capture, then reset pending trial and verify baseline return')
+    parser.add_argument('--rf-protocol-diagnostic',action='store_true',help='Explicit finite radio/decoder test with A2DP PCM checksum sink; no DAC/render qualification')
     parser.add_argument('--press-pairing-button',action='store_true',help='Explicit COM6 fixture: after native readiness hold DTR/BOOT for 3.5 seconds without toggling RTS/EN; finite RF only')
     parser.add_argument('--rf-seconds',type=int,choices=(15,60,120,180,300,600),default=15,help='Bounded finite-RF interaction window, at most ten minutes; baseline return follows')
     parser.add_argument('--baud',type=int,choices=(115200,230400,460800),default=230400,help='Verified flash transport rate; use a lower rate after a readback error')
@@ -117,6 +118,8 @@ def main():
         raise RuntimeError('Finite RF mode requires an unconfirmed ordinary native probe')
     if args.press_pairing_button and (not args.finite_rf or args.rf_seconds<60):
         raise RuntimeError('The local pairing fixture requires a finite RF window of at least 60 seconds')
+    if args.rf_protocol_diagnostic and not args.finite_rf:
+        raise RuntimeError('RF protocol diagnostic requires finite RF deployment')
     hold=HARDWARE/'HARDWARE_HOLD.json'
     if hold.exists() and json.loads(hold.read_text()).get('active',True):
         raise RuntimeError('ESP32 reserved by user: deployment/reset disabled; perform off-board builds/tests only')
@@ -132,6 +135,8 @@ def main():
     if not baud_match:raise RuntimeError('Console baud is missing from the actual build configuration')
     console_baud=int(baud_match.group(1))
     cache=(image_path.parent/'CMakeCache.txt').read_text()
+    if ('DBT_PROBE_RF_PROTOCOL_DIAGNOSTIC:BOOL=ON' in cache)!=args.rf_protocol_diagnostic:
+        raise RuntimeError('RF protocol diagnostic image requires its matching explicit finite mode')
     if args.press_pairing_button:
         compiled=json.loads((image_path.parent/'compile_commands.json').read_text())
         if 'DBT_PROBE_PRODUCT_SECURITY:BOOL=ON' not in cache or not any(Path(x['file']).name=='probe_pair_button.c' for x in compiled):
@@ -176,6 +181,9 @@ def main():
             'candidate_elf_sha256':candidate[176:208].hex(),'transport_baud':args.baud,'writes':[],'write_attempts':[]}
     if args.finite_rf:
         report['scope']='Finite owned controller/HCI/GAP and optional diagnostic GATT startup; no pairing/profile/audio qualification'
+    if args.rf_protocol_diagnostic:
+        report['scope']='Finite radio/profile/product-security test with actual codec decode and PCM checksum; A2DP PCM is not forwarded to I2S; no DAC/DSP/headroom qualification'
+        report['rf_protocol_diagnostic']=True
     # Preserve the exact tested bytes and build-input receipts before a later
     # build can replace them. No NVS/full-flash backup is copied or published.
     archive=HARDWARE/'runs'/(str(time.time_ns())+'-'+report['candidate_sha256'][:12])
@@ -301,6 +309,9 @@ def main():
             '"probe":"controller_identified"' in text and '"probe":"gap_state","state":2,' in text)
         if audio_probe:report['boot_ready_marker']=report['boot_ready_marker'] and '"probe":"sbc_probe_ready"' in text
         if output_probe:report['boot_ready_marker']=report['boot_ready_marker'] and '"audio_sink_sdp_advertised":true' in text
+        if args.rf_protocol_diagnostic:
+            report['checksum_sink_marker']='"i2s_output":false,"rf_protocol_diagnostic":true' in text
+            report['boot_ready_marker']=report['boot_ready_marker'] and report['checksum_sink_marker']
         if args.finite_rf and 'DBT_PROBE_GATT_TEST:BOOL=ON' in cache:
             report['diagnostic_gatt_ready']='"probe":"gatt_probe_ready"' in text
             report['boot_ready_marker']=report['boot_ready_marker'] and report['diagnostic_gatt_ready']

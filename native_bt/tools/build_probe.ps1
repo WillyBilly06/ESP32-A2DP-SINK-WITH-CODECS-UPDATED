@@ -1,5 +1,9 @@
-param([switch]$FirCompilerCheck,[switch]$DspStageProfile,[switch]$AudioStageProfile,[switch]$PipelineDiagnostic,[switch]$AsyncAudio,[switch]$DeferredCodecCheck,[switch]$LhdcStageProfile,[switch]$LhdcMaximumCheck,[switch]$CodecDiagnosticOnly,[switch]$WithProductIo,[switch]$WithProductSecurity,[switch]$WithRfcomm,[switch]$WithLhdc,[switch]$WithOpus,[switch]$WithAac,[switch]$WithAptx,[switch]$WithLdac,[switch]$WithSmp,[switch]$WithAvrcp,[switch]$WithSbc,[switch]$WithAudioProbe,[switch]$WithAudioOutput,[switch]$WithGatt,[switch]$WithClassicSecurity,[switch]$TraceIngress,[switch]$WithoutRxFlow,[switch]$KeepOwned=$true,[string]$TestPeer='',[string]$LhdcSourceDir='')
+param([switch]$RfProtocolDiagnostic,[switch]$FirCompilerCheck,[switch]$DspStageProfile,[switch]$AudioStageProfile,[switch]$PipelineDiagnostic,[switch]$AsyncAudio,[switch]$DeferredCodecCheck,[switch]$LhdcStageProfile,[switch]$LhdcMaximumCheck,[switch]$CodecDiagnosticOnly,[switch]$WithProductIo,[switch]$WithProductSecurity,[switch]$WithRfcomm,[switch]$WithLhdc,[switch]$WithOpus,[switch]$WithAac,[switch]$WithAptx,[switch]$WithLdac,[switch]$WithSmp,[switch]$WithAvrcp,[switch]$WithSbc,[switch]$WithAudioProbe,[switch]$WithAudioOutput,[switch]$WithGatt,[switch]$WithClassicSecurity,[switch]$TraceIngress,[switch]$WithoutRxFlow,[switch]$KeepOwned=$true,[string]$TestPeer='',[string]$LhdcSourceDir='')
 $ErrorActionPreference = 'Stop'
+if ($RfProtocolDiagnostic) {
+    if (-not $WithProductIo -or $AsyncAudio -or $CodecDiagnosticOnly -or $PipelineDiagnostic) { throw 'RF protocol diagnostic requires -WithProductIo, excludes async output/other diagnostics, and never keeps the image active' }
+    $KeepOwned=$false
+}
 if ($FirCompilerCheck -and (-not $AudioStageProfile -or $DspStageProfile)) { throw 'FIR compiler check requires -AudioStageProfile and excludes -DspStageProfile' }
 if ($DspStageProfile -and -not $AudioStageProfile) { throw 'DSP stage profiling requires -AudioStageProfile' }
 if ($AudioStageProfile -and -not $PipelineDiagnostic) { throw 'Audio stage profiling requires -PipelineDiagnostic' }
@@ -83,6 +87,7 @@ $pipelineBuild = if ($PipelineDiagnostic) { 'ON' } else { 'OFF' }
 $codecDiagnosticBuild = if ($CodecDiagnosticOnly) { 'ON' } else { 'OFF' }
 $deferredCodecBuild = if ($DeferredCodecCheck) { 'ON' } else { 'OFF' }
 $asyncAudioBuild = if ($AsyncAudio) { 'ON' } else { 'OFF' }
+$rfDiagnosticBuild = if ($RfProtocolDiagnostic) { 'ON' } else { 'OFF' }
 $lhdcMaxBuild = if ($LhdcMaximumCheck) { 'ON' } else { 'OFF' }
 $lhdcStageBuild = if ($LhdcStageProfile) { 'ON' } else { 'OFF' }
 $peerBytes = '0,0,0,0,0,0'
@@ -100,6 +105,7 @@ $idfArguments += "-DDBT_PROBE_PIPELINE_DIAGNOSTIC=$pipelineBuild"
 $idfArguments += "-DDBT_PROBE_CODEC_DIAGNOSTIC_ONLY=$codecDiagnosticBuild"
 $idfArguments += "-DDBT_PROBE_DEFERRED_CODEC_CHECK=$deferredCodecBuild"
 $idfArguments += "-DDBT_PROBE_ASYNC_AUDIO=$asyncAudioBuild"
+$idfArguments += "-DDBT_PROBE_RF_PROTOCOL_DIAGNOSTIC=$rfDiagnosticBuild"
 $idfArguments += "-DDBT_PROBE_LHDC_MAX_CHECK=$lhdcMaxBuild"
 $idfArguments += "-DDBT_PROBE_LHDC_STAGE_PROFILE=$lhdcStageBuild"
 $sourceManifestPath=Join-Path $buildRoot 'local-build-sources.json'
@@ -128,6 +134,7 @@ $buildReceipt.pipeline_diagnostic=[bool]$PipelineDiagnostic
 $buildReceipt.codec_diagnostic_only=[bool]$CodecDiagnosticOnly
 $buildReceipt.deferred_codec_check=[bool]$DeferredCodecCheck
 $buildReceipt.async_audio=[bool]$AsyncAudio
+$buildReceipt.rf_protocol_diagnostic=[bool]$RfProtocolDiagnostic
 $buildReceipt.lhdc_maximum_check=[bool]$LhdcMaximumCheck
 $buildReceipt.lhdc_stage_profile=[bool]$LhdcStageProfile
 if ($buildReceipt.passed) {

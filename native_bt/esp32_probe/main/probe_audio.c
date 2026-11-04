@@ -37,14 +37,31 @@
 #endif
 #ifdef DBT_PROBE_AUDIO_OUTPUT
 #include "probe_output.h"
+#define AUDIO_SDP_JSON "true"
+#else
+#define AUDIO_SDP_JSON "false"
+#endif
+#if defined(DBT_PROBE_AUDIO_OUTPUT) && !defined(DBT_PROBE_RF_PROTOCOL_DIAGNOSTIC)
 #define AUDIO_OUTPUT_JSON "true"
 #else
 #define AUDIO_OUTPUT_JSON "false"
+#endif
+#ifdef DBT_PROBE_RF_PROTOCOL_DIAGNOSTIC
+#define AUDIO_RF_DIAG_JSON "true"
+#else
+#define AUDIO_RF_DIAG_JSON "false"
 #endif
 #include "esp_heap_caps.h"
 #include "esp_timer.h"
 #include <inttypes.h>
 #include <stdio.h>
+
+/* Test-only isolation, never an alternative product audio path. Decoder/RTP,
+ * endpoints and product security are unchanged. Product IO/sounds remain;
+ * this mode omits only A2DP PCM forwarding and its output-failure coupling. */
+#if defined(DBT_PROBE_RF_PROTOCOL_DIAGNOSTIC) && (!defined(DBT_PROBE_PRODUCT_IO) || !defined(DBT_PROBE_PRODUCT_SECURITY) || !defined(DBT_PROBE_AUDIO_OUTPUT) || defined(DBT_PROBE_ASYNC_AUDIO) || defined(DBT_PROBE_KEEP_OWNED_ACTIVE))
+#error "RF protocol diagnostic requires secured product IO and finite synchronous checksum mode"
+#endif
 
 static dbt_a2dp_acceptor_t profile;
 static dbt_codec_worker_t worker;
@@ -141,7 +158,7 @@ static dbt_result_t pcm(void *context,const void *samples,uint16_t count,const d
     if(!config || !samples || !count || config->sample_bytes<2 || config->sample_bytes>4 ||
        config->channels<1 || config->channels>2 || !config->rate)return DBT_INVALID;
     uint8_t channels=config->channels;uint32_t rate=config->rate,bytes=(uint32_t)config->sample_bytes*count*channels;
-#ifdef DBT_PROBE_AUDIO_OUTPUT
+#if defined(DBT_PROBE_AUDIO_OUTPUT) && !defined(DBT_PROBE_RF_PROTOCOL_DIAGNOSTIC)
 #ifdef DBT_PROBE_ASYNC_AUDIO
     dbt_result_t result=probe_output_try_pcm_format(samples,count,channels,rate,(dbt_pcm_format_t)config->sample_bytes);
 #else
@@ -211,7 +228,7 @@ static dbt_result_t stream_cancel(void *context,uint32_t ticket){(void)context;r
 static dbt_result_t stream(void *context,bool started,const dbt_codec_config_t *config){
     (void)context;
     if(!config)return DBT_INVALID;
-#ifdef DBT_PROBE_AUDIO_OUTPUT
+#if defined(DBT_PROBE_AUDIO_OUTPUT) && !defined(DBT_PROBE_RF_PROTOCOL_DIAGNOSTIC)
     dbt_result_t result=probe_output_stream_format(started,config->rate,config->channels,(dbt_pcm_format_t)config->sample_bytes);
     if(result!=DBT_OK)return result;
 #endif
@@ -359,7 +376,7 @@ dbt_result_t probe_audio_init(dbt_runtime_t *runtime,TaskHandle_t host_owner){
     if(xTaskCreatePinnedToCore(log_loop,"native_pcm_log",4096,0,1,&logger_task,0)!=pdPASS){vTaskDelete(decoder_task);decoder_task=0;return DBT_NO_SPACE;}
     initialized=true;
     printf("{\"probe\":\"sbc_probe_ready\",\"psm\":25,\"mtu\":672,\"worker_bytes\":%u,\"profile_bytes\":%u,\"decoder_stack\":8192,"
-           "\"logger_stack\":4096,\"codecs\":" AUDIO_CODECS_JSON ",\"diagnostic_only\":true,\"audio_sink_sdp_advertised\":" AUDIO_OUTPUT_JSON ",\"i2s_output\":" AUDIO_OUTPUT_JSON "}\n",
+           "\"logger_stack\":4096,\"codecs\":" AUDIO_CODECS_JSON ",\"diagnostic_only\":true,\"audio_sink_sdp_advertised\":" AUDIO_SDP_JSON ",\"i2s_output\":" AUDIO_OUTPUT_JSON ",\"rf_protocol_diagnostic\":" AUDIO_RF_DIAG_JSON "}\n",
            (unsigned)sizeof(worker),(unsigned)sizeof(profile));
     return DBT_OK;
 }
@@ -415,7 +432,9 @@ void probe_audio_poll(uint32_t now){
         ((uint32_t)(profile.signaling.serial!=0)<<21)|((uint32_t)(profile.media.serial!=0)<<22)|(staged<<23));
 #ifdef DBT_PROBE_AUDIO_OUTPUT
     probe_output_stats_t stats;probe_output_stats(&stats);
+#ifndef DBT_PROBE_RF_PROTOCOL_DIAGNOSTIC
     if(stats.failed)failed=true;
+#endif
     static uint32_t delay_binding,delay_at;
     if(profile.active && !profile.draining && profile.sink.delay_enabled &&
        profile.sink.state>=DBT_STREAM_CONFIGURED && profile.sink.state<=DBT_STREAM_STREAMING &&

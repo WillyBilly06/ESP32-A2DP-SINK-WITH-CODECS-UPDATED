@@ -75,6 +75,9 @@ static dbt_gap_t gap;
 static TaskHandle_t owner;
 #ifdef DBT_PROBE_SMP
 static bool smp_initialized,disconnect_overflow;
+#ifdef DBT_PROBE_RF_PROTOCOL_DIAGNOSTIC
+static struct {uint32_t generation;uint16_t value;} traced_le_security[DBT_MAX_LINKS];
+#endif
 static struct {bool used;uint16_t handle;uint32_t generation;} disconnects[DBT_MAX_LINKS];
 static void defer_disconnect(const dbt_link_t *link){
     if(!link)return;
@@ -727,6 +730,20 @@ void app_main(void) {
         if(smp_initialized){
             if(disconnect_overflow)dbt_runtime_abort(&runtime,DBT_FAULT_BAD_RESPONSE);
             probe_smp_poll(now);
+#ifdef DBT_PROBE_RF_PROTOCOL_DIAGNOSTIC
+            for(unsigned i=0;i<DBT_MAX_LINKS;++i){
+                const dbt_link_t *l=&runtime.acl.links[i];dbt_smp_session_security_t state;
+                if(!l->used || l->kind!=DBT_LINK_LE){traced_le_security[i].generation=0;continue;}
+                if(probe_smp_security(l->handle,l->generation,&state)!=DBT_OK)continue;
+                uint8_t flags=(state.encrypted?1:0)|(state.authenticated?2:0)|(state.bond_committed?4:0)|
+                    (state.peer_key_verified?8:0)|(state.phase3_complete?16:0)|(state.identity_promotion_committed?32:0);
+                uint16_t value=(uint16_t)((uint16_t)flags<<8)|state.key_size;
+                if(traced_le_security[i].generation!=l->generation || traced_le_security[i].value!=value){
+                    traced_le_security[i].generation=l->generation;traced_le_security[i].value=value;
+                    probe_security_le_state(l->handle,l->generation,flags,state.key_size);
+                }
+            }
+#endif
             uint16_t failed_handle;uint32_t failed_generation;
             if(probe_smp_take_failure(&failed_handle,&failed_generation)){
 #ifdef DBT_PROBE_CLASSIC_SECURITY_TEST
