@@ -1,0 +1,3488 @@
+{
+  "scope": "source inventory, lexical review leads and target-compiler static sizes only; no runtime RAM or performance advantage proven",
+  "baseline_commit": "0d85a975ec079d954f1bdd3e94d2fed70848c252",
+  "owned_source_origin": "f313fce94220a21066375e97b0d266d92418f96a",
+  "target_layout": {
+    "pointer_bytes": 4,
+    "queue_metadata_and_storage": 4112,
+    "host_including_queue": 6696,
+    "acl_manager": 120,
+    "runtime_including_host": 11048,
+    "att_server": 728,
+    "att_connection": 168,
+    "ertm_engine": 192,
+    "codec_decoder_metadata": 68,
+    "audio_including_dsp": 2456,
+    "secure_connections_session": 1484,
+    "ingress_capacity": 4096,
+    "max_h4_packet": 1029,
+    "control_reserve": 520,
+    "max_links": 4,
+    "codec_worker_jobs": 4
+  },
+  "candidate_sections": {
+    ".rtc.text": 0,
+    ".rtc.dummy": 0,
+    ".rtc.force_fast": 0,
+    ".rtc_noinit": 0,
+    ".rtc.force_slow": 40,
+    ".rtc_fast_reserved": 0,
+    ".rtc_slow_reserved": 24,
+    ".iram0.vectors": 1028,
+    ".iram0.text": 123199,
+    ".dram0.data": 23381,
+    ".ext_ram_noinit": 0,
+    ".noinit": 3,
+    ".ext_ram.bss": 0,
+    ".dram0.bss": 31432,
+    ".flash.appdesc": 256,
+    ".flash.rodata": 364128,
+    ".flash.tdata": 20,
+    ".flash.text": 684044,
+    ".iram0.text_end": 1,
+    ".iram0.data": 0,
+    ".iram0.bss": 0,
+    ".dram0.heap_start": 0,
+    ".noload": 4,
+    ".debug_aranges": 59792,
+    ".debug_info": 3416131,
+    ".debug_abbrev": 435224,
+    ".debug_line": 2854534,
+    ".debug_frame": 146328,
+    ".debug_str": 456372,
+    ".debug_loc": 1624795,
+    ".debug_ranges": 202768,
+    ".debug_line_str": 7424,
+    ".debug_loclists": 22855,
+    ".debug_rnglists": 2539,
+    ".comment": 207,
+    ".xtensa.info": 56,
+    ".xt.prop": 1116,
+    ".xt.lit": 8
+  },
+  "baseline_sections": {
+    ".rtc.text": 0,
+    ".rtc.dummy": 0,
+    ".rtc.force_fast": 0,
+    ".rtc_noinit": 0,
+    ".rtc.force_slow": 40,
+    ".rtc_fast_reserved": 0,
+    ".rtc_slow_reserved": 24,
+    ".iram0.vectors": 1028,
+    ".iram0.text": 114043,
+    ".dram0.data": 19700,
+    ".ext_ram_noinit": 0,
+    ".noinit": 0,
+    ".ext_ram.bss": 0,
+    ".dram0.bss": 43024,
+    ".flash.appdesc": 256,
+    ".flash.rodata": 162528,
+    ".flash.text": 868192,
+    ".iram0.text_end": 1,
+    ".iram0.data": 0,
+    ".iram0.bss": 0,
+    ".dram0.heap_start": 0,
+    ".noload": 4,
+    ".debug_aranges": 77768,
+    ".debug_info": 4996240,
+    ".debug_abbrev": 537645,
+    ".debug_line": 3787747,
+    ".debug_frame": 195292,
+    ".debug_str": 721689,
+    ".debug_loc": 1946341,
+    ".debug_ranges": 256368,
+    ".debug_line_str": 13993,
+    ".debug_loclists": 128613,
+    ".debug_rnglists": 13238,
+    ".comment": 207,
+    ".xtensa.info": 56,
+    ".xt.prop": 27732,
+    ".xt.lit": 912
+  },
+  "files": {
+    "native_bt/src/dbt_a2dp_acceptor.c": {
+      "sha256": "173fb13594c1e4a123d6ea13dcba0b229598b79ce877214bc0b0510b81514371",
+      "bytes": 11123,
+      "lines": 197,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/src/dbt_a2dp_sbc.c": {
+      "sha256": "362b4a41d3ba10e7097189c79a55544d36a4a55f9983b3a6ef1c9e50184ff91d",
+      "bytes": 1248,
+      "lines": 26,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/src/dbt_acl.c": {
+      "sha256": "795bcf70c6b6bd86d80146bc9d0801bf25b6af363429254564cd7737f11e4bca",
+      "bytes": 7505,
+      "lines": 160,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/src/dbt_att.c": {
+      "sha256": "eb2988352a601aebe2376fc7b43666ed663460b5cd41cc7d106fa09a3e5cbb64",
+      "bytes": 37919,
+      "lines": 924,
+      "allocation_calls": 0,
+      "while_loops": 3,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/src/dbt_att_bearer.c": {
+      "sha256": "d77d7b399d0efdf6f9e606ce42fec166a6cad3b35b6a625f8c15f5ed308b36f3",
+      "bytes": 5544,
+      "lines": 127,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/src/dbt_audio.c": {
+      "sha256": "0b1f43f11af9979b8faa6bee053511b11e8592581f15fb582804bd6d41f458c9",
+      "bytes": 25964,
+      "lines": 415,
+      "allocation_calls": 0,
+      "while_loops": 1,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/src/dbt_avctp.c": {
+      "sha256": "90a902a3520c2338d81cce719ba08697f697a9929e8c812f3534b0bd0b661468",
+      "bytes": 9030,
+      "lines": 177,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/src/dbt_avctp_bearer.c": {
+      "sha256": "92eca14ed0ff96d64b0c4a87c237eff0c62048466825287fa47d90188e288b58",
+      "bytes": 4588,
+      "lines": 86,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/src/dbt_avdtp.c": {
+      "sha256": "8e57e9bfc065b8c51456d5382299ca7d1b3b42bab5c023e09d114ad88ff39fd7",
+      "bytes": 16424,
+      "lines": 392,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/src/dbt_avdtp_bearer.c": {
+      "sha256": "464900d0cc9f490aeda702072da794dbf4448bbebf95e49111753776b57ec893",
+      "bytes": 4571,
+      "lines": 86,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/src/dbt_avdtp_caps.c": {
+      "sha256": "c9e1f65878344b5425dbb419c752427b0797a8ac205ceb02d3cb5b1e9c818a44",
+      "bytes": 4047,
+      "lines": 92,
+      "allocation_calls": 0,
+      "while_loops": 2,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/src/dbt_avdtp_sink.c": {
+      "sha256": "7e2ce507a9edcf6993c3fb3089cd59135f3bb2f67b7dabce96f742a9049a5e38",
+      "bytes": 20657,
+      "lines": 367,
+      "allocation_calls": 0,
+      "while_loops": 3,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/src/dbt_avrcp.c": {
+      "sha256": "4122b1e0f4673a55d38468e983ab4bd39b8e7904c958a01335665ae2bc08b071",
+      "bytes": 27294,
+      "lines": 479,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/src/dbt_avrcp_bearer.c": {
+      "sha256": "7c33b50b3b417966a8225c6e078968bdc68d2799578c66523fcd840c529b5506",
+      "bytes": 1178,
+      "lines": 22,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/src/dbt_avrcp_browse.c": {
+      "sha256": "966c8b67b6d97cdd15035f3623acd456abd9eb8b104135629f2be8d93f43405f",
+      "bytes": 15989,
+      "lines": 254,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/src/dbt_ble_control.c": {
+      "sha256": "69597b5a99204efb5b276f6130247aa1ddc550f31901fcbdb7a5a3821831551f",
+      "bytes": 4406,
+      "lines": 79,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/src/dbt_boot_policy.c": {
+      "sha256": "836609bc87391487d51eb573cdc488088f254e03417f0be4fb827c75ecc7c8b5",
+      "bytes": 525,
+      "lines": 10,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/src/dbt_channels.c": {
+      "sha256": "739cbfc2319160b195ac72d107ae2d5a73a428186aa1ef0128110983bc8564f9",
+      "bytes": 90204,
+      "lines": 1488,
+      "allocation_calls": 0,
+      "while_loops": 6,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/src/dbt_classic_security.c": {
+      "sha256": "cde914d88401af89d6223bd4ff2a1d7b2aa11320de158bc1ae3cee1793909c68",
+      "bytes": 46008,
+      "lines": 1037,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/src/dbt_credit.c": {
+      "sha256": "4a96482ac78d5e04c69572c23ae10c86278543a57d695e6db18c9142c0ad2bef",
+      "bytes": 5519,
+      "lines": 94,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/src/dbt_ertm.c": {
+      "sha256": "421741d3a773bb032193c53d69132d96a61b6f5fb2b95696a6e0345b18f511c2",
+      "bytes": 3226,
+      "lines": 44,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/src/dbt_ertm_engine.c": {
+      "sha256": "5b7e4bcad21f0d574c881bb67408d5dbe120b0b22cbda62dc56671fb3322fc38",
+      "bytes": 17866,
+      "lines": 287,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/src/dbt_gap.c": {
+      "sha256": "f3382de7612dc0a321379b8f14f2d16f88883026883793422aa0ed1482cd55ee",
+      "bytes": 13751,
+      "lines": 224,
+      "allocation_calls": 0,
+      "while_loops": 1,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/src/dbt_hci.c": {
+      "sha256": "61dbde583dcb1939f35a46904a5c7e9636a7e11c42b577280eb0b2396fb5d113",
+      "bytes": 2308,
+      "lines": 59,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/src/dbt_host.c": {
+      "sha256": "f104ac7beb5abfef0b94e138583b36359711480d53a59d60df9b410a13ae3cc2",
+      "bytes": 20448,
+      "lines": 408,
+      "allocation_calls": 0,
+      "while_loops": 3,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/src/dbt_input.c": {
+      "sha256": "e224d0fd1fe2931b4ebf6265f3b1d548a8d22a478af5f5816e3f45847a687812",
+      "bytes": 6423,
+      "lines": 185,
+      "allocation_calls": 0,
+      "while_loops": 2,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/src/dbt_l2cap.c": {
+      "sha256": "e129e854f48dceba99da4ae04b95b8f1b1a15654bbdc00697b0a51da687fd018",
+      "bytes": 8327,
+      "lines": 185,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/src/dbt_led.c": {
+      "sha256": "128882b29dc76d54fe7be992438cd425b2789946c0aeb37bcc22ab53e41b9ad6",
+      "bytes": 34215,
+      "lines": 792,
+      "allocation_calls": 0,
+      "while_loops": 3,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/src/dbt_ota.c": {
+      "sha256": "c19427c3a1159373795ae4630417ddb588ac0bbf1da931246999cfb4674cd2bf",
+      "bytes": 5099,
+      "lines": 81,
+      "allocation_calls": 0,
+      "while_loops": 1,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/src/dbt_product_peer.c": {
+      "sha256": "105a3c1cb85b0fe61e2eedd65085ba7302211f8d4d15847e7bd6ce459e71c18a",
+      "bytes": 2960,
+      "lines": 41,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/src/dbt_queue.c": {
+      "sha256": "0c2be89f923d287d68d427baaa52c10f18dddc7bdd08eab00eb2030610012929",
+      "bytes": 3993,
+      "lines": 87,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/src/dbt_resampler.c": {
+      "sha256": "143e384efbb7d72e1f1fec4a56e352fc2309128b9954982c6fb56ddcb6bad528",
+      "bytes": 2272,
+      "lines": 45,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/src/dbt_resampler_coeffs.inc": {
+      "sha256": "b0a9ad4092fe60b4009767e310fe712d5a736538c0d5220f908fa01707de7fe9",
+      "bytes": 182742,
+      "lines": 400,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/src/dbt_rfcomm.c": {
+      "sha256": "b17489ee3815bcb4a362857383c5c6d78b73463fbf123dca027a1a2136d30023",
+      "bytes": 3706,
+      "lines": 64,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/src/dbt_rfcomm_bearer.c": {
+      "sha256": "0c347475d69c8fdc0f1cc1d7564fa757edaa1315645ad38157aa261a2119b89f",
+      "bytes": 8590,
+      "lines": 126,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/src/dbt_rfcomm_credit.c": {
+      "sha256": "cb2b107c166934f4eed45960f1b8604bdf6d6c9f9396bbf5e5d5779de482dc45",
+      "bytes": 2577,
+      "lines": 44,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/src/dbt_rfcomm_dlc.c": {
+      "sha256": "d24387d7194ba08ff81ce45118cfb2e6a34c543df9d02343c43b3feb5a81d536",
+      "bytes": 14821,
+      "lines": 222,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/src/dbt_rfcomm_mux.c": {
+      "sha256": "45b2e58e241e6f736fcd3ba9ddf60a2920e4e0064695416b0c0d414e222cf50b",
+      "bytes": 5026,
+      "lines": 82,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/src/dbt_rfcomm_spp.c": {
+      "sha256": "64f32da319031bbcc554118b11f00c1b75ff5d421186d10e1b22229d5c851619",
+      "bytes": 5910,
+      "lines": 83,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/src/dbt_runtime.c": {
+      "sha256": "6db10a802df675efbbf7f1ce05d58c0bebf0c6df888337ddd5311b991193c92f",
+      "bytes": 24917,
+      "lines": 427,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/src/dbt_rx_flow.c": {
+      "sha256": "38d9162660f4342d70db024d4b72a945f4452ca78874b654bd67df2ce257590b",
+      "bytes": 8830,
+      "lines": 218,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/src/dbt_sbc_media.c": {
+      "sha256": "13f5ec4ade5103af130c1e5de6d05c78b5367ea244c6f3d17f953f12b443793d",
+      "bytes": 6970,
+      "lines": 113,
+      "allocation_calls": 0,
+      "while_loops": 1,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/src/dbt_sdp.c": {
+      "sha256": "51c86c57bd6bd099cc0b17dc8c154b9a5bb733013f1ad0e8c7004c8931cbd0dd",
+      "bytes": 17467,
+      "lines": 470,
+      "allocation_calls": 0,
+      "while_loops": 6,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/src/dbt_sdp_bearer.c": {
+      "sha256": "bb69f84e5d85ae9e18d5eee4ca12c2a7b532039a18c49930cfc42efb8af3e53a",
+      "bytes": 7491,
+      "lines": 179,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/src/dbt_smp.c": {
+      "sha256": "a6374805f930d0a1369f77e9134ebd3edad13ad1ccddb509f1cdd020c5996d24",
+      "bytes": 20215,
+      "lines": 580,
+      "allocation_calls": 0,
+      "while_loops": 1,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/src/dbt_smp_bearer.c": {
+      "sha256": "84206738825aea5aeb69ad04dd0bb75d82f01ccad1fa5784b00bf30e004fcc3f",
+      "bytes": 7588,
+      "lines": 183,
+      "allocation_calls": 0,
+      "while_loops": 1,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/src/dbt_smp_bond.c": {
+      "sha256": "bd1ba4282fab70bd1a02714eb31272035e060fc0e689d3b23e7964c64a28f7fb",
+      "bytes": 11006,
+      "lines": 277,
+      "allocation_calls": 0,
+      "while_loops": 1,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/src/dbt_smp_crypto.c": {
+      "sha256": "992a14784f1c95cabc11769d6da2944bbe70f5ee82101aff70261da7bd1b5814",
+      "bytes": 6926,
+      "lines": 199,
+      "allocation_calls": 0,
+      "while_loops": 1,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/src/dbt_smp_dist.c": {
+      "sha256": "0fcac67ba2aa5b6bf48dfdc003ea96ed132d644b35031a354425acbb39eca566",
+      "bytes": 8354,
+      "lines": 262,
+      "allocation_calls": 0,
+      "while_loops": 1,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/src/dbt_smp_features.c": {
+      "sha256": "2eaa956fcd7733f5547df777146aa5be6aeafdd6b496913a24d7e0312ca92801",
+      "bytes": 8905,
+      "lines": 244,
+      "allocation_calls": 0,
+      "while_loops": 1,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/src/dbt_smp_guard.c": {
+      "sha256": "8dc05f51e65d8b14b634235f14c6c97d35754b0138dac00789e8794467d1ba91",
+      "bytes": 1576,
+      "lines": 48,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/src/dbt_smp_sc.c": {
+      "sha256": "d6ac2c1b59a1ef5396855cbf606353358637bfa5ff8fd6a619a419c3d3bcb87d",
+      "bytes": 22527,
+      "lines": 634,
+      "allocation_calls": 0,
+      "while_loops": 1,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/src/dbt_smp_session.c": {
+      "sha256": "ad55428a9c25028e40b3b88c4cc7d6d19ddb241f9262dd35dbe951cd408b59ac",
+      "bytes": 31811,
+      "lines": 765,
+      "allocation_calls": 0,
+      "while_loops": 1,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/src/dbt_sound.c": {
+      "sha256": "f65cf52e0f845394cb3a9ba3b5b6c821bff97ad3bba32193f175fecf4a18231e",
+      "bytes": 9287,
+      "lines": 134,
+      "allocation_calls": 0,
+      "while_loops": 3,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/src/dbt_sound_mix.c": {
+      "sha256": "88a29ba8a1d72903c49f0bc50d77390b65fef8269dbecd2b864ef5400c84d00b",
+      "bytes": 8290,
+      "lines": 132,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/src/esp32/dbt_ble_nvs.c": {
+      "sha256": "69a103f86f0ba09fabe6b454af5a30bfac4d673c669de7f445e6efa24b57ad61",
+      "bytes": 3743,
+      "lines": 69,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/src/esp32/dbt_input_esp32.c": {
+      "sha256": "3dd98f8bd347ec747231fbfda0530bfdb87e0e233a8be5ff97a5aa815cc8c395",
+      "bytes": 9397,
+      "lines": 222,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/src/esp32/dbt_led_esp32.c": {
+      "sha256": "07555a2f79221d8c306ca1d00b6eb3b1f81302c56c2764f39c6415c79bbc423c",
+      "bytes": 11869,
+      "lines": 396,
+      "allocation_calls": 0,
+      "while_loops": 1,
+      "event_waits": 1,
+      "indefinite_wait_arguments": 1
+    },
+    "native_bt/src/esp32/dbt_ota_esp.c": {
+      "sha256": "e575ffa50c87d73fb2e4eff387df243cf35f4863a6196e9b1b03b5661238f33b",
+      "bytes": 5946,
+      "lines": 99,
+      "allocation_calls": 5,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/src/esp32/dbt_smp_nvs.c": {
+      "sha256": "71b9cd4aec993e22cccfb0117da98a3113f3de144f057ffb5b33b4c31cac2aed",
+      "bytes": 16054,
+      "lines": 376,
+      "allocation_calls": 0,
+      "while_loops": 2,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/src/esp32/dbt_smp_worker_mbedtls.c": {
+      "sha256": "677ac0e0abdab8b3e25614d338ae03812e322666ddfec454ca3329aa458b9107",
+      "bytes": 13092,
+      "lines": 377,
+      "allocation_calls": 3,
+      "while_loops": 1,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/src/esp32/dbt_sound_spiffs.c": {
+      "sha256": "6b4b585d16e1353d22fb78c01c621cecf7105848036c2478c1f29635ed235360",
+      "bytes": 10616,
+      "lines": 161,
+      "allocation_calls": 0,
+      "while_loops": 2,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/include/dbt_a2dp_acceptor.h": {
+      "sha256": "2db54dba55bd3cd6639e207579ebf45b4a0625323ab478e9e9c4ebd4629ad61b",
+      "bytes": 2823,
+      "lines": 52,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/include/dbt_acl.h": {
+      "sha256": "37fc4d1ce24e87ceda6a7d96f794ca6efb9e1f3c1cdd3631529714e5553d62fe",
+      "bytes": 1718,
+      "lines": 46,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/include/dbt_att.h": {
+      "sha256": "1e68064e5fac50a904e320c59ec9d2686061dcdc1ffdebe1063def764d249ba0",
+      "bytes": 7219,
+      "lines": 160,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/include/dbt_att_bearer.h": {
+      "sha256": "f6a19de9a728100615858a9ba28b79c1e15e740adb1bdefb857ed640adf6bd23",
+      "bytes": 1347,
+      "lines": 32,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/include/dbt_audio.h": {
+      "sha256": "52e251be74a202fac50d36a0ef10dc0a687d521e2de60c15f4ecb54b52fd5e41",
+      "bytes": 6336,
+      "lines": 116,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/include/dbt_avctp.h": {
+      "sha256": "20afe0b9b156723caf654b8dcd05068b6097a5672bf2a9bda04cac01d5c87aef",
+      "bytes": 3518,
+      "lines": 67,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/include/dbt_avctp_bearer.h": {
+      "sha256": "bf14af609744d40d7040885e9208908fbda61034143f3140e4eff0c9f12f070a",
+      "bytes": 1555,
+      "lines": 33,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/include/dbt_avdtp.h": {
+      "sha256": "18e200184954e7972e900d09fdba4e8dde38cde49a9a97f9239c79633f11c2a0",
+      "bytes": 6267,
+      "lines": 123,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/include/dbt_avdtp_bearer.h": {
+      "sha256": "5e8595dd22d993fad8fffa75dd14a01cda67bd1553fa2f677ae5bdaee7522f22",
+      "bytes": 1596,
+      "lines": 33,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/include/dbt_avdtp_caps.h": {
+      "sha256": "5a08bfd74e598c2b2a99d070d52d8fa9ba2bc6450bc75bc562f22b1fc8973f7c",
+      "bytes": 1786,
+      "lines": 38,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/include/dbt_avdtp_sink.h": {
+      "sha256": "f54b09a78ef33b84f622184734372a968426650c78b117231ae9738490ce7dc7",
+      "bytes": 5775,
+      "lines": 106,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/include/dbt_avrcp.h": {
+      "sha256": "2eb808040741148ccdb72baca3b93e0b15586e538fb2c23939b0602119531179",
+      "bytes": 4986,
+      "lines": 85,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/include/dbt_avrcp_bearer.h": {
+      "sha256": "6a6807bd144ead1728028f720b887aa6bd7780d863c1912f37fa53d32af0503a",
+      "bytes": 560,
+      "lines": 10,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/include/dbt_avrcp_browse.h": {
+      "sha256": "bee8522fef827b122000d35a199ec30379f490843c0f91d3bcc6a97e580fc050",
+      "bytes": 2729,
+      "lines": 42,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/include/dbt_ble_control.h": {
+      "sha256": "7c280a30a563bf509c06610c893e2063cd97bc712917d4add5e4b7d7430c8d7d",
+      "bytes": 2353,
+      "lines": 40,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/include/dbt_ble_nvs.h": {
+      "sha256": "e03973fae8e6ced9d4286bf73845b51e9c6e9f84f4891900bacc6c9c88b812e9",
+      "bytes": 619,
+      "lines": 13,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/include/dbt_boot_policy.h": {
+      "sha256": "5a28e5ba26de2d60f0315b718bcf8f63712a46827d7a113e0b268814763c298e",
+      "bytes": 245,
+      "lines": 7,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/include/dbt_channels.h": {
+      "sha256": "6c22f3eafdb280b6a1e950c6291bd789042a30588283f5a97e374548bd8ee955",
+      "bytes": 12431,
+      "lines": 203,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/include/dbt_classic_security.h": {
+      "sha256": "828a842255ba205841f9de796f29405b8bcdcb85104e610ea89039ed34daf91a",
+      "bytes": 7302,
+      "lines": 147,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/include/dbt_credit.h": {
+      "sha256": "6259d301c65bb692019092c085149479e395bb5c21a21af5ec894d396bcdeb45",
+      "bytes": 3195,
+      "lines": 57,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/include/dbt_crypto.h": {
+      "sha256": "4565eecc56a5080b709db65bc8ea8879ebba9069af5abbae5e5f0aa26ee749d2",
+      "bytes": 3004,
+      "lines": 65,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/include/dbt_ertm.h": {
+      "sha256": "2251f8f109a10bfb7149f77a9332feaba63bd5b44c23d69478b480d356155c14",
+      "bytes": 1280,
+      "lines": 25,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/include/dbt_ertm_engine.h": {
+      "sha256": "e6e06a029793602a0d6a2c6c1b73c8a6eaee53fcdb8e38afc734d345e1cbc4a4",
+      "bytes": 3473,
+      "lines": 59,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/include/dbt_gap.h": {
+      "sha256": "34062f81b867eed017f86cbc02ad06f546cfeff20c5313b68d2b820a60911242",
+      "bytes": 3081,
+      "lines": 64,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/include/dbt_hci.h": {
+      "sha256": "8b9d6e36edd0d13ee7f95516f77e40d505867c99e3e34fcd1c5f9a104eebc2d1",
+      "bytes": 1104,
+      "lines": 36,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/include/dbt_host.h": {
+      "sha256": "bd9f38671ec54ea1d042576f47da5ca481d3e4155280fb75a310f50b2e847d67",
+      "bytes": 5650,
+      "lines": 133,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/include/dbt_input.h": {
+      "sha256": "debffa9443efb1ab9fd2402dda7b5b04ccd427a68a54dd67990df38b44e7fd55",
+      "bytes": 2796,
+      "lines": 73,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/include/dbt_input_esp32.h": {
+      "sha256": "9fa524c8e82c50101fd07ad2854f23787bc9b5a68092e63dec6518a7efe752a8",
+      "bytes": 2077,
+      "lines": 41,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/include/dbt_l2cap.h": {
+      "sha256": "0f1f7bff0e0e6251fabe4dd2d3c649ef65fce026d38d3ca493542fa2bd1d4799",
+      "bytes": 2620,
+      "lines": 56,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/include/dbt_led.h": {
+      "sha256": "b0689aea671fbc9439df5cc79a69db735ac900180b5a8f263ede1ec49458d9b2",
+      "bytes": 4987,
+      "lines": 123,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/include/dbt_led_esp32.h": {
+      "sha256": "3f4b74349ae533d307c4e2d7f18e3d5bb199aa3cf68cef3c0b497bc2c449c908",
+      "bytes": 1298,
+      "lines": 32,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/include/dbt_ota.h": {
+      "sha256": "00b0eb13cba3bb913c53d35a6ae09adfa2090def1383f2346f72c28349bb69ac",
+      "bytes": 2365,
+      "lines": 45,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/include/dbt_ota_esp.h": {
+      "sha256": "6f83a33bb5781b273c3c8d10dc90cbe250680e866fea98b46bf0ae92cac72f57",
+      "bytes": 658,
+      "lines": 13,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/include/dbt_product_peer.h": {
+      "sha256": "52639f28c1fd64c6c486730e9e805a9de19f9dbde9abc00dfc69a7bf59a08ee6",
+      "bytes": 830,
+      "lines": 19,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/include/dbt_queue.h": {
+      "sha256": "eec13ddf6a15ef061f428c7a6c8bc9c0d05b25cc97671624ceafc071c38e7aef",
+      "bytes": 1596,
+      "lines": 44,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/include/dbt_resampler.h": {
+      "sha256": "fa7f74950ee4f6e296692a45390124494da1f14a4594d4008b9c696d13b59662",
+      "bytes": 1029,
+      "lines": 22,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/include/dbt_rfcomm.h": {
+      "sha256": "51e04db6c2062b5b3fb29e537d2d40e58d7bda808704c75cc40229faf8850b81",
+      "bytes": 1669,
+      "lines": 32,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/include/dbt_rfcomm_bearer.h": {
+      "sha256": "52b984e11019a857a74ac0647881097e43daf02daa13988bfeed0b8355c0a907",
+      "bytes": 2158,
+      "lines": 34,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/include/dbt_rfcomm_credit.h": {
+      "sha256": "b78861ac2d4f893d93d67ff97a349637f171adcda2510a17ca9e0948914623d2",
+      "bytes": 1369,
+      "lines": 19,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/include/dbt_rfcomm_dlc.h": {
+      "sha256": "79532ce627090e3fa4b704b031e7d0428001f2bfd139a82c82f8e45cf42bb644",
+      "bytes": 2923,
+      "lines": 43,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/include/dbt_rfcomm_mux.h": {
+      "sha256": "eccf04c768e81a74091d5200a9c58c6528f3c2c1a129ed5e38e5c02ca140bc75",
+      "bytes": 1906,
+      "lines": 32,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/include/dbt_rfcomm_spp.h": {
+      "sha256": "0fe862fcc6fca3d2914b2c86cf66bcbfdaacc3b320585094f86fce7457102eeb",
+      "bytes": 1611,
+      "lines": 25,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/include/dbt_runtime.h": {
+      "sha256": "6c392f4d5c28519512401384784d53f3f5347641b332ab41437fc2315306bf7c",
+      "bytes": 4488,
+      "lines": 93,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/include/dbt_rx_flow.h": {
+      "sha256": "c60da405ece15d26528f449f38c68c15075523a70c08b3c1571930fd46ceb949",
+      "bytes": 2173,
+      "lines": 52,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/include/dbt_sbc_media.h": {
+      "sha256": "8faddf021cc768e92f16c60cb134396d96ca6f9035ab1dc36c8db5577c9746d3",
+      "bytes": 2615,
+      "lines": 56,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/include/dbt_sdp.h": {
+      "sha256": "983a46d1f2bd669c4d911db5819f2299984323771ca47e9c90769f156c26de0e",
+      "bytes": 2316,
+      "lines": 53,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/include/dbt_sdp_bearer.h": {
+      "sha256": "15ce1184df14432d65b0179b77c8eb1629cd7ef5a99ee41a24b29d1895f642e1",
+      "bytes": 1868,
+      "lines": 41,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/include/dbt_sha256.h": {
+      "sha256": "f16030caca22a2a9acb363c64010ee8577723a061d7cf986e4efd1490473f141",
+      "bytes": 1712,
+      "lines": 45,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/include/dbt_smp.h": {
+      "sha256": "d4a4f97ebafa9b62e3ab101e6a6ffc6dc12e60804c7ee88dbbc604d7a1e98988",
+      "bytes": 5920,
+      "lines": 94,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/include/dbt_smp_bearer.h": {
+      "sha256": "b9a555338b63ffa0cc59684677caf81c87699c7777146074fc32d9273b6875a2",
+      "bytes": 3477,
+      "lines": 49,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/include/dbt_smp_bond.h": {
+      "sha256": "89e1f9096362400202298623be3cc0164e250fd8ea23c71dc3b5fd3a62c7b370",
+      "bytes": 5487,
+      "lines": 96,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/include/dbt_smp_crypto.h": {
+      "sha256": "cc620fc5fa3d77ece551c517bac54adfa14711e914a3c53d014a7eabcfbb2268",
+      "bytes": 3599,
+      "lines": 55,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/include/dbt_smp_dist.h": {
+      "sha256": "da640f17ee59d69e2b3ed4ee260a2e4c19410388e5878097d486c40d4e2f5566",
+      "bytes": 2874,
+      "lines": 45,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/include/dbt_smp_features.h": {
+      "sha256": "18d255ba350a35842e7e65e9ffc1499f9828e44120e718c97d88cc5969dbb6a3",
+      "bytes": 2708,
+      "lines": 47,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/include/dbt_smp_guard.h": {
+      "sha256": "3b5595b4812cd0f75fe26b0a365d319c54502a275929bd0652c9d9211507c51f",
+      "bytes": 893,
+      "lines": 19,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/include/dbt_smp_nvs.h": {
+      "sha256": "af0f3da9c6afd280d45b2dd2972ad7852096e107dd976e1d85b3b98bf33ad5d5",
+      "bytes": 2401,
+      "lines": 35,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/include/dbt_smp_sc.h": {
+      "sha256": "8853df307dacfeaf6dcc5e8a3ddd507c7d349816c5f5b3796acc1856293db29b",
+      "bytes": 7812,
+      "lines": 126,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/include/dbt_smp_session.h": {
+      "sha256": "250abab7f5a53398283444ab499e7af600ad141749c64391f52aea8108067883",
+      "bytes": 5472,
+      "lines": 91,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/include/dbt_smp_worker_mbedtls.h": {
+      "sha256": "9e2289dd9def4fa2d7e1815ceff0b2069fae166d90e789b51250e490cd655027",
+      "bytes": 1735,
+      "lines": 28,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/include/dbt_sound.h": {
+      "sha256": "8e459b20bd7804ae5d2704bf9ab3f285df07865c615643d1dc04f80b549fd618",
+      "bytes": 4105,
+      "lines": 72,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/include/dbt_sound_esp32.h": {
+      "sha256": "7a0a53ca04d22c4aefd36e12c0dfdf68ad7b8baeb52486f41427e70fbb4d3da7",
+      "bytes": 1116,
+      "lines": 18,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/include/dbt_utf8.h": {
+      "sha256": "8e8dd809cd9ba56ade31c551f5ed83c99cd9ed7e1026176d6c9f8a4b10e922ff",
+      "bytes": 930,
+      "lines": 21,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/codecs/aac/dbt_aac.h": {
+      "sha256": "ab2d713cf7fdd0b18490a2991d631e53335082ab1bd86680e5130a01db46205d",
+      "bytes": 1185,
+      "lines": 21,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/codecs/aac/dbt_aac_decoder.c": {
+      "sha256": "df1b67fef53fbcccf374ac300c308f5b014267bdfceafc298aec059f68d8f89d",
+      "bytes": 6814,
+      "lines": 122,
+      "allocation_calls": 0,
+      "while_loops": 1,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/codecs/aac/dbt_aac_transport.c": {
+      "sha256": "2dcfd46bbf17d8d53ad8be89b2e07a9e686b8f6eebaaead1cce67ccd674c6d8d",
+      "bytes": 4954,
+      "lines": 85,
+      "allocation_calls": 0,
+      "while_loops": 1,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/codecs/aac/host_target_math.h": {
+      "sha256": "d33b0156ee33acb749a21d640aaf800d2238e8a53a16a25e6591fd231a4ed66d",
+      "bytes": 550,
+      "lines": 16,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/codecs/aptx/dbt_aptx.c": {
+      "sha256": "5f1bc8d2bea573c692153a6673da2f714efe47c7400c12ccfb6126a15dcc5cdc",
+      "bytes": 4449,
+      "lines": 62,
+      "allocation_calls": 0,
+      "while_loops": 1,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/codecs/aptx/dbt_aptx.h": {
+      "sha256": "e0eac08f9e9bf50fcaadfa23b940e576e75254953a1f3ba93d57ee9151567e9c",
+      "bytes": 313,
+      "lines": 7,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/codecs/aptx/dbt_aptx_backend.c": {
+      "sha256": "3ced933c854a92a5d0fd3af97218af73b9fb27a3558e1f0d3f9635760ffb77d2",
+      "bytes": 436,
+      "lines": 10,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/codecs/common/dbt_codec.c": {
+      "sha256": "6a52cca426d8062934ff6067a3438f54729aa3a810291ad6f3d742539cbc9013",
+      "bytes": 12453,
+      "lines": 177,
+      "allocation_calls": 0,
+      "while_loops": 1,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/codecs/common/dbt_codec.h": {
+      "sha256": "c8da9a29cce947c5f8a8c8c0e327e75fcd99bad2cd80445941474ffcea9b4953",
+      "bytes": 4050,
+      "lines": 87,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/codecs/ldac/dbt_ldac.c": {
+      "sha256": "eb3cabf27c506087f7bc1fd6c2e70becfacbbda57d60240b905e9463d009a4fe",
+      "bytes": 2923,
+      "lines": 46,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/codecs/ldac/dbt_ldac.h": {
+      "sha256": "4d9ef9c9fbc9717f95d2248ba1fb6c36f404cc4c0fad8a7324c1de6eede776bd",
+      "bytes": 658,
+      "lines": 12,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/codecs/ldac/dbt_ldac_bt.c": {
+      "sha256": "92010868b1b0929308764542c4e52eb4637d2e17c6e66f433feec48654d89086",
+      "bytes": 815,
+      "lines": 20,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/codecs/ldac/dbt_ldac_decoder.c": {
+      "sha256": "3f091df12547ac47bbea0a543bd61f3cd9505d9fb8c66dbaf320592c91f80d76",
+      "bytes": 4404,
+      "lines": 78,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/codecs/ldac/dbt_ldac_lib.c": {
+      "sha256": "08d7a3359018a5a58485daa812c0d2125307e87d6e863945a1d7033674bf4473",
+      "bytes": 559,
+      "lines": 18,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/codecs/ldac/dbt_ldac_port.h": {
+      "sha256": "78d1747ee69d94bc964c2a99707fb6491ea2bfa6f329a083e67315b40d4df5a4",
+      "bytes": 421,
+      "lines": 12,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/codecs/lhdcv5/dbt_lhdc_alloc.h": {
+      "sha256": "035fcc5c71d5a14a0298aea04662e700fc17a9ffabec66db07b49f08ee5f0410",
+      "bytes": 251,
+      "lines": 8,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/codecs/lhdcv5/dbt_lhdcv5.c": {
+      "sha256": "54c5664090ccb8bcb6805a7a0af1e279b636458e04e41a3ecfbe58171d7d40ed",
+      "bytes": 6013,
+      "lines": 134,
+      "allocation_calls": 2,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/codecs/lhdcv5/dbt_lhdcv5.h": {
+      "sha256": "b226914acc93f5397700bc1b57c5c9f51e0183cefd91b3ac6555c52f41bb5119",
+      "bytes": 1134,
+      "lines": 30,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/codecs/lhdcv5/dbt_lhdcv5_codec.c": {
+      "sha256": "15243cf11365364ed6b4ebc4b34a52faa19920cd11ce528f6ae3cbcddf47a49d",
+      "bytes": 9162,
+      "lines": 133,
+      "allocation_calls": 0,
+      "while_loops": 2,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/codecs/lhdcv5/dbt_lhdcv5_codec.h": {
+      "sha256": "6d739471967946d2977af695680cdfbba1584c250a2ab2ed88ce076d24d64c73",
+      "bytes": 335,
+      "lines": 7,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/codecs/opus/dbt_opus.c": {
+      "sha256": "3a14b7e1037bc5f7a246815ded3cffbb9f168c2e20708a3ba257b7c11d6933ff",
+      "bytes": 11287,
+      "lines": 323,
+      "allocation_calls": 0,
+      "while_loops": 1,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/codecs/opus/dbt_opus.h": {
+      "sha256": "cd9b7166fd14babacbfda42b909a63289983d1d4f686895bf342a9a1023dfc01",
+      "bytes": 434,
+      "lines": 10,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/codecs/opus/scratch/dbt_opus_guarded_api.h": {
+      "sha256": "0b075488e76b4c6128853532d11834656f26e67b602fa6f308e4f206b798df50",
+      "bytes": 286,
+      "lines": 7,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/codecs/opus/scratch/dbt_opus_scratch.c": {
+      "sha256": "747e43b06d320c46c4110c003bcd75fa1175c52820a570609f81679728387cf5",
+      "bytes": 3749,
+      "lines": 90,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/codecs/opus/scratch/dbt_opus_scratch.h": {
+      "sha256": "6146bc554a01c9fa72747a7524ab310259ca7efda1db081cd5d47341e6607a76",
+      "bytes": 1525,
+      "lines": 39,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/codecs/opus/scratch/dbt_opus_scratch_override.h": {
+      "sha256": "ff0d3d0c58fd7e01fe0cca82f506e82c420e08614646b625eb7259552fc1d594",
+      "bytes": 818,
+      "lines": 20,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/codecs/sbc/dbt_sbc_codec.c": {
+      "sha256": "eb4480e535a1b151cc40f82bf66d5c41a0d37623524c97e143f337dba179c2b3",
+      "bytes": 3661,
+      "lines": 107,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/codecs/sbc/dbt_sbc_codec.h": {
+      "sha256": "3a28711eb63465c3be20c392d11ca7e6ebc8ed40833faaace1f29640673cc202",
+      "bytes": 127,
+      "lines": 5,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/codecs/sbc/dbt_sbc_decoder.c": {
+      "sha256": "bc7daab2b796a18727f522bde70da210264ce32f2f8c766b293ee7296b1a712c",
+      "bytes": 4175,
+      "lines": 73,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/codecs/sbc/dbt_sbc_decoder.h": {
+      "sha256": "1dc56f493d812114b540dcdd5af1d1c48f63e4a619b04567f103ef456f5f590c",
+      "bytes": 1486,
+      "lines": 32,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/codecs/sbc/dbt_sbc_worker.c": {
+      "sha256": "6cd8ca2c94391a981390f51fef939b8ca162cb1e334a92aea814d19172b21fd8",
+      "bytes": 11328,
+      "lines": 167,
+      "allocation_calls": 0,
+      "while_loops": 1,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/codecs/sbc/dbt_sbc_worker.h": {
+      "sha256": "cfa9dd0884bb5e1a99775d3a251b0a2444d31ef5e4621151e0011731afd16d57",
+      "bytes": 2637,
+      "lines": 56,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/codecs/sbc/port/common/bt_target.h": {
+      "sha256": "154b81fba3e67bbd14b87ebbc8fb2c1ade4c2bd722ee35ccf56c4f5b851fd577",
+      "bytes": 215,
+      "lines": 11,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/codecs/sbc/port/dbt_oi_types.h": {
+      "sha256": "4da2b8b283722d785f71fd189986e5f33b736ccfc5e35b954464a33e3983bef3",
+      "bytes": 914,
+      "lines": 25,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/esp32_probe/components/opus_decoder/config/config.h": {
+      "sha256": "95db90be2701d6e87623afa4abc483db9029cd8b615c97dceeb7a4d81fc5af14",
+      "bytes": 275,
+      "lines": 11,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/esp32_probe/main/probe_admission.c": {
+      "sha256": "25d11594df622d28b12d57d24732d5820393d7dd9facd815472de243b332ceaf",
+      "bytes": 15849,
+      "lines": 253,
+      "allocation_calls": 0,
+      "while_loops": 3,
+      "event_waits": 2,
+      "indefinite_wait_arguments": 2
+    },
+    "native_bt/esp32_probe/main/probe_admission.h": {
+      "sha256": "b16ab437d34b972b08dc0919c7567fd419555ed4943b9cb0e574b809d51b1748",
+      "bytes": 2534,
+      "lines": 43,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/esp32_probe/main/probe_audio.c": {
+      "sha256": "9dfc9fd7d8c235d2e77d30c6fa01ed35bd2712dfc1d28fdb7bb25eb4d5c6038f",
+      "bytes": 24433,
+      "lines": 411,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 1,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/esp32_probe/main/probe_audio.h": {
+      "sha256": "d3d4c18076ef3b70f2af114af7932a4c042605db71a42f49634881fb78d787b3",
+      "bytes": 2087,
+      "lines": 33,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/esp32_probe/main/probe_avrcp.c": {
+      "sha256": "f754f749edac2f40ade071016d12cef10209244c997ceb6c9715adfdad939ba7",
+      "bytes": 22400,
+      "lines": 414,
+      "allocation_calls": 0,
+      "while_loops": 1,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/esp32_probe/main/probe_avrcp.h": {
+      "sha256": "502b08bc5df5fd699ba6ce79c5bd2e01a26eecaa12e1dc550bd5299902c19f45",
+      "bytes": 2476,
+      "lines": 44,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/esp32_probe/main/probe_cccd_store.c": {
+      "sha256": "b777afebbd81fbe4468a2e1ac6dd51a01d862b98ddd978d3f39c1bffc1a8375a",
+      "bytes": 3714,
+      "lines": 62,
+      "allocation_calls": 0,
+      "while_loops": 1,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/esp32_probe/main/probe_cccd_store.h": {
+      "sha256": "f37ad997f2dd232cd67ba99f20db31ec868ba5c2d2d11ad88ca48b1badb9e74c",
+      "bytes": 823,
+      "lines": 14,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/esp32_probe/main/probe_codec_check.c": {
+      "sha256": "d29f45d6ffcfbb2162ef53def29eccadcdd545d38485e74470437e775366300e",
+      "bytes": 11972,
+      "lines": 203,
+      "allocation_calls": 0,
+      "while_loops": 1,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/esp32_probe/main/probe_codec_vectors.h": {
+      "sha256": "7998fe3e556880e3d1b6fa34723eddf3564ee0028bf0ca78c123673fb6bb4653",
+      "bytes": 112813,
+      "lines": 233,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/esp32_probe/main/probe_echo.c": {
+      "sha256": "9cf1b8e2e5d199e0bd3c30a16323993684e8a2fe3108b4cc8d47e548c53c2322",
+      "bytes": 9771,
+      "lines": 221,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/esp32_probe/main/probe_echo.h": {
+      "sha256": "04293feb4447f2b429c484a3ffae2ae6d00de323b17da63f5ac01ff12f3479b9",
+      "bytes": 694,
+      "lines": 14,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/esp32_probe/main/probe_gatt.c": {
+      "sha256": "cf0cb1fbc72e2604ce41dc8063f9c32fe1ec7da99011f302111d3b50f8a1da37",
+      "bytes": 64303,
+      "lines": 1110,
+      "allocation_calls": 0,
+      "while_loops": 6,
+      "event_waits": 3,
+      "indefinite_wait_arguments": 4
+    },
+    "native_bt/esp32_probe/main/probe_gatt.h": {
+      "sha256": "8561d20e145d09c37fff92833493ba96f2e0c4f105cc2b44187ef18f7a8157c6",
+      "bytes": 5202,
+      "lines": 83,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/esp32_probe/main/probe_ingress.c": {
+      "sha256": "70db27792303cffa0d0a76fe595696f17f75294b8011d5c605c7ec4a6eec4930",
+      "bytes": 4098,
+      "lines": 83,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/esp32_probe/main/probe_ingress.h": {
+      "sha256": "5f122fc159bc312b686ecb21b26a6653b2609e15ff3305e47d5a792ad1c3005b",
+      "bytes": 971,
+      "lines": 23,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/esp32_probe/main/probe_main.c": {
+      "sha256": "d221e97df0fb83ad2dfe11d084bf2942056b6454a15326122b742b82900f1235",
+      "bytes": 47256,
+      "lines": 947,
+      "allocation_calls": 0,
+      "while_loops": 4,
+      "event_waits": 1,
+      "indefinite_wait_arguments": 1
+    },
+    "native_bt/esp32_probe/main/probe_opus_vectors.h": {
+      "sha256": "b2d18765f18a887f4494d7b17b9fa6dd55c5cfae4e8ff671303963891c65374e",
+      "bytes": 36852,
+      "lines": 98,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/esp32_probe/main/probe_output.c": {
+      "sha256": "d4ecb56038bcc317fae19eb7cae432d458d360c8f7357cf3cab324037756923a",
+      "bytes": 34643,
+      "lines": 799,
+      "allocation_calls": 0,
+      "while_loops": 3,
+      "event_waits": 5,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/esp32_probe/main/probe_output.h": {
+      "sha256": "1e06f1c27186cb1cfd376f3e639119e70dd09bbbe33b5be130f025c64efa557d",
+      "bytes": 2809,
+      "lines": 47,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/esp32_probe/main/probe_product.c": {
+      "sha256": "b922a39f65eeee2816321fa94b8891b13315bcd51333a08f384de59f5857835f",
+      "bytes": 15399,
+      "lines": 229,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/esp32_probe/main/probe_product.h": {
+      "sha256": "ece2570cc38eafc19e69ef44fe877be17262cb3fec94f8b1379ad305cb841b5c",
+      "bytes": 3654,
+      "lines": 57,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/esp32_probe/main/probe_product_io.c": {
+      "sha256": "1b2e10d5408ef72e9806d423fd56f8d8c0ffe543cc9c836e54c8af2b53ff1cf7",
+      "bytes": 31156,
+      "lines": 759,
+      "allocation_calls": 0,
+      "while_loops": 3,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/esp32_probe/main/probe_product_io.h": {
+      "sha256": "5e6df0058a24bf5bda5971f5575b23b5ff5d6efe40e2543391e1a0dcf90bc9db",
+      "bytes": 6108,
+      "lines": 111,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/esp32_probe/main/probe_product_io_owner.c": {
+      "sha256": "72faa6d1a3830c8a8349218a46cf73692396327c084aef161bffb82b9e0d4390",
+      "bytes": 15990,
+      "lines": 265,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/esp32_probe/main/probe_product_io_owner.h": {
+      "sha256": "e07637f3ad394fc87be774028d8b2306b3ae9b944155a3fcc34f49caf5ab168a",
+      "bytes": 2529,
+      "lines": 37,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/esp32_probe/main/probe_product_runtime.c": {
+      "sha256": "6443f40c916cb29f8095955ab69acba06ee453ac8e62259fddea10076274b8d2",
+      "bytes": 11751,
+      "lines": 183,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/esp32_probe/main/probe_product_runtime.h": {
+      "sha256": "62933adc52b157a30c97f8ebda171a7d6493b8af6dcf9ad4ce9a330be337fa3f",
+      "bytes": 4015,
+      "lines": 54,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/esp32_probe/main/probe_restart.c": {
+      "sha256": "8470f3145f12cc5300b24a36c601fb10b730a3e0886d8d3cd052ba15d4237c95",
+      "bytes": 4825,
+      "lines": 93,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/esp32_probe/main/probe_restart.h": {
+      "sha256": "4c90e57804f41249afc21dc9af6a779b23e95ce71b8631f8b1c7ce65e047e2e3",
+      "bytes": 791,
+      "lines": 16,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/esp32_probe/main/probe_rfcomm.c": {
+      "sha256": "b62a897526e5cd2f47437f43966acbca8e60f252538f837dce0c2c2e21205810",
+      "bytes": 7923,
+      "lines": 140,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/esp32_probe/main/probe_rfcomm.h": {
+      "sha256": "a80676889c3f00e139372a31f8bb664246e372c369be4a298aa67dcf1cbe63b5",
+      "bytes": 1455,
+      "lines": 24,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/esp32_probe/main/probe_sdp.c": {
+      "sha256": "9fd05f9e099ca4c8d118d4edb7ca3bc49ea52eb63e4be9f0ab49de666ed83aca",
+      "bytes": 6400,
+      "lines": 101,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/esp32_probe/main/probe_sdp.h": {
+      "sha256": "f24904e3a8c94cb0eb7ccc3ab7c1ca6a1c137834f4f3442e484baec61b6a1672",
+      "bytes": 833,
+      "lines": 18,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/esp32_probe/main/probe_security.c": {
+      "sha256": "e6d837f98a9d599d9e905475f32af914669d34470d29dd9c56cea10e17d94a80",
+      "bytes": 18404,
+      "lines": 475,
+      "allocation_calls": 0,
+      "while_loops": 2,
+      "event_waits": 3,
+      "indefinite_wait_arguments": 3
+    },
+    "native_bt/esp32_probe/main/probe_security.h": {
+      "sha256": "9d8f2c5b79134f76b6cbf690d25eba05521fdda76f6581dc11dfc3c50e915def",
+      "bytes": 1654,
+      "lines": 29,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/esp32_probe/main/probe_smp.c": {
+      "sha256": "f9aa6e859b51af611bcf482b8bc0941b97ea901a66b90fb178630271edc1deaf",
+      "bytes": 55060,
+      "lines": 982,
+      "allocation_calls": 0,
+      "while_loops": 2,
+      "event_waits": 2,
+      "indefinite_wait_arguments": 2
+    },
+    "native_bt/esp32_probe/main/probe_smp.h": {
+      "sha256": "26f13aa23dd30d1fbf23eb7a1f44592585a5c42fcb9d851c8f4a24ab12ed71ea",
+      "bytes": 4438,
+      "lines": 73,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/esp32_probe/main/probe_sound.c": {
+      "sha256": "5cacb88842f0ab9cb2dc9bbe40107009d0efd946ba16326462941747ec42556e",
+      "bytes": 4614,
+      "lines": 86,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/esp32_probe/main/probe_sound.h": {
+      "sha256": "2e12c8f39295b5799683ecefeedcbe2843d7f1ca5c9d6cb8dd3cd6275fcfefa8",
+      "bytes": 1221,
+      "lines": 23,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/aac_workspace_probe.c": {
+      "sha256": "d86c78d99c574618c224f772e2d5055fc0f13da798139f4d08edd74608a55ba9",
+      "bytes": 3022,
+      "lines": 82,
+      "allocation_calls": 1,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/audio/clock_main.c": {
+      "sha256": "b7c1a6dceafe5aae823e6ce540ebe95e27ac32647188bba1c8d6d7a58a3ec584",
+      "bytes": 1088,
+      "lines": 9,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/audio/clock_model.c": {
+      "sha256": "4db7954a871d6a0de8bf0dd5d2c47a527494cc63ebb02f4c89a77077b0c633eb",
+      "bytes": 26909,
+      "lines": 685,
+      "allocation_calls": 2,
+      "while_loops": 2,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/audio/control_fields.c": {
+      "sha256": "fef27720379a1c3911e4cee1c2e9742b6b7f50e8633f940378e8f21381225324",
+      "bytes": 7250,
+      "lines": 103,
+      "allocation_calls": 0,
+      "while_loops": 1,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/audit/layout.c": {
+      "sha256": "d94344bf5b1d2cc10547db7d393494495e79df06d705c0645ea1800c0d87903b",
+      "bytes": 677,
+      "lines": 16,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/avrcp/probe_ertm_disabled.c": {
+      "sha256": "daa3f6bcd186d310402235f072a29be132f5415c5e64e7e296c686129721f32e",
+      "bytes": 1398,
+      "lines": 14,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/avrcp/probe_integration.c": {
+      "sha256": "7103da6800a98e647b8e6720ea4e6bf8ba5a613f6589351bec7d6567ca245efe",
+      "bytes": 10320,
+      "lines": 133,
+      "allocation_calls": 0,
+      "while_loops": 1,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/avrcp/probe_runtime_main.c": {
+      "sha256": "0d19a4402911fb190ed593396da94fa4150e2c4ce0a5d302373af9e77853c1e4",
+      "bytes": 255,
+      "lines": 7,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/avrcp/probe_runtime_pair.c": {
+      "sha256": "7c25a7ba45740f9a9adf31049d1ea9d08fa78ae606739d579da821bd984b5b52",
+      "bytes": 7561,
+      "lines": 114,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/avrcp/runtime_freestanding.c": {
+      "sha256": "7635c0a60e5df9514b9a5ec781a74c683e5044e5b035687ff2852c5328c465d1",
+      "bytes": 626,
+      "lines": 7,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/avrcp/runtime_main.c": {
+      "sha256": "7950fe30a354459736fed6529b56e1bc9fdfa42b36a8c65e7d5ea3c47df3b5a1",
+      "bytes": 618,
+      "lines": 12,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/avrcp/runtime_pair.c": {
+      "sha256": "598333bb1c619457996e9d6e2db0fa0d484cf26afe2491f0b86ffb2a500882e6",
+      "bytes": 18496,
+      "lines": 306,
+      "allocation_calls": 0,
+      "while_loops": 1,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/avrcp/test_avrcp.c": {
+      "sha256": "d18c6ef705e238ab1e6728fc1d90dd9cc895376a6cb09909e90425a280325a6a",
+      "bytes": 33907,
+      "lines": 426,
+      "allocation_calls": 0,
+      "while_loops": 5,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/ble_control/protocol.c": {
+      "sha256": "ef87d29efa6c2dec55561f7c143aae43f37221e6a9f6bb4502d4759aa0d112d4",
+      "bytes": 5500,
+      "lines": 143,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/ble_control/schema.c": {
+      "sha256": "7c64e6f888ee66b524b7f5329a6307b317ded4bed79ef0703f87f176adf9015a",
+      "bytes": 44559,
+      "lines": 943,
+      "allocation_calls": 8,
+      "while_loops": 0,
+      "event_waits": 4,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/ble_control/shim/esp_heap_caps.h": {
+      "sha256": "769231a5f11595d304b78ce0676830eba04e8fcfa415ab2dd503e6beb172e751",
+      "bytes": 174,
+      "lines": 6,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/ble_control/shim/freertos/FreeRTOS.h": {
+      "sha256": "ef8d01aff6f6ac16bca95baeac4fe49dd0db7aa854fc0261c1453862d328b218",
+      "bytes": 348,
+      "lines": 14,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 1
+    },
+    "native_bt/tests/ble_control/shim/freertos/queue.h": {
+      "sha256": "42d8b3b3a49a9bd5ae92f29d67faee1c68f6090b206fcfcc2902209add02fbe5",
+      "bytes": 287,
+      "lines": 6,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 1,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/ble_control/shim/freertos/semphr.h": {
+      "sha256": "7f2ec79ee14d2f91642a0c6051515601853a64ca16b87eef0dfe107b52b1cbcf",
+      "bytes": 523,
+      "lines": 9,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 1,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/ble_control/shim/freertos/task.h": {
+      "sha256": "6ab7be5a743160d8491140c84ae47eb267b736af907f397cd75f6600b64200d2",
+      "bytes": 294,
+      "lines": 8,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/ble_control/shim/nvs.h": {
+      "sha256": "9156c51392ff190fb48c2d3e4740c2b4747cbe650339eb847e7cf9f0bdd501b2",
+      "bytes": 759,
+      "lines": 18,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/codecs/aac_math_probe.c": {
+      "sha256": "a780d9b5c2cd5f05273ae77ac269c9bb1663e373aa6a343ac86acf9557483a6b",
+      "bytes": 1138,
+      "lines": 29,
+      "allocation_calls": 3,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/codecs/aac_real_probe.c": {
+      "sha256": "c4d5c07e1078d2dd5836a02dd47680836fb4950b29789e7db1649bdc4614f312",
+      "bytes": 3981,
+      "lines": 76,
+      "allocation_calls": 2,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/codecs/aac_reference_probe.c": {
+      "sha256": "d2244f99e0bdfeac4e931ef99ddb88cfa09518f88d29d5f3a28b7c48a3f5e27a",
+      "bytes": 948,
+      "lines": 28,
+      "allocation_calls": 1,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/codecs/aptx_real_probe.c": {
+      "sha256": "1a12feef5d91d59f1382c7f03ffb7337ce9b22d0ce10a0a478096df6be204ad9",
+      "bytes": 3902,
+      "lines": 63,
+      "allocation_calls": 2,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/codecs/ldac_encoder_fixture.c": {
+      "sha256": "e9a2eb299a0a172e0d1bb17d5ed68add44e80146876533ec910b450da42cd4a5",
+      "bytes": 2300,
+      "lines": 43,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/codecs/ldac_metadata_probe.c": {
+      "sha256": "9f20eb0c5e7257236c03e21468d84e33c81930b37fe7c6f7a7b308c28befbe32",
+      "bytes": 2467,
+      "lines": 38,
+      "allocation_calls": 0,
+      "while_loops": 1,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/codecs/ldac_real_probe.c": {
+      "sha256": "877f126f2b803406692e15a3d5ee9d9a0154d0ba6ea901418411d0b46ef34c5a",
+      "bytes": 3754,
+      "lines": 61,
+      "allocation_calls": 2,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/codecs/ldac_reference_probe.c": {
+      "sha256": "44d4a94a5d85e146266794da4b3e61b3ef08b54f8510ca31baff018cb77af8e8",
+      "bytes": 895,
+      "lines": 21,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/codecs/lhdcv5_encoder_fixture.c": {
+      "sha256": "11f4d812f3309cf7794d2fdb2033731829bf1315f37a62845220747319b736f7",
+      "bytes": 2187,
+      "lines": 37,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/codecs/lhdcv5_perf_fixture.c": {
+      "sha256": "3cba6359f7f65a6bafeeaa39d39d0962de7cbbe10368ffd5427274c711b5a305",
+      "bytes": 1499,
+      "lines": 27,
+      "allocation_calls": 2,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/codecs/lhdcv5_perf_helper.c": {
+      "sha256": "5c0338f994773fcf8dd6cab1cbd9833ee4ee32571ff5bd0b824a08634ed3dcb0",
+      "bytes": 7202,
+      "lines": 173,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/codecs/lhdcv5_perf_helper.h": {
+      "sha256": "91b75e730749e045452225693cd5e995c956d282b8f8803fb03e133972022087",
+      "bytes": 1486,
+      "lines": 30,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/codecs/lhdcv5_probe.c": {
+      "sha256": "42e19309fc2fa5e942a190a2e016c976bca6f643fba2f29f826977f88a40fba4",
+      "bytes": 4274,
+      "lines": 72,
+      "allocation_calls": 2,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/codecs/lhdcv5_reference_probe.c": {
+      "sha256": "b89beb63abd8101dd33e6a5cfd86138691b3079c889cfc94d8bb55f192af747a",
+      "bytes": 1452,
+      "lines": 33,
+      "allocation_calls": 2,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/codecs/lhdcv5_session_probe.c": {
+      "sha256": "d82be0b7418ba62f09496ccd5e4c4a413a65ab6e1e81ec10d40e474798b6b1aa",
+      "bytes": 1469,
+      "lines": 41,
+      "allocation_calls": 2,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/codecs/lhdcv5_target_math_check.c": {
+      "sha256": "8b769e932beb54f81e5229b60c66b52b04d079493a4b1d49af0b50ccb10d6a8d",
+      "bytes": 1608,
+      "lines": 26,
+      "allocation_calls": 2,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/codecs/opus_char_variants.c": {
+      "sha256": "c0dd49392bc415c97c2102621d0337fcbfc2198d8a9f24e899def1a724e4a7a2",
+      "bytes": 2124,
+      "lines": 40,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/codecs/opus_legacy_reference.c": {
+      "sha256": "83feaa1cb7d0735def8117dc9ac1d2cbdd1448c054abf5136a389c149a053ca8",
+      "bytes": 2087,
+      "lines": 42,
+      "allocation_calls": 3,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/codecs/opus_legacy_stub.h": {
+      "sha256": "b34ea9263074589497bb6305b8560c2d6e721c13fd2f81f1b36d2d190cc6d880",
+      "bytes": 1221,
+      "lines": 31,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/codecs/opus_oracle_selftest_host.c": {
+      "sha256": "07cc7cbff8e4603b59de856dde7938f68e0eee3b1ea2975a5b3325f06c9977ac",
+      "bytes": 1253,
+      "lines": 34,
+      "allocation_calls": 1,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/codecs/opus_pcm_format.cpp": {
+      "sha256": "bc1e4ae91b958d5bc251e9203258346a8f410172c50c6f774d5685d358f06e21",
+      "bytes": 4487,
+      "lines": 74,
+      "allocation_calls": 0,
+      "while_loops": 1,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/codecs/opus_real_probe.c": {
+      "sha256": "4d9be4dcabcc7eb7d923a1a2700a767ecd7242035aab10eb3be02ca730da8c98",
+      "bytes": 3980,
+      "lines": 68,
+      "allocation_calls": 2,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/codecs/opus_scratch_test.c": {
+      "sha256": "211007fb1710eec629333c0a11c24914ad8d36f00ecc6cf03db9619baa16b35b",
+      "bytes": 7030,
+      "lines": 132,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/codecs/probe_audio_profile.c": {
+      "sha256": "54c423300e6264161a785fc2464645583d654ffea9bdacf84f8326d6f63dfa31",
+      "bytes": 20307,
+      "lines": 279,
+      "allocation_calls": 4,
+      "while_loops": 1,
+      "event_waits": 1,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/codecs/probe_audio_stubs/driver/i2s_std.h": {
+      "sha256": "876adca479b68905261bb6585ee9150cacf8b7262834bacbc71c5db9fb4acf70",
+      "bytes": 1594,
+      "lines": 29,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/codecs/probe_audio_stubs/esp_attr.h": {
+      "sha256": "ac333b2c401effefaeef6e5d3b2ec4d15c5a5655ab10b083e9ae383f2f8594f8",
+      "bytes": 38,
+      "lines": 2,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/codecs/probe_audio_stubs/esp_heap_caps.h": {
+      "sha256": "9b627d054c5d46d79c2ee228eda6590a1f8fef8cf21fb131241d87b7741900fd",
+      "bytes": 343,
+      "lines": 4,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/codecs/probe_audio_stubs/esp_timer.h": {
+      "sha256": "d8ceb49337211cecace7ff9f9e14f10928f6659dfe549a57cd03d3a1864c0277",
+      "bytes": 56,
+      "lines": 2,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/codecs/probe_audio_stubs/freertos/FreeRTOS.h": {
+      "sha256": "7e01a55d42df4a2821f9f66c4635dfb237ecd51002033d0a0342ba521419c4d1",
+      "bytes": 391,
+      "lines": 13,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/codecs/probe_audio_stubs/freertos/queue.h": {
+      "sha256": "14d83a63cb97055fd1564682161dce1db9fa75277c1f7c45d473fd086dbfdac8",
+      "bytes": 200,
+      "lines": 2,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 1,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/codecs/probe_audio_stubs/freertos/semphr.h": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "lines": 0,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/codecs/probe_audio_stubs/freertos/task.h": {
+      "sha256": "5d6c46e97ceb9d3ba0e729b038131216d949ab7386b6427f6d0af7eb2c4614a7",
+      "bytes": 391,
+      "lines": 4,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 1,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/codecs/probe_codec_selftest_host.c": {
+      "sha256": "8c7ea5a1087c587dd30739735ea6667e09c19ac9998f3a58c047564cabcd0ffb",
+      "bytes": 2468,
+      "lines": 63,
+      "allocation_calls": 1,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/codecs/probe_output_format.c": {
+      "sha256": "9714f8cf14f107427a8143b3d938152cecef443634540d6e4931bfdce13255ce",
+      "bytes": 4636,
+      "lines": 69,
+      "allocation_calls": 2,
+      "while_loops": 1,
+      "event_waits": 2,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/codecs/sbc_reference_probe.c": {
+      "sha256": "ca8827588c6c3b84db8b327b4f79f344bd4d118987ecc643da80ee7e7eee1881",
+      "bytes": 840,
+      "lines": 19,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/crypto_psa/config.h": {
+      "sha256": "b853438f74a761db4ce9058ab51fef47faa58bf3bf063ab49099ba487f05c327",
+      "bytes": 791,
+      "lines": 21,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/crypto_psa/test.c": {
+      "sha256": "f877f07c587e3f86113069b3178fb77ec5cc6ee493c87adcb24f7b7c00fcc06f",
+      "bytes": 5236,
+      "lines": 84,
+      "allocation_calls": 0,
+      "while_loops": 1,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/ertm/audit_engine.c": {
+      "sha256": "3e8c32f75b97d445addb6c928c267ab54d9c3100034252ad7261d75abb76c0b8",
+      "bytes": 25790,
+      "lines": 412,
+      "allocation_calls": 0,
+      "while_loops": 1,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/ertm/audit_main.c": {
+      "sha256": "808608c29ebf29e5e7594695056ee160f09083b64fc364caa61cc1f42bb25f3d",
+      "bytes": 2278,
+      "lines": 18,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/ertm/engine.c": {
+      "sha256": "3cb914268f13b1ebb314b71d36dfacabf632ff2eec421643a705107338c6e669",
+      "bytes": 20085,
+      "lines": 248,
+      "allocation_calls": 0,
+      "while_loops": 1,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/ertm/feature_discovery.c": {
+      "sha256": "7cf1d9d5ff617fb1d5c98c16200590022e12d2d9015f2ffc0538e30cead07ee0",
+      "bytes": 4913,
+      "lines": 86,
+      "allocation_calls": 0,
+      "while_loops": 1,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/ertm/runtime_pair.c": {
+      "sha256": "a972622b0a90605d0bc141135c84408396912882e9df23641172230809c7ae26",
+      "bytes": 26519,
+      "lines": 404,
+      "allocation_calls": 0,
+      "while_loops": 1,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/ertm/wire.c": {
+      "sha256": "fe163b4b0c6bc7eb1fe99489cc37c1e3cb31c3cc1448092f56d77162c33cd19a",
+      "bytes": 5648,
+      "lines": 67,
+      "allocation_calls": 0,
+      "while_loops": 1,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/host_cancel/cancel.c": {
+      "sha256": "aaaa97b37baebef792b079414afab55f374a1aca40246a95bbfc636e5a5fa566",
+      "bytes": 9136,
+      "lines": 150,
+      "allocation_calls": 0,
+      "while_loops": 1,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/host_sensitive/ingress.c": {
+      "sha256": "3fa1529345a7943cef829eaeac6f622a59f87799f23d818d80d8484f3b627504",
+      "bytes": 6303,
+      "lines": 108,
+      "allocation_calls": 0,
+      "while_loops": 1,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/host_sensitive/threaded.c": {
+      "sha256": "d26dfb49a7a56d1f720cb84d74b000927c31083b54def64636e29ac7d5f81a92",
+      "bytes": 2900,
+      "lines": 69,
+      "allocation_calls": 0,
+      "while_loops": 2,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/led/fake/driver/gpio.h": {
+      "sha256": "9f08b18ceedd3df6d2fc96902d3689828badfb51ef28695d233605f508513005",
+      "bytes": 288,
+      "lines": 9,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/led/fake/driver/i2c.h": {
+      "sha256": "88ef55b3cc6303b04385cf9fd89d6fc5c21bd1048199fc31a715c30d6dc43e1c",
+      "bytes": 703,
+      "lines": 18,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/led/fake/driver/spi_master.h": {
+      "sha256": "1f89e18ed0c9b60f524f4f8fa93557cead8c40fbda0806b4da0b82cb8ef55d6c",
+      "bytes": 854,
+      "lines": 13,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/led/fake/esp_heap_caps.h": {
+      "sha256": "06d3d472ad5531ad5cbf429cced75e2e045d13dd7f6479aa1206b94b0ece9beb",
+      "bytes": 140,
+      "lines": 4,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/led/fake/esp_rom_sys.h": {
+      "sha256": "779000fce2718ecf557829eee0486e00ace716ccbdf0292ae3049bf87a697d69",
+      "bytes": 36,
+      "lines": 1,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/led/fake/esp_spiffs.h": {
+      "sha256": "aa8bba62f915e9e2a9dd174f5e333da99b140a4e7a7cb51db21fdbb956f90efd",
+      "bytes": 66,
+      "lines": 2,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/led/fake/esp_timer.h": {
+      "sha256": "7baaea4220de83f221bba99f2752fa10c30a20234abf887772d0dbc10e80ed53",
+      "bytes": 55,
+      "lines": 2,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/led/fake/freertos/FreeRTOS.h": {
+      "sha256": "f5dc95aa3fe38238e99768294ecef9aa8e2a655b2c9fc5ffea80a37a37fb12f4",
+      "bytes": 664,
+      "lines": 12,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 1,
+      "indefinite_wait_arguments": 1
+    },
+    "native_bt/tests/led/fake/freertos/semphr.h": {
+      "sha256": "3603569144fa9c10215bb10032ec00b45cbbf1b950988ea3226b0c89e105f5d5",
+      "bytes": 23,
+      "lines": 1,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/led/fake/freertos/task.h": {
+      "sha256": "3603569144fa9c10215bb10032ec00b45cbbf1b950988ea3226b0c89e105f5d5",
+      "bytes": 23,
+      "lines": 1,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/led/fake/nvs.h": {
+      "sha256": "a8c1174a3989c88a262b92cac45008f9d78a41822a4c3fb284707a08c8bfb852",
+      "bytes": 591,
+      "lines": 7,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/led/input_platform_test.c": {
+      "sha256": "17d1c08872879d99c93b8ce30f6c0f293174c966b2bd692f735fbbfe8bbb7131",
+      "bytes": 7893,
+      "lines": 236,
+      "allocation_calls": 0,
+      "while_loops": 3,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/led/input_test.c": {
+      "sha256": "1f7c3211e01b73d31f3412a356ebce8f30e71cada794be4584d7472b66aac7b3",
+      "bytes": 5556,
+      "lines": 162,
+      "allocation_calls": 0,
+      "while_loops": 4,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/led/led_test.c": {
+      "sha256": "4f388bc96e566092a799bcb0cbfd682e701b742f665280407acadce5e8bf9941",
+      "bytes": 13986,
+      "lines": 313,
+      "allocation_calls": 0,
+      "while_loops": 1,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/led/platform_test.c": {
+      "sha256": "32c79e22a13724398662b66a0316efe99e1766541b524fb4c923007c1b16ad46",
+      "bytes": 8204,
+      "lines": 297,
+      "allocation_calls": 0,
+      "while_loops": 2,
+      "event_waits": 1,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/lhdc_imdct_probe.c": {
+      "sha256": "fd8281606d5e3fa2d7b3d5108fee1787fe74e293444b5f773518ce0cc7c6486d",
+      "bytes": 2839,
+      "lines": 79,
+      "allocation_calls": 2,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/opus_workspace_probe.c": {
+      "sha256": "be40329a074a2c751ee40f0f1618c3112e1fcca56e1e2f8135c8d903afe7d011",
+      "bytes": 5043,
+      "lines": 111,
+      "allocation_calls": 2,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/ota/esp_shim.c": {
+      "sha256": "dbdbdcdbb0f0539a018f747b026b91bd4ecad38e11fa48e0ee21c86a733195b5",
+      "bytes": 7747,
+      "lines": 87,
+      "allocation_calls": 1,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/ota/selector_model.c": {
+      "sha256": "8b6c2dc98635b3ad328ae60fd4c7ad51b70608966aff261147f685169ab02480",
+      "bytes": 2436,
+      "lines": 38,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/ota/shim/esp_image_format.h": {
+      "sha256": "426a0cbbb6db760ebacd78eb6f8853c9eac0d53125f664f917ec66206eddff8b",
+      "bytes": 297,
+      "lines": 7,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/ota/shim/esp_ota_ops.h": {
+      "sha256": "091341e0af87dde6070d1ec2afaf5820c6490e37adce0f17282f286b3e1947d1",
+      "bytes": 891,
+      "lines": 18,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/ota/shim/esp_partition.h": {
+      "sha256": "c6f06743009b29718ce922326fa95099712aa256ae2de991264728a30f90c921",
+      "bytes": 618,
+      "lines": 15,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/ota/shim/mbedtls/sha256.h": {
+      "sha256": "016f74c5ad12f406059213598a56e2f2cb75d506e3952f9c8597bf40cc3b1936",
+      "bytes": 492,
+      "lines": 11,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/ota/shim/mbedtls/version.h": {
+      "sha256": "1a839efe2c480d5d6ab6912f0a69013461bb13a465d8589959150c73eee24c25",
+      "bytes": 47,
+      "lines": 2,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/ota/wire.c": {
+      "sha256": "d74e8970890787450e2d5144cc27bfb2fc63a7e9ae9cfdd6548dd39ae85b3d3f",
+      "bytes": 6932,
+      "lines": 92,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/product/admission.c": {
+      "sha256": "5963c078245fb614280fa994c2ca6e673bb712efb6ca6ce79d99579310aea67e",
+      "bytes": 13619,
+      "lines": 166,
+      "allocation_calls": 2,
+      "while_loops": 3,
+      "event_waits": 2,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/product/classic_admission_glue.c": {
+      "sha256": "a039d69dc81996118d22df110f021b179fc37454e60bc64ca2900490f9ba734c",
+      "bytes": 3247,
+      "lines": 44,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/product/io_owner.c": {
+      "sha256": "dcbf9b4225dc715cf57eac5604eb8c45e1c9ef57c21eca95119bb8a05ae533b2",
+      "bytes": 17714,
+      "lines": 182,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/product/peer_race.c": {
+      "sha256": "7b33b0c965fddf720682bf73b1d7e99a15ac012fd1c963439b8cfc513b6a52ba",
+      "bytes": 2083,
+      "lines": 56,
+      "allocation_calls": 0,
+      "while_loops": 1,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/product/product.c": {
+      "sha256": "ec64c0cfb924c4a64cfa9ee40400316814cbd7983570dee6392a7f7118553c03",
+      "bytes": 19820,
+      "lines": 242,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/product/shim/freertos/FreeRTOS.h": {
+      "sha256": "c0a9849a5fdb36a53243b99535f76f5d8b8dfee2e3fb9ca2f93f4dd1406341cc",
+      "bytes": 157,
+      "lines": 6,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/product/shim/freertos/task.h": {
+      "sha256": "4da556616a902d49903f3a25e468ea9ac19f076595a8711b879c807d8f688b30",
+      "bytes": 119,
+      "lines": 5,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/product/shim/nvs.h": {
+      "sha256": "96a20a3c8a71f471ef74c3aa1eb093677c9b366e03f4deeeb2afee8675d9c0ad",
+      "bytes": 370,
+      "lines": 12,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/product/smp_admission_glue.c": {
+      "sha256": "e76a7b9b4ec96e4ef2c9327d2752e36b9ef16ba956fcf8c17f4f77926a88c8c4",
+      "bytes": 580,
+      "lines": 14,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/product_io/test_product_io.c": {
+      "sha256": "fa606990c05af70fba02b64d4793d36ba3eb8eec15b200d4908c5c8d35df2f91",
+      "bytes": 28376,
+      "lines": 689,
+      "allocation_calls": 0,
+      "while_loops": 1,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/restart/coordinator.c": {
+      "sha256": "8d73bea2759ac25911d6235a1b8112267f80d5b3a37c2c9b0430e72a4968744f",
+      "bytes": 6305,
+      "lines": 75,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/rfcomm/bearer.c": {
+      "sha256": "d3b4785a03074d9d7932beac1fe481ea3fdbd2a6b7047d65d907f98cae48e301",
+      "bytes": 22061,
+      "lines": 248,
+      "allocation_calls": 0,
+      "while_loops": 1,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/rfcomm/credit.c": {
+      "sha256": "e8b0e2f13baba7003d07b5693d7c5f80db8aed8c559c7661b5bef837eece16e1",
+      "bytes": 2190,
+      "lines": 31,
+      "allocation_calls": 0,
+      "while_loops": 1,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/rfcomm/dlc.c": {
+      "sha256": "373f6abd5dbf07263609c385e2b923b2a139ccf4cbc6b5dcb056d83d82967588",
+      "bytes": 5030,
+      "lines": 74,
+      "allocation_calls": 0,
+      "while_loops": 1,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/rfcomm/mux.c": {
+      "sha256": "25f8724c1832ec2ceb1f1aaee11e203ad858ce0e8995b26224f2d98a5f005ca3",
+      "bytes": 4383,
+      "lines": 73,
+      "allocation_calls": 0,
+      "while_loops": 1,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/rfcomm/wire.c": {
+      "sha256": "77cdfc437a51b85371cead416e459b50fdf9cc454e166dc9a26973a6fd6b40ba",
+      "bytes": 4471,
+      "lines": 68,
+      "allocation_calls": 0,
+      "while_loops": 1,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/sbc_decoder_probe.c": {
+      "sha256": "7ac4b072f07020bcbf6273a89b57276c1f5c10ff451c40d7bdd32a2f5c2b73ee",
+      "bytes": 13432,
+      "lines": 228,
+      "allocation_calls": 2,
+      "while_loops": 7,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/smp/nvs.h": {
+      "sha256": "3e95bd36eaab8233ec00aa318ba4a1c7c94ff58bdb4c221677e9c2f42ef156c2",
+      "bytes": 903,
+      "lines": 20,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/smp/nvs_mock.c": {
+      "sha256": "8b6094418b83bce641ab29f466319a8078944224ed9db9f1b3ac4b133ecb5dfe",
+      "bytes": 6107,
+      "lines": 119,
+      "allocation_calls": 3,
+      "while_loops": 2,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/smp/probe_adapter.c": {
+      "sha256": "ecc0cbb3c8aadbf62238e14532febe5ac952bb5439b538094f048b9d7d1eb7be",
+      "bytes": 17997,
+      "lines": 254,
+      "allocation_calls": 6,
+      "while_loops": 0,
+      "event_waits": 2,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/smp/probe_reconnect.c": {
+      "sha256": "ba3b2aea205cf2c85100fbe9ba091962374a62cf54b6378fbbac49b0697a12d7",
+      "bytes": 25114,
+      "lines": 367,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/smp/probe_shim/esp_random.h": {
+      "sha256": "2ade4c21978f117194a2a36244f4e3d3d733bb879cf418b59089cc1eef745b9f",
+      "bytes": 125,
+      "lines": 5,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/smp/probe_shim/freertos/FreeRTOS.h": {
+      "sha256": "ad9a0d9ea67ae0e8c1bb83b355171072924ccc1e3a007365c6e3207545ee90da",
+      "bytes": 268,
+      "lines": 11,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 1
+    },
+    "native_bt/tests/smp/probe_shim/freertos/queue.h": {
+      "sha256": "2b39aa6f788ee5771bc3ef6212c19eba0ab27814626e169de77fc479ef9a578b",
+      "bytes": 381,
+      "lines": 10,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 1,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/smp/probe_shim/freertos/task.h": {
+      "sha256": "9a69b01daee36edc0d118dadc43ef1e2dfb2a804c55dec5d60b9ceb011c9fb84",
+      "bytes": 285,
+      "lines": 8,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/smp/probe_shim/nvs.h": {
+      "sha256": "c05d17bc14c156df151fca17428ba38d347544cd78dadb5964aa236580b81962",
+      "bytes": 994,
+      "lines": 23,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/smp/session_runtime.c": {
+      "sha256": "e6bcb3a4065a12aaedfeb80cf13f3e524b37e8a0118542754d36273d9a8b6349",
+      "bytes": 17530,
+      "lines": 454,
+      "allocation_calls": 2,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/smp/target_sizes.c": {
+      "sha256": "4c9f41d2358e50b1ac13a641b000ffe8db78d9359f0df96561c32c2867f90238",
+      "bytes": 865,
+      "lines": 16,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/sound/stubs/esp_spiffs.h": {
+      "sha256": "f6e9a2c8fd60614914846c9bbf781a108ad7b938cf319d60f3a7780b548545b2",
+      "bytes": 185,
+      "lines": 7,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/sound/stubs/esp_timer.h": {
+      "sha256": "9d2d932e95e98eb2c4471d8994563968b83f9119f95e0346f94a586dd967367b",
+      "bytes": 116,
+      "lines": 5,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/sound/stubs/nvs.h": {
+      "sha256": "45d6a5302f431e94ef9c68768a4c021fdd191b71c345d2643bb52717dea138d7",
+      "bytes": 448,
+      "lines": 14,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/sound/stubs/unistd.h": {
+      "sha256": "e04cbe83668761754ed78f6f455852ecff6938596ba22be20252e6bb513499be",
+      "bytes": 54,
+      "lines": 3,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/sound/test_probe_sound_output.c": {
+      "sha256": "16fbe96b166ab0ab27bbf2cc3a3ab3a4aad7c8cdc675a47bc02c9a0e8cb1c117",
+      "bytes": 18034,
+      "lines": 224,
+      "allocation_calls": 7,
+      "while_loops": 5,
+      "event_waits": 2,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/sound/test_sound.c": {
+      "sha256": "5966d665101e8f98b164659485485acb8a06b5f7d93b67bea0aed4ee9a86bd9c",
+      "bytes": 10208,
+      "lines": 110,
+      "allocation_calls": 2,
+      "while_loops": 4,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/sound/test_sound_saturation.c": {
+      "sha256": "e02ea3c14454b6a760237681badbffe02fceac9f530c6d7730dcd95efa540f1e",
+      "bytes": 513,
+      "lines": 11,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/sound/test_sound_threads.c": {
+      "sha256": "5b04e95958d12b3d43a3bfc15e122e7b3c3d384c964071a3a13ba3da2c0c58a7",
+      "bytes": 2120,
+      "lines": 41,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/sound/test_sound_threads_linux.c": {
+      "sha256": "52f1f88b995709bce1c9d2f081fe229b1c57a5d36d8e8bee8df4639515b16951",
+      "bytes": 2062,
+      "lines": 42,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/sound/test_spiffs_shim.c": {
+      "sha256": "22edc49369bf76b9706c137971d5e3a5fc079aee05d8f87a4d5bf118c09e1d1b",
+      "bytes": 11013,
+      "lines": 154,
+      "allocation_calls": 0,
+      "while_loops": 1,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/test_acl.c": {
+      "sha256": "315e3e5fd6dd69d492d963b129e02d5295decbd45d30d874c8df098a31d4a6f2",
+      "bytes": 6488,
+      "lines": 149,
+      "allocation_calls": 0,
+      "while_loops": 1,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/test_att.c": {
+      "sha256": "735840b6b3c637dc476d7c8bed7cf6a15f5f928cc4771901455f61e3ea39cf98",
+      "bytes": 28033,
+      "lines": 706,
+      "allocation_calls": 0,
+      "while_loops": 1,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/test_audio.c": {
+      "sha256": "7152d1a0d48dfc14dd84e463a10400474af3d08a37da4a09cce32c6824a06818",
+      "bytes": 8314,
+      "lines": 141,
+      "allocation_calls": 0,
+      "while_loops": 1,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/test_audio_cpp.cpp": {
+      "sha256": "51e20ed18580056fc4c67d7f84f70126c4b655f5ea3cc9c7df2f1797fdbc37d4",
+      "bytes": 4673,
+      "lines": 111,
+      "allocation_calls": 0,
+      "while_loops": 3,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/test_avdtp.c": {
+      "sha256": "8a9eb5acf864d902a888531d2aaab460e43afe76ec1e1505ca02684b957d9938",
+      "bytes": 22968,
+      "lines": 386,
+      "allocation_calls": 0,
+      "while_loops": 2,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/test_avdtp_sink.c": {
+      "sha256": "ac87802fd44b672e3657f28853f191b5bd0505abc7227bd36fefc3f7e2ad1728",
+      "bytes": 18516,
+      "lines": 297,
+      "allocation_calls": 0,
+      "while_loops": 1,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/test_channels.c": {
+      "sha256": "8695535b64c004241e48ff22c33a4a5af6b3f53e5487a1bd1d1e4e09e80222bb",
+      "bytes": 43184,
+      "lines": 630,
+      "allocation_calls": 0,
+      "while_loops": 1,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/test_classic_security.c": {
+      "sha256": "558aa87d49cac0b819eba4c21c1d6c5b12754a59ea0c87742dcd6abdf683031e",
+      "bytes": 30858,
+      "lines": 897,
+      "allocation_calls": 0,
+      "while_loops": 1,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/test_codec.c": {
+      "sha256": "30e887a3d76d1a6ddd4b0a442832df5b7cd492c957b60d1aa6535544ef413006",
+      "bytes": 11680,
+      "lines": 152,
+      "allocation_calls": 0,
+      "while_loops": 2,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/test_core.c": {
+      "sha256": "119b99af4cc880f8db94b66c6a44d54a959f3cd72441593b305661a05aa1ba7b",
+      "bytes": 15475,
+      "lines": 378,
+      "allocation_calls": 0,
+      "while_loops": 1,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/test_credit.c": {
+      "sha256": "8796ad4a8848ab7ad87327bf308959cd62af3ae1d2976738b082b92b2829da3e",
+      "bytes": 7175,
+      "lines": 104,
+      "allocation_calls": 0,
+      "while_loops": 2,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/test_fixed_dsp.c": {
+      "sha256": "f2809b905e33981e51e1876b5af85decc3c5e1cd2e44a2a90ff7d77c7cd29bd2",
+      "bytes": 4824,
+      "lines": 104,
+      "allocation_calls": 0,
+      "while_loops": 1,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/test_l2cap.c": {
+      "sha256": "e335c7ea5b9ac9f44647f98855f1fc9b37c999c83fadde0c8860ccb9e3873278",
+      "bytes": 8637,
+      "lines": 181,
+      "allocation_calls": 0,
+      "while_loops": 1,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/test_memory.c": {
+      "sha256": "50e976d3d0dedb3e262b8bb71bc4269b5b17d79d55b5433e9df60dc7d0ab3e9c",
+      "bytes": 1039,
+      "lines": 11,
+      "allocation_calls": 0,
+      "while_loops": 2,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/test_runtime.c": {
+      "sha256": "9c97963fdd315cba1347558b199691babc976621c861df9f894ceb569696f466",
+      "bytes": 70471,
+      "lines": 1038,
+      "allocation_calls": 0,
+      "while_loops": 1,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/test_rx_flow.c": {
+      "sha256": "2fb24b247a039732f4a8ec62fde6ad222744b8532dac681eeb14b22461f42b80",
+      "bytes": 9338,
+      "lines": 264,
+      "allocation_calls": 0,
+      "while_loops": 1,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/test_sbc_media.c": {
+      "sha256": "d003f213ced16b20c4a308685e95721d680205d8365d4834c93a785fcee5f47a",
+      "bytes": 5910,
+      "lines": 101,
+      "allocation_calls": 0,
+      "while_loops": 1,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "native_bt/tests/test_sdp.c": {
+      "sha256": "f1e48483ae63bf10901410a3a183b8fa574f567fba20fa0ed4639805dc6dc546",
+      "bytes": 14250,
+      "lines": 430,
+      "allocation_calls": 0,
+      "while_loops": 3,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "bt_audio_sink/main/audio/audio_pipeline.h": {
+      "sha256": "b24a43ad91f523f020fe7c211d8327c8c3176934adc05877b70d3a984afc6b2a",
+      "bytes": 21418,
+      "lines": 527,
+      "allocation_calls": 0,
+      "while_loops": 2,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "bt_audio_sink/main/audio/i2s_output.h": {
+      "sha256": "ce28169c097960a32d0b3bfc4814ecce969449cb02d23815672142a36b3f7ca8",
+      "bytes": 9819,
+      "lines": 283,
+      "allocation_calls": 0,
+      "while_loops": 1,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 1
+    },
+    "bt_audio_sink/main/audio/overlay_mixer.h": {
+      "sha256": "ff7587ed0194e3b34095dbb4d9193d9dcd08da151fe835e39530112e6a1fc029",
+      "bytes": 12252,
+      "lines": 296,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 6
+    },
+    "bt_audio_sink/main/audio/sound_player.h": {
+      "sha256": "b544bcac137d504476fdccbb757f8a37ac7e054ccd904b2196a523df5335edf7",
+      "bytes": 36050,
+      "lines": 894,
+      "allocation_calls": 0,
+      "while_loops": 5,
+      "event_waits": 1,
+      "indefinite_wait_arguments": 5
+    },
+    "bt_audio_sink/main/ble/ble_unified.h": {
+      "sha256": "a3d4d1c5231c64b290621170ce2426635503e160ffa5971ff5268be7ca3220e3",
+      "bytes": 51187,
+      "lines": 1250,
+      "allocation_calls": 0,
+      "while_loops": 1,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "bt_audio_sink/main/bt/a2dp_sink_native.cpp": {
+      "sha256": "0953404708d2f82f1c25b4b909d51ba83320424c27442c31d160f8bce814d91b",
+      "bytes": 22548,
+      "lines": 431,
+      "allocation_calls": 3,
+      "while_loops": 1,
+      "event_waits": 1,
+      "indefinite_wait_arguments": 2
+    },
+    "bt_audio_sink/main/bt/a2dp_sink_native.h": {
+      "sha256": "efc57e50bc3cdaa1b3c4211c87210a38e15ba2126e89d99c1c9d327c1c144a64",
+      "bytes": 6485,
+      "lines": 174,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "bt_audio_sink/main/config/app_config.h": {
+      "sha256": "b70ca4bc82ac9fae51928b2adfca3960ff6d0c3880cb31ec15b93308325de1ae",
+      "bytes": 4973,
+      "lines": 107,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "bt_audio_sink/main/dsp/biquad.h": {
+      "sha256": "a7b7b2b94ee34468b43eb474a177435c94ec1dda72340aa36fda1761578407af",
+      "bytes": 5143,
+      "lines": 157,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "bt_audio_sink/main/dsp/dsp_processor.h": {
+      "sha256": "9d3e9138bef2e86be60bc90ed00854b4f412ee83d3f2c3b6393d1e7b760ea022",
+      "bytes": 34076,
+      "lines": 826,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "bt_audio_sink/main/dsp/fast_math.h": {
+      "sha256": "09d8def6d0056d9559d29b5de1c0950ca3b75e8b45f72e84f6b0508a81e4b4a8",
+      "bytes": 3603,
+      "lines": 107,
+      "allocation_calls": 0,
+      "while_loops": 2,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "bt_audio_sink/main/dsp/fixed_dsp.c": {
+      "sha256": "551afcd965d7b90452162ac65a8c385829aad6e7f06ca47e3315a92ebbadc648",
+      "bytes": 12996,
+      "lines": 275,
+      "allocation_calls": 0,
+      "while_loops": 4,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "bt_audio_sink/main/dsp/fixed_dsp.h": {
+      "sha256": "0da163db16a51803fe4d10b1933641ea0c6d5771e8a60975c09383281fc3ea4f",
+      "bytes": 1987,
+      "lines": 46,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "bt_audio_sink/main/dsp/fixed_dsp_tables.inc": {
+      "sha256": "829a98fc029d50b9e02c65c556dcbf797a21943bd15990d45d5cbbdf037670a4",
+      "bytes": 151048,
+      "lines": 2722,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "bt_audio_sink/main/dsp/goertzel.h": {
+      "sha256": "03521f564d87b5bf3f2e9c4602befb4c41791df7e1609f7adcca8ccaec91711b",
+      "bytes": 6473,
+      "lines": 185,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "bt_audio_sink/main/input/encoder_controller.h": {
+      "sha256": "db542ad77b08edd5ec9ccdcc16c0b5bb3d9ebbb202bf50627d00c84b962d4ccc",
+      "bytes": 21058,
+      "lines": 496,
+      "allocation_calls": 0,
+      "while_loops": 3,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "bt_audio_sink/main/input/seesaw_encoder.h": {
+      "sha256": "eaacc7c9413799cd4367dfb1e8b76595fac00c4642d9460bbafdc94f864d3238",
+      "bytes": 25780,
+      "lines": 721,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "bt_audio_sink/main/led/led_config.h": {
+      "sha256": "387988ee1866faad53ee00da3027d5edb41e5d8117a4d59c47f686d142d17bfc",
+      "bytes": 4335,
+      "lines": 111,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "bt_audio_sink/main/led/led_controller.h": {
+      "sha256": "3d98276a82866ef96116ea45ddfc681e1c7209ac021c31d9899220d430d21f34",
+      "bytes": 54372,
+      "lines": 1376,
+      "allocation_calls": 0,
+      "while_loops": 1,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "bt_audio_sink/main/led/led_driver_spi.h": {
+      "sha256": "655e8176ee1489516de4c2e56f3454126f2013a7d0c15e9b4eb075a07426339e",
+      "bytes": 10605,
+      "lines": 326,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "bt_audio_sink/main/led/led_effects.h": {
+      "sha256": "bb250ebbaa55d766fdbb2bb1861df6d644be4f1588643fb80532d1809cb68647",
+      "bytes": 71656,
+      "lines": 2040,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "bt_audio_sink/main/led/led_strip_encoder.c": {
+      "sha256": "59079b2146c45dfbb0f656f7db56c86f7fdc9b49d89de7a6036768ad401ee576",
+      "bytes": 5903,
+      "lines": 153,
+      "allocation_calls": 2,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "bt_audio_sink/main/led/led_strip_encoder.h": {
+      "sha256": "708d279f41ba2baf18ff8b08aada367e8b51ce4205197bafc1c1c95325f13055",
+      "bytes": 898,
+      "lines": 35,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "bt_audio_sink/main/main.cpp": {
+      "sha256": "821432910d96aa4f5d69fa0699c6a09cf07d84fa27988cd9f5b3e1d76435cc71",
+      "bytes": 100636,
+      "lines": 2411,
+      "allocation_calls": 1,
+      "while_loops": 7,
+      "event_waits": 2,
+      "indefinite_wait_arguments": 0
+    },
+    "bt_audio_sink/main/ota/idf_update.cpp": {
+      "sha256": "004a20add08dbb04881a989bf7403bf95fe590dd411413ed569cec43cbb38cf7",
+      "bytes": 9908,
+      "lines": 342,
+      "allocation_calls": 0,
+      "while_loops": 1,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "bt_audio_sink/main/ota/idf_update.h": {
+      "sha256": "0ed4fa11e94c6b6958c1782b3f1ddae4327a3115ed35396a07dc2967980bebf0",
+      "bytes": 2908,
+      "lines": 101,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "bt_audio_sink/main/storage/nvs_settings.h": {
+      "sha256": "f9e69bba87b8d5bc94437b3261850c8073b533dbee78f82e68912ae0dde3aa7e",
+      "bytes": 6909,
+      "lines": 219,
+      "allocation_calls": 0,
+      "while_loops": 0,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    },
+    "bt_audio_sink/recovery/main/recovery_main.cpp": {
+      "sha256": "2ecb5ce065b768812cb470ecd2607731cd677e2b1b9ef6d8d0a7a88db6bf8381",
+      "bytes": 87781,
+      "lines": 2320,
+      "allocation_calls": 9,
+      "while_loops": 15,
+      "event_waits": 0,
+      "indefinite_wait_arguments": 0
+    }
+  },
+  "manual_review_required": [
+    "Callback and owner execution bounds",
+    "Every blocking result queue and ownership invariant",
+    "Immediate NVS flash stalls while rendering",
+    "Required A2DP source/SDP client/browsing role parity",
+    "Target PSA and all-codec execution",
+    "LHDC 192 kHz/24-bit/1000 kbps cycle budget and BLE/control headroom",
+    "Power-loss, security, RF and long-duration stress"
+  ]
+}

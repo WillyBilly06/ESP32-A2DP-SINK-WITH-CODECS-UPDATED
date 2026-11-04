@@ -1,0 +1,78 @@
+SMP Linux sanitizer input manifest
+==================================
+
+Copy these paths relative to the workspace root, preserving directory layout:
+
+native_bt/include/dbt_queue.h
+native_bt/include/dbt_hci.h
+native_bt/include/dbt_host.h
+native_bt/include/dbt_acl.h
+native_bt/include/dbt_l2cap.h
+native_bt/include/dbt_credit.h
+native_bt/include/dbt_ertm.h
+native_bt/include/dbt_ertm_engine.h
+native_bt/include/dbt_channels.h
+native_bt/include/dbt_rx_flow.h
+native_bt/include/dbt_runtime.h
+native_bt/include/dbt_smp.h
+native_bt/include/dbt_smp_bearer.h
+native_bt/include/dbt_smp_bond.h
+native_bt/include/dbt_smp_crypto.h
+native_bt/include/dbt_smp_dist.h
+native_bt/include/dbt_smp_features.h
+native_bt/include/dbt_smp_guard.h
+native_bt/include/dbt_smp_nvs.h
+native_bt/include/dbt_smp_sc.h
+native_bt/include/dbt_smp_session.h
+native_bt/include/dbt_smp_worker_mbedtls.h
+native_bt/src/dbt_smp.c
+native_bt/src/dbt_smp_bearer.c
+native_bt/src/dbt_smp_bond.c
+native_bt/src/dbt_smp_crypto.c
+native_bt/src/dbt_smp_dist.c
+native_bt/src/dbt_smp_features.c
+native_bt/src/dbt_smp_guard.c
+native_bt/src/dbt_smp_sc.c
+native_bt/src/dbt_smp_session.c
+native_bt/src/dbt_queue.c
+native_bt/src/dbt_hci.c
+native_bt/src/dbt_host.c
+native_bt/src/dbt_acl.c
+native_bt/src/dbt_l2cap.c
+native_bt/src/dbt_credit.c
+native_bt/src/dbt_ertm.c
+native_bt/src/dbt_ertm_engine.c
+native_bt/src/dbt_channels.c
+native_bt/src/dbt_rx_flow.c
+native_bt/src/dbt_runtime.c
+native_bt/src/esp32/dbt_smp_nvs.c
+native_bt/src/esp32/dbt_smp_worker_mbedtls.c
+native_bt/tests/smp/nvs.h
+native_bt/tests/smp/nvs_mock.c
+native_bt/tests/smp/session_runtime.c
+native_bt/tools/check_workspace.py
+native_bt/tools/test_smp.py
+native_bt/tools/test_smp_worker.py
+native_bt/tools/test_smp_nvs.py
+native_bt/tools/test_smp_session.py
+native_bt/tools/test_smp_linux.py
+
+The worker also needs the project's existing complete SDK mbedTLS source tree,
+including its CMake files, include/, library/ and 3rdparty/ directories, at:
+
+esp-idf/components/mbedtls/mbedtls/
+
+Alternatively set DBT_SMP_MBEDTLS_SOURCE to that same SDK mbedTLS source tree
+already present on the Linux machine. Do not substitute a different version
+without reporting it. No BTstack source or headers are used.
+
+Requirements: Linux, GCC with libasan, CMake, Ninja, Python 3 and the Python
+cryptography package. From the workspace root run:
+
+python3 native_bt/tools/test_smp_linux.py
+
+The driver compiles only into native_bt/_build/smp/, runs the state and crypto
+tests with the real SDK mbedTLS worker plus the in-memory NVS shim under ASan
+and UBSan, and checks workspace budgets. LeakSanitizer is disabled because
+CPython loads the instrumented libraries. The NVS shim is not flash testing;
+the driver does not connect to hardware, store credentials, or alter daemons.

@@ -1,0 +1,20 @@
+cmake_minimum_required(VERSION 3.22)
+project(dbt_psa_host_checks C)
+get_filename_component(native_root "${CMAKE_CURRENT_LIST_DIR}/../.." ABSOLUTE)
+get_filename_component(workspace "${native_root}/.." ABSOLUTE)
+set(crypto_root "${workspace}/esp-idf/components/mbedtls/mbedtls/tf-psa-crypto")
+set(ENABLE_PROGRAMS OFF CACHE BOOL "" FORCE)
+set(ENABLE_TESTING OFF CACHE BOOL "" FORCE)
+set(GEN_FILES OFF CACHE BOOL "" FORCE)
+set(USE_SHARED_TF_PSA_CRYPTO_LIBRARY OFF CACHE BOOL "" FORCE)
+set(USE_STATIC_TF_PSA_CRYPTO_LIBRARY ON CACHE BOOL "" FORCE)
+set(TF_PSA_CRYPTO_FATAL_WARNINGS OFF CACHE BOOL "" FORCE)
+set(TF_PSA_CRYPTO_CONFIG_FILE "${CMAKE_CURRENT_LIST_DIR}/config.h" CACHE FILEPATH "" FORCE)
+add_subdirectory("${crypto_root}" psa)
+add_executable(dbt_psa_host_checks test.c
+    "${native_root}/src/esp32/dbt_smp_worker_mbedtls.c"
+    "${native_root}/src/dbt_smp_crypto.c")
+target_include_directories(dbt_psa_host_checks PRIVATE "${native_root}/include"
+    "${workspace}/esp-idf/components/mbedtls/mbedtls/include")
+target_compile_features(dbt_psa_host_checks PRIVATE c_std_11)
+target_link_libraries(dbt_psa_host_checks PRIVATE tfpsacrypto)

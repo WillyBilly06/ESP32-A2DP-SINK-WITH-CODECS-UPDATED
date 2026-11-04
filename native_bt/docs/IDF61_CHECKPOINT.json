@@ -1,0 +1,63 @@
+{
+  "schema": 1,
+  "scope": "initial ESP-IDF 6.1 owned-host port; full master objective active and incomplete",
+  "branch": "codex/owned-bt-idf61",
+  "baseline_commit": "0d85a975ec079d954f1bdd3e94d2fed70848c252",
+  "owned_source_origin": "f313fce94220a21066375e97b0d266d92418f96a",
+  "master_goal_sha256": "997e3e2f739f7d9e2dc24d676f22a56a8a72bf64c5c21d33760c13eccd00668c",
+  "build": {
+    "schema": 1,
+    "passed": true,
+    "state": "complete",
+    "hardware_accessed": false,
+    "product_io": true,
+    "product_security": true,
+    "rfcomm": true,
+    "build_exit": 0,
+    "source_check_exit": 0,
+    "workspace_check_exit": 0,
+    "source_manifest_sha256": "42683ae0ef42781c9a3a6b88efd2d20bc0c9c6a7c7ccd286ded9cf110efdfa53",
+    "image_sha256": "07942d509e060043ce6704ce9bf16a82ba6d97d8a3e6e7cb0e90683014ad595e",
+    "config_sha256": "1153b97ed20e64a41eb7d2d91c1ca1ae121d974fa637424603187828864fa3d2",
+    "partition_sha256": "6a5932b101f5a4cf7a011c63cd6e5b75dae885e204584d4a7d62de3e5ecf0151"
+  },
+  "artifact": {
+    "passed": true,
+    "scope": "offline image integrity, ESP32 revision, source/config binding and repository layout fit only",
+    "hardware_accessed": false,
+    "deployment_admitted": false,
+    "runtime_qualified": false,
+    "image_sha256": "07942d509e060043ce6704ce9bf16a82ba6d97d8a3e6e7cb0e90683014ad595e",
+    "image_bytes": 1196208,
+    "build_inputs": 10248,
+    "partition_offset": 3735552,
+    "partition_bytes": 2621440,
+    "remaining_bytes": 1425232,
+    "next_device_gate": "fresh target identity/partition/backup admission; existing hardware validator is unchanged"
+  },
+  "portable_core_checks": 168,
+  "focused_checks": {
+    "avrcp": 24,
+    "rfcomm": 19,
+    "ertm_extended_audit": 16,
+    "enhanced_control_field_cases": 67072,
+    "psa_software_provider": [
+      "PASS PSA AES-128, NIST empty CMAC, SHA-256 one-shot/streaming/cleanup",
+      "PASS PSA P-256 two-party SC key agreement, commitments, f5/f6, retirement and replay rejection",
+      "PASS PSA invalid P-256 point fails closed and wipes result",
+      "PASS PSA 96 key-generation/close cycles without slot exhaustion"
+    ]
+  },
+  "static_sections": {
+    "dram_data_bss": 54813,
+    "iram_vectors_text": 124227
+  },
+  "not_proven": [
+    "production feature parity",
+    "target codec/PSA execution",
+    "runtime RAM advantage",
+    "LHDC maximum-configuration deadline/headroom",
+    "RF/audio/security/power-loss/long-duration stress"
+  ],
+  "hardware_accessed": false
+}
