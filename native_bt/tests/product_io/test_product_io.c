@@ -39,6 +39,7 @@ static bool mounted = true, peer_ok = true, commit_ok = true, show_ok = true,
             stale_on_wait = false;
 static bool fail_input_start, allow_address36, fail_task_create,
     fail_sound_bind;
+static bool defer_start,finish_start;
 static dbt_input_start_result_t forced_input_result;
 static dbt_input_start_result_t forced_alt_result;
 static bool fail_input_stop;
@@ -316,6 +317,7 @@ dbt_result_t probe_sound_play(probe_sound_t *p, uint8_t t, uint32_t rate,
   (void)x;
   if (fail_play)
     return DBT_INVALID;
+  if(defer_start){p->phase=1;p->start_pending=true;p->last_result=DBT_PENDING;return DBT_PENDING;}
   p->play = (dbt_sound_play_t *)1;
   p->token = 1;
   return DBT_OK;
@@ -323,7 +325,10 @@ dbt_result_t probe_sound_play(probe_sound_t *p, uint8_t t, uint32_t rate,
 dbt_result_t probe_sound_poll(probe_sound_t *p, uint32_t now,
                               dbt_sound_peer_t *expired) {
   bool timed_out = dbt_sound_poll(p->provider, now, expired);
+  if(p->start_pending && finish_start){p->phase=0;p->start_pending=false;p->play=(dbt_sound_play_t *)1;p->token=1;p->last_result=DBT_OK;}
   if (retire_play) {
+    if(p->start_pending)p->last_result=DBT_CANCELLED;
+    p->phase=0;p->start_pending=false;
     p->play = 0;
     p->token = 0;
   }
@@ -631,6 +636,25 @@ EX int test_product_io(void) {
         failed_start.type == 1 && failed_start.result == DBT_INVALID);
   CHECK(!probe_product_io_sound_busy());
   fail_play = false;
+  /* The original queue/reply slot remains pinned while start is preparing. */
+  defer_start=true;finish_start=false;retire_play=false;
+  CHECK(probe_product_io_play(0,48000,true)==DBT_OK && probe_product_io_worker_poll(0,false));
+  probe_product_io_play_result_t pending_start;
+  CHECK(probe_product_io_sound_busy() && probe_product_io_needs_worker() && !probe_product_io_take_play_result(&pending_start));
+  CHECK(probe_product_io_worker_poll(0,false) && !probe_product_io_take_play_result(&pending_start));
+  finish_start=true;CHECK(probe_product_io_worker_poll(0,false));
+  CHECK(probe_product_io_take_play_result(&pending_start) && pending_start.result==DBT_OK && probe_product_io_sound_busy());
+  probe_product_io_cancel_sound();CHECK(probe_product_io_worker_poll(0,false) && !probe_product_io_sound_busy());
+  retire_play=false;finish_start=false;
+  CHECK(probe_product_io_play(0,48000,true)==DBT_OK && probe_product_io_worker_poll(0,false));
+  CHECK(!probe_product_io_take_play_result(&pending_start));probe_product_io_cancel_sound();
+  CHECK(probe_product_io_worker_poll(0,false) && probe_product_io_take_play_result(&pending_start));
+  CHECK(pending_start.result==DBT_EMPTY && !probe_product_io_sound_busy());
+  retire_play=false;
+  CHECK(probe_product_io_play(0,48000,true)==DBT_OK && probe_product_io_worker_poll(0,false));
+  CHECK(probe_product_io_worker_poll(0,true) && probe_product_io_take_play_result(&pending_start));
+  CHECK(pending_start.result==DBT_EMPTY && !probe_product_io_sound_busy());
+  retire_play=false;defer_start=false;finish_start=false;
   /* Owner invalidation cancels a copied, not-yet-opened job. */
   CHECK(probe_product_io_play(0, 48000, true) == DBT_OK);
   probe_product_io_cancel_sound();

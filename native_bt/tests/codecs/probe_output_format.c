@@ -43,6 +43,7 @@ EX int probe_output_formats(void){
     CHECK(event_wait_ticks(2)>0);
     CHECK(event_wait_ticks(0)==1);
     CHECK(probe_output_init(0,0)==DBT_OK);
+    CHECK(render_wait_ticks()==portMAX_DELAY);
     static const uint8_t sample16[]={0,0x80,0xff,0x7f,1,2,3,4};
     static const uint8_t sample24[]={0,0,0x80,0xff,0xff,0x7f,1,2,3,0xfd,0xfe,0xff};
     static const uint8_t sample32[]={0,0,0,0x80,0xff,0xff,0xff,0x7f,1,2,3,4,5,6,7,8};

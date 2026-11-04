@@ -50,6 +50,7 @@ typedef struct {
   atomic_uint play_head, play_tail;
   probe_product_io_play_result_t play_results[QUEUE_CAP];
   atomic_uint pr_head, pr_tail;
+  bool play_waiting;
   notice_t notices[QUEUE_CAP];
   atomic_uint notice_head, notice_tail;
   atomic_bool led_waiting;
@@ -313,7 +314,7 @@ static void sound_tick(void) {
   dbt_result_t r = probe_sound_poll(&io.player, now_ms(), &expired);
   if (r == DBT_EMPTY && expired.generation && valid_peer(expired))
     sound_notice(expired);
-  bool busy = io.player.play || io.player.token;
+  bool busy = probe_sound_busy(&io.player);
   bool was_busy =
       atomic_exchange_explicit(&io.sound_busy, busy, memory_order_acq_rel);
   if (was_busy != busy)
@@ -392,10 +393,8 @@ static void local_tick(void) {
   atomic_store_explicit(&io.led_waiting, true, memory_order_release);
   atomic_store_explicit(&io.lj_tail, rt + 1, memory_order_release);
 }
-static void play_tick(void) {
-  if (!io.sound_started || io.led_waiting ||
-      atomic_load_explicit(&io.sound_busy, memory_order_acquire) ||
-      io.sound.active)
+static void play_tick(bool retiring) {
+  if (!io.sound_started)
     return;
   unsigned t = atomic_load_explicit(&io.play_tail, memory_order_relaxed),
            h = atomic_load_explicit(&io.play_head, memory_order_acquire);
@@ -404,14 +403,24 @@ static void play_tick(void) {
   if (t == h || rh - rt >= QUEUE_CAP)
     return;
   play_job_t job = io.plays[t % QUEUE_CAP];
-  atomic_store_explicit(&io.sound_busy, true, memory_order_release);
-  dbt_result_t result = job.epoch == atomic_load_explicit(&io.sound_epoch, memory_order_acquire)
-      ? probe_sound_play(&io.player, job.type, job.rate, job.exclusive) : DBT_EMPTY;
-  if(job.epoch!=atomic_load_explicit(&io.sound_epoch,memory_order_acquire)){
+  dbt_result_t result;
+  if(io.play_waiting){
+    if(retiring || job.epoch!=atomic_load_explicit(&io.sound_epoch,memory_order_acquire))probe_sound_stop(&io.player);
+    if(probe_sound_start_pending(&io.player))return;
+    result=io.player.last_result;io.play_waiting=false;
+  }else if(retiring)result=DBT_EMPTY;
+  else {
+    if(io.led_waiting || atomic_load_explicit(&io.sound_busy,memory_order_acquire) || io.sound.active)return;
+    atomic_store_explicit(&io.sound_busy,true,memory_order_release);
+    result=job.epoch==atomic_load_explicit(&io.sound_epoch,memory_order_acquire)
+        ?probe_sound_play(&io.player,job.type,job.rate,job.exclusive):DBT_EMPTY;
+    if(result==DBT_PENDING){io.play_waiting=true;return;}
+  }
+  if(retiring || job.epoch!=atomic_load_explicit(&io.sound_epoch,memory_order_acquire)){
     probe_sound_stop(&io.player);
     result=DBT_EMPTY;
   }
-  if (!io.player.play && !io.player.token)
+  if (!probe_sound_busy(&io.player))
     atomic_store_explicit(&io.sound_busy, false, memory_order_release);
   io.play_results[rh % QUEUE_CAP] =
       (probe_product_io_play_result_t){job.type, result};
@@ -531,14 +540,13 @@ bool probe_product_io_worker_poll(void *unused, bool retiring) {
   sound_tick();
   led_tick();
   local_tick();
-  if (!retiring)
-    play_tick();
+  play_tick(retiring);
   if (!retiring)
     return true;
   /* Worker lifetime is shorter than the provider lifetime. No destructors or
    * manager reinitialization on ordinary BLE-worker retirement. */
   if (io.sound_started &&
-      (io.player.play || io.player.token || io.sound.active))
+      (probe_sound_busy(&io.player) || io.play_waiting || io.sound.active))
     return false;
   if (atomic_load_explicit(&io.lj_head, memory_order_acquire) !=
           atomic_load_explicit(&io.lj_tail, memory_order_acquire) ||

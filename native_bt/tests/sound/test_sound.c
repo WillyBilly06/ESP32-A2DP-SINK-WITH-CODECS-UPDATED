@@ -80,6 +80,14 @@ int main(void){
     dbt_sound_output_t missing={0};ASSERT(dbt_sound_play_open(&s,0,48000,false,missing,&f,allocate,release,&play)==DBT_INVALID && !play);
     f.alloc_fail=1;ASSERT(dbt_sound_play_open(&s,0,48000,false,output,&f,allocate,release,&play)==DBT_NO_SPACE);f.alloc_fail=0;
     f.output_fail=1;ASSERT(dbt_sound_play_open(&s,0,48000,false,output,&f,allocate,release,&play)==DBT_BUSY && !play && !f.allocations);f.output_fail=0;
+    /* A live, empty producer is not a request for synthetic WAV silence. */
+    ASSERT(dbt_sound_play_open(&s,0,48000,true,output,&f,allocate,release,&play)==DBT_OK);
+    ASSERT(dbt_sound_play_mix_frames(play,128)==0);
+    ASSERT(dbt_sound_play_pump(play,64)==DBT_OK && dbt_sound_play_mix_frames(play,128)==64);
+    int32_t waiting_pcm[128]={0};dbt_sound_mix(play,waiting_pcm,64);
+    ASSERT(dbt_sound_play_mix_frames(play,128)==0);
+    dbt_sound_play_request_stop(play);ASSERT(dbt_sound_play_mix_frames(play,128)==128);
+    dbt_sound_play_close(play);
     ASSERT(dbt_sound_play_open(&s,3,48000,true,output,&f,allocate,release,&play)==DBT_OK && !f.output_exclusive);
     ASSERT(dbt_sound_play_queue(&s,0,48000,true)==DBT_OK && dbt_sound_play_queue(&s,2,96000,true)==DBT_OK);
     ASSERT(!dbt_sound_play_ready(play));ASSERT(dbt_sound_play_pump(play,64)==DBT_OK && !dbt_sound_play_ready(play));

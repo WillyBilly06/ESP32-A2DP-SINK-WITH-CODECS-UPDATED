@@ -25,6 +25,11 @@ nonblocking request/PCM APIs and an opt-in `-AsyncAudio` worker connection.
 Host tests and the full ESP-IDF build pass; this renderer change has not run on
 COM6 and the high-level sound client/render polling still need conversion.
 
+The later [async sound-manager checkpoint](docs/IDF61_ASYNC_SOUND_2026_11_04.md)
+converts that client and render waiting in the opt-in path, with host ownership,
+continuity, cancellation and fault tests. Actual DSP/I2S/RF coexistence and RAM
+qualification remain open; no Bluedroid fallback is retired.
+
 ## Historical pre-6.1 status
 
 

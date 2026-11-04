@@ -57,6 +57,9 @@ dbt_result_t dbt_sound_play_open(dbt_sound_t *,uint8_t,uint32_t,bool,dbt_sound_o
 dbt_result_t dbt_sound_play_pump(dbt_sound_play_t *,uint16_t);
 /* Publish to the render owner only after ready; short completed sounds qualify. */
 bool dbt_sound_play_ready(const dbt_sound_play_t *);
+/* Render-owner bound for standalone/virtual-base rendering. Never invent
+ * samples while a live producer's ring is empty; EOF/stop permits fade/drain. */
+uint16_t dbt_sound_play_mix_frames(const dbt_sound_play_t *,uint16_t);
 /* Nonblocking cross-owner request. The worker pumps to acknowledge it and
  * the render owner mixes until drained; both owners then quiesce before close. */
 void dbt_sound_play_request_stop(dbt_sound_play_t *);

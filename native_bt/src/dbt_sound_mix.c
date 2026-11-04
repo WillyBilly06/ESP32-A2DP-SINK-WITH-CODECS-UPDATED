@@ -78,6 +78,14 @@ bool dbt_sound_play_ready(const dbt_sound_play_t *p){
     uint32_t read=atomic_load_explicit(&p->read,memory_order_acquire);
     return written-read>=128u || (ended && written!=read);
 }
+uint16_t dbt_sound_play_mix_frames(const dbt_sound_play_t *p,uint16_t requested){
+    if(!p || !requested)return 0;
+    if(atomic_load_explicit(&p->end,memory_order_acquire) || atomic_load_explicit(&p->stop_requested,memory_order_acquire))return requested;
+    uint32_t read=atomic_load_explicit(&p->read,memory_order_relaxed);
+    uint32_t written=atomic_load_explicit(&p->write,memory_order_acquire),available=written-read;
+    if(available>RING)return 0;
+    return available<requested?(uint16_t)available:requested;
+}
 void dbt_sound_play_request_stop(dbt_sound_play_t *p){if(p)atomic_store_explicit(&p->stop_requested,true,memory_order_release);}
 static int32_t clamp64(int64_t x){return x>INT32_MAX?INT32_MAX:x<INT32_MIN?INT32_MIN:(int32_t)x;}
 void dbt_sound_mix(dbt_sound_play_t *p,int32_t *pcm,uint16_t frames){

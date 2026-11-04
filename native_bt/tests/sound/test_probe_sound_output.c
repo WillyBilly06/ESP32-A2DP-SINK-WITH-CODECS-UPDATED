@@ -18,6 +18,7 @@ static DWORD main_id;static _Atomic unsigned main_waits,blocking_sends;
 static void external_wake(void *p){atomic_fetch_add((_Atomic unsigned *)p,1);}
 static _Atomic DWORD render_id;static i2s_event_callbacks_t callbacks;static void *callback_context;
 static _Atomic bool i2s_enabled;static int32_t dma[3][256];static unsigned dma_index,preload;
+static _Atomic bool bad_dma;static _Atomic unsigned isr_wakes;
 void dbt_output_test_bad_receipt(uint32_t id);
 void dbt_output_test_step(unsigned stage){
     if(atomic_load(&hold_hook)==stage){atomic_store(&hook_reached,stage);while(atomic_load(&hold_hook)==stage)Sleep(1);}
@@ -27,7 +28,7 @@ void *heap_caps_malloc(size_t n,unsigned flags){(void)flags;if(atomic_exchange(&
 void heap_caps_free(void *p){if(p){atomic_fetch_sub(&live,1);free(p);}}
 int64_t esp_timer_get_time(void){return (int64_t)GetTickCount64()*1000;}
 void xTaskNotifyGive(TaskHandle_t t){if((uintptr_t)t==atomic_load(&render_handle))atomic_fetch_add(&render_wakes,1);}
-void vTaskNotifyGiveFromISR(TaskHandle_t t,BaseType_t *w){(void)t;(void)w;}
+void vTaskNotifyGiveFromISR(TaskHandle_t t,BaseType_t *w){if((uintptr_t)t==atomic_load(&render_handle)){atomic_fetch_add(&isr_wakes,1);*w=pdTRUE;}}
 unsigned ulTaskNotifyTake(int b,unsigned ticks){
     (void)b;
     if(GetCurrentThreadId()==main_id)atomic_fetch_add(&main_waits,1);
@@ -36,6 +37,7 @@ unsigned ulTaskNotifyTake(int b,unsigned ticks){
     }
     if(GetCurrentThreadId()==atomic_load(&render_id) && atomic_load(&i2s_enabled) && callbacks.on_sent){
         i2s_event_data_t event={.dma_buf=dma[dma_index],.size=sizeof(dma[0])};
+        if(atomic_exchange(&bad_dma,false))event.size=0;
         callbacks.on_sent((void*)1,&event,callback_context);count_pcm(dma[dma_index],256);dma_index=(dma_index+1)%3;
     }
     if(ticks)Sleep(1);return 0;

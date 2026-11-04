@@ -148,7 +148,8 @@ static bool IRAM_ATTR sent(i2s_chan_handle_t channel, i2s_event_data_t *event,
     atomic_store(&o->descriptor_errors,
                  atomic_load(&o->descriptor_errors) + 1u);
     atomic_store(&o->failed, 1);
-    return false;
+    vTaskNotifyGiveFromISR(o->task,&wake);
+    return wake==pdTRUE;
   }
   uint32_t now = (uint32_t)esp_timer_get_time();
   if (o->last_eof) {
@@ -166,7 +167,8 @@ static bool IRAM_ATTR sent(i2s_chan_handle_t channel, i2s_event_data_t *event,
       atomic_store(&o->descriptor_errors,
                    atomic_load(&o->descriptor_errors) + 1u);
       atomic_store(&o->failed, 1);
-      return false;
+      vTaskNotifyGiveFromISR(o->task,&wake);
+      return wake==pdTRUE;
     }
     o->descriptors[index] = (descriptor_t){event->dma_buf, DMA_FRAMES, false};
     ++o->descriptor_count;
@@ -419,6 +421,11 @@ static void handle_request(request_t request){
   if(request.kind==REQ_SOUND_RELEASE){
     if(!token && request.sound_token==atomic_load_explicit(&output.sound_retired,memory_order_acquire)){report_done(request.id,DBT_OK);return;}
     if(!token || token!=request.sound_token){report_done(request.id,DBT_INVALID);return;}
+    if(atomic_load(&output.failed)){
+      bool standalone=output.sound_standalone;retire_sound();
+      if(standalone)close_output();
+      report_done(request.id,DBT_OK);return;
+    }
     if(output.sound && !dbt_sound_play_drained(output.sound)){report_done(request.id,DBT_BUSY);return;}
     if(!output.sound){bool standalone=output.sound_standalone;retire_sound();if(standalone)close_output();report_done(request.id,DBT_OK);return;}
     if(!output.sound_standalone){retire_sound();report_done(request.id,DBT_OK);return;}
@@ -450,6 +457,9 @@ static void reclaim_cancelled(const request_t *request,dbt_result_t result){if(r
 static void handle_request(request_t request){codec_request(request);}
 #endif
 static bool render_step(void) {
+#ifdef DBT_PROBE_SOUND_BUILD
+    bool made_silence=false,blocked_sound=false;
+#endif
     uint32_t tag=atomic_load_explicit(&output.ticket.tag,memory_order_acquire);
     if((tag&7u)==DBT_TICKET_RECLAIM){
       finish_cancel(tag>>3,(dbt_result_t)atomic_load_explicit(&output.ticket.result,memory_order_relaxed));
@@ -503,7 +513,19 @@ static bool render_step(void) {
         uint32_t budget = target - available;
         if (budget > 128)
           budget = 128;
-        uint32_t made = dbt_audio_render(&output.audio, budget);
+#ifdef DBT_PROBE_SOUND_BUILD
+        if(output.sound){
+          uint16_t sound_frames=dbt_sound_play_mix_frames(output.sound,(uint16_t)budget);
+          /* Give a live WAV producer a turn while DMA has a safe reserve (or
+           * has not started). Do not pad a normal file read with silent gaps.
+           * At a genuine low-water emergency, music/DMA still makes progress. */
+          if(!sound_frames && (!output.enabled || available>=2u*DMA_FRAMES)){
+            notify_sound();budget=0;blocked_sound=true;
+          }
+          if(sound_frames && sound_frames<budget)budget=sound_frames;
+        }
+#endif
+        uint32_t made = budget?dbt_audio_render(&output.audio, budget):0;
 #ifdef DBT_PROBE_SOUND_BUILD
         if(made && output.sound_silence){
           output.clock_at=(uint32_t)(esp_timer_get_time()/1000);
@@ -513,7 +535,9 @@ static bool render_step(void) {
            (output.sound_standalone || output.transition_sound ||
             (!dbt_audio_input_frames(&output.audio) && (!output.enabled || !available))) &&
            (!output.enabled || !dbt_sound_play_drained(output.sound))){
-          made=dbt_audio_render_silence(&output.audio,budget);
+          uint16_t sound_budget=dbt_sound_play_mix_frames(output.sound,(uint16_t)budget);
+          made=sound_budget?dbt_audio_render_silence(&output.audio,sound_budget):0;
+          made_silence=made!=0;
           if(made && !output.sound_standalone && !output.sound_silence){
             output.clock_at=(uint32_t)(esp_timer_get_time()/1000);
             dbt_audio_clock_reset(&output.audio,output.clock_at);output.sound_silence=true;
@@ -575,12 +599,19 @@ static bool render_step(void) {
         dbt_audio_clock_update(&output.audio, now);
         output.clock_at = now;
       }
+#ifdef DBT_PROBE_SOUND_BUILD
+      if(blocked_sound)return false;
+#endif
       if (output.active && dbt_audio_output_frames(&output.audio) < target &&
           dbt_audio_input_frames(&output.audio) > 1)
         return true;
 #ifdef DBT_PROBE_SOUND_BUILD
       if(output.active && output.sound && output.sound_standalone &&
          dbt_audio_output_frames(&output.audio)<target && dbt_sound_play_ready(output.sound))return true;
+      /* A stop/fade or pre-enable silence refill is runnable work even after
+       * its WAV ring drains. Do not depend on periodic polling to finish it. */
+      if(made_silence && dbt_audio_output_frames(&output.audio)<target &&
+         dbt_sound_play_mix_frames(output.sound,1))return true;
 #endif
     }
 #ifdef DBT_PROBE_SOUND_BUILD
@@ -588,10 +619,28 @@ static bool render_step(void) {
 #endif
     return false;
 }
+static TickType_t render_wait_ticks(void){
+  uint32_t now=(uint32_t)(esp_timer_get_time()/1000),ms=UINT32_MAX;
+  if(output.stopping){uint32_t elapsed=now-output.stop_at;ms=elapsed>500u?1u:501u-elapsed;}
+  if(output.active && !atomic_load(&output.failed)){
+    uint32_t elapsed=now-output.meter_at,remaining=elapsed>=40u?1u:40u-elapsed;
+    if(remaining<ms)ms=remaining;
+    if(output.enabled && !output.stopping
+#ifdef DBT_PROBE_SOUND_BUILD
+       && !output.sound_standalone && !output.sound_silence && !output.transition_sound
+#endif
+    ){
+      elapsed=now-output.clock_at;remaining=elapsed>=500u?1u:500u-elapsed;
+      if(remaining<ms)ms=remaining;
+    }
+  }
+  if(ms==UINT32_MAX)return portMAX_DELAY;
+  TickType_t ticks=pdMS_TO_TICKS(ms);return ticks?ticks:1;
+}
 static void render_loop(void *unused) {
   (void)unused;
   for (;;) {
-    if(!render_step())ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(10));
+    if(!render_step())ulTaskNotifyTake(pdTRUE,render_wait_ticks());
   }
 }
 dbt_result_t probe_output_init(void (*wake_decoder)(void *), void *context) {
