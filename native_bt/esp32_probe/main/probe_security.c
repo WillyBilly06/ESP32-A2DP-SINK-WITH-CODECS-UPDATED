@@ -7,7 +7,7 @@
 #endif
 
 #if !defined(DBT_PROBE_PRODUCT_SECURITY) && !defined(DBT_PROBE_PAIRING_PEER_BYTES)
-#error "The pairing probe requires an explicitly selected Linux adapter address"
+#error "The pairing probe requires an explicitly selected test peer address"
 #endif
 #define BOND_LIMIT 8u
 #ifndef DBT_PROBE_PRODUCT_SECURITY
@@ -42,8 +42,9 @@ typedef struct {
             uint16_t size,offset;
             bool after_ready;
         } hashes;
+        struct {uint8_t address[6];bool accepted,known,window;} admission;
     };
-    uint8_t event, reason, status;
+    uint8_t event, reason, status;bool admission_record;
 } log_item_t;
 static struct {
     uint16_t handle;
@@ -218,6 +219,12 @@ static void logger(void *context) {
                    (unsigned long)item.hashes.owner,item.hashes.after_ready?"true":"false");
             continue;
         }
+        if(item.admission_record){
+            printf("{\"probe\":\"classic_admission\",\"peer\":\"%02X:%02X:%02X:%02X:%02X:%02X\",\"accepted\":%s,\"known\":%s,\"pairing_allowed_now\":%s}\n",
+                item.admission.address[5],item.admission.address[4],item.admission.address[3],item.admission.address[2],item.admission.address[1],item.admission.address[0],
+                item.admission.accepted?"true":"false",item.admission.known?"true":"false",item.admission.window?"true":"false");
+            continue;
+        }
         if (item.event & 0x80u) {
             printf("{\"probe\":\"echo_pattern\",\"stage\":%u,\"size\":%u,\"offset\":%lu,"
                    "\"expected\":%u,\"actual\":%u}\n",item.event & 0x7fu,item.info.handle,
@@ -292,11 +299,14 @@ bool probe_security_accept(void *context, const uint8_t address[6], const uint8_
     (void)context;
     (void)device_class;
 #ifdef DBT_PROBE_PRODUCT_SECURITY
-    if(probe_admission_frozen())return false;
-    return cache_index(address)>=0 || probe_admission_window(runtime->now_ms);
+    bool known=cache_index(address)>=0,window=probe_admission_window(runtime->now_ms);
+    bool accepted=!probe_admission_frozen() && (known || window);
 #else
-    return same(address, allowed_peer);
+    bool known=cache_index(address)>=0,window=same(address,allowed_peer),accepted=window;
 #endif
+    if(log_queue){log_item_t item;wipe(&item,sizeof(item));item.admission_record=true;copy(item.admission.address,address,6);
+        item.admission.accepted=accepted;item.admission.known=known;item.admission.window=window;(void)xQueueSend(log_queue,&item,0);}
+    return accepted;
 }
 bool probe_security_authorize(void *context, const dbt_link_t *link, uint16_t psm,
                               dbt_security_t level) {

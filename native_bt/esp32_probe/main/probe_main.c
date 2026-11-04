@@ -834,10 +834,15 @@ void app_main(void) {
 #endif
         if(classic_ready && !security_reported) {
             security_reported=true;
+#ifdef DBT_PROBE_PRODUCT_SECURITY
+            bool pairing_open=probe_admission_window(now);unsigned pairing_origin=probe_admission_origin(now);
+#else
+            bool pairing_open=true;unsigned pairing_origin=3; /* explicitly selected test peer */
+#endif
             printf("{\"probe\":\"classic_security_probe_ready\",\"configured\":true,"
                    "\"metadata_bytes\":%u,\"loaded_bonds\":%u,\"worker_stack_bytes\":3072,"
-                   "\"logger_stack_bytes\":2048,\"audio_ready\":false}\n",
-                   probe_security_bytes(),probe_security_loaded_bonds());
+                   "\"logger_stack_bytes\":2048,\"classic_scan\":%u,\"pairing_open\":%s,\"pairing_origin\":%u,\"audio_ready\":false}\n",
+                   probe_security_bytes(),probe_security_loaded_bonds(),gap.classic_scan,pairing_open?"true":"false",pairing_origin);
         }
 #endif
 #ifdef DBT_PROBE_GATT_TEST
@@ -873,13 +878,15 @@ void app_main(void) {
                        "\"hci_version\":%u,\"manufacturer\":%u,\"host_bytes\":%u,\"runtime_bytes\":%u,"
                        "\"classic_acl_bytes\":%u,\"classic_acl_packets\":%u,"
                        "\"le_acl_bytes\":%u,\"le_acl_packets\":%u,\"shared_acl_pool\":%s,"
-                       "\"internal_free\":%u,\"internal_largest\":%u}\n",
+                       "\"internal_free\":%u,\"internal_largest\":%u,\"address\":\"%02X:%02X:%02X:%02X:%02X:%02X\"}\n",
                        host->controller.hci_version, host->controller.manufacturer,
                        (unsigned)sizeof(*host), (unsigned)sizeof(runtime), host->controller.classic_acl_bytes,
                        host->controller.classic_acl_packets, host->controller.le_acl_bytes,
                        host->controller.le_acl_packets, host->controller.shared_acl_pool ? "true" : "false",
                        (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT),
-                       (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT));
+                       (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT),
+                       host->controller.address_le[5],host->controller.address_le[4],host->controller.address_le[3],
+                       host->controller.address_le[2],host->controller.address_le[1],host->controller.address_le[0]);
             } else if (host->state == DBT_HOST_FAILED) {
                 printf("{\"probe\":\"failed\",\"fault\":%u,\"controller_status\":%u,"
                        "\"pending_opcode\":%u,\"rx_rejected\":%" PRIu32 ",\"rx_flow_failed_opcode\":%u}\n",

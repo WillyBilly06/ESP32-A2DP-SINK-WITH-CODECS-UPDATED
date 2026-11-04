@@ -25,7 +25,7 @@ if ($TraceIngress -and -not $WithClassicSecurity) {
     throw 'The ingress trace requires -WithClassicSecurity and its restricted test peer'
 }
 if (($TestPeer -and $TestPeer -notmatch '^[0-9a-fA-F]{2}(:[0-9a-fA-F]{2}){5}$') -or ($WithClassicSecurity -and -not $WithProductSecurity -and -not $TestPeer)) {
-    throw 'The Classic pairing probe requires -TestPeer with the exact Linux adapter address'
+    throw 'The Classic pairing probe requires -TestPeer with the exact test peer address'
 }
 $nativeRoot = Split-Path -Parent $PSScriptRoot
 $workspaceRoot = Split-Path -Parent $nativeRoot
