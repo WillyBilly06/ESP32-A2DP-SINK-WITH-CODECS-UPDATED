@@ -43,8 +43,9 @@ typedef struct {
             bool after_ready;
         } hashes;
         struct {uint8_t address[6];bool accepted,known,window;} admission;
+        struct {uint32_t generation;uint16_t handle;uint8_t change,kind,peer_type,peer[6];bool peer_present;} link;
     };
-    uint8_t event, reason, status;bool admission_record;
+    uint8_t event, reason, status,local_record;
 } log_item_t;
 static struct {
     uint16_t handle;
@@ -219,7 +220,13 @@ static void logger(void *context) {
                    (unsigned long)item.hashes.owner,item.hashes.after_ready?"true":"false");
             continue;
         }
-        if(item.admission_record){
+        if(item.local_record==2 || item.local_record==3){
+            printf("{\"probe\":\"%s\",\"handle\":%u,\"generation\":%lu,\"change\":%u,\"link_kind\":%u,\"peer_present\":%s,\"peer_type\":%u,\"peer\":\"%02X:%02X:%02X:%02X:%02X:%02X\"}\n",
+                item.local_record==2?"native_link":"le_security_failure",item.link.handle,(unsigned long)item.link.generation,item.link.change,item.link.kind,
+                item.link.peer_present?"true":"false",item.link.peer_type,item.link.peer[5],item.link.peer[4],item.link.peer[3],item.link.peer[2],item.link.peer[1],item.link.peer[0]);
+            continue;
+        }
+        if(item.local_record==1){
             printf("{\"probe\":\"classic_admission\",\"peer\":\"%02X:%02X:%02X:%02X:%02X:%02X\",\"accepted\":%s,\"known\":%s,\"pairing_allowed_now\":%s}\n",
                 item.admission.address[5],item.admission.address[4],item.admission.address[3],item.admission.address[2],item.admission.address[1],item.admission.address[0],
                 item.admission.accepted?"true":"false",item.admission.known?"true":"false",item.admission.window?"true":"false");
@@ -304,7 +311,7 @@ bool probe_security_accept(void *context, const uint8_t address[6], const uint8_
 #else
     bool known=cache_index(address)>=0,window=same(address,allowed_peer),accepted=window;
 #endif
-    if(log_queue){log_item_t item;wipe(&item,sizeof(item));item.admission_record=true;copy(item.admission.address,address,6);
+    if(log_queue){log_item_t item;wipe(&item,sizeof(item));item.local_record=1;copy(item.admission.address,address,6);
         item.admission.accepted=accepted;item.admission.known=known;item.admission.window=window;(void)xQueueSend(log_queue,&item,0);}
     return accepted;
 }
@@ -408,6 +415,14 @@ failed:
     return result;
 }
 void probe_security_link(const dbt_link_change_t *change) {
+    if(log_queue && change && change->kind!=DBT_LINK_UNCHANGED){
+        log_item_t item;wipe(&item,sizeof(item));item.local_record=2;item.link.handle=change->handle;item.link.generation=change->generation;
+        item.link.change=(uint8_t)change->kind;item.link.kind=0xff;item.link.peer_type=0xff;
+        const dbt_link_t *link=dbt_acl_find(&runtime->acl,change->handle);
+        if(link && link->generation==change->generation){item.link.peer_present=true;item.link.kind=(uint8_t)link->kind;
+            item.link.peer_type=link->peer_address_type;copy(item.link.peer,link->peer,6);}
+        (void)xQueueSend(log_queue,&item,0);
+    }
     dbt_result_t result = dbt_classic_security_link(&security, change);
     if (result != DBT_OK && result != DBT_UNSUPPORTED) {
         const dbt_link_t *link = dbt_acl_find(&runtime->acl, change->handle);
@@ -415,6 +430,12 @@ void probe_security_link(const dbt_link_change_t *change) {
             (void)dbt_gap_disconnect(gap, link, 0x13);
     }
 }
+void probe_security_le_failure(uint16_t handle,uint32_t generation){
+    if(!log_queue)return;
+    log_item_t item;wipe(&item,sizeof(item));item.local_record=3;item.link.handle=handle;item.link.generation=generation;item.link.kind=DBT_LINK_LE;
+    (void)xQueueSend(log_queue,&item,0);
+}
+
 dbt_result_t probe_security_receive(const dbt_hci_packet_t *packet, uint32_t now_ms) {
     return runtime->ready ? dbt_classic_security_receive(&security, packet, now_ms)
                           : DBT_UNSUPPORTED;

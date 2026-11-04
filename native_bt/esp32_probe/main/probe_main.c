@@ -728,6 +728,9 @@ void app_main(void) {
             probe_smp_poll(now);
             uint16_t failed_handle;uint32_t failed_generation;
             if(probe_smp_take_failure(&failed_handle,&failed_generation)){
+#ifdef DBT_PROBE_CLASSIC_SECURITY_TEST
+                probe_security_le_failure(failed_handle,failed_generation);
+#endif
                 const dbt_link_t *link=dbt_acl_find(&runtime.acl,failed_handle);
                 if(link && link->generation==failed_generation)defer_disconnect(link);
             }

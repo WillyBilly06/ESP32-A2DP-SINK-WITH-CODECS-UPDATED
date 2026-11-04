@@ -35,6 +35,56 @@ The callback's product-consent and selected-peer decisions also passed 32 host
 cases with an optional/full nonblocking log queue. Those cases prove policy
 preservation in stubs, not RF authentication.
 
+## Full profile boot and saved-bond reload
+
+The next finite trial used image
+`dd5805b5468445be40a08f3d82225361a3c058bd076f1e28a48ca84c0e665fb0`.
+It initialized the full product providers and all codec endpoints, reloaded one
+native Classic bond, and kept new pairing closed (origin 0, Classic scan 2).
+The phone still displayed the diagnostic device entry without a media-audio
+control. Tapping Connect produced no new native admission event or media packets.
+This does not establish a host reconnection failure: the phone's cached service
+state was not refreshed in this attempt. Audio and AVRCP were not exercised.
+The image returned cleanly to the preserved baseline. Its private archive is
+`native_bt/_build/hardware/runs/1793813000520036800-dd5805b54684`.
+
+## Local pairing without encoders
+
+The development product now accepts a physical BOOT/GPIO0 hold: first release
+the button after startup, then hold it for three seconds. This invokes the same
+120-second local consent window as the encoder gesture. Debounce and hold
+deadlines run on the existing owner; the interrupt only signals input changes.
+Any edge cancels an unfinished hold; a held startup button cannot grant consent,
+and a completed hold cannot repeat until release. Restart freeze and existing
+pairing/bond/trust checks still apply.
+
+Eleven ASan/UBSan host scenarios and the full ccache-enabled ESP32 build pass.
+The GPIO ISR is placed in IRAM. The explicit COM6 fixture can hold DTR/BOOT after
+readiness while leaving RTS/EN inactive; its modem-line record alone is not
+physical gesture proof.
+
+The subsequent COM6 trial bound source `8b9c6eb64cc91a8a622e190abfd579008f7343fe`
+to image `c8c318f1470cd89fdeed9bdb3536399a56f26cad20c9f983c231d9e165ce9652`.
+It started with one saved bond and the production pairing window closed. After
+the BOOT fixture held/released the input, the native admission event showed the
+window open. A fresh phone pairing then committed a key and enabled 16-byte
+encryption. This is end-to-end window/admission evidence through the fixture;
+the mechanical switch itself was not pressed by a person.
+
+Android subsequently displayed an active media connection and an HD-audio LDAC
+option; the option is not evidence of the negotiated codec. The native AVRCP
+path received track title, artist and album (revision 1, generation 1), and the
+profile manager reported active state with zero event errors. No media packets,
+PCM frames or I2S DMA frames were observed: playback was not started. A BDK app
+pairing dialog was approved late; the app remained at its audio-connection gate.
+This is not a completed BLE security/control test. The exact failing stage was
+not instrumented in this image.
+
+The finite trial returned cleanly to the released baseline. Its private archive
+is `native_bt/_build/hardware/runs/1793813848563190000-c8c318f1470c`.
+Native Classic/LE link and failed-SMP metadata have since been added to the
+existing nonblocking logger for the next ten-minute, bounded trial.
+
 ## Outstanding Bluetooth gates
 
 The full profile build still needs current-image bond reload/reconnection,

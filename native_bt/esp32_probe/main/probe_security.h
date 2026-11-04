@@ -10,6 +10,8 @@ bool probe_security_accept(void *context, const uint8_t address[6], const uint8_
 bool probe_security_authorize(void *context, const dbt_link_t *link, uint16_t psm,
                               dbt_security_t level);
 void probe_security_link(const dbt_link_change_t *change);
+/* Optional metadata only; never changes the failed procedure's policy. */
+void probe_security_le_failure(uint16_t handle,uint32_t generation);
 dbt_result_t probe_security_receive(const dbt_hci_packet_t *packet, uint32_t now_ms);
 void probe_security_poll(uint32_t now_ms);
 uint32_t probe_security_wait_ms(uint32_t now_ms);

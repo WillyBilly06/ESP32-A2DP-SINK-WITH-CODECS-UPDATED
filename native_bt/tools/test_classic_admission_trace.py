@@ -9,7 +9,7 @@ main=OUT/'main.c';main.write_text('''#include <assert.h>
 #include <string.h>
 static bool frozen,known,window,full;static unsigned logs;
 static uint8_t allowed_peer[6]={1,2,3,4,5,6};
-typedef struct {struct {uint8_t address[6];bool accepted,known,window;} admission;uint8_t event;bool admission_record;} log_item_t;
+typedef struct {struct {uint8_t address[6];bool accepted,known,window;} admission;uint8_t event,local_record;} log_item_t;
 static log_item_t captured;static void *log_queue=(void *)1;
 static struct {uint32_t now_ms;} storage;static void *runtime_unused;
 #ifdef DBT_PROBE_PRODUCT_SECURITY
@@ -34,7 +34,7 @@ int main(void){
   bool expected=w;
 #endif
   assert(probe_security_accept(0,peer,cod)==expected);
-  assert(captured.admission_record && captured.admission.accepted==expected && captured.admission.known==known && !memcmp(captured.admission.address,peer,6));++count;
+  assert(captured.local_record==1 && captured.admission.accepted==expected && captured.admission.known==known && !memcmp(captured.admission.address,peer,6));++count;
  }
  assert(logs==count && count==16);return 0;
 }

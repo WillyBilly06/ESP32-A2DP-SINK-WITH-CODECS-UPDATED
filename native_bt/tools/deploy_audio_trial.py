@@ -109,7 +109,7 @@ def main():
     parser.add_argument('--pipeline-only',action='store_true',help='Finite non-radio decoder/DSP/I2S diagnostic; always return to pinned baseline')
     parser.add_argument('--finite-rf',action='store_true',help='Finite native controller/GAP/profile boot capture, then reset pending trial and verify baseline return')
     parser.add_argument('--press-pairing-button',action='store_true',help='Explicit COM6 fixture: after native readiness hold DTR/BOOT for 3.5 seconds without toggling RTS/EN; finite RF only')
-    parser.add_argument('--rf-seconds',type=int,choices=(15,60,120,180),default=15,help='Bounded finite-RF interaction window; baseline return follows')
+    parser.add_argument('--rf-seconds',type=int,choices=(15,60,120,180,300,600),default=15,help='Bounded finite-RF interaction window, at most ten minutes; baseline return follows')
     parser.add_argument('--baud',type=int,choices=(115200,230400,460800),default=230400,help='Verified flash transport rate; use a lower rate after a readback error')
     args=parser.parse_args()
     if args.pipeline_only:args.codec_only=True
@@ -240,7 +240,7 @@ def main():
         if args.press_pairing_button:
             button_hold=PairingButtonHold(controller._port);report['pairing_button_fixture']=button_hold.report
         boot=bytearray();deadline=time.monotonic()+(25 if args.codec_only else args.rf_seconds if args.finite_rf else 15)
-        boot_limit=262144 if args.finite_rf else 65536
+        boot_limit=1048576 if args.finite_rf else 65536
         controller._port.timeout=0.2
         live_path=destination.with_name(destination.name+'-live.txt')
         with live_path.open('w',encoding='utf-8') as live:
