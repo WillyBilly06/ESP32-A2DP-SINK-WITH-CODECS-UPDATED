@@ -14,13 +14,30 @@ bool probe_dsp_##name##_init(fixed_dsp_t *,uint32_t,uint32_t,uint32_t,uint32_t);
 void probe_dsp_##name##_controls(fixed_dsp_t *,int8_t,int8_t,int8_t,uint8_t,uint8_t,bool); \
 void probe_dsp_##name##_process(fixed_dsp_t *,int32_t *,int32_t *)
 DECLARE_VARIANT(os);
+#ifdef DBT_DSP_STAGE_PROFILE
+DECLARE_VARIANT(profile);
+#include "probe_dsp_profile.h"
+#define SECOND_INIT probe_dsp_profile_init
+#define SECOND_CONTROLS probe_dsp_profile_controls
+#define SECOND_PROCESS probe_dsp_profile_process
+#define SECOND_NAME "Os_profiled"
+#else
 DECLARE_VARIANT(o3);
+#define SECOND_INIT probe_dsp_o3_init
+#define SECOND_CONTROLS probe_dsp_o3_controls
+#define SECOND_PROCESS probe_dsp_o3_process
+#define SECOND_NAME "O3"
+#endif
 #undef DECLARE_VARIANT
 enum {BLOCK_FRAMES=128,BLOCKS=40};
 typedef struct {
     fixed_dsp_t state[2];
     int32_t pcm[2][BLOCK_FRAMES*2];
     uint32_t elapsed[2][BLOCKS];
+#ifdef DBT_DSP_STAGE_PROFILE
+    uint32_t stages[5][BLOCKS];
+    bool stages_valid;
+#endif
 } context_t;
 typedef void (*process_fn)(fixed_dsp_t *,int32_t *,int32_t *);
 static uint32_t random32(uint32_t *seed){
@@ -29,18 +46,36 @@ static uint32_t random32(uint32_t *seed){
 static uint32_t hash_bytes(uint32_t hash,const void *bytes,size_t count){
     const uint8_t *p=bytes;for(size_t i=0;i<count;++i)hash=(hash^p[i])*16777619u;return hash;
 }
-static uint32_t process(context_t *c,unsigned variant){
-    process_fn fn=variant?probe_dsp_o3_process:probe_dsp_os_process;
+static uint32_t process(context_t *c,unsigned variant,unsigned block){
+    (void)block;
+    process_fn fn=variant?SECOND_PROCESS:probe_dsp_os_process;
+#ifdef DBT_DSP_STAGE_PROFILE
+    if(variant)probe_dsp_profile_reset();
+#endif
     uint32_t began=esp_cpu_get_cycle_count();
     for(unsigned i=0;i<BLOCK_FRAMES;++i)fn(&c->state[variant],&c->pcm[variant][2*i],&c->pcm[variant][2*i+1u]);
-    return esp_cpu_get_cycle_count()-began;
+    uint32_t elapsed=esp_cpu_get_cycle_count()-began;
+#ifdef DBT_DSP_STAGE_PROFILE
+    if(variant){
+        probe_dsp_profile_t data;probe_dsp_profile_snapshot(&data);
+        if(data.frames!=BLOCK_FRAMES)c->stages_valid=false;
+        for(unsigned i=0;i<5;++i)c->stages[i][block]=data.cycles[i];
+    }
+#endif
+    return elapsed;
 }
 static bool one_case(context_t *c,unsigned trial,uint32_t rate,uint8_t flags,int64_t deadline){
     bool passed=probe_dsp_os_init(&c->state[0],rate,90,500,512) &&
-                probe_dsp_o3_init(&c->state[1],rate,90,500,512);
+                SECOND_INIT(&c->state[1],rate,90,500,512);
     if(!passed)return false;
+#ifdef DBT_DSP_STAGE_PROFILE
+    /* Match the real audio-open muted baseline before applying its snapshot. */
+    probe_dsp_os_controls(&c->state[0],0,0,0,0,0,true);
+    SECOND_CONTROLS(&c->state[1],0,0,0,0,0,true);
+    c->stages_valid=true;
+#endif
     probe_dsp_os_controls(&c->state[0],3,-2,2,50,flags,false);
-    probe_dsp_o3_controls(&c->state[1],3,-2,2,50,flags,false);
+    SECOND_CONTROLS(&c->state[1],3,-2,2,50,flags,false);
     uint32_t seed=0x718392abu;uint32_t hash=2166136261u;
     unsigned completed=0;
     for(unsigned block=0;passed && block<BLOCKS;++block){
@@ -55,8 +90,8 @@ static bool one_case(context_t *c,unsigned trial,uint32_t rate,uint8_t flags,int
         }
         /* Alternate execution order to reduce systematic cache/order bias. */
         unsigned first=(block+trial)&1u,second=first^1u;
-        c->elapsed[first][block]=process(c,first);
-        c->elapsed[second][block]=process(c,second);
+        c->elapsed[first][block]=process(c,first,block);
+        c->elapsed[second][block]=process(c,second,block);
         passed=!memcmp(c->pcm[0],c->pcm[1],sizeof(c->pcm[0])) &&
                !memcmp(&c->state[0],&c->state[1],sizeof(c->state[0]));
         hash=hash_bytes(hash,c->pcm[0],sizeof(c->pcm[0]));++completed;
@@ -73,10 +108,25 @@ static bool one_case(context_t *c,unsigned trial,uint32_t rate,uint8_t flags,int
                 probe_diagnostic_stats(c->elapsed[variant]+warm_blocks,BLOCKS-warm_blocks,160000,&steady);
             passed=passed && stats;
             printf("{\"probe\":\"dsp_variant_case\",\"trial\":%u,\"rate\":%u,\"flags\":%u,\"variant\":\"%s\",\"equivalent\":%s,\"frames\":5120,\"block_frames\":128,\"ramp_containing_blocks\":%u,\"ramp_mean_cycles\":%u,\"ramp_max_cycles\":%u,\"steady_blocks\":%u,\"steady_mean_cycles\":%u,\"steady_p95_cycles\":%u,\"steady_max_cycles\":%u,\"pcm_hash\":%u,\"elapsed_core_cycles\":true,\"cpu_mhz\":240}\n",
-                trial,(unsigned)rate,flags,variant?"O3":"Os",passed?"true":"false",warm_blocks,
+                trial,(unsigned)rate,flags,variant?SECOND_NAME:"Os",passed?"true":"false",warm_blocks,
                 (unsigned)warm.mean,(unsigned)warm.maximum,BLOCKS-warm_blocks,(unsigned)steady.mean,
                 (unsigned)steady.p95,(unsigned)steady.maximum,(unsigned)hash);
         }
+#ifdef DBT_DSP_STAGE_PROFILE
+        passed=passed && c->stages_valid;
+        uint32_t warm_mean[5],steady_mean[5],steady_max[5];
+        for(unsigned i=0;i<5;++i){
+            probe_diagnostic_stats_t w={0},s={0};
+            if(!probe_diagnostic_stats(c->stages[i],warm_blocks,160000,&w) ||
+               !probe_diagnostic_stats(c->stages[i]+warm_blocks,BLOCKS-warm_blocks,160000,&s))passed=false;
+            warm_mean[i]=w.mean;steady_mean[i]=s.mean;steady_max[i]=s.maximum;
+        }
+        printf("{\"probe\":\"dsp_internal_stages\",\"trial\":%u,\"rate\":%u,\"flags\":%u,\"valid\":%s,\"stages\":[\"analysis\",\"ramps_input\",\"eq_comp\",\"cross_boost\",\"mix_limit\"],\"ramp_mean_cycles\":[%u,%u,%u,%u,%u],\"steady_mean_cycles\":[%u,%u,%u,%u,%u],\"steady_max_cycles\":[%u,%u,%u,%u,%u],\"block_frames\":128,\"includes_marker_overhead\":true,\"pipeline_muted_start\":true}\n",
+            trial,(unsigned)rate,flags,passed?"true":"false",
+            (unsigned)warm_mean[0],(unsigned)warm_mean[1],(unsigned)warm_mean[2],(unsigned)warm_mean[3],(unsigned)warm_mean[4],
+            (unsigned)steady_mean[0],(unsigned)steady_mean[1],(unsigned)steady_mean[2],(unsigned)steady_mean[3],(unsigned)steady_mean[4],
+            (unsigned)steady_max[0],(unsigned)steady_max[1],(unsigned)steady_max[2],(unsigned)steady_max[3],(unsigned)steady_max[4]);
+#endif
     }
     return passed && completed==BLOCKS;
 }

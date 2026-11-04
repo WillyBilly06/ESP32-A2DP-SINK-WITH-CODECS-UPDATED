@@ -1,5 +1,6 @@
 """Execute actual controlled DSP comparison with host stubs; no target timing."""
-import hashlib,json,os,pathlib,shutil,subprocess
+import argparse,hashlib,json,os,pathlib,shutil,subprocess
+parser=argparse.ArgumentParser();parser.add_argument("--profile-stages",action="store_true");options=parser.parse_args()
 ROOT=pathlib.Path(__file__).resolve().parents[1];OUT=ROOT/'_build/dsp_variants';OUT.mkdir(exist_ok=True)
 STUB=OUT/'stubs';(STUB/'freertos').mkdir(parents=True,exist_ok=True)
 (STUB/'esp_cpu.h').write_text('#include <stdint.h>\nuint32_t esp_cpu_get_cycle_count(void);\n')
@@ -28,8 +29,9 @@ if os.name=='nt':
 cc=shutil.which('clang',path=env.get('PATH')) or (r'C:\Program Files\LLVM\bin\clang.exe' if os.name=='nt' else 'clang')
 base=[cc,'-std=c11','-g','-Wall','-Wextra','-Werror','-fsanitize=address,undefined','-fno-sanitize-recover=all','-fno-omit-frame-pointer','-I'+str(STUB),'-I'+str(ROOT/'esp32_probe/main'),'-I'+str(ROOT.parent/'bt_audio_sink/main/dsp')]
 if os.name=='nt':base+=['-fms-runtime-lib=dll','-D_DLL']
-sources=[(ROOT/'esp32_probe/main/probe_dsp_os.c','-Os'),(ROOT/'esp32_probe/main/probe_dsp_o3.c','-O3'),(ROOT/'esp32_probe/main/probe_dsp_compare.c','-O2'),(ROOT/'esp32_probe/main/probe_diagnostic_stats.c','-O2'),(main,'-O2')]
-tracked=[p for p,_ in sources]+list(STUB.rglob('*.h'))+list((ROOT.parent/'bt_audio_sink/main/dsp').glob('fixed_dsp*'))+[pathlib.Path(__file__).resolve()]
+sources=[(ROOT/'esp32_probe/main/probe_dsp_os.c','-Os'),(ROOT/'esp32_probe/main'/('probe_dsp_profile.c' if options.profile_stages else 'probe_dsp_o3.c'),'-Os' if options.profile_stages else '-O3'),(ROOT/'esp32_probe/main/probe_dsp_compare.c','-O2'),(ROOT/'esp32_probe/main/probe_diagnostic_stats.c','-O2'),(main,'-O2')]
+if options.profile_stages:base+=['-DDBT_DSP_STAGE_PROFILE=1']
+tracked=[p for p,_ in sources]+list((ROOT/'esp32_probe/main').glob('*.h'))+list(STUB.rglob('*.h'))+list((ROOT.parent/'bt_audio_sink/main/dsp').glob('fixed_dsp*'))+[pathlib.Path(__file__).resolve()]
 before={str(p):hashlib.sha256(p.read_bytes()).hexdigest() for p in tracked}
 objects=[];commands=[]
 for source,optimization in sources:
@@ -45,6 +47,9 @@ result=subprocess.run([str(exe)],check=True,env=env,timeout=60,capture_output=Tr
 events=[json.loads(line) for line in result.stdout.splitlines() if line.startswith('{')]
 cases=[e for e in events if e['probe']=='dsp_variant_case'];summary=[e for e in events if e['probe']=='dsp_variant_summary']
 assert len(cases)==36 and all(e['equivalent'] for e in cases) and summary[-1]['passed'] and summary[-1]['cases']==18
+if options.profile_stages:
+    stages=[e for e in events if e['probe']=='dsp_internal_stages']
+    assert len(stages)==18 and all(e['valid'] and e['pipeline_muted_start'] for e in stages)
 assert all(hashlib.sha256(pathlib.Path(p).read_bytes()).hexdigest()==digest for p,digest in before.items())
-(OUT/'results.json').write_text(json.dumps({'passed':True,'case_pairs':18,'variants':['Os','O3'],'sanitizers':['address','undefined'],'signed_overflow_wrapping':False,'scope':'host actual comparison runner, full PCM/state equality; timer/cycles/RTOS/heap are stubs, no hardware performance evidence','sources':before,'commands':commands,'hardware_accessed':False},indent=2)+'\n')
-print('PASS 18 controlled Os/O3 case pairs with full output/state comparison, host ASan/UBSan; no target timings')
+(OUT/('profile-results.json' if options.profile_stages else 'results.json')).write_text(json.dumps({'passed':True,'case_pairs':18,'variants':['Os','Os_profiled'] if options.profile_stages else ['Os','O3'],'sanitizers':['address','undefined'],'signed_overflow_wrapping':False,'scope':'host actual comparison runner, full PCM/state equality; timer/cycles/RTOS/heap are stubs, no hardware performance evidence','sources':before,'commands':commands,'hardware_accessed':False},indent=2)+'\n')
+print('PASS 18 controlled DSP case pairs, profile='+str(options.profile_stages)+', full output/state comparison, host ASan/UBSan; no target timings')

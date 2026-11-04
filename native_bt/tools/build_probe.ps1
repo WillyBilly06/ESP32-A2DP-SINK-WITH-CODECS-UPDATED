@@ -1,5 +1,6 @@
-param([switch]$AudioStageProfile,[switch]$PipelineDiagnostic,[switch]$AsyncAudio,[switch]$DeferredCodecCheck,[switch]$LhdcStageProfile,[switch]$LhdcMaximumCheck,[switch]$CodecDiagnosticOnly,[switch]$WithProductIo,[switch]$WithProductSecurity,[switch]$WithRfcomm,[switch]$WithLhdc,[switch]$WithOpus,[switch]$WithAac,[switch]$WithAptx,[switch]$WithLdac,[switch]$WithSmp,[switch]$WithAvrcp,[switch]$WithSbc,[switch]$WithAudioProbe,[switch]$WithAudioOutput,[switch]$WithGatt,[switch]$WithClassicSecurity,[switch]$TraceIngress,[switch]$WithoutRxFlow,[switch]$KeepOwned=$true,[string]$TestPeer='',[string]$LhdcSourceDir='')
+param([switch]$DspStageProfile,[switch]$AudioStageProfile,[switch]$PipelineDiagnostic,[switch]$AsyncAudio,[switch]$DeferredCodecCheck,[switch]$LhdcStageProfile,[switch]$LhdcMaximumCheck,[switch]$CodecDiagnosticOnly,[switch]$WithProductIo,[switch]$WithProductSecurity,[switch]$WithRfcomm,[switch]$WithLhdc,[switch]$WithOpus,[switch]$WithAac,[switch]$WithAptx,[switch]$WithLdac,[switch]$WithSmp,[switch]$WithAvrcp,[switch]$WithSbc,[switch]$WithAudioProbe,[switch]$WithAudioOutput,[switch]$WithGatt,[switch]$WithClassicSecurity,[switch]$TraceIngress,[switch]$WithoutRxFlow,[switch]$KeepOwned=$true,[string]$TestPeer='',[string]$LhdcSourceDir='')
 $ErrorActionPreference = 'Stop'
+if ($DspStageProfile -and -not $AudioStageProfile) { throw 'DSP stage profiling requires -AudioStageProfile' }
 if ($AudioStageProfile -and -not $PipelineDiagnostic) { throw 'Audio stage profiling requires -PipelineDiagnostic' }
 if ($PipelineDiagnostic) {
     if ($DeferredCodecCheck -or $LhdcMaximumCheck -or $LhdcStageProfile) { throw 'Pipeline diagnostic is a separate finite check' }
@@ -74,6 +75,7 @@ $securityBuild = if ($WithClassicSecurity) { 'ON' } else { 'OFF' }
 $ingressBuild = if ($TraceIngress) { 'ON' } else { 'OFF' }
 $disableReceiveFlow = if ($WithoutRxFlow) { 'ON' } else { 'OFF' }
 $keepOwnedBuild = if ($KeepOwned) { 'ON' } else { 'OFF' }
+$dspStageBuild = if ($DspStageProfile) { 'ON' } else { 'OFF' }
 $audioStageBuild = if ($AudioStageProfile) { 'ON' } else { 'OFF' }
 $pipelineBuild = if ($PipelineDiagnostic) { 'ON' } else { 'OFF' }
 $codecDiagnosticBuild = if ($CodecDiagnosticOnly) { 'ON' } else { 'OFF' }
@@ -89,6 +91,7 @@ if ($WithClassicSecurity -and $TestPeer) {
 }
 $idfArguments=@('--ccache','-C',$probeRoot,'-B',$buildRoot,"-DDBT_PROBE_PRODUCT_SECURITY=$productSecurityBuild", "-DDBT_PROBE_RFCOMM=$rfcommBuild", "-DDBT_PROBE_PRODUCT_IO=$productIoBuild", "-DDBT_PROBE_LHDC_BUILD=$lhdcBuild", "-DDBT_PROBE_OPUS_BUILD=$opusBuild", "-DDBT_PROBE_AAC_BUILD=$aacBuild", "-DDBT_PROBE_LDAC_BUILD=$ldacBuild", "-DDBT_PROBE_APTX_BUILD=$aptxBuild", "-DDBT_PROBE_SMP=$smpBuild", "-DDBT_PROBE_AVRCP=$avrcpBuild", "-DDBT_PROBE_SBC_BUILD=$sbcBuild", "-DDBT_PROBE_AUDIO_TEST=$audioBuild", "-DDBT_PROBE_AUDIO_OUTPUT=$outputBuild", "-DDBT_PROBE_KEEP_OWNED_ACTIVE=$keepOwnedBuild", "-DDBT_PROBE_GATT_TEST=$gattBuild", "-DDBT_PROBE_CLASSIC_SECURITY_TEST=$securityBuild", "-DDBT_PROBE_INGRESS_TRACE=$ingressBuild", "-DDBT_PROBE_DISABLE_RX_FLOW=$disableReceiveFlow", "-DDBT_PROBE_PAIRING_PEER_BYTES=$peerBytes")
 if ($LhdcSourceDir) { $idfArguments += "-DLHDCV5_SOURCE_DIR=$LhdcSourceDir" }
+$idfArguments += "-DDBT_PROBE_DSP_STAGE_PROFILE=$dspStageBuild"
 $idfArguments += "-DDBT_PROBE_AUDIO_STAGE_PROFILE=$audioStageBuild"
 $idfArguments += "-DDBT_PROBE_PIPELINE_DIAGNOSTIC=$pipelineBuild"
 $idfArguments += "-DDBT_PROBE_CODEC_DIAGNOSTIC_ONLY=$codecDiagnosticBuild"
@@ -115,6 +118,7 @@ if ($buildExitCode -eq 0) {
 python (Join-Path $PSScriptRoot 'check_workspace.py')
 $workspaceCheckCode=$LASTEXITCODE
 $buildReceipt=[ordered]@{schema=1;passed=($buildExitCode -eq 0 -and $sourceCheckCode -eq 0 -and $workspaceCheckCode -eq 0);state='failed';hardware_accessed=$false;product_io=[bool]$WithProductIo;product_security=[bool]$WithProductSecurity;rfcomm=[bool]$WithRfcomm;build_exit=$buildExitCode;source_check_exit=$sourceCheckCode;workspace_check_exit=$workspaceCheckCode}
+$buildReceipt.dsp_stage_profile=[bool]$DspStageProfile
 $buildReceipt.audio_stage_profile=[bool]$AudioStageProfile
 $buildReceipt.pipeline_diagnostic=[bool]$PipelineDiagnostic
 $buildReceipt.codec_diagnostic_only=[bool]$CodecDiagnosticOnly

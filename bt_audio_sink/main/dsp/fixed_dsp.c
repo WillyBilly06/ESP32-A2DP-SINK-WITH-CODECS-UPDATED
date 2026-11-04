@@ -1,4 +1,7 @@
 #include "fixed_dsp.h"
+#ifndef FIXED_DSP_STAGE_MARK
+#define FIXED_DSP_STAGE_MARK(stage) ((void)0)
+#endif
 #ifdef ESP_PLATFORM
 #include "esp_attr.h"
 #define DSP_HOT IRAM_ATTR
@@ -238,14 +241,18 @@ static inline int32_t limit(fixed_dsp_t *dsp, int32_t value) {
 }
 
 void DSP_HOT fixed_dsp_process(fixed_dsp_t *dsp, int32_t *left, int32_t *right) {
+    FIXED_DSP_STAGE_MARK(0);
     analysis(dsp, (int32_t)(((int64_t)*left + *right) / 2));
+    FIXED_DSP_STAGE_MARK(1);
     for (unsigned i = 0; i < 5; ++i) coefficients_advance(&dsp->filters[i]);
     ramp_advance(&dsp->volume); ramp_advance(&dsp->bypass); ramp_advance(&dsp->flip);
     int32_t l = *left >> 4, r = *right >> 4;
+    FIXED_DSP_STAGE_MARK(2);
     for (unsigned i = 0; i < 4; ++i) {
         l = filter(dsp->filters[i].value, &dsp->channel_history[i][0], l);
         r = filter(dsp->filters[i].value, &dsp->channel_history[i][1], r);
     }
+    FIXED_DSP_STAGE_MARK(3);
     int32_t lp = filter(dsp->cross_coefficients[0], &dsp->cross_history[0], l);
     int32_t hp = filter(dsp->cross_coefficients[1], &dsp->cross_history[1], r);
     lp = filter(dsp->filters[4].value, &dsp->boost_history[2], lp);
@@ -253,6 +260,7 @@ void DSP_HOT fixed_dsp_process(fixed_dsp_t *dsp, int32_t *left, int32_t *right) 
     r = filter(dsp->filters[4].value, &dsp->boost_history[1], r);
     lp = clamp32(((int64_t)lp * 189246996) >> 27); /* 1.41 crossover makeup */
     hp = clamp32(((int64_t)hp * 189246996) >> 27);
+    FIXED_DSP_STAGE_MARK(4);
     int32_t split_l = blend(lp, hp, dsp->flip.value);
     int32_t split_r = blend(hp, lp, dsp->flip.value);
     l = blend(split_l, l, dsp->bypass.value);
@@ -263,6 +271,7 @@ void DSP_HOT fixed_dsp_process(fixed_dsp_t *dsp, int32_t *left, int32_t *right) 
     }
     *left = clamp32((int64_t)limit(dsp, l) * 16);
     *right = clamp32((int64_t)limit(dsp, r) * 16);
+    FIXED_DSP_STAGE_MARK(5);
 }
 
 int32_t fixed_dsp_level_db_q8(uint32_t level) {
