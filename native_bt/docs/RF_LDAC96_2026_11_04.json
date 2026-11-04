@@ -1,0 +1,134 @@
+{
+  "date": "2026-11-04",
+  "source_commit": "b400052c407d8897b0076871f4391728b3822af8",
+  "image_sha256": "7db0feb873069437b99f0805b20c27bdd835734ba52a0c244726b81c92b9a187",
+  "idf": "6.1",
+  "target": "COM6 ESP32, Redmagic ADB phone, DAC only",
+  "result": "FAIL_LDAC96_RF_OUTPUT",
+  "scope": "Actual Classic pairing/encryption, AVRCP metadata, LDAC stereo 96 kHz decode and I2S DMA. No analog fidelity or complete BLE/profile qualification.",
+  "pcm_final": {
+    "probe": "sbc_pcm",
+    "frames": 2965,
+    "bytes": 6072320,
+    "fnv1a32": 144122879,
+    "rate": 96000,
+    "channels": 2,
+    "media_packets": 742,
+    "drops": 195,
+    "resets": 186,
+    "resident": 0,
+    "codec": 8,
+    "sample_bytes": 4,
+    "faults": 1,
+    "decoder_stack_low_water_bytes": 6252,
+    "internal_heap_free": 156964,
+    "internal_heap_min_free": 25264,
+    "internal_heap_largest": 110592,
+    "i2s_output": true
+  },
+  "i2s_final": {
+    "probe": "native_i2s",
+    "running": 0,
+    "failed": 1,
+    "rate": 96000,
+    "requested_bytes": 0,
+    "accepted_frames": 759040,
+    "rendered_frames": 756096,
+    "ready_frames": 0,
+    "dma_eofs": 7513,
+    "dma_source_frames": 756096,
+    "underrun_frames": 203264,
+    "descriptor_errors": 1,
+    "max_eof_gap_us": 13841,
+    "maximum_render_us": 14740,
+    "first_underrun_accepted_frames": 32512,
+    "first_underrun_dma_frames": 28288
+  },
+  "profile_transitions": [
+    {
+      "probe": "native_profile",
+      "state": 0,
+      "active": 0,
+      "enabled": 1,
+      "draining": 0,
+      "event_errors": 0,
+      "last_event": 0,
+      "last_result": 0,
+      "detail": 0,
+      "ignored_dynamic": 0,
+      "oversized_dynamic": 0
+    },
+    {
+      "probe": "native_profile",
+      "state": 2,
+      "active": 1,
+      "enabled": 1,
+      "draining": 0,
+      "event_errors": 0,
+      "last_event": 0,
+      "last_result": 0,
+      "detail": 11284,
+      "ignored_dynamic": 0,
+      "oversized_dynamic": 0
+    },
+    {
+      "probe": "native_profile",
+      "state": 3,
+      "active": 1,
+      "enabled": 0,
+      "draining": 1,
+      "event_errors": 0,
+      "last_event": 0,
+      "last_result": 0,
+      "detail": 11284,
+      "ignored_dynamic": 2,
+      "oversized_dynamic": 10
+    },
+    {
+      "probe": "native_profile",
+      "state": 0,
+      "active": 0,
+      "enabled": 0,
+      "draining": 0,
+      "event_errors": 0,
+      "last_event": 0,
+      "last_result": 0,
+      "detail": 771,
+      "ignored_dynamic": 2,
+      "oversized_dynamic": 10
+    }
+  ],
+  "link_events": [
+    {
+      "probe": "native_link",
+      "handle": 128,
+      "generation": 1,
+      "change": 1,
+      "link_kind": 0,
+      "peer_present": true,
+      "peer_type": 0
+    },
+    {
+      "probe": "native_link",
+      "handle": 128,
+      "generation": 1,
+      "change": 2,
+      "link_kind": 255,
+      "peer_present": false,
+      "peer_type": 255
+    }
+  ],
+  "avrcp_metadata_observed": true,
+  "baseline_return": {
+    "baseline_boot_observed": true,
+    "baseline_fatal_marker": false,
+    "prime_capture_bytes": 0
+  },
+  "limitations": [
+    "Packet drops/resets are not attributed to RF versus host/worker backpressure.",
+    "Global oversized-PDU counters are not yet assigned to a particular PSM/CID.",
+    "Streaming metric samples became available at output failure; no CPU/latency percentile or headroom guarantee.",
+    "The app remained at its audio gate after output shutdown; no completed BLE controls test.",
+    "Codec 8 is the native probe LDAC tag; sample_bytes=4 is container width, not an independently measured source precision."
+  ]
+}

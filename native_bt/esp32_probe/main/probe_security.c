@@ -44,6 +44,7 @@ typedef struct {
         } hashes;
         struct {uint8_t address[6];bool accepted,known,window;} admission;
         struct {uint32_t generation;uint16_t handle;uint8_t change,kind,peer_type,peer[6];bool peer_present;} link;
+        struct {uint32_t generation,serial;uint16_t handle,cid,psm,rx_mtu,tx_mtu,result;uint8_t event,reason;} channel;
     };
     uint8_t event, reason, status,local_record;
 } log_item_t;
@@ -218,6 +219,16 @@ static void logger(void *context) {
                    (unsigned long)item.hashes.ordinal,item.hashes.size,item.hashes.offset,
                    (unsigned long)item.hashes.before,(unsigned long)item.hashes.after,
                    (unsigned long)item.hashes.owner,item.hashes.after_ready?"true":"false");
+            continue;
+        }
+        if(item.local_record==4){
+            printf("{\"probe\":\"native_channel\",\"handle\":%u,\"generation\":%lu,\"serial\":%lu,\"cid\":%u,\"psm\":%u,\"rx_mtu\":%u,\"tx_mtu\":%u,\"event\":%u,\"reason\":%u,\"result\":%u}\n",
+                item.channel.handle,(unsigned long)item.channel.generation,(unsigned long)item.channel.serial,item.channel.cid,item.channel.psm,
+                item.channel.rx_mtu,item.channel.tx_mtu,item.channel.event,item.channel.reason,item.channel.result);
+            continue;
+        }
+        if(item.local_record==5){
+            printf("{\"probe\":\"hci_disconnect\",\"handle\":%u,\"status\":%u,\"reason\":%u}\n",item.info.handle,item.status,item.reason);
             continue;
         }
         if(item.local_record==2 || item.local_record==3){
@@ -436,7 +447,21 @@ void probe_security_le_failure(uint16_t handle,uint32_t generation){
     (void)xQueueSend(log_queue,&item,0);
 }
 
+void probe_security_channel(dbt_channel_event_t event,const dbt_channel_t *channel,dbt_channel_reason_t reason,uint16_t result){
+    if(!log_queue || !channel)return;
+    log_item_t item;wipe(&item,sizeof(item));item.local_record=4;
+    item.channel.generation=channel->link_generation;item.channel.serial=channel->serial;item.channel.handle=channel->handle;
+    item.channel.cid=channel->local_cid;item.channel.psm=channel->psm;item.channel.rx_mtu=channel->rx_mtu;item.channel.tx_mtu=channel->tx_mtu;
+    item.channel.event=(uint8_t)event;item.channel.reason=(uint8_t)reason;item.channel.result=result;
+    (void)xQueueSend(log_queue,&item,0);
+}
+
 dbt_result_t probe_security_receive(const dbt_hci_packet_t *packet, uint32_t now_ms) {
+    if(log_queue && packet && packet->type==DBT_H4_EVENT && packet->event==5 && packet->size==4 && packet->payload){
+        log_item_t item;wipe(&item,sizeof(item));item.local_record=5;item.status=packet->payload[0];item.reason=packet->payload[3];
+        item.info.handle=(uint16_t)((uint16_t)packet->payload[1]|((uint16_t)packet->payload[2]<<8));
+        (void)xQueueSend(log_queue,&item,0);
+    }
     return runtime->ready ? dbt_classic_security_receive(&security, packet, now_ms)
                           : DBT_UNSUPPORTED;
 }

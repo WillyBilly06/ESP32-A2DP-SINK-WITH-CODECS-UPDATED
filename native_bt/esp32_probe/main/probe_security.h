@@ -12,6 +12,7 @@ bool probe_security_authorize(void *context, const dbt_link_t *link, uint16_t ps
 void probe_security_link(const dbt_link_change_t *change);
 /* Optional metadata only; never changes the failed procedure's policy. */
 void probe_security_le_failure(uint16_t handle,uint32_t generation);
+void probe_security_channel(dbt_channel_event_t,const dbt_channel_t *,dbt_channel_reason_t,uint16_t result);
 dbt_result_t probe_security_receive(const dbt_hci_packet_t *packet, uint32_t now_ms);
 void probe_security_poll(uint32_t now_ms);
 uint32_t probe_security_wait_ms(uint32_t now_ms);

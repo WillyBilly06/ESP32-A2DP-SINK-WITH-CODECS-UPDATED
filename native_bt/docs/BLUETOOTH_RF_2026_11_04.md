@@ -85,6 +85,33 @@ is `native_bt/_build/hardware/runs/1793813848563190000-c8c318f1470c`.
 Native Classic/LE link and failed-SMP metadata have since been added to the
 existing nonblocking logger for the next ten-minute, bounded trial.
 
+## First current-image RF streaming failure
+
+The ten-minute trial used source `b400052c` and image
+`7db0feb873069437b99f0805b20c27bdd835734ba52a0c244726b81c92b9a187`.
+The phone's existing media controls started actual LDAC stereo 96 kHz playback.
+The native path accepted 742 media packets, decoded 6,072,320 PCM bytes and
+delivered 756,096 source frames through I2S DMA. This is transport/decode/DMA
+execution evidence, not an analog-quality pass.
+
+**The streaming test failed.** It reported 203,264 underrun frames, one DMA
+descriptor error, 195 drops, 186 decoder resets and a codec-worker fault. The
+maximum observed EOF gap was 13,841 us and render span 14,740 us. Output failure
+latched the profile stopped; the Classic link subsequently closed. The global
+oversized-PDU count reached 10, but this image did not identify their PSM/CID;
+they cannot yet be assigned as the root cause. Drops likewise have not been
+separated into radio loss versus host/worker backpressure.
+
+The BDK app reached its audio gate after output shutdown. No completed BLE
+control test follows from this run. Playback is paused and the preserved
+baseline boot was verified after the trial. See the sanitized
+[machine-readable result](RF_LDAC96_2026_11_04.json); raw evidence remains in
+`native_bt/_build/hardware/runs/1793814768731988700-7db0feb87306`.
+
+The next Bluetooth baseline uses SBC selected on the phone, with every codec
+endpoint retained. LDAC 96 kHz remains a recorded failure. The next trace also
+records negotiated channel MTUs and the actual HCI disconnect reason.
+
 ## Outstanding Bluetooth gates
 
 The full profile build still needs current-image bond reload/reconnection,

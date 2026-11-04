@@ -468,6 +468,7 @@ static void observe(void *context, const dbt_hci_packet_t *packet) {
 #ifdef DBT_PROBE_CLASSIC_SECURITY_TEST
 static void profile_channel(void *context, dbt_channel_event_t event, const dbt_channel_t *channel,
                             dbt_channel_reason_t reason, uint16_t result) {
+    probe_security_channel(event,channel,reason,result);
     probe_echo_event(context, event, channel, reason, result);
     probe_sdp_event(event, channel);
 #ifdef DBT_PROBE_RFCOMM
