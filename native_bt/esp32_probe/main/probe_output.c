@@ -357,6 +357,12 @@ static dbt_result_t start_output(uint32_t rate, uint8_t channels,
   atomic_store(&output.dma_source_frames, 0);
   atomic_store(&output.underrun_frames, 0);
   atomic_store(&output.descriptor_errors, 0);
+  atomic_store(&output.descriptor_shape_errors,0);
+  atomic_store(&output.descriptor_pool_errors,0);
+  atomic_store(&output.descriptor_order_errors,0);
+  atomic_store(&output.descriptor_expected_index,0);
+  atomic_store(&output.descriptor_observed_index,0);
+  atomic_store(&output.descriptor_observed_size,0);
   atomic_store(&output.max_eof_gap_us, 0);
   atomic_store(&output.maximum_render_us, 0);
   atomic_store(&output.render_total_us,0);

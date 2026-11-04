@@ -52,7 +52,11 @@ EX int probe_output_formats(void){
     const uint8_t *samples[]={sample16,sample24,sample32};
     for(unsigned i=0;i<3;i++){
         dbt_pcm_format_t format=(dbt_pcm_format_t)(i+2);size_t bytes=(i+2)*4u;
+        atomic_store(&output.descriptor_shape_errors,9);atomic_store(&output.descriptor_pool_errors,8);atomic_store(&output.descriptor_order_errors,7);
+        atomic_store(&output.descriptor_expected_index,6);atomic_store(&output.descriptor_observed_index,5);atomic_store(&output.descriptor_observed_size,4);
         CHECK(probe_output_stream_format(true,48000,2,format)==DBT_OK && output.audio.config.format==format && output.audio.input.stride==(i+2)*2u);
+        CHECK(!atomic_load(&output.descriptor_shape_errors) && !atomic_load(&output.descriptor_pool_errors) && !atomic_load(&output.descriptor_order_errors));
+        CHECK(!atomic_load(&output.descriptor_expected_index) && !atomic_load(&output.descriptor_observed_index) && !atomic_load(&output.descriptor_observed_size));
         CHECK(probe_output_pcm_format(samples[i],2,2,48000,format)==DBT_OK && !memcmp(output.audio.input.bytes,samples[i],bytes));
         CHECK(probe_output_pcm_format(samples[i],2,2,44100,format)==DBT_INVALID);
         CHECK(probe_output_pcm_format(samples[i],2,1,48000,format)==DBT_INVALID);
