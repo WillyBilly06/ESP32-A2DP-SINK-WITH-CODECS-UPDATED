@@ -155,8 +155,12 @@ void probe_audio_transport_received(uint32_t began_us,uint16_t bytes,uint8_t typ
     maximum(&rx_callback_max_us,(uint32_t)esp_timer_get_time()-began_us);
 }
 void probe_audio_transport_poll_begin(uint32_t began_us){
+    (void)began_us;
     uint32_t pending=atomic_exchange_explicit(&rx_pending_us,0,memory_order_acq_rel);
-    if(pending)maximum(&first_rx_to_poll_max_us,began_us-pending);
+    /* A controller callback may preempt the owner after its caller sampled
+     * began_us. Sample after taking the pending stamp to avoid a negative
+     * duration masquerading as a near-UINT32_MAX scheduling delay. */
+    if(pending)maximum(&first_rx_to_poll_max_us,(uint32_t)esp_timer_get_time()-pending);
 }
 void probe_audio_transport_poll_end(uint32_t began_us){maximum(&host_poll_max_us,(uint32_t)esp_timer_get_time()-began_us);}
 /* Each endpoint is validated independently before an asynchronous worker job.

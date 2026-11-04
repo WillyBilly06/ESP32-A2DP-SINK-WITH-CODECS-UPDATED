@@ -56,10 +56,12 @@ EX int probe_audio_diagnostics(void){
     CHECK(media_trace_rings[0].items[0].ordinal==TRACE_SLOTS+2u && atomic_load(&media_trace_rings[0].lost)==1);
     probe_audio_transport_received(9000,100,DBT_H4_ACL,DBT_OK,false);
     CHECK(atomic_load(&rx_packets)==1 && atomic_load(&rx_acl)==1 && atomic_load(&rx_callback_max_us)==1000);
-    probe_audio_transport_poll_begin(12000);now=14;probe_audio_transport_poll_end(12000);
+    now=12;probe_audio_transport_poll_begin(12000);now=14;probe_audio_transport_poll_end(12000);
     CHECK(atomic_load(&first_rx_to_poll_max_us)==3000 && atomic_load(&host_poll_max_us)==2000 && !atomic_load(&rx_pending_us));
     probe_audio_transport_received(13000,20,DBT_H4_EVENT,DBT_NO_SPACE,true);
     CHECK(atomic_load(&rx_packets)==2 && atomic_load(&rx_events)==1 && atomic_load(&rx_isr)==1 && atomic_load(&rx_rejected)==1);
+    probe_audio_transport_poll_begin(12000); /* stale caller timestamp after preemption */
+    CHECK(atomic_load(&first_rx_to_poll_max_us)==3000);
     e.kind=DBT_CODEC_DECODE_BEGIN;now=20;media_trace(0,&e);
     e.kind=DBT_CODEC_PCM_BEGIN;now=21;media_trace(0,&e);
     e.kind=DBT_CODEC_PCM_END;now=22;media_trace(0,&e);
