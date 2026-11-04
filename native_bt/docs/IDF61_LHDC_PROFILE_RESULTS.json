@@ -1,0 +1,382 @@
+{
+  "schema": 1,
+  "scope": "isolated COM6 LHDC stage/callback profile; full master objective remains incomplete",
+  "baseline": {
+    "source_commit": "9ed5bd22d8d5f57bbd51612d4bb46214267e22d1",
+    "image_sha256": "8657d143491942e2a281a789d40f231012a79934d699b99ca3993089fde7beaa",
+    "existing_codec_vectors_passed": true,
+    "baseline_return_observed": true,
+    "maximum_trials": [
+      {
+        "probe": "lhdc_max_selftest",
+        "trial": 0,
+        "correctness_passed": true,
+        "isolated_deadline_passed": false,
+        "rate": 192000,
+        "sample_depth": 24,
+        "channels": 2,
+        "requested_kbps": 1000,
+        "encoded_payload_bps": 1001600,
+        "packets": 96,
+        "measured_packets": 84,
+        "sample_frames": 92160,
+        "reference_points": 56,
+        "maximum_abs_error": 384,
+        "mean_us": 4778,
+        "p50_us": 4634,
+        "p95_us": 5040,
+        "p99_us": 5101,
+        "max_us": 5101,
+        "budget_us": 5000,
+        "deadline_misses": 15,
+        "tracked_peak_bytes": 63672,
+        "stack_low_water_bytes": 3636,
+        "includes_pcm_validation": true,
+        "dsp_i2s_test": false,
+        "rf_test": false
+      },
+      {
+        "probe": "lhdc_max_selftest",
+        "trial": 1,
+        "correctness_passed": true,
+        "isolated_deadline_passed": false,
+        "rate": 192000,
+        "sample_depth": 24,
+        "channels": 2,
+        "requested_kbps": 1000,
+        "encoded_payload_bps": 1001600,
+        "packets": 96,
+        "measured_packets": 84,
+        "sample_frames": 92160,
+        "reference_points": 56,
+        "maximum_abs_error": 384,
+        "mean_us": 4777,
+        "p50_us": 4634,
+        "p95_us": 5042,
+        "p99_us": 5113,
+        "max_us": 5113,
+        "budget_us": 5000,
+        "deadline_misses": 11,
+        "tracked_peak_bytes": 63672,
+        "stack_low_water_bytes": 3636,
+        "includes_pcm_validation": true,
+        "dsp_i2s_test": false,
+        "rf_test": false
+      },
+      {
+        "probe": "lhdc_max_selftest",
+        "trial": 2,
+        "correctness_passed": true,
+        "isolated_deadline_passed": false,
+        "rate": 192000,
+        "sample_depth": 24,
+        "channels": 2,
+        "requested_kbps": 1000,
+        "encoded_payload_bps": 1001600,
+        "packets": 96,
+        "measured_packets": 84,
+        "sample_frames": 92160,
+        "reference_points": 56,
+        "maximum_abs_error": 384,
+        "mean_us": 4778,
+        "p50_us": 4634,
+        "p95_us": 5040,
+        "p99_us": 5101,
+        "max_us": 5101,
+        "budget_us": 5000,
+        "deadline_misses": 14,
+        "tracked_peak_bytes": 63672,
+        "stack_low_water_bytes": 3636,
+        "includes_pcm_validation": true,
+        "dsp_i2s_test": false,
+        "rf_test": false
+      }
+    ],
+    "decoder_estimates": [
+      {
+        "probe": "lhdc_decoder_estimate",
+        "trial": 0,
+        "mean_us": 3804,
+        "p50_us": 3661,
+        "p95_us": 4067,
+        "p99_us": 4119,
+        "max_us": 4119,
+        "deadline_misses": 0,
+        "mean_cycles": 913497,
+        "validation_mean_us": 973,
+        "validation_max_us": 985,
+        "callback_time_subtracted": true,
+        "includes_media_wrapper": true,
+        "dsp_i2s_test": false,
+        "rf_test": false
+      },
+      {
+        "probe": "lhdc_decoder_estimate",
+        "trial": 1,
+        "mean_us": 3804,
+        "p50_us": 3658,
+        "p95_us": 4067,
+        "p99_us": 4131,
+        "max_us": 4131,
+        "deadline_misses": 0,
+        "mean_cycles": 913440,
+        "validation_mean_us": 973,
+        "validation_max_us": 985,
+        "callback_time_subtracted": true,
+        "includes_media_wrapper": true,
+        "dsp_i2s_test": false,
+        "rf_test": false
+      },
+      {
+        "probe": "lhdc_decoder_estimate",
+        "trial": 2,
+        "mean_us": 3804,
+        "p50_us": 3661,
+        "p95_us": 4067,
+        "p99_us": 4119,
+        "max_us": 4119,
+        "deadline_misses": 0,
+        "mean_cycles": 913486,
+        "validation_mean_us": 973,
+        "validation_max_us": 985,
+        "callback_time_subtracted": true,
+        "includes_media_wrapper": true,
+        "dsp_i2s_test": false,
+        "rf_test": false
+      }
+    ],
+    "stage_cycles": [
+      {
+        "probe": "lhdc_stage_cycles",
+        "trial": 0,
+        "stage": "pre",
+        "channel_calls": 168,
+        "sum_cycles": 1070238,
+        "maximum_cycles": 11528,
+        "elapsed_core_cycles": true
+      },
+      {
+        "probe": "lhdc_stage_cycles",
+        "trial": 0,
+        "stage": "entropy",
+        "channel_calls": 168,
+        "sum_cycles": 32212121,
+        "maximum_cycles": 231943,
+        "elapsed_core_cycles": true
+      },
+      {
+        "probe": "lhdc_stage_cycles",
+        "trial": 0,
+        "stage": "mantissa",
+        "channel_calls": 168,
+        "sum_cycles": 12221451,
+        "maximum_cycles": 84618,
+        "elapsed_core_cycles": true
+      },
+      {
+        "probe": "lhdc_stage_cycles",
+        "trial": 0,
+        "stage": "dequant_sns",
+        "channel_calls": 168,
+        "sum_cycles": 3948550,
+        "maximum_cycles": 33446,
+        "elapsed_core_cycles": true
+      },
+      {
+        "probe": "lhdc_stage_cycles",
+        "trial": 0,
+        "stage": "imdct",
+        "channel_calls": 168,
+        "sum_cycles": 16845520,
+        "maximum_cycles": 101515,
+        "elapsed_core_cycles": true
+      },
+      {
+        "probe": "lhdc_stage_cycles",
+        "trial": 0,
+        "stage": "overlap",
+        "channel_calls": 168,
+        "sum_cycles": 1938261,
+        "maximum_cycles": 11562,
+        "elapsed_core_cycles": true
+      },
+      {
+        "probe": "lhdc_stage_cycles",
+        "trial": 1,
+        "stage": "pre",
+        "channel_calls": 168,
+        "sum_cycles": 1068845,
+        "maximum_cycles": 11038,
+        "elapsed_core_cycles": true
+      },
+      {
+        "probe": "lhdc_stage_cycles",
+        "trial": 1,
+        "stage": "entropy",
+        "channel_calls": 168,
+        "sum_cycles": 32212036,
+        "maximum_cycles": 231930,
+        "elapsed_core_cycles": true
+      },
+      {
+        "probe": "lhdc_stage_cycles",
+        "trial": 1,
+        "stage": "mantissa",
+        "channel_calls": 168,
+        "sum_cycles": 12221391,
+        "maximum_cycles": 84618,
+        "elapsed_core_cycles": true
+      },
+      {
+        "probe": "lhdc_stage_cycles",
+        "trial": 1,
+        "stage": "dequant_sns",
+        "channel_calls": 168,
+        "sum_cycles": 3946455,
+        "maximum_cycles": 32476,
+        "elapsed_core_cycles": true
+      },
+      {
+        "probe": "lhdc_stage_cycles",
+        "trial": 1,
+        "stage": "imdct",
+        "channel_calls": 168,
+        "sum_cycles": 16844629,
+        "maximum_cycles": 101035,
+        "elapsed_core_cycles": true
+      },
+      {
+        "probe": "lhdc_stage_cycles",
+        "trial": 1,
+        "stage": "overlap",
+        "channel_calls": 168,
+        "sum_cycles": 1939130,
+        "maximum_cycles": 12394,
+        "elapsed_core_cycles": true
+      },
+      {
+        "probe": "lhdc_stage_cycles",
+        "trial": 2,
+        "stage": "pre",
+        "channel_calls": 168,
+        "sum_cycles": 1070238,
+        "maximum_cycles": 11528,
+        "elapsed_core_cycles": true
+      },
+      {
+        "probe": "lhdc_stage_cycles",
+        "trial": 2,
+        "stage": "entropy",
+        "channel_calls": 168,
+        "sum_cycles": 32211958,
+        "maximum_cycles": 231943,
+        "elapsed_core_cycles": true
+      },
+      {
+        "probe": "lhdc_stage_cycles",
+        "trial": 2,
+        "stage": "mantissa",
+        "channel_calls": 168,
+        "sum_cycles": 12221595,
+        "maximum_cycles": 84618,
+        "elapsed_core_cycles": true
+      },
+      {
+        "probe": "lhdc_stage_cycles",
+        "trial": 2,
+        "stage": "dequant_sns",
+        "channel_calls": 168,
+        "sum_cycles": 3948086,
+        "maximum_cycles": 33446,
+        "elapsed_core_cycles": true
+      },
+      {
+        "probe": "lhdc_stage_cycles",
+        "trial": 2,
+        "stage": "imdct",
+        "channel_calls": 168,
+        "sum_cycles": 16845554,
+        "maximum_cycles": 101515,
+        "elapsed_core_cycles": true
+      },
+      {
+        "probe": "lhdc_stage_cycles",
+        "trial": 2,
+        "stage": "overlap",
+        "channel_calls": 168,
+        "sum_cycles": 1938260,
+        "maximum_cycles": 11562,
+        "elapsed_core_cycles": true
+      }
+    ],
+    "pcm_hashes": [
+      {
+        "probe": "lhdc_pcm_hash",
+        "trial": 0,
+        "sample_frames": 92160,
+        "fnv1a32": 4008775619
+      },
+      {
+        "probe": "lhdc_pcm_hash",
+        "trial": 1,
+        "sample_frames": 92160,
+        "fnv1a32": 4008775619
+      },
+      {
+        "probe": "lhdc_pcm_hash",
+        "trial": 2,
+        "sample_frames": 92160,
+        "fnv1a32": 4008775619
+      }
+    ]
+  },
+  "candidate_host_differential": {
+    "passed": true,
+    "scope": "actual bit-reader differential execution on host; not target timing or full codec execution",
+    "sanitizers": [],
+    "cases": 3565921,
+    "bytes_and_complete_reader_state_identical": true,
+    "source_sha256": {
+      "D:\\bt-owned61\\native_bt\\tests\\codecs\\lhdc_fac_bytes.c": "736f88d7a4604a82b16a901c55f93848f8c33d03a945fe93398b88eb1ec90cec",
+      "D:\\ESP32 Bluetooth\\LHDC-V5-Decoder-main\\decoder\\lhdc_bit_reader.c": "81eeba454ebb29aeef03184202b7aa2a84f8b94549475cfc96fef5eeb2dd3a77",
+      "D:\\bt-owned61\\native_bt\\codecs\\lhdcv5\\dbt_lhdc_bits.h": "2a94e020da0eca8a902ba1d3ef542e595c0474e454addcf13666e79949094a2e",
+      "D:\\bt-owned61\\native_bt\\tools\\test_lhdc_fac_bytes.py": "4ddc422ee201657d7793e16bcc9eb07a4c6cd20274cb46c922407792c759a25c",
+      "D:\\ESP32 Bluetooth\\LHDC-V5-Decoder-main\\decoder\\lhdc_bit_reader.h": "9148efdbb01b6767cadbf1f3ed5b5b7592b931db05937539ecfa54ea4aa2a21d",
+      "D:\\ESP32 Bluetooth\\LHDC-V5-Decoder-main\\decoder\\lhdc_dec.h": "cd59bb9ba2a099a3d26cf526676b4513493fc68edd84609a3c4cd0d3128efaa6",
+      "D:\\ESP32 Bluetooth\\LHDC-V5-Decoder-main\\decoder\\lhdc_dec_internal.h": "dece279c95755c35e3f31fce1cbc6164183830db7e1c7d95aedf34bec0c66941",
+      "D:\\ESP32 Bluetooth\\LHDC-V5-Decoder-main\\decoder\\lhdc_dec_slot.h": "0dfa37032f39f3cb48ba2fb4eb0c479c58ba2680410def7eb0af15a40140e042",
+      "D:\\ESP32 Bluetooth\\LHDC-V5-Decoder-main\\decoder\\lhdc_diag_config.h": "ae2224a4dd86bed16ecd4b08f8ca05b3344cec42298d44114e818ebc7605cfcd",
+      "D:\\ESP32 Bluetooth\\LHDC-V5-Decoder-main\\decoder\\lhdc_entropy_dec.h": "b84717ce9a6f91446f349eac9809ccebac064745d67198c78e704555f19ef982",
+      "D:\\ESP32 Bluetooth\\LHDC-V5-Decoder-main\\decoder\\lhdc_imdct.h": "6bb2d9f77ebfb8c30109423bc0d90dc1f9078fc9b36335ca9a817ad645b5c724",
+      "D:\\ESP32 Bluetooth\\LHDC-V5-Decoder-main\\decoder\\lhdc_sns_synth.h": "848094a1254ae48313403db555d6e4e7e11125fe0f419281a2cf0afd8b8681fa",
+      "D:\\ESP32 Bluetooth\\LHDC-V5-Decoder-main\\decoder\\lhdc_tables.h": "980d7442c3466ec44545a0be2bead28e74c4d584688dbb0129d7e980cf60ef62"
+    }
+  },
+  "candidate_host_sanitizers": {
+    "passed": true,
+    "scope": "actual bit-reader differential execution on host; not target timing or full codec execution",
+    "sanitizers": [
+      "address",
+      "undefined"
+    ],
+    "cases": 3565921,
+    "bytes_and_complete_reader_state_identical": true,
+    "source_sha256": {
+      "D:\\bt-owned61\\native_bt\\tests\\codecs\\lhdc_fac_bytes.c": "736f88d7a4604a82b16a901c55f93848f8c33d03a945fe93398b88eb1ec90cec",
+      "D:\\ESP32 Bluetooth\\LHDC-V5-Decoder-main\\decoder\\lhdc_bit_reader.c": "81eeba454ebb29aeef03184202b7aa2a84f8b94549475cfc96fef5eeb2dd3a77",
+      "D:\\bt-owned61\\native_bt\\codecs\\lhdcv5\\dbt_lhdc_bits.h": "2a94e020da0eca8a902ba1d3ef542e595c0474e454addcf13666e79949094a2e",
+      "D:\\bt-owned61\\native_bt\\tools\\test_lhdc_fac_bytes.py": "ac753f1bd2eaa8d1c64e446ab216498eec7c45b6a94cf63ef314e7e48f2da1b0",
+      "D:\\ESP32 Bluetooth\\LHDC-V5-Decoder-main\\decoder\\lhdc_bit_reader.h": "9148efdbb01b6767cadbf1f3ed5b5b7592b931db05937539ecfa54ea4aa2a21d",
+      "D:\\ESP32 Bluetooth\\LHDC-V5-Decoder-main\\decoder\\lhdc_dec.h": "cd59bb9ba2a099a3d26cf526676b4513493fc68edd84609a3c4cd0d3128efaa6",
+      "D:\\ESP32 Bluetooth\\LHDC-V5-Decoder-main\\decoder\\lhdc_dec_internal.h": "dece279c95755c35e3f31fce1cbc6164183830db7e1c7d95aedf34bec0c66941",
+      "D:\\ESP32 Bluetooth\\LHDC-V5-Decoder-main\\decoder\\lhdc_dec_slot.h": "0dfa37032f39f3cb48ba2fb4eb0c479c58ba2680410def7eb0af15a40140e042",
+      "D:\\ESP32 Bluetooth\\LHDC-V5-Decoder-main\\decoder\\lhdc_diag_config.h": "ae2224a4dd86bed16ecd4b08f8ca05b3344cec42298d44114e818ebc7605cfcd",
+      "D:\\ESP32 Bluetooth\\LHDC-V5-Decoder-main\\decoder\\lhdc_entropy_dec.h": "b84717ce9a6f91446f349eac9809ccebac064745d67198c78e704555f19ef982",
+      "D:\\ESP32 Bluetooth\\LHDC-V5-Decoder-main\\decoder\\lhdc_imdct.h": "6bb2d9f77ebfb8c30109423bc0d90dc1f9078fc9b36335ca9a817ad645b5c724",
+      "D:\\ESP32 Bluetooth\\LHDC-V5-Decoder-main\\decoder\\lhdc_sns_synth.h": "848094a1254ae48313403db555d6e4e7e11125fe0f419281a2cf0afd8b8681fa",
+      "D:\\ESP32 Bluetooth\\LHDC-V5-Decoder-main\\decoder\\lhdc_tables.h": "980d7442c3466ec44545a0be2bead28e74c4d584688dbb0129d7e980cf60ef62"
+    }
+  },
+  "candidate_target": null,
+  "production_qualified": false
+}

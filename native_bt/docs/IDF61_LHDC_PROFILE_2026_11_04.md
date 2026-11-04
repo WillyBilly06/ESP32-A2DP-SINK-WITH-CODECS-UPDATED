@@ -46,3 +46,47 @@ validation time still includes media-wrapper work and excludes the real
 DSP/I2S/provider workload. No pass here establishes maximum-rate coexistence.
 The unchanged 192 kHz/stereo/S24/1000 kbps configuration must eventually satisfy
 the complete pipeline, control responsiveness and sustained-stress gates.
+
+## Measured profile before the FAC-reader change
+
+COM6 ran image
+`8657d143491942e2a281a789d40f231012a79934d699b99ca3993089fde7beaa`
+from source checkpoint `9ed5bd22`. All 37 existing configurations passed again.
+Each of three maximum-rate trials passed 56 reference PCM checkpoints and
+produced the same full-output FNV-1a hash, `4008775619` (92,160 stereo frames).
+
+| Timing across the three trials | Mean per frame | Maximum per frame |
+|---|---:|---:|
+| Media including validation | 4,777–4,778 us | 5,101–5,113 us |
+| Callback-subtracted estimate | 3,804 us | 4,119–4,131 us |
+| Validation callback | 973 us | 985 us |
+
+The conservative gate still failed, with 15, 11 and 14 deadline misses out of
+84 measurements per trial. These are stable measurements, not a complete
+pipeline result. Each trial generated 168 measured channel-stage records.
+
+| Stage | Mean elapsed us per stereo frame at 240 MHz |
+|---|---:|
+| Preamble | 53.1 |
+| Entropy | 1,597.8 |
+| Mantissa | 606.2 |
+| Dequantization/SNS | 195.8 |
+| IMDCT | 835.6 |
+| Overlap | 96.2 |
+
+Entropy is the largest measured stage. Its initial FAC copy performs two
+out-of-line bit-reader calls and variable 64-bit cache manipulation for each
+byte. The candidate change retains the same scratch capacity and copies exact
+bytes using a 32-bit residual carry after draining prefetched bytes. It changes
+no codec arithmetic, framing, bitrate, sample rate, depth or security checks.
+
+The actual unmodified bit reader and the new helper were compared over
+3,565,921 cases: capacities and input lengths, every cache alignment, prefetched
+states, complete residual-carry/input-byte transitions, reader-state equality
+and output canaries. The same suite passed AddressSanitizer and
+UndefinedBehaviorSanitizer. These are host correctness checks; target speed and
+whole-decoder regression evidence must be gathered separately.
+
+The profiled run returned cleanly to released Bluedroid firmware. Its complete
+local artifact/receipts are retained in
+`_build/hardware/runs/1793787196186963900-8657d1434919/`.

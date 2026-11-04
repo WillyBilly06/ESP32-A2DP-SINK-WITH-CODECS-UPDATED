@@ -167,7 +167,11 @@ extern void dbt_lhdc_stage_record(uint32_t,uint32_t,uint32_t,uint32_t,uint32_t,u
                       '        if (conceal && g_lhdc_trace > 0 && (s_rl++ % 16) == 0) {')
         if name=="lhdc_entropy_dec.c":
             text=once(text,'#include <stdlib.h>   /* malloc/free for the lazily-heaped FAC models */',
-                      '#include <stdlib.h>\n#include "dbt_lhdc_alloc.h"')
+                      '#include <stdlib.h>\n#include "dbt_lhdc_alloc.h"\n#include "dbt_lhdc_bits.h"')
+            text=once(text,'''    int nb = 0;
+    while (lhdc_bit_reader_remaining(br) >= 8 && nb < scratch_fac_cap) {
+        facbuf[nb++] = (uint8_t)lhdc_bit_reader_read(br, 8);
+    }''','''    const int nb = dbt_lhdc_read_fac_bytes(br, facbuf, scratch_fac_cap);''')
             start=text.index('static uint8_t s_fac_hist1[LHDC_NSLOTS][512];')
             end=text.index('\n/* The FAC alphabet is always ternary',start)
             replacement='''typedef struct {
