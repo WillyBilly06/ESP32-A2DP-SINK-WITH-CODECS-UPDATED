@@ -8,10 +8,30 @@ typedef struct {
     dbt_result_t (*security)(uint16_t,uint32_t,dbt_smp_session_security_t *);
     dbt_product_peer_value_t current;dbt_ble_control_peer_t granted_peer;
     dbt_ota_manifest_t grant;bool have_current,ota_granted;
+    dbt_result_t (*trust)(uint16_t,uint32_t,uint8_t *,uint8_t[6],uint8_t[32]);
+    uint8_t trust_type,trust_identity[6],trust_tag[32];
+    uint32_t grant_serial,grant_epoch,selected_epoch,restart_at,restart_deadline;
+    bool activation_started,restart_pending,begin_admitted,finish_admitted;
     probe_product_name_t name;uint32_t rename_token,retry_at;bool have_name,retry_pending;
 } probe_product_runtime_t;
 bool probe_product_runtime_init(probe_product_runtime_t *,probe_product_t *,dbt_runtime_t *,dbt_gap_t *,
                                 dbt_result_t (*security)(uint16_t,uint32_t,dbt_smp_session_security_t *));
+/* Owner-only; durable local trust, independent of encryption/bonding alone. */
+bool probe_product_runtime_set_trust(probe_product_runtime_t *,
+    dbt_result_t (*)(uint16_t,uint32_t,uint8_t *,uint8_t[6],uint8_t[32]));
+/* OTA hook adapters used by the GATT owner/worker handoff. */
+uint32_t probe_product_runtime_ota_admit(void *,const dbt_ble_control_peer_t *,uint8_t,const uint8_t *,uint16_t);
+void probe_product_runtime_ota_abandon(void *,const dbt_ble_control_peer_t *,uint32_t,uint8_t);
+bool probe_product_runtime_ota_valid(void *,const dbt_ble_control_peer_t *,uint32_t);
+bool probe_product_runtime_ota_worker(void *,const dbt_ble_control_peer_t *,uint32_t,
+    uint8_t,const uint8_t *,uint16_t,uint8_t *,uint8_t *);
+dbt_result_t probe_product_runtime_ota_finish(void *,const dbt_ble_control_peer_t *,uint32_t);
+void probe_product_runtime_ota_delivered(void *,const dbt_ble_control_peer_t *,uint32_t);
+/* Owner-only. True consumes a fresh selected+delivered handoff after 500 ms,
+ * before its 10 s timeout. Pass true only after all admitted persistence,
+ * trust/security workers, ATT/TX, A2DP/output and sound loans are quiescent,
+ * with admission fenced and no latched fault; immediately invoke restart. */
+bool probe_product_runtime_restart_ready(probe_product_runtime_t *,uint32_t now_ms,bool all_quiescent);
 /* Owner-only, called after SMP and GAP polls. */
 void probe_product_runtime_poll(probe_product_runtime_t *);
 /* Owner-only bounded refresh, safe before dispatching a fixed-CID command. */

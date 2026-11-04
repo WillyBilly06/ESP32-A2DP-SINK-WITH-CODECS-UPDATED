@@ -16,6 +16,8 @@ typedef struct {
     dbt_product_peer_t peer;dbt_ota_t ota;dbt_ota_esp_t esp;probe_product_hooks_t hooks;
     _Atomic uint32_t name_phase,name_token,name_handle,name_generation,name_length,name_words[8];
     _Atomic uint32_t action_phase,action_handle,action_generation;
+    _Atomic uint32_t admission_epoch,verified_epoch,action_epoch,terminal_epoch;
+    uint32_t ota_session_epoch;
     uint32_t next_name_token;bool ready;
 } probe_product_t;
 typedef struct {uint32_t token,generation;uint16_t handle;uint8_t length;char name[33];} probe_product_name_t;
@@ -46,5 +48,10 @@ bool probe_product_take_name(probe_product_t *,probe_product_name_t *);
 bool probe_product_complete_name(probe_product_t *,uint32_t token,bool applied);
 /* Explicit user/owner action only; scheduling does not select or restart. */
 bool probe_product_request_activation(probe_product_t *,const dbt_ble_control_peer_t *);
+/* The owner publishes a fresh nonzero epoch before OTA admission and clears
+ * it before revocation. The worker rejects every stale queued epoch. */
+void probe_product_ota_epoch(probe_product_t *,uint32_t epoch);
+bool probe_product_ota_command_epoch(void *,const dbt_ble_control_peer_t *,uint32_t epoch,
+    uint8_t command,const uint8_t *,uint16_t,uint8_t *,uint8_t *);
 probe_product_action_result_t probe_product_take_activation_result(probe_product_t *);
 #endif

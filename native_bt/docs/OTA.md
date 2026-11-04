@@ -1,23 +1,27 @@
 # Independent BLE OTA provider
 
-This provider is unwired and disabled until the application explicitly creates
-an OTA object, supplies all hooks, authorizes the peer, selects a slot and routes
-commands to it. Its baseline wire opcodes are begin `20 <length-le32>`, data
+With the required product/GATT hooks configured, the OTA path uses baseline wire opcodes:
+begin `20 <length-le32>`, data
 `21 <sequence8> <bytes>`, end `22`, and abort `23`. Responses use baseline
 `OTA_READY` (`21`), progress (`20 <percent>`), complete (`22`), failed
 (`23 <reason>`) and abort ACK (`10 23`). Ready follows successful backend setup;
-progress follows completed writes, and complete means the image was verified
-in the inactive slot. Complete does not select it or reboot.
+progress follows completed writes. On the epoch-bound GATT path, complete is
+held until verification and the owner-requested selector action both succeed.
+The completion notification must reach runtime TX admission before a restart
+handoff is eligible; TX admission is not proof of peer receipt.
 
 The baseline command format has no independently trusted image digest or CRC.
-An explicit local grant must authorize the current encrypted, bonded peer and
-project; the hook rechecks it and the peer generation on every command and
-activation. The grant can optionally carry an independently trusted CRC-32 and
+The owner queries the locally admitted trusted control bond at begin and
+rechecks its exact resolved identity, bond-incarnation digest, handle and
+generation. Each transfer gets a fresh nonzero command epoch, copied into every
+queued worker job. Re-pairing, revocation, disconnect, stale completion or an
+epoch mismatch cancels authorization; encryption or a bond alone is not a
+grant. The grant can optionally carry an independently trusted CRC-32 and
 SHA-256. With no trusted digest, SDK verification of the image's embedded hash
 plus stream-to-flash SHA-256 readback check detects corruption, but does not
 authenticate the firmware. A digest sent by the same untrusted BLE peer is not
-independent authorization. No manifest loader, signature verifier, owner UI,
-grant issuer or signing infrastructure is included. The first sequence value is
+independent authorization. No signed image manifest loader, image-signature
+verifier or signing infrastructure is included. The first sequence value is
 accepted as the starting value, then increments modulo 256; duplicates and
 out-of-order chunks fail. An 8-bit replay after exactly 256 chunks cannot be
 identified by sequence alone, and requires a trusted digest to detect at finish.
@@ -54,8 +58,39 @@ not establish what rollback behavior the preserved bootloader supports; manual
 recovery and an explicit activation decision remain the owner's responsibility.
 This is a software model, not real flash power-cut or bootloader evidence.
 
-Use `dbt_ota_control_command` directly when the control-hook context is the OTA
-object, or route opcodes `20` through `23` via an application-owned provider mux.
+The GATT adapter requires the status CCCD and the configured OTA admission,
+worker, selector and TX-admission hooks. It rejects new transfer jobs after end
+is admitted and retains the end request while the owner schedules the selector
+on the worker. A failed or ambiguous selector cannot produce a successful end
+ACK or restart handoff. Selector admission can race revocation or timeout;
+the selector may already have changed in that case, but the result is treated
+as ambiguous and cannot authorize restart.
+
+After verification, before selector admission, the adapter fences new GATT
+mutations and normal local EQ/control admission. The owner-side `prepare` hook
+must pause physical sampling and drain already-observed events individually
+through the narrow `probe_gatt_control_eq_delta_drain` and
+`probe_gatt_control_toggle_drain` operations. It must wait for each immediate
+commit and for `probe_gatt_restart_prepare_quiescent`, which excludes the held
+end request but checks other GATT/CCCD jobs, pending status and ATT TX loans.
+The hook returns BUSY while progressing and INVALID on failure; neither blocks
+the general worker. Selector and complete ACK wait for successful prepare.
+
+After selection `probe_gatt_restart_quiescent` checks the remaining GATT work.
+The owner must also fence and drain all other mutation producers, admitted
+persistence and trust/security work, A2DP/output and sound loans, and refuse
+restart on any latched fault or retained input event. Only after those checks
+may the owner pass true to
+`probe_product_runtime_restart_ready`. The handoff is single-use, requires
+fresh trust, starts no earlier than 500 ms after TX admission, and expires after
+10 seconds. On fault or timeout, cancel the GATT fence and do not reset. The
+current product build wires the coordinator and terminal action described in
+`OTA_RESTART_BARRIER.md`; this is source/target-link evidence, not an executed
+ESP32 update. Merely having
+historical `VERIFIED` state never restarts. No implementation may infer peer
+receipt from runtime TX admission.
+
+The standalone `dbt_ota_control_command` remains useful in isolated state tests.
 `dbt_ota_esp_*` functions accept `dbt_ota_esp_t *` as their backend context; a
 composite application context needs thin wrappers to combine them with the grant
 and clock hooks. All commands, backend functions, `dbt_ota_tick`, and activation

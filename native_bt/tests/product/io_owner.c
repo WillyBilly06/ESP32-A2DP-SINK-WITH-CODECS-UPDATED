@@ -8,6 +8,15 @@ static dbt_led_settings_t settings={{3,50,2,1,2,3,4,5,6,1}};static dbt_led_recei
 static uint8_t volume=50,last_op,brightness_raw=128;static unsigned key_down,key_up;
 static uint8_t sound_status=0x85,last_sound;static bool sound_busy,play_result_ready,play_block;
 static dbt_result_t sound_result;static unsigned sound_sends,sound_cancels,pair_modes,pair_success,volume_feedback;
+static bool pause_requested,pause_ack,drain_fail;
+dbt_result_t probe_product_io_input_pause(bool pause){pause_requested=pause;return DBT_OK;}
+dbt_result_t probe_product_io_input_paused(void){return !pause_requested?DBT_INVALID:pause_ack?DBT_OK:DBT_BUSY;}
+bool probe_product_io_input_drained(void){return pause_requested && pause_ack && head==tail;}
+#ifdef DBT_PROBE_PRODUCT_SECURITY
+static bool test_admission_window=true;static unsigned test_admission_opened;
+void probe_admission_open(uint32_t now){(void)now;test_admission_opened++;}
+bool probe_admission_window(uint32_t now){(void)now;return test_admission_window;}
+#endif
 bool probe_audio_sound_memory_ok(void){return true;}
 bool probe_product_io_sound_busy(void){return sound_busy;}
 dbt_result_t probe_product_io_play(uint8_t type,uint32_t rate,bool exclusive){
@@ -49,7 +58,9 @@ dbt_result_t probe_product_io_local_led_relative(dbt_led_operation_t op,int8_t d
 }
 dbt_result_t probe_gatt_control_worker_required(bool r){required=r;return DBT_OK;}
 dbt_result_t probe_gatt_control_eq_delta(uint8_t b,int8_t d){assert(b==0);eq_attempts++;if(eq_block){eq_block=false;return DBT_BUSY;}steps[eq_success++]=d;return DBT_OK;}
+dbt_result_t probe_gatt_control_eq_delta_drain(uint8_t b,int8_t d){return drain_fail?DBT_INVALID:probe_gatt_control_eq_delta(b,d);}
 dbt_result_t probe_gatt_control_toggle(uint8_t flag){flags^=flag;return DBT_OK;}
+dbt_result_t probe_gatt_control_toggle_drain(uint8_t flag){return probe_gatt_control_toggle(flag);}
 dbt_result_t probe_gatt_control_led_applied(const uint8_t v[10]){assert(v[1]==50 || v[1]==52 || v[1]==54);return DBT_OK;}
 dbt_result_t probe_gatt_control_sound_applied(uint8_t v){assert(v==sound_status);sound_updates++;return DBT_OK;}
 dbt_result_t probe_gatt_control_notify(const dbt_ble_control_peer_t *p,const uint8_t *v,uint8_t n){assert(p->generation==1 && n==2 && v[0]==0x33);if(notice_block){notice_block=false;return DBT_BUSY;}notices++;return DBT_OK;}
@@ -138,5 +149,34 @@ int main(void){
     audio_active=false;gap.classic_scan=3;queue[head++]=(dbt_input_action_t){DBT_INPUT_PAIR,0};
     probe_product_io_owner_poll(&a,4700);assert(a.pairing_active && pair_modes==1 && sound_sends==3 && last_sound==1);
     probe_product_io_owner_audio(&a,0,42,32,0,4800);assert(!a.pairing_active && pair_success==1 && sound_cancels==5);
+#ifdef DBT_PROBE_PRODUCT_SECURITY
+    assert(test_admission_opened>0);a.pairing_active=true;test_admission_window=false;
+    probe_product_io_owner_poll(&a,4820);assert(!a.pairing_active && a.audio_connected);
+#endif
+    /* Restart preparation drains each accepted EQ/control step while the
+     * producer is paused, retaining a failed admission for retry on cancel. */
+    queue[head++]=(dbt_input_action_t){DBT_INPUT_EQ_BASS,1};queue[head++]=(dbt_input_action_t){DBT_INPUT_EQ_BASS,-1};
+    queue[head++]=(dbt_input_action_t){DBT_INPUT_BASS_BOOST,0};queue[head++]=(dbt_input_action_t){DBT_INPUT_NEXT,0};
+    eq_block=true;pause_ack=false;assert(probe_product_io_owner_restart_begin(&a)==DBT_OK && pause_requested);
+    assert(probe_product_io_owner_restart_poll(&a,4900)==DBT_BUSY && a.have_input);
+    pause_ack=true;assert(probe_product_io_owner_restart_poll(&a,4920)==DBT_OK && !a.have_input && head==tail);
+    assert(steps[2]==1 && steps[3]==-1 && key_down==1);
+    probe_product_io_owner_restart_cancel(&a);assert(!pause_requested && !a.restart_preparing);
+    queue[head++]=(dbt_input_action_t){DBT_INPUT_EQ_BASS,1};drain_fail=true;pause_ack=true;
+    assert(probe_product_io_owner_restart_begin(&a)==DBT_OK && probe_product_io_owner_restart_poll(&a,4940)==DBT_INVALID && a.have_input);
+    probe_product_io_owner_restart_cancel(&a);drain_fail=false;probe_product_io_owner_poll(&a,4960);assert(!a.have_input && steps[4]==1);
+    /* A queued pairing disconnect is cancelled before its generation fence is
+     * cleared; a submitted disconnect must finish or fail before restart. */
+    probe_product_io_owner_t q={0};q.gap=&gap;q.io_ready=true;audio_active=true;
+    active_link=(dbt_link_t){.used=true,.kind=DBT_LINK_CLASSIC,.handle=42,.generation=55};
+    queue[head++]=(dbt_input_action_t){DBT_INPUT_PAIR,0};probe_product_io_owner_poll(&q,5000);assert(done);
+    pause_ack=true;assert(probe_product_io_owner_restart_begin(&q)==DBT_OK);
+    assert(probe_product_io_owner_restart_poll(&q,5020)==DBT_OK && !done && !q.have_input);
+    probe_product_io_owner_restart_cancel(&q);
+    queue[head++]=(dbt_input_action_t){DBT_INPUT_PAIR,0};probe_product_io_owner_poll(&q,5100);assert(done);sent=true;
+    assert(probe_product_io_owner_restart_begin(&q)==DBT_OK && probe_product_io_owner_restart_poll(&q,5120)==DBT_BUSY);
+    status(DBT_COMMAND_SUCCESS);assert(probe_product_io_owner_restart_poll(&q,5140)==DBT_BUSY);
+    change.generation=55;active_link.used=false;probe_product_io_owner_link(&q,&change);
+    assert(probe_product_io_owner_restart_poll(&q,5160)==DBT_OK);probe_product_io_owner_restart_cancel(&q);
     return 0;
 }

@@ -20,7 +20,8 @@ completion, not HCI command admission. The grant and its source are the owner's
 policy responsibility; the module does not provide a UI or authenticate images.
 
 Route the GATT generic command hook to `probe_product_command()` with the
-product object as context, or provide a mux. It handles name and OTA; LED and
+product object as context, or provide a mux. It handles name; epoch-bound OTA
+uses the separate GATT OTA hooks described in `OTA.md`. LED and
 sound require an explicit `other_command` provider whose success means its
 operation completed. Unavailable providers fail. EQ and flags keep their existing
 separate persistence/publication hooks and EQ worker. Route the GATT owner-side
@@ -30,6 +31,17 @@ when it returns false; it retries backend cleanup on the next retirement poll.
 The worker must poll at least every 20 ms or on owner wake while active so
 disconnect, timeout and explicit actions do not depend on another command.
 `wake_owner` and `wake_worker` are bounded notifications, not work callbacks.
+Configure GATT's trusted-control cookie capture and worker-safe validation
+before initialization. Every privileged remote job captures the current cookie;
+queued non-EQ providers revalidate immediately before provider entry and the
+owner revalidates before success and status publication. Accepted EQ/control
+persistence obligations still commit after revocation, but stale success and
+status are suppressed. A provider already past its admission fence may finish
+an in-flight operation; the stale result cannot become a new grant's ACK. A
+success response still waiting for an ATT TX loan is fenced on revocation; an
+already borrowed runtime TX cannot be retracted by this layer. Write Commands
+arriving while such an ACK is pending are ignored so they cannot replace its
+ATT token; clients should wait for the request response before sending them.
 
 Name writes commit `audio.devname` on the worker, then publish a tokenized
 owner request. The owner takes it with `probe_product_take_name()`, applies the
@@ -41,9 +53,9 @@ the owner to apply. The owner must reconcile GATT's status snapshot with the
 durable name after a late apply; an old completion token cannot complete a new
 request. Generic worker waiting is bounded by the configured name timeout.
 
-OTA activation is never implicit. A separate owner decision calls
-`probe_product_request_activation()` and the worker poll performs selection;
-the owner consumes the result with `probe_product_take_activation_result()`.
+After an authorized OTA end is verified, the owner-driven GATT handoff first
+requires a successful quiescence preparation, then calls
+`probe_product_request_activation()` and the worker performs selection.
 `PROBE_PRODUCT_SELECTION_AMBIGUOUS` must be reconciled before another update or
 restart decision. No worker resets the device. The selector/rollback and
 integrity limits in `OTA.md` apply, especially the distinction between the app's
@@ -58,19 +70,15 @@ prove target link, actual NVS/flash, image integrity, timing, phone behavior or
 RF. `python native_bt/tools/test_ota.py` covers the independent OTA state and
 selector model.
 
-The current main glue initializes this provider on its startup worker and
-publishes owner snapshots only when the live LE link and `probe_smp_security`
-both report encryption, the bond commit is complete and the key is 16 bytes.
-Name access follows that condition. OTA is additionally gated by an explicit
-owner decision through `probe_application_grant_ota(handle,generation,manifest)`;
-activation requires a second owner call to `probe_application_activate_ota`.
-`probe_application_take_ota_result` distinguishes completed selection from an
-ambiguous failure. These entry points enforce host-owner task context. No local
-grant UI or automatic restart is wired. A baseline grant passes a null manifest;
+The main glue initializes this provider on its startup worker. The runtime
+publishes name/OTA access only for a live encrypted committed 16-byte bond that
+also matches the local trusted-control policy. OTA may use a null manifest;
 this is peer authorization, not image authenticity. The main glue refreshes
 security before fixed-CID ATT dispatch, reconciles durable names through the
 correlated asynchronous GAP operation, and updates the GATT name only after
 success. `probe_application_set_other_provider` is a pre-startup registration
 point for a future LED/sound provider and its nonblocking audio-busy snapshot;
 without one those commands fail. Its mux rejects name/OTA during a busy sound
-loan and defers an explicit activation while busy, without deferring EQ commits.
+loan and defers activation while busy, without deferring EQ commits. The owner
+must wire the pre-selector preparation and restart coordination in `OTA.md`;
+object compilation alone does not prove that integration.

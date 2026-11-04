@@ -32,11 +32,19 @@
 #endif
 #include "probe_product_io_owner.h"
 #include "esp_spiffs.h"
+#ifdef DBT_PROBE_PRODUCT_SECURITY
+#include "probe_admission.h"
+#include "probe_restart.h"
+#endif
 #endif
 #ifdef DBT_PROBE_AVRCP
 #include "probe_avrcp.h"
 #include "probe_output.h"
 #endif
+#ifdef DBT_PROBE_RFCOMM
+#include "probe_rfcomm.h"
+#endif
+#include "esp_system.h"
 #include "esp_bt.h"
 #ifdef DBT_PROBE_KEEP_OWNED_ACTIVE
 #include "esp_ota_ops.h"
@@ -104,6 +112,9 @@ static bool product_load_ok;
 #ifdef DBT_PROBE_PRODUCT_RUNTIME
 static probe_product_t product;
 static probe_product_runtime_t product_runtime;
+#ifdef DBT_PROBE_PRODUCT_SECURITY
+static probe_restart_t product_restart;
+#endif
 static bool product_runtime_ready,product_provider_ready,product_starting;
 static probe_application_other_command_t product_other_callback;
 static probe_application_audio_busy_t product_audio_busy_callback;
@@ -189,6 +200,28 @@ static bool product_mux_command(void *ctx,const dbt_ble_control_peer_t *peer,uin
     if((command==4 || (command>=0x20 && command<=0x23)) && product_audio_busy())return false;
     return probe_product_command(ctx,peer,command,data,size,out,out_size);
 }
+#ifdef DBT_PROBE_PRODUCT_SECURITY
+static bool product_ota_worker(void *ctx,const dbt_ble_control_peer_t *peer,uint32_t epoch,uint8_t cmd,const uint8_t *data,uint16_t size,uint8_t *out,uint8_t *out_size){
+    if(product_audio_busy())return false;
+    return probe_product_runtime_ota_worker(ctx,peer,epoch,cmd,data,size,out,out_size);
+}
+static dbt_result_t product_ota_prepare(void *ctx,const dbt_ble_control_peer_t *peer,uint32_t epoch){
+    if(ctx!=&product_runtime || !probe_product_runtime_ota_valid(ctx,peer,epoch))return DBT_INVALID;
+    return probe_restart_prepare(&product_restart,epoch,now_ms());
+}
+static _Noreturn void product_restart_now(void){esp_restart();}
+static void product_restart_step(uint32_t now){
+    if(!product_runtime_ready)return;
+    if(!probe_gatt_restart_fenced()){
+        if(probe_restart_active(&product_restart))probe_restart_cancel(&product_restart,now);
+        return;
+    }
+    bool quiescent=probe_restart_active(&product_restart) && probe_restart_quiescent(&product_restart,now);
+    if(product_restart.failed){probe_gatt_restart_cancel();probe_restart_cancel(&product_restart,now);return;}
+    bool approved=probe_product_runtime_restart_ready(&product_runtime,now,quiescent);
+    if(quiescent && approved)product_restart_now();
+}
+#endif
 static bool product_mux_worker_poll(void *ctx,bool retiring){
     bool product_ok=probe_product_worker_poll_guarded(ctx,retiring,!product_audio_busy());
 #ifdef DBT_PROBE_PRODUCT_IO
@@ -216,6 +249,12 @@ static bool product_io_peer(void *unused,const dbt_ble_control_peer_t *peer){
 }
 static void load_product_io(void *unused){
     (void)unused;
+#ifdef DBT_PROBE_PRODUCT_SECURITY
+    if(probe_admission_startup_worker(&runtime,owner)!=DBT_OK){
+        product_io_ready=false;product_io_sound=false;
+        atomic_store_explicit(&product_io_done,true,memory_order_release);wake_owner();vTaskDelete(NULL);return;
+    }
+#endif
     bool mounted=esp_spiffs_mounted("spiffs");
     if(!mounted){
         esp_vfs_spiffs_conf_t conf={.base_path="/spiffs",.partition_label="spiffs",.max_files=5,.format_if_mount_failed=false};
@@ -246,7 +285,15 @@ probe_product_action_result_t probe_application_take_ota_result(void){
     return product_runtime_ready && xTaskGetCurrentTaskHandle()==owner?probe_product_runtime_take_activation(&product_runtime):PROBE_PRODUCT_NO_RESULT;
 }
 #endif
-static bool product_authorize(void *context,const dbt_link_t *link,uint8_t command){(void)context;(void)command;return link && link->kind==DBT_LINK_LE;}
+static bool product_authorize(void *context,const dbt_link_t *link,uint8_t command){
+    (void)context;(void)command;
+#ifdef DBT_PROBE_PRODUCT_SECURITY
+    uint8_t type,id[6],tag[32];
+    return link && probe_admission_trusted_le(link->handle,link->generation,&type,id,tag)==DBT_OK;
+#else
+    return link && link->kind==DBT_LINK_LE;
+#endif
+}
 static bool publish_eq(void *context,int8_t b,int8_t m,int8_t t){(void)context;return probe_output_eq(b,m,t)==DBT_OK;}
 static bool publish_control(void *context,uint8_t value){(void)context;return probe_output_control(value)==DBT_OK;}
 static void load_product(void *unused){
@@ -346,6 +393,9 @@ static void release_rx(void *context, uint8_t *data) {
 #if defined(DBT_PROBE_GATT_TEST) || defined(DBT_PROBE_CLASSIC_SECURITY_TEST) || defined(DBT_PROBE_SMP)
 static void profile_link(void *context,const dbt_link_change_t *change) {
     (void)context;
+#ifdef DBT_PROBE_PRODUCT_SECURITY
+    probe_admission_link(change);
+#endif
 #ifdef DBT_PROBE_PRODUCT_IO
     probe_product_io_owner_link(&product_io_owner,change);
 #endif
@@ -416,6 +466,9 @@ static void profile_channel(void *context, dbt_channel_event_t event, const dbt_
                             dbt_channel_reason_t reason, uint16_t result) {
     probe_echo_event(context, event, channel, reason, result);
     probe_sdp_event(event, channel);
+#ifdef DBT_PROBE_RFCOMM
+    probe_rfcomm_event(event,channel);
+#endif
 #ifdef DBT_PROBE_AVRCP
     probe_avrcp_event(event,channel);
 #endif
@@ -425,6 +478,12 @@ static void profile_channel(void *context, dbt_channel_event_t event, const dbt_
 }
 static bool profile_accept(void *context,const dbt_link_t *link,uint16_t psm){
     bool allowed=true;
+#ifdef DBT_PROBE_PRODUCT_SECURITY
+    if(probe_restart_active(&product_restart))return false;
+#endif
+#ifdef DBT_PROBE_RFCOMM
+    allowed=allowed && probe_rfcomm_accept(link,psm);
+#endif
 #ifdef DBT_PROBE_AUDIO_TEST
     allowed=allowed && probe_audio_accept(context,link,psm);
 #endif
@@ -434,6 +493,9 @@ static bool profile_accept(void *context,const dbt_link_t *link,uint16_t psm){
     return allowed;
 }
 static void profile_data(void *context, const dbt_channel_t *channel, const uint8_t *data, uint16_t size) {
+#ifdef DBT_PROBE_RFCOMM
+    if(channel->psm==3){(void)probe_rfcomm_data(channel,data,size);return;}
+#endif
 #ifdef DBT_PROBE_AUDIO_TEST
     if(channel->psm==0x19){probe_audio_receive(channel,data,size);return;}
 #endif
@@ -524,6 +586,10 @@ void app_main(void) {
     }
 #ifdef DBT_PROBE_PRODUCT_RUNTIME
     if(product_provider_ready)product_runtime_ready=probe_product_runtime_init(&product_runtime,&product,&runtime,&gap,probe_smp_security);
+#ifdef DBT_PROBE_PRODUCT_SECURITY
+    if(product_runtime_ready && !probe_product_runtime_set_trust(&product_runtime,probe_admission_trusted_le))
+        owner_fault_park("product trust registration");
+#endif
 #endif
 #ifdef DBT_PROBE_PRODUCT_IO
     probe_audio_product_observer(product_audio_event,NULL);
@@ -538,6 +604,9 @@ void app_main(void) {
     if(probe_security_init(&runtime,&gap,owner)!=DBT_OK) {
         owner_fault_park("Classic security/storage initialization");
     }
+#endif
+#ifdef DBT_PROBE_PRODUCT_SECURITY
+    probe_admission_first_boot(now_ms(),probe_security_loaded_bonds());
 #endif
     esp_bt_controller_config_t configuration = BT_CONTROLLER_INIT_CONFIG_DEFAULT();
     startup_error=esp_bt_controller_init(&configuration);
@@ -566,6 +635,9 @@ void app_main(void) {
 #endif
     for (;;) {
         uint32_t now = now_ms();
+#ifdef DBT_PROBE_SMP
+        if(smp_initialized)probe_smp_security_request_preflight(now);
+#endif
         dbt_runtime_poll(&runtime, now, 8, 8);
         if(runtime.ready && !receive_flow_started) {
             receive_flow_started=true;
@@ -596,6 +668,10 @@ void app_main(void) {
 #ifdef DBT_PROBE_AVRCP
             services=probe_avrcp_init(&runtime,avrcp_volume,0,6);
             if(services==DBT_OK)probe_sdp_enable_avrcp(true,true);
+#endif
+#ifdef DBT_PROBE_RFCOMM
+            if(services==DBT_OK)services=probe_rfcomm_init(&runtime,1,0x10004);
+            if(services==DBT_OK)services=probe_sdp_enable_extra_record(probe_rfcomm_record());
 #endif
             if(services!=DBT_OK || probe_echo_init(&runtime,&gap)!=DBT_OK || probe_sdp_init(&runtime)!=DBT_OK
 #ifdef DBT_PROBE_AUDIO_TEST
@@ -633,6 +709,9 @@ void app_main(void) {
             config.pairing.features=(dbt_smp_feature_policy_t){.io=3,.min_key_size=16,.max_key_size=16,
                 .support_sc=true,.require_sc=true,.bonding=true};
             config.pairing.allow_just_works=true;
+#ifdef DBT_PROBE_PRODUCT_SECURITY
+            config.peripheral_security_requests=true;
+#endif
             if(probe_smp_init(&runtime,owner,&config)==DBT_OK)smp_initialized=true;
             else dbt_runtime_abort(&runtime,DBT_FAULT_BAD_RESPONSE);
         }
@@ -651,6 +730,9 @@ void app_main(void) {
             }
         }
 #endif
+#ifdef DBT_PROBE_PRODUCT_SECURITY
+        probe_admission_poll(now);
+#endif
 #ifdef DBT_PROBE_GATT_TEST
         bool product_io_settled=true;
 #ifdef DBT_PROBE_PRODUCT_IO
@@ -662,6 +744,16 @@ void app_main(void) {
         product_io_settled=atomic_load_explicit(&product_io_done,memory_order_acquire);
 #endif
         if (runtime.ready && !gatt_initialized && product_io_settled) {
+#ifdef DBT_PROBE_PRODUCT_SECURITY
+            if(!probe_restart_init(&product_restart,&runtime,&product_io_owner) ||
+               probe_gatt_control_trust_configure(probe_admission_control_cookie,probe_admission_control_cookie_valid)!=DBT_OK){
+                dbt_runtime_abort(&runtime,DBT_FAULT_BAD_RESPONSE);continue;
+            }
+            probe_gatt_ota_hooks_t ota={.context=&product_runtime,.admit=probe_product_runtime_ota_admit,
+                .abandon=probe_product_runtime_ota_abandon,.valid=probe_product_runtime_ota_valid,.command=product_ota_worker,
+                .finish=probe_product_runtime_ota_finish,.delivered=probe_product_runtime_ota_delivered,.prepare=product_ota_prepare};
+            if(!product_runtime_ready || probe_gatt_ota_configure(&ota)!=DBT_OK){dbt_runtime_abort(&runtime,DBT_FAULT_BAD_RESPONSE);continue;}
+#endif
 #ifdef DBT_PROBE_SMP
             if(probe_gatt_security_query_configure(probe_smp_security)!=DBT_OK ||
                probe_gatt_bond_query_configure(probe_smp_committed_bond)!=DBT_OK){
@@ -708,15 +800,33 @@ void app_main(void) {
 #endif
         }
 #endif
+#ifdef DBT_PROBE_RFCOMM
+        if(echo_initialized)probe_rfcomm_poll(now);
+#endif
         if (runtime.ready && receive_flow_ready && gap.state == DBT_GAP_IDLE) (void)dbt_gap_start(&gap);
         dbt_gap_poll(&gap, now);
 #ifdef DBT_PROBE_PRODUCT_RUNTIME
         if(product_runtime_ready && gatt_initialized && smp_initialized)probe_product_runtime_poll(&product_runtime);
+#ifdef DBT_PROBE_PRODUCT_SECURITY
+        if(gatt_initialized)product_restart_step(now);
+#endif
 #endif
 #ifdef DBT_PROBE_CLASSIC_SECURITY_TEST
+#ifdef DBT_PROBE_PRODUCT_SECURITY
+        bool discoverable=probe_admission_window(now),connectable=!probe_admission_frozen();
+        uint8_t wanted_scan=(uint8_t)((discoverable?1u:0u)|(connectable?2u:0u));
+        if(gap.state==DBT_GAP_READY && !gap.classic_pending && gap.classic_scan!=wanted_scan)
+            (void)dbt_gap_set_classic_scan(&gap,discoverable,connectable);
+#else
         if(gap.state==DBT_GAP_READY && !gap.classic_pending && gap.classic_scan!=3)
             (void)dbt_gap_set_classic_scan(&gap,true,true);
-        if(gap.classic_scan==3 && !security_reported) {
+#endif
+#ifdef DBT_PROBE_PRODUCT_SECURITY
+        bool classic_ready=gap.state==DBT_GAP_READY && !gap.classic_pending && gap.classic_scan==wanted_scan && connectable;
+#else
+        bool classic_ready=gap.classic_scan==3;
+#endif
+        if(classic_ready && !security_reported) {
             security_reported=true;
             printf("{\"probe\":\"classic_security_probe_ready\",\"configured\":true,"
                    "\"metadata_bytes\":%u,\"loaded_bonds\":%u,\"worker_stack_bytes\":3072,"
@@ -728,7 +838,7 @@ void app_main(void) {
         if (gatt_initialized && gap.state == DBT_GAP_READY && !gap.advertising &&
             !gap.advertising_pending && !probe_gatt_connected())
             (void)dbt_gap_set_advertising(&gap, true);
-        if (gap.advertising && !gatt_reported) {
+        if ((gap.advertising || probe_gatt_connected()) && !gatt_reported) {
             gatt_reported = true;
             printf("{\"probe\":\"gatt_probe_ready\",\"att_mtu\":517,\"gatt_bytes\":%u,"
                    "\"diagnostic_only\":true,\"bonding_ready\":false,\"audio_ready\":false}\n",
@@ -786,11 +896,20 @@ void app_main(void) {
                    (unsigned)gap.state, gap.last_status, gap.advertising ? "true" : "false", gap.classic_scan);
         }
         uint32_t wait = dbt_runtime_wait_ms(&runtime, now_ms());
+#ifdef DBT_PROBE_PRODUCT_SECURITY
+        {uint32_t admission_wait=probe_admission_wait_ms(now_ms());if(admission_wait<wait)wait=admission_wait;}
+#endif
 #ifdef DBT_PROBE_SMP
         if(smp_initialized){uint32_t smp_wait=probe_smp_wait_ms(now_ms());if(smp_wait<wait)wait=smp_wait;}
 #endif
 #ifdef DBT_PROBE_AVRCP
         if(echo_initialized){uint32_t avrcp_wait=probe_avrcp_wait_ms(now_ms());if(avrcp_wait<wait)wait=avrcp_wait;}
+#endif
+#ifdef DBT_PROBE_PRODUCT_SECURITY
+        if(probe_restart_active(&product_restart) && wait>10)wait=10;
+#endif
+#ifdef DBT_PROBE_RFCOMM
+        {uint32_t rfcomm_wait=probe_rfcomm_wait_ms(now_ms());if(rfcomm_wait<wait)wait=rfcomm_wait;}
 #endif
         uint32_t gap_wait = dbt_gap_wait_ms(&gap);
         if (gap_wait < wait) wait = gap_wait;

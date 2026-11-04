@@ -12,6 +12,7 @@ static dbt_channel_t channel;
 static dbt_link_t link;
 static uint8_t memory[8192],wire[1024];
 static unsigned allocations,releases,volume_calls,volume_busy;
+static bool close_busy;
 static uint16_t wire_n;
 static const uint8_t *loan;
 static dbt_tx_done_t done;
@@ -29,6 +30,7 @@ dbt_result_t dbt_runtime_send(dbt_runtime_t *r,uint16_t h,uint16_t cid,const uin
 }
 dbt_result_t dbt_channels_close(dbt_channels_t *m,uint16_t h,uint16_t cid,uint32_t now) {
     (void)now;
+    if(close_busy)return DBT_BUSY;
     for(unsigned i=0;i<DBT_CHANNEL_LIMIT;i++) if(m->channels[i].handle==h && m->channels[i].local_cid==cid && m->channels[i].state!=DBT_CH_FREE) {
         m->channels[i].state=DBT_CH_DISCONNECTING; return DBT_OK;
     }
@@ -100,6 +102,22 @@ EX int probe_test_exchange(void) {
         rt.channels.channels[1].state==DBT_CH_DISCONNECTING && probe_avrcp_wait_ms(26)==UINT32_MAX);
     rt.channels.channels[0].state=rt.channels.channels[1].state=DBT_CH_FREE;step(27);
     CHECK(!s.collision && s.next_connect>=127 && s.next_connect<=1027);
+    /* Hold closes staged and concurrently-open controls, not unrelated PSMs.
+     * A stale callback with a reused serial cannot clear the close binding. */
+    CHECK(probe_avrcp_restart_hold(true,28)==DBT_OK);
+    dbt_channel_t staged={.state=DBT_CH_OPEN,.serial=88,.link_generation=13,.handle=1,.local_cid=66,.psm=0x17};
+    probe_avrcp_event(DBT_CH_EVENT_OPEN,&staged);CHECK(s.closing && !s.storage);
+    dbt_channel_t stale=staged;stale.link_generation++;probe_avrcp_event(DBT_CH_EVENT_CLOSED,&stale);
+    CHECK(s.closing && s.close_generation==13 && s.close_serial==88);
+    rt.channels.channels[0]=staged;
+    rt.channels.channels[1]=(dbt_channel_t){.state=DBT_CH_CONFIGURING,.serial=89,.link_generation=14,.handle=2,.local_cid=67,.psm=0x17};
+    rt.channels.channels[2]=(dbt_channel_t){.state=DBT_CH_OPEN,.serial=90,.link_generation=15,.handle=3,.local_cid=68,.psm=0x19};
+    close_busy=true;step(28);CHECK(!probe_avrcp_restart_quiescent() && probe_avrcp_wait_ms(28)==20);
+    close_busy=false;step(48);CHECK(rt.channels.channels[0].state==DBT_CH_DISCONNECTING &&
+        rt.channels.channels[1].state==DBT_CH_DISCONNECTING && rt.channels.channels[2].state==DBT_CH_OPEN);
+    rt.channels.channels[0].state=rt.channels.channels[1].state=DBT_CH_FREE;step(49);
+    CHECK(probe_avrcp_restart_quiescent() && rt.channels.channels[2].state==DBT_CH_OPEN);
+    uint32_t errors=s.view.error_count;CHECK(probe_avrcp_restart_hold(false,50)==DBT_OK && s.view.error_count==errors);
     return 0;
 }
 EX int probe_test_sdp(void) {

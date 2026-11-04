@@ -3,6 +3,9 @@
 #include "probe_avrcp.h"
 #include "probe_output.h"
 #include <string.h>
+#ifdef DBT_PROBE_PRODUCT_SECURITY
+#include "probe_admission.h"
+#endif
 
 /* Kept independent of the decoder's FreeRTOS-facing interface. */
 extern dbt_result_t probe_audio_peer(uint16_t *,uint32_t *);
@@ -19,6 +22,7 @@ static void cancel_sound(probe_product_io_owner_t *s){
     if(s->io_ready)probe_product_io_cancel_sound();
 }
 static void schedule_sound(probe_product_io_owner_t *s,uint8_t type,uint32_t rate,bool exclusive){
+    if(s->restart_preparing)return;
     if(s->sound_pending){s->sound_dropped++;if(type!=SOUND_PAIRING)return;}
     s->sound_type=type;s->sound_rate=rate;s->sound_exclusive=exclusive;s->sound_pending=true;
 }
@@ -27,7 +31,7 @@ void probe_product_io_owner_audio(probe_product_io_owner_t *s,unsigned event,uin
     if(event==AUDIO_CONNECTED){
         if(s->audio_connected && s->audio_handle==handle && s->audio_generation==generation)return;
         cancel_sound(s);s->audio_connected=true;s->audio_handle=handle;s->audio_generation=generation;s->audio_connected_at=now;
-        if(s->pairing_active && s->io_ready)probe_product_io_pairing_success();
+        if(s->pairing_active && s->io_ready && !s->restart_preparing)probe_product_io_pairing_success();
         s->pairing_active=false;
     }else if(s->audio_connected && s->audio_handle==handle && s->audio_generation==generation){
         if(event==AUDIO_DISCONNECTED){
@@ -46,6 +50,7 @@ void probe_product_io_owner_audio(probe_product_io_owner_t *s,unsigned event,uin
 }
 void probe_product_io_owner_volume(probe_product_io_owner_t *s,uint8_t volume,uint32_t now){
     if(!s || volume>127)return;
+    if(s->restart_preparing)return;
     if(s->io_ready)probe_product_io_volume_feedback(volume);
     if(!s->io_ready || !s->sound_enabled || !(probe_product_io_sound_status()&8u) ||
        !s->audio_connected || volume<122 || (uint32_t)(now-s->audio_connected_at)<2000u ||
@@ -114,10 +119,33 @@ static dbt_result_t pairing(probe_product_io_owner_t *s,uint32_t now){
     }
     return DBT_INVALID;
 }
+/* Do not leave an admitted disconnect queued without its generation fence
+ * when restart preparation interrupts a pairing gesture. */
+static dbt_result_t pairing_restart(probe_product_io_owner_t *s,uint32_t now){
+    if(s->pair_phase==PAIR_STATUS){
+        if(s->pair_status==PAIR_PENDING && s->pair_token && s->gap && s->gap->host)
+            (void)dbt_host_cancel_command(s->gap->host,s->pair_token);
+        if(s->pair_status==PAIR_PENDING)return DBT_BUSY;
+        if(s->pair_status==PAIR_ACCEPTED && !s->pair_gone && probe_audio_peer_link(s->pair_handle,s->pair_generation)){
+            s->pair_deadline=now+5000u;s->pair_phase=PAIR_DISCONNECT;
+        }else return DBT_OK;
+    }
+    if(s->pair_phase==PAIR_DISCONNECT && !s->pair_gone && probe_audio_peer_link(s->pair_handle,s->pair_generation))
+        return (int32_t)(now-s->pair_deadline)>=0?DBT_INVALID:DBT_BUSY;
+    if(s->pair_phase==PAIR_SCAN_WAIT && s->gap && s->gap->classic_pending)return DBT_BUSY;
+    return DBT_OK;
+}
 static dbt_result_t input_apply(probe_product_io_owner_t *s,uint32_t now) {
     dbt_input_action_t *a=&s->input;
     if(a->kind>=DBT_INPUT_EQ_BASS && a->kind<=DBT_INPUT_EQ_TREBLE)
-        return probe_gatt_control_eq_delta((uint8_t)(a->kind-DBT_INPUT_EQ_BASS),a->delta);
+        return s->restart_preparing?probe_gatt_control_eq_delta_drain((uint8_t)(a->kind-DBT_INPUT_EQ_BASS),a->delta):
+            probe_gatt_control_eq_delta((uint8_t)(a->kind-DBT_INPUT_EQ_BASS),a->delta);
+    if(s->restart_preparing && (a->kind==DBT_INPUT_BASS_BOOST || a->kind==DBT_INPUT_CHANNEL_FLIP || a->kind==DBT_INPUT_BYPASS))
+        return probe_gatt_control_toggle_drain(a->kind==DBT_INPUT_BASS_BOOST?1u:a->kind==DBT_INPUT_CHANNEL_FLIP?2u:4u);
+    if(s->restart_preparing && a->kind==DBT_INPUT_PAIR)return pairing_restart(s,now);
+    /* Complete an already-issued key release, but do not initiate new
+     * transient UI actions while preparing a restart. */
+    if(s->restart_preparing && !s->key_released)return DBT_OK;
     if(a->kind==DBT_INPUT_VOLUME) {
         probe_avrcp_snapshot_t snapshot;dbt_result_t r=probe_avrcp_snapshot(&snapshot);if(r!=DBT_OK)return r;
         int v=(int)snapshot.volume+a->delta;if(v<0)v=0;if(v>127)v=127;
@@ -153,6 +181,9 @@ static dbt_result_t input_apply(probe_product_io_owner_t *s,uint32_t now) {
 }
 void probe_product_io_owner_poll(probe_product_io_owner_t *s,uint32_t now) {
     if(!s)return;
+#ifdef DBT_PROBE_PRODUCT_SECURITY
+    if(s->pairing_active && !probe_admission_window(now)){s->pairing_active=false;probe_product_io_pairing_mode(false);}
+#endif
     (void)probe_gatt_control_worker_required(probe_product_io_needs_worker());
     dbt_led_receipt_t led;
     for(unsigned i=0;i<4 && probe_product_io_take_local_led(&led);i++) {
@@ -184,9 +215,14 @@ void probe_product_io_owner_poll(probe_product_io_owner_t *s,uint32_t now) {
         if(!s->have_input)s->have_input=probe_product_io_take_input(&s->input);
         if(!s->have_input)break;
         dbt_result_t r=input_apply(s,now);if(retry(r))break;
+        if(s->restart_preparing && r!=DBT_OK){s->restart_fault=true;break;}
         if(r==DBT_UNSUPPORTED || r==DBT_EMPTY)s->unsupported++;else if(r!=DBT_OK)s->failures++;
         if(s->input.kind==DBT_INPUT_PAIR){
-            if(r==DBT_OK){s->pairing_active=true;probe_product_io_pairing_mode(true);schedule_sound(s,SOUND_PAIRING,48000,true);}
+            if(r==DBT_OK && !s->restart_preparing){
+#ifdef DBT_PROBE_PRODUCT_SECURITY
+                probe_admission_open(now);
+#endif
+                s->pairing_active=true;probe_product_io_pairing_mode(true);schedule_sound(s,SOUND_PAIRING,48000,true);}
             s->pair_phase=PAIR_BEGIN;s->pair_generation=0;
         }
         s->have_input=false;
@@ -201,6 +237,25 @@ void probe_product_io_owner_poll(probe_product_io_owner_t *s,uint32_t now) {
         }
     }
     (void)probe_gatt_control_worker_required(probe_product_io_needs_worker());
+}
+dbt_result_t probe_product_io_owner_restart_begin(probe_product_io_owner_t *s){
+    if(!s || !s->io_ready)return DBT_INVALID;
+    if(s->restart_preparing)return DBT_OK;
+    dbt_result_t r=probe_product_io_input_pause(true);if(r!=DBT_OK)return r;
+    s->restart_preparing=true;s->restart_fault=false;cancel_sound(s);
+    if(s->pairing_active){s->pairing_active=false;probe_product_io_pairing_mode(false);}
+    return DBT_OK;
+}
+dbt_result_t probe_product_io_owner_restart_poll(probe_product_io_owner_t *s,uint32_t now){
+    if(!s || !s->restart_preparing || s->restart_fault)return DBT_INVALID;
+    probe_product_io_owner_poll(s,now);
+    if(s->restart_fault)return DBT_INVALID;
+    dbt_result_t paused=probe_product_io_input_paused();if(paused!=DBT_OK)return paused;
+    return probe_product_io_input_drained() && !s->have_input && !s->led_pending && !s->key_released?DBT_OK:DBT_BUSY;
+}
+void probe_product_io_owner_restart_cancel(probe_product_io_owner_t *s){
+    if(!s || !s->restart_preparing)return;
+    (void)probe_product_io_input_pause(false);s->restart_preparing=false;s->restart_fault=false;
 }
 uint32_t probe_product_io_owner_wait_ms(const probe_product_io_owner_t *s,uint32_t now) {
     if(!s)return UINT32_MAX;

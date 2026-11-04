@@ -32,6 +32,7 @@ typedef struct {
   dbt_sound_t sound;
   probe_sound_t player;
   atomic_bool ready, retiring, input_done, sound_busy;
+  atomic_bool input_pause,input_pause_ack,input_pause_fault;
   atomic_uint sound_status;
   atomic_uint sound_epoch;
   uint32_t sound_worker_epoch;
@@ -125,15 +126,27 @@ static void led_grant_clear(uint32_t token) {
   (void)atomic_compare_exchange_strong_explicit(
       &io.led_grant, &token, 0, memory_order_acq_rel, memory_order_acquire);
 }
-static void input_worker(void *unused) {
-  (void)unused;
-  while (!atomic_load_explicit(&io.retiring, memory_order_acquire)) {
+static void input_tick(void) {
     if (atomic_load_explicit(&io.ready, memory_order_acquire)) {
-      (void)dbt_input_esp32_poll(&io.input);
+      if(atomic_load_explicit(&io.input_pause,memory_order_acquire)){
+        dbt_input_drain_result_t r=dbt_input_esp32_drain_pending(&io.input);
+        if(r==DBT_INPUT_DRAIN_FAULT)atomic_store_explicit(&io.input_pause_fault,true,memory_order_release);
+        if(r!=DBT_INPUT_DRAIN_BUSY){
+          if(!atomic_exchange_explicit(&io.input_pause_ack,true,memory_order_acq_rel))io.hooks.wake_owner(io.hooks.context);
+        }
+      }else {
+        atomic_store_explicit(&io.input_pause_ack,false,memory_order_release);
+        (void)dbt_input_esp32_poll(&io.input);
+      }
       if (atomic_load_explicit(&io.input.input.head, memory_order_acquire) !=
           atomic_load_explicit(&io.input.input.tail, memory_order_acquire))
         io.hooks.wake_owner(io.hooks.context);
     }
+}
+static void input_worker(void *unused) {
+  (void)unused;
+  while (!atomic_load_explicit(&io.retiring, memory_order_acquire)) {
+    input_tick();
     vTaskDelay(pdMS_TO_TICKS(25));
   }
   atomic_store_explicit(&io.input_done, true, memory_order_release);
@@ -190,6 +203,9 @@ bool probe_product_io_startup_worker(dbt_ble_control_state_t *initial,
   atomic_init(&io.ready, false);
   atomic_init(&io.retiring, false);
   atomic_init(&io.input_done, false);
+  atomic_init(&io.input_pause,false);
+  atomic_init(&io.input_pause_ack,false);
+  atomic_init(&io.input_pause_fault,false);
   atomic_init(&io.led_waiting, false);
   atomic_init(&io.sound_busy, false);
   atomic_init(&io.sound_status, 0);
@@ -533,6 +549,29 @@ bool probe_product_io_worker_poll(void *unused, bool retiring) {
 bool probe_product_io_take_input(dbt_input_action_t *out) {
   return out && atomic_load_explicit(&io.ready, memory_order_acquire) &&
          io.input_started && dbt_input_next(&io.input.input, out);
+}
+dbt_result_t probe_product_io_input_pause(bool pause){
+  if(!atomic_load_explicit(&io.ready,memory_order_acquire))return DBT_INVALID;
+  if(pause){
+    if(!atomic_load_explicit(&io.input_pause,memory_order_acquire)){
+      atomic_store_explicit(&io.input_pause_fault,false,memory_order_relaxed);
+      atomic_store_explicit(&io.input_pause_ack,!io.input_started,memory_order_relaxed);
+      atomic_store_explicit(&io.input_pause,true,memory_order_release);
+    }
+  }else {
+    atomic_store_explicit(&io.input_pause,false,memory_order_release);
+    atomic_store_explicit(&io.input_pause_ack,false,memory_order_release);
+  }
+  return DBT_OK;
+}
+dbt_result_t probe_product_io_input_paused(void){
+  if(!atomic_load_explicit(&io.ready,memory_order_acquire) || !atomic_load_explicit(&io.input_pause,memory_order_acquire))return DBT_INVALID;
+  if(atomic_load_explicit(&io.input_pause_fault,memory_order_acquire))return DBT_INVALID;
+  return atomic_load_explicit(&io.input_pause_ack,memory_order_acquire)?DBT_OK:DBT_BUSY;
+}
+bool probe_product_io_input_drained(void){
+  return probe_product_io_input_paused()==DBT_OK && (!io.input_started ||
+    atomic_load_explicit(&io.input.input.head,memory_order_acquire)==atomic_load_explicit(&io.input.input.tail,memory_order_acquire));
 }
 static dbt_result_t enqueue_local(const dbt_led_request_t *r) {
   if (!atomic_load_explicit(&io.ready, memory_order_acquire) ||

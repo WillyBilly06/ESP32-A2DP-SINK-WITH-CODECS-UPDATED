@@ -89,10 +89,74 @@ int main(void) {
     cfg.pairing.features.io=3; cfg.pairing.features.min_key_size=7; cfg.pairing.features.max_key_size=16;
     cfg.pairing.features.support_sc=true;
     assert(probe_smp_init(&r,(TaskHandle_t)1,&cfg)==DBT_OK);
+    assert(probe_smp_quiescent());
     assert(starts==0 && !worker_live);
     assert(r.channels.fixed_mask[DBT_LINK_LE] & ((uint64_t)1<<6));
     uint8_t request[7]={1,3,0,8,16,0,0};
+#ifdef DBT_SECURITY_REQUEST_TEST
+    extern uint32_t test_prompt_window;
+    extern bool test_admission_allowed,test_frozen;
+    configuration.peripheral_security_requests=true;configuration.pairing.features.bonding=true;
+    r.acl.mtu[DBT_LINK_LE]=27;test_prompt_window=1;r.now_ms=0;r.tx[0].active=true;
+    probe_smp_poll(0);assert(request_for(1,1) && !request_for(1,1)->loan && !probe_smp_quiescent());
+    r.tx[0].active=false;memset(security_requests,0,sizeof(security_requests));r.now_ms=10;
+    probe_smp_poll(10);security_request_t *sr=request_for(1,1);
+    assert(sr && sr->loan && r.tx[0].active && !probe_smp_quiescent());
+    assert(r.tx[0].pdu.cid==6 && r.tx[0].pdu.size==2 && r.tx[0].pdu.data[0]==0x0b && r.tx[0].pdu.data[1]==9);
+    assert(dbt_runtime_cancel_fixed(&r,1,2,6,security_request_done,sr)==DBT_EMPTY && r.tx[0].active);
+    r.tx[0].pdu.cursor=1;assert(dbt_runtime_cancel_fixed(&r,1,1,6,security_request_done,sr)==DBT_BUSY && sr->loan);
+    r.tx[0].pdu.cursor=0;test_prompt_window=0;r.now_ms=11;probe_smp_security_request_preflight(11);
+    assert(!sr->loan && !r.tx[0].active && sr->outside_done && probe_smp_quiescent());
+    probe_smp_poll(12);assert(!r.tx[0].active); /* expiration must not replay outside the window */
+    test_prompt_window=2;probe_smp_poll(13);assert(sr->loan && r.tx[0].active);
+    dbt_link_t *other=&r.acl.links[1];*other=(dbt_link_t){.used=true,.kind=DBT_LINK_LE,.role=1,.handle=2,.generation=9,.peer_address_type=0};
+    probe_smp_poll(13);security_request_t *other_request=request_for(2,9);assert(other_request && other_request->loan && r.tx[1].active);
+    test_admission_allowed=false;assert(probe_smp_receive(l,6,request,sizeof(request))==DBT_UNSUPPORTED);
+    assert(!sr->loan && !r.tx[0].active && !slot.active); /* pairing cancelled prompt first */
+    test_admission_allowed=true;assert(probe_smp_receive(l,6,request,sizeof(request))==DBT_OK && slot.active);
+    assert(!other_request->loan && !r.tx[1].active && other->used); /* no second prompt during active SMP */
+    memset(&slot,0,sizeof(slot));other->used=false;probe_smp_security_request_preflight(13);
+    test_prompt_window=3;probe_smp_poll(14);assert(sr->loan);
+    uint8_t ltk_request[13]={5,1,0};dbt_hci_packet_t ltk_event={.type=DBT_H4_EVENT,.event=0x3e,.size=13,.payload=ltk_request};
+    assert(probe_smp_event(&ltk_event) && !sr->loan && !r.tx[0].active && slot.reconnect);
+    memset(&slot,0,sizeof(slot));test_prompt_window=4;probe_smp_poll(15);assert(sr->loan);
+    l->generation=2;probe_smp_security_request_preflight(16);
+    assert(!r.tx[0].active && !request_for(1,1));
+    probe_smp_poll(16);sr=request_for(1,2);assert(sr && sr->loan);
+    test_frozen=true;probe_smp_security_request_preflight(17);assert(!sr->loan && !r.tx[0].active);
+    test_frozen=false;test_prompt_window=5;r.now_ms=20;probe_smp_poll(20);assert(sr->loan);
+    dbt_tx_done_t prompt_done=r.tx[0].done;void *prompt_context=r.tx[0].context;r.tx[0].active=false;
+    prompt_done(prompt_context,DBT_TX_ADMITTED);
+    assert(!sr->loan && sr->outside_done && sr->last_window==5 && !l->encrypted);
+    dbt_smp_session_security_t unproven;assert(probe_smp_security(1,2,&unproven)!=DBT_OK);
+    probe_smp_poll(21);assert(!r.tx[0].active);test_prompt_window=6;probe_smp_poll(2000);assert(!r.tx[0].active);
+    assert(probe_smp_wait_ms(2000)==20);r.now_ms=2020;probe_smp_poll(2020);assert(sr->loan);
+    prompt_done=r.tx[0].done;prompt_context=r.tx[0].context;r.tx[0].active=false;l->used=false;
+    prompt_done(prompt_context,DBT_TX_LINK_LOST);assert(!request_for(1,2));
+    l->used=true;l->generation=3;probe_smp_poll(2021);assert(request_for(1,3) && r.tx[0].active);
+    l->generation=4;probe_smp_security_request_preflight(2022);assert(!r.tx[0].active && !request_for(1,3));
+    test_prompt_window=0;probe_smp_poll(2100);sr=request_for(1,4);assert(sr && sr->loan);
+    r.now_ms=7100;probe_smp_security_request_preflight(7100);assert(!sr->loan && sr->outside_done);
+    probe_smp_poll(7101);assert(!r.tx[0].active); /* no repeated outside-window prompt */
+    test_prompt_window=7;probe_smp_poll(7102);assert(sr->loan);
+    test_frozen=true;probe_smp_security_request_preflight(7103);assert(!sr->loan);test_frozen=false;
+    test_prompt_window=0;memset(security_requests,0,sizeof(security_requests));
+    memset(&r.tx[0],0,sizeof(r.tx[0]));l->generation=1;r.now_ms=0;
+    configuration.peripheral_security_requests=false;configuration.pairing.features.bonding=false;
+#endif
+#ifdef DBT_PROBE_PRODUCT_SECURITY
+#ifndef DBT_SECURITY_REQUEST_TEST
+    extern bool test_admission_allowed,test_frozen;
+#endif
+    test_admission_allowed=false;
+    assert(probe_smp_receive(l,6,request,sizeof(request))==DBT_UNSUPPORTED && !slot.active && !worker_live);
+    test_admission_allowed=true;
+    test_frozen=true;assert(probe_smp_reconnect_start(l)==DBT_BUSY);
+    uint8_t ltk[13]={5,1,0};dbt_hci_packet_t event={.type=DBT_H4_EVENT,.event=0x3e,.size=13,.payload=ltk};
+    assert(!probe_smp_event(&event) && !slot.active);test_frozen=false;
+#endif
     assert(probe_smp_receive(l,6,request,sizeof(request))==DBT_OK);
+    assert(!probe_smp_quiescent());
     assert(!open_calls); probe_smp_poll(0); assert(starts==1 && worker_live && uxQueueMessagesWaiting(work_queue)==1 && !open_calls);
     run_worker(); assert(open_calls==1 && !session.runtime);
     probe_smp_poll(1); assert(session.runtime==&r && slot.prepared && session.tx_active);
@@ -101,6 +165,7 @@ int main(void) {
     run_worker(); assert(crypto_calls==1); probe_smp_poll(3); probe_smp_poll(4);
     assert(slot.failed && uxQueueMessagesWaiting(work_queue));
     run_worker(); probe_smp_poll(5); assert(!slot.active && !worker_live && close_calls==1);
+    assert(probe_smp_quiescent());
     uint16_t handle; uint32_t generation; assert(probe_smp_take_failure(&handle,&generation));
     assert(handle==1 && generation==1 && !probe_smp_take_failure(&handle,&generation));
 

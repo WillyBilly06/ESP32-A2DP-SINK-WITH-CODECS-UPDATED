@@ -171,6 +171,12 @@ static bool feed_sample(dbt_input_esp32_t *p, const dbt_input_sample_t *s,
   pixels_update(p);
   return true;
 }
+dbt_input_drain_result_t dbt_input_esp32_drain_pending(dbt_input_esp32_t *p) {
+  if (!p || !p->installed) return DBT_INPUT_DRAIN_FAULT;
+  if (!p->pending) return DBT_INPUT_DRAIN_DONE;
+  if (feed_sample(p,&p->retry,p->retry_fresh)) return DBT_INPUT_DRAIN_DONE;
+  return p->pending ? DBT_INPUT_DRAIN_BUSY : DBT_INPUT_DRAIN_FAULT;
+}
 bool dbt_input_esp32_poll(dbt_input_esp32_t *p) {
   if (!p || !p->installed)
     return false;

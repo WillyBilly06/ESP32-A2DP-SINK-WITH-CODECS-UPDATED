@@ -1,4 +1,4 @@
-# Static IRAM placement comparison
+# Earlier static IRAM placement comparison
 
 The combined owned product uses the existing SDK option
 `CONFIG_FREERTOS_PLACE_FUNCTIONS_INTO_FLASH=y`. The SDK linker fragment moves
@@ -32,3 +32,9 @@ I2S/owned audio functions. SDK calls are terminal nodes; four indirect calls,
 ROM/vendor internals, complete execution paths and real NVS/I2S coexistence
 remain unproven. This limited audit must not be presented as universal
 cache-disabled execution or audible continuity proof.
+
+The table above is the preceding product-feedback checkpoint, not the current
+expanded policy/RFCOMM build. The current image retains the same SDK placement
+option and IRQ safeguards, but its separate linked sizes are 123,175 bytes of
+IRAM (7,897 remaining) and 52,472 bytes of static DRAM. No new equal-feature
+comparison or runtime-heap claim is implied by comparing those checkpoints.

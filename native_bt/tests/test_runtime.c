@@ -101,6 +101,7 @@ static void fixed(void *context,const dbt_link_t *link,uint16_t cid,const uint8_
     peer_t *peer=context;(void)link;(void)cid;++peer->fixed_calls;peer->received_size=size;copy(peer->received,bytes,size);
 }
 static void tx_done(void *context,dbt_tx_outcome_t outcome){(void)context;++done_calls;last_tx_outcome=outcome;}
+static void tx_unrelated(void *context,dbt_tx_outcome_t outcome){(void)context;(void)outcome;}
 static void command_done(void *context,uint16_t opcode,dbt_command_outcome_t outcome,uint8_t status,const uint8_t *returns,uint8_t size){
     (void)context;(void)opcode;(void)returns;(void)size;++done_calls;last_command_outcome=outcome;last_status=status;
 }
@@ -647,8 +648,23 @@ EXPORT int test_runtime_dual_bearer_credit_fairness(void){
 EXPORT int test_runtime_disconnect_pins_and_partial_expiry(void){
     clock_ms=0;int r=fixture(0);if(r)return r;peer_t *p=&peers[0];add_link(p,1,true);
     CHECK(dbt_channels_register_fixed(&p->runtime.channels,DBT_LINK_LE,4)==DBT_OK);
+    uint32_t generation=dbt_acl_find(&p->runtime.acl,1)->generation;
+    static uint8_t prompt[2]={0x0b,9};
+    CHECK(dbt_runtime_send_fixed(&p->runtime,1,4,prompt,2,tx_done,p)==DBT_OK);
+    add_link(p,2,true);uint32_t other_generation=dbt_acl_find(&p->runtime.acl,2)->generation;
+    CHECK(dbt_runtime_send_fixed(&p->runtime,2,4,prompt,2,tx_done,p)==DBT_OK);
+    CHECK(dbt_runtime_cancel_fixed(&p->runtime,1,generation+1,4,tx_done,p)==DBT_EMPTY);
+    CHECK(dbt_runtime_cancel_fixed(&p->runtime,1,generation,6,tx_done,p)==DBT_EMPTY);
+    CHECK(dbt_runtime_cancel_fixed(&p->runtime,1,generation,4,tx_unrelated,p)==DBT_EMPTY);
+    CHECK(dbt_runtime_cancel_fixed(&p->runtime,1,generation,4,tx_done,0)==DBT_EMPTY);
+    CHECK(dbt_runtime_cancel_fixed(&p->runtime,1,generation,4,tx_done,p)==DBT_OK);
+    CHECK(done_calls==1 && last_tx_outcome==DBT_TX_ABORTED && !p->runtime.tx[0].active && p->runtime.tx[1].active);
+    CHECK(dbt_runtime_cancel_fixed(&p->runtime,1,generation,4,tx_done,p)==DBT_EMPTY);
+    CHECK(dbt_runtime_cancel_fixed(&p->runtime,2,other_generation,4,tx_done,p)==DBT_OK && done_calls==2);
+    done_calls=0;
     static uint8_t bytes[100];CHECK(dbt_runtime_send_fixed(&p->runtime,1,4,bytes,100,tx_done,0)==DBT_OK);
     dbt_runtime_poll(&p->runtime,++clock_ms,8,1);CHECK(!p->ready);
+    CHECK(dbt_runtime_cancel_fixed(&p->runtime,1,generation,4,tx_done,0)==DBT_BUSY && done_calls==0);
     uint8_t disconnected[4]={0,1,0,0x13};CHECK(event(p,5,disconnected,4)==DBT_OK);
     dbt_runtime_poll(&p->runtime,++clock_ms,8,8);check_borrow(p);
     CHECK(done_calls==1 && last_tx_outcome==DBT_TX_LINK_LOST && p->integrity_errors==0 && p->runtime.acl.pools[1].available==2);

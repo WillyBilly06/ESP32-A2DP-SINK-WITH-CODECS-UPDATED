@@ -31,6 +31,10 @@ dbt_input_start_result_t dbt_input_esp32_start_checked(dbt_input_esp32_t *p,i2c_
 /* At ~25ms cadence in an input task. Failed queue admission retains the exact
  * sample for retry before further I2C reads. Owner drains dbt_input_next. */
 bool dbt_input_esp32_poll(dbt_input_esp32_t *p);
+typedef enum {DBT_INPUT_DRAIN_DONE,DBT_INPUT_DRAIN_BUSY,DBT_INPUT_DRAIN_FAULT} dbt_input_drain_result_t;
+/* Producer only. Retries an already-copied sample without any new sensor
+ * reads. BUSY preserves the sample; FAULT is not a successful drain. */
+dbt_input_drain_result_t dbt_input_esp32_drain_pending(dbt_input_esp32_t *p);
 void dbt_input_esp32_stop(dbt_input_esp32_t *p);
 /* False leaves ownership recorded and bars another start on that port. */
 bool dbt_input_esp32_stop_checked(dbt_input_esp32_t *p);

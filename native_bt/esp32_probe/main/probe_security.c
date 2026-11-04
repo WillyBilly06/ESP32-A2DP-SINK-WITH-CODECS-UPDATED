@@ -2,18 +2,25 @@
 #include "freertos/queue.h"
 #include "nvs.h"
 #include <stdio.h>
+#ifdef DBT_PROBE_PRODUCT_SECURITY
+#include "probe_admission.h"
+#endif
 
-#ifndef DBT_PROBE_PAIRING_PEER_BYTES
+#if !defined(DBT_PROBE_PRODUCT_SECURITY) && !defined(DBT_PROBE_PAIRING_PEER_BYTES)
 #error "The pairing probe requires an explicitly selected Linux adapter address"
 #endif
 #define BOND_LIMIT 8u
+#ifndef DBT_PROBE_PRODUCT_SECURITY
 static const uint8_t allowed_peer[6] = {DBT_PROBE_PAIRING_PEER_BYTES};
+#endif
 static dbt_classic_security_t security;
 static dbt_runtime_t *runtime;
 static dbt_gap_t *gap;
 static TaskHandle_t owner;
 static nvs_handle_t storage;
 static bool storage_open;
+static bool initialized;
+static unsigned store_inflight;
 static QueueHandle_t work_queue, completion_queue, log_queue;
 typedef struct {
     uint8_t address[6];
@@ -150,7 +157,11 @@ static dbt_result_t load(void *context, const uint8_t address[6], dbt_classic_ke
 static bool store(void *context, const uint8_t address[6], const dbt_classic_key_t *key,
                   uint32_t token) {
     (void)context;
+#ifdef DBT_PROBE_PRODUCT_SECURITY
+    if (key && !probe_admission_classic_store(address,runtime->now_ms))
+#else
     if (!same(address, allowed_peer))
+#endif
         return false;
     if (key && cache_index(address) < 0 && free_index() < 0)
         return false;
@@ -162,6 +173,7 @@ static bool store(void *context, const uint8_t address[6], const dbt_classic_key
     if (key)
         copy(&job.key, key, sizeof(*key));
     bool accepted = xQueueSend(work_queue, &job, 0) == pdTRUE;
+    if(accepted)++store_inflight;
     wipe(&job, sizeof(job));
     return accepted;
 }
@@ -265,12 +277,26 @@ static void event(void *context, dbt_classic_security_event_t kind,
 }
 static bool pairing(void *context, const uint8_t address[6]) {
     (void)context;
+#ifdef DBT_PROBE_PRODUCT_SECURITY
+    for(unsigned i=0;i<DBT_MAX_LINKS;i++){
+        const dbt_link_t *l=&runtime->acl.links[i];
+        if(l->used && l->kind==DBT_LINK_CLASSIC && same(l->peer,address))
+            return probe_admission_classic_pair(l,runtime->now_ms);
+    }
+    return false;
+#else
     return same(address, allowed_peer);
+#endif
 }
 bool probe_security_accept(void *context, const uint8_t address[6], const uint8_t device_class[3]) {
     (void)context;
     (void)device_class;
+#ifdef DBT_PROBE_PRODUCT_SECURITY
+    if(probe_admission_frozen())return false;
+    return cache_index(address)>=0 || probe_admission_window(runtime->now_ms);
+#else
     return same(address, allowed_peer);
+#endif
 }
 bool probe_security_authorize(void *context, const dbt_link_t *link, uint16_t psm,
                               dbt_security_t level) {
@@ -279,7 +305,12 @@ bool probe_security_authorize(void *context, const dbt_link_t *link, uint16_t ps
     return dbt_classic_security_authorize(&security, link, level);
 }
 dbt_result_t probe_security_forget_peer(const dbt_link_t *link) {
-    if (!link || !same(link->peer, allowed_peer) ||
+    if (!link ||
+#ifdef DBT_PROBE_PRODUCT_SECURITY
+        cache_index(link->peer)<0 ||
+#else
+        !same(link->peer, allowed_peer) ||
+#endif
         !dbt_classic_security_authorize(&security, link, DBT_SECURITY_ENCRYPTED))
         return DBT_INVALID;
     return dbt_classic_security_forget(&security, link->peer, runtime->now_ms);
@@ -344,8 +375,10 @@ dbt_result_t probe_security_init(dbt_runtime_t *host_runtime, dbt_gap_t *host_ga
     if (xTaskCreatePinnedToCore(logger, "native_security_log", 2048, 0, 0, &logger_handle, 0) !=
         pdPASS)
         goto failed;
+    initialized=true;
     return DBT_OK;
 failed:
+    initialized=false;
     if (logger_handle)
         vTaskDelete(logger_handle);
     if (worker_handle)
@@ -379,6 +412,8 @@ dbt_result_t probe_security_receive(const dbt_hci_packet_t *packet, uint32_t now
 void probe_security_poll(uint32_t now_ms) {
     store_job_t job;
     while (xQueueReceive(completion_queue, &job, 0) == pdTRUE) {
+        if(store_inflight) --store_inflight;
+        else {wipe(&job,sizeof(job));dbt_runtime_abort(runtime,DBT_FAULT_BAD_RESPONSE);return;}
         if (job.committed) {
             int index = cache_index(job.address);
             if (job.deleting) {
@@ -425,4 +460,16 @@ unsigned probe_security_loaded_bonds(void) {
         if (bonds[i].used)
             ++count;
     return count;
+}
+bool probe_security_quiescent(void){
+    if(!initialized || store_inflight || !work_queue || !completion_queue ||
+       uxQueueMessagesWaiting(work_queue) || uxQueueMessagesWaiting(completion_queue) ||
+       security.count || security.command_active)return false;
+    for(unsigned i=0;i<DBT_MAX_LINKS;i++){
+        const dbt_classic_peer_t *p=&security.peers[i];
+        if(p->used && (p->dirty_key || p->deleting || p->store_token || p->input_token ||
+           (p->connected && !p->ready && !p->failed &&
+            (p->accepted_pairing || p->locally_required || p->auth_requested || p->encryption_requested || p->size_requested))))return false;
+    }
+    return true;
 }

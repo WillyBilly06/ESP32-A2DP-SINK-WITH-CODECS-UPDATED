@@ -6,6 +6,9 @@
 #include "freertos/queue.h"
 #include <nvs.h>
 #include <string.h>
+#ifdef DBT_PROBE_PRODUCT_SECURITY
+#include "probe_admission.h"
+#endif
 
 /* The probe supports one active procedure and a bounded, non-evicting guard
  * table. Worker inputs/results are copied through single-item queues; only the
@@ -15,6 +18,8 @@
 #define QUARANTINES 16u
 #define WORKER_STACK_BYTES 12288u
 #define WAIT_MS 20u
+#define SECURITY_REQUEST_TTL_MS 5000u
+#define SECURITY_REQUEST_COOLDOWN_MS 2000u
 typedef enum { WORK_PREPARE, WORK_CRYPTO, WORK_STORE, WORK_RETIRE, WORK_LOAD,
                WORK_INSPECT, WORK_RECONCILE, WORK_RESOLVE, WORK_PROMOTE } work_kind_t;
 typedef struct {
@@ -92,8 +97,102 @@ static struct {
     dbt_smp_bond_op_t operation; uint8_t type,identity[6];
 } maintenance;
 static uint32_t maintenance_serial;
+static bool quarantined(uint16_t handle);
+typedef struct {
+    bool used,loan,outside_done,cancelling,cancel_expired;
+    uint16_t handle;uint32_t generation,last_window,queued_window,deadline,next_allowed;
+    uint8_t bytes[2];
+} security_request_t;
+static security_request_t security_requests[DBT_MAX_LINKS];
 
 static void wipe(void *p,size_t n) { volatile uint8_t *v=p; while (n--) *v++=0; }
+static void security_request_done(void *context,dbt_tx_outcome_t outcome){
+    security_request_t *r=context;
+    if(!r || !r->loan)return;
+    r->loan=false;
+    if(outcome==DBT_TX_ADMITTED){
+        r->outside_done=true;if(r->queued_window)r->last_window=r->queued_window;
+        r->next_allowed=runtime->now_ms+SECURITY_REQUEST_COOLDOWN_MS;
+    }else if(r->cancel_expired || !r->cancelling){r->outside_done=true;if(r->queued_window)r->last_window=r->queued_window;}
+    r->cancelling=false;r->cancel_expired=false;r->queued_window=0;
+    const dbt_link_t *l=dbt_acl_find(&runtime->acl,r->handle);
+    if(!l || l->generation!=r->generation)wipe(r,sizeof(*r));
+}
+static security_request_t *request_for(uint16_t handle,uint32_t generation){
+    for(unsigned i=0;i<DBT_MAX_LINKS;i++)if(security_requests[i].used && security_requests[i].handle==handle &&
+        security_requests[i].generation==generation)return &security_requests[i];
+    return NULL;
+}
+static dbt_result_t cancel_request(security_request_t *r,bool expired){
+    if(!r || !r->loan)return DBT_OK;
+    r->cancelling=true;r->cancel_expired=expired;
+    dbt_result_t rc=dbt_runtime_cancel_fixed(runtime,r->handle,r->generation,SMP_CID,security_request_done,r);
+    if(rc!=DBT_OK){r->cancelling=false;r->cancel_expired=false;}
+    return rc;
+}
+static uint32_t request_window(uint32_t now){
+#ifdef DBT_PROBE_PRODUCT_SECURITY
+    return probe_admission_prompt_epoch(now);
+#else
+    (void)now;return 0;
+#endif
+}
+static bool request_frozen(void){
+#ifdef DBT_PROBE_PRODUCT_SECURITY
+    return probe_admission_frozen();
+#else
+    return false;
+#endif
+}
+void probe_smp_security_request_preflight(uint32_t now){
+    if(!runtime || !configuration.peripheral_security_requests)return;
+    uint32_t window=request_window(now);
+    for(unsigned i=0;i<DBT_MAX_LINKS;i++){
+        security_request_t *r=&security_requests[i];if(!r->used)continue;
+        const dbt_link_t *l=dbt_acl_find(&runtime->acl,r->handle);
+        bool stale=!l || l->generation!=r->generation || l->kind!=DBT_LINK_LE || l->role!=1;
+        bool expired=(int32_t)(now-r->deadline)>=0 || (r->queued_window && r->queued_window!=window);
+        if(r->loan && (stale || l->encrypted || request_frozen() || slot.active || expired))
+            (void)cancel_request(r,expired);
+        if(stale && !r->loan)wipe(r,sizeof(*r));
+    }
+}
+static dbt_result_t stop_request(const dbt_link_t *l,uint32_t now){
+    if(!l)return DBT_INVALID;
+    security_request_t *r=request_for(l->handle,l->generation);if(!r)return DBT_OK;
+    if(r->loan){dbt_result_t rc=cancel_request(r,false);if(rc!=DBT_OK)return rc;}
+    r->outside_done=true;uint32_t window=request_window(now);if(window)r->last_window=window;
+    return DBT_OK;
+}
+static void suspend_other_requests(const dbt_link_t *l){
+    for(unsigned i=0;i<DBT_MAX_LINKS;i++){
+        security_request_t *r=&security_requests[i];
+        if(r->loan && (r->handle!=l->handle || r->generation!=l->generation))(void)cancel_request(r,false);
+    }
+}
+static void security_request_poll(uint32_t now){
+    if(!runtime || !runtime->ready || !configuration.peripheral_security_requests || request_frozen() ||
+       slot.active || maintenance.active || runtime->acl.mtu[DBT_LINK_LE]<6)return;
+    uint32_t window=request_window(now);
+    for(unsigned i=0;i<DBT_MAX_LINKS;i++){
+        const dbt_link_t *l=&runtime->acl.links[i];
+        if(!l->used || l->kind!=DBT_LINK_LE || l->role!=1 || l->encrypted || quarantined(l->handle))continue;
+        security_request_t *r=request_for(l->handle,l->generation);
+        if(!r){for(unsigned j=0;j<DBT_MAX_LINKS;j++)if(!security_requests[j].used){r=&security_requests[j];break;}
+            if(!r)continue;
+            memset(r,0,sizeof(*r));r->used=true;r->handle=l->handle;r->generation=l->generation;r->next_allowed=now;}
+        if(r->loan || (int32_t)(now-r->next_allowed)<0 || (window?r->last_window==window:r->outside_done))continue;
+        r->bytes[0]=0x0b;r->bytes[1]=(configuration.pairing.features.bonding?1u:0u)|
+            (configuration.pairing.features.require_mitm?4u:0u)|(configuration.pairing.features.support_sc?8u:0u);
+        r->queued_window=window;r->deadline=now+SECURITY_REQUEST_TTL_MS;
+        dbt_result_t result=dbt_runtime_send_fixed(runtime,l->handle,SMP_CID,r->bytes,2,security_request_done,r);
+        if(result==DBT_OK)r->loan=true;
+        else {
+            r->queued_window=0;r->next_allowed=now+WAIT_MS;
+            if(result!=DBT_BUSY && result!=DBT_NO_SPACE){r->outside_done=true;if(window)r->last_window=window;}
+        }
+    }
+}
 static bool random_bytes(void *ctx,uint8_t *out,size_t n) {
     (void)ctx; esp_fill_random(out,n); return true;
 }
@@ -317,10 +416,13 @@ static dbt_result_t begin(const dbt_link_t *l,bool initiator) {
     guard_entry_t *g=resolvable(l->peer_address_type,l->peer) ? &private_guard :
                      guard_for(l->peer_address_type,l->peer,runtime->now_ms);
     if (!g || !dbt_smp_guard_allowed(&g->guard,runtime->now_ms)) return DBT_BUSY;
+#ifdef DBT_PROBE_PRODUCT_SECURITY
+    if(!probe_admission_le_begin(l,runtime->now_ms))return DBT_UNSUPPORTED;
+#endif
     memset(&slot,0,sizeof(slot)); slot.active=true; slot.initiator=initiator;
     slot.handle=l->handle; slot.generation=l->generation; slot.peer_type=l->peer_address_type;
     slot.prepare_deadline=runtime->now_ms+30000u;
-    memcpy(slot.peer,l->peer,6); slot.guard=g;
+    memcpy(slot.peer,l->peer,6); slot.guard=g;suspend_other_requests(l);
     return DBT_OK;
 }
 static bool begin_reconnect(const dbt_link_t *l,const uint8_t *request,bool central) {
@@ -335,10 +437,13 @@ static bool begin_reconnect(const dbt_link_t *l,const uint8_t *request,bool cent
     slot.handle=l->handle; slot.generation=l->generation; slot.peer_type=l->peer_address_type;
     memcpy(slot.peer,l->peer,6);
     if (!central) { memcpy(slot.rand,request+3,8); slot.ediv=dbt_read_le16(request+11); }
-    slot.prepare_deadline=runtime->now_ms+runtime->host.timeout_ms;
+    slot.prepare_deadline=runtime->now_ms+runtime->host.timeout_ms;suspend_other_requests(l);
     return true;
 }
 dbt_result_t probe_smp_reconnect_start(const dbt_link_t *l) {
+#ifdef DBT_PROBE_PRODUCT_SECURITY
+    if(probe_admission_frozen())return DBT_BUSY;
+#endif
     if (slot.active) return DBT_BUSY;
     return begin_reconnect(l,NULL,true) ? DBT_OK : DBT_INVALID;
 }
@@ -352,6 +457,7 @@ static void cancel_reconnect_reply(void) {
 dbt_result_t probe_smp_start(const dbt_link_t *l) { return begin(l,true); }
 dbt_result_t probe_smp_receive(const dbt_link_t *l,uint16_t cid,const uint8_t *p,uint16_t n) {
     if (!l || cid!=SMP_CID || !p || !n || n>65) return DBT_INVALID;
+    if(p[0]==1 && stop_request(l,runtime?runtime->now_ms:0)!=DBT_OK)return DBT_BUSY;
     if (!slot.active) {
         if (p[0]!=1) return DBT_INVALID;
         dbt_result_t rc=begin(l,false); if (rc!=DBT_OK) return rc;
@@ -364,6 +470,10 @@ dbt_result_t probe_smp_receive(const dbt_link_t *l,uint16_t cid,const uint8_t *p
     memcpy(slot.inbox,p,n); slot.inbox_size=(uint8_t)n; return DBT_OK;
 }
 void probe_smp_link(const dbt_link_change_t *change) {
+    if(change && change->kind==DBT_LINK_REMOVED){
+        security_request_t *r=request_for(change->handle,change->generation);
+        if(r){if(r->loan)(void)cancel_request(r,false);if(!r->loan)wipe(r,sizeof(*r));}
+    }
     if (!change || !slot.active || change->kind!=DBT_LINK_REMOVED ||
         change->handle!=slot.handle || change->generation!=slot.generation) return;
     slot.disconnected=true;
@@ -373,15 +483,28 @@ void probe_smp_link(const dbt_link_change_t *change) {
 }
 bool probe_smp_event(const dbt_hci_packet_t *p) {
     if (!runtime || !p || p->type!=DBT_H4_EVENT) return false;
+#ifdef DBT_PROBE_PRODUCT_SECURITY
+    probe_admission_revalidate();
+#endif
     if (p->event==0x3e && p->size==13 && p->payload && p->payload[0]==5) {
         uint16_t handle=dbt_read_le16(p->payload+1);
         const dbt_link_t *l=dbt_acl_find(&runtime->acl,handle);
-        if (!slot.active) return begin_reconnect(l,p->payload,false);
+        if(l && stop_request(l,runtime->now_ms)!=DBT_OK)return false;
+        if (!slot.active) {
+#ifdef DBT_PROBE_PRODUCT_SECURITY
+            if(probe_admission_frozen())return false;
+#endif
+            return begin_reconnect(l,p->payload,false);
+        }
         if (slot.reconnect && handle==slot.handle && l && l->generation==slot.generation) {
             slot.failed=true;
             cancel_reconnect_reply();
             return false;
         }
+    }
+    if(p->event==0x08 && p->size==4 && p->payload){
+        const dbt_link_t *l=dbt_acl_find(&runtime->acl,dbt_read_le16(p->payload+1));
+        if(l && l->kind==DBT_LINK_LE && l->encrypted)(void)stop_request(l,runtime->now_ms);
     }
     if (slot.active && slot.reconnect && p->event==0x08 && p->size==4 && p->payload &&
         dbt_read_le16(p->payload+1)==slot.handle) {
@@ -398,10 +521,16 @@ bool probe_smp_event(const dbt_hci_packet_t *p) {
                 slot.prepare_deadline=runtime->now_ms+runtime->host.timeout_ms;
             else slot.failed=true;
         }
+#ifdef DBT_PROBE_PRODUCT_SECURITY
+        probe_admission_revalidate();
+#endif
         return false;
     }
     if (!slot.active || !session.runtime) return false;
     dbt_result_t rc=dbt_smp_session_event(&session,p);
+#ifdef DBT_PROBE_PRODUCT_SECURITY
+    probe_admission_revalidate();
+#endif
     return p->event==0x3e && p->size==13 && p->payload && p->payload[0]==5 && rc==DBT_OK;
 }
 static void enqueue(void) {
@@ -601,6 +730,7 @@ static void complete(completion_t *done,uint32_t now) {
 }
 void probe_smp_poll(uint32_t now) {
     if (!runtime) return;
+    security_request_poll(now);
     completion_t done; uint8_t token;
     while (xQueueReceive(done_queue,&token,0)==pdTRUE) {
         done=completion_mailbox; wipe(&completion_mailbox,sizeof(completion_mailbox));
@@ -735,10 +865,50 @@ void probe_smp_poll(uint32_t now) {
     enqueue();
 }
 uint32_t probe_smp_wait_ms(uint32_t now) {
-    (void)now;
-    if (!runtime || (!slot.active && !maintenance.active)) return UINT32_MAX;
-    if (uxQueueMessagesWaiting(done_queue) || (pending_valid && !work_inflight)) return 0;
-    return WAIT_MS;
+    if (!runtime)return UINT32_MAX;
+    uint32_t wait=UINT32_MAX;
+    if(configuration.peripheral_security_requests){
+        uint32_t window=request_window(now);
+        for(unsigned i=0;i<DBT_MAX_LINKS;i++){
+            const security_request_t *r=&security_requests[i];
+            if(r->used && r->loan){uint32_t delay=(int32_t)(now-r->deadline)>=0?0:r->deadline-now;if(delay<wait)wait=delay;}
+        }
+        if(runtime->ready && runtime->acl.mtu[DBT_LINK_LE]>=6 && !request_frozen() && !slot.active && !maintenance.active){
+            for(unsigned i=0;i<DBT_MAX_LINKS;i++){
+                const dbt_link_t *l=&runtime->acl.links[i];
+                if(!l->used || l->kind!=DBT_LINK_LE || l->role!=1 || l->encrypted || quarantined(l->handle))continue;
+                security_request_t *r=request_for(l->handle,l->generation);
+                if(!r){bool free_slot=false;for(unsigned j=0;j<DBT_MAX_LINKS;j++)if(!security_requests[j].used)free_slot=true;
+                    uint32_t delay=free_slot?0:WAIT_MS;if(delay<wait)wait=delay;continue;}
+                if(!r->loan && (window?r->last_window!=window:!r->outside_done)){
+                    uint32_t delay=(int32_t)(now-r->next_allowed)>=0?0:r->next_allowed-now;if(delay<wait)wait=delay;
+                }
+            }
+        }
+    }
+    if(slot.active || maintenance.active){
+        if(uxQueueMessagesWaiting(done_queue) || (pending_valid && !work_inflight))return 0;
+        if(WAIT_MS<wait)wait=WAIT_MS;
+    }
+    return wait;
+}
+bool probe_smp_quiescent(void){
+    for(unsigned i=0;i<DBT_MAX_LINKS;i++)if(security_requests[i].loan)return false;
+    if(!runtime || storage_poisoned || maintenance.active || pending_valid || work_inflight || worker_live ||
+       !work_queue || !done_queue || uxQueueMessagesWaiting(work_queue) || uxQueueMessagesWaiting(done_queue))return false;
+    if(configuration.peripheral_security_requests && runtime->ready && runtime->acl.mtu[DBT_LINK_LE]>=6 &&
+       !request_frozen() && !slot.active){
+        uint32_t window=request_window(runtime->now_ms);
+        for(unsigned i=0;i<DBT_MAX_LINKS;i++){
+            const dbt_link_t *l=&runtime->acl.links[i];
+            if(!l->used || l->kind!=DBT_LINK_LE || l->role!=1 || l->encrypted || quarantined(l->handle))continue;
+            security_request_t *r=request_for(l->handle,l->generation);
+            if(!r || (window?r->last_window!=window:!r->outside_done))return false;
+        }
+    }
+    if(!slot.active)return true;
+    if(slot.failed || slot.disconnected || !slot.retired || slot.reply_pending)return false;
+    return slot.reconnect?slot.verified:(session.runtime && session.result_reported && session.phase!=DBT_SMP_SESSION_FAILED);
 }
 bool probe_smp_take_failure(uint16_t *handle,uint32_t *generation) {
     if (!handle || !generation || !failure.pending) return false;

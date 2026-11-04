@@ -33,4 +33,12 @@ dbt_result_t probe_avrcp_key(uint8_t operation, bool release, uint32_t now_ms);
  * must be escaped by any formatter. DBT_BUSY asks the reader to try later. */
 dbt_result_t probe_avrcp_snapshot(probe_avrcp_snapshot_t *);
 bool probe_avrcp_ready(void);
+/* Owner only, nonblocking. Hold stops new admission, automatic connection,
+ * keys and notifications, and asynchronously closes every control channel.
+ * Keep runtime/channel events and probe_avrcp_poll running until quiescent.
+ * Releasing a hold does not undo a close already in progress; admission
+ * resumes only after every held channel and loan has retired. */
+dbt_result_t probe_avrcp_restart_hold(bool hold,uint32_t now_ms);
+/* True only while held after channels, TX loan, bearer and storage retire. */
+bool probe_avrcp_restart_quiescent(void);
 #endif

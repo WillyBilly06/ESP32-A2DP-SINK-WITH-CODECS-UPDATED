@@ -26,4 +26,8 @@ void probe_audio_product_observer(probe_audio_product_event_fn,void *);
 bool probe_audio_sound_memory_ok(void);
 /* Before controller startup, initialize the shared output exactly once. */
 dbt_result_t probe_audio_output_bootstrap(void);
+/* Owner: stop new sessions and drain existing channels/worker loans. Keep
+ * normal event/receipt/poll forwarding until quiescent; cancel reopens admission. */
+dbt_result_t probe_audio_restart_hold(bool,uint32_t now_ms);
+bool probe_audio_restart_quiescent(void);
 #endif

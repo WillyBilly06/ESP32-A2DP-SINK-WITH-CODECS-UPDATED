@@ -10,6 +10,38 @@ dbt_result_t probe_gatt_security_query_configure(
     dbt_result_t (*query)(uint16_t,uint32_t,dbt_smp_session_security_t *));
 dbt_result_t probe_gatt_bond_query_configure(
     dbt_result_t (*query)(uint16_t,uint32_t,uint8_t *,uint8_t[6],uint8_t[32]));
+typedef struct {
+    void *context;
+    /* Owner, nonblocking: fresh trusted admission, then exact epoch checks. */
+    uint32_t (*admit)(void *,const dbt_ble_control_peer_t *,uint8_t,const uint8_t *,uint16_t);
+    void (*abandon)(void *,const dbt_ble_control_peer_t *,uint32_t,uint8_t);
+    bool (*valid)(void *,const dbt_ble_control_peer_t *,uint32_t);
+    /* General worker: completed flash operation, not queue admission. */
+    bool (*command)(void *,const dbt_ble_control_peer_t *,uint32_t,uint8_t,const uint8_t *,uint16_t,uint8_t *,uint8_t *);
+    /* Owner: selector handoff; BUSY until selector completion. */
+    dbt_result_t (*finish)(void *,const dbt_ble_control_peer_t *,uint32_t);
+    /* Owner: OTA_COMPLETE notification reached the runtime TX admission. */
+    void (*delivered)(void *,const dbt_ble_control_peer_t *,uint32_t);
+    /* Owner: pause producers and retire resources before selector; BUSY while
+     * progressing, INVALID on fault. Must not block the general worker. */
+    dbt_result_t (*prepare)(void *,const dbt_ble_control_peer_t *,uint32_t);
+} probe_gatt_ota_hooks_t;
+dbt_result_t probe_gatt_ota_configure(const probe_gatt_ota_hooks_t *);
+/* Owner capture, then bounded atomic validation on either owner or worker.
+ * A new trust grant must use a new nonzero cookie even on the same link. */
+dbt_result_t probe_gatt_control_trust_configure(
+    uint32_t (*capture)(uint16_t,uint32_t),bool (*valid)(uint16_t,uint32_t,uint32_t));
+/* Owner-only restart fence after verified END, before selector activation. No new mutations are
+ * admitted while fenced; quiescent means admitted ATT/control/CCCD work and
+ * its TX loans have drained. It does not attest audio, trust or NVS workers. */
+bool probe_gatt_restart_fenced(void);
+bool probe_gatt_restart_prepare_quiescent(void);
+bool probe_gatt_restart_quiescent(void);
+void probe_gatt_restart_cancel(void);
+/* Owner only while fenced: drain individually observed pre-fence detents.
+ * Caller must first stop new physical sampling; never merge or defer commits. */
+dbt_result_t probe_gatt_control_eq_delta_drain(uint8_t band,int8_t delta);
+dbt_result_t probe_gatt_control_toggle_drain(uint8_t flag);
 
 /* Configure before init. Worker callbacks own persistence/provider work;
  * publication callbacks must be nonblocking and preserve independent volume. */

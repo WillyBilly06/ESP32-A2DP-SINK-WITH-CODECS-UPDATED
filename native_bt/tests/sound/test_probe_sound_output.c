@@ -169,6 +169,7 @@ int main(void){
     dbt_output_test_bad_receipt(0);
     CHECK(WaitForSingleObject(blocked,4000)==WAIT_OBJECT_0 && stalled.result==DBT_BUSY);CloseHandle(blocked);
     probe_output_stats_t stats;probe_output_stats(&stats);CHECK(stats.request_fault && stats.stale_receipts>=1);
+    probe_output_restart_hold(true);CHECK(!probe_output_restart_quiescent());probe_output_restart_hold(false);
     CHECK(probe_output_stream(true,44100,2)==DBT_BUSY && probe_output_active_rate()==0);
     atomic_store(&renderer_pause,0);CHECK(await_recovery());CHECK(probe_output_active_rate()==0);
     CHECK(probe_output_stream(true,48000,2)==DBT_OK);
@@ -209,5 +210,15 @@ int main(void){
     CHECK(probe_sound_init_with_wake(&external,&provider,external_wake,&wakes)==DBT_BUSY && external.play && external.token);
     for(unsigned i=0;i<5000 && (external.play || external.token);i++){(void)probe_sound_poll(&external,now(0),0);Sleep(1);}
     CHECK(!external.play && !external.token && atomic_load(&wakes)>0 && !atomic_load(&live));
+    /* A terminal restart cannot acquire a fresh output loan or restart codec. */
+    probe_output_restart_hold(true);CHECK(probe_output_restart_quiescent());
+    CHECK(probe_output_stream(true,48000,2)==DBT_BUSY);
+    uint32_t blocked_token=123;CHECK(probe_output_sound_reserve(48000,true,&blocked_token)==DBT_BUSY && !blocked_token);
+    CHECK(probe_output_restart_quiescent());
+    probe_output_restart_hold(false);CHECK(!probe_output_restart_quiescent());
+    CHECK(probe_output_stream(true,48000,2)==DBT_OK);
+    probe_output_restart_hold(true);CHECK(!probe_output_restart_quiescent());
+    CHECK(probe_output_stream(false,0,0)==DBT_OK && probe_output_restart_quiescent());
+    probe_output_restart_hold(false);
     puts("actual sound/output integration passed with mocked I2S and concurrent codec request");return 0;
 }

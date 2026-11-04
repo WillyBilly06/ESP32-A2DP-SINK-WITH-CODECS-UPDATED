@@ -27,6 +27,10 @@ dbt_result_t probe_output_eq(int8_t,int8_t,int8_t);
 dbt_result_t probe_output_control(uint8_t);
 dbt_result_t probe_output_analysis(bool);
 void probe_output_meter(uint8_t values[3]);
+/* Owner-only restart fence: prevents new starts/borrows, permits retirement.
+ * A latched failure or unresolved ticket is never quiescent. */
+void probe_output_restart_hold(bool);
+bool probe_output_restart_quiescent(void);
 #ifdef DBT_PROBE_SOUND_BUILD
 #include "dbt_sound.h"
 /* Sound worker only. Reserve, open/prefill, attach, then release after drain.

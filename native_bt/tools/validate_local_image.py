@@ -1,5 +1,5 @@
 """Validate an ESP32 build artifact offline. This tool never opens a serial port."""
-import argparse,hashlib,io,json,struct
+import argparse,hashlib,io,json,re,struct
 from pathlib import Path
 from esptool.bin_image import ESP32FirmwareImage
 from source_snapshot import verify_manifest
@@ -8,6 +8,11 @@ p=argparse.ArgumentParser();p.add_argument('--image',type=Path,default=ROOT/'_bu
 build_status=json.loads((a.image.parent/'local-build-status.json').read_text(encoding='utf-8-sig'))
 assert build_status['passed'] and build_status['state']=='complete', 'Latest build did not complete; refusing a possibly stale binary'
 source_count=verify_manifest(a.image.parent/'local-build-sources.json',build_status['source_manifest_sha256'])
+commands=json.loads((a.image.parent/'compile_commands.json').read_text(encoding='utf-8'))
+main_command=next(entry['command'] for entry in commands if Path(entry['file']).name=='probe_main.c')
+product_security=bool(re.search(r'(?:^|\s)-DDBT_PROBE_PRODUCT_SECURITY=1(?:\s|$)',main_command))
+rfcomm=bool(re.search(r'(?:^|\s)-DDBT_PROBE_RFCOMM=1(?:\s|$)',main_command))
+assert product_security==build_status['product_security'] and rfcomm==build_status['rfcomm']
 blob=a.image.read_bytes();assert len(blob)>256 and blob[0]==0xe9
 assert hashlib.sha256(blob).hexdigest()==build_status['image_sha256']
 image=ESP32FirmwareImage(io.BytesIO(blob));image.verify();assert image.chip_id==0
@@ -42,6 +47,6 @@ assert image.min_rev_full<=301<=image.max_rev_full
 report={'passed':True,'scope':'offline image checksum/digest, ESP32 revision and admitted OTA capacity; no device access or runtime qualification',
  'image_sha256':hashlib.sha256(blob).hexdigest(),'image_bytes':len(blob),'project':project,'chip_id':image.chip_id,
  'revision_range':[image.min_rev_full,image.max_rev_full],'checksum_verified':True,'digest_verified':bool(image.append_digest),
- 'latest_local_build_completed':True,'build_sources_match':True,'build_source_units':source_count,'product_io':bool(build_status.get('product_io')),'controller_only_dual_mode':True,'anti_rollback_fuse_updates':False,'partition_offset':slot['offset'],'partition_bytes':slot['size'],
+ 'latest_local_build_completed':True,'build_sources_match':True,'build_source_units':source_count,'product_io':bool(build_status.get('product_io')),'product_security':product_security,'rfcomm_profile':rfcomm,'controller_only_dual_mode':True,'anti_rollback_fuse_updates':False,'partition_offset':slot['offset'],'partition_bytes':slot['size'],
  'partition_remaining_bytes':slot['size']-len(blob),'compiled_table_matches_preserved_layout':True,'compiled_table_sha256':hashlib.sha256(table).hexdigest(),'flash_mode':'DIO','flash_mib':8,'flash_mhz':80,'hardware_accessed':False,'runtime_qualified':False}
 output=ROOT/'_build/host/local-image-validation.json';output.write_text(json.dumps(report,indent=2)+'\n');print(json.dumps(report,indent=2))

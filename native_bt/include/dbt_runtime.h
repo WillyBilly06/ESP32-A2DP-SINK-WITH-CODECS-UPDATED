@@ -81,6 +81,12 @@ dbt_result_t dbt_runtime_send(dbt_runtime_t *runtime, uint16_t handle, uint16_t 
     const uint8_t *data, uint16_t size, dbt_tx_done_t done, void *context);
 dbt_result_t dbt_runtime_send_fixed(dbt_runtime_t *runtime, uint16_t handle, uint16_t cid,
     const uint8_t *data, uint16_t size, dbt_tx_done_t done, void *context);
+/* Owner only, including from an ingress callback: cancel only an exact fixed
+ * SDU whose first fragment has not been sent. Matching includes generation,
+ * callback and context. OK synchronously returns the loan with ABORTED;
+ * BUSY means a fragment was sent, EMPTY means no exact matching loan. */
+dbt_result_t dbt_runtime_cancel_fixed(dbt_runtime_t *,uint16_t handle,uint32_t generation,
+                                      uint16_t cid,dbt_tx_done_t done,void *context);
 /* Host owner only; release all borrowed SDUs and partial RX allocations. */
 void dbt_runtime_abort(dbt_runtime_t *runtime, dbt_fault_t fault);
 

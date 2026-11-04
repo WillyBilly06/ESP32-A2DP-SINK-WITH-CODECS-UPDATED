@@ -59,6 +59,7 @@ typedef struct {
   uint32_t next_request, stop_request, stop_at;
   /* FREE, WAITING, ABANDONED, DONE, COMPLETING. One bounded ticket. */
   _Atomic uint32_t request_gate,request_result,request_fault,stale_receipts;
+  _Atomic bool restart_hold;
   request_t inflight;
 #ifdef DBT_PROBE_SOUND_BUILD
   _Atomic uint32_t sound_token;
@@ -347,7 +348,8 @@ static dbt_result_t enable_output(void) {
   return output.enabled ? DBT_OK : DBT_INVALID;
 }
 static void codec_request(request_t request){
-  if (output.stopping)report_done(request.id, DBT_BUSY);
+  if (request.start && atomic_load_explicit(&output.restart_hold,memory_order_acquire))report_done(request.id,DBT_BUSY);
+  else if (output.stopping)report_done(request.id, DBT_BUSY);
   else if (request.start){
 #ifdef DBT_PROBE_SOUND_BUILD
     if(!output.active)output.sound_standalone=false;
@@ -380,6 +382,8 @@ static void reclaim_cancelled(const request_t *request,dbt_result_t result){
   }
 }
 static void handle_request(request_t request){
+  if(atomic_load_explicit(&output.restart_hold,memory_order_acquire) &&
+     (request.kind==REQ_SOUND_RESERVE || request.kind==REQ_SOUND_ATTACH || (request.kind==REQ_CODEC && request.start))){report_done(request.id,DBT_BUSY);return;}
   if(output.stopping || output.transition_sound){report_done(request.id,DBT_BUSY);return;}
   uint32_t token=atomic_load_explicit(&output.sound_token,memory_order_acquire);
   if(request.kind==REQ_SOUND_RESERVE){
@@ -591,6 +595,11 @@ dbt_result_t probe_output_init(void (*wake_decoder)(void *), void *context) {
  * request later changing the output behind its caller's back. */
 static dbt_result_t request_output(request_t *request) {
   if(!output.task || !output.requests)return DBT_INVALID;
+  bool starts=request->start;
+#ifdef DBT_PROBE_SOUND_BUILD
+  starts=starts || request->kind==REQ_SOUND_RESERVE || request->kind==REQ_SOUND_ATTACH;
+#endif
+  if(starts && atomic_load_explicit(&output.restart_hold,memory_order_acquire))return DBT_BUSY;
   unsigned waits=0;uint32_t expected;unsigned max_waits=50;
 #ifdef DBT_PROBE_SOUND_BUILD
   if(request->kind==REQ_SOUND_RELEASE)max_waits=1;
@@ -601,6 +610,10 @@ static dbt_result_t request_output(request_t *request) {
     if(++waits>=max_waits)return DBT_BUSY;
     ulTaskNotifyTake(pdTRUE,pdMS_TO_TICKS(2));
   } while(true);
+  /* Close the producer/owner fence race before any request is published. */
+  if(starts && atomic_load_explicit(&output.restart_hold,memory_order_acquire)){
+    atomic_store_explicit(&output.request_gate,0,memory_order_release);return DBT_BUSY;
+  }
   if (!++output.next_request)
     ++output.next_request;
   request->id=output.next_request;
@@ -764,4 +777,19 @@ void probe_output_meter(uint8_t values[3]) {
   uint32_t v = atomic_load_explicit(&output.meter_value, memory_order_acquire);
   for (unsigned i = 0; i < 3; ++i)
     values[i] = (uint8_t)(v >> (i * 8u));
+}
+
+void probe_output_restart_hold(bool hold){
+  atomic_store_explicit(&output.restart_hold,hold,memory_order_release);
+  if(output.task)xTaskNotifyGive(output.task);
+}
+bool probe_output_restart_quiescent(void){
+  if(!atomic_load_explicit(&output.restart_hold,memory_order_acquire) ||
+     atomic_load_explicit(&output.request_gate,memory_order_acquire) ||
+     atomic_load(&output.failed) || atomic_load(&output.request_fault) ||
+     atomic_load(&output.running) || atomic_load(&output.requested_bytes))return false;
+#ifdef DBT_PROBE_SOUND_BUILD
+  if(atomic_load_explicit(&output.sound_token,memory_order_acquire))return false;
+#endif
+  return atomic_load_explicit(&output.request_gate,memory_order_acquire)==0;
 }

@@ -35,3 +35,5 @@ target_compile_features(native_bt PUBLIC c_std_11)
 if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
     target_compile_options(native_bt PRIVATE -Wall -Wextra -Werror)
 endif()
+
+target_sources(native_bt PRIVATE src/dbt_rfcomm.c src/dbt_rfcomm_mux.c src/dbt_rfcomm_credit.c src/dbt_rfcomm_dlc.c src/dbt_rfcomm_bearer.c src/dbt_rfcomm_spp.c)

@@ -8,7 +8,13 @@
 static probe_product_t *owner_product;static uint32_t test_clock;static int apply_name;static unsigned commits,owner_wakes,worker_wakes;
 static bool fail_nvs;static char durable_name[33],staged_name[33];
 static probe_product_runtime_t owner_runtime;static dbt_runtime_t runtime_model;static dbt_gap_t gap_model;
+static void revoke_during_select(void){probe_product_ota_epoch(owner_product,0);}
 static bool use_runtime,secure_peer=true,security_bond=true,security_encrypt=true;static uint8_t security_key_size=16;static unsigned gap_polls,gatt_updates;
+static bool trust_peer=true;static uint8_t bond_version=1;
+static dbt_result_t trust(uint16_t h,uint32_t generation,uint8_t *type,uint8_t id[6],uint8_t tag[32]) {
+    if(!trust_peer || h!=7 || generation!=runtime_model.acl.links[0].generation)return DBT_INVALID;
+    *type=0;memset(id,0x42,6);memset(tag,bond_version,32);return DBT_OK;
+}
 esp_err_t nvs_open(const char *n,int mode,nvs_handle_t *h){assert(!strcmp(n,"audio") && mode==NVS_READWRITE);*h=1;return ESP_OK;}
 esp_err_t nvs_set_str(nvs_handle_t h,const char *key,const char *v){assert(h==1 && !strcmp(key,"devname") && strlen(v)<sizeof(staged_name));memcpy(staged_name,v,strlen(v)+1);return ESP_OK;}
 esp_err_t nvs_commit(nvs_handle_t h){assert(h==1);commits++;if(fail_nvs)return 1;memcpy(durable_name,staged_name,sizeof(durable_name));return ESP_OK;}
@@ -42,12 +48,26 @@ dbt_result_t dbt_gap_rename_result(const dbt_gap_t *g,uint32_t token,bool *appli
 dbt_result_t probe_gatt_control_name_applied(const uint8_t *p,uint8_t n){assert(p && n);gatt_updates++;return DBT_OK;}
 static void grant(probe_product_t *s,uint32_t generation) {
     dbt_product_peer_value_t v={0};v.peer=(dbt_ble_control_peer_t){7,generation};v.encrypted=v.bonded=v.allow_name=v.allow_ota=true;
-    memcpy(v.ota.project,"native_bt_probe",16);assert(probe_product_publish_peer(s,&v));
+    memcpy(v.ota.project,"native_bt_probe",16);assert(probe_product_publish_peer(s,&v));probe_product_ota_epoch(s,generation);
 }
 static void command(dbt_ble_control_state_t *display,dbt_ble_control_hooks_t *hooks,const dbt_ble_control_peer_t *peer,
                     const uint8_t *data,uint16_t n,uint8_t expected) {
     dbt_ble_control_result_t result;
+    if(data[0]>=0x20 && data[0]<=0x23) {
+        uint8_t size=DBT_BLE_CONTROL_MAX_STATUS;
+        uint32_t epoch=atomic_load(&((probe_product_t *)hooks->context)->admission_epoch);
+        if(!probe_product_ota_command_epoch(hooks->context,peer,epoch,data[0],data+1,n-1,result.data,&size)) {
+            result.data[0]=0x11;size=1;
+        }
+        assert(size && result.data[0]==expected);return;
+    }
     assert(dbt_ble_control_execute(display,hooks,peer,data,n,&result)==DBT_OK && result.size && result.data[0]==expected);
+}
+static uint8_t runtime_ota(probe_product_runtime_t *r,const dbt_ble_control_peer_t *p,uint32_t epoch,
+                           const uint8_t *bytes,uint16_t n) {
+    uint8_t out[DBT_BLE_CONTROL_MAX_STATUS],size=sizeof(out);
+    if(bytes[0]!=0x20 && probe_product_runtime_ota_admit(r,p,bytes[0],bytes+1,n-1)!=epoch)return 0x11;
+    return probe_product_runtime_ota_worker(r,p,epoch,bytes[0],bytes+1,n-1,out,&size) && size?out[0]:0x11;
 }
 int main(void) {
     probe_product_t s;owner_product=&s;dbt_ble_control_state_t state={0};
@@ -92,6 +112,7 @@ int main(void) {
     runtime_model.acl.links[0].handle=7;runtime_model.acl.links[0].generation=10;runtime_model.acl.links[0].encrypted=true;
     memset(&gap_model,0,sizeof(gap_model));gap_model.state=DBT_GAP_READY;
     assert(probe_product_runtime_init(&owner_runtime,&s,&runtime_model,&gap_model,security));owner_product=&s;use_runtime=true;
+    assert(probe_product_runtime_set_trust(&owner_runtime,trust));
     probe_product_runtime_poll(&owner_runtime);dbt_ble_control_peer_t peer10={7,10};
     command(&state,&control,&peer10,start,sizeof(start),0x11);
     assert(probe_product_runtime_grant_ota(&owner_runtime,&peer10,0)==DBT_OK);
@@ -119,5 +140,103 @@ int main(void) {
     dbt_ble_control_peer_t peer11={7,11};command(&state,&control,&peer11,start,sizeof(start),0x11);
     assert(probe_product_runtime_grant_ota(&owner_runtime,&peer10,0)==DBT_INVALID);
     atomic_store(&s.peer.sequence,UINT32_MAX);dbt_product_peer_value_t snap;assert(!dbt_product_peer_read(&s.peer,&snap));
+    /* Full automatic owner handoff: a committed encrypted but untrusted peer
+     * cannot start, and a re-pair revokes already queued work by epoch. */
+    boot=&running;test_clock=0;trust_peer=false;bond_version=1;
+    assert(probe_product_startup_worker(&s,&state,&hooks));runtime_model.acl.links[0].generation=20;
+    assert(probe_product_runtime_init(&owner_runtime,&s,&runtime_model,&gap_model,security));
+    assert(probe_product_runtime_set_trust(&owner_runtime,trust));dbt_ble_control_peer_t peer20={7,20};
+    assert(!probe_product_runtime_ota_admit(&owner_runtime,&peer20,0x20,start+1,4));
+    probe_product_runtime_poll(&owner_runtime);assert(!dbt_product_peer_read(&s.peer,&snap));
+    trust_peer=true;
+    dbt_ota_manifest_t explicit_manifest={0};memcpy(explicit_manifest.project,"native_bt_probe",16);
+    explicit_manifest.length=9;explicit_manifest.trusted_digest=true;explicit_manifest.crc32=0xcbf43926u;
+    memcpy(explicit_manifest.sha256,known_sha,32);
+    assert(probe_product_runtime_grant_ota(&owner_runtime,&peer20,&explicit_manifest)==DBT_OK);
+    const uint8_t wrong_length[]={8,0,0,0};
+    assert(!probe_product_runtime_ota_admit(&owner_runtime,&peer20,0x20,wrong_length,4));
+    uint32_t explicit_epoch=probe_product_runtime_ota_admit(&owner_runtime,&peer20,0x20,start+1,4);
+    assert(explicit_epoch && explicit_epoch==owner_runtime.grant_epoch);
+    probe_product_runtime_ota_abandon(&owner_runtime,&peer20,explicit_epoch,0x20);
+    uint32_t epoch=probe_product_runtime_ota_admit(&owner_runtime,&peer20,0x20,start+1,4);
+    assert(epoch && runtime_ota(&owner_runtime,&peer20,epoch,start,sizeof(start))==0x21);
+    bond_version=2;assert(!probe_product_runtime_ota_valid(&owner_runtime,&peer20,epoch));
+    assert(runtime_ota(&owner_runtime,&peer20,epoch,data,sizeof(data))==0x11);
+    probe_product_worker_tick(&s);assert(s.ota.state==DBT_OTA_IDLE && !s.esp.session);
+    epoch=probe_product_runtime_ota_admit(&owner_runtime,&peer20,0x20,start+1,4);
+    assert(epoch && runtime_ota(&owner_runtime,&peer20,epoch,start,sizeof(start))==0x21);
+    test_clock=100;probe_product_worker_tick(&s);probe_product_runtime_poll(&owner_runtime);
+    assert(!owner_runtime.grant_epoch && s.ota.state==DBT_OTA_IDLE);test_clock=0;
+    uint32_t next=probe_product_runtime_ota_admit(&owner_runtime,&peer20,0x20,start+1,4);
+    assert(next>epoch && runtime_ota(&owner_runtime,&peer20,epoch,start,sizeof(start))==0x11);
+    oom=true;assert(runtime_ota(&owner_runtime,&peer20,next,start,sizeof(start))==0x23 && !s.esp.session);
+    oom=false;probe_product_runtime_ota_abandon(&owner_runtime,&peer20,next,0x20);
+    epoch=probe_product_runtime_ota_admit(&owner_runtime,&peer20,0x20,start+1,4);
+    assert(epoch>next && runtime_ota(&owner_runtime,&peer20,epoch,start,sizeof(start))==0x21);
+    assert(runtime_ota(&owner_runtime,&peer20,epoch,data,sizeof(data))==0x20);
+    assert(runtime_ota(&owner_runtime,&peer20,epoch,end,sizeof(end))==0x22 && boot==&running);
+    assert(!probe_product_runtime_ota_admit(&owner_runtime,&peer20,0x21,data+1,sizeof(data)-1));
+    assert(!probe_product_runtime_restart_ready(&owner_runtime,test_clock,true));
+    assert(probe_product_runtime_ota_finish(&owner_runtime,&peer20,epoch)==DBT_BUSY);
+    assert(probe_product_worker_poll_guarded(&s,false,false) && boot==&running);
+    assert(probe_product_runtime_ota_finish(&owner_runtime,&peer20,epoch)==DBT_BUSY);
+    probe_product_worker_tick(&s);assert(probe_product_runtime_ota_finish(&owner_runtime,&peer20,epoch)==DBT_OK && boot==&update);
+    assert(!probe_product_runtime_restart_ready(&owner_runtime,test_clock,true));
+    probe_product_runtime_ota_delivered(&owner_runtime,&peer20,epoch);
+    assert(!probe_product_runtime_restart_ready(&owner_runtime,499,true));
+    assert(!probe_product_runtime_restart_ready(&owner_runtime,500,false));
+    assert(probe_product_runtime_restart_ready(&owner_runtime,500,true));
+    assert(!probe_product_runtime_restart_ready(&owner_runtime,501,true));
+    /* Selector failure can have changed boot metadata, but never produces a
+     * selected result or restart permission. */
+    boot=&running;assert(probe_product_startup_worker(&s,&state,&hooks));
+    assert(probe_product_runtime_init(&owner_runtime,&s,&runtime_model,&gap_model,security));
+    assert(probe_product_runtime_set_trust(&owner_runtime,trust));
+    epoch=probe_product_runtime_ota_admit(&owner_runtime,&peer20,0x20,start+1,4);
+    assert(epoch && runtime_ota(&owner_runtime,&peer20,epoch,start,sizeof(start))==0x21 &&
+           runtime_ota(&owner_runtime,&peer20,epoch,data,sizeof(data))==0x20 &&
+           runtime_ota(&owner_runtime,&peer20,epoch,end,sizeof(end))==0x22);
+    select_failure=2;assert(probe_product_runtime_ota_finish(&owner_runtime,&peer20,epoch)==DBT_BUSY);
+    probe_product_worker_tick(&s);assert(boot==&update && probe_product_runtime_ota_finish(&owner_runtime,&peer20,epoch)==DBT_INVALID);
+    probe_product_runtime_ota_delivered(&owner_runtime,&peer20,epoch);
+    assert(!probe_product_runtime_restart_ready(&owner_runtime,1000,true));
+    select_failure=0;boot=&running;
+    /* Concurrent revocation after selector admission may leave the selector
+     * changed, but is never reported as selected or restartable. */
+    assert(probe_product_startup_worker(&s,&state,&hooks));
+    assert(probe_product_runtime_init(&owner_runtime,&s,&runtime_model,&gap_model,security));
+    assert(probe_product_runtime_set_trust(&owner_runtime,trust));
+    epoch=probe_product_runtime_ota_admit(&owner_runtime,&peer20,0x20,start+1,4);
+    assert(epoch && runtime_ota(&owner_runtime,&peer20,epoch,start,sizeof(start))==0x21 &&
+           runtime_ota(&owner_runtime,&peer20,epoch,data,sizeof(data))==0x20 &&
+           runtime_ota(&owner_runtime,&peer20,epoch,end,sizeof(end))==0x22);
+    assert(probe_product_runtime_ota_finish(&owner_runtime,&peer20,epoch)==DBT_BUSY);
+    during_select=revoke_during_select;probe_product_worker_tick(&s);during_select=NULL;
+    assert(boot==&update && probe_product_runtime_ota_finish(&owner_runtime,&peer20,epoch)==DBT_INVALID);
+    probe_product_runtime_ota_delivered(&owner_runtime,&peer20,epoch);
+    assert(!probe_product_runtime_restart_ready(&owner_runtime,1000,true));boot=&running;
+    assert(probe_product_startup_worker(&s,&state,&hooks));
+    assert(probe_product_runtime_init(&owner_runtime,&s,&runtime_model,&gap_model,security));
+    assert(probe_product_runtime_set_trust(&owner_runtime,trust));
+    assert(!probe_product_request_activation(&s,&peer20));
+    epoch=probe_product_runtime_ota_admit(&owner_runtime,&peer20,0x20,start+1,4);
+    assert(epoch && runtime_ota(&owner_runtime,&peer20,epoch,start,sizeof(start))==0x21 &&
+           runtime_ota(&owner_runtime,&peer20,epoch,data,sizeof(data))==0x20 &&
+           runtime_ota(&owner_runtime,&peer20,epoch,end,sizeof(end))==0x22);
+    unsigned before_boot=boot_writes;runtime_model.acl.links[0].used=false;
+    assert(probe_product_runtime_ota_finish(&owner_runtime,&peer20,epoch)==DBT_INVALID);
+    probe_product_worker_tick(&s);assert(boot_writes==before_boot && !s.esp.session);
+    runtime_model.acl.links[0].used=true;boot=&running;test_clock=0;
+    assert(probe_product_startup_worker(&s,&state,&hooks));
+    assert(probe_product_runtime_init(&owner_runtime,&s,&runtime_model,&gap_model,security));
+    assert(probe_product_runtime_set_trust(&owner_runtime,trust));
+    epoch=probe_product_runtime_ota_admit(&owner_runtime,&peer20,0x20,start+1,4);
+    assert(epoch && runtime_ota(&owner_runtime,&peer20,epoch,start,sizeof(start))==0x21 &&
+           runtime_ota(&owner_runtime,&peer20,epoch,data,sizeof(data))==0x20 &&
+           runtime_ota(&owner_runtime,&peer20,epoch,end,sizeof(end))==0x22);
+    assert(probe_product_runtime_ota_finish(&owner_runtime,&peer20,epoch)==DBT_BUSY);
+    probe_product_worker_tick(&s);assert(probe_product_runtime_ota_finish(&owner_runtime,&peer20,epoch)==DBT_OK);
+    probe_product_runtime_ota_delivered(&owner_runtime,&peer20,epoch);
+    assert(!probe_product_runtime_restart_ready(&owner_runtime,10000,true) && !owner_runtime.restart_pending);
     return 0;
 }

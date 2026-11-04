@@ -26,6 +26,7 @@ static int32_t positions[4];
 static uint32_t ms;
 static uint8_t commands[128][8], sizes[128];
 static unsigned count, installs, deletes;
+static unsigned sensor_reads;
 static int fail_config,fail_install,probe_write_result,fail_delete,fail_identity_read;
 static uint8_t fake_id = 0x55;
 static uint32_t fake_product = 5752;
@@ -79,6 +80,7 @@ int i2c_master_write_to_device(i2c_port_t p, uint8_t a, const uint8_t *b,
 }
 int i2c_master_read_from_device(i2c_port_t p, uint8_t a, uint8_t *b, size_t n,
                                 unsigned t) {
+  sensor_reads++;
   (void)p;
   (void)a;
   (void)t;
@@ -196,6 +198,7 @@ EX int test_input_platform(void) {
   positions[1] = 80;
   ms += 25;
   CHECK(!dbt_input_esp32_poll(&p) && p.pending);
+  unsigned reads_at_pause=sensor_reads;
   unsigned steps = 0;
   while (dbt_input_next(&p.input, &a)) {
     CHECK(a.kind == DBT_INPUT_EQ_BASS);
@@ -203,13 +206,16 @@ EX int test_input_platform(void) {
   }
   for (unsigned k = 0; k < 8 && p.pending; k++) {
     ms += 25;
-    (void)dbt_input_esp32_poll(&p);
+    dbt_input_drain_result_t drained=dbt_input_esp32_drain_pending(&p);
+    CHECK(drained==DBT_INPUT_DRAIN_BUSY || drained==DBT_INPUT_DRAIN_DONE);
+    CHECK(sensor_reads==reads_at_pause);
     while (dbt_input_next(&p.input, &a)) {
       CHECK(a.kind == DBT_INPUT_EQ_BASS && a.delta == 1);
       steps++;
     }
   }
   CHECK(!p.pending && steps == 20);
+  CHECK(dbt_input_esp32_drain_pending(&p)==DBT_INPUT_DRAIN_DONE && sensor_reads==reads_at_pause);
   /* An implausible counter jump is diagnosed/rebased without blocking other
    * encoder channels or wedging subsequent samples. */
   positions[1] = 10000;

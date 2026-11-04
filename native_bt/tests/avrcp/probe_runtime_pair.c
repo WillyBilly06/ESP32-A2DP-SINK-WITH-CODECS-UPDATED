@@ -43,6 +43,8 @@ static void paired_data(void *ctx,const dbt_channel_t *c,const uint8_t *p,uint16
 }
 static void target_poll(void) {
     if(!target_bearer.attached)return;
+    const dbt_channel_t *current=dbt_channels_find(&peers[1].runtime.channels,target_bearer.handle,target_bearer.cid);
+    if(!current || current->state!=DBT_CH_OPEN)return;
     for(unsigned i=0;i<16;i++) if(tokens[i]) {
         uint8_t b[9];const uint8_t *p=b;uint16_t n;uint8_t code=12;
         if(pdus[i]==0x10) {b[0]=3;b[1]=2;b[2]=1;b[3]=2;n=4;}
@@ -80,11 +82,30 @@ EXPORT int probe_runtime_exchange(void) {
     probe_avrcp_snapshot_t snap;CHECK(probe_avrcp_snapshot(&snap)==DBT_OK && snap.connected && snap.metadata_updates==1);
     CHECK(registrations[0] && registrations[1] && snap.title[0]=='x' && snap.metadata_truncated && snap.track_length_ms==100);
     CHECK(!peers[0].errors && !peers[1].errors && !target_errors && large_used);
+    /* Hold must not claim idle while a real runtime owns an AVCTP TX loan.
+     * No further keys, incoming channel admissions or reconnects are allowed. */
+    uint16_t credits=peers[0].runtime.acl.pools[0].available;
+    peers[0].runtime.acl.pools[0].available=0;
+    CHECK(probe_avrcp_key(0x44,false,tick)==DBT_OK);probe_avrcp_poll(tick);
+    bool found=false;for(unsigned i=0;i<DBT_MAX_LINKS;i++)if(peers[0].runtime.tx[i].active)found=true;
+    CHECK(found && large_used && probe_avrcp_restart_hold(true,tick)==DBT_OK);
+    CHECK(!probe_avrcp_restart_quiescent() && probe_avrcp_key(0x44,false,tick)==DBT_EMPTY);
+    CHECK(!probe_avrcp_accept(NULL,&peers[0].runtime.acl.links[0],0x17));
+    paired_pump(100);CHECK(!probe_avrcp_restart_quiescent() && large_used);
+    /* Cancelling the hold does not reopen while an old close/loan is live. */
+    CHECK(probe_avrcp_restart_hold(false,tick)==DBT_OK);
+    CHECK(!probe_avrcp_accept(NULL,&peers[0].runtime.acl.links[0],0x17));
+    peers[0].runtime.acl.pools[0].available=credits;
+    paired_pump(2500);CHECK(probe_avrcp_snapshot(&snap)==DBT_OK && snap.connected && large_used);
+    CHECK(probe_avrcp_restart_hold(true,tick)==DBT_OK);paired_pump(2500);
+    CHECK(probe_avrcp_restart_quiescent() && !large_used && peers[0].runtime.acl.links[0].used);
+    CHECK(probe_avrcp_restart_hold(false,tick)==DBT_OK);paired_pump(2500);
+    CHECK(probe_avrcp_snapshot(&snap)==DBT_OK && snap.connected && large_used);
     /* An owned TX loan remains pinned under controller-credit stall and is
      * returned on physical-link removal before its memory is released. */
     peers[0].runtime.acl.pools[0].available=0;
     CHECK(probe_avrcp_key(0x44,false,tick)==DBT_OK);probe_avrcp_poll(tick);
-    bool found=false;for(unsigned i=0;i<DBT_MAX_LINKS;i++)if(peers[0].runtime.tx[i].active)found=true;
+    found=false;for(unsigned i=0;i<DBT_MAX_LINKS;i++)if(peers[0].runtime.tx[i].active)found=true;
     CHECK(found && large_used);CHECK(disconnect(&peers[0],1)==0);probe_avrcp_poll(tick);
     CHECK(!large_used && probe_avrcp_snapshot(&snap)==DBT_OK && !snap.connected);
     dbt_runtime_abort(&peers[0].runtime,DBT_FAULT_BAD_RESPONSE);dbt_runtime_abort(&peers[1].runtime,DBT_FAULT_BAD_RESPONSE);

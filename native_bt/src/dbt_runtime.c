@@ -270,6 +270,18 @@ dbt_result_t dbt_runtime_send_fixed(dbt_runtime_t *runtime, uint16_t handle, uin
     const uint8_t *data, uint16_t size, dbt_tx_done_t done, void *context) {
     return send_pdu(runtime, handle, cid, data, size, done, context, true);
 }
+dbt_result_t dbt_runtime_cancel_fixed(dbt_runtime_t *runtime,uint16_t handle,uint32_t generation,
+                                      uint16_t cid,dbt_tx_done_t done,void *context){
+    if(!runtime || !generation || cid==0 || cid>=64 || cid==1 || cid==5 || !done)return DBT_INVALID;
+    for(unsigned i=0;i<DBT_MAX_LINKS;i++){
+        dbt_runtime_tx_t *tx=&runtime->tx[i];
+        if(!tx->active || tx->local_cid!=cid || tx->pdu.cid!=cid || tx->pdu.handle!=handle || tx->pdu.generation!=generation ||
+           tx->done!=done || tx->context!=context)continue;
+        if(tx->pdu.cursor)return DBT_BUSY;
+        finish_tx(tx,DBT_TX_ABORTED);return DBT_OK;
+    }
+    return DBT_EMPTY;
+}
 static bool credit(const dbt_runtime_t *runtime, const dbt_link_t *link) {
     return runtime->acl.pools[runtime->acl.shared_pool ? 0 : (unsigned)link->kind].available != 0;
 }

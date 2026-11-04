@@ -24,9 +24,9 @@ typedef struct {
     uint8_t volume_values[16];
     uint16_t volume_dirty;
     uint8_t work_head,work_count,reg_wanted,reg_sent,reg_label[2];
-    bool initialized,closing,cap_need,cap_sent,meta_need,meta_sent,status_need,status_sent;
+    bool initialized,closing,hold,resume_pending,cap_need,cap_sent,meta_need,meta_sent,status_need,status_sent;
     uint16_t close_handle,close_cid;
-    uint32_t close_serial, close_generation, next_work, connect_generation, next_connect;
+    uint32_t close_serial, close_generation, next_work, connect_generation, next_connect,hold_retry;
     uint8_t connect_attempts, metadata_retries;
     bool collision;
     probe_avrcp_snapshot_t view;
@@ -100,7 +100,7 @@ static void update_metadata(const uint8_t *p,uint16_t n) {
 static void local_changed(uint8_t volume) {
     if (s.view.volume==volume) return;
     s.view.volume=volume;
-    for (unsigned i=0;i<16;i++) if (s.volume_tokens[i]) {s.volume_values[i]=volume; s.volume_dirty|=(uint16_t)(1u<<i);}
+    if(!s.hold)for (unsigned i=0;i<16;i++) if (s.volume_tokens[i]) {s.volume_values[i]=volume; s.volume_dirty|=(uint16_t)(1u<<i);}
     publish();
 }
 void probe_avrcp_local_volume(uint8_t volume) { if (s.initialized && volume<=127) local_changed(volume); }
@@ -178,7 +178,7 @@ dbt_result_t probe_avrcp_init(dbt_runtime_t *runtime,probe_avrcp_set_volume_fn f
 bool probe_avrcp_ready(void) {return s.initialized;}
 bool probe_avrcp_accept(void *unused,const dbt_link_t *link,uint16_t psm) {
     (void)unused; (void)link;
-    return psm!=CONTROL_PSM || (s.initialized && !s.bearer.attached && !s.closing);
+    return psm!=CONTROL_PSM || (s.initialized && !s.hold && !s.bearer.attached && !s.closing);
 }
 static unsigned control_count(void) {
     unsigned count=0;
@@ -187,7 +187,9 @@ static unsigned control_count(void) {
     return count;
 }
 static void request_close(const dbt_channel_t *ch) {
-    if (!s.closing || (s.close_serial==ch->serial)) {
+    if (s.hold || !s.closing || !s.close_serial ||
+        (s.close_serial==ch->serial && s.close_generation==ch->link_generation &&
+         s.close_handle==ch->handle && s.close_cid==ch->local_cid)) {
         s.closing=true; s.close_handle=ch->handle; s.close_cid=ch->local_cid;
         s.close_serial=ch->serial; s.close_generation=ch->link_generation;
     }
@@ -195,17 +197,19 @@ static void request_close(const dbt_channel_t *ch) {
 void probe_avrcp_event(dbt_channel_event_t event,const dbt_channel_t *ch) {
     if (!s.initialized || !ch || ch->psm!=CONTROL_PSM) return;
     if (event==DBT_CH_EVENT_OPEN) {
+        if(s.hold){request_close(ch);return;} /* close outside the callback */
         if (control_count()>1) {s.collision=true; return;}
         if (!open_session(ch)) {s.view.error_count++; publish(); request_close(ch);}
     } else if (event==DBT_CH_EVENT_CLOSED || event==DBT_CH_EVENT_FAILED) {
         dbt_avctp_bearer_event(&s.bearer,event,ch);
         if (s.storage && !s.bearer.attached) clear_session();
-        if (s.close_serial==ch->serial) {s.closing=false; s.close_serial=0;}
+        if (s.close_serial==ch->serial && s.close_handle==ch->handle &&
+            s.close_cid==ch->local_cid && s.close_generation==ch->link_generation) {s.closing=false; s.close_serial=0;}
         s.next_connect=s.runtime->now_ms+5000;
     } else if (event==DBT_CH_EVENT_RECONFIGURED && s.bearer.attached && ch->serial==s.bearer.serial) request_close(ch);
 }
 void probe_avrcp_receive(const dbt_channel_t *ch,const uint8_t *data,uint16_t n) {
-    if (!s.initialized || !ch || !s.bearer.attached || ch->serial!=s.bearer.serial ||
+    if (!s.initialized || s.hold || !ch || !s.bearer.attached || ch->serial!=s.bearer.serial ||
         ch->handle!=s.bearer.handle || ch->local_cid!=s.bearer.cid || ch->link_generation!=s.bearer.generation) return;
     dbt_result_t r=dbt_avrcp_bearer_receive(&s.bearer,&s.profile,ch,data,n);
     if (r!=DBT_OK && !(r==DBT_NO_SPACE && !s.profile.failed && s.profile.abort_needed)) {
@@ -282,7 +286,7 @@ static void controller(uint32_t now) {
 }
 static bool has_channel(void) { return control_count()!=0; }
 static void connect_if_ready(uint32_t now) {
-    if (s.storage || s.closing || has_channel() || !due(now,s.next_connect)) return;
+    if (s.hold || s.storage || s.closing || has_channel() || !due(now,s.next_connect)) return;
     for (unsigned i=0;i<DBT_MAX_LINKS;i++) {
         const dbt_link_t *l=&s.runtime->acl.links[i];
         if (!l->used || l->kind!=DBT_LINK_CLASSIC || !l->encrypted) continue;
@@ -298,6 +302,24 @@ static void connect_if_ready(uint32_t now) {
 }
 void probe_avrcp_poll(uint32_t now) {
     if (!s.initialized) return;
+    if(s.hold){
+        if(due(now,s.hold_retry)){
+            for(unsigned i=0;i<DBT_CHANNEL_LIMIT;i++){
+                const dbt_channel_t *ch=&s.runtime->channels.channels[i];
+                if(ch->psm==CONTROL_PSM && ch->state!=DBT_CH_FREE && ch->state!=DBT_CH_DISCONNECTING)
+                    (void)dbt_channels_close(&s.runtime->channels,ch->handle,ch->local_cid,now);
+            }
+            s.hold_retry=now+20u;
+        }
+        if(!s.bearer.active){
+            clear_session();
+            if(!s.bearer.attached && !has_channel()){s.closing=false;s.close_serial=0;s.collision=false;}
+        }
+        if(s.resume_pending && probe_avrcp_restart_quiescent()){
+            s.resume_pending=false;s.hold=false;s.next_connect=now;
+        }
+        return;
+    }
     if (control_count()>1) s.collision=true;
     if (s.collision) {
         /* Simultaneous establishment closes both channels before retry. The
@@ -333,6 +355,15 @@ void probe_avrcp_poll(uint32_t now) {
 }
 uint32_t probe_avrcp_wait_ms(uint32_t now) {
     if (!s.initialized) return UINT32_MAX;
+    if(s.hold){
+        for(unsigned i=0;i<DBT_CHANNEL_LIMIT;i++){
+            const dbt_channel_t *ch=&s.runtime->channels.channels[i];
+            if(ch->psm==CONTROL_PSM && ch->state!=DBT_CH_FREE && ch->state!=DBT_CH_DISCONNECTING)
+                return due(now,s.hold_retry)?0:s.hold_retry-now;
+        }
+        if(!s.bearer.active && (s.bearer.attached || s.storage || (!has_channel() && (s.closing || s.collision))))return 0;
+        return UINT32_MAX;
+    }
     uint32_t w=s.bearer.attached ? dbt_avrcp_bearer_wait_ms(&s.bearer,&s.profile,now) : UINT32_MAX;
     if (s.collision) {
         for (unsigned i=0;i<DBT_CHANNEL_LIMIT;i++) {
@@ -357,8 +388,27 @@ uint32_t probe_avrcp_wait_ms(uint32_t now) {
     return w;
 }
 dbt_result_t probe_avrcp_key(uint8_t operation,bool release,uint32_t now) {
-    if (!s.initialized || !s.bearer.attached || s.closing) return DBT_EMPTY;
+    if (!s.initialized || s.hold || !s.bearer.attached || s.closing) return DBT_EMPTY;
     if (operation!=0x44 && operation!=0x45 && operation!=0x46 && operation!=0x48 && operation!=0x49 && operation!=0x4b && operation!=0x4c)
         return DBT_UNSUPPORTED;
     uint8_t label; return dbt_avrcp_passthrough(&s.profile,operation,release,now,&label);
+}
+dbt_result_t probe_avrcp_restart_hold(bool hold,uint32_t now){
+    if(!s.initialized)return DBT_INVALID;
+    if(hold){
+        s.resume_pending=false;
+        if(!s.hold){
+            s.hold=true;s.hold_retry=now;
+            if(s.bearer.attached){s.closing=true;s.close_handle=s.bearer.handle;s.close_cid=s.bearer.cid;
+                s.close_serial=s.bearer.serial;s.close_generation=s.bearer.generation;}
+        }
+    }else if(!hold && s.hold){
+        if(probe_avrcp_restart_quiescent()){s.hold=false;s.next_connect=now;}
+        else s.resume_pending=true;
+    }
+    return DBT_OK;
+}
+bool probe_avrcp_restart_quiescent(void){
+    return s.initialized && s.hold && !has_channel() && !s.bearer.active && !s.bearer.attached &&
+        !s.storage && !s.closing && !s.collision && !s.transport.pinned && !s.transport.tx_used;
 }

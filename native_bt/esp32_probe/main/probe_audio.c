@@ -49,7 +49,7 @@
 static dbt_a2dp_acceptor_t profile;
 static dbt_codec_worker_t worker;
 static TaskHandle_t owner,decoder_task,logger_task;
-static bool initialized,failed;
+static bool initialized,failed,restart_hold,restart_drained;
 #ifdef DBT_PROBE_AUDIO_OUTPUT
 static bool output_initialized;
 #endif
@@ -299,6 +299,7 @@ static void sink_event(void *context,dbt_sink_event_t event,dbt_stream_state_t s
         product_observer(product_context,PROBE_AUDIO_STREAMING,profile.signaling.handle,profile.signaling.generation,0,now_ms());
 }
 dbt_result_t probe_audio_init(dbt_runtime_t *runtime,TaskHandle_t host_owner){
+    if(restart_hold)return DBT_BUSY;
     owner=host_owner;
     dbt_codec_worker_hooks_t hooks={0};hooks.decoder=(dbt_codec_hooks_t){0,codec_allocate,release,pcm};
     hooks.codecs=codecs;hooks.codec_count=(uint8_t)(sizeof(codecs)/sizeof(codecs[0]));
@@ -320,7 +321,7 @@ dbt_result_t probe_audio_init(dbt_runtime_t *runtime,TaskHandle_t host_owner){
            (unsigned)sizeof(worker),(unsigned)sizeof(profile));
     return DBT_OK;
 }
-bool probe_audio_accept(void *context,const dbt_link_t *link,uint16_t psm){(void)context;return psm!=0x19 || (initialized && dbt_a2dp_acceptor_accept(&profile,link));}
+bool probe_audio_accept(void *context,const dbt_link_t *link,uint16_t psm){(void)context;return psm!=0x19 || (initialized && !restart_hold && dbt_a2dp_acceptor_accept(&profile,link));}
 void probe_audio_event(dbt_channel_event_t event,const dbt_channel_t *channel){
     if(!initialized || channel->psm!=0x19)return;
     bool was_active=profile.active;
@@ -349,7 +350,7 @@ void probe_audio_poll(uint32_t now){
     for(unsigned i=0;i<DBT_CODEC_WORKER_JOBS && dbt_codec_worker_receipt(&worker,&receipt)==DBT_OK;++i)
         (void)dbt_a2dp_acceptor_complete(&profile,receipt.binding,receipt.token,receipt.result,now);
     if(atomic_load_explicit(&worker.faults,memory_order_acquire))failed=true;
-    if(failed)(void)dbt_a2dp_acceptor_stop(&profile,now);
+    if(failed || restart_hold)restart_drained=dbt_a2dp_acceptor_stop(&profile,now)==DBT_OK;
     (void)dbt_a2dp_acceptor_poll(&profile,now);
     atomic_store(&ignored_dynamic,profile.runtime->channels.ignored_dynamic_pdus);
     atomic_store(&oversized_dynamic,profile.runtime->channels.oversized_dynamic_pdus);
@@ -399,3 +400,12 @@ dbt_result_t probe_audio_peer(uint16_t *handle,uint32_t *generation){
        !probe_audio_peer_link(profile.signaling.handle,profile.signaling.generation))return DBT_EMPTY;
     *handle=profile.signaling.handle;*generation=profile.signaling.generation;return DBT_OK;
 }
+
+dbt_result_t probe_audio_restart_hold(bool hold,uint32_t now){
+    restart_hold=hold;restart_drained=!initialized;
+    if(!initialized)return DBT_OK;
+    if(!hold){if(!failed)profile.enabled=true;return failed?DBT_INVALID:DBT_OK;}
+    dbt_result_t r=dbt_a2dp_acceptor_stop(&profile,now);restart_drained=r==DBT_OK;
+    return failed?DBT_INVALID:r;
+}
+bool probe_audio_restart_quiescent(void){return restart_hold && restart_drained && !failed;}

@@ -125,3 +125,18 @@ order, actual gaps, lazy codec requirements, and performance acceptance criteria
 The latest state is in [current progress](docs/PROGRESS.md), including the LHDC V5,
 integer DSP and immediate-NVS requirements. The audio application now has staged
 DSP changes authorized separately from the host migration.
+
+## Product-mode local build
+
+From the workspace root, the existing SDK supports a build-only command:
+
+```powershell
+.\native_bt\tools\build_probe.ps1 -WithProductIo -WithRfcomm -WithLhdc -WithOpus -WithAac -WithAptx -WithLdac -WithSbc
+```
+
+Product IO enables the owned product admission policy, so this command does not
+require a hardcoded Linux test address. Explicit diagnostic Classic builds
+retain the `-TestPeer` requirement. RFCOMM adds a bounded serial echo service;
+its current single-DLC/conformance limits are in `docs/RFCOMM.md`. This command
+never flashes. The ESP32 hold remains active, and future deployment still needs
+fresh identity/layout admission through the guarded workflow.

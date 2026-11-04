@@ -14,8 +14,8 @@ user releases the [hardware hold](../_build/hardware/HARDWARE_HOLD.json).
 Local compilation, host tests and artifact creation do not establish a new
 on-device result.
 
-Current local candidate (not flashed): `305c2004db62d3d658a5982c11db6b9a54c0bcdde8fcf098f10521181d6f2654`,
-1138528 bytes, fitting `ota_1` at `0x390000` with 1482912 bytes
+Current local candidate (not flashed): `cee7b037abf0fd42d209d89cc40a89497657ea25d3783884002bfcbe0cfb68aa`,
+1164208 bytes, fitting `ota_1` at `0x390000` with 1457232 bytes
 remaining. The compiled partition bytes match the preserved 8 MB layout.
 COM6 is the user-confirmed target. The managed monitor display is restored at
 http://127.0.0.1:50412/ with its serial reader released.
@@ -24,18 +24,18 @@ The combined build now links product name/OTA, LED/input/sound and bonded
 CCCD providers. Local pairing disconnects only the captured A2DP generation;
 ERTM initial configuration supports bounded request/response continuation.
 Current core tests pass 168/168; focused GATT/SMP/product and artifact-policy
-checks pass. The build receipt binds 1307 source units and compile/configuration
-inputs to the image. Static DRAM is 50,760 bytes and IRAM is 123,179 bytes,
-leaving 7,893 bytes of the linked IRAM region; these are not runtime heap
+checks pass. The build receipt binds 1328 source units and compile/configuration
+inputs to the image. Static DRAM is 52,472 bytes and IRAM is 123,175 bytes,
+leaving 7,897 bytes of the linked IRAM region; these are not runtime heap
 or task-stack measurements. I2S ISR IRAM safety remains enabled. LED SPI ISR
 code runs from flash to fit; its delay during flash operations is unqualified.
 
-Broader pairing/OTA authorization UI, LED visual parity,
+Legacy/alternate local consent, LED visual parity,
 missing protocols/profiles and all new physical behavior remain open.
 Startup/connection/pair/max-volume sound events, volume/pairing LED feedback,
 live ERTM MTU increases and owner-fault lifetime handling are now linked.
-The SDK-supported task-only FreeRTOS placement saved 7,064 bytes of static IRAM
-in a same-source/equal-feature comparison; ISR placement protections remain. Older
+The preceding checkpoint measured a 7,064-byte static IRAM saving for SDK
+task-only FreeRTOS placement in its same-source/equal-feature comparison; ISR placement protections remain. Older
 Linux sanitizer runs do not certify all current changed sources. The goal
 remains active; no performance advantage or production stability is claimed.
 
@@ -341,3 +341,17 @@ the host boot check passes 37 codec configurations. Host stack/time are mocked.
 The candidate is not flashed or RF-qualified. BLE EQ/control now has startup
 NVS reads, immediate commit providers, typed DSP publication and meter wiring;
 other product providers remain missing. See LOCAL_CANDIDATE_EVIDENCE.json.
+
+The current expanded product uses its owned admission policy instead of the
+diagnostic adapter-MAC restriction. First-boot admission requires successful
+empty-store checks; local gestures and committed bond incarnations control
+trust. Peripheral security prompting establishes no trust by itself. Existing
+successful pre-pair CCCD writes now merge and save before bonded attachment.
+
+OTA END is epoch-bound and cannot select a boot slot until sampled input,
+accepted persistence/security work, A2DP/AVRCP/RFCOMM loans, sound and transport
+work reach the tested preparation barrier. Terminal restart additionally
+requires fresh runtime approval and completion TX admission; no platform reset
+was executed in local tests. RFCOMM echo is opt-in, bounded and single-DLC;
+conformance and hardware interoperability remain open. See the current feature
+matrix and evidence receipt rather than applying older sanitizer results.

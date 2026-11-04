@@ -52,13 +52,18 @@ static const dbt_sdp_attribute_t ct_attributes[]={
 static const dbt_sdp_attribute_t tg_attributes[]={
     {1,sizeof(tg_class),tg_class},{4,sizeof(avrcp_protocol),avrcp_protocol},{5,sizeof(browse),browse},
     {9,sizeof(avrcp_profile),avrcp_profile},{0x311,sizeof(tg_features),tg_features}};
-static dbt_sdp_record_t records[5];
+static dbt_sdp_record_t records[6];
+static const dbt_sdp_record_t *extra_record;
 static unsigned record_count;
 static bool initialized, controller_enabled, target_enabled;
 
 dbt_result_t probe_sdp_enable_avrcp(bool controller, bool target) {
     if (initialized || (target && !controller)) return DBT_INVALID;
     controller_enabled=controller; target_enabled=target; return DBT_OK;
+}
+dbt_result_t probe_sdp_enable_extra_record(const dbt_sdp_record_t *record){
+    if(initialized || !record || extra_record)return DBT_INVALID;
+    extra_record=record;return DBT_OK;
 }
 dbt_result_t probe_sdp_init(dbt_runtime_t *runtime) {
     if (initialized) return DBT_INVALID;
@@ -70,7 +75,8 @@ dbt_result_t probe_sdp_init(dbt_runtime_t *runtime) {
 #endif
     if (controller_enabled) records[record_count++]=(dbt_sdp_record_t){0x10002,ct_attributes,sizeof(ct_attributes)/sizeof(ct_attributes[0])};
     if (target_enabled) records[record_count++]=(dbt_sdp_record_t){0x10003,tg_attributes,sizeof(tg_attributes)/sizeof(tg_attributes[0])};
-    uint32_t db_state=(probe_sdp_audio_sink()?2u:1u)+(controller_enabled?1u:0u)+(target_enabled?1u:0u);
+    if(extra_record)records[record_count++]=*extra_record;
+    uint32_t db_state=(probe_sdp_audio_sink()?2u:1u)+(controller_enabled?1u:0u)+(target_enabled?1u:0u)+(extra_record?1u:0u);
     state[1]=(uint8_t)(db_state>>24); state[2]=(uint8_t)(db_state>>16); state[3]=(uint8_t)(db_state>>8); state[4]=(uint8_t)db_state;
     dbt_result_t result = dbt_sdp_init(&server, records, (uint8_t)record_count, db_state);
     if (result==DBT_OK) result=dbt_sdp_bearer_init(&bearer, runtime, &server, 672);
@@ -84,7 +90,7 @@ void probe_sdp_event(dbt_channel_event_t event, const dbt_channel_t *channel) {
 }
 dbt_result_t probe_sdp_poll(void) { return dbt_sdp_bearer_poll(&bearer); }
 uint32_t probe_sdp_wait_ms(void) { return dbt_sdp_bearer_wait_ms(&bearer); }
-unsigned probe_sdp_bytes(void) { return sizeof(server) + sizeof(bearer); }
+unsigned probe_sdp_bytes(void) { return sizeof(server)+sizeof(bearer)+sizeof(records)+sizeof(extra_record)+sizeof(record_count)+sizeof(initialized)+sizeof(controller_enabled)+sizeof(target_enabled)+sizeof(state); }
 unsigned probe_sdp_records(void){return record_count;}
 bool probe_sdp_audio_sink(void){
 #ifdef DBT_PROBE_AUDIO_OUTPUT

@@ -43,6 +43,7 @@ static dbt_input_start_result_t forced_input_result;
 static dbt_input_start_result_t forced_alt_result;
 static bool fail_input_stop;
 static unsigned led_stops, input_stops, task_deletes, input_tries;
+static unsigned input_reads;static dbt_input_drain_result_t input_drain_result=DBT_INPUT_DRAIN_DONE;
 static uint8_t tried[4];
 static void fake_task_advance(void);
 static unsigned wake_owner_count, wake_worker_count, disconnects, commits,
@@ -172,7 +173,12 @@ dbt_input_start_result_t dbt_input_esp32_start_checked(dbt_input_esp32_t *p, i2c
 }
 bool dbt_input_esp32_poll(dbt_input_esp32_t *p) {
   (void)p;
+  input_reads++;
   return true;
+}
+dbt_input_drain_result_t dbt_input_esp32_drain_pending(dbt_input_esp32_t *p){
+  if(input_drain_result==DBT_INPUT_DRAIN_DONE)p->pending=false;
+  return input_drain_result;
 }
 void dbt_input_esp32_stop(dbt_input_esp32_t *p) {
   (void)dbt_input_esp32_stop_checked(p);
@@ -466,6 +472,21 @@ EX int test_product_io(void) {
   CHECK(reconciled == 3 && recovery_state[0] == DBT_SOUND_RECOVERY_CLEAN &&
         recovery_state[2] == DBT_SOUND_RECOVERY_CLEAN && inspected >= 12);
   CHECK(initial.sound == 3 && initial.led[0] == 0);
+  /* Pause waits for a copied partial sample and then freezes new sensor
+   * reads; already-published actions remain the owner's responsibility. */
+  input_reads=0;input_tick();CHECK(input_reads==1);
+  io.input.pending=true;input_drain_result=DBT_INPUT_DRAIN_BUSY;
+  CHECK(probe_product_io_input_pause(true)==DBT_OK && probe_product_io_input_paused()==DBT_BUSY);
+  input_tick();CHECK(input_reads==1 && probe_product_io_input_paused()==DBT_BUSY);
+  io.input.input.queue[0]=(dbt_input_action_t){DBT_INPUT_EQ_BASS,1};atomic_store(&io.input.input.head,1);
+  input_drain_result=DBT_INPUT_DRAIN_DONE;input_tick();
+  CHECK(probe_product_io_input_paused()==DBT_OK && !probe_product_io_input_drained() && input_reads==1);
+  dbt_input_action_t input_action;CHECK(probe_product_io_take_input(&input_action) && input_action.kind==DBT_INPUT_EQ_BASS);
+  CHECK(probe_product_io_input_drained());input_tick();CHECK(input_reads==1);
+  CHECK(probe_product_io_input_pause(false)==DBT_OK);input_tick();CHECK(input_reads==2);
+  input_drain_result=DBT_INPUT_DRAIN_FAULT;CHECK(probe_product_io_input_pause(true)==DBT_OK);input_tick();
+  CHECK(probe_product_io_input_paused()==DBT_INVALID && !probe_product_io_input_drained());
+  CHECK(probe_product_io_input_pause(false)==DBT_OK);input_drain_result=DBT_INPUT_DRAIN_DONE;
   probe_product_io_input_stats_t stats;
   atomic_store(&io.input.invalid_channels, 2);
   CHECK(probe_product_io_input_stats(&stats) && stats.invalid_channels == 2);

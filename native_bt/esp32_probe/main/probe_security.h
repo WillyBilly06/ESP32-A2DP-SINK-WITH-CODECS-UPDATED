@@ -15,6 +15,9 @@ void probe_security_poll(uint32_t now_ms);
 uint32_t probe_security_wait_ms(uint32_t now_ms);
 unsigned probe_security_bytes(void);
 unsigned probe_security_loaded_bonds(void);
+/* Owner-only; accepted NVS jobs remain non-quiescent until their completion
+ * has been consumed, including a worker blocked publishing its receipt. */
+bool probe_security_quiescent(void);
 dbt_result_t probe_security_request(void *context, const dbt_link_t *link, uint16_t psm,
                                     dbt_security_t level, bool start);
 dbt_result_t probe_security_forget_peer(const dbt_link_t *link);

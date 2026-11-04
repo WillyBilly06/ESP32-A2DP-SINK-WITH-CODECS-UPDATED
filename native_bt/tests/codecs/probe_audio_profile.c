@@ -11,6 +11,7 @@
 #endif
 #define CHECK(x) do {if(!(x))return __LINE__;}while(0)
 static unsigned live_allocs,fail_alloc,owner_wakes;
+static dbt_result_t stop_result=DBT_OK;
 static uint32_t now;
 static unsigned product_events;static probe_audio_product_event_t last_product_event;
 static uint16_t product_handle;static uint32_t product_generation,product_rate;
@@ -118,7 +119,7 @@ dbt_result_t dbt_a2dp_acceptor_poll(dbt_a2dp_acceptor_t *p,uint32_t t){(void)p;(
 uint32_t dbt_a2dp_acceptor_wait_ms(const dbt_a2dp_acceptor_t *p,uint32_t t){(void)p;(void)t;return UINT32_MAX;}
 dbt_result_t dbt_a2dp_acceptor_complete(dbt_a2dp_acceptor_t *p,uint32_t b,uint32_t t,dbt_sink_work_result_t r,uint32_t n){(void)p;(void)b;(void)t;(void)r;(void)n;return DBT_OK;}
 dbt_result_t dbt_a2dp_acceptor_retire(dbt_a2dp_acceptor_t *p,uint32_t t){(void)p;(void)t;return DBT_OK;}
-dbt_result_t dbt_a2dp_acceptor_stop(dbt_a2dp_acceptor_t *p,uint32_t t){(void)p;(void)t;return DBT_OK;}
+dbt_result_t dbt_a2dp_acceptor_stop(dbt_a2dp_acceptor_t *p,uint32_t t){(void)t;p->enabled=false;return stop_result;}
 static dbt_avdtp_sink_t sink;
 static uint8_t label,wire[128];static uint16_t wire_n;
 static dbt_result_t request(uint8_t id,const uint8_t *body,uint16_t size){
@@ -188,6 +189,13 @@ EX int probe_audio_profiles(const uint8_t *sbc,uint16_t n,const uint8_t *sbc_cie
     static dbt_runtime_t runtime;runtime.ready=true;
 
     CHECK(probe_audio_init(&runtime,(void *)2)==DBT_OK && initialized && !live_allocs);
+    dbt_link_t restart_peer={0};stop_result=DBT_BUSY;
+    CHECK(probe_audio_restart_hold(true,++now)==DBT_BUSY && !probe_audio_restart_quiescent());
+    CHECK(!probe_audio_accept(0,&restart_peer,0x19));
+    CHECK(probe_audio_init(&runtime,(void *)2)==DBT_BUSY);
+    stop_result=DBT_OK;probe_audio_poll(++now);CHECK(probe_audio_restart_quiescent());
+    CHECK(probe_audio_restart_hold(false,++now)==DBT_OK && !probe_audio_restart_quiescent());
+    CHECK(probe_audio_accept(0,&restart_peer,0x19));
     uint16_t handle=0;uint32_t generation=0;
     CHECK(probe_audio_peer(&handle,&generation)==DBT_EMPTY);
     runtime.acl.links[0]=(dbt_link_t){.used=true,.kind=DBT_LINK_CLASSIC,.handle=12,.generation=8};

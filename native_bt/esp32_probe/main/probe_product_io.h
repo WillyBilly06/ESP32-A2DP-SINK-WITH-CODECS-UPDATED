@@ -54,6 +54,12 @@ void probe_product_io_peer_lost(void *, const dbt_ble_control_peer_t *);
  * EQ steps must be sent individually through the GATT EQ worker's immediate
  * persistence admission; retry on BUSY, never merge accepted EQ events. */
 bool probe_product_io_take_input(dbt_input_action_t *out);
+/* Owner requests a reversible sampling pause. The producer acknowledges only
+ * after draining its already-copied partial sample; no new reads follow ack.
+ * DBT_BUSY means still draining; INVALID means a producer drain fault. */
+dbt_result_t probe_product_io_input_pause(bool pause);
+dbt_result_t probe_product_io_input_paused(void);
+bool probe_product_io_input_drained(void);
 typedef struct {
   uint32_t read_errors, deferred_samples, feedback_errors, invalid_channels;
 } probe_product_io_input_stats_t;

@@ -10,6 +10,7 @@ static const esp_partition_t update={0,0x11,0x20000,1024,"ota_1"};
 static const esp_partition_t recovery={0,0x12,0x30000,1024,"recovery"};
 static const esp_partition_t *boot=&running;
 static uint8_t flash[1024];static size_t written;static bool image_ok=true,hash_appended=true,read_ok=true,valid=true,slot_recorded,oom;static unsigned boot_writes,select_failure;
+static void (*during_select)(void);
 void *ota_test_calloc(size_t count,size_t size){if(oom)return 0;void *p=malloc(count*size);if(p)memset(p,0,count*size);return p;}
 static const uint8_t known_sha[32]={0x15,0xe2,0xb0,0xd3,0xc3,0x38,0x91,0xeb,0xb0,0xf1,0xef,0x60,0x9e,0xc4,0x19,0x42,
     0x0c,0x20,0xe3,0x20,0xce,0x94,0xc6,0x5f,0xbc,0x8c,0x33,0x12,0x44,0x8e,0xb2,0x25};
@@ -25,7 +26,7 @@ int esp_ota_end(esp_ota_handle_t h){assert(h==1);return image_ok?0:1;}
 int esp_ota_abort(esp_ota_handle_t h){assert(h==1);return 0;}
 int esp_ota_get_partition_description(const esp_partition_t *p,esp_app_desc_t *d){assert(p);memset(d,0,sizeof(*d));memcpy(d->project_name,"native_bt_probe",16);return 0;}
 int esp_ota_get_state_partition(const esp_partition_t *p,esp_ota_img_states_t *s){if(p==&update)return slot_recorded?0:ESP_ERR_NOT_FOUND;assert(p==&running);*s=ESP_OTA_IMG_VALID;return valid?0:1;}
-int esp_ota_set_boot_partition(const esp_partition_t *p){assert(p==&update);if(select_failure==1)return 1;boot=p;boot_writes++;return select_failure?1:0;}
+int esp_ota_set_boot_partition(const esp_partition_t *p){assert(p==&update);if(during_select)during_select();if(select_failure==1)return 1;boot=p;boot_writes++;return select_failure?1:0;}
 int esp_image_verify(int mode,const esp_partition_pos_t *p,esp_image_metadata_t *m){assert(mode==0 && p->offset==update.address);m->image_len=9;m->image.hash_appended=hash_appended;return image_ok?0:1;}
 int esp_partition_read(const esp_partition_t *p,size_t off,void *out,size_t n){assert(p==&update && off+n<=sizeof(flash));if(!read_ok)return 1;memcpy(out,flash+off,n);return 0;}
 void mbedtls_sha256_init(mbedtls_sha256_context *s){memset(s,0,sizeof(*s));}

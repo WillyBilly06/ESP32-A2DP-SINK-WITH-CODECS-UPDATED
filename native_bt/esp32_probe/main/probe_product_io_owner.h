@@ -15,6 +15,7 @@ typedef struct {
     uint32_t sound_rate,sound_admitted,sound_attached,sound_cancelled,sound_dropped;
     uint8_t sound_type,inflight_type;bool audio_connected,had_disconnect,connected_pending;
     bool sound_pending,sound_exclusive,sound_inflight,have_max,pairing_active,io_ready;
+    bool restart_preparing,restart_fault;
 } probe_product_io_owner_t;
 /* Host owner only. IO provider must already be started; bounded per poll. */
 void probe_product_io_owner_poll(probe_product_io_owner_t *,uint32_t now_ms);
@@ -27,4 +28,10 @@ void probe_product_io_owner_audio(probe_product_io_owner_t *,unsigned event,uint
 void probe_product_io_owner_volume(probe_product_io_owner_t *,uint8_t volume,uint32_t now_ms);
 /* Missing file, muted sound, and disabled provider are optional at boot. */
 bool probe_product_io_owner_startup_needed(bool sound_enabled,uint8_t sound_status);
+/* Owner-only reversible restart input barrier. Begin pauses sampling, poll
+ * drains accepted actions, cancel resumes. OK from poll means producer
+ * paused, copied actions drained and all owner-held input applied. */
+dbt_result_t probe_product_io_owner_restart_begin(probe_product_io_owner_t *);
+dbt_result_t probe_product_io_owner_restart_poll(probe_product_io_owner_t *,uint32_t now_ms);
+void probe_product_io_owner_restart_cancel(probe_product_io_owner_t *);
 #endif

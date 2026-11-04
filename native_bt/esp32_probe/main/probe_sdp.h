@@ -3,6 +3,10 @@
 #include "dbt_sdp_bearer.h"
 /* Enable only after the corresponding owned profile has initialized. */
 dbt_result_t probe_sdp_enable_avrcp(bool controller, bool target);
+/* Before init, one explicitly initialized profile may supply an immutable
+ * record borrowed for the full SDP server lifetime. */
+dbt_result_t probe_sdp_enable_extra_record(const dbt_sdp_record_t *);
+
 dbt_result_t probe_sdp_init(dbt_runtime_t *runtime);
 dbt_result_t probe_sdp_receive(const dbt_channel_t *channel, const uint8_t *data, uint16_t size);
 void probe_sdp_event(dbt_channel_event_t event, const dbt_channel_t *channel);

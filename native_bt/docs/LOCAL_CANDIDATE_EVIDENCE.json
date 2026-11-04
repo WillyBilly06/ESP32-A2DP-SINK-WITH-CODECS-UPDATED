@@ -1,13 +1,13 @@
 {
   "updated": "2026-11-03",
   "scope": "source-matched local build and offline tests; independent host/product remains incomplete and not hardware-qualified",
-  "image_sha256": "305c2004db62d3d658a5982c11db6b9a54c0bcdde8fcf098f10521181d6f2654",
-  "image_bytes": 1138528,
+  "image_sha256": "cee7b037abf0fd42d209d89cc40a89497657ea25d3783884002bfcbe0cfb68aa",
+  "image_bytes": 1164208,
   "esp32_image_validation": {
     "passed": true,
     "scope": "offline image checksum/digest, ESP32 revision and admitted OTA capacity; no device access or runtime qualification",
-    "image_sha256": "305c2004db62d3d658a5982c11db6b9a54c0bcdde8fcf098f10521181d6f2654",
-    "image_bytes": 1138528,
+    "image_sha256": "cee7b037abf0fd42d209d89cc40a89497657ea25d3783884002bfcbe0cfb68aa",
+    "image_bytes": 1164208,
     "project": "native_bt_probe",
     "chip_id": 0,
     "revision_range": [
@@ -18,13 +18,15 @@
     "digest_verified": true,
     "latest_local_build_completed": true,
     "build_sources_match": true,
-    "build_source_units": 1307,
+    "build_source_units": 1328,
     "product_io": true,
+    "product_security": true,
+    "rfcomm_profile": true,
     "controller_only_dual_mode": true,
     "anti_rollback_fuse_updates": false,
     "partition_offset": 3735552,
     "partition_bytes": 2621440,
-    "partition_remaining_bytes": 1482912,
+    "partition_remaining_bytes": 1457232,
     "compiled_table_matches_preserved_layout": true,
     "compiled_table_sha256": "6a5932b101f5a4cf7a011c63cd6e5b75dae885e204584d4a7d62de3e5ecf0151",
     "flash_mode": "DIO",
@@ -39,11 +41,13 @@
     "state": "complete",
     "hardware_accessed": false,
     "product_io": true,
+    "product_security": true,
+    "rfcomm": true,
     "build_exit": 0,
     "source_check_exit": 0,
     "workspace_check_exit": 0,
-    "source_manifest_sha256": "959b5d13aaff8df6c0cafa1042cb24d21a9ddb0427daef6baf5bf9c522ded5ce",
-    "image_sha256": "305c2004db62d3d658a5982c11db6b9a54c0bcdde8fcf098f10521181d6f2654",
+    "source_manifest_sha256": "c2cbfcc76124b954dfc38e18f2f8af66ab7fe2fe6cb8b6348771f0f14ca92241",
+    "image_sha256": "cee7b037abf0fd42d209d89cc40a89497657ea25d3783884002bfcbe0cfb68aa",
     "config_sha256": "d994818e3ab8811b5f18c21c9a32e0dae7b85d51e95c9d55324225bf79af94c3",
     "partition_sha256": "6a5932b101f5a4cf7a011c63cd6e5b75dae885e204584d4a7d62de3e5ecf0151"
   },
@@ -59,21 +63,21 @@
   "this_candidate_flashed": false,
   "this_candidate_rf_tested": false,
   "current_static_link_size": {
-    "dram_data": 21424,
-    "dram_bss": 29336,
+    "dram_data": 21432,
+    "dram_bss": 31040,
     "dram_rodata": 0,
     "dram_other": 0,
-    "used_dram": 50760,
+    "used_dram": 52472,
     "dram_total": 124580,
-    "used_dram_ratio": 0.4074490287365548,
-    "dram_remain": 73820,
+    "used_dram_ratio": 0.4211912024401991,
+    "dram_remain": 72108,
     "iram_vectors": 1028,
-    "iram_text": 122151,
+    "iram_text": 122147,
     "iram_other": 0,
-    "used_iram": 123179,
+    "used_iram": 123175,
     "iram_total": 131072,
-    "used_iram_ratio": 0.9397811889648438,
-    "iram_remain": 7893,
+    "used_iram_ratio": 0.9397506713867188,
+    "iram_remain": 7897,
     "diram_data": 0,
     "diram_bss": 0,
     "diram_text": 0,
@@ -84,14 +88,14 @@
     "used_diram": 0,
     "used_diram_ratio": 0,
     "diram_remain": 0,
-    "flash_code": 640968,
-    "flash_rodata": 352556,
+    "flash_code": 666496,
+    "flash_rodata": 352700,
     "flash_other": 256,
-    "used_flash_non_ram": 993780,
-    "total_size": 1138383
+    "used_flash_non_ram": 1019452,
+    "total_size": 1164059
   },
   "static_size_is_not_free_runtime_heap": true,
-  "build_source_inputs": 1307,
+  "build_source_inputs": 1328,
   "source_content_stable_across_final_build": true,
   "current_local_tests": [
     "test_host.py:168 groups plus20000-packet SPSC/16384-frame audio-owner workloads",
@@ -105,7 +109,13 @@
     "test_probe_sound_output.py: actual output and sound manager with mocked I2S and target objects",
     "tests/product/owner_fault_lifetime.py: persistent production fault park and startup exits",
     "test_ertm_features.py: live MTU reconfiguration including pinned in-flight data",
-    "check_iram_placement.py: protected ISR placement and limited direct-call scan"
+    "check_iram_placement.py: protected ISR placement and limited direct-call scan",
+    "test_rfcomm.py:19 groups, independent vectors plus simulated runtime/DLC/SDP/echo",
+    "tests/product/admission_host.py:actual admission/SMP/Classic/input policy glues with store shims",
+    "test_restart.py:production coordinator with subsystem/transport shims",
+    "tests/restart/main_handoff.py:production reset handoff requires quiescence AND runtime approval",
+    "test_ble_control.py:pre-bond subscribe/merge/save/attach and OTA-admission callback regression",
+    "test_probe_audio_worker.py and test_probe_sound_output.py:restart holds and borrowed output retention"
   ],
   "implemented_target_linked_additions": [
     "initial ERTM configuration continuation",
@@ -117,14 +127,20 @@
     "owner task retained on startup failures",
     "optional input only after two clean NACKs and checked driver deletion",
     "live ERTM unchanged/increased MTU reconfiguration",
-    "SDK-selected non-ISR FreeRTOS functions in flash"
+    "SDK-selected non-ISR FreeRTOS functions in flash",
+    "production admission independent of diagnostic Linux MAC restriction",
+    "peripheral SMP Security Request and exact unsent fixed-SDU cancellation",
+    "pre-pair CCCD writes merged and committed before bonded attachment",
+    "trusted transfer epochs, pre-selector input/persistence/profile barrier and guarded terminal OTA restart",
+    "bounded single-DLC RFCOMM/SPP echo with an explicitly installed SDP record"
   ],
   "remaining_product_limits": [
-    "new-peer pairing policy remains restricted; genuine OTA user authorization UI incomplete",
-    "LED renderer remains an integer approximation; full visual/beat parity incomplete",
-    "historical orphan CCCD blobs need future owned unbond maintenance",
-    "missing protocol/profile coverage and equivalent-feature runtime RAM/CPU/latency/continuous Classic-BLE qualification",
-    "interrupt audit does not prove indirect/vendor paths or actual cache-stall audio behavior"
+    "missing protocols/profiles and full conformance, including multi-DLC and some RFCOMM V.24/concurrent command behavior",
+    "no integrated real-phone/SMP/NVS/OTA/audio reset or RF/coexistence qualification",
+    "legacy bonds are not automatically trusted; alternate local consent for devices lacking configured controls remains incomplete once first-boot admission is unavailable",
+    "LED integer approximation/beat parity and all runtime performance/resource comparisons remain incomplete",
+    "historical orphan CCCD identities need explicit future unbond maintenance",
+    "IRQ audit is limited; indirect/vendor execution and actual cache-stall audio remain unproven"
   ],
   "last_device_qualification": {
     "image_sha256": "06ea0f6e4a2859d64108caa235f505b70b64e152fcabbddc6ebe2ab554774085",
@@ -149,7 +165,149 @@
     "ble_control_asan_ubsan": true
   },
   "feature_matrix": "FEATURE_MATRIX.md",
-  "iram_placement_comparison": {
+  "iram_callback_audit": {
+    "passed": true,
+    "scope": "offline protected-symbol placement and direct-call scan of I2S/owned audio callback functions; SDK calls are terminal nodes; vendor internals, indirect calls, ROM internals, real cache stalls and timing unproven",
+    "elf_sha256": "812db6f8937a90664fb1dba649c5eb09b18caa27839045662d677a7311775571",
+    "task_functions_in_flash": true,
+    "protected_symbols": [
+      {
+        "name": "vTaskGenericNotifyGiveFromISR",
+        "address": 1074367736,
+        "size": 383
+      },
+      {
+        "name": "xQueueGenericSendFromISR",
+        "address": 1074365108,
+        "size": 169
+      },
+      {
+        "name": "xQueueGiveFromISR",
+        "address": 1074365280,
+        "size": 145
+      },
+      {
+        "name": "xQueueReceiveFromISR",
+        "address": 1074365428,
+        "size": 114
+      },
+      {
+        "name": "vTaskSwitchContext",
+        "address": 1074366692,
+        "size": 548
+      },
+      {
+        "name": "xTaskIncrementTick",
+        "address": 1074366056,
+        "size": 636
+      }
+    ],
+    "task_only_symbols": [
+      {
+        "name": "xQueueReceive",
+        "address": 1075247308,
+        "size": 223
+      },
+      {
+        "name": "xTaskCreatePinnedToCore",
+        "address": 1075250964,
+        "size": 130
+      },
+      {
+        "name": "xTaskGenericNotify",
+        "address": 1075251280,
+        "size": 402
+      }
+    ],
+    "i2s_roots": [
+      {
+        "name": "sent",
+        "address": 1074277400,
+        "size": 817
+      },
+      {
+        "name": "i2s_dma_tx_callback",
+        "address": 1074299300,
+        "size": 180
+      }
+    ],
+    "direct_functions_walked": 4,
+    "direct_edges": [
+      {
+        "caller": "i2s_dma_tx_callback",
+        "target": "0x40098468",
+        "callee": "xQueueIsQueueFullFromISR"
+      },
+      {
+        "caller": "i2s_dma_tx_callback",
+        "target": "0x400983f4",
+        "callee": "xQueueReceiveFromISR"
+      },
+      {
+        "caller": "i2s_dma_tx_callback",
+        "target": "0x400982b4",
+        "callee": "xQueueGenericSendFromISR"
+      },
+      {
+        "caller": "i2s_dma_tx_callback",
+        "target": "0x40097c20",
+        "callee": null
+      },
+      {
+        "caller": "sent",
+        "target": "0x40095568",
+        "callee": "dbt_audio_take"
+      },
+      {
+        "caller": "sent",
+        "target": "0x40098cf8",
+        "callee": "vTaskGenericNotifyGiveFromISR"
+      },
+      {
+        "caller": "sent",
+        "target": "0x40095614",
+        "callee": "dbt_audio_fade"
+      }
+    ],
+    "unresolved_indirect_calls": [
+      {
+        "caller": "i2s_dma_tx_callback",
+        "address": "0x400881e1",
+        "instruction": "callx8\ta8"
+      },
+      {
+        "caller": "i2s_dma_tx_callback",
+        "address": "0x400881f2",
+        "instruction": "callx8\ta8"
+      },
+      {
+        "caller": "i2s_dma_tx_callback",
+        "address": "0x4008821a",
+        "instruction": "callx8\ta8"
+      },
+      {
+        "caller": "i2s_dma_tx_callback",
+        "address": "0x4008822e",
+        "instruction": "callx8\ta8"
+      }
+    ],
+    "unsafe_direct_calls": [],
+    "hardware_accessed": false
+  },
+  "input_optional_policy": {
+    "enabled_in_product": true,
+    "strict_default_api": true,
+    "only_two_clean_probe_nacks_with_successful_driver_cleanup_may_continue": true,
+    "nack_is_not_physical_absence_proof": true,
+    "failed_cleanup_retains_driver_ownership": true
+  },
+  "startup_fault_lifetime": {
+    "owner_parked_instead_of_deleted": true,
+    "automatic_reboot": false,
+    "retained_workers_and_loans": "bounded/persistent; actual quiescence may occur later",
+    "post_enable_fault_does_not_claim_controller_disabled": true
+  },
+  "previous_checkpoint_iram_placement_comparison": {
     "passed": true,
     "scope": "same-source/equal-feature static link comparison of SDK-selected non-ISR placement; no runtime heap/CPU/timing claim",
     "changed_inputs": [
@@ -231,146 +389,14 @@
     "i2s_iram_safety_enabled": true,
     "hardware_accessed": false
   },
-  "iram_callback_audit": {
-    "passed": true,
-    "scope": "offline protected-symbol placement and direct-call scan of I2S/owned audio callback functions; SDK calls are terminal nodes; vendor internals, indirect calls, ROM internals, real cache stalls and timing unproven",
-    "elf_sha256": "9e5231bbe69abfe23742e8d87e1e75b9fcc7b0323e221884fbb7213ffc004b0e",
-    "task_functions_in_flash": true,
-    "protected_symbols": [
-      {
-        "name": "vTaskGenericNotifyGiveFromISR",
-        "address": 1074367740,
-        "size": 383
-      },
-      {
-        "name": "xQueueGenericSendFromISR",
-        "address": 1074365112,
-        "size": 169
-      },
-      {
-        "name": "xQueueGiveFromISR",
-        "address": 1074365284,
-        "size": 145
-      },
-      {
-        "name": "xQueueReceiveFromISR",
-        "address": 1074365432,
-        "size": 114
-      },
-      {
-        "name": "vTaskSwitchContext",
-        "address": 1074366696,
-        "size": 548
-      },
-      {
-        "name": "xTaskIncrementTick",
-        "address": 1074366060,
-        "size": 636
-      }
-    ],
-    "task_only_symbols": [
-      {
-        "name": "xQueueReceive",
-        "address": 1075221780,
-        "size": 223
-      },
-      {
-        "name": "xTaskCreatePinnedToCore",
-        "address": 1075225436,
-        "size": 130
-      },
-      {
-        "name": "xTaskGenericNotify",
-        "address": 1075225752,
-        "size": 402
-      }
-    ],
-    "i2s_roots": [
-      {
-        "name": "sent",
-        "address": 1074277400,
-        "size": 821
-      },
-      {
-        "name": "i2s_dma_tx_callback",
-        "address": 1074299304,
-        "size": 180
-      }
-    ],
-    "direct_functions_walked": 4,
-    "direct_edges": [
-      {
-        "caller": "i2s_dma_tx_callback",
-        "target": "0x4009846c",
-        "callee": "xQueueIsQueueFullFromISR"
-      },
-      {
-        "caller": "i2s_dma_tx_callback",
-        "target": "0x400983f8",
-        "callee": "xQueueReceiveFromISR"
-      },
-      {
-        "caller": "i2s_dma_tx_callback",
-        "target": "0x400982b8",
-        "callee": "xQueueGenericSendFromISR"
-      },
-      {
-        "caller": "i2s_dma_tx_callback",
-        "target": "0x40097c24",
-        "callee": null
-      },
-      {
-        "caller": "sent",
-        "target": "0x4009556c",
-        "callee": "dbt_audio_take"
-      },
-      {
-        "caller": "sent",
-        "target": "0x40098cfc",
-        "callee": "vTaskGenericNotifyGiveFromISR"
-      },
-      {
-        "caller": "sent",
-        "target": "0x40095618",
-        "callee": "dbt_audio_fade"
-      }
-    ],
-    "unresolved_indirect_calls": [
-      {
-        "caller": "i2s_dma_tx_callback",
-        "address": "0x400881e5",
-        "instruction": "callx8\ta8"
-      },
-      {
-        "caller": "i2s_dma_tx_callback",
-        "address": "0x400881f6",
-        "instruction": "callx8\ta8"
-      },
-      {
-        "caller": "i2s_dma_tx_callback",
-        "address": "0x4008821e",
-        "instruction": "callx8\ta8"
-      },
-      {
-        "caller": "i2s_dma_tx_callback",
-        "address": "0x40088232",
-        "instruction": "callx8\ta8"
-      }
-    ],
-    "unsafe_direct_calls": [],
-    "hardware_accessed": false
-  },
-  "input_optional_policy": {
-    "enabled_in_product": true,
-    "strict_default_api": true,
-    "only_two_clean_probe_nacks_with_successful_driver_cleanup_may_continue": true,
-    "nack_is_not_physical_absence_proof": true,
-    "failed_cleanup_retains_driver_ownership": true
-  },
-  "startup_fault_lifetime": {
-    "owner_parked_instead_of_deleted": true,
-    "automatic_reboot": false,
-    "retained_workers_and_loans": "bounded/persistent; actual quiescence may occur later",
-    "post_enable_fault_does_not_claim_controller_disabled": true
+  "product_security_enabled": true,
+  "rfcomm_echo_enabled": true,
+  "production_mode_requires_fixed_test_mac": false,
+  "diagnostic_mode_remains_peer_restricted": true,
+  "evidence_boundaries": {
+    "rfcomm": "paired simulated encrypted-policy links, not real pairing/RF/external interoperability",
+    "restart": "production coordinator with subsystem shims, plus separate GATT/runtime/selector tests; not one full real-device pipeline",
+    "cccd_transition": "actual GATT attachment with deterministic SMP/storage/OTA callbacks; trust runtime tested separately",
+    "static_link_size": "not runtime heap or stack headroom"
   }
 }

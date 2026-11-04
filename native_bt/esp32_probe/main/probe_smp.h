@@ -14,6 +14,9 @@ typedef struct {
     uint8_t local_address[6];
     /* Request only the peer's identity keys, with role-correct key masks. */
     bool peer_identity_only;
+    /* Product-only opt-in: prompt a peripheral peer to encrypt/pair using the
+     * configured AuthReq. Admission still governs an actual new pairing. */
+    bool peripheral_security_requests;
 } probe_smp_config_t;
 
 dbt_result_t probe_smp_init(dbt_runtime_t *, TaskHandle_t, const probe_smp_config_t *);
@@ -36,7 +39,13 @@ void probe_smp_link(const dbt_link_change_t *);
  * is observed but is not claimed from other consumers. */
 bool probe_smp_event(const dbt_hci_packet_t *);
 void probe_smp_poll(uint32_t now_ms);
+/* Owner, immediately before each dbt_runtime_poll. Cancels an unsent prompt
+ * when its policy/expiry/link no longer permits submission. */
+void probe_smp_security_request_preflight(uint32_t now_ms);
 uint32_t probe_smp_wait_ms(uint32_t now_ms);
+/* Owner-only. True only after accepted crypto/storage work and its worker
+ * retirement are complete; a settled live secure session may remain. */
+bool probe_smp_quiescent(void);
 /* Reports a failed procedure once; policy decides whether to disconnect. */
 bool probe_smp_take_failure(uint16_t *handle, uint32_t *generation);
 dbt_result_t probe_smp_security(uint16_t handle, uint32_t generation,
