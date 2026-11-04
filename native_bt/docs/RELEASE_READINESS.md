@@ -27,6 +27,11 @@ I2S/deferred-PCM run still failed, with CPU0 renderer starvation, underruns and 
 descriptor fault. Core placement fixes the observed decoder/transport overload
 in the diagnostic workload; it does not qualify the complete audio pipeline.
 
+The exact, generated-bound FIR delta change passes 300000 wide-oracle host cases
+and 27 four-way target case groups. Fractional-phase kernel work improved
+24.5–27.4%; zero phase is effectively unchanged. The full maximum-rate pipeline
+still saturates its queue before DMA starts. This is not a playback/headroom pass.
+
 [Current COM6/Redmagic RF results](BLUETOOTH_RF_2026_11_04.md) retain successful
 pairing/link observations and failed streaming measurements separately. The
 released firmware returned after the latest trial; playback was paused. Its

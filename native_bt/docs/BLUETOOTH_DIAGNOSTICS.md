@@ -134,7 +134,16 @@ included in PCM provider elapsed time; these are not CPU-only cycle measurements
 This image failed before LHDC could be selected. The baseline returned cleanly.
 One watchdog sample identifies where the renderer was interrupted, not its
 exclusive CPU cost. Later instrumentation exposes existing renderer totals and
-separates descriptor reasons; their hardware validation remains pending.
+separates descriptor reasons.
+
+The [instrumented full-output follow-up](RF_RENDER_REASONS_2026_11_04.json)
+confirmed an order fault (expected descriptor 0, observed 2; correct 1024-byte
+size), zero shape/map faults and a 17202 us maximum EOF gap. All 5996 successful
+render units produced 128 frames; mean elapsed work was 1732.91 us, above the
+1333.33 us 96 kHz unit budget. Input sequence breaks and ingress rejections were
+zero. Descriptor validation remains enforced. A per-stream diagnostic reset
+correction is separately host-tested; this follow-up had one output start and
+initially zero reason counters.
 
 ## Maximum LHDC phone trial
 
@@ -158,6 +167,11 @@ edges. Android reports a nominal target, not an exact physical RF bitrate.
 This short trial omits A2DP DSP/I2S output and establishes no analog fidelity,
 long-duration stability or full-pipeline headroom guarantee. The separate full
 I2S failure remains open.
+
+The [exact FIR delta change](FIR_DELTA_2026_11_04.md) later reduced isolated
+fractional-phase FIR work by 24.5–27.4% with sample/full-state equality. Its
+maximum-rate full pipeline still fails. This kernel result does not replace
+the radio, complete renderer, memory, application or stress qualification gates.
 
 ## Existing captured scheduler failure
 
