@@ -181,3 +181,7 @@ The [COM6 pipeline record](docs/IDF61_PIPELINE_2026_11_04.md) documents the SRAM
 constructor now fits, but the render path misses its throughput budget before
 DMA starts. The released fallback remains selected; production parity and the
 master objective are incomplete.
+
+The [render-stage profile](docs/IDF61_RENDER_PROFILE_2026_11_04.md) records the exact O3/FIR checks and observed
+conversion improvement. DSP remains the main throughput bottleneck; the
+maximum-rate fixture still fails before DMA playback starts.

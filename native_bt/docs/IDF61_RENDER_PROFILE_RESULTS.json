@@ -109,5 +109,229 @@
   "boot_fatal_marker": false,
   "original_application_preserved": true,
   "scope": "profiled original -Os render path; controller off, 12/96 packets supplied, DMA never started",
-  "master_objective_complete": false
+  "master_objective_complete": false,
+  "optimized_render": {
+    "candidate_sha256": "7f4c6fd94fb724bfc431d78894a966d4c46de7b61f059172115f42e606232593",
+    "run_archive": "runs/1793801674366726800-7f4c6fd94fb7",
+    "pipeline_check": {
+      "probe": "target_pipeline_selftest",
+      "passed": false,
+      "configured": true,
+      "started": true,
+      "stream_result": 0,
+      "correctness": false,
+      "continuity": false,
+      "rate": 192000,
+      "sample_depth": 24,
+      "channels": 2,
+      "encoded_payload_bps": 1001600,
+      "packets": 13,
+      "completed_packets": 11,
+      "sample_frames": 11328,
+      "pcm_hash": 3276682329,
+      "synthetic_source": true,
+      "integer_dsp": true,
+      "i2s_test": true,
+      "rf_test": false,
+      "production_qualified": false
+    },
+    "pipeline_measurements": [
+      {
+        "probe": "pipeline_memory",
+        "before_free": 279960,
+        "before_largest": 114688,
+        "opened_free": 15816,
+        "opened_largest": 10240,
+        "minimum_free": 14352,
+        "after_free": 273556,
+        "decoder_tracked_peak": 63688,
+        "renderer_requested": 199680,
+        "reclaimed": true,
+        "remaining_tracked": 0,
+        "core1_stack_low": 5380,
+        "render_stack_low": 4208
+      },
+      {
+        "probe": "pipeline_timing",
+        "elapsed_us": 70062,
+        "worker_total_us": 61558,
+        "worker_total_cycles": 14763923,
+        "worker_calls": 78,
+        "worker_max_us": 4324,
+        "hash_us": 6909,
+        "arrival_p99_us": 2231,
+        "arrival_max_us": 2231,
+        "completion_p99_us": 8457,
+        "completion_max_us": 8457,
+        "completion_over_5ms": 11,
+        "queue_peak": 2,
+        "render_total_us": 59156,
+        "render_calls": 25,
+        "render_max_us": 2478
+      },
+      {
+        "probe": "pipeline_i2s",
+        "running": 0,
+        "failed": 0,
+        "accepted_frames": 11328,
+        "rendered_frames": 3200,
+        "dma_frames": 0,
+        "dma_eofs": 0,
+        "underrun_frames": 0,
+        "descriptor_errors": 0,
+        "max_eof_gap_us": 0,
+        "ready_frames": 3200,
+        "input_ready_frames": 7872,
+        "stop_tail_excluded": true
+      },
+      {
+        "probe": "pipeline_allocation",
+        "failed_bytes": 0,
+        "failure_free": 0,
+        "failure_largest": 0,
+        "page_bytes": 4096
+      },
+      {
+        "probe": "pipeline_render_stages",
+        "quiescent": true,
+        "includes_stop_drain": true,
+        "profile_frames": 3328,
+        "conversion_resampler_cycles": 4037373,
+        "dsp_cycles": 10546531,
+        "output_tail_cycles": 94690,
+        "controls_cycles": 29262,
+        "conversion_block_max_cycles": 166078,
+        "dsp_block_max_cycles": 435766,
+        "tail_block_max_cycles": 9236,
+        "media_drops": 1,
+        "worker_faults": 0,
+        "pcm_timeouts": 0,
+        "cpu_mhz": 240,
+        "elapsed_core_cycles": true
+      }
+    ],
+    "return": {
+      "probe": "codec_diagnostic_return",
+      "passed": false,
+      "baseline_selected": true,
+      "restore_result": 0,
+      "radio_test": false
+    },
+    "baseline_boot_observed": true,
+    "boot_fatal_marker": false,
+    "original_application_preserved": true
+  },
+  "observed_stage_us_per_frame": {
+    "original_Os": {
+      "conversion_resampler": 10.667596970942983,
+      "dsp": 12.474794407894736,
+      "profile_frames": 2432
+    },
+    "targeted_O3_and_zero_remainder": {
+      "conversion_resampler": 5.054803936298077,
+      "dsp": 13.204290614983973,
+      "profile_frames": 3328
+    }
+  },
+  "comparison_limits": "One finite startup run per build, different prefix lengths; elapsed spans include interruptions and instrumentation. Does not prove steady-state/percentile/coexistence guarantees or isolate each change.",
+  "host_checks": {
+    "portable_core": {
+      "passed": 179,
+      "total": 179
+    },
+    "wide_resampler_oracle": {
+      "passed": true,
+      "cases": 150000,
+      "oracle": "128-bit integer convolution/interpolation",
+      "optimization": "O3",
+      "sanitizers": [
+        "address",
+        "undefined"
+      ],
+      "scope": "full output/state, all tap lengths across zero/bank-aligned/max/random phases and priming/history states; host only"
+    },
+    "strict_O3_DSP": {
+      "passed": true,
+      "tests": [
+        "test_fixed_dsp_flat_and_integer_boundaries",
+        "test_fixed_dsp_eq_transition_continuity",
+        "test_fixed_dsp_controls_and_full_scale",
+        "test_fixed_dsp_meter_and_db"
+      ],
+      "optimization": "O3",
+      "sanitizers": [
+        "address",
+        "undefined"
+      ],
+      "signed_overflow_wrapping": false,
+      "scope": "host DSP boundaries, full scale, transition continuity, controls and meters; no analog/hardware sound qualification"
+    },
+    "strict_O3_pages": {
+      "passed": true,
+      "sanitizers": [
+        "address",
+        "undefined"
+      ],
+      "signed_overflow_wrapping": false
+    },
+    "O3_clock_spectral_passed": true
+  },
+  "full_product_build": {
+    "schema": 1,
+    "passed": true,
+    "state": "complete",
+    "hardware_accessed": false,
+    "product_io": true,
+    "product_security": true,
+    "rfcomm": true,
+    "build_exit": 0,
+    "source_check_exit": 0,
+    "workspace_check_exit": 0,
+    "audio_stage_profile": false,
+    "pipeline_diagnostic": false,
+    "codec_diagnostic_only": false,
+    "deferred_codec_check": false,
+    "async_audio": true,
+    "lhdc_maximum_check": false,
+    "lhdc_stage_profile": false,
+    "source_manifest_sha256": "fa8ab1379b3eea3d31fbb55b3ead482031400b87e5dc1cdb291fd2764b26268e",
+    "image_sha256": "934db092bf78d2fca6a7e2c2a43a63916a68fcf9d745fd061f6dc1818bb198b9",
+    "config_sha256": "1153b97ed20e64a41eb7d2d91c1ca1ae121d974fa637424603187828864fa3d2",
+    "partition_sha256": "6a5932b101f5a4cf7a011c63cd6e5b75dae885e204584d4a7d62de3e5ecf0151"
+  },
+  "full_product_offline_admission": {
+    "passed": true,
+    "scope": "offline image checksum/digest, ESP32 revision and admitted OTA capacity; no device access or runtime qualification",
+    "image_sha256": "934db092bf78d2fca6a7e2c2a43a63916a68fcf9d745fd061f6dc1818bb198b9",
+    "image_bytes": 1208768,
+    "project": "native_bt_probe",
+    "chip_id": 0,
+    "codec_diagnostic_only": false,
+    "pipeline_diagnostic": false,
+    "revision_range": [
+      0,
+      399
+    ],
+    "checksum_verified": true,
+    "digest_verified": true,
+    "latest_local_build_completed": true,
+    "build_sources_match": true,
+    "build_source_units": 10264,
+    "product_io": true,
+    "product_security": true,
+    "rfcomm_profile": true,
+    "controller_only_dual_mode": true,
+    "anti_rollback_fuse_updates": false,
+    "partition_offset": 3735552,
+    "partition_bytes": 2621440,
+    "partition_remaining_bytes": 1412672,
+    "compiled_table_matches_preserved_layout": true,
+    "compiled_table_sha256": "6a5932b101f5a4cf7a011c63cd6e5b75dae885e204584d4a7d62de3e5ecf0151",
+    "flash_mode": "DIO",
+    "flash_mib": 8,
+    "flash_mhz": 80,
+    "hardware_accessed": false,
+    "runtime_qualified": false
+  },
+  "next_measurement": "Identical-input Os/O3 DSP microbenchmark with cold-ramp and steady sections, then profile DSP sub-stages and optimize exact integer math. Current maximum-rate fixture still fails before DMA."
 }
