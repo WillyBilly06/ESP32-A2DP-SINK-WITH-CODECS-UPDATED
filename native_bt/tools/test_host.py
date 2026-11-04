@@ -109,6 +109,7 @@ TESTS = [
     "audio_consumer_fade_exact_duration_and_full_scale",
     "aac_selection_and_endpoint_subset", "aac_latm_boundaries_and_transaction",
     "codec_lazy_lifecycle_and_rollback", "codec_queue_gates_and_copy", "codec_reset_failure_stops_stream",
+    "codec_diagnostics_classify_local_and_upstream_loss",
     "codec_deferred_pcm_backpressure_and_exact_order", "codec_deferred_cancel_suspend_and_reconfigure",
     "codec_deferred_deadline_and_failure_retirement",
     "async_ticket_identity_and_completion", "async_ticket_cancel_phase_and_retirement",

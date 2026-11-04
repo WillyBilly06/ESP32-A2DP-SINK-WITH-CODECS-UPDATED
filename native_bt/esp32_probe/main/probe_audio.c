@@ -77,6 +77,82 @@ static void *product_context;
 static _Atomic uint32_t pcm_generation,pcm_frames,pcm_bytes,pcm_hash,pcm_rate,pcm_channels,pcm_codec,pcm_sample_bytes;
 static _Atomic uint32_t profile_snapshot,event_errors,last_channel_event,last_channel_result;
 static _Atomic uint32_t ignored_dynamic,oversized_dynamic;
+/* Separate single-writer rings for host admission and decoder events. Logging
+ * never waits on the producer; record loss is itself exposed every second. */
+#define TRACE_SLOTS 16u
+typedef struct {dbt_codec_trace_t event;uint32_t at_us,ordinal;} media_trace_t;
+typedef struct {
+    media_trace_t items[TRACE_SLOTS];
+    _Atomic uint32_t written,read,lost;
+    uint32_t ordinal;
+} media_trace_ring_t;
+static media_trace_ring_t media_trace_rings[2];
+static _Atomic uint32_t rx_packets,rx_acl,rx_events,rx_bytes,rx_isr,rx_rejected,rx_pending_us;
+static _Atomic uint32_t rx_callback_max_us,first_rx_to_poll_max_us,host_poll_max_us;
+static _Atomic uint32_t worker_steps,worker_elapsed_us,worker_step_max_us,worker_hist[8];
+typedef struct {
+    uint32_t began;
+    _Atomic uint32_t calls,elapsed_us,maximum_us,hist[8];
+} phase_timing_t;
+static phase_timing_t phase_timing[3];
+static const char *const trace_names[]={"invalid","input_sequence","input_ssrc","queue_full",
+    "worker_sequence","worker_ssrc","decode_reject","reset_failed","pcm_failed","pcm_timeout","pcm_busy"};
+static void maximum(_Atomic uint32_t *value,uint32_t candidate){
+    /* Each maximum has one writer; the logger only reads it. */
+    if(candidate>atomic_load_explicit(value,memory_order_relaxed))atomic_store_explicit(value,candidate,memory_order_relaxed);
+}
+static void timing_event(unsigned kind){
+    unsigned index=(kind-DBT_CODEC_DECODE_BEGIN)/2u;
+    if(index>=3)return;
+    phase_timing_t *phase=&phase_timing[index];uint32_t at=(uint32_t)esp_timer_get_time();
+    if((kind-DBT_CODEC_DECODE_BEGIN)%2u==0){phase->began=at;return;}
+    uint32_t elapsed=at-phase->began;
+    atomic_fetch_add(&phase->calls,1);atomic_fetch_add(&phase->elapsed_us,elapsed);maximum(&phase->maximum_us,elapsed);
+    unsigned bucket=0;uint32_t bound=125;
+    while(bucket<7 && elapsed>bound){++bucket;bound*=2;}
+    atomic_fetch_add(&phase->hist[bucket],1);
+}
+static void media_trace(void *context,const dbt_codec_trace_t *event){
+    (void)context;
+    if(event->kind>=DBT_CODEC_DECODE_BEGIN){
+        timing_event((unsigned)event->kind);return;
+    }
+    media_trace_ring_t *ring=&media_trace_rings[event->kind<=DBT_CODEC_QUEUE_FULL?0:1];
+    uint32_t ordinal=++ring->ordinal;
+    uint32_t written=atomic_load_explicit(&ring->written,memory_order_relaxed);
+    if(written-atomic_load_explicit(&ring->read,memory_order_acquire)>=TRACE_SLOTS){atomic_fetch_add(&ring->lost,1);return;}
+    ring->items[written%TRACE_SLOTS]=(media_trace_t){*event,(uint32_t)esp_timer_get_time(),ordinal};
+    atomic_store_explicit(&ring->written,written+1u,memory_order_release);
+}
+static void log_media_trace(void){
+    for(unsigned i=0;i<2;++i)for(unsigned budget=0;budget<2;++budget){
+        media_trace_ring_t *ring=&media_trace_rings[i];uint32_t read=atomic_load(&ring->read);
+        if(read==atomic_load_explicit(&ring->written,memory_order_acquire))break;
+        media_trace_t record=ring->items[read%TRACE_SLOTS];
+        atomic_store_explicit(&ring->read,read+1u,memory_order_release);
+        const dbt_codec_trace_t *e=&record.event;
+        printf("{\"probe\":\"media_trace\",\"at_us\":%" PRIu32 ",\"stage\":\"%s\",\"ordinal\":%" PRIu32
+               ",\"sequence\":%u,\"expected\":%u,\"rtp_timestamp\":%" PRIu32 ",\"ssrc\":%" PRIu32
+               ",\"previous_ssrc\":%" PRIu32 ",\"bytes\":%u,\"queued\":%u,\"result\":%u}\n",
+               record.at_us,trace_names[e->kind],record.ordinal,e->sequence,e->expected_sequence,e->timestamp,
+               e->ssrc,e->previous_ssrc,e->bytes,e->queued,(unsigned)e->result);
+    }
+}
+void probe_audio_transport_received(uint32_t began_us,uint16_t bytes,uint8_t type,dbt_result_t result,bool isr){
+    atomic_fetch_add(&rx_packets,1);atomic_fetch_add(&rx_bytes,bytes);
+    if(type==DBT_H4_ACL)atomic_fetch_add(&rx_acl,1);
+    if(type==DBT_H4_EVENT)atomic_fetch_add(&rx_events,1);
+    if(isr)atomic_fetch_add(&rx_isr,1);
+    if(result!=DBT_OK)atomic_fetch_add(&rx_rejected,1);
+    uint32_t empty=0;uint32_t stamp=began_us?began_us:1u;
+    atomic_compare_exchange_strong_explicit(&rx_pending_us,&empty,stamp,memory_order_release,memory_order_relaxed);
+    maximum(&rx_callback_max_us,(uint32_t)esp_timer_get_time()-began_us);
+}
+void probe_audio_transport_poll_begin(uint32_t began_us){
+    uint32_t pending=atomic_exchange_explicit(&rx_pending_us,0,memory_order_acq_rel);
+    if(pending)maximum(&first_rx_to_poll_max_us,began_us-pending);
+}
+void probe_audio_transport_poll_end(uint32_t began_us){maximum(&host_poll_max_us,(uint32_t)esp_timer_get_time()-began_us);}
 /* Each endpoint is validated independently before an asynchronous worker job.
  * Opus 05 offers forward mono/stereo only; reverse audio is not supported. */
 static const uint8_t sbc_capabilities[]={1,0,7,6,0,0,0x3f,0xff,2,53,8,0};
@@ -160,13 +236,21 @@ static dbt_result_t pcm(void *context,const void *samples,uint16_t count,const d
     if(!config || !samples || !count || config->sample_bytes<2 || config->sample_bytes>4 ||
        config->channels<1 || config->channels>2 || !config->rate)return DBT_INVALID;
     uint8_t channels=config->channels;uint32_t rate=config->rate,bytes=(uint32_t)config->sample_bytes*count*channels;
+#ifndef DBT_PROBE_ASYNC_AUDIO
+    timing_event(DBT_CODEC_PCM_BEGIN);
+#endif
 #if defined(DBT_PROBE_AUDIO_OUTPUT) && !defined(DBT_PROBE_RF_PROTOCOL_DIAGNOSTIC)
 #ifdef DBT_PROBE_ASYNC_AUDIO
     dbt_result_t result=probe_output_try_pcm_format(samples,count,channels,rate,(dbt_pcm_format_t)config->sample_bytes);
 #else
     dbt_result_t result=probe_output_pcm_format(samples,count,channels,rate,(dbt_pcm_format_t)config->sample_bytes);
 #endif
-    if(result!=DBT_OK)return result;
+    if(result!=DBT_OK){
+#ifndef DBT_PROBE_ASYNC_AUDIO
+        timing_event(DBT_CODEC_PCM_END);
+#endif
+        return result;
+    }
 #endif
     atomic_fetch_add_explicit(&pcm_generation,1,memory_order_acq_rel);
     uint32_t hash=atomic_load_explicit(&pcm_hash,memory_order_relaxed);const uint8_t *p=samples;
@@ -178,6 +262,9 @@ static dbt_result_t pcm(void *context,const void *samples,uint16_t count,const d
     atomic_store_explicit(&pcm_channels,channels,memory_order_relaxed);
     atomic_store_explicit(&pcm_sample_bytes,config->sample_bytes,memory_order_relaxed);
     atomic_fetch_add_explicit(&pcm_generation,1,memory_order_release);
+#ifndef DBT_PROBE_ASYNC_AUDIO
+    timing_event(DBT_CODEC_PCM_END);
+#endif
     return DBT_OK;
 }
 static dbt_result_t publish_stream(bool started,const dbt_codec_config_t *config){
@@ -241,7 +328,13 @@ static void decode_loop(void *unused){
     (void)unused;
     uint32_t seen_faults=0;
     for(;;){
+        uint32_t began=(uint32_t)esp_timer_get_time();
         uint16_t done=dbt_codec_worker_step(&worker,now_ms(),2);
+        uint32_t elapsed=(uint32_t)esp_timer_get_time()-began;
+        atomic_fetch_add(&worker_steps,1);atomic_fetch_add(&worker_elapsed_us,elapsed);maximum(&worker_step_max_us,elapsed);
+        unsigned bucket=0;uint32_t bound=125;
+        while(bucket<7 && elapsed>bound){++bucket;bound*=2;}
+        atomic_fetch_add(&worker_hist[bucket],1);
         uint32_t faults=atomic_load_explicit(&worker.faults,memory_order_acquire);
         if(faults!=seen_faults){seen_faults=faults;wake_owner(0);}
 #ifdef DBT_PROBE_ASYNC_AUDIO
@@ -292,8 +385,42 @@ static bool log_metadata(void){
 static void log_loop(void *unused){
     (void)unused;
     uint32_t previous=UINT32_MAX,previous_errors=UINT32_MAX,previous_ignored=UINT32_MAX,previous_oversized=UINT32_MAX;
+    unsigned ticks=0;
     for(;;){
-        vTaskDelay(pdMS_TO_TICKS(1000));
+        vTaskDelay(pdMS_TO_TICKS(100));log_media_trace();
+        if(++ticks<10)continue;
+        ticks=0;
+        uint32_t at=(uint32_t)esp_timer_get_time();
+        printf("{\"probe\":\"vhci_timing\",\"at_us\":%" PRIu32 ",\"packets\":%" PRIu32 ",\"acl\":%" PRIu32
+               ",\"events\":%" PRIu32 ",\"bytes\":%" PRIu32 ",\"isr_callbacks\":%" PRIu32 ",\"rejected\":%" PRIu32
+               ",\"callback_max_us\":%" PRIu32 ",\"first_rx_to_poll_max_us\":%" PRIu32 ",\"host_poll_max_us\":%" PRIu32
+               ",\"ingress_high_water_bytes\":%" PRIu32 ",\"ingress_rejected\":%" PRIu32 "}\n",
+               at,atomic_load(&rx_packets),atomic_load(&rx_acl),atomic_load(&rx_events),atomic_load(&rx_bytes),atomic_load(&rx_isr),
+               atomic_load(&rx_rejected),atomic_load(&rx_callback_max_us),atomic_load(&first_rx_to_poll_max_us),atomic_load(&host_poll_max_us),
+               atomic_load(&profile.runtime->host.ingress.high_water),atomic_load(&profile.runtime->host.ingress.rejected));
+        printf("{\"probe\":\"media_drop_reasons\",\"at_us\":%" PRIu32 ",\"queue_full\":%" PRIu32 ",\"decode_reject\":%" PRIu32
+               ",\"reset_failed\":%" PRIu32 ",\"pcm_failed\":%" PRIu32 ",\"pcm_timeout\":%" PRIu32 ",\"pcm_busy\":%" PRIu32
+               ",\"input_sequence_breaks\":%" PRIu32 ",\"input_ssrc_changes\":%" PRIu32 ",\"queue_high_water\":%" PRIu32
+               ",\"host_trace_lost\":%" PRIu32 ",\"worker_trace_lost\":%" PRIu32 "}\n",at,
+               atomic_load(&worker.queue_full_drops),atomic_load(&worker.decode_rejects),atomic_load(&worker.reset_failures),
+               atomic_load(&worker.pcm_failures),atomic_load(&worker.pcm_timeouts),atomic_load(&worker.pcm_backpressure),
+               atomic_load(&worker.input_sequence_breaks),atomic_load(&worker.input_ssrc_changes),atomic_load(&worker.queue_high_water),
+               atomic_load(&media_trace_rings[0].lost),atomic_load(&media_trace_rings[1].lost));
+        printf("{\"probe\":\"worker_timing\",\"at_us\":%" PRIu32 ",\"steps\":%" PRIu32 ",\"elapsed_us\":%" PRIu32
+               ",\"max_step_us\":%" PRIu32 ",\"wall_time_includes_preemption\":true,\"step_budget\":2,\"histogram_us_le\":[125,250,500,1000,2000,4000,8000],\"histogram_counts\":[%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 "]}\n",
+               at,atomic_load(&worker_steps),atomic_load(&worker_elapsed_us),atomic_load(&worker_step_max_us),
+               atomic_load(&worker_hist[0]),atomic_load(&worker_hist[1]),atomic_load(&worker_hist[2]),atomic_load(&worker_hist[3]),
+               atomic_load(&worker_hist[4]),atomic_load(&worker_hist[5]),atomic_load(&worker_hist[6]),atomic_load(&worker_hist[7]));
+        static const char *const phases[]={"decoder_execution","decoder_reset","pcm_delivery"};
+        for(unsigned i=0;i<3;++i){
+            phase_timing_t *p=&phase_timing[i];
+            printf("{\"probe\":\"%s\",\"at_us\":%" PRIu32 ",\"calls\":%" PRIu32 ",\"elapsed_us\":%" PRIu32
+                   ",\"maximum_us\":%" PRIu32 ",\"wall_time_includes_preemption\":true,\"includes_inline_pcm\":%s,\"histogram_us_le\":[125,250,500,1000,2000,4000,8000],\"histogram_counts\":[%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 "]}\n",
+                   phases[i],at,atomic_load(&p->calls),atomic_load(&p->elapsed_us),atomic_load(&p->maximum_us),
+                   i==0 && !worker.hooks.deferred_pcm?"true":"false",
+                   atomic_load(&p->hist[0]),atomic_load(&p->hist[1]),atomic_load(&p->hist[2]),atomic_load(&p->hist[3]),
+                   atomic_load(&p->hist[4]),atomic_load(&p->hist[5]),atomic_load(&p->hist[6]),atomic_load(&p->hist[7]));
+        }
         uint32_t generation=atomic_load_explicit(&pcm_generation,memory_order_acquire);
         if(generation&1u)continue;
         uint32_t frames=atomic_load_explicit(&pcm_frames,memory_order_relaxed),bytes=atomic_load_explicit(&pcm_bytes,memory_order_relaxed);
@@ -360,6 +487,7 @@ dbt_result_t probe_audio_init(dbt_runtime_t *runtime,TaskHandle_t host_owner){
     dbt_codec_worker_hooks_t hooks={0};hooks.decoder=(dbt_codec_hooks_t){0,codec_allocate,release,pcm};
     hooks.codecs=codecs;hooks.codec_count=(uint8_t)(sizeof(codecs)/sizeof(codecs[0]));
     hooks.wake_worker=wake_worker;hooks.wake_owner=wake_owner;
+    hooks.trace=media_trace;
 #ifdef DBT_PROBE_ASYNC_AUDIO
     hooks.deferred_pcm=true;hooks.async_stream=(dbt_codec_stream_async_t){stream_begin,stream_poll,stream_cancel};
 #else

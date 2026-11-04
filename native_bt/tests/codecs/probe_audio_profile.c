@@ -39,6 +39,34 @@ EX int probe_audio_metadata(void){
     CHECK(log_metadata() && !log_metadata() && !live_allocs);return 0;
 }
 #endif
+EX int probe_audio_diagnostics(void){
+    memset(media_trace_rings,0,sizeof(media_trace_rings));
+    dbt_codec_trace_t e={1234,9,8,10,9,77,8,DBT_CODEC_QUEUE_FULL,DBT_NO_SPACE};
+    now=10;
+    for(unsigned i=0;i<TRACE_SLOTS+1u;++i){e.sequence=(uint16_t)i;media_trace(0,&e);}
+    CHECK(atomic_load(&media_trace_rings[0].written)==TRACE_SLOTS && atomic_load(&media_trace_rings[0].lost)==1);
+    CHECK(media_trace_rings[0].items[0].event.timestamp==1234 && media_trace_rings[0].items[0].at_us==10000);
+    CHECK(media_trace_rings[0].items[TRACE_SLOTS-1].ordinal==TRACE_SLOTS);
+    e.kind=DBT_CODEC_DECODE_REJECT;media_trace(0,&e);
+    CHECK(atomic_load(&media_trace_rings[1].written)==1 && !atomic_load(&media_trace_rings[1].lost));
+    log_media_trace();
+    CHECK(atomic_load(&media_trace_rings[0].read)==2 && atomic_load(&media_trace_rings[1].read)==1);
+    e.kind=DBT_CODEC_INPUT_SEQUENCE;media_trace(0,&e);
+    CHECK(media_trace_rings[0].items[0].ordinal==TRACE_SLOTS+2u && atomic_load(&media_trace_rings[0].lost)==1);
+    probe_audio_transport_received(9000,100,DBT_H4_ACL,DBT_OK,false);
+    CHECK(atomic_load(&rx_packets)==1 && atomic_load(&rx_acl)==1 && atomic_load(&rx_callback_max_us)==1000);
+    probe_audio_transport_poll_begin(12000);now=14;probe_audio_transport_poll_end(12000);
+    CHECK(atomic_load(&first_rx_to_poll_max_us)==3000 && atomic_load(&host_poll_max_us)==2000 && !atomic_load(&rx_pending_us));
+    probe_audio_transport_received(13000,20,DBT_H4_EVENT,DBT_NO_SPACE,true);
+    CHECK(atomic_load(&rx_packets)==2 && atomic_load(&rx_events)==1 && atomic_load(&rx_isr)==1 && atomic_load(&rx_rejected)==1);
+    e.kind=DBT_CODEC_DECODE_BEGIN;now=20;media_trace(0,&e);
+    e.kind=DBT_CODEC_PCM_BEGIN;now=21;media_trace(0,&e);
+    e.kind=DBT_CODEC_PCM_END;now=22;media_trace(0,&e);
+    e.kind=DBT_CODEC_DECODE_END;now=24;media_trace(0,&e);
+    CHECK(atomic_load(&phase_timing[0].calls)==1 && atomic_load(&phase_timing[0].elapsed_us)==4000 && atomic_load(&phase_timing[0].hist[5])==1);
+    CHECK(atomic_load(&phase_timing[2].calls)==1 && atomic_load(&phase_timing[2].elapsed_us)==1000 && atomic_load(&phase_timing[2].hist[3])==1);
+    memset(media_trace_rings,0,sizeof(media_trace_rings));now=0;return 0;
+}
 #ifdef DBT_PROBE_AUDIO_OUTPUT
 static bool output_started;
 static uint32_t output_rate,output_frames;

@@ -18,6 +18,20 @@ from esptool.bin_image import ESP32FirmwareImage
 ROOT=Path(__file__).resolve().parents[1]
 HARDWARE=ROOT/'_build/hardware'
 
+def runtime_health(text):
+    """Boot readiness does not imply a healthy streaming scheduler."""
+    clean=re.sub(r'\x1b\[[0-9;]*m','',text)
+    triggers=clean.count('Task watchdog got triggered')
+    idle={str(core):len(re.findall(r'task_wdt:\s+- IDLE'+str(core)+r'\b',clean)) for core in (0,1)}
+    samples={str(core):{} for core in (0,1)}
+    for core,task in re.findall(r'task_wdt:\s+CPU ([01]): ([^\r\n]+)',clean):
+        task=task.strip();samples[core][task]=samples[core].get(task,0)+1
+    interrupt_watchdogs=clean.count('Interrupt wdt timeout')
+    return {'task_watchdog_triggers':triggers,'idle_starvation_warnings_by_core':idle,
+            'watchdog_running_task_samples_by_core':samples,'interrupt_watchdog_timeouts':interrupt_watchdogs,
+            'backtrace_records':clean.count('Backtrace:'),
+            'runtime_health_passed':not (triggers or interrupt_watchdogs)}
+
 def capture_markers(port,seconds,markers,limit=65536):
     """Bounded fresh-epoch capture. Elapsed time never counts as a marker."""
     data=bytearray();deadline=time.monotonic()+seconds;port.timeout=0.2
@@ -190,6 +204,11 @@ def main():
     archive.mkdir(parents=True,exist_ok=False)
     report['run_archive']=archive.relative_to(HARDWARE).as_posix()
     (archive/image_path.name).write_bytes(candidate)
+    elf_path=image_path.with_suffix('.elf')
+    if elf_path.is_file():
+        elf=elf_path.read_bytes()
+        if hashlib.sha256(elf).hexdigest()!=report['candidate_elf_sha256']:raise RuntimeError('ELF changed before archive')
+        (archive/elf_path.name).write_bytes(elf)
     for name in ('local-build-status.json','local-build-sources.json','compile_commands.json','CMakeCache.txt','config/sdkconfig.h'):
         source=image_path.parent/name
         if source.is_file():shutil.copy2(source,archive/source.name)
@@ -346,6 +365,7 @@ def main():
             report['boot_ready_marker']=report['boot_ready_marker'] and report['all_codec_target_check'] is not None
         fatal_tokens=('***ERROR***','Guru Meditation Error','abort() was called','"probe":"failed"','"probe":"parser_failure"')
         report['boot_fatal_marker']=any(token in text for token in fatal_tokens)
+        report['runtime_health']=runtime_health(text)
         report['boot_ready_marker']=report['boot_ready_marker'] and not report['boot_fatal_marker']
         report['boot_capture']=destination.with_suffix('.bin').name
         report['boot_tail']=text[-3000:]
@@ -353,6 +373,7 @@ def main():
         for suffix in ('.json','.bin','.txt'):shutil.copy2(destination.with_suffix(suffix),archive/destination.with_suffix(suffix).name)
         print(json.dumps(report,indent=2))
         if not report['boot_ready_marker']:raise RuntimeError('Trial readiness was not observed; inspect preserved boot capture')
+        if not report['runtime_health']['runtime_health_passed']:raise RuntimeError('Runtime watchdog warnings observed; inspect per-core scheduler diagnostics')
     except Exception as error:
         # Partial writes must remain auditable too. Attempts are not verified
         # completions. No NVS/key/backup contents are copied into this receipt.

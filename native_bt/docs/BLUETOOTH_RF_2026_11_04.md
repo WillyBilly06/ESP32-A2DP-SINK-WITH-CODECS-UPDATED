@@ -244,10 +244,42 @@ shared selector, along with f5/f6 agreement, invalid-point, replay and key-slot
 retirement checks. All 179 host groups pass. The updated target builds; actual
 phone encryption/durable bonding with this latest correction is still pending.
 
+## Secure BLE bonding, reconnect and the missed scheduler warnings
+
+Source `0feb3ac2`, image
+`6bceaf1587e5697b67b7af0fe58637db4489c6cc3713f0ad99e104b4916bfd1d`,
+completed phone Secure Connections Just Works pairing, 16-byte encryption,
+phase-three key distribution and durable bonding. After app restart with the
+pairing window closed, stored-key reconnect verified the peer and promoted its
+identity. Authentication correctly remained false for NoInputNoOutput Just Works.
+The BDK app accepted Deep Bass (8/-1/-2), then read those values on fresh
+reconnect. Balanced (0/0/0) was restored before playback.
+
+LDAC 96 kHz decoding then ran with BLE connected, but accumulated 1,995 aggregate
+drops and 1,579 resets across 8,466 retired media packets. There were zero
+oversized dynamic PDUs and zero codec-worker faults. PCM was checksummed without
+A2DP I2S output; this is not an audio continuity pass.
+
+The earlier report missed **22 nonfatal task-watchdog triggers**, each reporting
+CPU 1 idle starvation. Sampled CPU 1 tasks were decoder 11, controller 4 and
+host/main 7; CPU 0 was idle in all 22 samples. This confirms scheduler starvation,
+without establishing the individual cause of each dropped packet. Boot readiness
+and `boot_fatal_marker:false` did not establish healthy runtime scheduling.
+The released baseline returned cleanly and playback was paused. The phone/app
+connection to the baseline was not rechecked after this particular return.
+See [the corrected sanitized evidence](RF_SC_BOND_2026_11_04.json).
+
+New [stage-specific diagnostics](BLUETOOTH_DIAGNOSTICS.md) separate ingress,
+host wake/service timing, local queue rejection, upstream and worker RTP gaps,
+codec media/reset calls, PCM delivery/backpressure, and diagnostic-record loss.
+Runtime watchdog warnings now fail trial runtime health separately from boot
+readiness. Target streaming measurements with this instrumentation are pending.
+
 ## Outstanding Bluetooth gates
 
-The full profile build still needs current-image bond reload/reconnection,
-A2DP and AVRCP exchanges, live codec negotiation/switching, BLE security and all
-BDK command flows, simultaneous streaming/control, and lifecycle/stress tests.
+The full profile build still needs sustained loss-free A2DP/BLE operation,
+complete AVRCP exchanges, live codec negotiation/switching, all BDK command
+flows, and lifecycle/stress tests. The named secure bonding/reconnect and EQ
+readback cases above passed in checksum mode; full I2S coexistence remains open.
 Diagnostic GATT readiness alone does not prove an external BLE connection.
 Production pairing consent without physical controls remains a separate gap.

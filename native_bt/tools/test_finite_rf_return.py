@@ -4,6 +4,18 @@ from unittest.mock import patch
 ROOT=pathlib.Path(__file__).resolve().parents[1]
 spec=importlib.util.spec_from_file_location('deploy',ROOT/'tools/deploy_audio_trial.py');module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
 BASE=[b'Loaded app from partition at offset 0x110000\n',b'1.0.4-idf6.1\n',b'System ready\n']
+assert module.runtime_health('System ready')['runtime_health_passed']
+warnings='''E (100) task_wdt: Task watchdog got triggered.
+E (100) task_wdt:  - IDLE1 (CPU 1)
+E (100) task_wdt: CPU 0: IDLE0
+E (100) task_wdt: CPU 1: native_decoder
+Backtrace: 0x1234
+'''
+health=module.runtime_health(warnings*2)
+assert not health['runtime_health_passed'] and health['task_watchdog_triggers']==2
+assert health['idle_starvation_warnings_by_core']=={'0':0,'1':2}
+assert health['watchdog_running_task_samples_by_core']['1']=={'native_decoder':2} and health['backtrace_records']==2
+assert not module.runtime_health('Interrupt wdt timeout on CPU1')['runtime_health_passed']
 class Clock:
     def __init__(self):self.value=0
     def __call__(self):self.value+=0.1;return self.value

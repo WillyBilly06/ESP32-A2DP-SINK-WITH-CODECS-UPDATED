@@ -76,6 +76,8 @@ try:
         if args.eight_mod_16:define+=['-DTEST_EIGHT_MOD16=1']
         subprocess.run(cmd+define+['-o',str(artifact)],env=env,check=True)
         dll=ctypes.CDLL(str(artifact));fn=dll.probe_audio_profiles;u8=ctypes.c_ubyte;fn.argtypes=[ctypes.POINTER(u8),ctypes.c_uint16,ctypes.POINTER(u8),ctypes.POINTER(u8),ctypes.c_uint16,ctypes.POINTER(u8),ctypes.c_uint16]
+        line=dll.probe_audio_diagnostics()
+        if line:raise SystemExit('FAIL detailed diagnostic rings/timing line '+str(line))
         line=fn((u8*len(frame)).from_buffer_copy(frame),len(frame),(u8*6).from_buffer_copy(cie),(u8*len(aac)).from_buffer_copy(aac),len(aac),(u8*len(aac44)).from_buffer_copy(aac44),len(aac44))
         if line:raise SystemExit('FAIL real-codec probe profile/worker variant='+variant+' line '+str(line))
         if output:

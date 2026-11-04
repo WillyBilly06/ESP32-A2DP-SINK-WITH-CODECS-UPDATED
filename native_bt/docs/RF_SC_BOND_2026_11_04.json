@@ -1,0 +1,160 @@
+{
+  "date": "2026-11-04",
+  "source_commit": "0feb3ac2cc4f845d197daeaaff811e3df8e6438e",
+  "image_sha256": "6bceaf1587e5697b67b7af0fe58637db4489c6cc3713f0ad99e104b4916bfd1d",
+  "scope": "Finite radio/profile/product-security test with actual codec decode and PCM checksum; A2DP PCM is not forwarded to I2S; no DAC/DSP/headroom qualification",
+  "result": "SC_BOND_AND_RECONNECT_PASS_STREAMING_FAILS_WITH_CPU1_STARVATION",
+  "runtime_health": {
+    "task_watchdog_triggers": 22,
+    "idle_starvation_warnings_by_core": {
+      "0": 0,
+      "1": 22
+    },
+    "watchdog_running_task_samples_by_core": {
+      "0": {
+        "IDLE0": 22
+      },
+      "1": {
+        "native_decoder": 11,
+        "btController": 4,
+        "main": 7
+      }
+    },
+    "interrupt_watchdog_timeouts": 0,
+    "backtrace_records": 22,
+    "runtime_health_passed": false
+  },
+  "le_security_states": [
+    {
+      "probe": "le_security",
+      "handle": 0,
+      "generation": 2,
+      "encrypted": false,
+      "authenticated": false,
+      "bond_committed": false,
+      "peer_key_verified": false,
+      "phase3_complete": false,
+      "identity_promotion_committed": false,
+      "key_size": 0
+    },
+    {
+      "probe": "le_security",
+      "handle": 0,
+      "generation": 2,
+      "encrypted": true,
+      "authenticated": false,
+      "bond_committed": false,
+      "peer_key_verified": false,
+      "phase3_complete": false,
+      "identity_promotion_committed": false,
+      "key_size": 16
+    },
+    {
+      "probe": "le_security",
+      "handle": 0,
+      "generation": 2,
+      "encrypted": true,
+      "authenticated": false,
+      "bond_committed": false,
+      "peer_key_verified": false,
+      "phase3_complete": true,
+      "identity_promotion_committed": false,
+      "key_size": 16
+    },
+    {
+      "probe": "le_security",
+      "handle": 0,
+      "generation": 2,
+      "encrypted": true,
+      "authenticated": false,
+      "bond_committed": true,
+      "peer_key_verified": false,
+      "phase3_complete": true,
+      "identity_promotion_committed": false,
+      "key_size": 16
+    },
+    {
+      "probe": "le_security",
+      "handle": 0,
+      "generation": 3,
+      "encrypted": false,
+      "authenticated": false,
+      "bond_committed": false,
+      "peer_key_verified": false,
+      "phase3_complete": false,
+      "identity_promotion_committed": false,
+      "key_size": 0
+    },
+    {
+      "probe": "le_security",
+      "handle": 0,
+      "generation": 3,
+      "encrypted": true,
+      "authenticated": false,
+      "bond_committed": true,
+      "peer_key_verified": true,
+      "phase3_complete": false,
+      "identity_promotion_committed": false,
+      "key_size": 16
+    },
+    {
+      "probe": "le_security",
+      "handle": 0,
+      "generation": 3,
+      "encrypted": true,
+      "authenticated": false,
+      "bond_committed": true,
+      "peer_key_verified": true,
+      "phase3_complete": false,
+      "identity_promotion_committed": true,
+      "key_size": 16
+    }
+  ],
+  "pcm_final": {
+    "probe": "sbc_pcm",
+    "frames": 33848,
+    "bytes": 69320704,
+    "fnv1a32": 3554494189,
+    "rate": 96000,
+    "channels": 2,
+    "media_packets": 8466,
+    "drops": 1995,
+    "resets": 1579,
+    "resident": 21881,
+    "codec": 8,
+    "sample_bytes": 4,
+    "faults": 0,
+    "decoder_stack_low_water_bytes": 6256,
+    "internal_heap_free": 120808,
+    "internal_heap_min_free": 103876,
+    "internal_heap_largest": 110592,
+    "i2s_output": false
+  },
+  "maximum_oversized_dynamic": 0,
+  "finite_rf_return": {
+    "baseline_boot_observed": true,
+    "baseline_fatal_marker": false,
+    "prime_capture_bytes": 0
+  },
+  "app_observations": {
+    "deep_bass_write_and_fresh_reconnect_readback": [
+      8,
+      -1,
+      -2
+    ],
+    "restored_balanced_before_stream": [
+      0,
+      0,
+      0
+    ],
+    "authenticated": false,
+    "note": "NoInputNoOutput Just Works is encrypted/bonded but unauthenticated; no MITM claim"
+  },
+  "limitations": [
+    "Aggregate drops in this older image do not identify their causes.",
+    "CPU1 idle starvation is proven; individual watchdog task samples are not attribution of root cause.",
+    "A2DP PCM was checksummed, not forwarded to I2S.",
+    "Original receipt did not classify nonfatal watchdog warnings; runtime_health above reclassifies the preserved raw trace."
+  ],
+  "raw_evidence": "native_bt/_build/hardware/runs/1793823953028623200-6bceaf1587e5"
+}

@@ -72,6 +72,20 @@ typedef struct {
     dbt_result_t (*poll)(void *,uint32_t);
     dbt_result_t (*cancel)(void *,uint32_t);
 } dbt_codec_stream_async_t;
+
+typedef enum {
+    DBT_CODEC_INPUT_SEQUENCE=1, DBT_CODEC_INPUT_SSRC, DBT_CODEC_QUEUE_FULL,
+    DBT_CODEC_WORKER_SEQUENCE, DBT_CODEC_WORKER_SSRC, DBT_CODEC_DECODE_REJECT,
+    DBT_CODEC_RESET_FAILED, DBT_CODEC_PCM_FAILED, DBT_CODEC_PCM_TIMEOUT, DBT_CODEC_PCM_BUSY,
+    DBT_CODEC_DECODE_BEGIN, DBT_CODEC_DECODE_END, DBT_CODEC_RESET_BEGIN, DBT_CODEC_RESET_END,
+    DBT_CODEC_PCM_BEGIN, DBT_CODEC_PCM_END
+} dbt_codec_trace_kind_t;
+typedef struct {
+    uint32_t timestamp,ssrc,previous_ssrc;
+    uint16_t sequence,expected_sequence,bytes,queued;
+    dbt_codec_trace_kind_t kind;
+    dbt_result_t result;
+} dbt_codec_trace_t;
 typedef struct {
     dbt_codec_hooks_t decoder;
     const dbt_codec_ops_t *const *codecs;
@@ -84,6 +98,10 @@ typedef struct {
      * must also be nonblocking/transactional before product integration. */
     bool deferred_pcm;
     dbt_codec_stream_async_t async_stream;
+    /* Optional bounded, nonblocking diagnostics. Called by host producer or
+     * decoder consumer; the receiver must handle these two writers safely.
+     * No payload or security material is exposed. */
+    void (*trace)(void *context,const dbt_codec_trace_t *event);
 } dbt_codec_worker_hooks_t;
 typedef struct {
     dbt_codec_worker_hooks_t hooks;
@@ -95,6 +113,12 @@ typedef struct {
     /* Owner polls faults and retires the sink on change; DROP reclaims state. */
     _Atomic uint32_t packets,media_drops,resets,faults,resident_bytes;
     _Atomic uint32_t pcm_backpressure,pcm_timeouts,pcm_delivered_frames;
+    _Atomic uint32_t queue_full_drops,decode_rejects,reset_failures,pcm_failures;
+    _Atomic uint32_t input_sequence_breaks,input_ssrc_changes,queue_high_water;
+    /* Host-producer only; compare before queue admission so locally rejected
+     * packets do not masquerade as an upstream sequence discontinuity. */
+    uint32_t input_epoch,input_ssrc;
+    uint16_t input_sequence;
     uint8_t *packet_storage;
     uint32_t binding,last_ssrc;
     uint16_t maximum_payload,stride,last_sequence;

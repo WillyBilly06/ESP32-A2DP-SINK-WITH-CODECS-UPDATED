@@ -55,7 +55,7 @@ EXPORT int probe_media(const uint8_t *p,unsigned size,unsigned timestamp,unsigne
     pcm_out=out;pcm_bytes=0;int result=native.config.ops->media(&native,&m,now);*written=pcm_bytes;pcm_out=0;return result;
 }
 EXPORT int worker_init(void){
-    dbt_codec_worker_hooks_t h={{0,allocate,release,pcm},codecs,2,0,0,0,false,{0}};
+    dbt_codec_worker_hooks_t h={{0,allocate,release,pcm},codecs,2,0,0,0,false,{0},0};
     return dbt_codec_worker_init(&worker,h,2048,2);
 }
 EXPORT int worker_control(unsigned operation,const uint8_t *cie,unsigned size){

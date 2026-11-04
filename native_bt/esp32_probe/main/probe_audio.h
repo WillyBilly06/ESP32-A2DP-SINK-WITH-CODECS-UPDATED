@@ -24,6 +24,11 @@ typedef void (*probe_audio_product_event_fn)(void *,probe_audio_product_event_t,
                                              uint16_t,uint32_t,uint32_t,uint32_t);
 void probe_audio_product_observer(probe_audio_product_event_fn,void *);
 bool probe_audio_sound_memory_ok(void);
+/* Bounded scalar diagnostics only; receive may run in controller/ISR context.
+ * first_rx_to_poll_us is a wake/service indicator, not per-packet latency. */
+void probe_audio_transport_received(uint32_t began_us,uint16_t bytes,uint8_t type,dbt_result_t result,bool isr);
+void probe_audio_transport_poll_begin(uint32_t began_us);
+void probe_audio_transport_poll_end(uint32_t began_us);
 /* Before controller startup, initialize the shared output exactly once. */
 dbt_result_t probe_audio_output_bootstrap(void);
 /* Owner: stop new sessions and drain existing channels/worker loans. Keep

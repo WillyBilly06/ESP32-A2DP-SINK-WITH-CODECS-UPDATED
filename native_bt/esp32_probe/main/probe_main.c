@@ -354,10 +354,18 @@ static void send_available(void) { wake_owner(); }
 
 static int receive_packet(uint8_t *data, uint16_t size) {
     /* No allocation, logging, decoding, profile state mutation or waiting here. */
+#ifdef DBT_PROBE_AUDIO_TEST
+    uint32_t began_us=(uint32_t)esp_timer_get_time();
+#endif
 #ifdef DBT_PROBE_INGRESS_TRACE
     uint32_t token=probe_ingress_begin(data,size);
 #endif
-    (void)dbt_runtime_receive(&runtime, data, size);
+    dbt_result_t received=dbt_runtime_receive(&runtime, data, size);
+#ifdef DBT_PROBE_AUDIO_TEST
+    probe_audio_transport_received(began_us,size,size?data[0]:0,received,xPortInIsrContext());
+#else
+    (void)received;
+#endif
 #ifdef DBT_PROBE_INGRESS_TRACE
     probe_ingress_end(token,data,size);
 #endif
@@ -650,7 +658,14 @@ void app_main(void) {
 #ifdef DBT_PROBE_SMP
         if(smp_initialized)probe_smp_security_request_preflight(now);
 #endif
+#ifdef DBT_PROBE_AUDIO_TEST
+        uint32_t poll_began_us=(uint32_t)esp_timer_get_time();
+        probe_audio_transport_poll_begin(poll_began_us);
+#endif
         dbt_runtime_poll(&runtime, now, 8, 8);
+#ifdef DBT_PROBE_AUDIO_TEST
+        probe_audio_transport_poll_end(poll_began_us);
+#endif
         if(runtime.ready && !receive_flow_started) {
             receive_flow_started=true;
 #ifndef DBT_PROBE_DISABLE_RX_FLOW

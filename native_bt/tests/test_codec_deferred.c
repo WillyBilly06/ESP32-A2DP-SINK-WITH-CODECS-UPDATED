@@ -85,7 +85,7 @@ static dbt_result_t stream(void *context,bool start,const dbt_codec_config_t *co
 static const dbt_codec_ops_t codec={"deferred ownership model",configure,open_model,close_model,reset_model,media_model,0,resume_model,0};
 static const dbt_codec_ops_t *const codecs[]={&codec};
 static bool setup(void){
-    zero(&f,sizeof(f));dbt_codec_worker_hooks_t hooks={{&f,allocate,release,output},codecs,1,0,0,stream,true,{0}};
+    zero(&f,sizeof(f));dbt_codec_worker_hooks_t hooks={{&f,allocate,release,output},codecs,1,0,0,stream,true,{0},0};
     return dbt_codec_worker_init(&f.worker,hooks,64,2)==DBT_OK;
 }
 static dbt_result_t submit(dbt_sink_operation_t op){
@@ -149,6 +149,7 @@ EXPORT int test_codec_deferred_deadline_and_failure_retirement(void){
         CHECK(dbt_codec_worker_step(&f.worker,began+200u,2)<=1 && atomic_load(&f.worker.faults)==1);
         CHECK(!f.worker.pending_pcm && !f.worker.media_active && f.resets==resets && atomic_load(&f.worker.media_drops)==1);
         CHECK(atomic_load(&f.worker.pcm_timeouts)==(bad?0u:1u));
+        CHECK(atomic_load(&f.worker.pcm_failures)==(bad?1u:0u) && !atomic_load(&f.worker.decode_rejects));
         CHECK(!dbt_codec_worker_runnable(&f.worker) && packet(bytes,2,600)==DBT_BUSY);
         CHECK(control(DBT_SINK_DROP) && !f.live && !f.errors);
     }
@@ -174,7 +175,7 @@ static dbt_result_t async_cancel(void *context,uint32_t ticket){
     ++p->cancels;p->async_cancel=true;return DBT_PENDING;
 }
 static bool setup_async(void){
-    zero(&f,sizeof(f));dbt_codec_worker_hooks_t hooks={{&f,allocate,release,output},codecs,1,0,0,0,true,{async_begin,async_poll,async_cancel}};
+    zero(&f,sizeof(f));dbt_codec_worker_hooks_t hooks={{&f,allocate,release,output},codecs,1,0,0,0,true,{async_begin,async_poll,async_cancel},0};
     return dbt_codec_worker_init(&f.worker,hooks,64,2)==DBT_OK && control(DBT_SINK_CONFIGURE);
 }
 static bool complete_async(dbt_sink_operation_t op,uint32_t now){

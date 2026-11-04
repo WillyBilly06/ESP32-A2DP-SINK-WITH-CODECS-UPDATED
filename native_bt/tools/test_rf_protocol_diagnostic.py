@@ -24,6 +24,10 @@ static const int dbt_sbc_codec=1;
 typedef struct {uint32_t rate;uint8_t sample_bytes,channels,cie_size;const int *ops;} dbt_codec_config_t;
 static _Atomic uint32_t pcm_generation,pcm_frames,pcm_bytes,pcm_hash,pcm_rate,pcm_channels,pcm_codec,pcm_sample_bytes;
 static unsigned pcm_calls,stream_calls;static bool busy;
+#ifndef DBT_PROBE_ASYNC_AUDIO
+enum {DBT_CODEC_PCM_BEGIN=15,DBT_CODEC_PCM_END=16};
+static void timing_event(unsigned kind){(void)kind;}
+#endif
 static const void *expected_samples;static dbt_codec_config_t expected;
 static dbt_result_t forward(const void *p,uint16_t n,uint8_t c,uint32_t r,dbt_pcm_format_t f){
  assert(p==expected_samples && n==64 && c==expected.channels && r==expected.rate && f==expected.sample_bytes);++pcm_calls;return busy?DBT_BUSY:DBT_OK;

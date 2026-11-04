@@ -64,7 +64,8 @@ typedef struct {
     dbt_codec_worker_t worker;
     _Alignas(8) uint8_t storage[8][2048];
     uint32_t sizes[8],live,peak,allocations,releases,fail_at,opens,closes,resets,media,errors;
-    bool used[8],reset_bad,stream_bad;uint8_t received;uint32_t timestamp;
+    bool used[8],reset_bad,stream_bad,media_bad;uint8_t received;uint32_t timestamp;
+    dbt_codec_trace_t traces[32];unsigned trace_count;
 } fixture_t;
 static fixture_t f;
 static uint8_t *allocate(void *context,uint32_t size){
@@ -92,12 +93,13 @@ static dbt_result_t fake_open(dbt_codec_decoder_t *d){fixture_t *p=d->hooks.cont
 static void fake_close(dbt_codec_decoder_t *d){fixture_t *p=d->hooks.context;if(d->state){++p->closes;dbt_codec_release(d,d->state);d->state=0;}}
 static dbt_result_t fake_reset(dbt_codec_decoder_t *d){fixture_t *p=d->hooks.context;++p->resets;return p->reset_bad?DBT_INVALID:DBT_OK;}
 static dbt_result_t fake_media(dbt_codec_decoder_t *d,const dbt_avdtp_media_t *packet,uint32_t now){
-    (void)now;fixture_t *p=d->hooks.context;++p->media;p->received=packet->payload[0];p->timestamp=packet->timestamp;return DBT_OK;}
+    (void)now;fixture_t *p=d->hooks.context;++p->media;p->received=packet->payload[0];p->timestamp=packet->timestamp;return p->media_bad?DBT_INVALID:DBT_OK;}
+static void trace_event(void *context,const dbt_codec_trace_t *e){fixture_t *p=context;if(e->kind<DBT_CODEC_DECODE_BEGIN && p->trace_count<32)p->traces[p->trace_count++]=*e;}
 static dbt_result_t stream(void *context,bool start,const dbt_codec_config_t *config){(void)start;(void)config;return ((fixture_t *)context)->stream_bad?DBT_BUSY:DBT_OK;}
 static const dbt_codec_ops_t fake_sbc={"ownership SBC",fake_configure,fake_open,fake_close,fake_reset,fake_media,0,0,0};
 static const dbt_codec_ops_t fake_aac={"ownership AAC",dbt_aac_configure,fake_open,fake_close,fake_reset,fake_media,0,0,0};
 static const dbt_codec_ops_t *const codecs[]={&fake_sbc,&fake_aac};
-static bool setup(void){zero(&f,sizeof(f));dbt_codec_worker_hooks_t h={{&f,allocate,release,pcm},codecs,2,0,0,stream,false,{0}};return dbt_codec_worker_init(&f.worker,h,128,2)==DBT_OK;}
+static bool setup(void){zero(&f,sizeof(f));dbt_codec_worker_hooks_t h={{&f,allocate,release,pcm},codecs,2,0,0,stream,false,{0},trace_event};return dbt_codec_worker_init(&f.worker,h,128,2)==DBT_OK;}
 static dbt_result_t submit(dbt_sink_operation_t operation,uint32_t binding,uint32_t token,bool aac){
     uint8_t sbc[]={1,0,7,6,0,0,0x21,0x15,2,53},aac_config[12]={1,0,7,8};
     for(unsigned i=0;i<8;++i)aac_config[4+i]=aac_cie[i];
@@ -147,6 +149,32 @@ EXPORT int test_codec_reset_failure_stops_stream(void){
     CHECK(dbt_codec_worker_media(&f.worker,&p)==DBT_OK && dbt_codec_worker_step(&f.worker,1,1)==1);
     f.reset_bad=true;p.sequence=4;CHECK(dbt_codec_worker_media(&f.worker,&p)==DBT_OK);
     CHECK(dbt_codec_worker_step(&f.worker,2,1)==1 && atomic_load(&f.worker.faults)==1 && f.media==1);
+    CHECK(atomic_load(&f.worker.reset_failures)==1 && !atomic_load(&f.worker.decode_rejects));
     CHECK(dbt_codec_worker_media(&f.worker,&p)==DBT_BUSY && !f.worker.streaming);
+    CHECK(complete(DBT_SINK_DROP,1,false)==DBT_SINK_WORK_READY && !f.live && !f.errors);return 0;
+}
+EXPORT int test_codec_diagnostics_classify_local_and_upstream_loss(void){
+    CHECK(setup() && complete(DBT_SINK_CONFIGURE,1,false)==DBT_SINK_WORK_READY && complete(DBT_SINK_START,1,false)==DBT_SINK_WORK_READY);
+    uint8_t bytes[]={1};dbt_avdtp_media_t p={bytes,1000,9,1,65534,96,false};
+    CHECK(dbt_codec_worker_media(&f.worker,&p)==DBT_OK);
+    p.sequence=65535;CHECK(dbt_codec_worker_media(&f.worker,&p)==DBT_OK);
+    p.sequence=0;CHECK(dbt_codec_worker_media(&f.worker,&p)==DBT_NO_SPACE);
+    CHECK(atomic_load(&f.worker.queue_full_drops)==1 && atomic_load(&f.worker.queue_high_water)==2);
+    CHECK(!atomic_load(&f.worker.input_sequence_breaks) && f.trace_count==1 && f.traces[0].kind==DBT_CODEC_QUEUE_FULL);
+    CHECK(f.traces[0].sequence==0 && f.traces[0].queued==2 && f.traces[0].timestamp==1000 && f.traces[0].bytes==1);
+    CHECK(dbt_codec_worker_step(&f.worker,1,2)==2 && !atomic_load(&f.worker.resets));
+    p.sequence=1;CHECK(dbt_codec_worker_media(&f.worker,&p)==DBT_OK && dbt_codec_worker_step(&f.worker,2,1)==1);
+    CHECK(!atomic_load(&f.worker.input_sequence_breaks) && atomic_load(&f.worker.resets)==1);
+    CHECK(f.trace_count==2 && f.traces[1].kind==DBT_CODEC_WORKER_SEQUENCE && f.traces[1].expected_sequence==0);
+    p.sequence=3;p.ssrc=10;CHECK(dbt_codec_worker_media(&f.worker,&p)==DBT_OK && dbt_codec_worker_step(&f.worker,3,1)==1);
+    CHECK(atomic_load(&f.worker.input_sequence_breaks)==1 && atomic_load(&f.worker.input_ssrc_changes)==1);
+    CHECK(f.trace_count==6 && f.traces[2].kind==DBT_CODEC_INPUT_SEQUENCE && f.traces[3].kind==DBT_CODEC_INPUT_SSRC);
+    CHECK(f.traces[4].kind==DBT_CODEC_WORKER_SEQUENCE && f.traces[5].kind==DBT_CODEC_WORKER_SSRC && f.traces[5].previous_ssrc==9);
+    f.media_bad=true;p.sequence=4;CHECK(dbt_codec_worker_media(&f.worker,&p)==DBT_OK && dbt_codec_worker_step(&f.worker,4,1)==1);
+    CHECK(atomic_load(&f.worker.decode_rejects)==1 && atomic_load(&f.worker.media_drops)==2 && !atomic_load(&f.worker.reset_failures));
+    CHECK(f.traces[6].kind==DBT_CODEC_DECODE_REJECT && f.traces[6].result==DBT_INVALID);
+    f.media_bad=false;CHECK(complete(DBT_SINK_SUSPEND,1,false)==DBT_SINK_WORK_READY && complete(DBT_SINK_START,1,false)==DBT_SINK_WORK_READY);
+    p.sequence=200;CHECK(dbt_codec_worker_media(&f.worker,&p)==DBT_OK && dbt_codec_worker_step(&f.worker,5,1)==1);
+    CHECK(atomic_load(&f.worker.input_sequence_breaks)==1 && f.trace_count==7);
     CHECK(complete(DBT_SINK_DROP,1,false)==DBT_SINK_WORK_READY && !f.live && !f.errors);return 0;
 }

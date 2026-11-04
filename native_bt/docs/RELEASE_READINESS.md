@@ -8,7 +8,7 @@ ota0. Only a DAC is attached. Do not touch other reserved boards.
 
 | Required area | Current evidence | Still required |
 |---|---|---|
-| Independent host | Owned HCI/VHCI, queues, GAP, ACL/credits, L2CAP, SDP server, AVDTP sink, AVRCP control, ATT/GATT server, Classic security and SMP source/tests; full 6.1 product image links without Bluedroid/NimBLE/BTstack host integration. Current COM6 trials confirmed discovery, selected-peer pairing/encryption, saved Classic bond reuse, AVRCP metadata and a short LE link | Full protocol/security/lifecycle/fault and sustained RF qualification; see the dated RF report |
+| Independent host | Owned HCI/VHCI, queues, GAP, ACL/credits, L2CAP, SDP server, AVDTP sink, AVRCP control, ATT/GATT server, Classic security and SMP source/tests; full 6.1 product image links without Bluedroid/NimBLE/BTstack host integration. COM6 confirmed selected-peer Classic pairing/encryption/bond reuse, AVRCP metadata, BLE SC bonding, stored-key reconnect and EQ write/fresh readback in checksum mode | CPU 1 idle starvation and streaming drops remain; full protocol/security/lifecycle/fault and sustained RF qualification |
 | Profile parity | Sink endpoints, control/metadata/volume, BLE product services and providers exist in source | SDP client/source-role scope, complete AVRCP browsing binding/providers, applicable GATT client/privacy behavior, all phone semantics; see feature inventory |
 | Codecs | 37 configurations passed isolated 6.1 ESP32 decoder checks; all families remain compiled. Actual LDAC 96 kHz and SBC 44.1 kHz decoded and reached I2S, but both streaming trials failed with underruns and a descriptor fault | Repair/isolate the common output failure, then qualify every codec/variant, live switching, loss, long streaming and security/coexistence |
 | Maximum LHDC | True 192 kHz/S24/stereo/1000 kbps fixture, isolated decode optimization and full-chain diagnostic instrumented | Render pipeline still misses deadline before DMA starts; no full 96-packet/I2S continuity or RF/BLE guarantee |
@@ -23,7 +23,8 @@ Compilation and unit tests are not profile completion or production readiness.
 
 [Current COM6/Redmagic RF results](BLUETOOTH_RF_2026_11_04.md) retain successful
 pairing/link observations and failed streaming measurements separately. The
-released firmware and its phone/app connection were restored after these trials.
+released firmware returned after the latest trial; playback was paused. Its
+phone/app connection was not rechecked after that particular return.
 
 The [current released-feature inventory](IDF61_FEATURE_INVENTORY.md) records
 source dependencies and gaps. [6.1 integration](IDF61_RESTART.md), dated codec/
