@@ -27,7 +27,10 @@ EX int probe_audio_snapshot_records(void){
     CHECK(!snapshot_for_test(line,sizeof(line),0,"{\"probe\":\"large\",\"value\":\"%s\"}\n",large));
     CHECK(!snapshot_for_test(line,64,0,"{\"probe\":\"small\"}\n"));
     CHECK(!snapshot_for_test(line,sizeof(line),0,"not json\n"));
-    CHECK(atomic_load(&snapshot_format_lost)==3);atomic_store(&snapshot_format_lost,0);now=0;return 0;
+    CHECK(atomic_load(&snapshot_format_lost)==3);atomic_store(&snapshot_format_lost,0);
+    now=30;record_watchdog(1);CHECK(atomic_load(&watchdog_events)==1 && atomic_load(&watchdog_hook_us)==30000 && atomic_load(&watchdog_isr_core)==1);
+    now=31;record_watchdog(0);CHECK(atomic_load(&watchdog_events)==2 && atomic_load(&watchdog_hook_us)==31000 && !atomic_load(&watchdog_isr_core));
+    atomic_store(&watchdog_events,0);atomic_store(&watchdog_hook_us,0);atomic_store(&watchdog_isr_core,0);now=0;return 0;
 }
 static unsigned product_events;static probe_audio_product_event_t last_product_event;
 static uint16_t product_handle;static uint32_t product_generation,product_rate;

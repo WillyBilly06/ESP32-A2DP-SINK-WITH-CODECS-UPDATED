@@ -24,6 +24,14 @@ from logger observation windows and are reset with each output start. Existing
 validation and fail-closed behavior are unchanged. The logger also reports its
 stack low water so the temporary formatting-buffer cost is visible.
 
+The public SDK task-watchdog hook also records an ESP-timer timestamp, event
+count and ISR core using scalar IRAM/DRAM operations. In this SDK the hook runs
+after task-list diagnostics and before backtrace handling. Its time is not the
+beginning of the entire timeout handler, and ISR core is not the identity of
+every starved core. Normal watchdog monitoring and diagnostics remain enabled.
+This allows same-clock comparisons without assuming SDK text timestamps have
+an identical origin or blaming a fault on a stale logger cycle time.
+
 Host tests exercise delayed observation, uint32 clock wrap, bounded formatting
 loss, each actual ISR error class/time/gap/stop state and stream reset. Hardware
 validation of these new time fields is pending; do not use old periodic loop

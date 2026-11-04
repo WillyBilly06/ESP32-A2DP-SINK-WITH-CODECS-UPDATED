@@ -55,6 +55,10 @@
 #endif
 #include "esp_heap_caps.h"
 #include "esp_timer.h"
+#include "esp_attr.h"
+#ifdef ESP_PLATFORM
+#include "esp_task_wdt.h"
+#endif
 #include <inttypes.h>
 #include <stdio.h>
 #include <stdarg.h>
@@ -100,6 +104,17 @@ static _Atomic uint32_t rx_callback_max_us,first_rx_to_poll_max_us,host_poll_max
 static _Atomic uint32_t worker_steps,worker_elapsed_us,worker_step_max_us,worker_hist[8];
 static _Atomic uint32_t owner_iterations,owner_immediate[15];
 static _Atomic uint32_t snapshot_format_lost;
+static DRAM_ATTR _Atomic uint32_t watchdog_events,watchdog_hook_us,watchdog_isr_core;
+static void IRAM_ATTR record_watchdog(unsigned core){
+    atomic_store(&watchdog_hook_us,(uint32_t)esp_timer_get_time());
+    atomic_store(&watchdog_isr_core,core);
+    atomic_store(&watchdog_events,atomic_load(&watchdog_events)+1u);
+}
+#ifdef ESP_PLATFORM
+/* Public SDK hook: called after its task-list diagnostics and before backtrace
+ * handling. Only record metadata here; watchdog policy and output stay intact. */
+void IRAM_ATTR esp_task_wdt_isr_user_handler(void){record_watchdog((unsigned)xPortGetCoreID());}
+#endif
 typedef struct {
     uint32_t began;
     _Atomic uint32_t calls,elapsed_us,maximum_us,hist[8];
@@ -113,7 +128,8 @@ static void maximum(_Atomic uint32_t *value,uint32_t candidate){
 }
 /* Logger-only. Arguments have been captured before entry; the time range
  * includes preemption during their collection, never the UART transmission.
- * One complete JSON write prevents partial-record interleaving. */
+ * Ordinary task loggers emit one complete JSON write. SDK early/ISR output
+ * can still interleave independently on the UART. */
 static bool snapshot_vformat(char *line,size_t capacity,uint32_t began,const char *format,va_list arguments){
     uint32_t ended=(uint32_t)esp_timer_get_time();
     if(capacity<160u)goto lost;
@@ -451,11 +467,12 @@ static void log_loop(void *unused){
         PROBE_SNAPSHOT_LOG("{\"probe\":\"vhci_timing\",\"collection_cycle_us\":%" PRIu32 ",\"packets\":%" PRIu32 ",\"acl\":%" PRIu32
                ",\"events\":%" PRIu32 ",\"bytes\":%" PRIu32 ",\"isr_callbacks\":%" PRIu32 ",\"rejected\":%" PRIu32
                ",\"callback_max_us\":%" PRIu32 ",\"first_rx_to_poll_max_us\":%" PRIu32 ",\"host_poll_max_us\":%" PRIu32
-               ",\"ingress_high_water_bytes\":%" PRIu32 ",\"ingress_rejected\":%" PRIu32 ",\"logger_stack_low_water_bytes\":%u}\n",
+               ",\"ingress_high_water_bytes\":%" PRIu32 ",\"ingress_rejected\":%" PRIu32 ",\"logger_stack_low_water_bytes\":%u"
+               ",\"watchdog_events\":%" PRIu32 ",\"watchdog_hook_at_us\":%" PRIu32 ",\"watchdog_isr_core\":%" PRIu32 "}\n",
                at,atomic_load(&rx_packets),atomic_load(&rx_acl),atomic_load(&rx_events),atomic_load(&rx_bytes),atomic_load(&rx_isr),
                atomic_load(&rx_rejected),atomic_load(&rx_callback_max_us),atomic_load(&first_rx_to_poll_max_us),atomic_load(&host_poll_max_us),
                atomic_load(&profile.runtime->host.ingress.high_water),atomic_load(&profile.runtime->host.ingress.rejected),
-               (unsigned)uxTaskGetStackHighWaterMark(logger_task));
+               (unsigned)uxTaskGetStackHighWaterMark(logger_task),atomic_load(&watchdog_events),atomic_load(&watchdog_hook_us),atomic_load(&watchdog_isr_core));
         PROBE_SNAPSHOT_LOG("{\"probe\":\"media_drop_reasons\",\"collection_cycle_us\":%" PRIu32 ",\"queue_full\":%" PRIu32 ",\"decode_reject\":%" PRIu32
                ",\"reset_failed\":%" PRIu32 ",\"pcm_failed\":%" PRIu32 ",\"pcm_timeout\":%" PRIu32 ",\"pcm_busy\":%" PRIu32
                ",\"input_sequence_breaks\":%" PRIu32 ",\"input_ssrc_changes\":%" PRIu32 ",\"queue_high_water\":%" PRIu32
