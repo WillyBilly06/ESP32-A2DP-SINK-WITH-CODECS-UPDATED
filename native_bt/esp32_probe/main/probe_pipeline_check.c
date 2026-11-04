@@ -157,8 +157,7 @@ static void run(void *unused){
             if(retired!=completed+1u || retired>96)pipeline.passed=false;
             else pipeline.completion[completed++]=(uint32_t)(esp_timer_get_time()-(began+(int64_t)retired*5000));
         }
-        probe_output_stats_t current;probe_output_stats(&current);
-        if(current.failed || atomic_load(&pipeline.worker.media_drops) || atomic_load(&pipeline.worker.faults))pipeline.passed=false;
+        if(probe_output_failed() || atomic_load(&pipeline.worker.media_drops) || atomic_load(&pipeline.worker.faults))pipeline.passed=false;
         if(pipeline.passed && completed<96){
             int64_t next=supplied<96?began+(int64_t)(supplied+1u)*5000:deadline;
             if(next>deadline)next=deadline;
@@ -199,6 +198,11 @@ static void run(void *unused){
     printf("{\"probe\":\"pipeline_allocation\",\"failed_bytes\":%u,\"failure_free\":%u,\"failure_largest\":%u,\"page_bytes\":%u}\n",
         (unsigned)active.allocation_failed_bytes,(unsigned)active.allocation_failure_free,(unsigned)active.allocation_failure_largest,
         (unsigned)(DBT_AUDIO_OUTPUT_PAGE_FRAMES*8u));
+    printf("{\"probe\":\"pipeline_render_stages\",\"quiescent\":%s,\"includes_stop_drain\":true,\"profile_frames\":%u,\"conversion_resampler_cycles\":%u,\"dsp_cycles\":%u,\"output_tail_cycles\":%u,\"controls_cycles\":%u,\"conversion_block_max_cycles\":%u,\"dsp_block_max_cycles\":%u,\"tail_block_max_cycles\":%u,\"media_drops\":%u,\"worker_faults\":%u,\"pcm_timeouts\":%u,\"cpu_mhz\":240,\"elapsed_core_cycles\":true}\n",
+        reclaimed?"true":"false",(unsigned)closed.profile_frames,(unsigned)closed.profile_conversion,(unsigned)closed.profile_dsp,
+        (unsigned)closed.profile_tail,(unsigned)closed.profile_controls,(unsigned)closed.profile_conversion_max,
+        (unsigned)closed.profile_dsp_max,(unsigned)closed.profile_tail_max,(unsigned)atomic_load(&pipeline.worker.media_drops),
+        (unsigned)atomic_load(&pipeline.worker.faults),(unsigned)atomic_load(&pipeline.worker.pcm_timeouts));
     printf("{\"probe\":\"target_pipeline_selftest\",\"passed\":%s,\"configured\":%s,\"started\":%s,\"stream_result\":%u,\"correctness\":%s,\"continuity\":%s,\"rate\":192000,\"sample_depth\":24,\"channels\":2,\"encoded_payload_bps\":1001600,\"packets\":%u,\"completed_packets\":%u,\"sample_frames\":%u,\"pcm_hash\":%u,\"synthetic_source\":true,\"integer_dsp\":true,\"i2s_test\":true,\"rf_test\":false,\"production_qualified\":false}\n",
         pipeline.passed?"true":"false",configured?"true":"false",started?"true":"false",(unsigned)start_result,
         correctness?"true":"false",continuity?"true":"false",supplied,completed,(unsigned)pipeline.frames,(unsigned)pipeline.hash);

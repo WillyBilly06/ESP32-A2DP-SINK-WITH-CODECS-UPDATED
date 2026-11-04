@@ -41,3 +41,11 @@ idf_component_register(
     INCLUDE_DIRS "../../../include" "../../../../bt_audio_sink/main/dsp"
 )
 target_compile_options(${COMPONENT_LIB} PRIVATE -std=c11 -Wall -Wextra -Werror)
+if(DBT_PROBE_AUDIO_STAGE_PROFILE)
+    target_compile_definitions(${COMPONENT_LIB} PRIVATE DBT_AUDIO_STAGE_PROFILE=1)
+    # The public ESP CPU header uses GNU asm in its inline Xtensa helpers.
+    # Keep the portable core strict C11; enable GNU C11 only for this diagnostic.
+    get_filename_component(profile_audio_source "${CMAKE_CURRENT_LIST_DIR}/../../../src/dbt_audio.c" ABSOLUTE)
+    set_source_files_properties("${profile_audio_source}" PROPERTIES COMPILE_OPTIONS "-std=gnu11")
+    idf_component_optional_requires(PRIVATE esp_hw_support)
+endif()

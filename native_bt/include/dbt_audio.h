@@ -38,6 +38,10 @@ typedef struct {
     /* One logical SPSC ring; <=4 KiB allocations span ESP32 SRAM regions.
      * output.bytes aliases page zero. Capacity, order and precision are unchanged. */
     uint8_t *output_pages[DBT_AUDIO_OUTPUT_PAGES];
+    /* Diagnostic work spans; render owner publishes once per bounded block.
+     * Disabled builds retain zero counters. Units are elapsed core cycles. */
+    _Atomic uint32_t profile_conversion,profile_dsp,profile_tail,profile_controls,profile_frames;
+    _Atomic uint32_t profile_conversion_max,profile_dsp_max,profile_tail_max;
     fixed_dsp_t dsp;
     dbt_resampler_t resampler;
     _Atomic uint32_t controls_generation,controls_gains,controls_options,controls_lock;

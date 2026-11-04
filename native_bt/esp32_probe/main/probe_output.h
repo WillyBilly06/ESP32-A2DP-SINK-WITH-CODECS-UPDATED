@@ -7,6 +7,8 @@ typedef struct {
     uint32_t maximum_render_us,stop_fill_frames;
     uint32_t render_total_us,render_calls,render_stack_low_water_bytes;
     uint32_t allocation_failed_bytes,allocation_failure_free,allocation_failure_largest;
+    uint32_t profile_conversion,profile_dsp,profile_tail,profile_controls,profile_frames;
+    uint32_t profile_conversion_max,profile_dsp_max,profile_tail_max;
     uint32_t first_underrun_accepted_frames,first_underrun_dma_frames;
     int32_t clock_ppm,clock_observed_ppm,clock_error_frames;
     uint32_t clock_state,clock_target_frames,clock_updates,clock_disturbances;
@@ -33,6 +35,8 @@ dbt_result_t probe_output_pcm_format(const void *samples,uint16_t frames,uint8_t
  * Stream control must keep the producer quiescent through format/stop tickets. */
 dbt_result_t probe_output_try_pcm_format(const void *,uint16_t,uint8_t,uint32_t,dbt_pcm_format_t);
 void probe_output_stats(probe_output_stats_t *stats);
+/* Cheap failure fence for hot-path monitoring; no stack scanning/snapshot. */
+bool probe_output_failed(void);
 uint16_t probe_output_delay_100us(uint32_t rate);
 dbt_result_t probe_output_controls(int8_t bass,int8_t mid,int8_t treble,uint8_t volume,uint8_t flags);
 dbt_result_t probe_output_volume(uint8_t volume);

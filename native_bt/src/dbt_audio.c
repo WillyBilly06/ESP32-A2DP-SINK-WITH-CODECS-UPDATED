@@ -1,4 +1,7 @@
 #include "dbt_audio.h"
+#ifdef DBT_AUDIO_STAGE_PROFILE
+#include "esp_cpu.h"
+#endif
 #ifdef ESP_PLATFORM
 #include "esp_attr.h"
 #define AUDIO_ISR IRAM_ATTR
@@ -61,6 +64,9 @@ dbt_result_t dbt_audio_init(dbt_audio_t *a,dbt_audio_memory_t memory){
     atomic_init(&a->submitted_frames,0);atomic_init(&a->rendered_frames,0);
     atomic_init(&a->taken_frames,0);atomic_init(&a->zero_frames,0);
     atomic_init(&a->producer_backpressure,0);atomic_init(&a->clock_version,0);
+    atomic_init(&a->profile_conversion,0);atomic_init(&a->profile_dsp,0);atomic_init(&a->profile_tail,0);
+    atomic_init(&a->profile_controls,0);atomic_init(&a->profile_frames,0);
+    atomic_init(&a->profile_conversion_max,0);atomic_init(&a->profile_dsp_max,0);atomic_init(&a->profile_tail_max,0);
     atomic_init(&a->clock_pub_ppm,0);atomic_init(&a->clock_pub_observed_ppm,0);atomic_init(&a->clock_pub_error,0);
     atomic_init(&a->clock_pub_state,DBT_AUDIO_CLOCK_OFF);atomic_init(&a->clock_pub_target,0);atomic_init(&a->clock_pub_updates,0);
     atomic_init(&a->clock_pub_disturbances,0);atomic_init(&a->clock_pub_observed_valid,0);
@@ -103,6 +109,9 @@ dbt_result_t dbt_audio_open(dbt_audio_t *a,dbt_audio_config_t config){
     a->applied_generation=UINT32_MAX;a->opened=true;
     atomic_store(&a->submitted_frames,0);atomic_store(&a->rendered_frames,0);
     atomic_store(&a->taken_frames,0);atomic_store(&a->zero_frames,0);atomic_store(&a->producer_backpressure,0);
+    atomic_store(&a->profile_conversion,0);atomic_store(&a->profile_dsp,0);atomic_store(&a->profile_tail,0);
+    atomic_store(&a->profile_controls,0);atomic_store(&a->profile_frames,0);
+    atomic_store(&a->profile_conversion_max,0);atomic_store(&a->profile_dsp_max,0);atomic_store(&a->profile_tail_max,0);
     dbt_audio_clock_reset(a,0);a->clock_primed=false;
     return DBT_OK;
 }
@@ -215,13 +224,22 @@ static void apply_mix(dbt_audio_t *a,uint32_t out,uint32_t count){
 }
 uint32_t dbt_audio_render(dbt_audio_t *a,uint32_t budget){
     if(!a || !a->opened)return 0;
+#ifdef DBT_AUDIO_STAGE_PROFILE
+    uint32_t stage=esp_cpu_get_cycle_count(),conversion=0,dsp=0,tail=0;
+#endif
     controls(a);
+#ifdef DBT_AUDIO_STAGE_PROFILE
+    uint32_t control_cycles=esp_cpu_get_cycle_count()-stage;
+#endif
     uint32_t in=atomic_load_explicit(&a->input.read,memory_order_relaxed);
     uint32_t end=atomic_load_explicit(&a->input.written,memory_order_acquire);
     uint32_t out=atomic_load_explicit(&a->output.written,memory_order_relaxed);
     uint32_t free=a->output.frames-(out-atomic_load_explicit(&a->output.read,memory_order_acquire));
     uint32_t produced=0;
     while(produced<budget && produced<free){
+#ifdef DBT_AUDIO_STAGE_PROFILE
+        stage=esp_cpu_get_cycle_count();
+#endif
         uint32_t available=end-in;
         if(!available && !a->drain_remaining)break;
         int64_t next=(int64_t)a->fraction+4294967296ll+a->step_adjust;
@@ -249,11 +267,26 @@ uint32_t dbt_audio_render(dbt_audio_t *a,uint32_t budget){
             }
             in+=consumed;
         }
+#ifdef DBT_AUDIO_STAGE_PROFILE
+        uint32_t at=esp_cpu_get_cycle_count();conversion+=at-stage;stage=at;
+#endif
         fixed_dsp_process(&a->dsp,&left,&right);
+#ifdef DBT_AUDIO_STAGE_PROFILE
+        at=esp_cpu_get_cycle_count();dsp+=at-stage;stage=at;
+#endif
         int32_t *destination=output_frame(a,out+produced);destination[0]=left;destination[1]=right;
         a->fraction=(uint32_t)next;++produced;
+#ifdef DBT_AUDIO_STAGE_PROFILE
+        tail+=esp_cpu_get_cycle_count()-stage;
+#endif
     }
     apply_mix(a,out,produced);
+#ifdef DBT_AUDIO_STAGE_PROFILE
+    atomic_fetch_add(&a->profile_controls,control_cycles);atomic_fetch_add(&a->profile_frames,produced);
+#define PROFILE_PUBLISH(field,value) do {atomic_fetch_add(&a->profile_##field,value);if(value>atomic_load(&a->profile_##field##_max))atomic_store(&a->profile_##field##_max,value);}while(0)
+    PROFILE_PUBLISH(conversion,conversion);PROFILE_PUBLISH(dsp,dsp);PROFILE_PUBLISH(tail,tail);
+#undef PROFILE_PUBLISH
+#endif
     atomic_store_explicit(&a->input.read,in,memory_order_release);
     atomic_store_explicit(&a->output.written,out+produced,memory_order_release);
     atomic_fetch_add_explicit(&a->rendered_frames,produced,memory_order_relaxed);return produced;

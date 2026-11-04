@@ -840,6 +840,7 @@ dbt_result_t probe_output_pcm(const int16_t *samples, uint16_t frames,
   return probe_output_pcm_format(samples, frames, channels, rate,
                                  DBT_PCM_S16_LE);
 }
+bool probe_output_failed(void){return atomic_load(&output.failed) || atomic_load(&output.request_fault);}
 void probe_output_stats(probe_output_stats_t *s) {
   if (!s)
     return;
@@ -869,6 +870,10 @@ void probe_output_stats(probe_output_stats_t *s) {
   LOAD(request_fault);
   LOAD(stale_receipts);
 #undef LOAD
+#define PROFILE_LOAD(field) s->profile_##field=atomic_load(&output.audio.profile_##field)
+  PROFILE_LOAD(conversion);PROFILE_LOAD(dsp);PROFILE_LOAD(tail);PROFILE_LOAD(controls);PROFILE_LOAD(frames);
+  PROFILE_LOAD(conversion_max);PROFILE_LOAD(dsp_max);PROFILE_LOAD(tail_max);
+#undef PROFILE_LOAD
   s->render_stack_low_water_bytes=output.task?(uint32_t)uxTaskGetStackHighWaterMark(output.task):0;
   s->failed|=s->request_fault;
   dbt_audio_clock_stats_t clock = {0};

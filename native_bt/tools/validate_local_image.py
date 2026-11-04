@@ -22,6 +22,12 @@ assert bool(re.search(r'(?:^|\s)-DDBT_PROBE_DEFERRED_CODEC_CHECK=1(?:\s|$)',main
 assert ('DBT_PROBE_LHDC_MAX_CHECK:BOOL=ON' in cache)==bool(build_status.get('lhdc_maximum_check'))
 assert ('DBT_PROBE_LHDC_STAGE_PROFILE:BOOL=ON' in cache)==bool(build_status.get('lhdc_stage_profile'))
 assert ('DBT_PROBE_PIPELINE_DIAGNOSTIC:BOOL=ON' in cache)==pipeline
+audio_profile=bool(build_status.get('audio_stage_profile'))
+assert ('DBT_PROBE_AUDIO_STAGE_PROFILE:BOOL=ON' in cache)==audio_profile
+audio_command=next(entry['command'] for entry in commands if Path(entry['file']).name=='dbt_audio.c')
+assert bool(re.search(r'(?:^|\s)-DDBT_AUDIO_STAGE_PROFILE=1(?:\s|$)',audio_command))==audio_profile
+assert bool(re.search(r'(?:^|\s)-DDBT_AUDIO_STAGE_PROFILE=1(?:\s|$)',main_command))==audio_profile
+if audio_profile:assert pipeline
 assert bool(re.search(r'(?:^|\s)-DDBT_PROBE_PIPELINE_DIAGNOSTIC=1(?:\s|$)',main_command))==pipeline
 if pipeline:
     assert diagnostic and build_status.get('async_audio')
