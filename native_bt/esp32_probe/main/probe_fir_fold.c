@@ -1,3 +1,5 @@
+/* Kept diagnostic-only: portable folding is exact but slower on this target. */
+#define DBT_RESAMPLER_ENABLE_FOLDED_ZERO 1
 #define dbt_resampler_init probe_fir_fold_init
 #define dbt_resampler_push probe_fir_fold_push
 #define dbt_resampler_filter probe_fir_fold_filter

@@ -94,7 +94,12 @@ static inline void ramp_advance(fdsp_ramp_t *state) {
     if (--state->remaining == 0) state->value = state->target;
 }
 
-static inline int32_t filter(const int32_t c[5],
+#ifdef FIXED_DSP_FORCE_FILTER_INLINE
+#define FILTER_INLINE __attribute__((always_inline))
+#else
+#define FILTER_INLINE
+#endif
+static inline int32_t FILTER_INLINE filter(const int32_t c[5],
                               fdsp_history_t *history, int32_t input) {
     int32_t output;
     if (c[0] == COEFF_ONE && c[1] == 0 && c[2] == 0 && c[3] == 0 && c[4] == 0) {

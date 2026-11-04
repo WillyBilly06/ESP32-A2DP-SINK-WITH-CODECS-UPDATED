@@ -14,6 +14,16 @@ pipeline=bool(build_status.get('pipeline_diagnostic'))
 entry_name='probe_codec_diagnostic.c' if diagnostic else 'probe_main.c'
 main_command=next(entry['command'] for entry in commands if Path(entry['file']).name==entry_name)
 cache=(a.image.parent/'CMakeCache.txt').read_text()
+dsp_inline=bool(build_status.get('dsp_inline_check'))
+assert ('DBT_PROBE_DSP_INLINE_CHECK:BOOL=ON' in cache)==dsp_inline, 'DSP inline receipt/cache mismatch'
+assert bool(re.search(r'(?:^|\s)-DDBT_PROBE_DSP_INLINE_CHECK=1(?:\s|$)',main_command))==dsp_inline
+if dsp_inline:
+    assert diagnostic and pipeline and build_status.get('audio_stage_profile') and not build_status.get('dsp_stage_profile') and not build_status.get('fir_compiler_check')
+    inline_command=next(e['command'] for e in commands if Path(e['file']).name=='probe_dsp_inline.c')
+    compare_command=next(e['command'] for e in commands if Path(e['file']).name=='probe_dsp_compare.c')
+    for command in (inline_command,compare_command):
+        assert re.search(r'(?:^|\s)-DDBT_PROBE_DSP_INLINE_CHECK=1(?:\s|$)',command), 'Inline mode not actually compiled'
+    assert re.findall(r'(?:^|\s)-O(?:[0-3sgz]|fast)(?=\s)',inline_command)[-1].strip()=='-Os'
 decoder_core=build_status.get('decoder_core',1)
 assert type(decoder_core) is int and decoder_core in (0,1)
 core_option=re.search(r'^DBT_PROBE_DECODER_CORE:STRING=([01])$',cache,re.M)
@@ -55,12 +65,13 @@ assert ('DBT_PROBE_FIR_COMPILER_CHECK:BOOL=ON' in cache)==fir_check
 assert bool(re.search(r'(?:^|\s)-DDBT_PROBE_FIR_COMPILER_CHECK=1(?:\s|$)',main_command))==fir_check
 if fir_check:assert audio_profile and not dsp_profile
 if fir_check:
-    for variant,optimization in (('os','-Os'),('o2','-O2'),('o3','-O3')):
+    for variant,optimization in (('wide','-O3'),('os','-Os'),('o2','-O2'),('o3','-O3'),('fold','-O3')):
         variant_command=next(e['command'] for e in commands if Path(e['file']).name==f'probe_fir_{variant}.c')
         assert re.findall(r'(?:^|\s)(-O\S+)',variant_command)[-1]==optimization
 elif audio_profile:
     assert pipeline
-    for variant,optimization in (('os','-Os'),('profile','-Os') if dsp_profile else ('o3','-O3')):
+    candidate=('profile','-Os') if dsp_profile else ('inline','-Os') if dsp_inline else ('o3','-O3')
+    for variant,optimization in (('os','-Os'),candidate):
         variant_command=next(entry['command'] for entry in commands if Path(entry['file']).name==f'probe_dsp_{variant}.c')
         assert re.findall(r'(?:^|\s)(-O\S+)',variant_command)[-1]==optimization
 assert bool(re.search(r'(?:^|\s)-DDBT_PROBE_PIPELINE_DIAGNOSTIC=1(?:\s|$)',main_command))==pipeline

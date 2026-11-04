@@ -73,7 +73,7 @@ if os.name=='nt':
     resource=pathlib.Path(subprocess.check_output([cc,'-print-resource-dir'],text=True).strip())
     runtime=resource/'lib/windows/clang_rt.asan_dynamic-x86_64.dll';shutil.copy2(runtime,OUT/runtime.name)
 commands=[]
-for mode,flags in (('folded_zero',[]),('checked_unfolded',['-DDBT_RESAMPLER_FORCE_UNFOLDED_ZERO=1']),('wide_reference',['-DDBT_RESAMPLER_FORCE_WIDE_DELTA=1'])):
+for mode,flags in (('folded_zero',['-DDBT_RESAMPLER_ENABLE_FOLDED_ZERO=1']),('checked_unfolded',['-DDBT_RESAMPLER_FORCE_UNFOLDED_ZERO=1']),('wide_reference',['-DDBT_RESAMPLER_FORCE_WIDE_DELTA=1'])):
     exe=OUT/(mode+('.exe' if os.name=='nt' else ''))
     args=[cc,'-std=c11','-O3','-g','-Wall','-Wextra','-Werror','-fsanitize=address,undefined','-fno-sanitize-recover=all','-fno-omit-frame-pointer',*flags,'-I'+str(ROOT/'include'),str(ROOT/'src/dbt_resampler.c'),str(main),'-o',str(exe)]
     if os.name=='nt':args+=['-fms-runtime-lib=dll','-D_DLL','-Wl,/NODEFAULTLIB:libcmt']

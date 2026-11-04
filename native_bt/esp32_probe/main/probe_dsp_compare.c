@@ -22,6 +22,13 @@ DECLARE_VARIANT(profile);
 #define SECOND_PROCESS probe_dsp_profile_process
 #define SECOND_NAME "Os_profiled"
 #define REFERENCE_NAME "Os_split_reference"
+#elif defined(DBT_PROBE_DSP_INLINE_CHECK)
+DECLARE_VARIANT(inline);
+#define SECOND_INIT probe_dsp_inline_init
+#define SECOND_CONTROLS probe_dsp_inline_controls
+#define SECOND_PROCESS probe_dsp_inline_process
+#define SECOND_NAME "Os_force_inline"
+#define REFERENCE_NAME "Os_current"
 #else
 DECLARE_VARIANT(o3);
 #define SECOND_INIT probe_dsp_o3_init

@@ -42,5 +42,17 @@ deadline is 15 seconds, its owner deadline 23 seconds; serial collection allows
 baseline boot. RF capture limits are unchanged. These are bounded diagnostic
 capture allowances, not relaxed audio performance gates.
 
-Hardware speed evidence for this folding candidate is pending. Full DSP/I2S,
-maximum-LHDC headroom and the complete feature/stress gates remain open.
+## Target rejection
+
+The candidate passed all 27 five-way target equivalence groups, including
+complete PCM/state equality. It was nevertheless slower at zero phase:
+approximately 43% at 48 kHz, 37% at 96 kHz and 30% at 192 kHz across three
+paired trials. Fractional-phase differences were small and inconsistent.
+The wide pair sums did not produce efficient code on this target.
+
+Folding is therefore disabled in the product path. Only the explicit diagnostic
+wrapper defines `DBT_RESAMPLER_ENABLE_FOLDED_ZERO`. The measured checked-delta O3
+implementation remains selected. [The rejected result](FIR_ZERO_FOLD_RESULTS_2026_11_04.json)
+preserves the 135 target records and failed full-pipeline outcome. The released
+baseline returned without fatal markers. Full DSP/I2S, maximum-LHDC headroom and
+the complete feature/stress gates remain open.

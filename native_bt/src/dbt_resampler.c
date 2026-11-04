@@ -38,7 +38,7 @@ static inline __attribute__((always_inline)) int32_t coefficient_at(int32_t firs
     return (int32_t)((int64_t)first+(((int64_t)next-first)*remainder)/33554432ll);
 #endif
 }
-#if defined(DBT_RESAMPLER_ZERO_PHASE_SYMMETRIC) && DBT_RESAMPLER_ZERO_PHASE_SYMMETRIC && !defined(DBT_RESAMPLER_FORCE_UNFOLDED_ZERO) && !defined(DBT_RESAMPLER_FORCE_WIDE_DELTA)
+#if defined(DBT_RESAMPLER_ENABLE_FOLDED_ZERO) && defined(DBT_RESAMPLER_ZERO_PHASE_SYMMETRIC) && DBT_RESAMPLER_ZERO_PHASE_SYMMETRIC && !defined(DBT_RESAMPLER_FORCE_UNFOLDED_ZERO) && !defined(DBT_RESAMPLER_FORCE_WIDE_DELTA)
 #define DBT_RESAMPLER_FOLDED_ZERO_ENABLED 1
 static __attribute__((noinline)) void folded_zero(const dbt_resampler_t *s,const int32_t *coefficients,int32_t *left,int32_t *right){
     /* Complete history only. The generated row is symmetric around taps/2-1,
