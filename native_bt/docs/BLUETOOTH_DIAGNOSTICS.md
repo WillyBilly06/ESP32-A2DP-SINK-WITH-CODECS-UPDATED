@@ -136,6 +136,29 @@ One watchdog sample identifies where the renderer was interrupted, not its
 exclusive CPU cost. Later instrumentation exposes existing renderer totals and
 separates descriptor reasons; their hardware validation remains pending.
 
+## Maximum LHDC phone trial
+
+[Run `1793827910709975300-58aaf89a4ddc`](RF_LHDC_MAX_2026_11_04.json) confirmed
+fresh Android readback of LHDC V5, 192 kHz, 24-bit stereo and the nominal
+1000 kbps quality target. Firmware CIE bytes were
+`00ff3a050000354c0102110000`, with a four-byte PCM container. The decoder accepted
+10,685 packets and produced 82,060,800 PCM bytes, equivalent to 53.425 seconds.
+There were zero drops, resets, decoder faults, input sequence breaks, ingress
+rejections, watchdog warnings or lost diagnostic records. Queue peak was 2/8.
+
+For one 960-sample/5 ms LHDC frame per packet, codec elapsed time averaged
+3123.36 us and peaked at 4571 us. This includes PCM checksum delivery and any
+preemption. BLE remained encrypted/bonded and a live Deep Bass write was read
+back in the app. Balanced restoration was sent, but its post-write readback was
+not captured before the finite trial ended. Playback was verified paused and
+the released baseline returned cleanly.
+
+The approximately 0.99 Mbps observed payload rate includes framing and playback
+edges. Android reports a nominal target, not an exact physical RF bitrate.
+This short trial omits A2DP DSP/I2S output and establishes no analog fidelity,
+long-duration stability or full-pipeline headroom guarantee. The separate full
+I2S failure remains open.
+
 ## Existing captured scheduler failure
 
 Reclassifying the preserved run `1793823953028623200-6bceaf1587e5` found **22

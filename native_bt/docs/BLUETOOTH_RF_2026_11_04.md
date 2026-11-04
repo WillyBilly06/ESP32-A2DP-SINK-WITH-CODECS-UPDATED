@@ -290,6 +290,22 @@ was 2/8 and maximum codec wall span 4,111 us. Live playback offsets/durations
 differed; this is not identical-bitstream benchmarking. Both were checksum
 tests. Full I2S and maximum LHDC qualification remain separate outstanding gates.
 
+## Maximum LHDC V5 and full-output separation
+
+The [maximum-setting phone trial](RF_LHDC_MAX_2026_11_04.json) confirmed Android
+LHDC V5 / 192 kHz / 24-bit / stereo / 1000 kbps nominal target and matching
+firmware rate/depth CIE fields. It decoded 10,685 packets (53.425 seconds of PCM)
+with zero drops, resets, decoder errors, ingress rejections or watchdogs. Queue
+peak was 2/8; decoder elapsed time averaged 3123.36 us and peaked at 4571 us per
+5 ms frame. BLE stayed secured and a live Deep Bass write was confirmed.
+This is a short checksum-mode result; bitrate traffic estimates include framing.
+
+The earlier [full-output core-0 run](RF_FULL_CORE0_2026_11_04.json) still failed
+LDAC96 with underruns, a descriptor fault and a CPU0 watchdog sample inside the
+resampler/render path. Maximum LHDC full DSP/I2S output remains unqualified.
+Detailed renderer totals and descriptor-reason counters have host/build evidence
+for a later image, not a new successful hardware output test.
+
 ## Outstanding Bluetooth gates
 
 The full profile build still needs sustained loss-free A2DP/BLE operation,

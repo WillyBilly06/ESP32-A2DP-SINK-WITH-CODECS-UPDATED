@@ -1,0 +1,208 @@
+{
+  "date": "2026-11-04",
+  "source_commit": "73bc10793a62e2df8351d145e23d96b500813783",
+  "image_sha256": "58aaf89a4ddcb004d0214b86709b6674dea8215ca9d3fa405fb93680afa6929f",
+  "scope": "Finite radio/profile/product-security test with actual codec decode and PCM checksum; A2DP PCM is not forwarded to I2S; no DAC/DSP/headroom qualification",
+  "result": "FINITE_MAX_LHDC192_S24_1000_TARGET_DECODE_AND_BLE_PASS_I2S_NOT_EXERCISED",
+  "configuration": {
+    "codec": "LHDC V5",
+    "rate": 192000,
+    "encoded_depth_bits": 24,
+    "channels": 2,
+    "nominal_quality_target_kbps": 1000,
+    "android_fresh_readback_confirmed": true,
+    "cie_hex": "00ff3a050000354c0102110000",
+    "pcm_container_bytes": 4
+  },
+  "runtime_health": {
+    "task_watchdog_triggers": 0,
+    "idle_starvation_warnings_by_core": {
+      "0": 0,
+      "1": 0
+    },
+    "watchdog_running_task_samples_by_core": {
+      "0": {},
+      "1": {}
+    },
+    "interrupt_watchdog_timeouts": 0,
+    "backtrace_records": 0,
+    "runtime_health_passed": true
+  },
+  "last_records": {
+    "codec_configuration": {
+      "probe": "codec_configuration",
+      "at_us": 244075219,
+      "revision": 1,
+      "codec": 9,
+      "rate": 192000,
+      "channels": 2,
+      "pcm_container_bytes": 4,
+      "cie_size": 13,
+      "cie_hex": "00ff3a050000354c0102110000"
+    },
+    "media_input": {
+      "probe": "media_input",
+      "at_us": 298395220,
+      "stream_epoch": 7,
+      "packets": 10685,
+      "payload_bytes": 6710180,
+      "rtp_first_timestamp": 0,
+      "rtp_last_timestamp": 10283520,
+      "rate": 192000
+    },
+    "media_drop_reasons": {
+      "probe": "media_drop_reasons",
+      "at_us": 298395220,
+      "queue_full": 0,
+      "decode_reject": 0,
+      "reset_failed": 0,
+      "pcm_failed": 0,
+      "pcm_timeout": 0,
+      "pcm_busy": 0,
+      "input_sequence_breaks": 0,
+      "input_ssrc_changes": 0,
+      "queue_high_water": 2,
+      "host_trace_lost": 0,
+      "worker_trace_lost": 0
+    },
+    "decoder_execution": {
+      "probe": "decoder_execution",
+      "at_us": 298395220,
+      "calls": 10685,
+      "elapsed_us": 33373118,
+      "maximum_us": 4571,
+      "wall_time_includes_preemption": true,
+      "includes_inline_pcm": true,
+      "histogram_us_le": [
+        125,
+        250,
+        500,
+        1000,
+        2000,
+        4000,
+        8000
+      ],
+      "histogram_counts": [
+        0,
+        0,
+        0,
+        0,
+        616,
+        10036,
+        33,
+        0
+      ]
+    },
+    "pcm_delivery": {
+      "probe": "pcm_delivery",
+      "at_us": 298395220,
+      "calls": 10685,
+      "elapsed_us": 2176387,
+      "maximum_us": 259,
+      "wall_time_includes_preemption": true,
+      "includes_inline_pcm": false,
+      "histogram_us_le": [
+        125,
+        250,
+        500,
+        1000,
+        2000,
+        4000,
+        8000
+      ],
+      "histogram_counts": [
+        0,
+        10682,
+        3,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "sbc_pcm": {
+      "probe": "sbc_pcm",
+      "frames": 10685,
+      "bytes": 82060800,
+      "fnv1a32": 2660880495,
+      "rate": 192000,
+      "channels": 2,
+      "media_packets": 10685,
+      "drops": 0,
+      "resets": 0,
+      "resident": 65384,
+      "codec": 9,
+      "sample_bytes": 4,
+      "faults": 0,
+      "decoder_stack_low_water_bytes": 5948,
+      "internal_heap_free": 75816,
+      "internal_heap_min_free": 73004,
+      "internal_heap_largest": 69632,
+      "i2s_output": false
+    },
+    "le_security": {
+      "probe": "le_security",
+      "handle": 0,
+      "generation": 2,
+      "encrypted": true,
+      "authenticated": false,
+      "bond_committed": true,
+      "peer_key_verified": true,
+      "phase3_complete": false,
+      "identity_promotion_committed": true,
+      "key_size": 16
+    },
+    "native_profile": {
+      "probe": "native_profile",
+      "state": 2,
+      "active": 1,
+      "enabled": 1,
+      "draining": 0,
+      "event_errors": 0,
+      "last_event": 0,
+      "last_result": 0,
+      "detail": 11284,
+      "ignored_dynamic": 0,
+      "oversized_dynamic": 0
+    }
+  },
+  "throughput_estimate": {
+    "interval_seconds": 54.320001,
+    "payload_bytes_delta": 6701388,
+    "payload_kbps_from_elapsed_time": 986.949613642312,
+    "observed_rtp_clock_hz": 189083.9434999274,
+    "definition": "Approximate codec-payload traffic including framing; elapsed interval includes playback edges; not pure codec bits or RF over-air bitrate. RTP estimate assumes its clock and continuity.",
+    "payload_kbps_from_rtp_assuming_192k_clock": 1002.1703710627161
+  },
+  "ble_control_observations": {
+    "deep_bass_during_max_stream_confirmed": [
+      8,
+      -1,
+      -2
+    ],
+    "balanced_restore_sent": [
+      0,
+      0,
+      0
+    ],
+    "balanced_restore_readback_before_return": false,
+    "note": "Finite RF window ended before post-restore UI readback was captured; do not treat the restore as separately verified"
+  },
+  "phone_paused_verified": true,
+  "finite_rf_return": {
+    "baseline_boot_observed": true,
+    "baseline_fatal_marker": false,
+    "prime_capture_bytes": 0
+  },
+  "limits": [
+    "Short finite phone trial, not long-duration or full-feature stress qualification.",
+    "A2DP PCM was checksummed; no DSP/I2S/DAC continuity pass.",
+    "Full I2S trial failed separately before LHDC selection.",
+    "Android confirms a nominal quality request; measured payload includes framing.",
+    "Mean/max decoder elapsed times include checksum delivery/preemption, not CPU-only cycles.",
+    "No original-content or analog audio-fidelity measurement.",
+    "Do not infer exact wire bitrate or an invariant RTP clock from the nominal quality request or this short throughput estimate."
+  ],
+  "raw_evidence": "native_bt/_build/hardware/runs/1793827910709975300-58aaf89a4ddc"
+}
