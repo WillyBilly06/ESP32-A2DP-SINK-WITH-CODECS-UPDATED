@@ -185,6 +185,7 @@ def main():
             maximum=[e for e in events if e.get('probe')=='lhdc_max_selftest']
             deferred=[e for e in events if e.get('probe')=='target_deferred_codec']
             report['pipeline_check']=next((e for e in events if e.get('probe')=='target_pipeline_selftest'),None)
+            report['dsp_variant_checks']=[e for e in events if e.get('probe') in ('dsp_variant_case','dsp_variant_summary')]
             report['pipeline_measurements']=[e for e in events if e.get('probe') in ('pipeline_memory','pipeline_timing','pipeline_i2s','pipeline_allocation','pipeline_render_stages')]
             report['scope']='Finite isolated codec execution; no controller/NVS/I2S initialization, no RF or product qualification'
             report['cases']=[e for e in events if e.get('probe')=='target_codec_case']

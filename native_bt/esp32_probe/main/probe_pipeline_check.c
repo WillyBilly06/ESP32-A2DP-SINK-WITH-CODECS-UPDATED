@@ -1,6 +1,9 @@
 /* Actual decoder/worker/DSP/I2S, synthetic loss-free 5 ms input. No controller,
  * filesystem or NVS. This is not RF/coexistence or analog-quality evidence. */
 #include "probe_pipeline_check.h"
+#ifdef DBT_AUDIO_STAGE_PROFILE
+#include "probe_dsp_compare.h"
+#endif
 #include "probe_output.h"
 #include "dbt_codec.h"
 #include "dbt_lhdcv5_codec.h"
@@ -206,6 +209,9 @@ static void run(void *unused){
     printf("{\"probe\":\"target_pipeline_selftest\",\"passed\":%s,\"configured\":%s,\"started\":%s,\"stream_result\":%u,\"correctness\":%s,\"continuity\":%s,\"rate\":192000,\"sample_depth\":24,\"channels\":2,\"encoded_payload_bps\":1001600,\"packets\":%u,\"completed_packets\":%u,\"sample_frames\":%u,\"pcm_hash\":%u,\"synthetic_source\":true,\"integer_dsp\":true,\"i2s_test\":true,\"rf_test\":false,\"production_qualified\":false}\n",
         pipeline.passed?"true":"false",configured?"true":"false",started?"true":"false",(unsigned)start_result,
         correctness?"true":"false",continuity?"true":"false",supplied,completed,(unsigned)pipeline.frames,(unsigned)pipeline.hash);
+#ifdef DBT_AUDIO_STAGE_PROFILE
+    if(reclaimed && !probe_dsp_compare())pipeline.passed=false;
+#endif
     atomic_store_explicit(&pipeline.done,true,memory_order_release);xTaskNotifyGive(pipeline.owner);
     /* Renderer callbacks and a dispatched timer callback may still name this
      * task. Keep its notification target live until the admitted owner resets. */

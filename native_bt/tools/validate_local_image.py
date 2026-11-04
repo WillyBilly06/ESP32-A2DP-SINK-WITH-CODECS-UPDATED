@@ -27,7 +27,11 @@ assert ('DBT_PROBE_AUDIO_STAGE_PROFILE:BOOL=ON' in cache)==audio_profile
 audio_command=next(entry['command'] for entry in commands if Path(entry['file']).name=='dbt_audio.c')
 assert bool(re.search(r'(?:^|\s)-DDBT_AUDIO_STAGE_PROFILE=1(?:\s|$)',audio_command))==audio_profile
 assert bool(re.search(r'(?:^|\s)-DDBT_AUDIO_STAGE_PROFILE=1(?:\s|$)',main_command))==audio_profile
-if audio_profile:assert pipeline
+if audio_profile:
+    assert pipeline
+    for variant,optimization in (('os','-Os'),('o3','-O3')):
+        variant_command=next(entry['command'] for entry in commands if Path(entry['file']).name==f'probe_dsp_{variant}.c')
+        assert re.findall(r'(?:^|\s)(-O\S+)',variant_command)[-1]==optimization
 assert bool(re.search(r'(?:^|\s)-DDBT_PROBE_PIPELINE_DIAGNOSTIC=1(?:\s|$)',main_command))==pipeline
 if pipeline:
     assert diagnostic and build_status.get('async_audio')
