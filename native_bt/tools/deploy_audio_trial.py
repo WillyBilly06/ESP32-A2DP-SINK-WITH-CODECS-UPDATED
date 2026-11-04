@@ -9,6 +9,7 @@ import struct
 import re
 import sys
 import subprocess
+import shutil
 import time
 import serial.tools.list_ports
 import esptool
@@ -103,6 +104,17 @@ def main():
     report={'scope':scope,'console_baud':console_baud,
             'port':'COM6','backup_sha256':receipt['sha256'],'candidate_sha256':hashlib.sha256(candidate).hexdigest(),
             'candidate_elf_sha256':candidate[176:208].hex(),'writes':[]}
+    # Preserve the exact tested bytes and build-input receipts before a later
+    # build can replace them. No NVS/full-flash backup is copied or published.
+    archive=HARDWARE/'runs'/(str(time.time_ns())+'-'+report['candidate_sha256'][:12])
+    archive.mkdir(parents=True,exist_ok=False)
+    report['run_archive']=archive.relative_to(HARDWARE).as_posix()
+    (archive/image_path.name).write_bytes(candidate)
+    for name in ('local-build-status.json','local-build-sources.json','compile_commands.json','CMakeCache.txt','config/sdkconfig.h'):
+        source=image_path.parent/name
+        if source.is_file():shutil.copy2(source,archive/source.name)
+    head=subprocess.run(['git','rev-parse','HEAD'],cwd=ROOT.parent,capture_output=True,text=True,check=True).stdout.strip()
+    (archive/'source-commit.txt').write_text(head+'\n')
     try:
         controller=esptool.detect_chip(port='COM6',baud=115200,connect_mode='default_reset')
         mac=':'.join(f'{v:02X}' for v in controller.read_mac())
@@ -147,10 +159,12 @@ def main():
         if not report['original_application_preserved']:raise RuntimeError('Original application verification failed')
         controller._port.baudrate=console_baud
         controller.hard_reset();rebooted=True
-        boot=bytearray();deadline=time.monotonic()+15
+        boot=bytearray();deadline=time.monotonic()+(25 if args.codec_only else 15)
         controller._port.timeout=0.2
         while time.monotonic()<deadline and len(boot)<65536:
             boot.extend(controller._port.read(min(4096,65536-len(boot))))
+            if args.codec_only and b'codec_diagnostic_return' in boot and b'Loaded app from partition at offset 0x110000' in boot and b'System ready' in boot:
+                break
         destination.with_suffix('.bin').write_bytes(boot)
         text=boot.decode('utf-8',errors='backslashreplace')
         destination.with_suffix('.txt').write_text(text,encoding='utf-8')
@@ -167,15 +181,21 @@ def main():
             report['codec_summary']=summaries[-1] if summaries else None
             report['return']=returns[-1] if returns else None
             report['lhdc_maximum_check']=maximum[-1] if maximum else None
+            report['lhdc_maximum_trials']=maximum
+            report['lhdc_decoder_estimates']=[e for e in events if e.get('probe')=='lhdc_decoder_estimate']
+            report['lhdc_stage_cycles']=[e for e in events if e.get('probe')=='lhdc_stage_cycles']
+            report['lhdc_pcm_hashes']=[e for e in events if e.get('probe')=='lhdc_pcm_hash']
             report['baseline_boot_observed']=bool(returns and returns[-1].get('baseline_selected') and
                 'Loaded app from partition at offset 0x110000' in text and '1.0.4-idf6.1' in text)
             report['boot_fatal_marker']=any(token in text for token in ('Guru Meditation Error','abort() was called','***ERROR***'))
             report['all_codec_checks_passed']=bool(summaries and summaries[-1].get('passed') and summaries[-1].get('configurations')==summaries[-1].get('selected'))
+            report['codec_vectors_passed']=bool(summaries and summaries[-1].get('configurations')==summaries[-1].get('selected') and report['cases'] and all(c.get('passed') for c in report['cases']))
             report['boot_capture']=destination.with_suffix('.bin').name
             destination.with_suffix('.json').write_text(json.dumps(report,indent=2)+'\n',encoding='utf-8')
-            print(json.dumps({k:v for k,v in report.items() if k!='cases'},indent=2))
+            for suffix in ('.json','.bin','.txt'):shutil.copy2(destination.with_suffix(suffix),archive/destination.with_suffix(suffix).name)
+            print(json.dumps({k:v for k,v in report.items() if k not in ('cases','lhdc_stage_cycles','lhdc_maximum_trials','lhdc_decoder_estimates')},indent=2))
             if not report['baseline_boot_observed'] or report['boot_fatal_marker']:raise RuntimeError('Baseline return was not cleanly observed; inspect preserved capture')
-            if not report['all_codec_checks_passed']:raise RuntimeError('Baseline restored, but target codec checks did not all pass')
+            if not report['all_codec_checks_passed']:raise RuntimeError('Baseline restored; diagnostic has a failing correctness or deadline gate')
             return
         report['boot_ready_marker']=('audio_candidate_integer_dsp1 slot=0x390000' in text) if args.kind=='audio' else (
             '"probe":"controller_identified"' in text and '"probe":"gap_state","state":2,' in text)
@@ -216,6 +236,7 @@ def main():
         report['boot_capture']=destination.with_suffix('.bin').name
         report['boot_tail']=text[-3000:]
         destination.with_suffix('.json').write_text(json.dumps(report,indent=2)+'\n',encoding='utf-8')
+        for suffix in ('.json','.bin','.txt'):shutil.copy2(destination.with_suffix(suffix),archive/destination.with_suffix(suffix).name)
         print(json.dumps(report,indent=2))
         if not report['boot_ready_marker']:raise RuntimeError('Trial readiness was not observed; inspect preserved boot capture')
     finally:

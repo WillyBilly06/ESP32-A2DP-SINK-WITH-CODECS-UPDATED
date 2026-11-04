@@ -22,6 +22,11 @@
 #include "probe_codec_vectors.h"
 #ifdef DBT_PROBE_LHDC_MAX_CHECK
 #include "probe_lhdc_max_fixture.h"
+#include "probe_diagnostic_stats.h"
+_Static_assert(sizeof(lhdc_max_packets)/sizeof(lhdc_max_packets[0])==PROBE_DIAGNOSTIC_SAMPLES_MAX,"Maximum LHDC fixture must match bounded diagnostic storage");
+#endif
+#ifdef DBT_PROBE_LHDC_STAGE_PROFILE
+#include "probe_lhdc_profile.h"
 #endif
 #include "esp_heap_caps.h"
 #include "esp_timer.h"
@@ -54,7 +59,8 @@ static struct {
     uint32_t hash,callbacks,sample_frames,word_index,point_index,peak,maximum_error;
     uint32_t live,peak_live,overall_peak,case_max_us,overall_max_us,min_free,overall_min_free;
     uint32_t case_max_cycles,case_deadline_misses,media_bytes;
-    uint64_t case_cycles,case_us;
+    uint64_t case_cycles,case_us,callback_us,callback_cycles;
+    uint32_t last_media_us,last_callback_us,last_media_cycles,last_callback_cycles;
 } check;
 
 static uint8_t *allocate(void *context,uint32_t bytes){
@@ -77,7 +83,7 @@ static void release(void *context,uint8_t *p){
     heap_caps_free(h);
 }
 static uint32_t magnitude(int32_t value){return value<0?(uint32_t)(-(int64_t)value):(uint32_t)value;}
-static dbt_result_t pcm(void *context,const void *samples,uint16_t frames,const dbt_codec_config_t *config,uint32_t timestamp){
+static dbt_result_t validate_pcm(void *context,const void *samples,uint16_t frames,const dbt_codec_config_t *config,uint32_t timestamp){
     (void)context;(void)timestamp;
     if(!samples || !config || !frames)return DBT_INVALID;
 #ifdef DBT_PROBE_OPUS_BUILD
@@ -108,6 +114,22 @@ static dbt_result_t pcm(void *context,const void *samples,uint16_t frames,const 
     }
     ++check.callbacks;check.sample_frames+=frames;return DBT_OK;
 }
+static inline uint32_t read_cycles(void){
+#ifdef ESP_PLATFORM
+    return esp_cpu_get_cycle_count();
+#else
+    return 0;
+#endif
+}
+static dbt_result_t pcm(void *context,const void *samples,uint16_t frames,const dbt_codec_config_t *config,uint32_t timestamp){
+    int64_t started=esp_timer_get_time();uint32_t cycles=read_cycles();
+    dbt_result_t result=validate_pcm(context,samples,frames,config,timestamp);
+    uint32_t duration_cycles=read_cycles()-cycles;
+    int64_t duration=esp_timer_get_time()-started;
+    if(duration<0 || duration>UINT32_MAX)return DBT_INVALID;
+    check.callback_us+=(uint32_t)duration;check.callback_cycles+=duration_cycles;
+    return result;
+}
 static void reset_case(void){
     check.vector=0;
 #ifdef DBT_PROBE_OPUS_BUILD
@@ -117,20 +139,21 @@ static void reset_case(void){
     check.peak=check.maximum_error=check.case_max_us=0;check.peak_live=check.live;
     check.case_max_cycles=check.case_deadline_misses=check.media_bytes=0;
     check.case_cycles=check.case_us=0;
+    check.callback_us=check.callback_cycles=0;
+    check.last_media_us=check.last_callback_us=check.last_media_cycles=check.last_callback_cycles=0;
     check.min_free=(uint32_t)heap_caps_get_free_size(MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT);
 }
 static bool feed(const dbt_codec_ops_t *ops,const uint8_t *packet,uint16_t size,uint16_t sequence,uint32_t timestamp,bool marker){
     dbt_avdtp_media_t view={.payload=packet,.size=size,.sequence=sequence,.ssrc=1,.timestamp=timestamp,.payload_type=96,.marker=marker};
     uint32_t frames_before=check.sample_frames;
-#ifdef ESP_PLATFORM
-    uint32_t cycles_before=esp_cpu_get_cycle_count();
-#endif
+    uint64_t callback_before=check.callback_us,callback_cycles_before=check.callback_cycles;
+    uint32_t cycles_before=read_cycles();
     int64_t started=esp_timer_get_time();dbt_result_t result=ops->media(&check.decoder,&view,0);
     int64_t delta=esp_timer_get_time()-started;uint32_t elapsed=delta<0?0:delta>UINT32_MAX?UINT32_MAX:(uint32_t)delta;
-#ifdef ESP_PLATFORM
-    uint32_t cycles=esp_cpu_get_cycle_count()-cycles_before;
+    uint32_t cycles=read_cycles()-cycles_before;
     check.case_cycles+=cycles;if(cycles>check.case_max_cycles)check.case_max_cycles=cycles;
-#endif
+    check.last_media_us=elapsed;check.last_callback_us=(uint32_t)(check.callback_us-callback_before);
+    check.last_media_cycles=cycles;check.last_callback_cycles=(uint32_t)(check.callback_cycles-callback_cycles_before);
     check.case_us+=elapsed;check.media_bytes+=size;
     uint32_t frames=check.sample_frames-frames_before;
     uint32_t rate=check.vector?check.vector->rate:48000u;
@@ -179,7 +202,7 @@ static bool run_opus(const opus_vector_t *v,unsigned index){
 }
 #endif
 #ifdef DBT_PROBE_LHDC_MAX_CHECK
-static bool run_lhdc_maximum(void){
+static bool run_lhdc_maximum(unsigned trial){
     const probe_codec_vector_t vector={.name="lhdcv5_192000_24_1000",.ops=&dbt_lhdcv5_codec,
         .cie=lhdc_max_cie,.cie_size=sizeof(lhdc_max_cie),.channels=2,.width=4,.rate=192000,
         .sample_frames=92160,.minimum_peak=100000000,.callback_samples=960,
@@ -187,12 +210,24 @@ static bool run_lhdc_maximum(void){
     reset_case();check.vector=&vector;dbt_codec_config_t config;
     bool pass=dbt_lhdcv5_configure(vector.cie,vector.cie_size,&config)==DBT_OK;
     if(pass){config.ops=vector.ops;pass=dbt_codec_open(&check.decoder,&config)==DBT_OK;}
-    uint32_t measured[96],measured_count=0,late=0;uint64_t measured_sum=0;
+    uint32_t measured[96],estimated[96],measured_count=0,callback_max=0;
+    uint64_t callback_sum=0,estimated_cycles=0;
+#ifdef DBT_PROBE_LHDC_STAGE_PROFILE
+    probe_lhdc_profile_reset(false);
+#endif
     for(unsigned i=0;pass && i<sizeof(lhdc_max_packets)/sizeof(lhdc_max_packets[0]);++i){
-        uint64_t before=check.case_us;
+#ifdef DBT_PROBE_LHDC_STAGE_PROFILE
+        if(i==12u)probe_lhdc_profile_reset(true);
+#endif
         pass=feed(vector.ops,lhdc_max_packets[i].data,lhdc_max_packets[i].size,(uint16_t)i,i*960u,false);
-        uint32_t elapsed=(uint32_t)(check.case_us-before);
-        if(i>=12u){measured[measured_count++]=elapsed;measured_sum+=elapsed;if(elapsed>=5000u)++late;}
+        if(check.last_callback_us>check.last_media_us || check.last_callback_cycles>check.last_media_cycles)pass=false;
+        if(pass && i>=12u){
+            measured[measured_count]=check.last_media_us;
+            estimated[measured_count++]=check.last_media_us-check.last_callback_us;
+            callback_sum+=check.last_callback_us;
+            if(check.last_callback_us>callback_max)callback_max=check.last_callback_us;
+            estimated_cycles+=check.last_media_cycles-check.last_callback_cycles;
+        }
         /* Finite diagnostic only: let idle/other tasks progress between input
          * fixtures. This delay is outside the measured media processing span. */
         vTaskDelay(pdMS_TO_TICKS(1));
@@ -202,17 +237,28 @@ static bool run_lhdc_maximum(void){
     dbt_codec_close(&check.decoder);
     if(check.live || check.decoder.allocated_bytes)pass=false;
     unsigned low=(unsigned)uxTaskGetStackHighWaterMark(NULL);if(low<CHECK_STACK_FLOOR_BYTES)pass=false;
-    /* Bounded 84-element sort after measurement, no heap/statistics task. */
-    for(unsigned i=1;i<measured_count;++i){uint32_t v=measured[i];unsigned j=i;
-        while(j && measured[j-1]>v){measured[j]=measured[j-1];--j;}measured[j]=v;}
-    uint32_t maximum=measured_count?measured[measured_count-1]:0;
-    bool deadline=measured_count==84 && !late && maximum<5000u;
-    printf("{\"probe\":\"lhdc_max_selftest\",\"correctness_passed\":%s,\"isolated_deadline_passed\":%s,\"rate\":192000,\"sample_depth\":24,\"channels\":2,\"requested_kbps\":1000,\"encoded_payload_bps\":1001600,\"packets\":%u,\"measured_packets\":%u,\"sample_frames\":%u,\"reference_points\":%u,\"maximum_abs_error\":%u,\"mean_us\":%u,\"p50_us\":%u,\"p95_us\":%u,\"p99_us\":%u,\"max_us\":%u,\"budget_us\":5000,\"deadline_misses\":%u,\"tracked_peak_bytes\":%u,\"stack_low_water_bytes\":%u,\"includes_pcm_validation\":true,\"dsp_i2s_test\":false,\"rf_test\":false}\n",
-        pass?"true":"false",deadline?"true":"false",(unsigned)check.callbacks,(unsigned)measured_count,
+    probe_diagnostic_stats_t total={0},estimate={0};
+    if(!probe_diagnostic_stats(measured,measured_count,5000,&total) ||
+       !probe_diagnostic_stats(estimated,measured_count,5000,&estimate))pass=false;
+#ifdef DBT_PROBE_LHDC_STAGE_PROFILE
+    probe_lhdc_profile_t stages;
+    if(!probe_lhdc_profile_finish(&stages) || stages.channel_calls!=measured_count*2u)pass=false;
+    static const char *names[6]={"pre","entropy","mantissa","dequant_sns","imdct","overlap"};
+    for(unsigned i=0;i<6;++i)
+        printf("{\"probe\":\"lhdc_stage_cycles\",\"trial\":%u,\"stage\":\"%s\",\"channel_calls\":%u,\"sum_cycles\":%llu,\"maximum_cycles\":%u,\"elapsed_core_cycles\":true}\n",
+            trial,names[i],(unsigned)stages.channel_calls,(unsigned long long)stages.sum_cycles[i],(unsigned)stages.max_cycles[i]);
+#endif
+    bool deadline=measured_count==84 && !total.at_or_above_budget && total.maximum<5000u;
+    printf("{\"probe\":\"lhdc_max_selftest\",\"trial\":%u,\"correctness_passed\":%s,\"isolated_deadline_passed\":%s,\"rate\":192000,\"sample_depth\":24,\"channels\":2,\"requested_kbps\":1000,\"encoded_payload_bps\":1001600,\"packets\":%u,\"measured_packets\":%u,\"sample_frames\":%u,\"reference_points\":%u,\"maximum_abs_error\":%u,\"mean_us\":%u,\"p50_us\":%u,\"p95_us\":%u,\"p99_us\":%u,\"max_us\":%u,\"budget_us\":5000,\"deadline_misses\":%u,\"tracked_peak_bytes\":%u,\"stack_low_water_bytes\":%u,\"includes_pcm_validation\":true,\"dsp_i2s_test\":false,\"rf_test\":false}\n",
+        trial,pass?"true":"false",deadline?"true":"false",(unsigned)check.callbacks,(unsigned)measured_count,
         (unsigned)check.sample_frames,(unsigned)check.point_index,(unsigned)check.maximum_error,
-        measured_count?(unsigned)(measured_sum/measured_count):0,measured_count?(unsigned)measured[(measured_count-1)*50u/100u]:0,
-        measured_count?(unsigned)measured[((measured_count*95u+99u)/100u)-1u]:0,measured_count?(unsigned)measured[((measured_count*99u+99u)/100u)-1u]:0,
-        (unsigned)maximum,(unsigned)late,(unsigned)check.peak_live,low);
+        (unsigned)total.mean,(unsigned)total.p50,(unsigned)total.p95,(unsigned)total.p99,
+        (unsigned)total.maximum,(unsigned)total.at_or_above_budget,(unsigned)check.peak_live,low);
+    printf("{\"probe\":\"lhdc_decoder_estimate\",\"trial\":%u,\"mean_us\":%u,\"p50_us\":%u,\"p95_us\":%u,\"p99_us\":%u,\"max_us\":%u,\"deadline_misses\":%u,\"mean_cycles\":%u,\"validation_mean_us\":%u,\"validation_max_us\":%u,\"callback_time_subtracted\":true,\"includes_media_wrapper\":true,\"dsp_i2s_test\":false,\"rf_test\":false}\n",
+        trial,(unsigned)estimate.mean,(unsigned)estimate.p50,(unsigned)estimate.p95,(unsigned)estimate.p99,(unsigned)estimate.maximum,
+        (unsigned)estimate.at_or_above_budget,measured_count?(unsigned)(estimated_cycles/measured_count):0,
+        measured_count?(unsigned)(callback_sum/measured_count):0,(unsigned)callback_max);
+    printf("{\"probe\":\"lhdc_pcm_hash\",\"trial\":%u,\"sample_frames\":%u,\"fnv1a32\":%u}\n",trial,(unsigned)check.sample_frames,(unsigned)check.hash);
     check.vector=0;return pass && deadline;
 }
 #endif
@@ -242,7 +288,7 @@ static void run(void *unused){
     }
     dbt_codec_close(&check.decoder);
 #ifdef DBT_PROBE_LHDC_MAX_CHECK
-    if(!run_lhdc_maximum())check.passed=false;
+    for(unsigned trial=0;trial<3;++trial)if(!run_lhdc_maximum(trial))check.passed=false;
 #endif
     unsigned low=(unsigned)uxTaskGetStackHighWaterMark(NULL);
     if(!selected || low<CHECK_STACK_FLOOR_BYTES || check.live || check.decoder.allocated_bytes || completed!=selected)check.passed=false;

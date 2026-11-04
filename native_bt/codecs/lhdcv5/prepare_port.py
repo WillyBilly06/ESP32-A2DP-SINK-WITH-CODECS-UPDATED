@@ -68,7 +68,15 @@ def generate(source,output):
             # enable these stage marks only for an explicit diagnostic build.
             anchor='#define LHDC_NOW_US() esp_timer_get_time()\n#endif'
             text=once(text,anchor,anchor+"""
-#if LHDCV5_DEC_PROFILE || (defined(DBT_LHDC_STAGE_PROFILE) && DBT_LHDC_STAGE_PROFILE)
+#if defined(DBT_LHDC_STAGE_CLOCK_CYCLES) && DBT_LHDC_STAGE_CLOCK_CYCLES
+#if !defined(ESP_PLATFORM) || LHDCV5_DEC_PROFILE
+#error Cycle stage profiling requires the ESP32 diagnostic without the legacy logging profiler
+#endif
+#include "esp_cpu.h"
+/* Subtractions are cast to uint32_t at recording, so a single CCOUNT wrap
+ * between adjacent marks is handled without converting cycles to time. */
+#define DBT_LHDC_STAGE_NOW() ((int64_t)esp_cpu_get_cycle_count())
+#elif LHDCV5_DEC_PROFILE || (defined(DBT_LHDC_STAGE_PROFILE) && DBT_LHDC_STAGE_PROFILE)
 #define DBT_LHDC_STAGE_NOW() LHDC_NOW_US()
 #else
 #define DBT_LHDC_STAGE_NOW() ((int64_t)0)

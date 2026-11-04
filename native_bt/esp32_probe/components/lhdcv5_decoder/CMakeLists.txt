@@ -1,7 +1,7 @@
 # The one LHDC component uses the native codec-worker adapter. The older raw
 # session adapter has separate global cache ownership and is not linked here.
 if(CMAKE_BUILD_EARLY_EXPANSION)
-    idf_component_register(REQUIRES native_bt codec_core PRIV_REQUIRES log esp_common esp_timer heap freertos)
+    idf_component_register(REQUIRES native_bt codec_core PRIV_REQUIRES log esp_common esp_timer esp_hw_support heap freertos)
     return()
 endif()
 if(NOT DBT_PROBE_LHDC_BUILD)
@@ -32,5 +32,8 @@ idf_component_register(SRCS "${owned}/dbt_lhdcv5_codec.c"
     "${port}/lhdc_dec.c" "${port}/lhdc_imdct.c" "${port}/lhdc_entropy_dec.c" "${port}/lhdc_sns_synth.c"
     "${decoder}/lhdc_bit_reader.c" "${decoder}/lhdc_diag_config.c" "${decoder}/lhdc_tables.c"
     INCLUDE_DIRS "${owned}" PRIV_INCLUDE_DIRS "${decoder}"
-    REQUIRES native_bt codec_core PRIV_REQUIRES log esp_common esp_timer heap freertos)
-target_compile_options(${COMPONENT_LIB} PRIVATE -std=c11 -fwrapv -O3)
+    REQUIRES native_bt codec_core PRIV_REQUIRES log esp_common esp_timer esp_hw_support heap freertos)
+target_compile_options(${COMPONENT_LIB} PRIVATE -std=gnu11 -fwrapv -O3)
+if(DBT_PROBE_LHDC_STAGE_PROFILE)
+    target_compile_definitions(${COMPONENT_LIB} PRIVATE DBT_LHDC_STAGE_PROFILE=1 DBT_LHDC_STAGE_CLOCK_CYCLES=1)
+endif()

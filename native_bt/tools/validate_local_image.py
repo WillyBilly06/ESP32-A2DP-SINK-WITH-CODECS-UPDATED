@@ -15,6 +15,7 @@ main_command=next(entry['command'] for entry in commands if Path(entry['file']).
 cache=(a.image.parent/'CMakeCache.txt').read_text()
 assert ('DBT_PROBE_CODEC_DIAGNOSTIC_ONLY:BOOL=ON' in cache)==diagnostic
 assert ('DBT_PROBE_LHDC_MAX_CHECK:BOOL=ON' in cache)==bool(build_status.get('lhdc_maximum_check'))
+assert ('DBT_PROBE_LHDC_STAGE_PROFILE:BOOL=ON' in cache)==bool(build_status.get('lhdc_stage_profile'))
 if diagnostic:
     for feature in ('KEEP_OWNED_ACTIVE','PRODUCT_IO','PRODUCT_SECURITY','SMP','AVRCP','RFCOMM','AUDIO_TEST','AUDIO_OUTPUT','GATT_TEST','CLASSIC_SECURITY_TEST','INGRESS_TRACE'):
         assert f'DBT_PROBE_{feature}:BOOL=ON' not in cache, feature

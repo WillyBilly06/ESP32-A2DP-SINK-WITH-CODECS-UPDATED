@@ -29,9 +29,19 @@ def main():
         if not cache:raise RuntimeError('Configured ccache launcher is unavailable')
         launcher=[cache];args=args[1:]
     args=args[:args.index('-o')]
+    # Object probes must not overwrite Ninja's dependency file for the actual
+    # firmware object (which could otherwise hide changed feature headers).
+    clean=[];skip=False
+    for arg in args:
+        if skip:skip=False;continue
+        if arg in ('-MT','-MQ','-MF'):skip=True;continue
+        if arg in ('-MD','-MMD','-MP'):continue
+        clean.append(arg)
+    args=clean
     features=('SBC','OPUS','AAC','APTX','LDAC','LHDC')
     args=[x for x in args if not any(x.startswith('-DDBT_PROBE_'+n+'_BUILD') for n in features)]
     args=[x for x in args if not x.startswith('-DDBT_PROBE_LHDC_MAX_CHECK')]
+    args=[x for x in args if not x.startswith('-DDBT_PROBE_LHDC_STAGE_PROFILE')]
     include=['-I'+str(ROOT/'codecs'/n) for n in ('common','sbc','opus','aac','aptx','ldac','lhdcv5')]
     include+=['-I'+str(ROOT/'esp32_probe/main')]
     source=ROOT/'esp32_probe/main/probe_codec_check.c'

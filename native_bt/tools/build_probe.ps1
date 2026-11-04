@@ -1,5 +1,6 @@
-param([switch]$LhdcMaximumCheck,[switch]$CodecDiagnosticOnly,[switch]$WithProductIo,[switch]$WithProductSecurity,[switch]$WithRfcomm,[switch]$WithLhdc,[switch]$WithOpus,[switch]$WithAac,[switch]$WithAptx,[switch]$WithLdac,[switch]$WithSmp,[switch]$WithAvrcp,[switch]$WithSbc,[switch]$WithAudioProbe,[switch]$WithAudioOutput,[switch]$WithGatt,[switch]$WithClassicSecurity,[switch]$TraceIngress,[switch]$WithoutRxFlow,[switch]$KeepOwned=$true,[string]$TestPeer='',[string]$LhdcSourceDir='')
+param([switch]$LhdcStageProfile,[switch]$LhdcMaximumCheck,[switch]$CodecDiagnosticOnly,[switch]$WithProductIo,[switch]$WithProductSecurity,[switch]$WithRfcomm,[switch]$WithLhdc,[switch]$WithOpus,[switch]$WithAac,[switch]$WithAptx,[switch]$WithLdac,[switch]$WithSmp,[switch]$WithAvrcp,[switch]$WithSbc,[switch]$WithAudioProbe,[switch]$WithAudioOutput,[switch]$WithGatt,[switch]$WithClassicSecurity,[switch]$TraceIngress,[switch]$WithoutRxFlow,[switch]$KeepOwned=$true,[string]$TestPeer='',[string]$LhdcSourceDir='')
 $ErrorActionPreference = 'Stop'
+if ($LhdcStageProfile -and -not $LhdcMaximumCheck) { throw 'Stage profiling requires -LhdcMaximumCheck' }
 if ($LhdcMaximumCheck -and (-not $CodecDiagnosticOnly -or -not $WithLhdc)) { throw 'Maximum LHDC check requires -CodecDiagnosticOnly -WithLhdc' }
 if ($CodecDiagnosticOnly) {
     if ($WithProductIo -or $WithProductSecurity -or $WithRfcomm -or $WithSmp -or $WithAvrcp -or $WithAudioProbe -or $WithAudioOutput -or $WithGatt -or $WithClassicSecurity -or $TraceIngress) { throw 'Codec-only diagnostic excludes radio and product features' }
@@ -68,6 +69,7 @@ $disableReceiveFlow = if ($WithoutRxFlow) { 'ON' } else { 'OFF' }
 $keepOwnedBuild = if ($KeepOwned) { 'ON' } else { 'OFF' }
 $codecDiagnosticBuild = if ($CodecDiagnosticOnly) { 'ON' } else { 'OFF' }
 $lhdcMaxBuild = if ($LhdcMaximumCheck) { 'ON' } else { 'OFF' }
+$lhdcStageBuild = if ($LhdcStageProfile) { 'ON' } else { 'OFF' }
 $peerBytes = '0,0,0,0,0,0'
 if ($WithClassicSecurity -and $TestPeer) {
     $peerOctets=$TestPeer.Split(':')
@@ -78,6 +80,7 @@ $idfArguments=@('--ccache','-C',$probeRoot,'-B',$buildRoot,"-DDBT_PROBE_PRODUCT_
 if ($LhdcSourceDir) { $idfArguments += "-DLHDCV5_SOURCE_DIR=$LhdcSourceDir" }
 $idfArguments += "-DDBT_PROBE_CODEC_DIAGNOSTIC_ONLY=$codecDiagnosticBuild"
 $idfArguments += "-DDBT_PROBE_LHDC_MAX_CHECK=$lhdcMaxBuild"
+$idfArguments += "-DDBT_PROBE_LHDC_STAGE_PROFILE=$lhdcStageBuild"
 $sourceManifestPath=Join-Path $buildRoot 'local-build-sources.json'
 # Reconfigure first so generated ports, compilation flags and SDK configuration
 # are final before fingerprinting the actual build inputs.
@@ -99,6 +102,7 @@ $workspaceCheckCode=$LASTEXITCODE
 $buildReceipt=[ordered]@{schema=1;passed=($buildExitCode -eq 0 -and $sourceCheckCode -eq 0 -and $workspaceCheckCode -eq 0);state='failed';hardware_accessed=$false;product_io=[bool]$WithProductIo;product_security=[bool]$WithProductSecurity;rfcomm=[bool]$WithRfcomm;build_exit=$buildExitCode;source_check_exit=$sourceCheckCode;workspace_check_exit=$workspaceCheckCode}
 $buildReceipt.codec_diagnostic_only=[bool]$CodecDiagnosticOnly
 $buildReceipt.lhdc_maximum_check=[bool]$LhdcMaximumCheck
+$buildReceipt.lhdc_stage_profile=[bool]$LhdcStageProfile
 if ($buildReceipt.passed) {
     $buildReceipt.state='complete'
     $buildReceipt.source_manifest_sha256=(Get-FileHash -LiteralPath $sourceManifestPath -Algorithm SHA256).Hash.ToLowerInvariant()
