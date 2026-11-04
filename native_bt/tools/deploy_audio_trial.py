@@ -18,6 +18,30 @@ from esptool.bin_image import ESP32FirmwareImage
 ROOT=Path(__file__).resolve().parents[1]
 HARDWARE=ROOT/'_build/hardware'
 
+def capture_markers(port,seconds,markers,limit=65536):
+    """Bounded fresh-epoch capture. Elapsed time never counts as a marker."""
+    data=bytearray();deadline=time.monotonic()+seconds;port.timeout=0.2
+    while time.monotonic()<deadline and len(data)<limit:
+        data.extend(port.read(min(4096,limit-len(data))))
+        if all(marker in data for marker in markers):break
+    return bytes(data)
+
+def return_pending_rf_trial(controller,console_baud,rebooted):
+    """Reset an unconfirmed NEW trial and require the preserved baseline boot.
+    Caller admits only images unable to mark themselves valid and a verified
+    rollback-enabled bootloader. No flash write is performed here.
+    """
+    port=controller._port;port.baudrate=console_baud
+    prime=b''
+    if not rebooted:
+        port.reset_input_buffer();controller.hard_reset()
+        prime=capture_markers(port,3,(b'Loaded app from partition at offset',))
+    port.reset_input_buffer();controller.hard_reset()
+    baseline=capture_markers(port,15,(b'Loaded app from partition at offset 0x110000',b'1.0.4-idf6.1',b'System ready'))
+    observed=all(x in baseline for x in (b'Loaded app from partition at offset 0x110000',b'1.0.4-idf6.1',b'System ready'))
+    fatal=any(x in baseline for x in (b'Guru Meditation Error',b'abort() was called',b'***ERROR***'))
+    return {'baseline_boot_observed':observed,'baseline_fatal_marker':fatal,'prime_capture_bytes':len(prime)},baseline
+
 def native_bond_entries(data):
     # Read-only SDK parser. Return counts only; never print or persist key data.
     sys.path.insert(0,str(ROOT.parent/'esp-idf/components/nvs_flash/nvs_partition_tool'))
@@ -58,9 +82,12 @@ def main():
     parser.add_argument('--keep-owned',action='store_true')
     parser.add_argument('--codec-only',action='store_true',help='Finite non-radio codec diagnostic, always return to the pinned baseline')
     parser.add_argument('--pipeline-only',action='store_true',help='Finite non-radio decoder/DSP/I2S diagnostic; always return to pinned baseline')
+    parser.add_argument('--finite-rf',action='store_true',help='Finite native controller/GAP/profile boot capture, then reset pending trial and verify baseline return')
     parser.add_argument('--baud',type=int,choices=(115200,230400,460800),default=230400,help='Verified flash transport rate; use a lower rate after a readback error')
     args=parser.parse_args()
     if args.pipeline_only:args.codec_only=True
+    if args.finite_rf and (args.kind!='probe' or args.keep_owned or args.codec_only):
+        raise RuntimeError('Finite RF mode requires an unconfirmed ordinary native probe')
     hold=HARDWARE/'HARDWARE_HOLD.json'
     if hold.exists() and json.loads(hold.read_text()).get('active',True):
         raise RuntimeError('ESP32 reserved by user: deployment/reset disabled; perform off-board builds/tests only')
@@ -76,6 +103,11 @@ def main():
     if not baud_match:raise RuntimeError('Console baud is missing from the actual build configuration')
     console_baud=int(baud_match.group(1))
     cache=(image_path.parent/'CMakeCache.txt').read_text()
+    if args.finite_rf:
+        if 'DBT_PROBE_KEEP_OWNED_ACTIVE:BOOL=ON' in cache:raise RuntimeError('Finite RF image must not confirm itself valid')
+        if '#define CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE 1' not in configuration:raise RuntimeError('Finite RF trial requires rollback-enabled build')
+        parity=json.loads((HARDWARE/'COM6-bootloader-code-parity.json').read_text())
+        if not parity.get('passed') or not parity.get('rollback_enabled_code_parity'):raise RuntimeError('Physical rollback bootloader parity is unproven')
     if ('DBT_PROBE_PIPELINE_DIAGNOSTIC:BOOL=ON' in cache)!=args.pipeline_only:
         raise RuntimeError('Pipeline diagnostic requires the matching explicit deployment mode')
     if ('DBT_PROBE_CODEC_DIAGNOSTIC_ONLY:BOOL=ON' in cache)!=args.codec_only:
@@ -84,7 +116,7 @@ def main():
         # Bind the bytes about to be written to a completed source/config build
         # and the actual preserved physical partition table before serial access.
         subprocess.run([sys.executable,str(ROOT/'tools/validate_local_image.py'),'--image',str(image_path)],check=True)
-    if args.codec_only and receipt.get('active_partition')!='ota_0':raise RuntimeError('Codec diagnostic requires the preserved baseline active in ota_0')
+    if (args.codec_only or args.finite_rf) and receipt.get('active_partition')!='ota_0':raise RuntimeError('Finite diagnostic requires the preserved baseline active in ota_0')
     if args.keep_owned and 'DBT_PROBE_KEEP_OWNED_ACTIVE:BOOL=ON' not in cache:raise RuntimeError('Candidate was not built to keep the owned host active')
     if args.keep_owned and '#define CONFIG_BOOTLOADER_APP_ANTI_ROLLBACK 1' in configuration:raise RuntimeError('No anti-rollback fuse changes are admitted')
     destination=HARDWARE/('COM6-pipeline-trial' if args.pipeline_only else 'COM6-codec-trial' if args.codec_only else 'COM6-owned-active' if args.keep_owned else 'COM6-'+args.kind+'-trial')
@@ -109,6 +141,8 @@ def main():
     report={'scope':scope,'console_baud':console_baud,
             'port':'COM6','backup_sha256':receipt['sha256'],'candidate_sha256':hashlib.sha256(candidate).hexdigest(),
             'candidate_elf_sha256':candidate[176:208].hex(),'transport_baud':args.baud,'writes':[],'write_attempts':[]}
+    if args.finite_rf:
+        report['scope']='Finite owned controller/HCI/GAP and optional diagnostic GATT startup; no pairing/profile/audio qualification'
     # Preserve the exact tested bytes and build-input receipts before a later
     # build can replace them. No NVS/full-flash backup is copied or published.
     archive=HARDWARE/'runs'/(str(time.time_ns())+'-'+report['candidate_sha256'][:12])
@@ -141,9 +175,13 @@ def main():
             if seq!=0xffffffff and crc==(binascii.crc32(row[:4],0xffffffff)&0xffffffff) and state not in (3,4):
                 sequences.append(seq);valid_sectors.append((seq,position))
         ota_apps=sorted([p for p in partitions if p['type']==0 and 16<=p['subtype']<32],key=lambda p:p['subtype'])
-        if args.codec_only:
+        if args.codec_only or args.finite_rf:
             if not valid_sectors or ota_apps[(max(valid_sectors)[0]-1)%len(ota_apps)]['name']!='ota_0':
                 raise RuntimeError('Live boot selection is not the admitted baseline')
+            if args.finite_rf:
+                selected_position=max(valid_sectors)[1]
+                if int.from_bytes(current[selected_position+24:selected_position+28],'little')!=2:
+                    raise RuntimeError('Finite RF trial requires a VALID baseline selector')
         target_index=next(i for i,p in enumerate(ota_apps) if p['name']=='ota_1')
         sequence=max(sequences,default=0)+1
         while (sequence-1)%len(ota_apps)!=target_index:sequence+=1
@@ -220,6 +258,9 @@ def main():
             '"probe":"controller_identified"' in text and '"probe":"gap_state","state":2,' in text)
         if audio_probe:report['boot_ready_marker']=report['boot_ready_marker'] and '"probe":"sbc_probe_ready"' in text
         if output_probe:report['boot_ready_marker']=report['boot_ready_marker'] and '"audio_sink_sdp_advertised":true' in text
+        if args.finite_rf and 'DBT_PROBE_GATT_TEST:BOOL=ON' in cache:
+            report['diagnostic_gatt_ready']='"probe":"gatt_probe_ready"' in text
+            report['boot_ready_marker']=report['boot_ready_marker'] and report['diagnostic_gatt_ready']
         if args.keep_owned:
             records=[]
             for line in text.splitlines():
@@ -269,7 +310,19 @@ def main():
     finally:
         if controller:
             try:
-                if not rebooted:controller.hard_reset()
+                selector_attempted=any(selector['offset']<=w['offset']<selector['offset']+selector['size'] for w in report['write_attempts'])
+                if args.finite_rf and selector_attempted:
+                    returned,baseline=return_pending_rf_trial(controller,console_baud,rebooted)
+                    report['finite_rf_return']=returned
+                    baseline_path=destination.with_name(destination.name+'-baseline.txt')
+                    baseline_path.write_text(baseline.decode('utf-8',errors='backslashreplace'),encoding='utf-8')
+                    shutil.copy2(baseline_path,archive/baseline_path.name)
+                    final_path=destination.with_suffix('.finite.json')
+                    final_path.write_text(json.dumps(report,indent=2)+'\n',encoding='utf-8');shutil.copy2(final_path,archive/final_path.name)
+                    print(json.dumps({'probe':'finite_rf_return',**returned,'run_archive':report['run_archive']},indent=2))
+                    if not returned['baseline_boot_observed'] or returned['baseline_fatal_marker']:
+                        raise RuntimeError('Finite RF baseline return was not cleanly observed; inspect captured result')
+                elif not rebooted:controller.hard_reset()
             finally:controller._port.close()
 
 if __name__=='__main__':main()
