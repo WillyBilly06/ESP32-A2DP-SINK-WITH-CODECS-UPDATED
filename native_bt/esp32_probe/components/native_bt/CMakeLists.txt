@@ -51,8 +51,11 @@ if(DBT_PROBE_AUDIO_STAGE_PROFILE)
 endif()
 
 # Profiled 192 kHz rendering exceeds its frame budget in both FIR and DSP.
-# Optimize only these integer hot files; retain the SDK's other build policies.
-foreach(audio_hot_source "../../../src/dbt_audio.c" "../../../src/dbt_resampler.c" "../../../../bt_audio_sink/main/dsp/fixed_dsp.c")
+# Conversion/FIR improved at O3. Controlled identical-input target runs show
+# Os is faster for the DSP kernel, so give each measured path its own policy.
+foreach(audio_hot_source "../../../src/dbt_audio.c" "../../../src/dbt_resampler.c")
     get_filename_component(audio_hot_absolute "${CMAKE_CURRENT_LIST_DIR}/${audio_hot_source}" ABSOLUTE)
     set_property(SOURCE "${audio_hot_absolute}" APPEND PROPERTY COMPILE_OPTIONS "-O3")
 endforeach()
+get_filename_component(fixed_dsp_source "${CMAKE_CURRENT_LIST_DIR}/../../../../bt_audio_sink/main/dsp/fixed_dsp.c" ABSOLUTE)
+set_property(SOURCE "${fixed_dsp_source}" APPEND PROPERTY COMPILE_OPTIONS "-Os")

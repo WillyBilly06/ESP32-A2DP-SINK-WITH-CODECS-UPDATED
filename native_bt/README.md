@@ -185,3 +185,7 @@ master objective are incomplete.
 The [render-stage profile](docs/IDF61_RENDER_PROFILE_2026_11_04.md) records the exact O3/FIR checks and observed
 conversion improvement. DSP remains the main throughput bottleneck; the
 maximum-rate fixture still fails before DMA playback starts.
+
+The [controlled DSP comparison](docs/IDF61_DSP_VARIANTS_2026_11_04.md) compares identical Os/O3 input and
+state on COM6. Os is selected for DSP after 18 matching, faster case pairs;
+conversion/resampling retains O3. The maximum-rate pipeline remains unqualified.
