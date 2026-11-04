@@ -42,6 +42,31 @@ def return_pending_rf_trial(controller,console_baud,rebooted):
     fatal=any(x in baseline for x in (b'Guru Meditation Error',b'abort() was called',b'***ERROR***'))
     return {'baseline_boot_observed':observed,'baseline_fatal_marker':fatal,'prime_capture_bytes':len(prime)},baseline
 
+class PairingButtonHold:
+    """Explicit COM6 fixture action: DTR/BOOT only, never RTS/EN.
+
+    Advances in the capture loop, so UART continues draining during the hold.
+    Line levels are transport evidence, not proof of an actual GPIO gesture.
+    """
+    def __init__(self,port):
+        self.port=port;self.active=False;self.done=False;self.until=0
+        self.report={'requested':True,'started_after_ready':False,'released':False,
+                     'requested_hold_seconds':3.5,'physical_gesture_verified':False}
+    def step(self,boot,now):
+        if self.done:return
+        if not self.active:
+            if not all(x in boot for x in (b'classic_security_probe_ready',b'gatt_probe_ready')):return
+            if self.port.rts or self.port.dtr:raise RuntimeError('Pairing fixture requires both modem lines inactive; refusing an ambiguous reset state')
+            self.port.dtr=True;self.active=True;self.until=now+3.5
+            self.report['started_after_ready']=True
+            print('Pairing fixture: holding DTR/BOOT, RTS/EN remains inactive',flush=True)
+        elif now>=self.until:
+            self.release();self.done=True
+            print('Pairing fixture: DTR/BOOT released',flush=True)
+    def release(self):
+        if self.active:
+            self.port.dtr=False;self.active=False;self.report['released']=True
+
 def native_bond_entries(data):
     # Read-only SDK parser. Return counts only; never print or persist key data.
     sys.path.insert(0,str(ROOT.parent/'esp-idf/components/nvs_flash/nvs_partition_tool'))
@@ -83,12 +108,15 @@ def main():
     parser.add_argument('--codec-only',action='store_true',help='Finite non-radio codec diagnostic, always return to the pinned baseline')
     parser.add_argument('--pipeline-only',action='store_true',help='Finite non-radio decoder/DSP/I2S diagnostic; always return to pinned baseline')
     parser.add_argument('--finite-rf',action='store_true',help='Finite native controller/GAP/profile boot capture, then reset pending trial and verify baseline return')
+    parser.add_argument('--press-pairing-button',action='store_true',help='Explicit COM6 fixture: after native readiness hold DTR/BOOT for 3.5 seconds without toggling RTS/EN; finite RF only')
     parser.add_argument('--rf-seconds',type=int,choices=(15,60,120,180),default=15,help='Bounded finite-RF interaction window; baseline return follows')
     parser.add_argument('--baud',type=int,choices=(115200,230400,460800),default=230400,help='Verified flash transport rate; use a lower rate after a readback error')
     args=parser.parse_args()
     if args.pipeline_only:args.codec_only=True
     if args.finite_rf and (args.kind!='probe' or args.keep_owned or args.codec_only):
         raise RuntimeError('Finite RF mode requires an unconfirmed ordinary native probe')
+    if args.press_pairing_button and (not args.finite_rf or args.rf_seconds<60):
+        raise RuntimeError('The local pairing fixture requires a finite RF window of at least 60 seconds')
     hold=HARDWARE/'HARDWARE_HOLD.json'
     if hold.exists() and json.loads(hold.read_text()).get('active',True):
         raise RuntimeError('ESP32 reserved by user: deployment/reset disabled; perform off-board builds/tests only')
@@ -104,6 +132,10 @@ def main():
     if not baud_match:raise RuntimeError('Console baud is missing from the actual build configuration')
     console_baud=int(baud_match.group(1))
     cache=(image_path.parent/'CMakeCache.txt').read_text()
+    if args.press_pairing_button:
+        compiled=json.loads((image_path.parent/'compile_commands.json').read_text())
+        if 'DBT_PROBE_PRODUCT_SECURITY:BOOL=ON' not in cache or not any(Path(x['file']).name=='probe_pair_button.c' for x in compiled):
+            raise RuntimeError('The pairing fixture requires the actual product-security GPIO0 consent module')
     if args.finite_rf:
         if 'DBT_PROBE_KEEP_OWNED_ACTIVE:BOOL=ON' in cache:raise RuntimeError('Finite RF image must not confirm itself valid')
         if '#define CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE 1' not in configuration:raise RuntimeError('Finite RF trial requires rollback-enabled build')
@@ -132,7 +164,7 @@ def main():
         raise RuntimeError('Trial image does not fit the admitted inactive slot')
     usb=[p for p in serial.tools.list_ports.comports() if p.device=='COM6' and p.serial_number==receipt['usb_serial']]
     if len(usb)!=1:raise RuntimeError('Speaker USB identity changed')
-    controller=None;rebooted=False
+    controller=None;rebooted=False;button_hold=None
     audio_probe=args.kind=='probe' and 'DBT_PROBE_AUDIO_TEST:BOOL=ON' in (image_path.parent/'CMakeCache.txt').read_text()
     output_probe=audio_probe and 'DBT_PROBE_AUDIO_OUTPUT:BOOL=ON' in (image_path.parent/'CMakeCache.txt').read_text()
     scope='Bluedroid audio application trial' if args.kind=='audio' else (
@@ -205,6 +237,8 @@ def main():
         if not report['original_application_preserved']:raise RuntimeError('Original application verification failed')
         controller._port.baudrate=console_baud
         controller.hard_reset();rebooted=True
+        if args.press_pairing_button:
+            button_hold=PairingButtonHold(controller._port);report['pairing_button_fixture']=button_hold.report
         boot=bytearray();deadline=time.monotonic()+(25 if args.codec_only else args.rf_seconds if args.finite_rf else 15)
         boot_limit=262144 if args.finite_rf else 65536
         controller._port.timeout=0.2
@@ -213,8 +247,12 @@ def main():
             while time.monotonic()<deadline and len(boot)<boot_limit:
                 chunk=controller._port.read(min(4096,boot_limit-len(boot)));boot.extend(chunk)
                 if chunk:live.write(chunk.decode('utf-8',errors='backslashreplace'));live.flush()
+                if button_hold:button_hold.step(boot,time.monotonic())
                 if args.codec_only and b'codec_diagnostic_return' in boot and b'Loaded app from partition at offset 0x110000' in boot and b'System ready' in boot:
                     break
+        if button_hold:
+            button_hold.release()
+            if not button_hold.done:raise RuntimeError('Pairing fixture did not complete; no GPIO consent proof')
         destination.with_suffix('.bin').write_bytes(boot)
         text=boot.decode('utf-8',errors='backslashreplace')
         destination.with_suffix('.txt').write_text(text,encoding='utf-8')
@@ -313,6 +351,12 @@ def main():
         shutil.copy2(failure,archive/failure.name)
         raise
     finally:
+        release_error=None
+        if button_hold:
+            try:button_hold.release()
+            except Exception as error:
+                release_error=error
+                report['pairing_button_release_error']=str(error)
         if controller:
             try:
                 selector_attempted=any(selector['offset']<=w['offset']<selector['offset']+selector['size'] for w in report['write_attempts'])
@@ -329,5 +373,6 @@ def main():
                         raise RuntimeError('Finite RF baseline return was not cleanly observed; inspect captured result')
                 elif not rebooted:controller.hard_reset()
             finally:controller._port.close()
+        if release_error:raise RuntimeError('Pairing fixture release failed; inspect line/device state') from release_error
 
 if __name__=='__main__':main()

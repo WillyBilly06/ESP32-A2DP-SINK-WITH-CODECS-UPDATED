@@ -36,6 +36,7 @@
 #include "probe_admission.h"
 #include "probe_restart.h"
 #include "probe_reset_dispatch.h"
+#include "probe_pair_button.h"
 #endif
 #endif
 #ifdef DBT_PROBE_AVRCP
@@ -543,6 +544,7 @@ void app_main(void) {
     vTaskPrioritySet(owner, 6);
 #ifdef DBT_PROBE_PRODUCT_SECURITY
     if(!probe_reset_dispatch_init(owner))owner_fault_park("core-0 restart timer initialization");
+    if(!probe_pair_button_init(owner))owner_fault_park("local pairing button initialization");
 #endif
     dbt_transport_t transport = { 0, transport_ready, transport_send };
     dbt_runtime_hooks_t hooks = {0};
@@ -737,6 +739,7 @@ void app_main(void) {
         }
 #endif
 #ifdef DBT_PROBE_PRODUCT_SECURITY
+        if(probe_pair_button_poll(now) && runtime.ready)probe_admission_open(now);
         probe_admission_poll(now);
 #endif
 #ifdef DBT_PROBE_GATT_TEST
@@ -920,6 +923,7 @@ void app_main(void) {
 #endif
 #ifdef DBT_PROBE_PRODUCT_SECURITY
         if(probe_restart_active(&product_restart) && wait>10)wait=10;
+        {uint32_t button_wait=probe_pair_button_wait_ms(now_ms());if(button_wait<wait)wait=button_wait;}
 #endif
 #ifdef DBT_PROBE_RFCOMM
         {uint32_t rfcomm_wait=probe_rfcomm_wait_ms(now_ms());if(rfcomm_wait<wait)wait=rfcomm_wait;}

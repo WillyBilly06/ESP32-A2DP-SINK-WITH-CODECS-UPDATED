@@ -30,6 +30,27 @@ assert not result['baseline_boot_observed'] and b'System ready' not in capture
 c=Controller(fatal=True)
 with patch.object(module.time,'monotonic',Clock()):result,capture=module.return_pending_rf_trial(c,115200,True)
 assert result['baseline_boot_observed'] and result['baseline_fatal_marker']
+class Lines:
+    def __init__(self,rts=False,dtr=False):self.rts=rts;self._dtr=dtr;self.writes=[]
+    @property
+    def dtr(self):return self._dtr
+    @dtr.setter
+    def dtr(self,value):self.writes.append(value);self._dtr=value
+ready=b'classic_security_probe_ready\ngatt_probe_ready\n'
+lines=Lines();hold=module.PairingButtonHold(lines)
+hold.step(b'classic_security_probe_ready',1);assert not lines.writes
+hold.step(ready,2);assert lines.writes==[True] and hold.active and not hold.done and not lines.rts
+hold.step(ready,5.49);assert lines.writes==[True]
+hold.step(ready,5.5);assert lines.writes==[True,False] and hold.done and hold.report['released']
+hold.step(ready,100);hold.release();assert lines.writes==[True,False] and not hold.report['physical_gesture_verified']
+for rts,dtr in ((True,False),(False,True),(True,True)):
+ lines=Lines(rts,dtr);hold=module.PairingButtonHold(lines)
+ try:hold.step(ready,0)
+ except RuntimeError:pass
+ else:raise AssertionError('Active modem line admitted')
+ assert not lines.writes
+lines=Lines();hold=module.PairingButtonHold(lines);hold.step(ready,0);hold.release();hold.release()
+assert lines.writes==[True,False] and not hold.done
 out=ROOT/'_build/finite_rf';out.mkdir(exist_ok=True)
-(out/'results.json').write_text(json.dumps({'passed':True,'cases':4,'scope':'actual capture/return helper with fake serial, resets and clock; stale capture cleared, markers required, timeout/fatal detected; no hardware','hardware_accessed':False},indent=2)+'\n')
+(out/'results.json').write_text(json.dumps({'passed':True,'cases':9,'scope':'actual capture/return and explicit BOOT fixture helper with fake serial/lines/reset/clock; fresh markers, timeout/fatal, complete readiness, one finite DTR hold, reject active lines and early release; no hardware','hardware_accessed':False},indent=2)+'\n')
 print('PASS finite RF return marker, stale epoch, pending prime, timeout and fatal checks; host only')
