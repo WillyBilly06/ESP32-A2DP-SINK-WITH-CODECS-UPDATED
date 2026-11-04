@@ -196,6 +196,9 @@ static void run(void *unused){
         (unsigned)active.running,(unsigned)active.failed,(unsigned)active.accepted_frames,(unsigned)active.rendered_frames,
         (unsigned)active.dma_source_frames,(unsigned)active.dma_eofs,(unsigned)active.underrun_frames,
         (unsigned)active.descriptor_errors,(unsigned)active.max_eof_gap_us,(unsigned)active.ready_frames,(unsigned)active.input_ready_frames);
+    printf("{\"probe\":\"pipeline_allocation\",\"failed_bytes\":%u,\"failure_free\":%u,\"failure_largest\":%u,\"page_bytes\":%u}\n",
+        (unsigned)active.allocation_failed_bytes,(unsigned)active.allocation_failure_free,(unsigned)active.allocation_failure_largest,
+        (unsigned)(DBT_AUDIO_OUTPUT_PAGE_FRAMES*8u));
     printf("{\"probe\":\"target_pipeline_selftest\",\"passed\":%s,\"configured\":%s,\"started\":%s,\"stream_result\":%u,\"correctness\":%s,\"continuity\":%s,\"rate\":192000,\"sample_depth\":24,\"channels\":2,\"encoded_payload_bps\":1001600,\"packets\":%u,\"completed_packets\":%u,\"sample_frames\":%u,\"pcm_hash\":%u,\"synthetic_source\":true,\"integer_dsp\":true,\"i2s_test\":true,\"rf_test\":false,\"production_qualified\":false}\n",
         pipeline.passed?"true":"false",configured?"true":"false",started?"true":"false",(unsigned)start_result,
         correctness?"true":"false",continuity?"true":"false",supplied,completed,(unsigned)pipeline.frames,(unsigned)pipeline.hash);

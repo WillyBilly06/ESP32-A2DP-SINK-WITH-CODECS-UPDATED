@@ -6,6 +6,7 @@ typedef struct {
     uint32_t dma_eofs,dma_source_frames,underrun_frames,descriptor_errors,max_eof_gap_us;
     uint32_t maximum_render_us,stop_fill_frames;
     uint32_t render_total_us,render_calls,render_stack_low_water_bytes;
+    uint32_t allocation_failed_bytes,allocation_failure_free,allocation_failure_largest;
     uint32_t first_underrun_accepted_frames,first_underrun_dma_frames;
     int32_t clock_ppm,clock_observed_ppm,clock_error_frames;
     uint32_t clock_state,clock_target_frames,clock_updates,clock_disturbances;

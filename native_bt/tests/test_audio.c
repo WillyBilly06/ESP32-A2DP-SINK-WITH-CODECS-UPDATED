@@ -30,25 +30,25 @@ static bool fixture(dbt_pcm_format_t format,uint8_t channels){
 static void put(uint8_t *p,int32_t value,unsigned width){for(unsigned i=0;i<width;++i)p[i]=(uint8_t)((uint32_t)value>>(i*8));}
 /* Model the measured ESP32 constraint: plenty of total SRAM, but no allocation
  * above 32 KiB. No allocator fallback/retry is permitted. */
-static uint64_t page_storage[9][4096];
-static bool page_used[9];
+static uint64_t page_storage[DBT_AUDIO_OUTPUT_PAGES+1u][4096];
+static bool page_used[DBT_AUDIO_OUTPUT_PAGES+1u];
 static unsigned page_calls,page_releases,page_fail,page_errors;
 static uint8_t *page_allocate(void *context,uint32_t bytes){
     (void)context;++page_calls;
     if(page_calls==page_fail || bytes>sizeof(page_storage[0]))return 0;
-    for(unsigned i=0;i<9;++i)if(!page_used[i]){page_used[i]=true;return (uint8_t *)page_storage[i];}
+    for(unsigned i=0;i<DBT_AUDIO_OUTPUT_PAGES+1u;++i)if(!page_used[i]){page_used[i]=true;return (uint8_t *)page_storage[i];}
     return 0;
 }
 static void page_release(void *context,uint8_t *bytes){
     (void)context;
-    for(unsigned i=0;i<9;++i)if(bytes==(uint8_t *)page_storage[i]){
+    for(unsigned i=0;i<DBT_AUDIO_OUTPUT_PAGES+1u;++i)if(bytes==(uint8_t *)page_storage[i]){
         if(!page_used[i])++page_errors;
         page_used[i]=false;++page_releases;return;
     }
     ++page_errors;
 }
 static void page_reset(unsigned fail){
-    for(unsigned i=0;i<9;++i)page_used[i]=false;
+    for(unsigned i=0;i<DBT_AUDIO_OUTPUT_PAGES+1u;++i)page_used[i]=false;
     page_calls=page_releases=page_errors=0;page_fail=fail;
 }
 static void page_mix(void *context,int32_t *pcm,uint32_t frames){
@@ -58,11 +58,11 @@ static void page_mix(void *context,int32_t *pcm,uint32_t frames){
 EXPORT int test_audio_paged_ring_capacity_wrap_mix_and_oom(void){
     static dbt_audio_t a;dbt_audio_memory_t memory={0,page_allocate,page_release};
     dbt_audio_config_t config={192000,4096,32768,12288,DBT_PCM_S32_LE,2,true};
-    for(unsigned fail=1;fail<=9;++fail){
+    for(unsigned fail=1;fail<=DBT_AUDIO_OUTPUT_PAGES+1u;++fail){
         page_reset(fail);CHECK(dbt_audio_init(&a,memory)==DBT_OK);
         CHECK(dbt_audio_open(&a,config)==DBT_NO_SPACE && !a.opened && !a.allocated_bytes && !a.input.bytes && !a.output.bytes);
         CHECK(page_calls==fail && page_releases==fail-1u && !page_errors);
-        for(unsigned i=0;i<9;++i)CHECK(!page_used[i]);
+        for(unsigned i=0;i<DBT_AUDIO_OUTPUT_PAGES+1u;++i)CHECK(!page_used[i]);
         for(unsigned i=0;i<DBT_AUDIO_OUTPUT_PAGES;++i)CHECK(!a.output_pages[i]);
     }
     for(uint32_t size=4096;size<=32768;size*=2){
@@ -82,7 +82,7 @@ EXPORT int test_audio_paged_ring_capacity_wrap_mix_and_oom(void){
         int32_t silence[4]={1,1,1,1};CHECK(dbt_audio_take(&a,silence,2)==0);
         CHECK(!silence[0] && !silence[1] && !silence[2] && !silence[3] && atomic_load(&a.zero_frames)==2);
         dbt_audio_close(&a);CHECK(page_releases==page_calls && !page_errors);
-        for(unsigned i=0;i<9;++i)CHECK(!page_used[i]);
+        for(unsigned i=0;i<DBT_AUDIO_OUTPUT_PAGES+1u;++i)CHECK(!page_used[i]);
     }
     return 0;
 }

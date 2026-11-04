@@ -88,6 +88,7 @@ typedef struct {
       descriptor_errors, max_eof_gap_us;
   _Atomic uint32_t maximum_render_us, stop_fill_frames;
   _Atomic uint32_t render_total_us,render_calls;
+  _Atomic uint32_t allocation_failed_bytes,allocation_failure_free,allocation_failure_largest;
   _Atomic uint32_t first_underrun_accepted_frames, first_underrun_dma_frames;
 } output_t;
 static DRAM_ATTR output_t output;
@@ -99,7 +100,15 @@ static void notify_sound(void){
 #endif
 static uint8_t *allocate(void *context, uint32_t bytes) {
   (void)context;
-  return heap_caps_malloc(bytes, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+  uint8_t *p=heap_caps_malloc(bytes, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+  if(!p){
+    atomic_store(&output.allocation_failed_bytes,bytes);
+#ifdef ESP_PLATFORM
+    atomic_store(&output.allocation_failure_free,heap_caps_get_free_size(MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT));
+    atomic_store(&output.allocation_failure_largest,heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT));
+#endif
+  }
+  return p;
 }
 static void release(void *context, uint8_t *bytes) {
   (void)context;
@@ -297,6 +306,9 @@ static dbt_result_t start_output(uint32_t rate, uint8_t channels,
                                  dbt_pcm_format_t format) {
   if (output.active)
     return DBT_BUSY;
+  atomic_store(&output.allocation_failed_bytes,0);
+  atomic_store(&output.allocation_failure_free,0);
+  atomic_store(&output.allocation_failure_largest,0);
   uint32_t target = (rate * 64u + 999u) / 1000u;
   dbt_audio_config_t config = {
       rate,
@@ -848,6 +860,9 @@ void probe_output_stats(probe_output_stats_t *s) {
   LOAD(maximum_render_us);
   LOAD(render_total_us);
   LOAD(render_calls);
+  LOAD(allocation_failed_bytes);
+  LOAD(allocation_failure_free);
+  LOAD(allocation_failure_largest);
   LOAD(stop_fill_frames);
   LOAD(first_underrun_accepted_frames);
   LOAD(first_underrun_dma_frames);

@@ -203,7 +203,8 @@ static inline __attribute__((always_inline)) int32_t *output_frame(const dbt_aud
 }
 static void apply_mix(dbt_audio_t *a,uint32_t out,uint32_t count){
     if(!a->mix || !count)return;
-    /* At most nine spans for the maximum legal ring, including one wrap. */
+    /* At most 65 spans for the maximum legal ring, including one wrap. Normal
+     * render units are <=128 frames and therefore cross at most one boundary. */
     while(count){
         uint32_t slot=out&a->output.mask;
         uint32_t first=DBT_AUDIO_OUTPUT_PAGE_FRAMES-(slot&(DBT_AUDIO_OUTPUT_PAGE_FRAMES-1u));
