@@ -18,6 +18,9 @@ typedef struct {
     uint32_t sizes[4],live,allocations,releases,errors,decodes,resumes,resets,pcm_calls,pcm_frames;
     bool used[4],busy,pcm_failure,reset_failure;
     int16_t output[4096*2];uint32_t timestamps[4096];
+    uint32_t ticket,next_ticket,begins,polls,cancels;
+    bool begin_busy,async_done,async_cancel,async_start,output_active;
+    dbt_result_t async_result;
 } fixture_t;
 static fixture_t f;
 static uint8_t *allocate(void *context,uint32_t bytes){
@@ -82,7 +85,7 @@ static dbt_result_t stream(void *context,bool start,const dbt_codec_config_t *co
 static const dbt_codec_ops_t codec={"deferred ownership model",configure,open_model,close_model,reset_model,media_model,0,resume_model,0};
 static const dbt_codec_ops_t *const codecs[]={&codec};
 static bool setup(void){
-    zero(&f,sizeof(f));dbt_codec_worker_hooks_t hooks={{&f,allocate,release,output},codecs,1,0,0,stream,true};
+    zero(&f,sizeof(f));dbt_codec_worker_hooks_t hooks={{&f,allocate,release,output},codecs,1,0,0,stream,true,{0}};
     return dbt_codec_worker_init(&f.worker,hooks,64,2)==DBT_OK;
 }
 static dbt_result_t submit(dbt_sink_operation_t op){
@@ -149,5 +152,90 @@ EXPORT int test_codec_deferred_deadline_and_failure_retirement(void){
         CHECK(!dbt_codec_worker_runnable(&f.worker) && packet(bytes,2,600)==DBT_BUSY);
         CHECK(control(DBT_SINK_DROP) && !f.live && !f.errors);
     }
+    return 0;
+}
+static dbt_result_t async_begin(void *context,bool start,const dbt_codec_config_t *config,uint32_t *ticket){
+    fixture_t *p=context;(void)config;*ticket=0;
+    if(p->begin_busy || p->ticket)return DBT_BUSY;
+    ++p->begins;p->ticket=++p->next_ticket;p->async_start=start;p->async_done=p->async_cancel=false;
+    *ticket=p->ticket;return DBT_PENDING;
+}
+static dbt_result_t async_poll(void *context,uint32_t ticket){
+    fixture_t *p=context;++p->polls;
+    if(ticket!=p->ticket || !ticket)return DBT_INVALID;
+    if(!p->async_done)return DBT_PENDING;
+    dbt_result_t result=p->async_cancel?DBT_CANCELLED:p->async_result;
+    if(result==DBT_OK)p->output_active=p->async_start;
+    if(result==DBT_CANCELLED)p->output_active=false;
+    p->ticket=0;return result;
+}
+static dbt_result_t async_cancel(void *context,uint32_t ticket){
+    fixture_t *p=context;if(!ticket || ticket!=p->ticket)return DBT_INVALID;
+    ++p->cancels;p->async_cancel=true;return DBT_PENDING;
+}
+static bool setup_async(void){
+    zero(&f,sizeof(f));dbt_codec_worker_hooks_t hooks={{&f,allocate,release,output},codecs,1,0,0,0,true,{async_begin,async_poll,async_cancel}};
+    return dbt_codec_worker_init(&f.worker,hooks,64,2)==DBT_OK && control(DBT_SINK_CONFIGURE);
+}
+static bool complete_async(dbt_sink_operation_t op,uint32_t now){
+    if(submit(op)!=DBT_OK)return false;
+    dbt_codec_worker_step(&f.worker,now,0);if(!f.ticket)return false;
+    f.async_result=DBT_OK;f.async_done=true;dbt_codec_worker_step(&f.worker,now+1u,0);
+    dbt_codec_receipt_t receipt;
+    return dbt_codec_worker_receipt(&f.worker,&receipt)==DBT_OK && receipt.result==DBT_SINK_WORK_READY;
+}
+EXPORT int test_codec_async_stream_completion_and_media_fence(void){
+    CHECK(setup_async() && submit(DBT_SINK_START)==DBT_OK);
+    CHECK(!dbt_codec_worker_step(&f.worker,0,2) && f.begins==1 && !f.worker.streaming);
+    dbt_codec_receipt_t receipt;CHECK(dbt_codec_worker_receipt(&f.worker,&receipt)==DBT_EMPTY);
+    uint32_t when;CHECK(!dbt_codec_worker_runnable(&f.worker) && dbt_codec_worker_deadline(&f.worker,&when) && when==1500);
+    uint8_t bytes[]={4,1};CHECK(packet(bytes,1,0)==DBT_BUSY);
+    f.async_result=DBT_OK;f.async_done=true;CHECK(!dbt_codec_worker_step(&f.worker,10,0));
+    CHECK(dbt_codec_worker_receipt(&f.worker,&receipt)==DBT_OK && receipt.result==DBT_SINK_WORK_READY && f.output_active);
+    CHECK(packet(bytes,1,0)==DBT_OK && dbt_codec_worker_step(&f.worker,11,1)==1 && f.worker.pending_pcm);
+    unsigned calls=f.pcm_calls;
+    CHECK(submit(DBT_SINK_SUSPEND)==DBT_OK && !dbt_codec_worker_step(&f.worker,12,4) && f.pcm_calls==calls);
+    CHECK(dbt_codec_worker_receipt(&f.worker,&receipt)==DBT_EMPTY && f.worker.pending_pcm);
+    f.async_result=DBT_OK;f.async_done=true;dbt_codec_worker_step(&f.worker,13,4);
+    CHECK(dbt_codec_worker_receipt(&f.worker,&receipt)==DBT_OK && receipt.result==DBT_SINK_WORK_READY && !f.worker.pending_pcm && !f.output_active);
+    CHECK(complete_async(DBT_SINK_DROP,14) && !f.live && !f.errors);
+    return 0;
+}
+EXPORT int test_codec_async_stream_cancel_before_drop(void){
+    CHECK(setup_async() && submit(DBT_SINK_START)==DBT_OK);
+    dbt_codec_worker_step(&f.worker,0,0);CHECK(f.ticket && f.begins==1);
+    CHECK(submit(DBT_SINK_DROP)==DBT_OK);dbt_codec_worker_step(&f.worker,1,0);
+    dbt_codec_receipt_t receipt;CHECK(f.cancels==1 && dbt_codec_worker_receipt(&f.worker,&receipt)==DBT_EMPTY && f.live);
+    f.async_done=true;dbt_codec_worker_step(&f.worker,2,0);
+    CHECK(dbt_codec_worker_receipt(&f.worker,&receipt)==DBT_OK && receipt.result==DBT_SINK_WORK_REJECTED);
+    CHECK(f.begins==2 && f.ticket && !f.output_active && !f.worker.streaming && f.live);
+    CHECK(dbt_codec_worker_receipt(&f.worker,&receipt)==DBT_EMPTY);
+    f.async_result=DBT_OK;f.async_done=true;dbt_codec_worker_step(&f.worker,3,0);
+    CHECK(dbt_codec_worker_receipt(&f.worker,&receipt)==DBT_OK && receipt.result==DBT_SINK_WORK_READY && !f.live && !f.errors);
+    return 0;
+}
+EXPORT int test_codec_async_stream_deadline_and_receipt_reservation(void){
+    CHECK(setup_async());f.begin_busy=true;CHECK(submit(DBT_SINK_START)==DBT_OK);
+    dbt_codec_worker_step(&f.worker,0,0);CHECK(!f.ticket && !dbt_codec_worker_runnable(&f.worker));
+    dbt_codec_worker_step(&f.worker,1500,0);CHECK(atomic_load(&f.worker.faults)==1);
+    uint32_t when;CHECK(!dbt_codec_worker_deadline(&f.worker,&when) && !f.ticket && !f.begins);
+    dbt_codec_receipt_t receipt;
+    CHECK(dbt_codec_worker_receipt(&f.worker,&receipt)==DBT_OK && receipt.result==DBT_SINK_WORK_FATAL);
+    f.begin_busy=false;CHECK(complete_async(DBT_SINK_DROP,1501) && !f.live);
+    CHECK(setup_async() && submit(DBT_SINK_START)==DBT_OK);dbt_codec_worker_step(&f.worker,0,0);
+    CHECK(f.ticket);dbt_codec_worker_step(&f.worker,1500,0);
+    CHECK(f.cancels==1 && atomic_load(&f.worker.faults)==1 && f.live && !dbt_codec_worker_deadline(&f.worker,&when));
+    f.async_done=true;dbt_codec_worker_step(&f.worker,1501,0);
+    CHECK(dbt_codec_worker_receipt(&f.worker,&receipt)==DBT_OK && receipt.result==DBT_SINK_WORK_REJECTED);
+    CHECK(complete_async(DBT_SINK_DROP,1502) && !f.live);
+    CHECK(setup_async());
+    for(unsigned i=0;i<4;++i)CHECK(submit(DBT_SINK_OPEN)==DBT_OK);
+    dbt_codec_worker_step(&f.worker,0,0);CHECK(submit(DBT_SINK_START)==DBT_OK);
+    dbt_codec_worker_step(&f.worker,1,0);CHECK(!f.begins);
+    CHECK(dbt_codec_worker_receipt(&f.worker,&receipt)==DBT_OK);dbt_codec_worker_step(&f.worker,2,0);CHECK(f.begins==1);
+    for(unsigned i=0;i<3;++i)CHECK(dbt_codec_worker_receipt(&f.worker,&receipt)==DBT_OK);
+    f.async_result=DBT_OK;f.async_done=true;dbt_codec_worker_step(&f.worker,3,0);
+    CHECK(dbt_codec_worker_receipt(&f.worker,&receipt)==DBT_OK && receipt.result==DBT_SINK_WORK_READY);
+    CHECK(complete_async(DBT_SINK_DROP,4) && !f.live && !f.errors);
     return 0;
 }

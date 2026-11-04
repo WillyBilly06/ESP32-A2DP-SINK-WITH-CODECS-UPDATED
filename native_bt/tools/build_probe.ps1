@@ -1,4 +1,4 @@
-param([switch]$DeferredCodecCheck,[switch]$LhdcStageProfile,[switch]$LhdcMaximumCheck,[switch]$CodecDiagnosticOnly,[switch]$WithProductIo,[switch]$WithProductSecurity,[switch]$WithRfcomm,[switch]$WithLhdc,[switch]$WithOpus,[switch]$WithAac,[switch]$WithAptx,[switch]$WithLdac,[switch]$WithSmp,[switch]$WithAvrcp,[switch]$WithSbc,[switch]$WithAudioProbe,[switch]$WithAudioOutput,[switch]$WithGatt,[switch]$WithClassicSecurity,[switch]$TraceIngress,[switch]$WithoutRxFlow,[switch]$KeepOwned=$true,[string]$TestPeer='',[string]$LhdcSourceDir='')
+param([switch]$AsyncAudio,[switch]$DeferredCodecCheck,[switch]$LhdcStageProfile,[switch]$LhdcMaximumCheck,[switch]$CodecDiagnosticOnly,[switch]$WithProductIo,[switch]$WithProductSecurity,[switch]$WithRfcomm,[switch]$WithLhdc,[switch]$WithOpus,[switch]$WithAac,[switch]$WithAptx,[switch]$WithLdac,[switch]$WithSmp,[switch]$WithAvrcp,[switch]$WithSbc,[switch]$WithAudioProbe,[switch]$WithAudioOutput,[switch]$WithGatt,[switch]$WithClassicSecurity,[switch]$TraceIngress,[switch]$WithoutRxFlow,[switch]$KeepOwned=$true,[string]$TestPeer='',[string]$LhdcSourceDir='')
 $ErrorActionPreference = 'Stop'
 if ($DeferredCodecCheck -and -not $CodecDiagnosticOnly) { throw 'Deferred codec check requires -CodecDiagnosticOnly' }
 if ($LhdcStageProfile -and -not $LhdcMaximumCheck) { throw 'Stage profiling requires -LhdcMaximumCheck' }
@@ -11,6 +11,7 @@ if ($CodecDiagnosticOnly) {
 if ($WithProductIo) { $WithProductSecurity=$true; $WithSmp=$true; $WithGatt=$true; $WithAudioOutput=$true; $WithAvrcp=$true; $WithClassicSecurity=$true }
 if ($WithRfcomm) { $WithClassicSecurity=$true }
 if ($WithAudioOutput) { $WithAudioProbe = $true }
+if ($AsyncAudio -and -not $WithAudioOutput) { throw 'Async audio requires -WithAudioOutput or -WithProductIo' }
 if ($WithAudioProbe -and -not $WithClassicSecurity) { throw 'The SBC diagnostic requires -WithClassicSecurity and the exact test peer' }
 if ($WithAudioProbe) { $WithSbc = $true }
 if ($TraceIngress -and -not $WithClassicSecurity) {
@@ -70,6 +71,7 @@ $disableReceiveFlow = if ($WithoutRxFlow) { 'ON' } else { 'OFF' }
 $keepOwnedBuild = if ($KeepOwned) { 'ON' } else { 'OFF' }
 $codecDiagnosticBuild = if ($CodecDiagnosticOnly) { 'ON' } else { 'OFF' }
 $deferredCodecBuild = if ($DeferredCodecCheck) { 'ON' } else { 'OFF' }
+$asyncAudioBuild = if ($AsyncAudio) { 'ON' } else { 'OFF' }
 $lhdcMaxBuild = if ($LhdcMaximumCheck) { 'ON' } else { 'OFF' }
 $lhdcStageBuild = if ($LhdcStageProfile) { 'ON' } else { 'OFF' }
 $peerBytes = '0,0,0,0,0,0'
@@ -82,6 +84,7 @@ $idfArguments=@('--ccache','-C',$probeRoot,'-B',$buildRoot,"-DDBT_PROBE_PRODUCT_
 if ($LhdcSourceDir) { $idfArguments += "-DLHDCV5_SOURCE_DIR=$LhdcSourceDir" }
 $idfArguments += "-DDBT_PROBE_CODEC_DIAGNOSTIC_ONLY=$codecDiagnosticBuild"
 $idfArguments += "-DDBT_PROBE_DEFERRED_CODEC_CHECK=$deferredCodecBuild"
+$idfArguments += "-DDBT_PROBE_ASYNC_AUDIO=$asyncAudioBuild"
 $idfArguments += "-DDBT_PROBE_LHDC_MAX_CHECK=$lhdcMaxBuild"
 $idfArguments += "-DDBT_PROBE_LHDC_STAGE_PROFILE=$lhdcStageBuild"
 $sourceManifestPath=Join-Path $buildRoot 'local-build-sources.json'
@@ -105,6 +108,7 @@ $workspaceCheckCode=$LASTEXITCODE
 $buildReceipt=[ordered]@{schema=1;passed=($buildExitCode -eq 0 -and $sourceCheckCode -eq 0 -and $workspaceCheckCode -eq 0);state='failed';hardware_accessed=$false;product_io=[bool]$WithProductIo;product_security=[bool]$WithProductSecurity;rfcomm=[bool]$WithRfcomm;build_exit=$buildExitCode;source_check_exit=$sourceCheckCode;workspace_check_exit=$workspaceCheckCode}
 $buildReceipt.codec_diagnostic_only=[bool]$CodecDiagnosticOnly
 $buildReceipt.deferred_codec_check=[bool]$DeferredCodecCheck
+$buildReceipt.async_audio=[bool]$AsyncAudio
 $buildReceipt.lhdc_maximum_check=[bool]$LhdcMaximumCheck
 $buildReceipt.lhdc_stage_profile=[bool]$LhdcStageProfile
 if ($buildReceipt.passed) {

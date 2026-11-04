@@ -142,7 +142,11 @@ static dbt_result_t pcm(void *context,const void *samples,uint16_t count,const d
        config->channels<1 || config->channels>2 || !config->rate)return DBT_INVALID;
     uint8_t channels=config->channels;uint32_t rate=config->rate,bytes=(uint32_t)config->sample_bytes*count*channels;
 #ifdef DBT_PROBE_AUDIO_OUTPUT
+#ifdef DBT_PROBE_ASYNC_AUDIO
+    dbt_result_t result=probe_output_try_pcm_format(samples,count,channels,rate,(dbt_pcm_format_t)config->sample_bytes);
+#else
     dbt_result_t result=probe_output_pcm_format(samples,count,channels,rate,(dbt_pcm_format_t)config->sample_bytes);
+#endif
     if(result!=DBT_OK)return result;
 #endif
     atomic_fetch_add_explicit(&pcm_generation,1,memory_order_acq_rel);
@@ -157,13 +161,8 @@ static dbt_result_t pcm(void *context,const void *samples,uint16_t count,const d
     atomic_fetch_add_explicit(&pcm_generation,1,memory_order_release);
     return DBT_OK;
 }
-static dbt_result_t stream(void *context,bool started,const dbt_codec_config_t *config){
-    (void)context;
+static dbt_result_t publish_stream(bool started,const dbt_codec_config_t *config){
     if(!config)return DBT_INVALID;
-#ifdef DBT_PROBE_AUDIO_OUTPUT
-    dbt_result_t result=probe_output_stream_format(started,config->rate,config->channels,(dbt_pcm_format_t)config->sample_bytes);
-    if(result!=DBT_OK)return result;
-#endif
     if(started){
         uint32_t codec=config->ops==&dbt_sbc_codec?1u:0u;
 #ifdef DBT_PROBE_OPUS_BUILD
@@ -193,6 +192,32 @@ static dbt_result_t stream(void *context,bool started,const dbt_codec_config_t *
     }
     return DBT_OK;
 }
+#ifdef DBT_PROBE_ASYNC_AUDIO
+static bool async_stream_start;
+static dbt_result_t stream_begin(void *context,bool start,const dbt_codec_config_t *config,uint32_t *ticket){
+    (void)context;
+    if(!config)return DBT_INVALID;
+    dbt_result_t result=probe_output_stream_begin(start,config->rate,config->channels,(dbt_pcm_format_t)config->sample_bytes,ticket);
+    if(result==DBT_PENDING)async_stream_start=start;
+    return result;
+}
+static dbt_result_t stream_poll(void *context,uint32_t ticket){
+    (void)context;dbt_result_t result=probe_output_request_poll(ticket);
+    if(result==DBT_OK)return publish_stream(async_stream_start,&worker.decoder.config);
+    return result;
+}
+static dbt_result_t stream_cancel(void *context,uint32_t ticket){(void)context;return probe_output_request_cancel(ticket);}
+#else
+static dbt_result_t stream(void *context,bool started,const dbt_codec_config_t *config){
+    (void)context;
+    if(!config)return DBT_INVALID;
+#ifdef DBT_PROBE_AUDIO_OUTPUT
+    dbt_result_t result=probe_output_stream_format(started,config->rate,config->channels,(dbt_pcm_format_t)config->sample_bytes);
+    if(result!=DBT_OK)return result;
+#endif
+    return publish_stream(started,config);
+}
+#endif
 static void decode_loop(void *unused){
     (void)unused;
     uint32_t seen_faults=0;
@@ -200,8 +225,20 @@ static void decode_loop(void *unused){
         uint16_t done=dbt_codec_worker_step(&worker,now_ms(),2);
         uint32_t faults=atomic_load_explicit(&worker.faults,memory_order_acquire);
         if(faults!=seen_faults){seen_faults=faults;wake_owner(0);}
+#ifdef DBT_PROBE_ASYNC_AUDIO
+        (void)done;
+        if(dbt_codec_worker_runnable(&worker)){taskYIELD();continue;}
+        TickType_t wait=portMAX_DELAY;uint32_t when;
+        if(dbt_codec_worker_deadline(&worker,&when)){
+            int32_t remaining=(int32_t)(when-now_ms());
+            wait=remaining>0?pdMS_TO_TICKS((uint32_t)remaining):1;
+            if(!wait)wait=1;
+        }
+        ulTaskNotifyTake(pdTRUE,wait);
+#else
         if(done==2){taskYIELD();continue;}
         ulTaskNotifyTake(pdTRUE,pdMS_TO_TICKS(20));
+#endif
     }
 }
 #ifdef DBT_PROBE_AVRCP
@@ -303,7 +340,12 @@ dbt_result_t probe_audio_init(dbt_runtime_t *runtime,TaskHandle_t host_owner){
     owner=host_owner;
     dbt_codec_worker_hooks_t hooks={0};hooks.decoder=(dbt_codec_hooks_t){0,codec_allocate,release,pcm};
     hooks.codecs=codecs;hooks.codec_count=(uint8_t)(sizeof(codecs)/sizeof(codecs[0]));
-    hooks.wake_worker=wake_worker;hooks.wake_owner=wake_owner;hooks.stream=stream;
+    hooks.wake_worker=wake_worker;hooks.wake_owner=wake_owner;
+#ifdef DBT_PROBE_ASYNC_AUDIO
+    hooks.deferred_pcm=true;hooks.async_stream=(dbt_codec_stream_async_t){stream_begin,stream_poll,stream_cancel};
+#else
+    hooks.stream=stream;
+#endif
     dbt_result_t result=dbt_codec_worker_init(&worker,hooks,672,8);
     if(result!=DBT_OK)return result;
     dbt_avdtp_sink_hooks_t client={&worker,allocate,release,dbt_codec_worker_submit,sink_event,dbt_codec_worker_media};

@@ -12,6 +12,14 @@ typedef struct {
     uint32_t request_fault,stale_receipts;
 } probe_output_stats_t;
 dbt_result_t probe_output_init(void (*wake_decoder)(void *),void *context);
+/* Accepted begin returns PENDING and one opaque ticket; BUSY accepts nothing.
+ * Poll consumes exactly one terminal result. Cancel remains pending until the
+ * render owner has reclaimed any accepted side effect. A stale id is INVALID,
+ * never evidence that a borrowed object can be freed. Clients receive wakeups
+ * through their registered decoder/sound notifications. */
+dbt_result_t probe_output_stream_begin(bool,uint32_t,uint8_t,dbt_pcm_format_t,uint32_t *);
+dbt_result_t probe_output_request_poll(uint32_t);
+dbt_result_t probe_output_request_cancel(uint32_t);
 /* Decoder worker only; bounded synchronous handshake with the render task. */
 dbt_result_t probe_output_stream(bool start,uint32_t rate,uint8_t channels);
 dbt_result_t probe_output_pcm(const int16_t *samples,uint16_t frames,uint8_t channels,uint32_t rate);
@@ -19,6 +27,9 @@ dbt_result_t probe_output_pcm(const int16_t *samples,uint16_t frames,uint8_t cha
  * 16-bit, packed 24-bit, or 32-bit slots, respectively. */
 dbt_result_t probe_output_stream_format(bool start,uint32_t rate,uint8_t channels,dbt_pcm_format_t format);
 dbt_result_t probe_output_pcm_format(const void *samples,uint16_t frames,uint8_t channels,uint32_t rate,dbt_pcm_format_t format);
+/* Decoder producer only. One bounded attempt; BUSY copies/publishes nothing.
+ * Stream control must keep the producer quiescent through format/stop tickets. */
+dbt_result_t probe_output_try_pcm_format(const void *,uint16_t,uint8_t,uint32_t,dbt_pcm_format_t);
 void probe_output_stats(probe_output_stats_t *stats);
 uint16_t probe_output_delay_100us(uint32_t rate);
 dbt_result_t probe_output_controls(int8_t bass,int8_t mid,int8_t treble,uint8_t volume,uint8_t flags);
@@ -33,6 +44,12 @@ void probe_output_restart_hold(bool);
 bool probe_output_restart_quiescent(void);
 #ifdef DBT_PROBE_SOUND_BUILD
 #include "dbt_sound.h"
+/* A successful attach lends play beyond the attach ticket's completion. Keep
+ * it live until its sound token is retired. Cancelling a release retires that
+ * request, not an earlier successful attachment; sound_alive remains decisive. */
+dbt_result_t probe_output_sound_reserve_begin(uint32_t,bool,uint32_t *);
+dbt_result_t probe_output_sound_attach_begin(uint32_t,dbt_sound_play_t *,uint32_t *);
+dbt_result_t probe_output_sound_release_begin(uint32_t,uint32_t *);
 /* Sound worker only. Reserve, open/prefill, attach, then release after drain.
  * The render task owns the borrowed playback pointer until token retirement. */
 dbt_result_t probe_output_sound_reserve(uint32_t rate,bool exclusive,uint32_t *token);

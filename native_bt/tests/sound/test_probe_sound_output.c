@@ -14,6 +14,7 @@ typedef struct {CRITICAL_SECTION lock;unsigned cap,size,read,write;uint8_t *data
 static _Atomic unsigned live,nonzero,failed_alloc,render_wakes;
 static _Atomic uintptr_t render_handle;
 static _Atomic unsigned hold_hook,hook_reached,renderer_pause,pause_reached;
+static DWORD main_id;static _Atomic unsigned main_waits,blocking_sends;
 static void external_wake(void *p){atomic_fetch_add((_Atomic unsigned *)p,1);}
 static _Atomic DWORD render_id;static i2s_event_callbacks_t callbacks;static void *callback_context;
 static _Atomic bool i2s_enabled;static int32_t dma[3][256];static unsigned dma_index,preload;
@@ -29,6 +30,7 @@ void xTaskNotifyGive(TaskHandle_t t){if((uintptr_t)t==atomic_load(&render_handle
 void vTaskNotifyGiveFromISR(TaskHandle_t t,BaseType_t *w){(void)t;(void)w;}
 unsigned ulTaskNotifyTake(int b,unsigned ticks){
     (void)b;
+    if(GetCurrentThreadId()==main_id)atomic_fetch_add(&main_waits,1);
     if(GetCurrentThreadId()==atomic_load(&render_id) && atomic_load(&renderer_pause)){
         atomic_store(&pause_reached,1);while(atomic_load(&renderer_pause))Sleep(1);atomic_store(&pause_reached,0);
     }
@@ -46,6 +48,7 @@ int xTaskCreatePinnedToCore(void (*fn)(void *),const char *name,unsigned stack,v
 }
 QueueHandle_t xQueueCreate(unsigned cap,unsigned size){queue_t *q=calloc(1,sizeof(*q));if(!q)return 0;InitializeCriticalSection(&q->lock);q->cap=cap;q->size=size;q->data=calloc(cap,size);return q;}
 int xQueueSend(QueueHandle_t h,const void *data,unsigned ticks){
+    if(ticks)atomic_fetch_add(&blocking_sends,1);
     queue_t *q=h;ULONGLONG until=GetTickCount64()+ticks;
     do {EnterCriticalSection(&q->lock);if(q->write-q->read<q->cap){memcpy(q->data+(q->write%q->cap)*q->size,data,q->size);q->write++;LeaveCriticalSection(&q->lock);return pdTRUE;}LeaveCriticalSection(&q->lock);if(ticks)Sleep(1);}while(ticks && GetTickCount64()<until);return pdFALSE;
 }
@@ -91,8 +94,17 @@ static bool pause_render(void){atomic_store(&renderer_pause,1);for(unsigned i=0;
 static bool await_recovery(void){
     for(unsigned i=0;i<5000;i++){probe_output_stats_t st;probe_output_stats(&st);if(!st.request_fault)return true;Sleep(1);}return false;
 }
+static dbt_result_t await_ticket(uint32_t ticket){
+    for(unsigned i=0;i<5000;++i){dbt_result_t r=probe_output_request_poll(ticket);if(r!=DBT_PENDING)return r;Sleep(1);}
+    return DBT_PENDING;
+}
+static bool yes_start(void *p,bool exclusive){(void)p;(void)exclusive;return true;}
+static void no_stop(void *p){(void)p;}
+static void *play_allocate(void *p,size_t n){(void)p;return heap_caps_malloc(n,0);}
+static void play_release(void *p,void *data){(void)p;heap_caps_free(data);}
 
 int main(void){
+    main_id=GetCurrentThreadId();
     CHECK(probe_output_init(0,0)==DBT_OK);store_t file;prepare(&file);dbt_sound_t provider;
     dbt_sound_store_t st={&file,no_begin,no_write,no_seal,no_temp,no_commit,no_abort,size_of,read_wav,no_remove,mute,now,valid};
     CHECK(dbt_sound_init(&provider,st,false)==DBT_OK);probe_sound_t sound;
@@ -210,6 +222,49 @@ int main(void){
     CHECK(probe_sound_init_with_wake(&external,&provider,external_wake,&wakes)==DBT_BUSY && external.play && external.token);
     for(unsigned i=0;i<5000 && (external.play || external.token);i++){(void)probe_sound_poll(&external,now(0),0);Sleep(1);}
     CHECK(!external.play && !external.token && atomic_load(&wakes)>0 && !atomic_load(&live));
+    /* Async admission/completion/cancel never wait for the paused renderer. */
+    CHECK(pause_render());uint32_t ticket=0,other=123;
+    unsigned waits=atomic_load(&main_waits),sends=atomic_load(&blocking_sends);
+    CHECK(probe_output_stream_begin(true,48000,2,DBT_PCM_S16_LE,&ticket)==DBT_PENDING && ticket);
+    CHECK(probe_output_stream_begin(true,44100,2,DBT_PCM_S16_LE,&other)==DBT_BUSY && !other);
+    CHECK(probe_output_request_poll(ticket)==DBT_PENDING && probe_output_request_cancel(ticket)==DBT_PENDING);
+    CHECK(probe_output_request_poll(ticket)==DBT_PENDING && atomic_load(&main_waits)==waits && atomic_load(&blocking_sends)==sends);
+    atomic_store(&renderer_pause,0);CHECK(await_ticket(ticket)==DBT_CANCELLED && !probe_output_active_rate() && !atomic_load(&live));
+    uint32_t stale=ticket;
+    CHECK(probe_output_stream_begin(true,48000,2,DBT_PCM_S16_LE,&ticket)==DBT_PENDING);
+    CHECK(await_ticket(ticket)==DBT_OK && pause_render());
+    CHECK(probe_output_request_cancel(stale)==DBT_INVALID);
+    /* A full producer ring returns BUSY without a sleep or partial publish. */
+    waits=atomic_load(&main_waits);unsigned submitted=0;
+    for(unsigned i=0;i<100;++i){dbt_result_t r=probe_output_try_pcm_format(music,128,2,48000,DBT_PCM_S16_LE);
+        if(r==DBT_BUSY)break;CHECK(r==DBT_OK);++submitted;}
+    CHECK(submitted && submitted<100 && atomic_load(&main_waits)==waits);
+    probe_output_stats_t before,after;probe_output_stats(&before);
+    CHECK(probe_output_try_pcm_format(music,128,2,48000,DBT_PCM_S16_LE)==DBT_BUSY);
+    probe_output_stats(&after);CHECK(before.accepted_frames==after.accepted_frames);
+    CHECK(probe_output_stream_begin(false,0,0,DBT_PCM_S16_LE,&ticket)==DBT_PENDING);
+    atomic_store(&renderer_pause,0);CHECK(await_ticket(ticket)==DBT_OK && !atomic_load(&live));
+    /* Cancellation after DONE retires an applied start on the owner thread. */
+    CHECK(probe_output_stream_begin(true,48000,2,DBT_PCM_S16_LE,&ticket)==DBT_PENDING);
+    for(unsigned i=0;i<5000 && probe_output_active_rate()!=48000;++i)Sleep(1);
+    CHECK(probe_output_active_rate()==48000 && pause_render());
+    CHECK(probe_output_request_cancel(ticket)==DBT_PENDING && probe_output_request_poll(ticket)==DBT_PENDING && atomic_load(&live));
+    atomic_store(&renderer_pause,0);CHECK(await_ticket(ticket)==DBT_CANCELLED && !atomic_load(&live));
+    /* Keep an attached play object live until cancellation really retires it. */
+    for(unsigned stage=2;stage<=4;stage+=2){
+        CHECK(probe_output_sound_reserve_begin(48000,true,&ticket)==DBT_PENDING && await_ticket(ticket)==DBT_OK);
+        uint32_t token=ticket;dbt_sound_play_t *play=NULL;
+        dbt_sound_output_t hooks={NULL,yes_start,no_stop};
+        CHECK(dbt_sound_play_open(&provider,0,48000,true,hooks,NULL,play_allocate,play_release,&play)==DBT_OK);
+        for(unsigned i=0;i<3 && !dbt_sound_play_ready(play);++i)(void)dbt_sound_play_pump(play,64);
+        CHECK(dbt_sound_play_ready(play));atomic_store(&hook_reached,0);atomic_store(&hold_hook,stage);
+        CHECK(probe_output_sound_attach_begin(token,play,&ticket)==DBT_PENDING);
+        for(unsigned i=0;i<5000 && atomic_load(&hook_reached)!=stage;++i)Sleep(1);
+        CHECK(atomic_load(&hook_reached)==stage && probe_output_request_cancel(ticket)==DBT_PENDING);
+        CHECK(probe_output_request_poll(ticket)==DBT_PENDING && probe_output_sound_alive(token) && atomic_load(&live)>=3);
+        atomic_store(&hold_hook,0);CHECK(await_ticket(ticket)==DBT_CANCELLED && !probe_output_sound_alive(token));
+        dbt_sound_play_close(play);CHECK(!atomic_load(&live));
+    }
     /* A terminal restart cannot acquire a fresh output loan or restart codec. */
     probe_output_restart_hold(true);CHECK(probe_output_restart_quiescent());
     CHECK(probe_output_stream(true,48000,2)==DBT_BUSY);

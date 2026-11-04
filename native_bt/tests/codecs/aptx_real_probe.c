@@ -37,7 +37,7 @@ EXPORT int probe_validate(const uint8_t *caps,unsigned caps_size,const uint8_t *
     dbt_avdtp_endpoint_t endpoint={caps,(uint16_t)caps_size,1,dbt_a2dp_aptx_validate};
     dbt_avdtp_cap_t codec={cie,7,(uint8_t)size};return dbt_a2dp_aptx_validate(&endpoint,&codec);
 }
-EXPORT int worker_init(void){dbt_codec_worker_hooks_t h={{0,allocate,release,pcm},codecs,2,0,0,0,false};return dbt_codec_worker_init(&worker,h,2048,2);}
+EXPORT int worker_init(void){dbt_codec_worker_hooks_t h={{0,allocate,release,pcm},codecs,2,0,0,0,false,{0}};return dbt_codec_worker_init(&worker,h,2048,2);}
 EXPORT int worker_control(unsigned op,const uint8_t *cie,unsigned size){
     uint8_t caps[DBT_CODEC_CIE_BYTES+4]={1,0,7,0};if(size>DBT_CODEC_CIE_BYTES)return -1;
     caps[3]=(uint8_t)size;for(unsigned i=0;i<size;++i)caps[4+i]=cie[i];

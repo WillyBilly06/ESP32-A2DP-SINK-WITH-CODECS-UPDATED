@@ -72,6 +72,8 @@ dbt_result_t dbt_codec_worker_init(dbt_codec_worker_t *w,dbt_codec_worker_hooks_
        !depth || depth>16 || (depth&(depth-1u)) || stride*depth>UINT16_MAX)return DBT_INVALID;
     for(unsigned i=0;i<hooks.codec_count;++i){const dbt_codec_ops_t *o=hooks.codecs[i];if(!o || !o->configure || !o->open || !o->close || !o->reset || !o->media || (hooks.deferred_pcm && !o->resume))return DBT_INVALID;}
     if(hooks.deferred_pcm && (!hooks.decoder.allocate || !hooks.decoder.release || !hooks.decoder.pcm))return DBT_INVALID;
+    if((hooks.async_stream.begin || hooks.async_stream.poll || hooks.async_stream.cancel) &&
+       (!hooks.async_stream.begin || !hooks.async_stream.poll || !hooks.async_stream.cancel || hooks.stream))return DBT_INVALID;
     zero(w,sizeof(*w));w->hooks=hooks;w->maximum_payload=payload;w->stride=(uint16_t)stride;w->depth=depth;
     atomic_init(&w->job_written,0);atomic_init(&w->job_read,0);atomic_init(&w->receipt_written,0);atomic_init(&w->receipt_read,0);
     atomic_init(&w->gate_epoch,0);atomic_init(&w->started_epoch,0);atomic_init(&w->media_written,0);atomic_init(&w->media_read,0);
@@ -135,13 +137,13 @@ static void fault(dbt_codec_worker_t *w){
     atomic_store_explicit(&w->started_epoch,0,memory_order_release);
     pending_clear(w);w->media_active=false;
     w->streaming=w->sequence_valid=false;
-    if(w->hooks.stream)(void)w->hooks.stream(w->hooks.decoder.context,false,&w->decoder.config);
+    if(!w->hooks.async_stream.begin && w->hooks.stream)(void)w->hooks.stream(w->hooks.decoder.context,false,&w->decoder.config);
     atomic_fetch_add(&w->faults,1);
 }
-static dbt_sink_work_result_t control(dbt_codec_worker_t *w,const dbt_codec_job_t *job){
+static dbt_sink_work_result_t control(dbt_codec_worker_t *w,const dbt_codec_job_t *job,bool supplied,dbt_result_t completion,bool accepted){
     if(w->binding && w->binding!=job->binding)return DBT_SINK_WORK_FATAL;
     if(job->operation==DBT_SINK_CLOSE || job->operation==DBT_SINK_ABORT || job->operation==DBT_SINK_DROP){
-        dbt_result_t stopped=w->hooks.stream?w->hooks.stream(w->hooks.decoder.context,false,&w->decoder.config):DBT_OK;
+        dbt_result_t stopped=supplied?completion:w->hooks.stream?w->hooks.stream(w->hooks.decoder.context,false,&w->decoder.config):DBT_OK;
         clear(w);w->binding=0;return stopped==DBT_OK?DBT_SINK_WORK_READY:DBT_SINK_WORK_FATAL;
     }
     if(job->operation==DBT_SINK_CONFIGURE || job->operation==DBT_SINK_RECONFIGURE){
@@ -158,8 +160,12 @@ static dbt_sink_work_result_t control(dbt_codec_worker_t *w,const dbt_codec_job_
     if(job->operation==DBT_SINK_OPEN)return DBT_SINK_WORK_READY;
     if(job->operation==DBT_SINK_START || job->operation==DBT_SINK_SUSPEND){
         bool start=job->operation==DBT_SINK_START;
-        dbt_result_t result=w->hooks.stream?w->hooks.stream(w->hooks.decoder.context,start,&w->decoder.config):DBT_OK;
-        if(result!=DBT_OK){if(w->streaming)atomic_store(&w->started_epoch,job->epoch);return DBT_SINK_WORK_REJECTED;}
+        dbt_result_t result=supplied?completion:w->hooks.stream?w->hooks.stream(w->hooks.decoder.context,start,&w->decoder.config):DBT_OK;
+        if(result!=DBT_OK){
+            if(accepted){pending_clear(w);w->media_active=false;w->streaming=w->sequence_valid=false;atomic_store(&w->started_epoch,0);}
+            else if(w->streaming)atomic_store(&w->started_epoch,job->epoch);
+            return accepted && result!=DBT_CANCELLED?DBT_SINK_WORK_FATAL:DBT_SINK_WORK_REJECTED;
+        }
         pending_clear(w);w->media_active=false;
         w->sequence_valid=false;atomic_store(&w->media_read,atomic_load(&w->media_written));
         if(w->decoder.config.ops->reset(&w->decoder)!=DBT_OK){fault(w);return DBT_SINK_WORK_FATAL;}
@@ -167,6 +173,50 @@ static dbt_sink_work_result_t control(dbt_codec_worker_t *w,const dbt_codec_job_
         return DBT_SINK_WORK_READY;
     }
     return DBT_SINK_WORK_REJECTED;
+}
+/* One control job pins its input and its reserved receipt capacity until its
+ * renderer ticket retires. A newer epoch cancels it before starting the next
+ * job; neither a pending operation nor a timeout restores producer admission. */
+static bool control_async(dbt_codec_worker_t *w,const dbt_codec_job_t *job,uint32_t now,dbt_sink_work_result_t *result){
+    bool stream_job=job->operation==DBT_SINK_START || job->operation==DBT_SINK_SUSPEND ||
+        job->operation==DBT_SINK_CLOSE || job->operation==DBT_SINK_ABORT || job->operation==DBT_SINK_DROP;
+    if(!w->hooks.async_stream.begin || !stream_job || (w->binding && w->binding!=job->binding) ||
+       ((job->operation==DBT_SINK_START || job->operation==DBT_SINK_SUSPEND) && !w->configured)){
+        *result=control(w,job,false,DBT_OK,false);return true;
+    }
+    if(!w->control_phase){w->control_phase=1;w->control_since=now;w->control_timedout=false;w->cancel_requested=false;w->stream_ticket=0;}
+    w->control_blocked=false;
+    bool superseded=atomic_load_explicit(&w->gate_epoch,memory_order_acquire)!=job->epoch;
+    if(!w->control_timedout && now-w->control_since>=1500u){
+        w->control_timedout=true;atomic_store(&w->started_epoch,0);atomic_fetch_add(&w->faults,1);wake_owner(w);
+    }
+    if(w->control_phase==1 && superseded){
+        *result=DBT_SINK_WORK_REJECTED;w->control_phase=0;return true;
+    }
+    if(w->control_phase==1 && w->control_timedout){
+        /* Nothing was accepted: do not perform a late start when a busy
+         * renderer eventually becomes available. Retain the working set for
+         * the owner's explicit DROP, with media admission already closed. */
+        *result=DBT_SINK_WORK_FATAL;w->control_phase=0;return true;
+    }
+    if(w->control_phase==1){
+        uint32_t ticket=0;dbt_result_t begun=w->hooks.async_stream.begin(w->hooks.decoder.context,job->operation==DBT_SINK_START,&w->decoder.config,&ticket);
+        if(begun==DBT_BUSY){w->control_blocked=true;return false;}
+        if(begun==DBT_PENDING && ticket){w->stream_ticket=ticket;w->control_phase=2;w->control_blocked=true;return false;}
+        if(begun==DBT_PENDING)begun=DBT_INVALID;
+        *result=control(w,job,true,begun,false);w->control_phase=0;return true;
+    }
+    if((superseded || w->control_timedout) && !w->cancel_requested){
+        dbt_result_t cancelled=w->hooks.async_stream.cancel(w->hooks.decoder.context,w->stream_ticket);
+        if(cancelled==DBT_PENDING)w->cancel_requested=true;
+        else if(cancelled==DBT_BUSY){w->control_blocked=true;return false;}
+        else {
+            *result=control(w,job,true,DBT_INVALID,true);w->control_phase=0;w->stream_ticket=0;return true;
+        }
+    }
+    dbt_result_t polled=w->hooks.async_stream.poll(w->hooks.decoder.context,w->stream_ticket);
+    if(polled==DBT_PENDING){w->control_blocked=true;return false;}
+    *result=control(w,job,true,polled,true);w->control_phase=0;w->stream_ticket=0;w->cancel_requested=false;return true;
 }
 static void retire_media(dbt_codec_worker_t *w,uint32_t read,dbt_result_t result){
     if(result!=DBT_OK){
@@ -231,12 +281,13 @@ static uint16_t deferred_step(dbt_codec_worker_t *w,uint32_t now,uint16_t budget
 bool dbt_codec_worker_runnable(const dbt_codec_worker_t *w){
     if(!w)return false;
     if(atomic_load(&w->job_read)!=atomic_load_explicit(&w->job_written,memory_order_acquire) &&
-       atomic_load(&w->receipt_written)-atomic_load_explicit(&w->receipt_read,memory_order_acquire)<DBT_CODEC_WORKER_JOBS)return true;
+       atomic_load(&w->receipt_written)-atomic_load_explicit(&w->receipt_read,memory_order_acquire)<DBT_CODEC_WORKER_JOBS)return !w->control_blocked;
     return enabled(w) && !w->output_blocked && (w->media_active || w->pending_pcm ||
         atomic_load(&w->media_read)!=atomic_load_explicit(&w->media_written,memory_order_acquire));
 }
 bool dbt_codec_worker_deadline(const dbt_codec_worker_t *w,uint32_t *when){
     if(!w || !when)return false;
+    if(w->control_phase){if(w->control_timedout)return false;*when=w->control_since+1500u;return true;}
     if(enabled(w) && w->pending_pcm && w->output_blocked){*when=w->last_progress+DBT_CODEC_PCM_STALL_MS;return true;}
     if(w->configured && !w->media_active && !w->pending_pcm && w->decoder.config.ops->deadline)
         return w->decoder.config.ops->deadline(&w->decoder,when);
@@ -248,7 +299,8 @@ uint16_t dbt_codec_worker_step(dbt_codec_worker_t *w,uint32_t now,uint16_t budge
         uint32_t read=atomic_load_explicit(&w->job_read,memory_order_relaxed);if(read==atomic_load_explicit(&w->job_written,memory_order_acquire))break;
         uint32_t written=atomic_load_explicit(&w->receipt_written,memory_order_relaxed);
         if(written-atomic_load_explicit(&w->receipt_read,memory_order_acquire)>=DBT_CODEC_WORKER_JOBS)break;
-        const dbt_codec_job_t *job=&w->jobs[read%DBT_CODEC_WORKER_JOBS];dbt_sink_work_result_t result=control(w,job);
+        const dbt_codec_job_t *job=&w->jobs[read%DBT_CODEC_WORKER_JOBS];dbt_sink_work_result_t result;
+        if(!control_async(w,job,now,&result))break;
         w->receipts[written%DBT_CODEC_WORKER_JOBS]=(dbt_codec_receipt_t){job->binding,job->token,result};
         atomic_store(&w->resident_bytes,w->decoder.allocated_bytes);atomic_store_explicit(&w->job_read,read+1u,memory_order_release);
         atomic_store_explicit(&w->receipt_written,written+1u,memory_order_release);wake_owner(w);

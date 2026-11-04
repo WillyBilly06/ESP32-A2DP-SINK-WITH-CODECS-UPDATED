@@ -20,6 +20,11 @@ The [resumable PCM worker checkpoint](docs/IDF61_ASYNC_PCM_2026_11_04.md) adds
 deferred-worker checks. The render provider, stream/sound transactions and full
 DSP/I2S/Bluetooth integration remain separate open gates.
 
+The [ticketed renderer checkpoint](docs/IDF61_ASYNC_RENDER_2026_11_04.md) adds
+nonblocking request/PCM APIs and an opt-in `-AsyncAudio` worker connection.
+Host tests and the full ESP-IDF build pass; this renderer change has not run on
+COM6 and the high-level sound client/render polling still need conversion.
+
 ## Historical pre-6.1 status
 
 

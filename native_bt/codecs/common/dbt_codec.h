@@ -65,6 +65,14 @@ typedef struct {
 } dbt_codec_job_t;
 typedef struct {uint32_t binding,token;dbt_sink_work_result_t result;} dbt_codec_receipt_t;
 typedef struct {
+    /* Begin copies the descriptor. PENDING owns a nonzero ticket; BUSY owns
+     * nothing. Poll/cancel are single nonblocking attempts. Cancellation must
+     * retire renderer side effects before returning a terminal result. */
+    dbt_result_t (*begin)(void *,bool,const dbt_codec_config_t *,uint32_t *);
+    dbt_result_t (*poll)(void *,uint32_t);
+    dbt_result_t (*cancel)(void *,uint32_t);
+} dbt_codec_stream_async_t;
+typedef struct {
     dbt_codec_hooks_t decoder;
     const dbt_codec_ops_t *const *codecs;
     uint8_t codec_count;
@@ -75,6 +83,7 @@ typedef struct {
      * the provider in chunks <=256 frames; BUSY consumes nothing. Stream hooks
      * must also be nonblocking/transactional before product integration. */
     bool deferred_pcm;
+    dbt_codec_stream_async_t async_stream;
 } dbt_codec_worker_hooks_t;
 typedef struct {
     dbt_codec_worker_hooks_t hooks;
@@ -97,6 +106,9 @@ typedef struct {
     uint32_t pending_timestamp,last_progress;
     uint16_t pending_frames,pending_offset;
     bool media_active,output_blocked;
+    uint32_t stream_ticket,control_since;
+    uint8_t control_phase;
+    bool control_blocked,control_timedout,cancel_requested;
 } dbt_codec_worker_t;
 
 /* One host producer and a separate decode consumer, with copied jobs/receipts

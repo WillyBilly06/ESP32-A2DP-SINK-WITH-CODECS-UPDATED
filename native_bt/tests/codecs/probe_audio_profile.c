@@ -58,6 +58,24 @@ dbt_result_t probe_output_pcm_format(const void *samples,uint16_t frames,uint8_t
     if(!samples || !output_started || rate!=output_rate || channels!=output_channels || format!=output_format)return DBT_INVALID;
     dbt_result_t r=dbt_audio_submit(&output_audio,samples,frames);if(r==DBT_OK)output_frames+=frames;return r;
 }
+#ifdef DBT_PROBE_ASYNC_AUDIO
+static uint32_t pending_ticket,next_ticket;static bool pending_start,cancelled;
+static dbt_codec_config_t pending_config;
+dbt_result_t probe_output_stream_begin(bool start,uint32_t rate,uint8_t channels,dbt_pcm_format_t format,uint32_t *ticket){
+    *ticket=0;if(pending_ticket)return DBT_BUSY;
+    pending_ticket=++next_ticket;pending_start=start;cancelled=false;
+    pending_config=(dbt_codec_config_t){0};pending_config.rate=rate;pending_config.channels=channels;pending_config.sample_bytes=(uint8_t)format;
+    *ticket=pending_ticket;return DBT_PENDING;
+}
+dbt_result_t probe_output_request_poll(uint32_t ticket){
+    if(!ticket || ticket!=pending_ticket)return DBT_INVALID;
+    pending_ticket=0;
+    if(cancelled)return DBT_CANCELLED;
+    return probe_output_stream_format(pending_start,pending_config.rate,pending_config.channels,(dbt_pcm_format_t)pending_config.sample_bytes);
+}
+dbt_result_t probe_output_request_cancel(uint32_t ticket){if(!ticket || ticket!=pending_ticket)return DBT_INVALID;cancelled=true;return DBT_PENDING;}
+dbt_result_t probe_output_try_pcm_format(const void *samples,uint16_t frames,uint8_t channels,uint32_t rate,dbt_pcm_format_t format){return probe_output_pcm_format(samples,frames,channels,rate,format);}
+#endif
 EX int probe_audio_formats(void){
     const uint8_t packed24[]={0,0,0x80,0xff,0xff,0x7f,1,2,3,0xfd,0xfe,0xff};
     const int32_t pcm32[]={INT32_MIN,INT32_MAX,123456,-123456};
@@ -132,8 +150,9 @@ static dbt_result_t output(void){
 }
 static int complete(void){
     CHECK(dbt_avdtp_sink_poll(&sink,++now)==DBT_OK);
-    (void)dbt_codec_worker_step(&worker,++now,0);dbt_codec_receipt_t receipt;
-    CHECK(dbt_codec_worker_receipt(&worker,&receipt)==DBT_OK && receipt.result==DBT_SINK_WORK_READY);
+    dbt_codec_receipt_t receipt;dbt_result_t ready=DBT_EMPTY;
+    for(unsigned i=0;i<8 && ready==DBT_EMPTY;++i){(void)dbt_codec_worker_step(&worker,++now,0);ready=dbt_codec_worker_receipt(&worker,&receipt);}
+    CHECK(ready==DBT_OK && receipt.result==DBT_SINK_WORK_READY);
     CHECK(dbt_avdtp_sink_complete(&sink,receipt.binding,receipt.token,receipt.result,++now)==DBT_OK);
     CHECK(output()==DBT_OK && (wire[0]&3)==2);return 0;
 }
@@ -167,7 +186,10 @@ static int run_codec(uint8_t seid,const uint8_t *cie,uint8_t cie_size,const uint
     uint8_t packet[700]={0x80,96,0,1,0,0,0,1,0,0,0,1};if(codec_id==4)packet[1]|=0x80;uint16_t offset=12;
     if(prefix)packet[offset++]=1;CHECK((unsigned)n+offset<=sizeof(packet));memcpy(packet+offset,frame,n);
     CHECK(dbt_avdtp_sink_media_receive(&sink,456,packet,(uint16_t)(n+offset))==DBT_OK);
-    CHECK(dbt_codec_worker_step(&worker,++now,1)==1 && atomic_load(&pcm_frames)==1 && atomic_load(&pcm_channels)==2);
+    CHECK(dbt_codec_worker_step(&worker,++now,1)==1);
+    for(unsigned i=0;i<128 && atomic_load(&worker.media_read)!=atomic_load(&worker.media_written);++i)(void)dbt_codec_worker_step(&worker,++now,1);
+    CHECK(atomic_load(&worker.media_read)==atomic_load(&worker.media_written) && atomic_load(&pcm_frames)>0 && atomic_load(&pcm_channels)==2);
+    uint32_t callbacks_before=atomic_load(&pcm_frames);
     if(expected){CHECK(atomic_load(&pcm_bytes)==expected_bytes && atomic_load(&pcm_hash)==hash_bytes(expected,expected_bytes));}
 #ifdef DBT_PROBE_AUDIO_OUTPUT
     if(expected){CHECK(output_audio.input.stride==2u*sample_bytes && !memcmp(output_audio.input.bytes,expected,expected_bytes));}
@@ -177,7 +199,7 @@ static int run_codec(uint8_t seid,const uint8_t *cie,uint8_t cie_size,const uint
 #endif
     packet[3]=2;CHECK(dbt_avdtp_sink_media_receive(&sink,456,packet,(uint16_t)(n+offset))==DBT_OK);
     CHECK(request(9,&ep,1)==DBT_OK && complete()==0 && sink.state==DBT_STREAM_OPEN);
-    CHECK(dbt_codec_worker_step(&worker,++now,1)==0 && atomic_load(&pcm_frames)==1);
+    CHECK(dbt_codec_worker_step(&worker,++now,1)==0 && atomic_load(&pcm_frames)==callbacks_before);
     CHECK(request(8,&ep,1)==DBT_OK && complete()==0 && dbt_avdtp_sink_media_closed(&sink,456)==DBT_OK);
     CHECK(!atomic_load(&worker.resident_bytes) && !worker.decoder.state && !worker.packet_storage);
 #ifdef DBT_PROBE_AUDIO_OUTPUT

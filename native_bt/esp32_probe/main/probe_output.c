@@ -1,4 +1,5 @@
 #include "probe_output.h"
+#include "dbt_async_ticket.h"
 #include "driver/i2s_std.h"
 #include "esp_attr.h"
 #include "esp_heap_caps.h"
@@ -29,6 +30,7 @@ static TickType_t event_wait_ticks(uint32_t ms) {
 typedef struct {
   bool start;
   uint8_t kind;
+  bool legacy;
   uint32_t rate;
   uint8_t channels;
   dbt_pcm_format_t format;
@@ -60,9 +62,9 @@ typedef struct {
   bool active, enabled, stopping;
   uint32_t descriptor_count, next_descriptor, zero_completions, last_eof,
       clock_at;
-  uint32_t next_request, stop_request, stop_at;
-  /* FREE, WAITING, ABANDONED, DONE, COMPLETING. One bounded ticket. */
-  _Atomic uint32_t request_gate,request_result,request_fault,stale_receipts;
+  uint32_t stop_request, stop_at;
+  dbt_async_ticket_t ticket;
+  _Atomic uint32_t request_fault,stale_receipts;
   _Atomic bool restart_hold;
   request_t inflight;
 #ifdef DBT_PROBE_SOUND_BUILD
@@ -109,22 +111,29 @@ static uint32_t power2(uint32_t n) {
   return result;
 }
 static void reclaim_cancelled(const request_t *,dbt_result_t);
+static void notify_clients(void){
+  if(output.wake_decoder)output.wake_decoder(output.wake_context);
+#ifdef DBT_PROBE_SOUND_BUILD
+  notify_sound();
+#endif
+}
+static void finish_cancel(uint32_t id,dbt_result_t result){
+  bool legacy=output.inflight.legacy;
+  reclaim_cancelled(&output.inflight,result);
+  if(legacy)atomic_store_explicit(&output.request_fault,0,memory_order_release);
+  if(!dbt_ticket_reclaimed(&output.ticket,id,legacy))atomic_fetch_add(&output.stale_receipts,1);
+  notify_clients();
+}
 static void report_done(uint32_t id, dbt_result_t result) {
-  if(id!=output.inflight.id){atomic_fetch_add(&output.stale_receipts,1);return;}
-  uint32_t expected=1;
-  if(atomic_compare_exchange_strong_explicit(&output.request_gate,&expected,4,memory_order_acq_rel,memory_order_acquire)){
+  if(dbt_ticket_state(&output.ticket,id)==DBT_TICKET_STALE){atomic_fetch_add(&output.stale_receipts,1);return;}
+  if(dbt_ticket_done_begin(&output.ticket,id)){
 #ifdef DBT_PROBE_SOUND_BUILD
     if(output.inflight.kind==2)OUTPUT_TEST_STEP(4);
 #endif
-    atomic_store_explicit(&output.request_result,(uint32_t)result,memory_order_relaxed);
-    expected=4;
-    if(atomic_compare_exchange_strong_explicit(&output.request_gate,&expected,3,memory_order_release,memory_order_acquire))return;
+    if(dbt_ticket_done_end(&output.ticket,id,result)){notify_clients();return;}
   }
-  if(expected==2){
-    reclaim_cancelled(&output.inflight,result);
-    atomic_store_explicit(&output.request_fault,0,memory_order_release);
-    atomic_store_explicit(&output.request_gate,0,memory_order_release);
-  }else atomic_fetch_add(&output.stale_receipts,1);
+  if(dbt_ticket_state(&output.ticket,id)==DBT_TICKET_CANCEL)finish_cancel(id,result);
+  else atomic_fetch_add(&output.stale_receipts,1);
 }
 #ifdef DBT_OUTPUT_TEST_HOOKS
 void dbt_output_test_bad_receipt(uint32_t id){report_done(id,DBT_OK);}
@@ -399,7 +408,7 @@ static void handle_request(request_t request){
   }
   if(request.kind==REQ_SOUND_ATTACH){
     OUTPUT_TEST_STEP(1);
-    if(atomic_load_explicit(&output.request_gate,memory_order_acquire)==2){report_done(request.id,DBT_BUSY);return;}
+    if(dbt_ticket_state(&output.ticket,request.id)==DBT_TICKET_CANCEL){report_done(request.id,DBT_BUSY);return;}
     if(!token || token!=request.sound_token || !request.sound || output.sound || !dbt_sound_play_ready(request.sound)){
       report_done(request.id,DBT_INVALID);return;
     }
@@ -441,11 +450,18 @@ static void reclaim_cancelled(const request_t *request,dbt_result_t result){if(r
 static void handle_request(request_t request){codec_request(request);}
 #endif
 static bool render_step(void) {
+    uint32_t tag=atomic_load_explicit(&output.ticket.tag,memory_order_acquire);
+    if((tag&7u)==DBT_TICKET_RECLAIM){
+      finish_cancel(tag>>3,(dbt_result_t)atomic_load_explicit(&output.ticket.result,memory_order_relaxed));
+      return true;
+    }
     request_t request;
     if (xQueueReceive(output.requests, &request, 0) == pdTRUE) {
-      if(request.id==output.inflight.id && atomic_load_explicit(&output.request_gate,memory_order_acquire)==2)
+      unsigned state=dbt_ticket_state(&output.ticket,request.id);
+      if(state==DBT_TICKET_CANCEL)
         report_done(request.id,DBT_BUSY);
-      else handle_request(request);
+      else if(state==DBT_TICKET_WAITING)handle_request(request);
+      else atomic_fetch_add(&output.stale_receipts,1);
     }
     if (output.active) {
       if (output.stopping &&
@@ -456,7 +472,7 @@ static bool render_step(void) {
           output.restart_after_stop=false;request_t restart=output.pending_sound_transition;
           output.sound_standalone=false;
           OUTPUT_TEST_STEP(3);
-          if(atomic_load_explicit(&output.request_gate,memory_order_acquire)==2){report_done(output.stop_request,DBT_BUSY);return true;}
+          if(dbt_ticket_state(&output.ticket,output.stop_request)==DBT_TICKET_CANCEL){report_done(output.stop_request,DBT_BUSY);return true;}
           report_done(output.stop_request,start_output(restart.rate,restart.channels,restart.format));return true;
         }
 #endif
@@ -581,6 +597,7 @@ static void render_loop(void *unused) {
 dbt_result_t probe_output_init(void (*wake_decoder)(void *), void *context) {
   output.wake_decoder = wake_decoder;
   output.wake_context = context;
+  dbt_ticket_init(&output.ticket);
   for (unsigned i = 0; i < 3; ++i)
     output.meter_db[i] = -60 * 256;
   dbt_audio_memory_t memory = {0, allocate, release};
@@ -597,55 +614,97 @@ dbt_result_t probe_output_init(void (*wake_decoder)(void *), void *context) {
 /* One accepted request retains the gate until its own receipt arrives. This
  * prevents competing workers consuming each other's completion or a timed-out
  * request later changing the output behind its caller's back. */
-static dbt_result_t request_output(request_t *request) {
+static dbt_result_t request_begin(request_t *request,uint32_t *ticket,bool legacy) {
+  if(!ticket)return DBT_INVALID;
+  *ticket=0;
   if(!output.task || !output.requests)return DBT_INVALID;
   bool starts=request->start;
 #ifdef DBT_PROBE_SOUND_BUILD
   starts=starts || request->kind==REQ_SOUND_RESERVE || request->kind==REQ_SOUND_ATTACH;
 #endif
   if(starts && atomic_load_explicit(&output.restart_hold,memory_order_acquire))return DBT_BUSY;
-  unsigned waits=0;uint32_t expected;unsigned max_waits=50;
+  uint32_t avoid1=0,avoid2=0;
+#ifdef DBT_PROBE_SOUND_BUILD
+  avoid1=atomic_load_explicit(&output.sound_token,memory_order_acquire);
+  avoid2=atomic_load_explicit(&output.sound_retired,memory_order_acquire);
+#endif
+  uint32_t id;dbt_result_t reserved=dbt_ticket_reserve(&output.ticket,avoid1,avoid2,&id);
+  if(reserved!=DBT_OK)return reserved;
+#ifdef DBT_PROBE_SOUND_BUILD
+  /* Refresh identities after reservation: another operation could have
+   * completed between the optimistic snapshot above and the gate CAS. */
+  if(id==atomic_load_explicit(&output.sound_token,memory_order_acquire) ||
+     id==atomic_load_explicit(&output.sound_retired,memory_order_acquire)){
+    (void)dbt_ticket_abort(&output.ticket,id);notify_clients();return DBT_BUSY;
+  }
+#endif
+  /* Close the producer/owner fence race before any request is published. */
+  if(starts && atomic_load_explicit(&output.restart_hold,memory_order_acquire)){
+    (void)dbt_ticket_abort(&output.ticket,id);notify_clients();return DBT_BUSY;
+  }
+  request->id=id;request->legacy=legacy;
+  output.inflight=*request;
+  if(!dbt_ticket_publish(&output.ticket,id))return DBT_INVALID;
+  if (xQueueSend(output.requests, request, 0) != pdTRUE){
+    (void)dbt_ticket_abort(&output.ticket,id);notify_clients();
+    xTaskNotifyGive(output.task);
+    return DBT_BUSY;
+  }
+  *ticket=id;
+  xTaskNotifyGive(output.task);
+  return DBT_PENDING;
+}
+dbt_result_t probe_output_request_poll(uint32_t ticket){
+  unsigned state=dbt_ticket_state(&output.ticket,ticket);
+  dbt_result_t result=dbt_ticket_poll(&output.ticket,ticket);
+  if(result!=DBT_PENDING && (state==DBT_TICKET_DONE || state==DBT_TICKET_CANCELLED))notify_clients();
+  return result;
+}
+dbt_result_t probe_output_request_cancel(uint32_t ticket){
+  dbt_result_t result=dbt_ticket_cancel(&output.ticket,ticket);
+  if(result==DBT_PENDING && output.task)xTaskNotifyGive(output.task);
+  return result;
+}
+/* Compatibility for unconverted clients only. New runtime clients use the
+ * ticket API; this wrapper retains the old bounded-wait/late-reclaim policy. */
+static dbt_result_t request_output(request_t *request) {
+  unsigned waits=0,max_waits=50;uint32_t ticket=0;
 #ifdef DBT_PROBE_SOUND_BUILD
   if(request->kind==REQ_SOUND_RELEASE)max_waits=1;
 #endif
-  do {
-    expected=0;
-    if(atomic_compare_exchange_strong_explicit(&output.request_gate,&expected,1,memory_order_acquire,memory_order_relaxed))break;
-    if(++waits>=max_waits)return DBT_BUSY;
+  for(;;){dbt_result_t result=request_begin(request,&ticket,true);
+    if(result==DBT_PENDING)break;
+    if(result!=DBT_BUSY || ++waits>=max_waits)return result;
     ulTaskNotifyTake(pdTRUE,event_wait_ticks(2));
-  } while(true);
-  /* Close the producer/owner fence race before any request is published. */
-  if(starts && atomic_load_explicit(&output.restart_hold,memory_order_acquire)){
-    atomic_store_explicit(&output.request_gate,0,memory_order_release);return DBT_BUSY;
   }
-  if (!++output.next_request)
-    ++output.next_request;
-  request->id=output.next_request;
-  output.inflight=*request;
-  if (xQueueSend(output.requests, request, pdMS_TO_TICKS(max_waits==1?0:100)) != pdTRUE){
-    atomic_store_explicit(&output.request_gate,0,memory_order_release);
-    return DBT_BUSY;
-  }
-  xTaskNotifyGive(output.task);
   uint32_t began=(uint32_t)(esp_timer_get_time()/1000);
   for (;;) {
-    uint32_t state=atomic_load_explicit(&output.request_gate,memory_order_acquire);
-    if(state==3){
-      dbt_result_t result=(dbt_result_t)atomic_load_explicit(&output.request_result,memory_order_relaxed);
-      atomic_store_explicit(&output.request_gate,0,memory_order_release);return result;
-    }
+    dbt_result_t result=probe_output_request_poll(ticket);
+    if(result!=DBT_PENDING)return result;
     if((uint32_t)(esp_timer_get_time()/1000)-began>=1500u){
-      uint32_t pending=state;
       atomic_store_explicit(&output.request_fault,1,memory_order_release);
-      if((pending==1 || pending==4) && atomic_compare_exchange_strong_explicit(&output.request_gate,&pending,2,memory_order_acq_rel,memory_order_acquire)){
-        xTaskNotifyGive(output.task);return DBT_BUSY;
-      }
+      if(probe_output_request_cancel(ticket)==DBT_PENDING)return DBT_BUSY;
       atomic_store_explicit(&output.request_fault,0,memory_order_release);
     }
     ulTaskNotifyTake(pdTRUE,event_wait_ticks(2));
   }
 }
 #ifdef DBT_PROBE_SOUND_BUILD
+dbt_result_t probe_output_sound_reserve_begin(uint32_t rate,bool exclusive,uint32_t *ticket){
+  if(ticket)*ticket=0;
+  if(!ticket || rate<8000 || rate>192000)return DBT_INVALID;
+  request_t request={.kind=REQ_SOUND_RESERVE,.rate=rate,.exclusive=exclusive};return request_begin(&request,ticket,false);
+}
+dbt_result_t probe_output_sound_attach_begin(uint32_t token,dbt_sound_play_t *play,uint32_t *ticket){
+  if(ticket)*ticket=0;
+  if(!token || !play)return DBT_INVALID;
+  request_t request={.kind=REQ_SOUND_ATTACH,.sound_token=token,.sound=play};return request_begin(&request,ticket,false);
+}
+dbt_result_t probe_output_sound_release_begin(uint32_t token,uint32_t *ticket){
+  if(ticket)*ticket=0;
+  if(!token)return DBT_INVALID;
+  request_t request={.kind=REQ_SOUND_RELEASE,.sound_token=token};return request_begin(&request,ticket,false);
+}
 dbt_result_t probe_output_sound_reserve(uint32_t rate,bool exclusive,uint32_t *token){
   if(!token || rate<8000 || rate>192000)return DBT_INVALID;
   *token=0;request_t request={.kind=REQ_SOUND_RESERVE,.rate=rate,.exclusive=exclusive};
@@ -667,6 +726,11 @@ void probe_output_sound_wake(void (*wake)(void *),void *context){
 }
 void probe_output_sound_data_ready(void){if(output.task)xTaskNotifyGive(output.task);}
 #endif
+dbt_result_t probe_output_stream_begin(bool start,uint32_t rate,uint8_t channels,dbt_pcm_format_t format,uint32_t *ticket){
+  if(ticket)*ticket=0;
+  if(start && (format<DBT_PCM_S16_LE || format>DBT_PCM_S32_LE || channels<1 || channels>2 || rate<8000 || rate>192000))return DBT_INVALID;
+  request_t request={.start=start,.rate=rate,.channels=channels,.format=format};return request_begin(&request,ticket,false);
+}
 dbt_result_t probe_output_stream_format(bool start, uint32_t rate,
                                         uint8_t channels,
                                         dbt_pcm_format_t format) {
@@ -679,7 +743,7 @@ dbt_result_t probe_output_stream_format(bool start, uint32_t rate,
 dbt_result_t probe_output_stream(bool start, uint32_t rate, uint8_t channels) {
   return probe_output_stream_format(start, rate, channels, DBT_PCM_S16_LE);
 }
-dbt_result_t probe_output_pcm_format(const void *samples, uint16_t frames,
+dbt_result_t probe_output_try_pcm_format(const void *samples, uint16_t frames,
                                      uint8_t channels, uint32_t rate,
                                      dbt_pcm_format_t format) {
   if (!samples || !frames || format < DBT_PCM_S16_LE ||
@@ -688,14 +752,16 @@ dbt_result_t probe_output_pcm_format(const void *samples, uint16_t frames,
       output.audio.config.channels != channels ||
       output.audio.config.format != format)
     return DBT_INVALID;
+  dbt_result_t result=dbt_audio_submit(&output.audio,samples,frames);
+  if(result==DBT_OK){atomic_fetch_add(&output.accepted_frames,frames);xTaskNotifyGive(output.task);}
+  else if(result==DBT_BUSY)xTaskNotifyGive(output.task);
+  return result;
+}
+dbt_result_t probe_output_pcm_format(const void *samples,uint16_t frames,uint8_t channels,uint32_t rate,dbt_pcm_format_t format){
   uint32_t began = (uint32_t)(esp_timer_get_time() / 1000);
   for (;;) {
-    dbt_result_t result = dbt_audio_submit(&output.audio, samples, frames);
-    if (result == DBT_OK) {
-      atomic_fetch_add(&output.accepted_frames, frames);
-      xTaskNotifyGive(output.task);
-      return result;
-    }
+    dbt_result_t result=probe_output_try_pcm_format(samples,frames,channels,rate,format);
+    if(result==DBT_OK)return result;
     if (result != DBT_BUSY ||
         (uint32_t)(esp_timer_get_time() / 1000) - began >= 100)
       return result;
@@ -789,11 +855,11 @@ void probe_output_restart_hold(bool hold){
 }
 bool probe_output_restart_quiescent(void){
   if(!atomic_load_explicit(&output.restart_hold,memory_order_acquire) ||
-     atomic_load_explicit(&output.request_gate,memory_order_acquire) ||
+     !dbt_ticket_idle(&output.ticket) ||
      atomic_load(&output.failed) || atomic_load(&output.request_fault) ||
      atomic_load(&output.running) || atomic_load(&output.requested_bytes))return false;
 #ifdef DBT_PROBE_SOUND_BUILD
   if(atomic_load_explicit(&output.sound_token,memory_order_acquire))return false;
 #endif
-  return atomic_load_explicit(&output.request_gate,memory_order_acquire)==0;
+  return dbt_ticket_idle(&output.ticket);
 }

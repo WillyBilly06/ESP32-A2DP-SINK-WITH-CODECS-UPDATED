@@ -110,6 +110,10 @@ TESTS = [
     "codec_lazy_lifecycle_and_rollback", "codec_queue_gates_and_copy", "codec_reset_failure_stops_stream",
     "codec_deferred_pcm_backpressure_and_exact_order", "codec_deferred_cancel_suspend_and_reconfigure",
     "codec_deferred_deadline_and_failure_retirement",
+    "async_ticket_identity_and_completion", "async_ticket_cancel_phase_and_retirement",
+    "async_ticket_wrap_and_reservation_abort",
+    "codec_async_stream_completion_and_media_fence", "codec_async_stream_cancel_before_drop",
+    "codec_async_stream_deadline_and_receipt_reservation",
 ]
 
 
