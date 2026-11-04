@@ -1,8 +1,8 @@
 # Classic security ownership
 
 `dbt_classic_security` owns host policy and procedure state. The retained controller
-performs link authentication, SSP cryptography and encryption. BLE SMP is separate
-and remains unimplemented.
+performs link authentication, SSP cryptography and encryption. BLE SMP is a
+separate implemented module; its current RF/product qualification remains open.
 
 The module handles IO capabilities, explicit Just Works policy, confirmation,
 passkey/PIN interaction, OOB replies, known-key lookup and key updates. It rejects
@@ -34,6 +34,13 @@ Only the explicitly selected test peer can pair or request encrypted administrat
 Security logs contain metadata; keys, PINs, passkeys and OOB values are not logged.
 
 ## Evidence and remaining qualification
+
+The 2026-11-04 ESP-IDF 6.1 Redmagic trial confirmed discovery, selected-peer
+admission, Just Works pairing, durable native bond completion and encryption
+with a 16-byte key. Android device details and HCI Read BD_ADDR agreed on COM6's
+identity. This used the restricted diagnostic policy, not production pairing
+consent. The unauthenticated SSP key provides no MITM claim. See
+[the dated trial record](BLUETOOTH_RF_2026_11_04.md) for image identity and limits.
 
 Native policy/lifecycle tests and Linux sanitizers pass. Live restricted Just Works
 pairing, a committed native bond, later record reload, and encrypted channels with
