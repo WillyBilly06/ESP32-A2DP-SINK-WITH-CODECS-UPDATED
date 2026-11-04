@@ -15,6 +15,11 @@ identical PCM hashes and passes all 252 measured isolated 5 ms deadlines at
 qualification remains open. All finite runs returned to released 1.0.4 firmware. The user released
 COM6 for testing in this chat; the historical reservation below is superseded.
 
+The [resumable PCM worker checkpoint](docs/IDF61_ASYNC_PCM_2026_11_04.md) adds
+80 real-codec host comparisons with sanitizer coverage and 38 passing ESP32
+deferred-worker checks. The render provider, stream/sound transactions and full
+DSP/I2S/Bluetooth integration remain separate open gates.
+
 ## Historical pre-6.1 status
 
 

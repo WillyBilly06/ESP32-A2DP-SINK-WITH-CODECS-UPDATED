@@ -98,6 +98,13 @@ marks, transient codec-switch peaks and fragmentation remain mandatory gates.
 
 ## Remaining gates and next work
 
+The [resumable PCM worker](IDF61_ASYNC_PCM_2026_11_04.md) now retains decoded
+views and encoded-frame cursors through backpressure. All 38 isolated ESP32
+deferred cases match their direct PCM/sample-timestamp hashes; 80 real-codec
+host cases also pass with address checks and owned-glue undefined checks.
+The product's render/control provider is still legacy and has not been replaced
+or qualified by those isolated tests.
+
 Updated target evidence: [6.1 codec checkpoint](IDF61_TARGET_CODECS_2026_11_04.md)
 and [LHDC stage profile/optimization](IDF61_LHDC_PROFILE_2026_11_04.md).
 All 37 codec configurations pass on COM6. At 192 kHz/stereo/S24/1000 kbps, an exact

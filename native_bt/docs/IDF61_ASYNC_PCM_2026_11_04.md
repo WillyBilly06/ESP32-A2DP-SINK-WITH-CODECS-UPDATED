@@ -71,6 +71,27 @@ separate requirement.
   phase, injects BUSY responses, checks heap retirement and records stack/work
   spans. Its target execution is a separate gate, not implied by host success.
 
+## ESP32 result
+
+COM6 executed image
+`1a32fab54dad078ff33ed5873e9eeaeeb229f27c23daf7cc1d96d20450e68d1c`
+from source checkpoint `bbeba780`. All 37 direct configurations passed again,
+and all 38 deferred-worker cases passed (the 37 configurations plus the full
+maximum-rate LHDC fixture). Complete PCM and per-sample timestamp hashes matched
+the direct phase despite repeated BUSY injection. Each working set retired
+without tracked live allocations. This uses a simulated consumer on the target;
+it is not I2S, radio, simultaneous-owner or end-to-end product evidence.
+
+The three direct maximum-rate timing trials also passed their isolated 5 ms
+gate with the unchanged PCM hash `4008775619`. Deferred work-span counters include
+cold initialization and codecs with different frame durations; their maxima
+must not be presented as a universal 5 ms decoder deadline measurement.
+
+The diagnostic selected the preserved released baseline, which booted cleanly.
+Exact image/config/source receipts and raw output are archived locally under
+`_build/hardware/runs/1793793174866167900-1a32fab54dad/`. Sanitized host/target
+evidence is in [the result record](IDF61_ASYNC_PCM_RESULTS.json).
+
 Reproduce host checks:
 
 ```powershell
@@ -91,3 +112,25 @@ retirement and all generation fences while replacing the provider.
 
 Real DSP/I2S and simultaneous Classic/BLE/storage stress remain unqualified.
 The released Bluedroid path remains intact and the full master goal is incomplete.
+
+Provider audit notes for that next change:
+
+- `request_output()` serializes one ticket using FREE/WAITING/ABANDONED/DONE/
+  COMPLETING states. It can wait for the gate, queue submission and up to 1,500
+  ms for completion. Preserve ticket identity, restart fencing and late-cancel
+  reclamation when replacing it with begin/poll/cancel completion.
+- A pending stream control must keep media admission closed until its actual
+  output completion. An accepted operation cannot be treated as an ordinary
+  rejected BUSY and allow the old producer to resume while it is still in flight.
+- Sound reserve/attach/release share that gate. Retain borrowed play objects and
+  sound tokens until renderer retirement is observed; preserve standalone,
+  mixed, drained, cancelled and codec-transition behavior.
+- `render_loop()` currently wakes on notifications or a 10 ms poll. Deadline-
+  driven waiting must retain its 500 ms stop failure bound and explicit sound/
+  producer readiness notifications. Early malformed-DMA ISR branches currently
+  set failure and return without waking the render task; an event-only loop must
+  provide that wake rather than rely on the poll.
+- Ring/config destruction currently relies on the stream caller being quiescent
+  and the ISR running on the same core as the render owner. Revalidate every
+  format, fault, cancellation and sound-transition path under the asynchronous
+  control contract before freeing/reusing the rings or publishing completion.
