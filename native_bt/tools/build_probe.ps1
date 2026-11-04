@@ -1,5 +1,6 @@
-param([switch]$WithLhdc,[switch]$WithOpus,[switch]$WithAac,[switch]$WithAptx,[switch]$WithLdac,[switch]$WithSmp,[switch]$WithAvrcp,[switch]$WithSbc,[switch]$WithAudioProbe,[switch]$WithAudioOutput,[switch]$WithGatt,[switch]$WithClassicSecurity,[switch]$TraceIngress,[switch]$WithoutRxFlow,[switch]$KeepOwned=$true,[string]$TestPeer='')
+param([switch]$WithProductIo,[switch]$WithLhdc,[switch]$WithOpus,[switch]$WithAac,[switch]$WithAptx,[switch]$WithLdac,[switch]$WithSmp,[switch]$WithAvrcp,[switch]$WithSbc,[switch]$WithAudioProbe,[switch]$WithAudioOutput,[switch]$WithGatt,[switch]$WithClassicSecurity,[switch]$TraceIngress,[switch]$WithoutRxFlow,[switch]$KeepOwned=$true,[string]$TestPeer='')
 $ErrorActionPreference = 'Stop'
+if ($WithProductIo) { $WithSmp=$true; $WithGatt=$true; $WithAudioOutput=$true; $WithAvrcp=$true; $WithClassicSecurity=$true }
 if ($WithAudioOutput) { $WithAudioProbe = $true }
 if ($WithAudioProbe -and -not $WithClassicSecurity) { throw 'The SBC diagnostic requires -WithClassicSecurity and the exact test peer' }
 if ($WithAudioProbe) { $WithSbc = $true }
@@ -14,6 +15,9 @@ $workspaceRoot = Split-Path -Parent $nativeRoot
 $idfRoot = Join-Path $workspaceRoot 'esp-idf'
 $buildRoot = Join-Path $nativeRoot '_build\esp32'
 $probeRoot = Join-Path $nativeRoot 'esp32_probe'
+New-Item -ItemType Directory -Path $buildRoot -Force | Out-Null
+$buildReceiptPath=Join-Path $buildRoot 'local-build-status.json'
+@{schema=1;passed=$false;state='building';hardware_accessed=$false} | ConvertTo-Json | Set-Content -LiteralPath $buildReceiptPath -Encoding utf8
 if ($WithAudioOutput) {
     $nativeSdkPath=Join-Path $probeRoot 'sdkconfig'
     if (Test-Path -LiteralPath $nativeSdkPath) {
@@ -36,6 +40,7 @@ if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 $env:IDF_COMPONENT_MANAGER = '0'
 $env:CCACHE_DISABLE = '1'
+$productIoBuild=if ($WithProductIo) { 'ON' } else { 'OFF' }
 $lhdcBuild = if ($WithLhdc) { 'ON' } else { 'OFF' }
 $ldacBuild=if ($WithLdac) { 'ON' } else { 'OFF' }
 $aacBuild=if ($WithAac) { 'ON' } else { 'OFF' }
@@ -57,7 +62,36 @@ if ($WithClassicSecurity) {
     [array]::Reverse($peerOctets)
     $peerBytes=($peerOctets | ForEach-Object { '0x'+$_ }) -join ','
 }
-python (Join-Path $idfRoot 'tools\idf.py') -C $probeRoot -B $buildRoot "-DDBT_PROBE_LHDC_BUILD=$lhdcBuild" "-DDBT_PROBE_OPUS_BUILD=$opusBuild" "-DDBT_PROBE_AAC_BUILD=$aacBuild" "-DDBT_PROBE_LDAC_BUILD=$ldacBuild" "-DDBT_PROBE_APTX_BUILD=$aptxBuild" "-DDBT_PROBE_SMP=$smpBuild" "-DDBT_PROBE_AVRCP=$avrcpBuild" "-DDBT_PROBE_SBC_BUILD=$sbcBuild" "-DDBT_PROBE_AUDIO_TEST=$audioBuild" "-DDBT_PROBE_AUDIO_OUTPUT=$outputBuild" "-DDBT_PROBE_KEEP_OWNED_ACTIVE=$keepOwnedBuild" "-DDBT_PROBE_GATT_TEST=$gattBuild" "-DDBT_PROBE_CLASSIC_SECURITY_TEST=$securityBuild" "-DDBT_PROBE_INGRESS_TRACE=$ingressBuild" "-DDBT_PROBE_DISABLE_RX_FLOW=$disableReceiveFlow" "-DDBT_PROBE_PAIRING_PEER_BYTES=$peerBytes" build
-if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+$idfArguments=@('-C',$probeRoot,'-B',$buildRoot,"-DDBT_PROBE_PRODUCT_IO=$productIoBuild", "-DDBT_PROBE_LHDC_BUILD=$lhdcBuild", "-DDBT_PROBE_OPUS_BUILD=$opusBuild", "-DDBT_PROBE_AAC_BUILD=$aacBuild", "-DDBT_PROBE_LDAC_BUILD=$ldacBuild", "-DDBT_PROBE_APTX_BUILD=$aptxBuild", "-DDBT_PROBE_SMP=$smpBuild", "-DDBT_PROBE_AVRCP=$avrcpBuild", "-DDBT_PROBE_SBC_BUILD=$sbcBuild", "-DDBT_PROBE_AUDIO_TEST=$audioBuild", "-DDBT_PROBE_AUDIO_OUTPUT=$outputBuild", "-DDBT_PROBE_KEEP_OWNED_ACTIVE=$keepOwnedBuild", "-DDBT_PROBE_GATT_TEST=$gattBuild", "-DDBT_PROBE_CLASSIC_SECURITY_TEST=$securityBuild", "-DDBT_PROBE_INGRESS_TRACE=$ingressBuild", "-DDBT_PROBE_DISABLE_RX_FLOW=$disableReceiveFlow", "-DDBT_PROBE_PAIRING_PEER_BYTES=$peerBytes")
+$sourceManifestPath=Join-Path $buildRoot 'local-build-sources.json'
+# Reconfigure first so generated ports, compilation flags and SDK configuration
+# are final before fingerprinting the actual build inputs.
+python (Join-Path $idfRoot 'tools\idf.py') @idfArguments reconfigure
+$buildExitCode=$LASTEXITCODE
+$sourceCheckCode=-1
+if ($buildExitCode -eq 0) {
+    python (Join-Path $PSScriptRoot 'source_snapshot.py') --save $sourceManifestPath
+    $buildExitCode=$LASTEXITCODE
+    if ($buildExitCode -eq 0) {
+        python (Join-Path $idfRoot 'tools\idf.py') -C $probeRoot -B $buildRoot build
+        $buildExitCode=$LASTEXITCODE
+        python (Join-Path $PSScriptRoot 'source_snapshot.py') --verify $sourceManifestPath
+        $sourceCheckCode=$LASTEXITCODE
+    }
+}
 python (Join-Path $PSScriptRoot 'check_workspace.py')
-exit $LASTEXITCODE
+$workspaceCheckCode=$LASTEXITCODE
+$buildReceipt=[ordered]@{schema=1;passed=($buildExitCode -eq 0 -and $sourceCheckCode -eq 0 -and $workspaceCheckCode -eq 0);state='failed';hardware_accessed=$false;product_io=[bool]$WithProductIo;build_exit=$buildExitCode;source_check_exit=$sourceCheckCode;workspace_check_exit=$workspaceCheckCode}
+if ($buildReceipt.passed) {
+    $buildReceipt.state='complete'
+    $buildReceipt.source_manifest_sha256=(Get-FileHash -LiteralPath $sourceManifestPath -Algorithm SHA256).Hash.ToLowerInvariant()
+    $buildReceipt.image_sha256=(Get-FileHash -LiteralPath (Join-Path $buildRoot 'native_bt_probe.bin') -Algorithm SHA256).Hash.ToLowerInvariant()
+    $buildReceipt.config_sha256=(Get-FileHash -LiteralPath (Join-Path $buildRoot 'config/sdkconfig.h') -Algorithm SHA256).Hash.ToLowerInvariant()
+    $buildReceipt.partition_sha256=(Get-FileHash -LiteralPath (Join-Path $buildRoot 'partition_table/partition-table.bin') -Algorithm SHA256).Hash.ToLowerInvariant()
+}
+$buildReceipt | ConvertTo-Json | Set-Content -LiteralPath $buildReceiptPath -Encoding utf8
+if ($buildExitCode -ne 0) { exit $buildExitCode }
+if ($sourceCheckCode -ne 0) { exit $sourceCheckCode }
+Write-Host 'OFF-BOARD BUILD: intended destination is existing ota_1 at 0x390000 (0x280000 bytes).'
+Write-Host 'Generic SDK flash hints are disabled for this project. Preserve bootloader/table/recovery; use the admission helper only after the user releases HARDWARE_HOLD.'
+exit $workspaceCheckCode

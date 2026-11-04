@@ -1,5 +1,5 @@
 idf_component_register(
-    SRCS "../../../src/dbt_queue.c" "../../../src/dbt_hci.c" "../../../src/dbt_host.c" "../../../src/dbt_acl.c" "../../../src/dbt_l2cap.c" "../../../src/dbt_channels.c" "../../../src/dbt_runtime.c" "../../../src/dbt_gap.c" "../../../src/dbt_att.c" "../../../src/dbt_att_bearer.c" "../../../src/dbt_classic_security.c" "../../../src/dbt_sdp.c" "../../../src/dbt_sdp_bearer.c" "../../../src/dbt_rx_flow.c"
+    SRCS "../../../src/dbt_boot_policy.c" "../../../src/dbt_queue.c" "../../../src/dbt_hci.c" "../../../src/dbt_host.c" "../../../src/dbt_acl.c" "../../../src/dbt_l2cap.c" "../../../src/dbt_channels.c" "../../../src/dbt_runtime.c" "../../../src/dbt_gap.c" "../../../src/dbt_att.c" "../../../src/dbt_att_bearer.c" "../../../src/dbt_classic_security.c" "../../../src/dbt_sdp.c" "../../../src/dbt_sdp_bearer.c" "../../../src/dbt_rx_flow.c"
          "../../../src/dbt_avdtp.c" "../../../src/dbt_avdtp_bearer.c"
          "../../../src/dbt_avdtp_caps.c"
          "../../../src/dbt_avdtp_sink.c"
@@ -22,9 +22,16 @@ idf_component_register(
          "../../../src/dbt_smp_sc.c"
          "../../../src/dbt_smp_features.c"
          "../../../src/dbt_smp_session.c"
+         "../../../src/dbt_product_peer.c"
+         "../../../src/dbt_ota.c"
+         "../../../src/dbt_sound.c"
+         "../../../src/dbt_sound_mix.c"
+         "../../../src/dbt_led.c"
+         "../../../src/dbt_input.c"
          "../../../src/dbt_ble_control.c"
          "../../../src/dbt_audio.c"
          "../../../src/dbt_resampler.c" "../../../../bt_audio_sink/main/dsp/fixed_dsp.c"
+    REQUIRES partition_table
     INCLUDE_DIRS "../../../include" "../../../../bt_audio_sink/main/dsp"
 )
 target_compile_options(${COMPONENT_LIB} PRIVATE -std=c11 -Wall -Wextra -Werror)

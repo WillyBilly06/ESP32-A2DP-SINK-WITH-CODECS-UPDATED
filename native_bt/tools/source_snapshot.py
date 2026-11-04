@@ -16,6 +16,8 @@ def snapshot():
         for entry in json.loads(commands.read_text()):
             f=Path(entry['file']).resolve()
             if f.is_file() and ('_build' not in f.parts or 'port' in f.parts):paths.add(f)
+    for f in (ROOT/'_build/esp32/compile_commands.json',ROOT/'_build/esp32/config/sdkconfig.h'):
+        if f.is_file():paths.add(f.resolve())
     sibling=WS.parent/'LHDC-V5-Decoder-main/decoder'
     if sibling.exists():paths.update(f.resolve() for f in sibling.glob('*.h'))
     result={}
@@ -24,10 +26,27 @@ def snapshot():
         except ValueError:key='external/'+f.parent.name+'/'+f.name
         result[key]=hashlib.sha256(f.read_bytes()).hexdigest()
     return result
-p=argparse.ArgumentParser();p.add_argument('--save',type=Path);p.add_argument('--verify',type=Path);a=p.parse_args();current=snapshot()
-if a.save:a.save.write_text(json.dumps(current,indent=2)+'\n')
-if a.verify:
-    old=json.loads(a.verify.read_text());changed=sorted(k for k in set(old)|set(current) if old.get(k)!=current.get(k))
-    print(json.dumps({'source_content_stable':not changed,'files':len(current),'changed':changed},indent=2))
-    if changed:sys.exit(1)
-else:print('Fingerprinted',len(current),'source units and owned build inputs')
+def verify_manifest(path, expected_sha256=None):
+    raw=Path(path).read_bytes()
+    if expected_sha256 and hashlib.sha256(raw).hexdigest()!=expected_sha256:
+        raise RuntimeError('Build source manifest hash mismatch')
+    previous=json.loads(raw)
+    current=snapshot()
+    changed=sorted(k for k in set(previous)|set(current) if previous.get(k)!=current.get(k))
+    if changed:
+        raise RuntimeError('Build inputs changed: '+', '.join(changed[:8]))
+    return len(current)
+
+
+def main():
+    parser=argparse.ArgumentParser();parser.add_argument('--save',type=Path);parser.add_argument('--verify',type=Path)
+    args=parser.parse_args();current=snapshot()
+    if args.save:args.save.write_text(json.dumps(current,indent=2)+'\n')
+    if args.verify:
+        previous=json.loads(args.verify.read_text());changed=sorted(k for k in set(previous)|set(current) if previous.get(k)!=current.get(k))
+        print(json.dumps({'source_content_stable':not changed,'files':len(current),'changed':changed},indent=2))
+        return int(bool(changed))
+    print('Fingerprinted',len(current),'source units and owned build inputs')
+    return 0
+
+if __name__=='__main__':raise SystemExit(main())

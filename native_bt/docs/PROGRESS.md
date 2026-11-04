@@ -1,6 +1,6 @@
 # Current project progress
 
-Updated 2026-10-29. The independent-host goal is **active and incomplete**.
+Updated 2026-11-03. The independent-host goal is **active and incomplete**.
 The current authoritative scope, feature inventory and evidence boundaries are
 in [FEATURE_MATRIX.md](FEATURE_MATRIX.md). In particular, the owned probe is
 not yet a replacement for the Bluedroid product application, and the full set
@@ -13,6 +13,27 @@ flash, reset, serial reconnect or Bluetooth connection is authorized until the
 user releases the [hardware hold](../_build/hardware/HARDWARE_HOLD.json).
 Local compilation, host tests and artifact creation do not establish a new
 on-device result.
+
+Current local candidate (not flashed): `007bc54d7cb3e74dde159b780fd1e9611ee2ffef2e3389de447f2c31150661d7`,
+1127856 bytes, fitting `ota_1` at `0x390000` with 1493584 bytes
+remaining. The compiled partition bytes match the preserved 8 MB layout.
+COM6 is the user-confirmed target. The managed monitor display is restored at
+http://127.0.0.1:50412/ with its serial reader released.
+
+The combined build now links product name/OTA, LED/input/sound and bonded
+CCCD providers. Local pairing disconnects only the captured A2DP generation;
+ERTM initial configuration supports bounded request/response continuation.
+Current core tests pass 168/168; focused GATT/SMP/product and artifact-policy
+checks pass. The build receipt binds 1306 source units and compile/configuration
+inputs to the image. Static DRAM is 50,584 bytes and IRAM is 130,243 bytes,
+leaving only 829 bytes of the linked IRAM region; these are not runtime heap
+or task-stack measurements. I2S ISR IRAM safety remains enabled. LED SPI ISR
+code runs from flash to fit; its delay during flash operations is unqualified.
+
+Broader pairing/OTA authorization UI, automatic sound events, LED visual parity,
+missing protocols/profiles and all new physical behavior remain open. Older
+Linux sanitizer runs do not certify all current changed sources. The goal
+remains active; no performance advantage or production stability is claimed.
 
 The last recorded owned image, SHA-256
 `06ea0f6e4a2859d64108caa235f505b70b64e152fcabbddc6ebe2ab554774085`,
@@ -305,9 +326,9 @@ coexistence. Flash-stall analysis preserving immediate NVS, LHDC A2DP integratio
 and remaining codec work are still required. No full-stack speed/memory superiority
 or production release readiness is established. See [release gates](RELEASE_READINESS.md).
 
-## Latest local candidate checkpoint
+## Historical local candidate checkpoint (superseded)
 
-The off-board candidate is 1,019,680 bytes, SHA-256
+The earlier off-board candidate was 1,019,680 bytes, SHA-256
 `4ac970772b158c3e80e9dd9d19f076ed456b383eda793e54f6664296ef313092`.
 Its ESP32 checksum, appended digest, supported revision range and fit within the
 previously admitted 2.5 MiB OTA slot pass local validation. It is configured for

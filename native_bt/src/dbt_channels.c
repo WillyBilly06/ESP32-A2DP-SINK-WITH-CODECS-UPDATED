@@ -15,7 +15,8 @@ struct dbt_le_channel {
 };
 struct dbt_ertm_channel {
     dbt_ertm_engine_t engine;
-    dbt_ertm_parameters_t local,peer,staged_peer;
+    dbt_ertm_parameters_t local,peer,staged_peer,request_options,response_options;
+    uint8_t request_seen,response_seen;
     dbt_channels_t *manager;
     dbt_channel_t *channel;
     uint8_t *encoded;
@@ -775,37 +776,35 @@ static bool parse_options(const uint8_t *data, uint16_t size, uint16_t minimum, 
     }
     return true;
 }
-/* Required ERTM deliberately uses the default 16-bit FCS. Unknown mandatory
- * options and continuation are refused, so no partial or asymmetric mode can
- * reach OPEN. Timers in requests must be zero; response timers are the peer's
- * actual sender settings and do not replace our own local sender timers. */
+/* Each signaling fragment must contain complete options. Only recognized
+ * values and presence bits are retained; unknown hints require no storage.
+ * Parsing works on a caller-owned candidate and commits only after enqueue. */
 static bool ertm_options(const uint8_t *data,uint16_t size,bool response,
-                         uint16_t initial_mtu,dbt_ertm_parameters_t *value){
-    bool rfc=false,mtu=false,fcs=false;value->mtu=initial_mtu;
+                         dbt_ertm_parameters_t *value,uint8_t *seen){
     for(unsigned at=0;at<size;){
         if(size-at<2)return false;
         unsigned type=data[at],length=data[at+1],end=at+2u+length;
         if(end>size)return false;
         const uint8_t *p=data+at+2;
-        if(type&0x80u){at=end;continue;}
-        if((type&0x7fu)==1){
-            if(mtu || length!=2)return false;
-            mtu=true;value->mtu=dbt_read_le16(p);
+        unsigned kind=type&0x7fu;
+        if(kind==1){
+            if((*seen&1u) || length!=2)return false;
+            *seen|=1u;value->mtu=dbt_read_le16(p);
             if(value->mtu<48)return false;
-        }else if((type&0x7fu)==4){
-            if(rfc || length!=9 || p[0]!=3 || !p[1] || p[1]>63)return false;
-            rfc=true;value->window=p[1];value->max_transmit=p[2];
+        }else if(kind==4){
+            if((*seen&2u) || length!=9 || p[0]!=3 || !p[1] || p[1]>63)return false;
+            *seen|=2u;value->window=p[1];value->max_transmit=p[2];
             value->retransmission_ms=dbt_read_le16(p+3);value->monitor_ms=dbt_read_le16(p+5);value->mps=dbt_read_le16(p+7);
             if(value->mps<48 || value->mps>DBT_ERTM_MAX_MPS ||
                (!response && (value->retransmission_ms || value->monitor_ms)) ||
                (response && (value->retransmission_ms<2000 || value->monitor_ms<12000)))return false;
-        }else if((type&0x7fu)==5){
-            if(fcs || length!=1 || p[0]>1)return false;
-            fcs=true;
+        }else if(kind==5){
+            if((*seen&4u) || length!=1 || p[0]>1)return false;
+            *seen|=4u;
         }else if(!(type&0x80u))return false;
         at=end;
     }
-    return rfc;
+    return true;
 }
 static dbt_result_t ertm_config_request(dbt_channels_t *m,const dbt_link_t *link,dbt_channel_t *c,
                                          const uint8_t *command,uint16_t size){
@@ -813,21 +812,34 @@ static dbt_result_t ertm_config_request(dbt_channels_t *m,const dbt_link_t *link
     dbt_result_t discovery=dbt_channels_peer_features(m,link->handle,&features);
     if(discovery==DBT_BUSY)return DBT_BUSY;
     if(discovery!=DBT_OK || !(features&8u))return DBT_UNSUPPORTED;
-    dbt_ertm_parameters_t peer={0};
-    bool accepted=dbt_read_le16(command+6)==0 && ertm_options(command+8,(uint16_t)(size-8),false,c->tx_mtu,&peer);
-    if(accepted && peer.mtu<c->minimum_mtu)accepted=false;
-    uint8_t body[21]={0};put16(body,c->remote_cid);put16(body+2,0);
+    struct dbt_ertm_channel *e=c->ertm;
+    uint16_t flags=dbt_read_le16(command+6);
+    dbt_ertm_parameters_t peer=c->incoming_more?e->request_options:(dbt_ertm_parameters_t){0};
+    uint8_t seen=c->incoming_more?e->request_seen:0;
+    if(!c->incoming_more)peer.mtu=c->tx_mtu;
+    bool accepted=!(flags&~1u) && ertm_options(command+8,(uint16_t)(size-8),false,&peer,&seen);
+    if(!(flags&1u) && (!(seen&2u) || peer.mtu<c->minimum_mtu))accepted=false;
     if(!accepted){ertm_fault(m,c);return DBT_OK;}
-    peer.mtu=smaller(peer.mtu,m->maximum_mtu);
-    if(peer.mps>m->maximum_mtu-6u)peer.mps=(uint16_t)(m->maximum_mtu-6u);
-    body[6]=1;body[7]=2;put16(body+8,peer.mtu);
-    body[10]=4;body[11]=9;body[12]=3;body[13]=peer.window;body[14]=peer.max_transmit;
-    put16(body+15,c->ertm->local.retransmission_ms);put16(body+17,c->ertm->local.monitor_ms);put16(body+19,peer.mps);
-    dbt_signal_tx_t *slot=0;dbt_result_t result=enqueue(m,link,1,CONFIG_RESPONSE,command[1],body,21,c,TX_CONFIG_ACCEPT,&slot);
+    uint8_t body[21]={0};put16(body,c->remote_cid);put16(body+2,flags&1u);
+    uint16_t body_size=6;
+    if(!(flags&1u)){
+        peer.mtu=smaller(peer.mtu,m->maximum_mtu);
+        if(peer.mps>m->maximum_mtu-6u)peer.mps=(uint16_t)(m->maximum_mtu-6u);
+        body[6]=1;body[7]=2;put16(body+8,peer.mtu);
+        body[10]=4;body[11]=9;body[12]=3;body[13]=peer.window;body[14]=peer.max_transmit;
+        put16(body+15,e->local.retransmission_ms);put16(body+17,e->local.monitor_ms);put16(body+19,peer.mps);
+        body_size=21;
+    }
+    dbt_signal_tx_t *slot=0;dbt_result_t result=enqueue(m,link,1,CONFIG_RESPONSE,command[1],body,body_size,c,
+                                                       (flags&1u)?TX_PLAIN:TX_CONFIG_ACCEPT,&slot);
     if(result!=DBT_OK)return result;
-    ++c->config_epoch;slot->config_epoch=c->config_epoch;slot->peer_mtu=peer.mtu;c->ertm->staged_peer=peer;
+    if(!c->incoming_more){++c->config_epoch;c->peer_configured=false;}
+    slot->config_epoch=c->config_epoch;slot->peer_mtu=peer.mtu;
+    c->incoming_more=(flags&1u)!=0;e->request_options=peer;e->request_seen=seen;
+    if(!c->incoming_more){e->staged_peer=peer;c->peer_mtu_staged=peer.mtu;}
     c->cached_request_size=(uint8_t)size;copy(c->cached_request,command,size);
     c->cached_reply_size=slot->size;copy(c->cached_reply,slot->bytes,slot->size);
+    c->deadline=m->now_ms+m->rtx_ms;
     return DBT_OK;
 }
 static dbt_result_t config_request(dbt_channels_t *manager, const dbt_link_t *link, const uint8_t *command, uint16_t size) {
@@ -890,12 +902,21 @@ static void config_response(dbt_channels_t *manager, const dbt_link_t *link, con
     uint16_t flags = dbt_read_le16(command + 6), result = dbt_read_le16(command + 8);
     if(channel->ertm){
         if(result==4 && !flags){pending(manager,channel);return;}
-        dbt_ertm_parameters_t accepted={0};
-        if(result || flags || !ertm_options(command+10,(uint16_t)(size-10),true,channel->rx_mtu,&accepted) ||
+        struct dbt_ertm_channel *e=channel->ertm;
+        dbt_ertm_parameters_t accepted=channel->response_more?e->response_options:(dbt_ertm_parameters_t){0};
+        uint8_t seen=channel->response_more?e->response_seen:0;
+        if(!channel->response_more)accepted.mtu=channel->rx_mtu;
+        if(result || (flags&~1u) || !ertm_options(command+10,(uint16_t)(size-10),true,&accepted,&seen) ||
            accepted.mtu<channel->minimum_mtu || accepted.mtu>channel->rx_mtu ||
-           accepted.window>channel->ertm->local.window || accepted.mps>channel->ertm->local.mps){
+           ((seen&2u) && (accepted.window>e->local.window || accepted.mps>e->local.mps))){
             ertm_fault(manager,channel);return;
         }
+        e->response_options=accepted;e->response_seen=seen;
+        channel->request_code=0;channel->request_sent=false;
+        channel->deadline=manager->now_ms+manager->rtx_ms;
+        if(flags&1u){channel->response_more=true;return;}
+        channel->response_more=false;
+        if(!(seen&2u)){ertm_fault(manager,channel);return;}
         channel->ertm->local.mtu=accepted.mtu;channel->ertm->local.mps=accepted.mps;
         channel->ertm->local.window=accepted.window;channel->rx_mtu=accepted.mtu;
         channel->request_code=0;channel->request_sent=false;channel->local_configured=true;

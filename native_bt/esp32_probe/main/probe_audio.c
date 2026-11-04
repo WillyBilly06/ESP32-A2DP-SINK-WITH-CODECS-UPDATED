@@ -352,3 +352,14 @@ void probe_audio_poll(uint32_t now){
 #endif
 }
 uint32_t probe_audio_wait_ms(uint32_t now){return initialized?dbt_a2dp_acceptor_wait_ms(&profile,now):UINT32_MAX;}
+const dbt_link_t *probe_audio_peer_link(uint16_t handle,uint32_t generation){
+    if(!initialized || !profile.runtime || !generation)return 0;
+    const dbt_link_t *link=dbt_acl_find(&profile.runtime->acl,handle);
+    return link && link->kind==DBT_LINK_CLASSIC && link->generation==generation?link:0;
+}
+dbt_result_t probe_audio_peer(uint16_t *handle,uint32_t *generation){
+    if(!handle || !generation)return DBT_INVALID;
+    if(!initialized || !profile.active || !profile.signaling.serial ||
+       !probe_audio_peer_link(profile.signaling.handle,profile.signaling.generation))return DBT_EMPTY;
+    *handle=profile.signaling.handle;*generation=profile.signaling.generation;return DBT_OK;
+}

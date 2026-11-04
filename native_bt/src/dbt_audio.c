@@ -70,7 +70,7 @@ void dbt_audio_close(dbt_audio_t *a){
     if(!a)return;
     if(a->input.bytes)a->memory.release(a->memory.context,a->input.bytes);
     if(a->output.bytes)a->memory.release(a->memory.context,a->output.bytes);
-    a->input.bytes=a->output.bytes=0;a->opened=false;a->allocated_bytes=0;
+    a->input.bytes=a->output.bytes=0;a->opened=false;a->allocated_bytes=0;a->mix=0;a->mix_context=0;
     dbt_audio_clock_reset(a,0);
 }
 dbt_result_t dbt_audio_open(dbt_audio_t *a,dbt_audio_config_t config){
@@ -188,6 +188,13 @@ static int32_t interpolate(int32_t current,int32_t next,uint32_t fraction){
     int64_t value=(int64_t)current*(int64_t)(4294967296ull-fraction)+(int64_t)next*fraction;
     return (int32_t)(value>>32);
 }
+void dbt_audio_set_mix(dbt_audio_t *a,void (*mix)(void *,int32_t *,uint32_t),void *context){if(a){a->mix=mix;a->mix_context=context;}}
+static void apply_mix(dbt_audio_t *a,uint32_t out,uint32_t count){
+    if(!a->mix || !count)return;
+    uint32_t first=a->output.frames-(out&a->output.mask);if(first>count)first=count;
+    a->mix(a->mix_context,(int32_t *)a->output.bytes+2u*(out&a->output.mask),first);
+    if(first<count)a->mix(a->mix_context,(int32_t *)a->output.bytes,count-first);
+}
 uint32_t dbt_audio_render(dbt_audio_t *a,uint32_t budget){
     if(!a || !a->opened)return 0;
     controls(a);
@@ -228,9 +235,20 @@ uint32_t dbt_audio_render(dbt_audio_t *a,uint32_t budget){
         uint32_t slot=((out+produced)&a->output.mask)*2u;destination[slot]=left;destination[slot+1u]=right;
         a->fraction=(uint32_t)next;++produced;
     }
+    apply_mix(a,out,produced);
     atomic_store_explicit(&a->input.read,in,memory_order_release);
     atomic_store_explicit(&a->output.written,out+produced,memory_order_release);
     atomic_fetch_add_explicit(&a->rendered_frames,produced,memory_order_relaxed);return produced;
+}
+uint32_t dbt_audio_render_silence(dbt_audio_t *a,uint32_t budget){
+    if(!a || !a->opened || !a->mix)return 0;
+    controls(a);uint32_t out=atomic_load_explicit(&a->output.written,memory_order_relaxed);
+    uint32_t free=a->output.frames-(out-atomic_load_explicit(&a->output.read,memory_order_acquire));
+    uint32_t count=budget<free?budget:free;int32_t *destination=(int32_t *)a->output.bytes;
+    for(uint32_t i=0;i<count;++i){uint32_t slot=((out+i)&a->output.mask)*2u;destination[slot]=destination[slot+1]=0;}
+    apply_mix(a,out,count);
+    atomic_store_explicit(&a->output.written,out+count,memory_order_release);
+    atomic_fetch_add_explicit(&a->rendered_frames,count,memory_order_relaxed);return count;
 }
 void dbt_audio_begin_drain(dbt_audio_t *a){
     if(!a || !a->opened || a->draining_input)return;

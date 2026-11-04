@@ -37,6 +37,9 @@ typedef struct {
     uint8_t classic_scan, wanted_scan;
     bool command_pending, classic_pending, advertising_pending;
     bool advertising, wanted_advertising;
+    char rename_name[33];uint8_t rename_scan[31],rename_scan_size,rename_step,rename_status;
+    uint32_t rename_serial,rename_done;
+    bool rename_active,rename_pending,rename_applied,rename_partial;
 } dbt_gap_t;
 
 /* Controller configuration and legacy advertising/page scanning. Does not
@@ -51,6 +54,11 @@ uint32_t dbt_gap_wait_ms(const dbt_gap_t *gap);
  * command completion; on LE connection complete advertising becomes false. */
 dbt_result_t dbt_gap_set_classic_scan(dbt_gap_t *gap, bool discoverable, bool connectable);
 dbt_result_t dbt_gap_set_advertising(dbt_gap_t *gap, bool enabled);
+/* Owner-only copied UTF-8 rename. Completion covers HCI name and LE scan data;
+ * failed partial controller updates require retry, never a success ACK. */
+dbt_result_t dbt_gap_rename(dbt_gap_t *,const uint8_t *,uint8_t,uint32_t *);
+dbt_result_t dbt_gap_rename_result(const dbt_gap_t *,uint32_t,bool *,uint8_t *);
+
 dbt_result_t dbt_gap_disconnect(dbt_gap_t *gap, const dbt_link_t *link, uint8_t reason);
 
 #endif

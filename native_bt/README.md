@@ -1,5 +1,11 @@
 # Independent ESP32 Bluetooth host
 
+Current off-board evidence: [feature matrix](docs/FEATURE_MATRIX.md) and
+[candidate receipt](docs/LOCAL_CANDIDATE_EVIDENCE.json). The 2026-11-03 build
+fits the user-confirmed 8 MB COM6 layout, includes product IO and bonded
+GATT subscription persistence, and has not been flashed or hardware-qualified.
+The hardware hold remains active.
+
 The project goal is a small, independently authored Bluetooth Classic + BLE host,
 with simultaneous operation through the original ESP32's Espressif dual-mode
 controller. BTstack is inspected only in `../reference/btstack`.

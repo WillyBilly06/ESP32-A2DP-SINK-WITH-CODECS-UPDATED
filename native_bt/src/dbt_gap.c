@@ -1,4 +1,5 @@
 #include "dbt_gap.h"
+#include "dbt_utf8.h"
 
 static void copy(uint8_t *out, const uint8_t *in, unsigned size) {
     for (unsigned i = 0; i < size; ++i) out[i] = in[i];
@@ -87,10 +88,46 @@ static dbt_result_t configure_next(dbt_gap_t *gap) {
     }
     return dbt_host_command(gap->host, opcode, data, size, DBT_COMMAND_COMPLETE, configured, gap, gap->now_ms);
 }
+static void renamed(void *context,uint16_t opcode,dbt_command_outcome_t outcome,uint8_t status,const uint8_t *returns,uint8_t size){
+    dbt_gap_t *g=context;(void)returns;
+    g->rename_pending=false;g->rename_status=status;
+    uint16_t expected=g->rename_step?0x2009:0x0c13;
+    if(!g->rename_active || opcode!=expected || outcome!=DBT_COMMAND_SUCCESS || size!=1){
+        g->rename_done=g->rename_serial;g->rename_applied=false;g->rename_active=false;
+        if(outcome==DBT_COMMAND_ABORTED || outcome==DBT_COMMAND_TIMEOUT)g->state=DBT_GAP_FAILED;
+        return;
+    }
+    if(!g->rename_step){g->rename_step=1;g->rename_partial=true;return;}
+    copy((uint8_t *)g->config.name,(const uint8_t *)g->rename_name,sizeof(g->config.name));
+    copy(g->config.scan_response,g->rename_scan,g->rename_scan_size);g->config.scan_response_size=g->rename_scan_size;
+    g->rename_done=g->rename_serial;g->rename_applied=true;g->rename_partial=false;g->rename_active=false;
+}
+static dbt_result_t rename_next(dbt_gap_t *g){
+    uint8_t data[248]={0};uint16_t opcode;uint8_t size;
+    if(!g->rename_step){opcode=0x0c13;size=248;copy(data,(const uint8_t *)g->rename_name,sizeof(g->rename_name));}
+    else{opcode=0x2009;size=32;data[0]=g->rename_scan_size;copy(data+1,g->rename_scan,data[0]);}
+    return dbt_host_command(g->host,opcode,data,size,DBT_COMMAND_COMPLETE,renamed,g,g->now_ms);
+}
+dbt_result_t dbt_gap_rename(dbt_gap_t *g,const uint8_t *name,uint8_t size,uint32_t *token){
+    if(!g || !name || !token || !size || size>32 || !dbt_utf8_valid(name,size))return DBT_INVALID;
+    if(g->state!=DBT_GAP_READY || g->rename_active || g->rename_pending)return DBT_BUSY;
+    if(g->rename_serial==UINT32_MAX)return DBT_NO_SPACE;
+    for(unsigned i=0;i<sizeof(g->rename_name);i++)g->rename_name[i]=i<size?(char)name[i]:0;
+    unsigned n=size>29?29:size;if(n<size)while(n && (name[n]&0xc0u)==0x80u)--n;
+    g->rename_scan[0]=(uint8_t)(n+1);g->rename_scan[1]=n<size?8:9;copy(g->rename_scan+2,name,n);g->rename_scan_size=(uint8_t)(n+2);
+    ++g->rename_serial;g->rename_step=0;g->rename_status=0;g->rename_applied=false;g->rename_active=true;*token=g->rename_serial;return DBT_OK;
+}
+dbt_result_t dbt_gap_rename_result(const dbt_gap_t *g,uint32_t token,bool *applied,uint8_t *status){
+    if(!g || !token || !applied || !status)return DBT_INVALID;
+    if(token!=g->rename_serial)return DBT_EMPTY;
+    if(g->rename_active)return DBT_BUSY;
+    if(token!=g->rename_done)return DBT_EMPTY;
+    *applied=g->rename_applied;*status=g->rename_status;return DBT_OK;
+}
 void dbt_gap_poll(dbt_gap_t *gap, uint32_t now_ms) {
     if (!gap) return;
     gap->now_ms = now_ms;
-    if (gap->host->state == DBT_HOST_FAILED) { gap->state = DBT_GAP_FAILED; return; }
+    if (gap->host->state == DBT_HOST_FAILED) { gap->state = DBT_GAP_FAILED;if(gap->rename_active){gap->rename_done=gap->rename_serial;gap->rename_applied=false;gap->rename_active=false;}return; }
     if (gap->state == DBT_GAP_FAILED || gap->state == DBT_GAP_IDLE) return;
     /* Security and connection decisions precede nonurgent setup commands. */
     if (gap->reply_count) {
@@ -100,6 +137,11 @@ void dbt_gap_poll(dbt_gap_t *gap, uint32_t now_ms) {
         if (result == DBT_OK) {
             gap->reply_head = (uint8_t)((gap->reply_head + 1u) % DBT_GAP_REPLY_SLOTS); --gap->reply_count;
         }
+    }
+    if(gap->state==DBT_GAP_READY && gap->rename_active && !gap->rename_pending && !gap->classic_pending && !gap->advertising_pending && !gap->reply_count){
+        dbt_result_t result=rename_next(gap);
+        if(result==DBT_OK)gap->rename_pending=true;
+        else if(result!=DBT_BUSY && result!=DBT_NO_SPACE){gap->rename_done=gap->rename_serial;gap->rename_applied=false;gap->rename_active=false;}
     }
     if (gap->state == DBT_GAP_CONFIGURING && !gap->command_pending) {
         dbt_result_t result = configure_next(gap);
@@ -158,17 +200,17 @@ dbt_result_t dbt_gap_event(dbt_gap_t *gap, const dbt_hci_packet_t *packet) {
 uint32_t dbt_gap_wait_ms(const dbt_gap_t *gap) {
     if (!gap || gap->state == DBT_GAP_FAILED || gap->state == DBT_GAP_IDLE) return UINT32_MAX;
     if (gap->host->command_count == DBT_COMMAND_SLOTS) return UINT32_MAX;
-    return gap->reply_count || (gap->state == DBT_GAP_CONFIGURING && !gap->command_pending) ? 0 : UINT32_MAX;
+    return gap->reply_count || (gap->state == DBT_GAP_CONFIGURING && !gap->command_pending) || (gap->rename_active && !gap->rename_pending && !gap->classic_pending && !gap->advertising_pending) ? 0 : UINT32_MAX;
 }
 dbt_result_t dbt_gap_set_classic_scan(dbt_gap_t *gap, bool discoverable, bool connectable) {
-    if (!gap || gap->state != DBT_GAP_READY || gap->classic_pending) return DBT_BUSY;
+    if (!gap || gap->state != DBT_GAP_READY || gap->classic_pending || gap->rename_active) return DBT_BUSY;
     uint8_t scan = (uint8_t)((discoverable ? 1 : 0) | (connectable ? 2 : 0));
     dbt_result_t result = dbt_host_command(gap->host, 0x0c1a, &scan, 1, DBT_COMMAND_COMPLETE, visibility, gap, gap->now_ms);
     if (result == DBT_OK) { gap->wanted_scan = scan; gap->classic_pending = true; }
     return result;
 }
 dbt_result_t dbt_gap_set_advertising(dbt_gap_t *gap, bool enabled) {
-    if (!gap || gap->state != DBT_GAP_READY || gap->advertising_pending) return DBT_BUSY;
+    if (!gap || gap->state != DBT_GAP_READY || gap->advertising_pending || gap->rename_active) return DBT_BUSY;
     uint8_t flag = enabled ? 1 : 0;
     dbt_result_t result = dbt_host_command(gap->host, 0x200a, &flag, 1, DBT_COMMAND_COMPLETE, visibility, gap, gap->now_ms);
     if (result == DBT_OK) { gap->wanted_advertising = enabled; gap->advertising_pending = true; }

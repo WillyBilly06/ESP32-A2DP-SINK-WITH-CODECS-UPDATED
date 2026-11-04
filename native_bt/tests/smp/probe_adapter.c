@@ -25,10 +25,13 @@ void xTaskNotifyGive(TaskHandle_t h) { assert(h); }
 void vTaskDelete(TaskHandle_t h) { (void)h; abort(); }
 void esp_fill_random(void *p,size_t n) { assert(worker_context); memset(p,0x13,n); }
 esp_err_t nvs_open(const char *name,int mode,nvs_handle_t *h) {
-    assert(worker_context && !strcmp(name,"native_le_bonds") && mode==NVS_READWRITE); *h=1; return ESP_OK;
+    assert(worker_context && (!strcmp(name,"native_le_bonds") || !strcmp(name,"native_cccd")) && mode==NVS_READWRITE); *h=1; return ESP_OK;
 }
 void nvs_close(nvs_handle_t h) { assert(worker_context && h==1); ++nvs_closes; }
 #ifndef PROBE_REAL_NVS
+bool probe_cccd_bond_tag(const dbt_smp_bond_record_t *r,uint8_t out[32]) {
+    assert(worker_context && r);memset(out,0x23,32);return true;
+}
 void dbt_smp_nvs_init(dbt_smp_nvs_t *p,uint32_t h) { assert(worker_context); p->handle=h; p->poisoned=false; }
 dbt_result_t dbt_smp_nvs_execute(dbt_smp_nvs_t *p,const dbt_smp_bond_job_t *j,dbt_smp_bond_record_t *out) {
     (void)p; (void)out; assert(worker_context); ++store_calls; return j->op==DBT_SMP_BOND_LOAD ? DBT_EMPTY : DBT_OK;

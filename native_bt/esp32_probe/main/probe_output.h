@@ -9,6 +9,7 @@ typedef struct {
     int32_t clock_ppm,clock_observed_ppm,clock_error_frames;
     uint32_t clock_state,clock_target_frames,clock_updates,clock_disturbances;
     uint32_t clock_observed_valid,clock_snapshot_valid;
+    uint32_t request_fault,stale_receipts;
 } probe_output_stats_t;
 dbt_result_t probe_output_init(void (*wake_decoder)(void *),void *context);
 /* Decoder worker only; bounded synchronous handshake with the render task. */
@@ -26,4 +27,17 @@ dbt_result_t probe_output_eq(int8_t,int8_t,int8_t);
 dbt_result_t probe_output_control(uint8_t);
 dbt_result_t probe_output_analysis(bool);
 void probe_output_meter(uint8_t values[3]);
+#ifdef DBT_PROBE_SOUND_BUILD
+#include "dbt_sound.h"
+/* Sound worker only. Reserve, open/prefill, attach, then release after drain.
+ * The render task owns the borrowed playback pointer until token retirement. */
+dbt_result_t probe_output_sound_reserve(uint32_t rate,bool exclusive,uint32_t *token);
+dbt_result_t probe_output_sound_attach(uint32_t token,dbt_sound_play_t *play);
+dbt_result_t probe_output_sound_release(uint32_t token);
+bool probe_output_sound_alive(uint32_t token);
+uint32_t probe_output_active_rate(void);
+void probe_output_sound_wake(void (*wake)(void *),void *context);
+/* Sound worker: wake render after publishing PCM or requesting stop. */
+void probe_output_sound_data_ready(void);
+#endif
 #endif

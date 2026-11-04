@@ -1,4 +1,5 @@
 #include "dbt_ble_nvs.h"
+#include "dbt_utf8.h"
 #include "nvs.h"
 #include <string.h>
 static bool missing_or_ok(esp_err_t e){return e==ESP_OK || e==ESP_ERR_NVS_NOT_FOUND;}
@@ -45,6 +46,8 @@ dbt_result_t dbt_ble_nvs_load_state(dbt_ble_control_state_t *state) {
         }
         nvs_close(h);
     }
+    for(unsigned i=0;i<3;++i)if(next.eq[i] < -12 || next.eq[i] > 12)return DBT_INVALID;
+    if(!dbt_utf8_valid(next.name,next.name_size))return DBT_INVALID;
     next.valid=true;*state=next;return DBT_OK;
 bad_audio:
     nvs_close(h);return DBT_INVALID;

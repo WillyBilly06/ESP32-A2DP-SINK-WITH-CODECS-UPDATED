@@ -976,3 +976,47 @@ EXPORT int test_runtime_sco_framing_status_and_explicit_route(void){
     CHECK(dbt_runtime_receive(&peer->runtime,wire,sizeof(wire))==DBT_INVALID);
     return 0;
 }
+
+EXPORT int test_gap_rename_transaction(void){
+    int r=gap_ready();if(r)return r;peer_t *p=&peers[0];
+    uint8_t name[32];for(unsigned i=0;i<32;++i)name[i]=(uint8_t)('a'+i%26);
+    uint32_t token=0;bool applied=false;uint8_t status=0xff;
+    CHECK(dbt_gap_rename(&gap,name,32,&token)==DBT_OK && token);
+    name[0]='Z';CHECK(dbt_gap_set_advertising(&gap,true)==DBT_BUSY);
+    CHECK(dbt_gap_rename_result(&gap,token,&applied,&status)==DBT_BUSY);
+    p->ready=false;dbt_gap_poll(&gap,++clock_ms);dbt_runtime_poll(&p->runtime,clock_ms,8,0);
+    CHECK(gap.rename_pending && gap.config.name[0]=='N');
+    p->ready=true;dbt_runtime_poll(&p->runtime,++clock_ms,8,0);
+    CHECK(dbt_read_le16(p->wire+1)==0x0c13 && p->wire_size==252 && p->wire[4]=='a' && p->wire[36]==0);
+    controller(p);dbt_runtime_poll(&p->runtime,++clock_ms,8,0);
+    CHECK(gap.rename_partial && gap.config.name[0]=='N');
+    dbt_gap_poll(&gap,++clock_ms);dbt_runtime_poll(&p->runtime,clock_ms,8,0);
+    CHECK(dbt_read_le16(p->wire+1)==0x2009 && p->wire[4]==31 && p->wire[5]==30 && p->wire[6]==8);
+    controller(p);dbt_runtime_poll(&p->runtime,++clock_ms,8,0);
+    CHECK(dbt_gap_rename_result(&gap,token,&applied,&status)==DBT_OK && applied && status==0 && !gap.rename_partial);
+    CHECK(gap.config.name[0]=='a' && gap.config.name[31]==(char)('a'+31%26) && !gap.config.name[32]);
+    uint8_t utf[32];for(unsigned i=0;i<28;++i)utf[i]='x';utf[28]=0xe2;utf[29]=0x82;utf[30]=0xac;utf[31]='b';
+    uint32_t next;CHECK(dbt_gap_rename(&gap,utf,32,&next)==DBT_OK && next!=token);
+    CHECK(gap.rename_scan_size==30 && gap.rename_scan[0]==29 && gap.rename_scan[1]==8);
+    CHECK(dbt_gap_rename_result(&gap,token,&applied,&status)==DBT_EMPTY);
+    for(unsigned i=0;i<2;++i){dbt_gap_poll(&gap,++clock_ms);dbt_runtime_poll(&p->runtime,clock_ms,8,0);controller(p);dbt_runtime_poll(&p->runtime,++clock_ms,8,0);}
+    CHECK(dbt_gap_rename_result(&gap,next,&applied,&status)==DBT_OK && applied);return 0;
+}
+EXPORT int test_gap_rename_failure_and_bounds(void){
+    int r=gap_ready();if(r)return r;peer_t *p=&peers[0];uint32_t token=0x1234;
+    static const uint8_t bad[]={0xe0,0x80,0x80},zero_name[]={0},good[]={'Q'};
+    CHECK(dbt_gap_rename(&gap,bad,sizeof(bad),&token)==DBT_INVALID && token==0x1234);
+    CHECK(dbt_gap_rename(&gap,zero_name,1,&token)==DBT_INVALID && dbt_gap_rename(&gap,good,0,&token)==DBT_INVALID);
+    CHECK(dbt_gap_rename(&gap,good,1,&token)==DBT_OK);
+    dbt_gap_poll(&gap,++clock_ms);dbt_runtime_poll(&p->runtime,clock_ms,8,0);controller(p);dbt_runtime_poll(&p->runtime,++clock_ms,8,0);
+    dbt_gap_poll(&gap,++clock_ms);dbt_runtime_poll(&p->runtime,clock_ms,8,0);p->ready=true;
+    CHECK(complete(p,0x2009,1,0x0c)==DBT_OK);dbt_runtime_poll(&p->runtime,++clock_ms,8,0);
+    bool applied=true;uint8_t status=0;
+    CHECK(dbt_gap_rename_result(&gap,token,&applied,&status)==DBT_OK && !applied && status==0x0c);
+    CHECK(gap.state==DBT_GAP_READY && gap.config.name[0]=='N' && gap.rename_partial);
+    uint32_t retry;CHECK(dbt_gap_rename(&gap,good,1,&retry)==DBT_OK);
+    for(unsigned i=0;i<2;++i){dbt_gap_poll(&gap,++clock_ms);dbt_runtime_poll(&p->runtime,clock_ms,8,0);controller(p);dbt_runtime_poll(&p->runtime,++clock_ms,8,0);}
+    CHECK(dbt_gap_rename_result(&gap,retry,&applied,&status)==DBT_OK && applied && !gap.rename_partial);
+    gap.rename_serial=UINT32_MAX;CHECK(dbt_gap_rename(&gap,good,1,&retry)==DBT_NO_SPACE);
+    return 0;
+}

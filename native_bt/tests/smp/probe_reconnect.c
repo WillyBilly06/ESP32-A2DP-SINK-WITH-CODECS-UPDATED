@@ -3,10 +3,12 @@
 #define main unused_probe_adapter_main
 #include "probe_adapter.c"
 #undef main
+#include "../../esp32_probe/main/probe_cccd_store.c"
 
 void fake_nvs_reset(void);
 void fake_nvs_cut_after_commit(unsigned);
 void fake_nvs_power_cycle(void);
+void fake_nvs_fail_commit(bool);
 static void seed(const dbt_link_t *l,bool sc,bool authenticated,unsigned key_size) {
     dbt_smp_nvs_t provider; dbt_smp_bond_job_t job={0};
     dbt_smp_nvs_init(&provider,1); job.op=DBT_SMP_BOND_STORE; job.generation=99; job.serial=1;
@@ -92,6 +94,8 @@ int main(void) {
     dbt_command_t *cmd=&r.host.commands[r.host.command_head];
     for (unsigned i=0;i<16;i++) assert(cmd->parameters[2+i]==0x20+i);
     dbt_smp_session_security_t sec;
+    uint8_t committed_type,committed_identity[6],rpa_tag1[32],rpa_tag2[32];
+    assert(probe_smp_committed_identity(1,1,&committed_type,committed_identity)!=DBT_OK);
     assert(probe_smp_security(1,1,&sec)==DBT_OK && !sec.encrypted && !sec.peer_key_verified);
     command_complete(0x201a);
     assert(probe_smp_security(1,1,&sec)==DBT_OK && !sec.encrypted);
@@ -99,6 +103,9 @@ int main(void) {
     assert(probe_smp_security(1,1,&sec)==DBT_OK && sec.encrypted && !sec.authenticated &&
            sec.bond_committed && sec.peer_key_verified && sec.key_size==16 && !sec.final_ll_acked &&
            !sec.phase3_complete && !sec.negotiated_local_keys && !sec.negotiated_peer_keys);
+    assert(probe_smp_committed_identity(1,1,&committed_type,committed_identity)==DBT_OK &&
+           committed_type==0 && !memcmp(committed_identity,l->peer,6));
+    assert(probe_smp_committed_identity(1,2,&committed_type,committed_identity)!=DBT_OK);
     probe_smp_poll(2); assert(work_inflight); run_worker(); probe_smp_poll(3);
     assert(slot.active && slot.verified && slot.retired && !worker_live);
     finish(4);
@@ -296,8 +303,13 @@ int main(void) {
     l->encrypted=true; encryption(0,1); assert(slot.encrypted_verified && !slot.verified);
     assert(probe_smp_security(1,22,&sec)==DBT_OK && sec.encrypted && sec.peer_key_verified &&
            !sec.identity_promotion_committed && !sec.authenticated);
+    assert(probe_smp_committed_identity(1,22,&committed_type,committed_identity)!=DBT_OK);
+    assert(probe_smp_committed_bond(1,22,&committed_type,committed_identity,rpa_tag1)!=DBT_OK);
     probe_smp_poll(220002); assert(work_inflight); run_worker(); probe_smp_poll(220003);
     assert(slot.verified && probe_smp_security(1,22,&sec)==DBT_OK && sec.identity_promotion_committed);
+    assert(probe_smp_committed_identity(1,22,&committed_type,committed_identity)==DBT_OK &&
+           committed_type==0 && !memcmp(committed_identity,identity,6));
+    assert(probe_smp_committed_bond(1,22,&committed_type,committed_identity,rpa_tag1)==DBT_OK);
     if (work_inflight) { run_worker(); probe_smp_poll(220004); }
     finish(220005);
     next_link(23,0); l->role=1; l->peer_address_type=1; memcpy(l->peer,address2,6);
@@ -305,6 +317,10 @@ int main(void) {
     assert(slot.reply_pending && slot.reply_opcode==0x201a); command_complete(0x201a);
     l->encrypted=true; encryption(0,1);
     assert(slot.verified && probe_smp_security(1,23,&sec)==DBT_OK && sec.identity_promotion_committed);
+    assert(probe_smp_committed_identity(1,23,&committed_type,committed_identity)==DBT_OK &&
+           committed_type==0 && !memcmp(committed_identity,identity,6));
+    assert(probe_smp_committed_bond(1,23,&committed_type,committed_identity,rpa_tag2)==DBT_OK &&
+           !memcmp(rpa_tag1,rpa_tag2,32));
     finish(230002);
     next_link(24,0); l->role=1; l->peer_address_type=1; memcpy(l->peer,address2,6); l->peer[0]^=1;
     assert(request(0,0)); probe_smp_poll(240000); run_worker(); probe_smp_poll(240001);
@@ -324,6 +340,28 @@ int main(void) {
     assert(slot.failed && !slot.verified);
     assert(probe_smp_security(1,26,&sec)==DBT_OK && !sec.encrypted && !sec.identity_promotion_committed);
     probe_smp_poll(262002); run_worker(); probe_smp_poll(262003); assert(!slot.active);
+    /* Real provider and NVS shim: one atomic snapshot per bond incarnation. */
+    fake_nvs_reset();dbt_smp_bond_record_t bond={0};bond.identity_type=0;
+    memcpy(bond.identity,identity,6);bond.key_size=16;bond.secure_connections=true;
+    memset(bond.ltk,0x42,16);uint8_t tag1[32],tag2[32],tag3[32];
+    assert(probe_cccd_bond_tag(&bond,tag1));bond.candidate_verified=true;
+    assert(probe_cccd_bond_tag(&bond,tag2) && !memcmp(tag1,tag2,32));
+    bond.ltk[0]^=1;assert(probe_cccd_bond_tag(&bond,tag3) && memcmp(tag1,tag3,32));
+    uint16_t values[4]={2,1,0,1},loaded[4]={0};worker_context=1;
+    assert(probe_cccd_load(0,identity,tag1,loaded)==DBT_EMPTY);
+    assert(probe_cccd_save(0,identity,tag1,values)==DBT_OK);
+    assert(probe_cccd_load(0,identity,tag1,loaded)==DBT_OK && !memcmp(values,loaded,sizeof(values)));
+    assert(probe_cccd_load(0,identity,tag3,loaded)==DBT_EMPTY);
+    assert(probe_cccd_save(0,identity,tag3,values)==DBT_OK);
+    assert(probe_cccd_load(0,identity,tag1,loaded)==DBT_EMPTY);
+    assert(probe_cccd_load(0,identity,tag3,loaded)==DBT_OK && !memcmp(values,loaded,sizeof(values)));
+    fake_nvs_fail_commit(true);values[3]=0;
+    assert(probe_cccd_save(0,identity,tag1,values)==DBT_INVALID);
+    assert(probe_cccd_load(0,identity,tag1,loaded)==DBT_INVALID);
+    fake_nvs_power_cycle();poisoned=false; /* independent simulated reboot */
+    assert(probe_cccd_load(0,identity,tag3,loaded)==DBT_OK && loaded[3]==1);
+    assert(probe_cccd_load(0,identity,tag1,loaded)==DBT_EMPTY);
+    worker_context=0;
     wipe(&mutation,sizeof(mutation));
     return 0;
 }

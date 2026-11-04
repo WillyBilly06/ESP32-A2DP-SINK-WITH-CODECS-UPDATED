@@ -12,4 +12,9 @@ void probe_audio_event(dbt_channel_event_t event,const dbt_channel_t *channel);
 void probe_audio_receive(const dbt_channel_t *channel,const uint8_t *data,uint16_t size);
 void probe_audio_poll(uint32_t now_ms);
 uint32_t probe_audio_wait_ms(uint32_t now_ms);
+/* Host owner only. Snapshot the Classic ACL underlying the active AVDTP
+ * signaling session, even when playback is paused. EMPTY means no live peer. */
+dbt_result_t probe_audio_peer(uint16_t *handle,uint32_t *generation);
+/* Resolve the captured identity again immediately before enqueueing work. */
+const dbt_link_t *probe_audio_peer_link(uint16_t handle,uint32_t generation);
 #endif

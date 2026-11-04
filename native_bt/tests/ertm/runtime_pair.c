@@ -10,6 +10,8 @@ typedef struct {
     uint8_t wire[DBT_MAX_H4_BYTES],received[512],fixed[256],basic[512];
     _Alignas(8) uint8_t storage[12][1024];
     bool used[12],ready,stall,drop_next_data,dropped,fail_next,corrupt_mode,inject_no_fcs;
+    bool split_request,split_response,response_wait;
+    uint8_t response_rfc[11];uint16_t response_cid;uint32_t resume_at;
     uint16_t wire_size,cid,received_size,fixed_size,basic_size;
     unsigned sends,errors,allocated,released,opens,done,fixed_done;
     dbt_tx_outcome_t outcome;
@@ -17,6 +19,8 @@ typedef struct {
 } peer_t;
 static peer_t peers[2];
 static uint32_t now;
+static bool test_continuation;
+static unsigned invalid_continuation;
 static void zero(void *p,unsigned n){uint8_t *b=p;for(unsigned i=0;i<n;++i)b[i]=0;}
 static void copy(void *a,const void *b,unsigned n){uint8_t *x=a;const uint8_t *y=b;for(unsigned i=0;i<n;++i)x[i]=y[i];}
 static void put16(uint8_t *p,uint16_t n){p[0]=(uint8_t)n;p[1]=(uint8_t)(n>>8);}
@@ -87,22 +91,54 @@ static void transfer(peer_t *source,peer_t *target){
         put16(wire+5,(uint16_t)(dbt_read_le16(wire+5)+3));
         put16(wire+11,(uint16_t)(dbt_read_le16(wire+11)+3));source->inject_no_fcs=false;
     }
+    bool discard_fragment=false;
+    /* Emulate a peer whose complete options span signaling packets. The
+     * inserted fragment has a distinct identifier and is acknowledged normally. */
+    if(source->split_request && wire_size==32 && wire[9]==4 && wire[17]==1 && wire[21]==4){
+        uint8_t first[21];copy(first,wire,sizeof(first));first[10]=0xfe;put16(first+3,16);put16(first+5,12);
+        put16(first+11,8);put16(first+15,1);
+        if(invalid_continuation==2)first[18]=3; /* option cut within fragment */
+        if(((first[2]>>4)&3u)==0)first[2]=(uint8_t)((first[2]&0xcfu)|0x20u);
+        if(dbt_runtime_receive(&target->runtime,first,sizeof(first))!=DBT_OK)++target->errors;
+        if(test_continuation){target->stall=true;target->resume_at=now+20;}
+        if(invalid_continuation==3)discard_fragment=true;
+        if(invalid_continuation!=1){
+            for(unsigned i=17;i<28;++i)wire[i]=wire[i+4];wire_size-=4;
+            put16(wire+3,23);put16(wire+5,19);put16(wire+11,15);
+        } /* mode 1 repeats MTU in the final fragment */
+        source->split_request=false;
+    }
+    if(source->split_response && wire_size==34 && wire[9]==5 && wire[19]==1 && wire[23]==4){
+        copy(source->response_rfc,wire+23,11);source->response_cid=dbt_read_le16(wire+13);
+        source->response_wait=true;source->split_response=false;wire_size=23;
+        put16(wire+3,18);put16(wire+5,14);put16(wire+11,10);put16(wire+15,1);
+    }
+    bool synthetic=target->response_wait && wire_size==17 && wire[9]==4 && dbt_read_le16(wire+11)==4;
+    if(synthetic){
+        uint8_t reply[30];zero(reply,sizeof(reply));copy(reply,wire,9);reply[9]=5;reply[10]=wire[10];
+        put16(reply+3,25);put16(reply+5,21);put16(reply+11,17);put16(reply+13,target->response_cid);
+        copy(reply+19,target->response_rfc,11);target->response_wait=false;
+        if(((reply[2]>>4)&3u)==0)reply[2]=(uint8_t)((reply[2]&0xcfu)|0x20u);
+        if(dbt_runtime_receive(&source->runtime,reply,sizeof(reply))!=DBT_OK)++source->errors;
+    }
     if(((wire[2]>>4)&3u)==0)wire[2]=(uint8_t)((wire[2]&0xcfu)|0x20u);
     bool drop=source->drop_next_data && source->wire_size>=9 && ((source->wire[2]>>4)&3u)==0 &&
               dbt_read_le16(source->wire+7)>=0x40 && dbt_read_le16(source->wire+5)+9u==source->wire_size;
     if(drop){source->drop_next_data=false;source->dropped=true;}
-    else if(dbt_runtime_receive(&target->runtime,wire,wire_size)!=DBT_OK)++target->errors;
+    else if(!synthetic && !discard_fragment && dbt_runtime_receive(&target->runtime,wire,wire_size)!=DBT_OK)++target->errors;
     uint16_t handle=dbt_read_le16(source->wire+1)&0xfffu;
     uint8_t complete[]={1,(uint8_t)handle,(uint8_t)(handle>>8),1,0};if(event(source,0x13,complete,sizeof(complete))!=DBT_OK)++source->errors;
     source->ready=true;
 }
 static void step(void){
+    for(unsigned i=0;i<2;++i)if(peers[i].resume_at && now>=peers[i].resume_at){peers[i].stall=false;peers[i].resume_at=0;}
     dbt_runtime_poll(&peers[0].runtime,++now,8,4);dbt_runtime_poll(&peers[1].runtime,now,8,4);
     transfer(&peers[0],&peers[1]);transfer(&peers[1],&peers[0]);
 }
 static int setup_mode(bool secure,bool inject_no_fcs){
     now=0;int r=initialize(&peers[0]);if(r)return r;r=initialize(&peers[1]);if(r)return r;
     dbt_ertm_parameters_t params={256,64,2000,12000,4,3};
+    if(test_continuation){peers[0].split_request=true;peers[1].split_response=true;}
     if(secure){peers[0].runtime.acl.links[0].encrypted=true;peers[1].runtime.acl.links[0].encrypted=true;}
     dbt_security_t security=secure?DBT_SECURITY_ENCRYPTED:DBT_SECURITY_NONE;
     dbt_service_t service={0x1b,256,48,security};
@@ -121,6 +157,20 @@ static int shutdown(void){
     CHECK(peers[0].allocated==peers[0].released && peers[1].allocated==peers[1].released);
     return 0;
 }
+static int rejected_continuation(unsigned mode){
+    now=0;int r=initialize(&peers[0]);if(r)return r;r=initialize(&peers[1]);if(r)return r;
+    dbt_ertm_parameters_t params={256,64,2000,12000,4,3};
+    dbt_service_t service={0x1b,256,48,DBT_SECURITY_NONE};
+    CHECK(dbt_channels_register(&peers[1].runtime.channels,service)==DBT_OK);
+    CHECK(dbt_channels_require_ertm(&peers[1].runtime.channels,0x1b,params)==DBT_OK);
+    uint16_t cid;invalid_continuation=mode;peers[0].split_request=true;
+    CHECK(dbt_channels_open_ertm(&peers[0].runtime.channels,1,0x1b,48,DBT_SECURITY_NONE,params,now,&cid)==DBT_OK);
+    for(unsigned i=0;i<200 && dbt_channels_find(&peers[0].runtime.channels,1,cid);++i){step();if(mode==3 && i==80)now+=300001;}
+    invalid_continuation=0;
+    CHECK(!peers[0].split_request && !peers[0].opens && !peers[1].opens);
+    CHECK(!dbt_channels_find(&peers[0].runtime.channels,1,cid));
+    return shutdown();
+}
 EXPORT int ertm_runtime_pair(void){
     int r=setup();if(r)return r;uint16_t cid=peers[0].cid;
     uint8_t payload[170];for(unsigned i=0;i<sizeof(payload);++i)payload[i]=(uint8_t)i;
@@ -128,7 +178,15 @@ EXPORT int ertm_runtime_pair(void){
     for(unsigned i=0;i<200 && !peers[0].done;++i)step();
     CHECK(peers[0].done==1 && peers[0].outcome==DBT_TX_ADMITTED && peers[1].received_size==sizeof(payload));
     for(unsigned i=0;i<sizeof(payload);++i)CHECK(peers[1].received[i]==payload[i]);
-    return shutdown();
+    r=shutdown();if(r)return r;
+    test_continuation=true;r=setup();test_continuation=false;if(r)return r;
+    CHECK(!peers[0].split_request && !peers[1].split_response && !peers[1].response_wait);
+    CHECK(dbt_runtime_send(&peers[0].runtime,1,peers[0].cid,payload,sizeof(payload),done,&peers[0])==DBT_OK);
+    for(unsigned i=0;i<200 && !peers[0].done;++i)step();
+    CHECK(peers[0].done==1 && peers[0].outcome==DBT_TX_ADMITTED && peers[1].received_size==sizeof(payload));
+    for(unsigned i=0;i<sizeof(payload);++i)CHECK(peers[1].received[i]==payload[i]);
+    r=shutdown();if(r)return r;r=rejected_continuation(1);if(r)return r;
+    r=rejected_continuation(2);if(r)return r;return rejected_continuation(3);
 }
 EXPORT int ertm_runtime_ack_loan_and_recovery(void){
     int r=setup();if(r)return r;uint8_t payload[10]={1,2,3,4,5,6,7,8,9,10};

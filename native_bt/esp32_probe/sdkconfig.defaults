@@ -22,3 +22,10 @@ CONFIG_I2S_ISR_IRAM_SAFE=y
 
 # Match the existing speaker baseline at the ESP32 rated clock.
 CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_240=y
+
+# Match the preserved physical layout; admission tool writes only ota_1.
+CONFIG_PARTITION_TABLE_CUSTOM=y
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"
+CONFIG_PARTITION_TABLE_OFFSET=0x8000
+
+# CONFIG_SPI_MASTER_ISR_IN_IRAM is not set

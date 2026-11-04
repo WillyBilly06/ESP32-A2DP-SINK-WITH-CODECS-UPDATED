@@ -38,7 +38,7 @@ TESTS = [
     "commands_copy_credit_status_and_rejection", "commands_queue_timeout_abort_and_late_response",
     "runtime_paired_channel_and_fragmented_data", "runtime_dual_bearer_credit_fairness",
     "runtime_disconnect_pins_and_partial_expiry", "runtime_control_cross_link_scheduling",
-    "gap_setup_and_explicit_visibility", "gap_security_negative_replies_and_queue_bounds",
+    "gap_setup_and_explicit_visibility", "gap_rename_transaction", "gap_rename_failure_and_bounds", "gap_security_negative_replies_and_queue_bounds",
     "gap_connection_admission_is_not_establishment",
     "att_database_validation_and_link_lifecycle", "att_discovery_mixed_uuid_and_groups",
     "att_read_blob_multiple_and_base_uuid", "att_mtu_bounds_and_errors",

@@ -7,4 +7,5 @@ void *memset(void *to,int value,size_t n){unsigned char *d=to;for(size_t i=0;i<n
 void *memmove(void *to,const void *from,size_t n){unsigned char *d=to;const unsigned char *s=from;if((uintptr_t)d<(uintptr_t)s){for(size_t i=0;i<n;++i)d[i]=s[i];}else if((uintptr_t)d>(uintptr_t)s){while(n){--n;d[n]=s[n];}}return to;}
 int memcmp(const void *a,const void *b,size_t n){const unsigned char *x=a,*y=b;for(size_t i=0;i<n;++i){if(x[i]!=y[i])return x[i]<y[i]?-1:1;}return 0;}
 size_t strlen(const char *s){size_t n=0;while(s[n])++n;return n;}
+void *memchr(const void *data,int value,size_t size){const unsigned char *p=data;for(size_t i=0;i<size;i++)if(p[i]==(unsigned char)value)return (void *)(p+i);return 0;}
 #endif

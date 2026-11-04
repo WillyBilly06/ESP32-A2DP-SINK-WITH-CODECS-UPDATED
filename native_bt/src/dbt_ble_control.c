@@ -1,4 +1,5 @@
 #include "dbt_ble_control.h"
+#include "dbt_utf8.h"
 #include <string.h>
 static const int8_t presets[12][3]={{0,0,0},{6,2,0},{0,2,6},{-2,4,2},{4,0,4},{2,3,4},
                                      {3,0,2},{0,2,3},{5,2,4},{6,0,2},{2,3,3},{4,2,4}};
@@ -6,6 +7,16 @@ static void error(dbt_ble_control_result_t *r,uint8_t cmd,uint8_t code) {
     r->data[0]=0x11; r->data[1]=cmd; r->data[2]=code; r->size=3;
 }
 static void ack(dbt_ble_control_result_t *r,uint8_t cmd) { r->data[0]=0x10;r->data[1]=cmd;r->size=2; }
+dbt_result_t dbt_ble_control_eq_values(const uint8_t *data,uint16_t n,int8_t out[3]) {
+    if(!data || !out || !n || n>DBT_BLE_CONTROL_MAX_COMMAND)return DBT_INVALID;
+    int8_t values[3];
+    if(data[0]==1 && n>=4){for(unsigned i=0;i<3;i++)values[i]=(int8_t)(data[i+1]<128 ? (int)data[i+1] : (int)data[i+1]-256);}
+    else if(data[0]==2 && n>=2 && data[1]<12)memcpy(values,presets[data[1]],3);
+    else return DBT_INVALID;
+    for(unsigned i=0;i<3;i++)if(values[i]<-12 || values[i]>12)return DBT_INVALID;
+    memcpy(out,values,3);return DBT_OK;
+}
+
 dbt_result_t dbt_ble_control_status(const dbt_ble_control_state_t *s,uint8_t *out,uint8_t *size) {
     if(!s || !out || !size || !s->valid || s->name_size>32 || s->firmware_size>32) return DBT_INVALID;
     unsigned n=0; out[n++]=0xf0;
@@ -26,9 +37,7 @@ dbt_result_t dbt_ble_control_execute(dbt_ble_control_state_t *s,const dbt_ble_co
     }
     if(cmd==1 || cmd==2) {
         int8_t values[3];
-        if((cmd==1 && len<3) || (cmd==2 && (!len || p[0]>=12))) { error(r,cmd,2);return DBT_OK; }
-        if(cmd==1) for(unsigned i=0;i<3;i++) values[i]=(int8_t)(p[i]<128 ? (int)p[i] : (int)p[i]-256);
-        else memcpy(values,presets[p[0]],3);
+        if(dbt_ble_control_eq_values(data,n,values)!=DBT_OK){error(r,cmd,2);return DBT_OK;}
         if(!s->valid || !h->commit_eq || !h->publish_eq) { error(r,cmd,3);return DBT_OK; }
         if(!h->commit_eq(h->context,values[0],values[1],values[2])) { error(r,cmd,3);return DBT_OK; }
         r->durable_eq=true;memcpy(s->eq,values,3);
@@ -52,7 +61,7 @@ dbt_result_t dbt_ble_control_execute(dbt_ble_control_state_t *s,const dbt_ble_co
       case 0x20:minimum=4;break;case 0x21:minimum=2;break;case 0x22:case 0x23:minimum=0;break;
       default:error(r,cmd,1);return DBT_OK;
     }
-    if(len<minimum || (cmd==4 && len>32)) { error(r,cmd,2);return DBT_OK; }
+    if(len<minimum || (cmd==4 && (len>32 || !dbt_utf8_valid(p,(uint16_t)len)))) { error(r,cmd,2);return DBT_OK; }
     if(!s->valid || !h->command) { error(r,cmd,3);return DBT_OK; }
     uint8_t size=DBT_BLE_CONTROL_MAX_STATUS;
     if(!h->command(h->context,peer,cmd,p,(uint16_t)len,r->data,&size) || !size || size>DBT_BLE_CONTROL_MAX_STATUS) {

@@ -133,8 +133,8 @@ typedef struct {
 } dbt_channels_t;
 
 /* Single host owner. Callbacks are borrowed, nonblocking and non-reentrant.
- * Classic Basic and LE credit channels share signaling/ownership. ERTM and
- * enhanced credit mode are not advertised by the information response. */
+ * Classic Basic and LE credit channels share signaling/ownership. ERTM is
+ * advertised only when explicitly required; enhanced credit mode is not. */
 dbt_result_t dbt_channels_init(dbt_channels_t *manager, dbt_acl_t *acl,
                                dbt_channel_hooks_t hooks, uint16_t maximum_mtu,
                                uint32_t rtx_ms, uint32_t ertx_ms);

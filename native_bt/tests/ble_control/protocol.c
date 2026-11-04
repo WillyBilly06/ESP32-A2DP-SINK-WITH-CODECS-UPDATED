@@ -63,6 +63,18 @@ int main(void) {
   assert(dbt_ble_control_execute(&s, &h, &peer, eq, sizeof(eq), &out) ==
              DBT_OK &&
          x.commits == 2 && x.publishes == 2);
+  for (unsigned band = 0; band < 3; band++)
+    for (int value = -128; value <= 127; value++) {
+      if (value >= -12 && value <= 12)
+        continue;
+      uint8_t invalid[] = {1, 0, 0, 0};
+      invalid[band + 1] = (uint8_t)value;
+      assert(dbt_ble_control_execute(&s, &h, &peer, invalid, sizeof(invalid),
+                                     &out) == DBT_OK &&
+             out.data[0] == 0x11 && out.data[2] == 2 && !out.durable_eq &&
+             x.commits == 2 && x.publishes == 2);
+      assert(s.eq[0] == -12 && s.eq[1] == 0 && s.eq[2] == 12);
+    }
   x.fail = true;
   assert(dbt_ble_control_execute(&s, &h, &peer, eq, sizeof(eq), &out) ==
              DBT_OK &&
@@ -86,6 +98,7 @@ int main(void) {
   for (unsigned i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
     uint8_t p[16] = {0};
     p[0] = cases[i].op;
+    if(p[0]==4)p[1]='a';
     if (cases[i].len) {
       assert(dbt_ble_control_execute(&s, &h, &peer, p, cases[i].len, &out) ==
                  DBT_OK &&
@@ -97,6 +110,16 @@ int main(void) {
     assert(x.commands == before + 1 && out.size == 2 && out.data[0] == 0x10 &&
            out.data[1] == p[0]);
   }
+  /* Invalid names must not reach a persistence-capable provider. */
+  const uint8_t names[][6]={{4,0},{4,0xc0,0x80},{4,0xed,0xa0,0x80},{4,0xf4,0x90,0x80,0x80},{4,0xe2,0x82}};
+  const unsigned name_sizes[]={2,3,4,5,3};
+  unsigned named=x.commands;
+  for(unsigned i=0;i<sizeof(name_sizes)/sizeof(name_sizes[0]);i++){
+    assert(dbt_ble_control_execute(&s,&h,&peer,names[i],(uint16_t)name_sizes[i],&out)==DBT_OK);
+    assert(out.data[0]==0x11 && out.data[2]==2 && x.commands==named);
+  }
+  const uint8_t valid_name[]={4,'A',0xe2,0x82,0xac,0xf0,0x9f,0x98,0x80};
+  assert(dbt_ble_control_execute(&s,&h,&peer,valid_name,sizeof(valid_name),&out)==DBT_OK && out.data[0]==0x10 && x.commands==named+1);
   h.command = NULL;
   uint8_t ota[] = {0x20, 1, 0, 0, 0};
   assert(dbt_ble_control_execute(&s, &h, &peer, ota, sizeof(ota), &out) ==

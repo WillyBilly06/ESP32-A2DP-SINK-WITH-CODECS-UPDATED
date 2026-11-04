@@ -12,6 +12,10 @@
 #define CHECK(x) do {if(!(x))return __LINE__;}while(0)
 static unsigned live_allocs,fail_alloc,owner_wakes;
 static uint32_t now;
+const dbt_link_t *dbt_acl_find(const dbt_acl_t *acl,uint16_t handle){
+    for(unsigned i=0;i<DBT_MAX_LINKS;i++)if(acl->links[i].used && acl->links[i].handle==handle)return &acl->links[i];
+    return 0;
+}
 #ifdef DBT_PROBE_AVRCP
 static probe_avrcp_snapshot_t fake_metadata;
 static bool snapshot_busy;
@@ -175,6 +179,15 @@ EX int probe_audio_profiles(const uint8_t *sbc,uint16_t n,const uint8_t *sbc_cie
     static dbt_runtime_t runtime;runtime.ready=true;
 
     CHECK(probe_audio_init(&runtime,(void *)2)==DBT_OK && initialized && !live_allocs);
+    uint16_t handle=0;uint32_t generation=0;
+    CHECK(probe_audio_peer(&handle,&generation)==DBT_EMPTY);
+    runtime.acl.links[0]=(dbt_link_t){.used=true,.kind=DBT_LINK_CLASSIC,.handle=12,.generation=8};
+    profile.active=true;profile.signaling=(dbt_a2dp_channel_t){.serial=3,.generation=8,.handle=12};
+    CHECK(probe_audio_peer(&handle,&generation)==DBT_OK && handle==12 && generation==8);
+    CHECK(probe_audio_peer_link(handle,generation)==&runtime.acl.links[0]);
+    runtime.acl.links[0].generation=9;CHECK(probe_audio_peer(&handle,&generation)==DBT_EMPTY && !probe_audio_peer_link(12,8));
+    runtime.acl.links[0].kind=DBT_LINK_LE;CHECK(!probe_audio_peer_link(12,9));
+    profile.active=false;memset(&profile.signaling,0,sizeof(profile.signaling));memset(&runtime.acl,0,sizeof(runtime.acl));
     dbt_avdtp_sink_hooks_t hooks={&worker,allocate,release,dbt_codec_worker_submit,sink_event,dbt_codec_worker_media};
     CHECK(dbt_avdtp_sink_init(&sink,hooks,endpoints,(uint8_t)(sizeof(endpoints)/sizeof(endpoints[0])),123,672,672,64,5000,2000,5000)==DBT_OK);
 #ifdef DBT_PROBE_OPUS_BUILD

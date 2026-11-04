@@ -24,10 +24,17 @@ typedef struct {
      * response must reflect a completed operation, never queue admission.
      * Providers may run concurrently with EQ and must synchronize shared state. */
     bool (*command)(void *,const dbt_ble_control_peer_t *,uint8_t,const uint8_t *,uint16_t,uint8_t *,uint8_t *);
+    /* General worker only; progress and retirement, never host/ISR. */
+    bool (*worker_poll)(void *,bool retiring);
+    /* Owner only; nonblocking cancellation/invalidation. */
+    void (*peer_lost)(void *,const dbt_ble_control_peer_t *);
 } dbt_ble_control_hooks_t;
 typedef struct { uint8_t data[DBT_BLE_CONTROL_MAX_STATUS],size; bool durable_eq,durable_control; } dbt_ble_control_result_t;
 /* Worker-owned state; process exactly one command, never coalesce EQ commits. */
 dbt_result_t dbt_ble_control_execute(dbt_ble_control_state_t *,const dbt_ble_control_hooks_t *,
                                      const dbt_ble_control_peer_t *,const uint8_t *,uint16_t,dbt_ble_control_result_t *);
+/* Pure parser shared by admission and the persistence worker; no state mutation. */
+dbt_result_t dbt_ble_control_eq_values(const uint8_t *,uint16_t,int8_t[3]);
+
 dbt_result_t dbt_ble_control_status(const dbt_ble_control_state_t *,uint8_t *,uint8_t *);
 #endif

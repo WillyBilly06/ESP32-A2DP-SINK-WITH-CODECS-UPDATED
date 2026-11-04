@@ -1,6 +1,7 @@
 #include "probe_smp.h"
 #include "dbt_smp_nvs.h"
 #include "dbt_smp_worker_mbedtls.h"
+#include "probe_cccd_store.h"
 #include "esp_random.h"
 #include "freertos/queue.h"
 #include <nvs.h>
@@ -35,6 +36,8 @@ typedef struct {
     dbt_result_t status;
     dbt_smp_bond_op_t operation;
     uint8_t identity_type,identity[6];
+    bool tag_valid;
+    uint8_t bond_tag[PROBE_CCCD_TAG_SIZE];
     bool applied;
     dbt_smp_bond_record_t previous;
     dbt_smp_dist_keys_t local_keys;
@@ -61,6 +64,11 @@ static struct {
     bool reconnect,reconnect_central,negative_needed,negative_started,reply_pending,reply_accepted,key_ready,verified;
     bool resolved,resolved_candidate,encrypted_verified,promotion_issued;
     uint8_t resolved_type,resolved_identity[6];
+    /* The exact committed bond identity, not the current air address. */
+    bool committed_identity_valid;
+    uint8_t committed_identity_type,committed_identity[6];
+    bool committed_tag_valid;
+    uint8_t committed_tag[PROBE_CCCD_TAG_SIZE];
     bool reconnect_authenticated,reconnect_sc;
     uint16_t reply_opcode,ediv;
     uint8_t rand[8],key[16],reconnect_key_size;
@@ -182,6 +190,11 @@ static void worker_execute(worker_state_t *state,work_t *w,completion_t *result)
                 *crypto_generation==work.generation && work.payload.store.generation==work.generation &&
                 work.payload.store.op==DBT_SMP_BOND_STORE && bound &&
                 dbt_smp_nvs_execute(provider,&work.payload.store,NULL)==DBT_OK;
+            if (done.success) {
+                done.identity_type=work.payload.store.identity_type;
+                memcpy(done.identity,work.payload.store.identity,6);
+                done.tag_valid=probe_cccd_bond_tag(&work.payload.store.record,done.bond_tag);
+            }
             if (provider->poisoned) storage_poisoned=true;
         } else if (work.kind==WORK_LOAD || work.kind==WORK_RESOLVE) {
             done.serial=work.payload.store.serial;
@@ -195,6 +208,7 @@ static void worker_execute(worker_state_t *state,work_t *w,completion_t *result)
                 done.success=(work.kind==WORK_RESOLVE
                     ? dbt_smp_nvs_resolve_rpa(provider,work.payload.store.identity,&done.previous,&done.resolved_candidate)
                     : dbt_smp_nvs_execute(provider,&work.payload.store,&done.previous))==DBT_OK;
+            if(done.success)done.tag_valid=probe_cccd_bond_tag(&done.previous,done.bond_tag);
         } else if (work.kind==WORK_PROMOTE) {
             done.serial=work.payload.store.serial;
             done.success=state->storage_open && !provider->poisoned && !storage_poisoned &&
@@ -514,6 +528,11 @@ static void complete(completion_t *done,uint32_t now) {
         if (rc==DBT_OK) {
             slot.reconnect_authenticated=reconnect->record.authenticated;
             slot.reconnect_sc=reconnect->record.secure_connections;
+            slot.committed_identity_type=done->previous.identity_type;
+            memcpy(slot.committed_identity,done->previous.identity,6);
+            slot.committed_identity_valid=stable_identity(slot.committed_identity_type,slot.committed_identity);
+            slot.committed_tag_valid=done->tag_valid;
+            if(done->tag_valid)memcpy(slot.committed_tag,done->bond_tag,sizeof(slot.committed_tag));
             if (slot.reconnect_central) rc=dbt_smp_reconnect_ids(reconnect,&slot.ediv,slot.rand);
             if (rc==DBT_OK) rc=dbt_smp_reconnect_take(reconnect,slot.ediv,slot.rand,slot.key,&slot.reconnect_key_size);
         }
@@ -571,6 +590,13 @@ static void complete(completion_t *done,uint32_t now) {
     } else if (done->kind==WORK_STORE) {
         if (dbt_smp_session_store_complete(&session,done->generation,done->serial,done->success,now)!=DBT_OK)
             slot.failed=true;
+        else if (done->success && stable_identity(done->identity_type,done->identity)) {
+            slot.committed_identity_type=done->identity_type;
+            memcpy(slot.committed_identity,done->identity,6);
+            slot.committed_identity_valid=true;
+            slot.committed_tag_valid=done->tag_valid;
+            if(done->tag_valid)memcpy(slot.committed_tag,done->bond_tag,sizeof(slot.committed_tag));
+        }
     }
 }
 void probe_smp_poll(uint32_t now) {
@@ -735,6 +761,24 @@ dbt_result_t probe_smp_security(uint16_t handle,uint32_t generation,dbt_smp_sess
     }
     if (!session.runtime) return DBT_INVALID;
     return dbt_smp_session_security(&session,out);
+}
+dbt_result_t probe_smp_committed_identity(uint16_t handle,uint32_t generation,uint8_t *type,uint8_t identity[6]) {
+    if (!type || !identity || !slot.active || slot.disconnected || slot.failed ||
+        slot.handle!=handle || slot.generation!=generation || !slot.committed_identity_valid)
+        return DBT_INVALID;
+    dbt_smp_session_security_t security;
+    if (probe_smp_security(handle,generation,&security)!=DBT_OK || !security.encrypted ||
+        !security.bond_committed || (slot.reconnect && !slot.verified)) return DBT_BUSY;
+    *type=slot.committed_identity_type; memcpy(identity,slot.committed_identity,6);
+    return DBT_OK;
+}
+dbt_result_t probe_smp_committed_bond(uint16_t handle,uint32_t generation,uint8_t *type,
+                                      uint8_t identity[6],uint8_t tag[PROBE_CCCD_TAG_SIZE]) {
+    if(!tag)return DBT_INVALID;
+    dbt_result_t rc=probe_smp_committed_identity(handle,generation,type,identity);
+    if(rc!=DBT_OK)return rc;
+    if(!slot.committed_tag_valid)return DBT_INVALID;
+    memcpy(tag,slot.committed_tag,PROBE_CCCD_TAG_SIZE);return DBT_OK;
 }
 dbt_result_t probe_smp_numeric_value(uint32_t *value) {
     return dbt_smp_session_numeric_value(&session,value);

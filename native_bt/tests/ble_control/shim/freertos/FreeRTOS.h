@@ -10,3 +10,5 @@ typedef uint32_t TickType_t;
 #define pdPASS 1
 #define portMAX_DELAY UINT32_MAX
 #endif
+
+#define pdMS_TO_TICKS(n) ((TickType_t)(n))

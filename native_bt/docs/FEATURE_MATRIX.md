@@ -1,6 +1,6 @@
 # Independent host and product feature matrix
 
-Updated 2026-10-29. **The goal remains active and incomplete.** The user now
+Updated 2026-11-03. **The goal remains active and incomplete.** The user now
 requires all further testing to be local and off-board, with a flashable ESP32
 artifact; the ESP32 is reserved for other work. The active
 [`HARDWARE_HOLD.json`](../_build/hardware/HARDWARE_HOLD.json) forbids further
@@ -19,8 +19,12 @@ execution were present in the failed image with SHA-256
 `06ea0f6e4a2859d64108caa235f505b70b64e152fcabbddc6ebe2ab554774085`, ELF
 `7729026d18419445e8e28c329d37792070d3b5c4235158def13f603beeec66e7`.
 The ELF symbol inventory does not prove the feature ran. Earlier hardware
-observations are explicitly separate images. A current local candidate being
-built must be identified and verified by its own receipt.
+observations are explicitly separate images. Current local candidate **LC** is image `007bc54d7cb3e74dde159b780fd1e9611ee2ffef2e3389de447f2c31150661d7`
+with all six codec families, SMP/GATT/AVRCP and product IO enabled. Its current
+source/configuration hashes, linked symbols, image checks and static sizes are
+recorded in [LOCAL_CANDIDATE_EVIDENCE.json](LOCAL_CANDIDATE_EVIDENCE.json).
+LC has not been flashed or run on hardware. Historical observations below keep
+their original scope; LC linkage never upgrades an old observation.
 
 ## Controller and protocol coverage
 
@@ -40,9 +44,9 @@ profiles below are not automatically excluded merely because they are absent.
 | LE SMP, encryption, bonds and peer privacy | I/H: optional session/bearer, crypto/NVS worker, reconnect and limited peer-RPA logic; [SMP scope](SMP.md) | L06 (`probe_smp_init` symbol); failed self-test stopped before controller enable, so no SMP execution or radio observation in that image | No physical LE pairing/reconnect proof; OOB/UI and local privacy incomplete; distribution requiring final peer acknowledgment lacks a documented controller provider; zero-distribution SC does not prove IRK/CSRK or peer persistence |
 | L2CAP Basic | I/H: Classic setup/configuration, security, reassembly and teardown | L06; earlier encrypted Basic exchanges observed | External interoperability and sustained stress; prior concurrent payload corruption remains unresolved |
 | L2CAP LE CoC | I/H: credit channels, segmentation and security guards ([credit channels](CREDIT_CHANNELS.md)) | L06 engine symbols; no external CoC session observed | Peer interoperability, RF and load qualification; enhanced credit mode not established |
-| L2CAP ERTM | I/H: negotiated required mode, FCS, lazy windows, paired simulated runtime and recovery; [feature receipt](../_build/ertm/features/results.json) | L06 ERTM engine symbols; no channel/RF observation | No Basic fallback for required ERTM; continuation/reconfiguration rejected; external peer and live loan/timer behavior unqualified. Streaming mode is not implemented |
+| L2CAP ERTM | I/H: negotiated required mode, FCS, lazy windows, paired simulated runtime and recovery; [feature receipt](../_build/ertm/features/results.json) | L06 ERTM engine symbols; no channel/RF observation | No Basic fallback for required ERTM; initial request/response continuation now I/H/LC. Live reconfiguration disconnects and remains unsupported; external peer and live loan/timer behavior unqualified. Streaming mode is not implemented |
 | SCO/eSCO and voice | I/H: bounded HCI SCO framing/reservation | Earlier controller buffer setup accepted | SCO/eSCO connection management, synchronous routing/flow, codecs and voice profiles are incomplete; framing is not voice support |
-| ATT/GATT server | I/H: discovery, reads/writes, prepared writes, MTU, CCCDs, notification/indication; diagnostic service | L06 diagnostic GATT symbols; earlier LE diagnostic writes/notifications observed | Product service migration and security binding; no GATT client, signed-write/robust-cache coverage or EATT qualification |
+| ATT/GATT server | I/H: discovery, reads/writes, prepared writes, MTU, CCCDs, notification/indication; diagnostic service | L06 diagnostic GATT symbols; earlier LE diagnostic writes/notifications observed | Product service and incarnation-bound bonded CCCD persistence are now I/H/LC; physical security/reconnect/flash qualification remains. No GATT client, signed-write/robust-cache coverage or EATT qualification |
 | SDP | I/H: owned server, continuation and records | L06 probe code; earlier Linux queries and `sdptool` browse observed | Client and complete product records/interoperability |
 | AVDTP / A2DP sink | I/H: signaling, sink/media manager and codec worker/endpoints in optional owned probe | L06 audio init symbol; earlier separate SBC probe decoded/produced I2S during bounded ATT traffic | Full codec interoperability, externally negotiated streams, discontinuities, delay accuracy, switching and product handoff remain unqualified |
 | A2DP source and live audio encoding | No owned source profile or live encoder path identified; some SDK codec sources and offline fixture encoders can encode | Test encoders are host-only evidence, not an advertised source | Source-role negotiation, audio input, encoder lifetime and peer interoperability if required by the full profile goal |
@@ -85,12 +89,12 @@ memory/CPU/latency benchmarks.
 
 | Function in `bt_audio_sink/` baseline | Owned progress | Remaining gap |
 | --- | --- | --- |
-| Product BLE command/status/meter service | I/H/L: current local candidate binds baseline UUIDs and protocol, bounded workers, CCCD-respecting status/meter, startup settings and EQ/control providers alongside diagnostic echo; real ATT/NVS-shim sanitizer tests pass | Remaining command providers, bonded CCCD durability, complete authorization policy, phone interoperability and real timing; no device validation of this binding |
-| EQ, presets, bass boost, channel flip, bypass, volume and settings | I/H/L: BLE EQ/control now binds immediate per-command NVS commits and typed DSP publication, preserving independent volume/analysis. Existing settings load without migration | Presets/remaining product integration and physical power-cut/flash-stall/acoustic qualification. **Every EQ command must commit immediately during playback**, without debounce or coalescing; local shims do not establish durability or audible behavior |
-| OTA and recovery | Baseline implements BLE OTA and recovery; owned command core delegates to an explicit provider | Implement safe product OTA provider, image validation/write/abort/status, authorization, rollback and recovery integration; diagnostic service is not OTA |
-| LED matrix, brightness/effects, meter/beat visualization | Baseline implementation and settings exist | Owned product providers, control/meter synchronization, resource limits and target behavior remain unintegrated |
-| Rotary encoders and buttons | Baseline binds volume, playback, track, EQ, brightness, pairing and effects | Bind physical input, debounce, profile actions and settings to the owned product; target behavior unverified |
-| Startup/connect/disconnect/max-volume sounds, uploads and mute/delete | Baseline sound/overlay, storage and BLE upload paths exist | Owned providers, storage lifecycle, mixing/ducking, error handling and audio transitions remain unintegrated |
+| Product BLE command/status/meter service | I/H/L: current local candidate binds baseline UUIDs and protocol, bounded workers, CCCD-respecting status/meter, startup settings and EQ/control providers alongside diagnostic echo; real ATT/NVS-shim sanitizer tests pass | Name/LED/sound/OTA providers and committed-identity CCCD worker now I/H/LC. Complete authorization UI/policy, phone interoperability, real flash/timing and power-loss validation remain |
+| EQ, presets, bass boost, channel flip, bypass, volume and settings | I/H/L: BLE EQ/control now binds immediate per-command NVS commits and typed DSP publication, preserving independent volume/analysis. Existing settings load without migration | BLE presets and physical EQ/control inputs now use the same per-change persistence lane. Remaining settings/UI parity and physical power-cut/flash-stall/acoustic qualification. **Every EQ command must commit immediately during playback**, without debounce or coalescing; local shims do not establish durability or audible behavior |
+| OTA and recovery | I/H/LC: owned staging/write/abort/image and readback checks, inactive owned-slot policy, encrypted committed-peer grant and separate owner activation APIs | Genuine user grant/activation UI, preserved bootloader rollback capability, physical flash/power-loss/recovery and phone qualification remain |
+| LED matrix, brightness/effects, meter/beat visualization | I/H/LC: owned LED/input workers, NVS journal, relative updates, meter and token-bound cancellation; 22 integer effect approximations | Baseline visual parity, target electrical/timing/resource behavior and flash-stall/audio coexistence remain unqualified |
+| Rotary encoders and buttons | I/H/LC: bounded input handoff, per-detent EQ/control, volume/AVRCP, relative LED control and exact-peer pairing disconnect/discovery | Broader pairing admission, pairing sound/animation and physical gesture/electrical qualification remain incomplete |
+| Startup/connect/disconnect/max-volume sounds, uploads and mute/delete | I/H/LC: WAV upload/mute/delete, transaction recovery, lazy player, integer overlay/duck/fade and bounded output-ticket retirement | Automatic startup/connect/disconnect/max-volume event bindings, actual sound timing/audibility and coexistence remain incomplete |
 | Audio rendering, I2S, DSP and timing | Owned experimental render/I2S and DSP candidates; numerical and worker tests; [audio output](AUDIO_OUTPUT.md) | Product wiring, measured clock behavior, full sample formats, audible output and continuous playback during commits remain unqualified |
 | Pairing UI, discoverability, peer/bond lifecycle and device naming | Pieces exist in probe and baseline; current local candidate loads saved name for GAP/status | Complete product policy, user consent/UI, secure identity, persistence, reset/recovery and cross-feature interaction |
 
@@ -124,4 +128,4 @@ coexistence and codec switching. Compare memory, CPU and latency against the
 baseline with matching enabled features and workloads. There is currently no
 evidence to claim faster, smaller, stable or equivalent production behavior.
 
-Current local candidate: see [LOCAL_CANDIDATE_EVIDENCE.json](LOCAL_CANDIDATE_EVIDENCE.json), image `4ac970772b158c3e80e9dd9d19f076ed456b383eda793e54f6664296ef313092`. This adds linked product-control wiring after L06; it is not a new device result.
+Current local candidate: see [LOCAL_CANDIDATE_EVIDENCE.json](LOCAL_CANDIDATE_EVIDENCE.json), image `007bc54d7cb3e74dde159b780fd1e9611ee2ffef2e3389de447f2c31150661d7`. COM6 is the user-confirmed 8 MB target. The image fits its preserved ota_1 layout; hardware hold remains active.

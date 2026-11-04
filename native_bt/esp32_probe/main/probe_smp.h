@@ -41,6 +41,14 @@ uint32_t probe_smp_wait_ms(uint32_t now_ms);
 bool probe_smp_take_failure(uint16_t *handle, uint32_t *generation);
 dbt_result_t probe_smp_security(uint16_t handle, uint32_t generation,
                                 dbt_smp_session_security_t *);
+/* Exact identity of the committed, encrypted bond for this live generation.
+ * RPA reconnects return the resolved storage identity. Candidate promotion
+ * must finish before this query succeeds. This is not a bond-incarnation ID. */
+dbt_result_t probe_smp_committed_identity(uint16_t handle,uint32_t generation,
+                                         uint8_t *type,uint8_t identity[6]);
+/* Opaque incarnation digest is derived on the SMP worker, never the owner. */
+dbt_result_t probe_smp_committed_bond(uint16_t handle,uint32_t generation,uint8_t *type,
+                                      uint8_t identity[6],uint8_t tag[32]);
 dbt_result_t probe_smp_numeric_value(uint32_t *);
 dbt_result_t probe_smp_numeric_confirm(bool accepted, uint32_t now_ms);
 /* Explicit maintenance; never automatic. Starts only when no SMP procedure is

@@ -51,6 +51,8 @@ typedef struct {
     uint32_t allocated_bytes;
     uint16_t drain_remaining;
     bool opened,draining_input;
+    void *mix_context;
+    void (*mix)(void *,int32_t *,uint32_t);
 } dbt_audio_t;
 
 /* Decoder -> render -> DMA/ISR are distinct SPSC boundaries. Initialize before
@@ -77,6 +79,11 @@ dbt_result_t dbt_audio_analysis(dbt_audio_t *,bool);
 /* Render owner. Input conversion, optional fractional clock correction, then DSP.
  * The caller controls output watermarks; this function performs bounded work. */
 uint32_t dbt_audio_render(dbt_audio_t *audio,uint32_t budget);
+/* Render owner only. Borrowed mix context must remain live until explicitly
+ * detached by that owner. NULL preserves the original signal path. */
+void dbt_audio_set_mix(dbt_audio_t *,void (*)(void *,int32_t *,uint32_t),void *);
+/* Render owner only; standalone sound without an input-ring producer. */
+uint32_t dbt_audio_render_silence(dbt_audio_t *,uint32_t);
 /* Render owner only, after the producer is quiesced: extend the final sample
  * through the finite causal filter delay. The next open resets this state. */
 void dbt_audio_begin_drain(dbt_audio_t *audio);

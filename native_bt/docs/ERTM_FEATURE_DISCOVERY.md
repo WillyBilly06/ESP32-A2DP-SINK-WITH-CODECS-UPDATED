@@ -17,8 +17,13 @@ supplies invalid window, MPS, timer, FCS, or MTU values. RFC parameters are
 directional. Requests carry zero timers; successful responses carry the local
 non-flushable sender timers. The implementation uses the default 16-bit FCS;
 one peer requesting No FCS does not disable it. Required mode has no Basic
-fallback. ERTM configuration continuation and reconfiguration are not supported
-and are refused or cause channel disconnect.
+fallback. Initial configuration accepts complete options across request fragments,
+responds to every fragment, and retrieves continued responses with empty requests.
+Recognized option values and duplicate markers are staged per channel without
+retaining unbounded option bytes; malformed or conflicting options fail closed.
+Results become active only after the final response is admitted, and link
+generation, signaling identifiers, and setup deadlines still apply. ERTM
+reconfiguration after OPEN remains unsupported and causes disconnect.
 
 Per-channel engine state is allocated on channel creation. Retransmission
 window metadata, segmented receive SDUs, and encoded outgoing frames allocate
@@ -31,7 +36,9 @@ callback is not a claim of application consumption or RF qualification.
 The offline `test_ertm_features.py` exercises discovery and paired simulated
 controllers through the owned runtime, including segmentation, acknowledgment
 loan, recovery after a deliberately dropped frame, simultaneous directions,
-Basic and LE coexistence, required-mode rejection, default FCS, OOM, security
+Basic and LE coexistence, split request/response negotiation with subsequent
+data transfer, malformed and duplicate continuation options, required-mode
+rejection, default FCS, OOM, security
 revocation and link loss with a pinned ACL frame. It also runs 23 existing
 Classic/LE channel tests. These host tests do not establish interoperability with
 an external peer or audio hardware. ESP32 object compilation is not a firmware

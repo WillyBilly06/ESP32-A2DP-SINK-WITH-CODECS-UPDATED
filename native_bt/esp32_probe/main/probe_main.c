@@ -22,6 +22,17 @@
 #ifdef DBT_PROBE_SMP
 #include "probe_smp.h"
 #endif
+#if defined(DBT_PROBE_SMP) && defined(DBT_PROBE_GATT_TEST) && defined(DBT_PROBE_AUDIO_OUTPUT)
+#define DBT_PROBE_PRODUCT_RUNTIME 1
+#include "probe_product_runtime.h"
+#endif
+#ifdef DBT_PROBE_PRODUCT_IO
+#if !defined(DBT_PROBE_PRODUCT_RUNTIME) || !defined(DBT_PROBE_AUDIO_TEST) || !defined(DBT_PROBE_CLASSIC_SECURITY_TEST) || !defined(DBT_PROBE_AVRCP) || !defined(DBT_PROBE_SOUND_BUILD)
+#error "Product IO requires product runtime, audio, AVRCP and sound support"
+#endif
+#include "probe_product_io_owner.h"
+#include "esp_spiffs.h"
+#endif
 #ifdef DBT_PROBE_AVRCP
 #include "probe_avrcp.h"
 #include "probe_output.h"
@@ -29,6 +40,8 @@
 #include "esp_bt.h"
 #ifdef DBT_PROBE_KEEP_OWNED_ACTIVE
 #include "esp_ota_ops.h"
+#include "esp_app_desc.h"
+#include "dbt_boot_policy.h"
 #if CONFIG_BOOTLOADER_APP_ANTI_ROLLBACK
 #error "Owned boot confirmation must not update anti-rollback eFuses"
 #endif
@@ -73,11 +86,99 @@ static dbt_ble_control_state_t product_state;
 static char product_name[33];
 static _Atomic bool product_loaded;
 static bool product_load_ok;
+#ifdef DBT_PROBE_PRODUCT_RUNTIME
+static probe_product_t product;
+static probe_product_runtime_t product_runtime;
+static bool product_runtime_ready,product_provider_ready,product_starting;
+static probe_application_other_command_t product_other_callback;
+static probe_application_audio_busy_t product_audio_busy_callback;
+static void *product_other_context;
+#ifdef DBT_PROBE_PRODUCT_IO
+static _Atomic bool product_io_done;
+static bool product_io_started,product_io_ready,product_io_sound;
+static probe_product_io_owner_t product_io_owner;
+#endif
+static uint32_t now_ms(void);
+static void wake_owner(void);
+static uint32_t product_clock(void *unused){(void)unused;return now_ms();}
+static void product_wake_owner(void *unused){(void)unused;wake_owner();}
+static void product_wake_worker(void *unused){(void)unused;probe_gatt_control_wake();}
+static bool product_other(void *unused,const dbt_ble_control_peer_t *peer,uint8_t command,const uint8_t *data,uint16_t size,uint8_t *out,uint8_t *out_size){
+    (void)unused;return product_other_callback && product_other_callback(product_other_context,peer,command,data,size,out,out_size);
+}
+bool probe_application_set_other_provider(probe_application_other_command_t callback,probe_application_audio_busy_t busy,void *context){
+    if(xTaskGetCurrentTaskHandle()!=owner || product_starting)return false;
+    product_other_callback=callback;product_audio_busy_callback=busy;product_other_context=context;return true;
+}
+static bool product_audio_busy(void){return product_audio_busy_callback && product_audio_busy_callback(product_other_context);}
+static bool product_mux_command(void *ctx,const dbt_ble_control_peer_t *peer,uint8_t command,const uint8_t *data,uint16_t size,uint8_t *out,uint8_t *out_size){
+    if((command==4 || (command>=0x20 && command<=0x23)) && product_audio_busy())return false;
+    return probe_product_command(ctx,peer,command,data,size,out,out_size);
+}
+static bool product_mux_worker_poll(void *ctx,bool retiring){
+    bool product_ok=probe_product_worker_poll_guarded(ctx,retiring,!product_audio_busy());
+#ifdef DBT_PROBE_PRODUCT_IO
+    bool io_ok=product_io_ready?probe_product_io_worker_poll(NULL,retiring):true;
+    return product_ok && io_ok;
+#else
+    return product_ok;
+#endif
+}
+static void product_mux_peer_lost(void *ctx,const dbt_ble_control_peer_t *peer){
+    probe_product_peer_lost(ctx,peer);
+#ifdef DBT_PROBE_PRODUCT_IO
+    if(product_io_ready)probe_product_io_peer_lost(NULL,peer);
+#endif
+}
+#ifdef DBT_PROBE_PRODUCT_IO
+static bool product_io_other(void *unused,const dbt_ble_control_peer_t *peer,uint8_t cmd,const uint8_t *data,uint16_t n,uint8_t *out,uint8_t *size){
+    (void)unused;return product_io_ready && probe_product_io_command(NULL,peer,cmd,data,n,out,size);
+}
+static bool product_io_busy(void *unused){(void)unused;return product_io_ready && probe_product_io_sound_busy();}
+static bool product_io_peer(void *unused,const dbt_ble_control_peer_t *peer){
+    (void)unused;dbt_product_peer_value_t v;
+    return peer && dbt_product_peer_read(&product.peer,&v) && v.peer.handle==peer->handle &&
+           v.peer.generation==peer->generation && v.encrypted && v.bonded && v.allow_name;
+}
+static void load_product_io(void *unused){
+    (void)unused;
+    bool mounted=esp_spiffs_mounted("spiffs");
+    if(!mounted){
+        esp_vfs_spiffs_conf_t conf={.base_path="/spiffs",.partition_label="spiffs",.max_files=5,.format_if_mount_failed=false};
+        mounted=esp_vfs_spiffs_register(&conf)==ESP_OK && esp_spiffs_mounted("spiffs");
+    }
+    probe_product_io_hooks_t hooks={0};hooks.peer_valid=product_io_peer;hooks.wake_owner=product_wake_owner;
+    hooks.led=true;hooks.input=true;hooks.sound=mounted;
+    product_io_ready=probe_product_io_startup_worker(&product_state,&hooks);
+    product_io_sound=product_io_ready && mounted;
+    atomic_store_explicit(&product_io_done,true,memory_order_release);wake_owner();vTaskDelete(NULL);
+}
+#endif
+dbt_result_t probe_application_grant_ota(uint16_t handle,uint32_t generation,const dbt_ota_manifest_t *manifest){
+    dbt_ble_control_peer_t peer={handle,generation};
+    return product_runtime_ready && xTaskGetCurrentTaskHandle()==owner?probe_product_runtime_grant_ota(&product_runtime,&peer,manifest):DBT_INVALID;
+}
+dbt_result_t probe_application_activate_ota(uint16_t handle,uint32_t generation){
+    dbt_ble_control_peer_t peer={handle,generation};
+    return product_runtime_ready && xTaskGetCurrentTaskHandle()==owner?probe_product_runtime_request_activation(&product_runtime,&peer):DBT_INVALID;
+}
+probe_product_action_result_t probe_application_take_ota_result(void){
+    return product_runtime_ready && xTaskGetCurrentTaskHandle()==owner?probe_product_runtime_take_activation(&product_runtime):PROBE_PRODUCT_NO_RESULT;
+}
+#endif
 static bool product_authorize(void *context,const dbt_link_t *link,uint8_t command){(void)context;(void)command;return link && link->kind==DBT_LINK_LE;}
 static bool publish_eq(void *context,int8_t b,int8_t m,int8_t t){(void)context;return probe_output_eq(b,m,t)==DBT_OK;}
 static bool publish_control(void *context,uint8_t value){(void)context;return probe_output_control(value)==DBT_OK;}
 static void load_product(void *unused){
-    (void)unused;product_load_ok=dbt_ble_nvs_load_state(&product_state)==DBT_OK;
+    (void)unused;
+#ifdef DBT_PROBE_PRODUCT_RUNTIME
+    probe_product_hooks_t hooks={0};hooks.now_ms=product_clock;hooks.wake_owner=product_wake_owner;
+    hooks.wake_worker=product_wake_worker;hooks.other_command=product_other;hooks.ota_timeout_ms=30000;hooks.name_timeout_ms=2000;
+    product_provider_ready=probe_product_startup_worker(&product,&product_state,&hooks);
+    product_load_ok=product_state.valid;
+#else
+    product_load_ok=dbt_ble_nvs_load_state(&product_state)==DBT_OK;
+#endif
     atomic_store_explicit(&product_loaded,true,memory_order_release);vTaskDelete(NULL);
 }
 static bool product_startup(void){
@@ -86,6 +187,9 @@ static bool product_startup(void){
     for(unsigned i=0;i<sizeof(firmware)-1;++i)product_state.firmware[i]=firmware[i];
     product_state.name_size=sizeof(name)-1;product_state.firmware_size=sizeof(firmware)-1;
     product_state.led[0]=14;product_state.led[1]=10;
+#ifdef DBT_PROBE_PRODUCT_RUNTIME
+    product_starting=true;
+#endif
     if(xTaskCreatePinnedToCore(load_product,"native_cfg_load",4096,NULL,1,NULL,0)!=pdPASS)return false;
     int64_t deadline=esp_timer_get_time()+2000000;
     while(!atomic_load_explicit(&product_loaded,memory_order_acquire)){
@@ -162,6 +266,9 @@ static void release_rx(void *context, uint8_t *data) {
 #if defined(DBT_PROBE_GATT_TEST) || defined(DBT_PROBE_CLASSIC_SECURITY_TEST) || defined(DBT_PROBE_SMP)
 static void profile_link(void *context,const dbt_link_change_t *change) {
     (void)context;
+#ifdef DBT_PROBE_PRODUCT_IO
+    probe_product_io_owner_link(&product_io_owner,change);
+#endif
 #ifdef DBT_PROBE_SMP
     if(smp_initialized)probe_smp_link(change);
 #endif
@@ -179,7 +286,12 @@ static void profile_fixed(void *context,const dbt_link_t *link,uint16_t cid,cons
     if(cid==6){if(!smp_initialized || probe_smp_receive(link,cid,data,size)!=DBT_OK)defer_disconnect(link);return;}
 #endif
 #ifdef DBT_PROBE_GATT_TEST
-    if(cid==4)probe_gatt_receive(context,link,cid,data,size);
+    if(cid==4){
+#ifdef DBT_PROBE_PRODUCT_RUNTIME
+        if(product_runtime_ready)probe_product_runtime_refresh_security(&product_runtime);
+#endif
+        probe_gatt_receive(context,link,cid,data,size);
+    }
 #endif
 }
 #endif
@@ -268,7 +380,8 @@ static void confirm_owned_boot(void *unused){
     const esp_partition_t *running=esp_ota_get_running_partition();
     esp_ota_img_states_t state=ESP_OTA_IMG_UNDEFINED;
     esp_err_t result=ESP_ERR_INVALID_STATE;
-    if(running && running->address==0x390000){
+    const esp_app_desc_t *description=esp_app_get_description();
+    if(running && description && dbt_boot_owned_slot(running->type,running->subtype,running->label,description->project_name)){
         result=esp_ota_get_state_partition(running,&state);
         if(result==ESP_OK && state!=ESP_OTA_IMG_VALID)result=esp_ota_mark_app_valid_cancel_rollback();
         if(result==ESP_OK)result=esp_ota_get_state_partition(running,&state);
@@ -306,6 +419,9 @@ void app_main(void) {
     /* Startup storage work precedes controller enable; never erase user NVS. */
     ESP_ERROR_CHECK(nvs_flash_init());
 #if defined(DBT_PROBE_GATT_TEST) && defined(DBT_PROBE_AUDIO_OUTPUT)
+#ifdef DBT_PROBE_PRODUCT_IO
+    if(!probe_application_set_other_provider(product_io_other,product_io_busy,NULL)){ESP_LOGE(tag,"Product IO registration failed");return;}
+#endif
     if(!product_startup()){ESP_LOGE(tag,"Product settings load failed without erasing NVS");return;}
 #endif
     dbt_gap_config_t gap_config = { .name = "NATIVE_BT_PROBE",
@@ -325,6 +441,9 @@ void app_main(void) {
         ESP_LOGE(tag, "GAP initialization failed");
         return;
     }
+#ifdef DBT_PROBE_PRODUCT_RUNTIME
+    if(product_provider_ready)product_runtime_ready=probe_product_runtime_init(&product_runtime,&product,&runtime,&gap,probe_smp_security);
+#endif
     /* Existing NVS is preserved. Initialization failure does not erase bonds/settings. */
     /* NVS was initialized before GAP configuration. */
 #ifdef DBT_PROBE_CODEC_CHECK
@@ -445,11 +564,30 @@ void app_main(void) {
         }
 #endif
 #ifdef DBT_PROBE_GATT_TEST
-        if (runtime.ready && !gatt_initialized) {
+        bool product_io_settled=true;
+#ifdef DBT_PROBE_PRODUCT_IO
+        if(runtime.ready && echo_initialized && !product_io_started){
+            product_io_started=true;
+            if(!product_runtime_ready || xTaskCreatePinnedToCore(load_product_io,"native_product_io",4096,NULL,1,NULL,0)!=pdPASS)
+                atomic_store_explicit(&product_io_done,true,memory_order_release);
+        }
+        product_io_settled=atomic_load_explicit(&product_io_done,memory_order_acquire);
+#endif
+        if (runtime.ready && !gatt_initialized && product_io_settled) {
+#ifdef DBT_PROBE_SMP
+            if(probe_gatt_security_query_configure(probe_smp_security)!=DBT_OK ||
+               probe_gatt_bond_query_configure(probe_smp_committed_bond)!=DBT_OK){
+                dbt_runtime_abort(&runtime,DBT_FAULT_BAD_RESPONSE);continue;
+            }
+#endif
 #ifdef DBT_PROBE_AUDIO_OUTPUT
             dbt_ble_control_hooks_t control_hooks={0};
             control_hooks.authorize=product_authorize;control_hooks.commit_eq=dbt_ble_nvs_commit_eq;
             control_hooks.commit_control=dbt_ble_nvs_commit_control;control_hooks.publish_eq=publish_eq;control_hooks.publish_control=publish_control;
+#ifdef DBT_PROBE_PRODUCT_RUNTIME
+            if(product_runtime_ready){control_hooks.context=&product;control_hooks.command=product_mux_command;
+                control_hooks.worker_poll=product_mux_worker_poll;control_hooks.peer_lost=product_mux_peer_lost;}
+#endif
             if(probe_output_eq(product_state.eq[0],product_state.eq[1],product_state.eq[2])!=DBT_OK ||
                probe_output_control(product_state.control)!=DBT_OK || probe_gatt_control_configure(&product_state,&control_hooks)!=DBT_OK){
                 dbt_runtime_abort(&runtime,DBT_FAULT_BAD_RESPONSE);continue;
@@ -461,16 +599,32 @@ void app_main(void) {
         }
         if (gatt_initialized){
             probe_gatt_poll(now);probe_gatt_retry_eq_publication();probe_gatt_retry_control_publication();
+#ifdef DBT_PROBE_PRODUCT_IO
+            if(product_io_ready){product_io_owner.gap=&gap;product_io_owner.sound_enabled=product_io_sound;probe_product_io_owner_poll(&product_io_owner,now);}
+#endif
 #ifdef DBT_PROBE_AUDIO_OUTPUT
             static bool analysis;static uint32_t meter_at;
-            bool desired=probe_gatt_connected();
+            bool ble_meter=probe_gatt_connected(),desired=ble_meter;
+#ifdef DBT_PROBE_PRODUCT_IO
+            desired=desired || product_io_ready;
+#endif
+#ifdef DBT_PROBE_PRODUCT_IO
+            desired=desired || product_io_ready;
+#endif
             if(desired!=analysis && probe_output_analysis(desired)==DBT_OK)analysis=desired;
-            if(desired && now-meter_at>=40){uint8_t levels[3];probe_output_meter(levels);probe_gatt_meter(levels[0],levels[1],levels[2]);meter_at=now;}
+            if(desired && now-meter_at>=40){uint8_t levels[3];probe_output_meter(levels);if(ble_meter)probe_gatt_meter(levels[0],levels[1],levels[2]);
+#ifdef DBT_PROBE_PRODUCT_IO
+                if(product_io_ready){probe_output_stats_t stats;probe_output_stats(&stats);probe_product_io_meter(levels[0],levels[1],levels[2],stats.running!=0);}
+#endif
+                meter_at=now;}
 #endif
         }
 #endif
         if (runtime.ready && receive_flow_ready && gap.state == DBT_GAP_IDLE) (void)dbt_gap_start(&gap);
         dbt_gap_poll(&gap, now);
+#ifdef DBT_PROBE_PRODUCT_RUNTIME
+        if(product_runtime_ready && gatt_initialized && smp_initialized)probe_product_runtime_poll(&product_runtime);
+#endif
 #ifdef DBT_PROBE_CLASSIC_SECURITY_TEST
         if(gap.state==DBT_GAP_READY && !gap.classic_pending && gap.classic_scan!=3)
             (void)dbt_gap_set_classic_scan(&gap,true,true);
@@ -552,6 +706,12 @@ void app_main(void) {
 #endif
         uint32_t gap_wait = dbt_gap_wait_ms(&gap);
         if (gap_wait < wait) wait = gap_wait;
+#ifdef DBT_PROBE_PRODUCT_RUNTIME
+        if(product_runtime_ready){uint32_t product_wait=probe_product_runtime_wait_ms(&product_runtime,now_ms());if(product_wait<wait)wait=product_wait;}
+#endif
+#ifdef DBT_PROBE_PRODUCT_IO
+        if(product_io_ready){uint32_t io_wait=probe_product_io_owner_wait_ms(&product_io_owner,now_ms());if(io_wait<wait)wait=io_wait;}
+#endif
 #ifdef DBT_PROBE_GATT_TEST
         uint32_t att_wait = probe_gatt_wait_ms(now_ms());
         if (att_wait < wait) wait = att_wait;

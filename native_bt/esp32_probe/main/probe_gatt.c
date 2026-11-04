@@ -1,8 +1,11 @@
 #include "probe_gatt.h"
+#include "probe_cccd_store.h"
 #include "dbt_att_bearer.h"
 #include "esp_heap_caps.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
+#include "freertos/semphr.h"
+#include "dbt_utf8.h"
 #include "freertos/task.h"
 #include <string.h>
 #include <stdatomic.h>
@@ -11,6 +14,14 @@
 static dbt_att_server_t server;
 static dbt_att_bearer_t bearer;
 static dbt_gap_t *gap;
+static dbt_result_t (*security_query)(uint16_t,uint32_t,dbt_smp_session_security_t *);
+static dbt_result_t (*bond_query)(uint16_t,uint32_t,uint8_t *,uint8_t[6],uint8_t[32]);
+typedef enum { CCCD_NONE,CCCD_LOADING,CCCD_READY,CCCD_BOUND,CCCD_ERROR } cccd_phase_t;
+typedef struct {
+    uint16_t handle;uint32_t generation;uint8_t type,identity[6],tag[32];
+    uint16_t values[PROBE_CCCD_COUNT];cccd_phase_t phase;uint32_t retry_at;bool retry_pending;
+} cccd_binding_t;
+static cccd_binding_t cccd_bindings[DBT_MAX_LINKS];
 static uint8_t *echo;
 static uint16_t echo_size;
 static uint32_t writes, notified[DBT_MAX_LINKS], notified_generation[DBT_MAX_LINKS];
@@ -18,7 +29,10 @@ typedef struct control_job {
     struct control_job *next;
     uint32_t generation,token;
     uint16_t handle,size,offset;
-    bool request,eq_lane;
+    bool request,eq_lane,local;
+    uint8_t cccd_kind,identity_type,identity[6],bond_tag[32];
+    uint16_t cccd_values[PROBE_CCCD_COUNT],cccd_error_handle;
+    dbt_result_t cccd_result;
     _Atomic bool cancelled;
     dbt_ble_control_result_t result;
     dbt_ble_control_state_t state;
@@ -28,13 +42,19 @@ typedef struct control_job {
 #define CONTROL_STACK_BYTES 4096u
 static QueueHandle_t control_work,eq_work,control_done;
 static TaskHandle_t control_owner;
+static SemaphoreHandle_t control_signal,eq_signal;
 static dbt_ble_control_hooks_t control_hooks;
 static dbt_ble_control_state_t control_display_state;
+static int8_t desired_eq[3];
+static uint8_t desired_control;
 static control_job_t *control_head,*control_tail;
 static control_job_t *control_registry[CONTROL_JOBS];
-static unsigned control_jobs,eq_running,control_running;
+static unsigned control_jobs,eq_running,control_running,control_writes_running;
 static bool control_configured,control_worker,control_retiring,eq_worker,eq_retiring;
 static bool eq_publication_pending,control_publication_pending;
+static _Atomic bool external_worker_required;
+static uint32_t control_now_ms,control_retry_at,eq_retry_at;
+static bool control_retry_pending,eq_retry_pending;
 static uint32_t status_pending_generation[DBT_MAX_LINKS];
 static const uint8_t primary[] = {0, 0x28}, declaration[] = {3, 0x28}, cccd[] = {2, 0x29};
 static const uint8_t extended_properties[] = {0, 0x29}, reliable_write[] = {1, 0};
@@ -69,7 +89,7 @@ static const uint8_t counter_declaration[] = {0x12, 0x15, 0,    2,    0xf0, 0x78
 static const dbt_attribute_t attributes[] = {
     {1, DBT_ATT_READ, 2, 2, 0, 2, 0, primary, gap_uuid},
     {2, DBT_ATT_READ, 5, 5, 0, 2, 0, declaration, name_declaration},
-    {3, DBT_ATT_READ, sizeof(name) - 1, sizeof(name) - 1, 0, 2, 0, name_uuid, name},
+    {3, DBT_ATT_READ | DBT_ATT_DYNAMIC, 32, 0, 0, 2, 0, name_uuid, 0},
     {4, DBT_ATT_READ, 2, 2, 0, 2, 0, primary, gatt_uuid},
     {5, DBT_ATT_READ, 5, 5, 0, 2, 0, declaration, changed_declaration},
     {6, DBT_ATT_INDICATE, 4, 4, 0, 2, 0, changed_uuid, changed_value},
@@ -112,14 +132,31 @@ static void release(void *context, uint8_t *bytes) {
     (void)context;
     heap_caps_free(bytes);
 }
+dbt_result_t probe_gatt_security_query_configure(
+    dbt_result_t (*query)(uint16_t,uint32_t,dbt_smp_session_security_t *)) {
+    if (bearer.runtime || !query) return DBT_INVALID;
+    security_query=query;
+    return DBT_OK;
+}
+dbt_result_t probe_gatt_bond_query_configure(
+    dbt_result_t (*query)(uint16_t,uint32_t,uint8_t *,uint8_t[6],uint8_t[32])) {
+    if(bearer.runtime || !query)return DBT_INVALID;
+    bond_query=query;return DBT_OK;
+}
 dbt_result_t probe_gatt_control_configure(const dbt_ble_control_state_t *initial,
                                           const dbt_ble_control_hooks_t *hooks) {
     if (bearer.runtime || !initial || !hooks || initial->name_size>32 || initial->firmware_size>32)
         return DBT_INVALID;
-    control_hooks=*hooks; control_display_state=*initial;
+    control_hooks=*hooks; control_display_state=*initial;memcpy(desired_eq,initial->eq,3);desired_control=initial->control;
     control_configured=true; return DBT_OK;
 }
 static void control_execute_job(control_job_t *job) {
+    if(job->cccd_kind) {
+        job->cccd_result=job->cccd_kind==1
+            ? probe_cccd_load(job->identity_type,job->identity,job->bond_tag,job->cccd_values)
+            : probe_cccd_save(job->identity_type,job->identity,job->bond_tag,job->cccd_values);
+        return;
+    }
     dbt_ble_control_peer_t peer={job->handle,job->generation};
     if(atomic_load_explicit(&job->cancelled,memory_order_acquire) ||
        dbt_ble_control_execute(&job->state,&control_hooks,&peer,job->data,job->size,&job->result)!=DBT_OK) {
@@ -143,13 +180,30 @@ static void control_execute_job(control_job_t *job) {
         }
 }
 static void control_task(void *unused) {
-    bool eq=(uintptr_t)unused!=0;QueueHandle_t queue=eq?eq_work:control_work;
+    bool eq=(uintptr_t)unused!=0,retire=false;QueueHandle_t queue=eq?eq_work:control_work;
+    SemaphoreHandle_t signal=eq?eq_signal:control_signal;
     for (;;) {
+        if(retire){
+            if(!eq && (uxQueueMessagesWaiting(queue) || atomic_load_explicit(&external_worker_required,memory_order_acquire))){
+                control_job_t *resumed=(control_job_t *)(uintptr_t)3;
+                (void)xQueueSend(control_done,&resumed,portMAX_DELAY);xTaskNotifyGive(control_owner);
+                retire=false;continue;
+            }
+            if(!eq && control_hooks.worker_poll && !control_hooks.worker_poll(control_hooks.context,true)){
+                vTaskDelay(pdMS_TO_TICKS(20));continue;
+            }
+            control_job_t *done=(control_job_t *)(uintptr_t)(eq?1u:2u);
+            (void)xQueueSend(control_done,&done,portMAX_DELAY);xTaskNotifyGive(control_owner);vTaskDelete(NULL);return;
+        }
         control_job_t *job=0;
-        if(xQueueReceive(queue,&job,portMAX_DELAY)!=pdTRUE) continue;
-        if(!job) { job=(control_job_t *)(uintptr_t)(eq?1u:2u);
-            (void)xQueueSend(control_done,&job,portMAX_DELAY);xTaskNotifyGive(control_owner);vTaskDelete(NULL);return; }
+        TickType_t wait=(!eq && control_hooks.worker_poll)?pdMS_TO_TICKS(20):portMAX_DELAY;
+        if(xQueueReceive(queue,&job,0)!=pdTRUE){
+            if(!eq && control_hooks.worker_poll)(void)control_hooks.worker_poll(control_hooks.context,false);
+            (void)xSemaphoreTake(signal,wait);continue;
+        }
+        if(!job){retire=true;continue;}
         control_execute_job(job);
+        if(!eq && control_hooks.worker_poll)(void)control_hooks.worker_poll(control_hooks.context,false);
         (void)xQueueSend(control_done,&job,portMAX_DELAY);xTaskNotifyGive(control_owner);
     }
 }
@@ -163,23 +217,76 @@ static void control_free(control_job_t *job) {
 static void control_append(control_job_t *job) {
     job->next=0;if(control_tail)control_tail->next=job;else control_head=job;control_tail=job;
 }
-static uint16_t control_submit(const dbt_link_t *link,const dbt_att_write_t *w,bool command,uint32_t token) {
+static cccd_binding_t *cccd_binding(const dbt_link_t *link) {
+    for(unsigned i=0;i<DBT_MAX_LINKS;i++)if(cccd_bindings[i].generation==link->generation &&
+        cccd_bindings[i].handle==link->handle)return &cccd_bindings[i];
+    return NULL;
+}
+static uint16_t cccd_enqueue(const dbt_link_t *link,cccd_binding_t *binding,uint8_t kind,
+                             uint32_t token,uint16_t error_handle,const uint16_t *values) {
+    if(control_jobs>=CONTROL_JOBS-1u)return DBT_ATT_RESOURCES;
+    control_job_t *job=heap_caps_malloc(sizeof(*job),MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT);
+    if(!job)return DBT_ATT_RESOURCES;
+    memset(job,0,sizeof(*job));atomic_init(&job->cancelled,false);job->cccd_kind=kind;
+    job->handle=link->handle;job->generation=link->generation;job->token=token;
+    job->cccd_result=DBT_INVALID;
+    job->cccd_error_handle=error_handle;job->identity_type=binding->type;
+    memcpy(job->identity,binding->identity,6);memcpy(job->bond_tag,binding->tag,32);
+    if(values)memcpy(job->cccd_values,values,sizeof(job->cccd_values));
+    if(xQueueSend(control_work,&job,0)!=pdTRUE){heap_caps_free(job);return DBT_ATT_RESOURCES;}
+    ++control_jobs;for(unsigned i=0;i<CONTROL_JOBS;i++)if(!control_registry[i]){control_registry[i]=job;break;}
+    (void)xSemaphoreGive(control_signal);return 0;
+}
+static dbt_result_t load_cccd(void *context,const dbt_link_t *link,uint16_t handle,uint16_t *value) {
+    (void)context;static const uint16_t handles[4]={7,0x16,0x25,0x28};
+    cccd_binding_t *b=cccd_binding(link);if(!b || b->phase!=CCCD_READY)return DBT_INVALID;
+    for(unsigned i=0;i<PROBE_CCCD_COUNT;i++)if(handles[i]==handle){*value=b->values[i];return DBT_OK;}
+    return DBT_INVALID;
+}
+static uint16_t control_enqueue(const dbt_link_t *link,const dbt_att_write_t *w,bool command,uint32_t token,bool local) {
     if(!link || !w || w->offset || !w->size || w->size>DBT_BLE_CONTROL_MAX_COMMAND) return DBT_ATT_INVALID_LENGTH;
-    if(w->data[0]!=0xf0 && w->data[0]!=0xff &&
-       (!control_hooks.authorize || !control_hooks.authorize(control_hooks.context,link,w->data[0])))
-        return DBT_ATT_AUTHORIZATION;
-    bool eq=w->data[0]==1 || w->data[0]==2;
+    bool eq=w->data[0]==1 || w->data[0]==2 || w->data[0]==3;
     if(control_jobs>=CONTROL_JOBS || (!eq && control_jobs>=CONTROL_JOBS-1u)) return DBT_ATT_RESOURCES;
     control_job_t *job=heap_caps_malloc(sizeof(*job)+w->size,MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT);
     if(!job)return DBT_ATT_RESOURCES;
     memset(job,0,sizeof(*job));atomic_init(&job->cancelled,false);job->handle=link->handle;job->generation=link->generation;
-    job->token=token;job->request=!command;job->size=w->size;memcpy(job->data,w->data,w->size);
+    job->local=local;job->token=token;job->request=!command;job->size=w->size;memcpy(job->data,w->data,w->size);
     job->eq_lane=eq;job->state=control_display_state;
     ++control_jobs;
     if(xQueueSend(job->eq_lane?eq_work:control_work,&job,0)!=pdTRUE){control_free(job);return DBT_ATT_RESOURCES;}
-    if(job->eq_lane)++eq_running;else ++control_running;
+    (void)xSemaphoreGive(eq?eq_signal:control_signal);
+    if(w->data[0]==3)++control_writes_running;
+    else if(job->eq_lane)++eq_running;else ++control_running;
     for(unsigned i=0;i<CONTROL_JOBS;i++)if(!control_registry[i]){control_registry[i]=job;break;}
+    int8_t values[3];
+    if(eq && dbt_ble_control_eq_values(w->data,w->size,values)==DBT_OK)memcpy(desired_eq,values,3);
+    if(w->data[0]==3 && w->size>=2)desired_control=w->data[1]&7u;
     return command?0:DBT_ATT_DEFERRED;
+}
+static uint16_t control_submit(const dbt_link_t *link,const dbt_att_write_t *w,bool command,uint32_t token){
+    if(!link || !w || !w->data || !w->size)return DBT_ATT_INVALID_LENGTH;
+    if(w->data[0]!=0xf0 && w->data[0]!=0xff &&
+       (!control_hooks.authorize || !control_hooks.authorize(control_hooks.context,link,w->data[0])))
+        return DBT_ATT_AUTHORIZATION;
+    return control_enqueue(link,w,command,token,false);
+}
+
+dbt_result_t probe_gatt_control_eq_delta(uint8_t band,int8_t delta){
+    if(!bearer.runtime || !control_configured || band>2 || (delta!=-1 && delta!=1))return DBT_INVALID;
+    int next=(int)desired_eq[band]+delta;if(next<-12 || next>12)return DBT_OK;
+    uint8_t data[]={1,(uint8_t)desired_eq[0],(uint8_t)desired_eq[1],(uint8_t)desired_eq[2]};data[band+1]=(uint8_t)next;
+    const dbt_link_t local={.handle=UINT16_MAX,.generation=1};
+    const dbt_att_write_t w={.data=data,.size=sizeof(data)};
+    uint16_t e=control_enqueue(&local,&w,true,0,true);
+    return !e?DBT_OK:e==DBT_ATT_RESOURCES?DBT_BUSY:DBT_INVALID;
+}
+dbt_result_t probe_gatt_control_toggle(uint8_t flag){
+    if(!bearer.runtime || !control_configured || (flag!=1 && flag!=2 && flag!=4))return DBT_INVALID;
+    const uint8_t data[]={3,(uint8_t)(desired_control^flag)};
+    const dbt_link_t local={.handle=UINT16_MAX,.generation=1};
+    const dbt_att_write_t w={.data=data,.size=sizeof(data)};
+    uint16_t e=control_enqueue(&local,&w,true,0,true);
+    return !e?DBT_OK:e==DBT_ATT_RESOURCES?DBT_BUSY:DBT_INVALID;
 }
 static uint8_t read(void *context, const dbt_link_t *link, const dbt_attribute_t *attribute,
                     uint16_t offset, uint8_t *out, uint16_t capacity, uint16_t *written,
@@ -189,7 +296,8 @@ static uint8_t read(void *context, const dbt_link_t *link, const dbt_attribute_t
     uint8_t status[DBT_BLE_CONTROL_MAX_STATUS];
     const uint8_t *source = echo;
     *total = echo_size;
-    if(attribute->handle==0x24) {
+    if(attribute->handle==3){source=control_configured?control_display_state.name:name;*total=control_configured?control_display_state.name_size:sizeof(name)-1;}
+    else if(attribute->handle==0x24) {
         uint8_t n=0;if(dbt_ble_control_status(&control_display_state,status,&n)!=DBT_OK)return DBT_ATT_UNLIKELY;
         source=status;*total=n;
     } else if(attribute->handle==0x27) { source=meter_value;*total=3; }
@@ -210,6 +318,22 @@ static uint8_t read(void *context, const dbt_link_t *link, const dbt_attribute_t
 static uint16_t write(void *context, const dbt_link_t *link, const dbt_att_batch_t *batch,
                       uint32_t token, uint16_t *error_handle) {
     (void)context;
+    if(batch->cccd_count && security_query) {
+        dbt_smp_session_security_t security={0};
+        if(security_query(link->handle,link->generation,&security)==DBT_OK && security.bond_committed) {
+            *error_handle=batch->cccds[0].handle;
+            cccd_binding_t *b=cccd_binding(link);dbt_att_connection_t *c=NULL;
+            for(unsigned i=0;i<DBT_MAX_LINKS;i++)if(server.connections[i].used &&
+                server.connections[i].handle==link->handle && server.connections[i].generation==link->generation)c=&server.connections[i];
+            if(!b || b->phase!=CCCD_BOUND || !c || !c->bonded || batch->command ||
+               batch->count!=batch->cccd_count)return DBT_ATT_UNLIKELY;
+            uint8_t type,id[6],tag[32];
+            if(!bond_query || bond_query(link->handle,link->generation,&type,id,tag)!=DBT_OK ||
+               type!=b->type || memcmp(id,b->identity,6) || memcmp(tag,b->tag,32))return DBT_ATT_UNLIKELY;
+            uint16_t rc=cccd_enqueue(link,b,2,token,*error_handle,c->staged_cccds);
+            return rc?rc:DBT_ATT_DEFERRED;
+        }
+    }
     /* The ATT core expects this callback to durably save bonded CCCDs. No
      * provider is wired yet, so fail rather than claim persistent success. */
     if(batch->cccd_count) for(unsigned i=0;i<DBT_MAX_LINKS;i++) {
@@ -277,16 +401,20 @@ dbt_result_t probe_gatt_init(dbt_runtime_t *runtime, dbt_gap_t *configuration) {
     hooks.release = release;
     hooks.read = read;
     hooks.write = write;
+    hooks.load_cccd = load_cccd;
     hooks.failed = failed;
     control_work=xQueueCreate(CONTROL_JOBS,sizeof(control_job_t *));
     eq_work=xQueueCreate(CONTROL_JOBS,sizeof(control_job_t *));
     control_done=xQueueCreate(CONTROL_JOBS,sizeof(control_job_t *));
+    control_signal=xSemaphoreCreateBinary();eq_signal=xSemaphoreCreateBinary();
     control_owner=xTaskGetCurrentTaskHandle();
-    if(!control_work || !eq_work || !control_done || !control_owner) {
+    if(!control_work || !eq_work || !control_done || !control_signal || !eq_signal || !control_owner) {
         if(control_work)vQueueDelete(control_work);
         if(eq_work)vQueueDelete(eq_work);
         if(control_done)vQueueDelete(control_done);
-        control_work=eq_work=control_done=0;return DBT_NO_SPACE;
+        if(control_signal)vSemaphoreDelete(control_signal);
+        if(eq_signal)vSemaphoreDelete(eq_signal);
+        control_signal=eq_signal=0;control_work=eq_work=control_done=0;return DBT_NO_SPACE;
     }
     dbt_result_t result = dbt_att_init(
         &server, attributes, sizeof(attributes) / sizeof(attributes[0]), hooks, 517, 1024);
@@ -296,7 +424,9 @@ dbt_result_t probe_gatt_init(dbt_runtime_t *runtime, dbt_gap_t *configuration) {
     if(result==DBT_OK)return result;
     dbt_att_clear(&server);
 failed_init:
-    vQueueDelete(control_work);vQueueDelete(eq_work);vQueueDelete(control_done);control_work=eq_work=control_done=0;return result;
+    vQueueDelete(control_work);vQueueDelete(eq_work);vQueueDelete(control_done);
+    vSemaphoreDelete(control_signal);vSemaphoreDelete(eq_signal);control_signal=eq_signal=0;
+    control_work=eq_work=control_done=0;return result;
 }
 void probe_gatt_advertisement(dbt_gap_config_t *configuration) {
     configuration->advertising[0] = 2;
@@ -320,14 +450,18 @@ void probe_gatt_link(void *context, const dbt_link_change_t *change) {
     (void)context;
     if (!bearer.runtime)
         return;
+    if(change && change->kind==DBT_LINK_REMOVED && control_hooks.peer_lost){dbt_ble_control_peer_t peer={change->handle,change->generation};control_hooks.peer_lost(control_hooks.context,&peer);}
     if(change && change->kind==DBT_LINK_REMOVED) for(unsigned i=0;i<CONTROL_JOBS;i++) {
         control_job_t *job=control_registry[i];
         /* An accepted EQ change must still commit even if its originating
          * link vanishes; other unstarted jobs can be cancelled. */
-        if(job && job->handle==change->handle && job->generation==change->generation &&
-           job->data[0]!=1 && job->data[0]!=2)
+        if(job && !job->cccd_kind && job->handle==change->handle && job->generation==change->generation &&
+           job->data[0]!=1 && job->data[0]!=2 && job->data[0]!=3)
             atomic_store_explicit(&job->cancelled,true,memory_order_release);
     }
+    if(change && change->kind==DBT_LINK_REMOVED)for(unsigned i=0;i<DBT_MAX_LINKS;i++)
+        if(cccd_bindings[i].handle==change->handle && cccd_bindings[i].generation==change->generation)
+            memset(&cccd_bindings[i],0,sizeof(cccd_bindings[i]));
     dbt_result_t result = dbt_att_bearer_link(&bearer, change);
     if (result != DBT_OK)
         dbt_host_abort(&bearer.runtime->host, DBT_FAULT_BAD_RESPONSE);
@@ -339,17 +473,48 @@ void probe_gatt_receive(void *context, const dbt_link_t *link, uint16_t cid, con
     if (result == DBT_INVALID || result == DBT_BUSY)
         (void)dbt_gap_disconnect(gap, link, 0x13);
 }
+static void finish_cccd(control_job_t *job) {
+    const dbt_link_t *link=dbt_acl_find(&bearer.runtime->acl,job->handle);
+    cccd_binding_t *b=link && link->generation==job->generation?cccd_binding(link):NULL;
+    uint8_t type,id[6],tag[32];
+    bool current=b && bond_query && bond_query(job->handle,job->generation,&type,id,tag)==DBT_OK &&
+        type==job->identity_type && type==b->type && !memcmp(id,job->identity,6) &&
+        !memcmp(id,b->identity,6) && !memcmp(tag,job->bond_tag,32) && !memcmp(tag,b->tag,32);
+    if(job->cccd_kind==1) {
+        if(current && b->phase==CCCD_LOADING) {
+            if(job->cccd_result==DBT_OK || job->cccd_result==DBT_EMPTY) {
+                memcpy(b->values,job->cccd_values,sizeof(b->values));b->phase=CCCD_READY;
+            } else if(job->cccd_result==DBT_NO_SPACE) {
+                b->phase=CCCD_NONE;b->retry_pending=true;b->retry_at=control_now_ms+100u;
+            } else b->phase=CCCD_ERROR;
+        }
+    } else if(current && b->phase==CCCD_BOUND) {
+        uint8_t error=job->cccd_result==DBT_OK?0:DBT_ATT_UNLIKELY;
+        if(dbt_att_complete(&server,job->handle,job->generation,job->token,error,job->cccd_error_handle)==DBT_OK && !error) {
+            memcpy(b->values,job->cccd_values,sizeof(b->values));
+            for(unsigned i=0;i<DBT_MAX_LINKS;i++)if(&bearer.runtime->acl.links[i]==link)
+                status_pending_generation[i]=(b->values[2]&1u)?link->generation:0;
+        }
+    } else if(link && link->generation==job->generation) {
+        (void)dbt_att_complete(&server,job->handle,job->generation,job->token,DBT_ATT_UNLIKELY,job->cccd_error_handle);
+    }
+    control_free(job);
+}
 static void finish_job(control_job_t *job) {
-    if(job->eq_lane && eq_running)--eq_running;
+    if(job->cccd_kind){finish_cccd(job);return;}
+    if(job->eq_lane && job->data[0]==3){if(control_writes_running)--control_writes_running;}
+    else if(job->eq_lane && eq_running)--eq_running;
     if(!job->eq_lane && control_running)--control_running;
     if(job->result.durable_eq) {
         memcpy(control_display_state.eq,job->state.eq,3);
         eq_publication_pending=job->result.data[0]!=0x10;
     }
+    if(job->eq_lane && job->data[0]!=3 && !eq_running)memcpy(desired_eq,control_display_state.eq,3);
     if(job->result.durable_control) {
         control_display_state.control=job->state.control;
         control_publication_pending=job->result.data[0]!=0x10;
     }
+    if(job->eq_lane && job->data[0]==3 && !control_writes_running)desired_control=control_display_state.control;
     if(job->size && job->data[0]==4 && job->result.size==2 && job->result.data[0]==0x10 && job->result.data[1]==4) {
         control_display_state.name_size=job->state.name_size;
         memcpy(control_display_state.name,job->state.name,job->state.name_size);
@@ -361,6 +526,13 @@ static void finish_job(control_job_t *job) {
         else control_display_state.led[1]=job->state.led[1];
     }
     if(job->result.size==2 && job->result.data[0]==0x06) control_display_state.sound=job->state.sound;
+    if(job->local){
+        if(job->result.durable_eq || job->result.durable_control)for(unsigned i=0;i<DBT_MAX_LINKS;i++){
+            const dbt_link_t *l=&bearer.runtime->acl.links[i];
+            if(l->used && l->kind==DBT_LINK_LE)status_pending_generation[i]=l->generation;
+        }
+        control_free(job);return;
+    }
     const dbt_link_t *link=dbt_acl_find(&bearer.runtime->acl,job->handle);
     if(!link || link->generation!=job->generation || link->kind!=DBT_LINK_LE) { control_free(job);return; }
     if(job->request) {
@@ -393,20 +565,28 @@ static void pump_control(void) {
     while(xQueueReceive(control_done,&job,0)==pdTRUE) {
         if((uintptr_t)job==1u) {eq_worker=false;eq_retiring=false;continue;}
         if((uintptr_t)job==2u) {control_worker=false;control_retiring=false;continue;}
+        if((uintptr_t)job==3u) {control_retiring=false;continue;}
         finish_job(job);
     }
-    if(!control_worker && !control_retiring && uxQueueMessagesWaiting(control_work)) {
-        if(xTaskCreate(control_task,"ble_control_worker",CONTROL_STACK_BYTES,NULL,4,NULL)==pdPASS) control_worker=true;
-        else while(xQueueReceive(control_work,&job,0)==pdTRUE) if(job) {
-            job->state=control_display_state;job->result.data[0]=0x11;job->result.data[1]=job->data[0];
-            job->result.data[2]=3;job->result.size=3;finish_job(job);
+    if(control_retry_pending && (int32_t)(control_now_ms-control_retry_at)>=0)control_retry_pending=false;
+    if(!control_worker && !control_retiring && !control_retry_pending && (uxQueueMessagesWaiting(control_work) || external_worker_required)) {
+        if(xTaskCreate(control_task,"ble_control_worker",CONTROL_STACK_BYTES,NULL,4,NULL)==pdPASS)control_worker=true;
+        else {
+          control_retry_pending=true;control_retry_at=control_now_ms+100u;
+          while(xQueueReceive(control_work,&job,0)==pdTRUE) if(job) {
+            if(job->cccd_kind)job->cccd_result=DBT_NO_SPACE;
+            else {job->state=control_display_state;job->result.data[0]=0x11;job->result.data[1]=job->data[0];
+                job->result.data[2]=3;job->result.size=3;}
+            finish_job(job);
+          }
         }
     }
-    if(!eq_worker && !eq_retiring && uxQueueMessagesWaiting(eq_work)) {
-        if(xTaskCreate(control_task,"ble_eq_worker",CONTROL_STACK_BYTES,(void *)(uintptr_t)1,4,NULL)==pdPASS) eq_worker=true;
-        else while(xQueueReceive(eq_work,&job,0)==pdTRUE) if(job) {
-            job->result.data[0]=0x11;job->result.data[1]=job->data[0];job->result.data[2]=3;job->result.size=3;finish_job(job);
-        }
+    if(eq_retry_pending && (int32_t)(control_now_ms-eq_retry_at)>=0)eq_retry_pending=false;
+    if(!eq_worker && !eq_retiring && !eq_retry_pending && uxQueueMessagesWaiting(eq_work)) {
+        if(xTaskCreate(control_task,"ble_eq_worker",CONTROL_STACK_BYTES,(void *)(uintptr_t)1,4,NULL)==pdPASS)eq_worker=true;
+        else {eq_retry_pending=true;eq_retry_at=control_now_ms+100u;}
+        /* Retain every admitted persistence obligation; capacity supplies
+         * backpressure until a worker can be allocated. Never ACK success here. */
     }
     for(unsigned i=0;i<DBT_MAX_LINKS;i++) {
         const dbt_link_t *l=&bearer.runtime->acl.links[i];
@@ -456,11 +636,11 @@ static void pump_control(void) {
     }
     bool any=false;
     for(unsigned i=0;i<DBT_MAX_LINKS;i++) if(bearer.runtime->acl.links[i].used && bearer.runtime->acl.links[i].kind==DBT_LINK_LE) any=true;
-    if(!any && !control_jobs && control_worker && !control_retiring) {
-        job=0;if(xQueueSend(control_work,&job,0)==pdTRUE)control_retiring=true;
+    if(!any && !control_jobs && !external_worker_required && control_worker && !control_retiring) {
+        job=0;if(xQueueSend(control_work,&job,0)==pdTRUE){control_retiring=true;(void)xSemaphoreGive(control_signal);}
     }
     if(!any && !control_jobs && eq_worker && !eq_retiring) {
-        job=0;if(xQueueSend(eq_work,&job,0)==pdTRUE)eq_retiring=true;
+        job=0;if(xQueueSend(eq_work,&job,0)==pdTRUE){eq_retiring=true;(void)xSemaphoreGive(eq_signal);}
     }
 }
 void probe_gatt_meter(uint8_t a,uint8_t b,uint8_t c) {
@@ -469,6 +649,41 @@ void probe_gatt_meter(uint8_t a,uint8_t b,uint8_t c) {
     for(unsigned i=0;i<DBT_MAX_LINKS;i++) {
         const dbt_link_t *l=&bearer.runtime->acl.links[i];
         if(l->used && l->kind==DBT_LINK_LE) (void)dbt_att_notify(&server,l,0x27,meter_value,3,false);
+    }
+}
+static void sync_cccd(void) {
+    if(!security_query || !bond_query)return;
+    for(unsigned i=0;i<DBT_MAX_LINKS;i++) {
+        const dbt_link_t *l=&bearer.runtime->acl.links[i];cccd_binding_t *b=&cccd_bindings[i];
+        if(!l->used || l->kind!=DBT_LINK_LE) {memset(b,0,sizeof(*b));continue;}
+        dbt_att_connection_t *c=control_connection(l);if(!c)continue;
+        dbt_smp_session_security_t sec={0};uint8_t type,id[6],tag[32];
+        bool active=security_query(l->handle,l->generation,&sec)==DBT_OK && sec.encrypted && sec.bond_committed &&
+            bond_query(l->handle,l->generation,&type,id,tag)==DBT_OK;
+        bool same=active && b->generation==l->generation && b->handle==l->handle && b->type==type &&
+            !memcmp(b->identity,id,6) && !memcmp(b->tag,tag,32);
+        if(!same) {
+            if(c->bonded) {
+                if(l->encrypted){(void)dbt_gap_disconnect(gap,l,0x13);continue;}
+                if(dbt_att_security(&server,l,false,0,false)!=DBT_OK)continue;
+            }
+            memset(b,0,sizeof(*b));
+            if(!active)continue;
+            b->handle=l->handle;b->generation=l->generation;b->type=type;
+            memcpy(b->identity,id,6);memcpy(b->tag,tag,32);
+        }
+        if(b->phase==CCCD_NONE) {
+            if(b->retry_pending && (int32_t)(control_now_ms-b->retry_at)<0)continue;
+            b->retry_pending=false;
+            if(!cccd_enqueue(l,b,1,0,0,NULL))b->phase=CCCD_LOADING;
+            else {b->retry_pending=true;b->retry_at=control_now_ms+100u;}
+        } else if(b->phase==CCCD_READY) {
+            dbt_result_t rc=dbt_att_security(&server,l,sec.authenticated,sec.key_size,true);
+            if(rc==DBT_OK) {
+                b->phase=CCCD_BOUND;
+                if(b->values[2]&1u)status_pending_generation[i]=l->generation;
+            } else if(rc!=DBT_BUSY)b->phase=CCCD_ERROR;
+        }
     }
 }
 dbt_result_t probe_gatt_retry_eq_publication(void) {
@@ -482,7 +697,7 @@ dbt_result_t probe_gatt_retry_eq_publication(void) {
 dbt_result_t probe_gatt_retry_control_publication(void) {
     if(!bearer.runtime)return DBT_INVALID;
     if(!control_publication_pending)return DBT_EMPTY;
-    if(control_running)return DBT_BUSY;
+    if(control_writes_running)return DBT_BUSY;
     if(!control_hooks.publish_control || !control_hooks.publish_control(control_hooks.context,
         control_display_state.control)) return DBT_BUSY;
     control_publication_pending=false;return DBT_OK;
@@ -490,7 +705,7 @@ dbt_result_t probe_gatt_retry_control_publication(void) {
 void probe_gatt_poll(uint32_t now_ms) {
     if (!bearer.runtime)
         return;
-    pump_control();
+    control_now_ms=now_ms;pump_control();sync_cccd();
     dbt_att_bearer_poll(&bearer, now_ms);
     for (unsigned i = 0; i < DBT_MAX_LINKS; ++i) {
         const dbt_link_t *link = &bearer.runtime->acl.links[i];
@@ -511,10 +726,24 @@ void probe_gatt_poll(uint32_t now_ms) {
 }
 uint32_t probe_gatt_wait_ms(uint32_t now_ms) {
     if(!bearer.runtime)return UINT32_MAX;
-    if(uxQueueMessagesWaiting(control_done) || (!control_worker && !control_retiring && uxQueueMessagesWaiting(control_work)) ||
-       (!eq_worker && !eq_retiring && uxQueueMessagesWaiting(eq_work)))return 0;
+    if(uxQueueMessagesWaiting(control_done))return 0;
     uint32_t wait=dbt_att_bearer_wait_ms(&bearer, now_ms);
+    if(!eq_worker && !eq_retiring && uxQueueMessagesWaiting(eq_work)){
+        uint32_t retry=eq_retry_pending && (int32_t)(eq_retry_at-now_ms)>0?eq_retry_at-now_ms:0;
+        if(retry<wait)wait=retry;
+    }
+    if(!control_worker && !control_retiring && (uxQueueMessagesWaiting(control_work) || external_worker_required)){
+        uint32_t retry=control_retry_pending && (int32_t)(control_retry_at-now_ms)>0?control_retry_at-now_ms:0;
+        if(retry<wait)wait=retry;
+    }
     if((control_head || control_jobs) && wait>20)wait=20;
+    for(unsigned i=0;i<DBT_MAX_LINKS;i++) {
+        const cccd_binding_t *b=&cccd_bindings[i];
+        if(b->generation && b->phase==CCCD_NONE) {
+            uint32_t retry=b->retry_pending && (int32_t)(b->retry_at-now_ms)>0?b->retry_at-now_ms:0;
+            if(retry<wait)wait=retry;
+        } else if(b->generation && b->phase==CCCD_READY && wait>20)wait=20;
+    }
     return wait;
 }
 bool probe_gatt_connected(void) {
@@ -528,11 +757,65 @@ bool probe_gatt_connected(void) {
 unsigned probe_gatt_bytes(void) {
     /* Mutable static storage only; FreeRTOS queues, jobs, stacks and echo are dynamic. */
     return sizeof(server)+sizeof(bearer)+sizeof(gap)+sizeof(echo)+sizeof(echo_size)+sizeof(writes)+
-           sizeof(control_work)+sizeof(eq_work)+sizeof(control_done)+sizeof(control_owner)+
-           sizeof(control_hooks)+sizeof(control_display_state)+sizeof(control_head)+sizeof(control_tail)+
-           sizeof(control_jobs)+sizeof(eq_running)+sizeof(control_running)+sizeof(control_configured)+
+           sizeof(security_query)+sizeof(bond_query)+sizeof(cccd_bindings)+
+           sizeof(control_work)+sizeof(eq_work)+sizeof(control_done)+sizeof(control_owner)+sizeof(control_signal)+sizeof(eq_signal)+
+           sizeof(control_hooks)+sizeof(control_display_state)+sizeof(desired_eq)+sizeof(control_head)+sizeof(control_tail)+
+           sizeof(control_now_ms)+sizeof(control_retry_at)+sizeof(control_retry_pending)+sizeof(eq_retry_at)+sizeof(eq_retry_pending)+sizeof(control_jobs)+sizeof(eq_running)+sizeof(control_running)+sizeof(control_writes_running)+sizeof(desired_control)+sizeof(control_configured)+
            sizeof(control_worker)+sizeof(control_retiring)+sizeof(eq_worker)+sizeof(eq_retiring)+
-           sizeof(eq_publication_pending)+sizeof(control_publication_pending)+
+           sizeof(eq_publication_pending)+sizeof(control_publication_pending)+sizeof(external_worker_required)+
            sizeof(control_registry)+sizeof(status_pending_generation)+
            sizeof(notified)+sizeof(notified_generation)+sizeof(meter_value);
+}
+
+dbt_result_t probe_gatt_control_state(dbt_ble_control_state_t *out){
+    if(!out || !control_configured)return DBT_INVALID;
+    *out=control_display_state;return DBT_OK;
+}
+dbt_result_t probe_gatt_control_notify(const dbt_ble_control_peer_t *peer,const uint8_t *data,uint8_t size){
+    if(!peer || !data || !size || size>DBT_BLE_CONTROL_MAX_STATUS || !bearer.runtime)return DBT_INVALID;
+    const dbt_link_t *link=dbt_acl_find(&bearer.runtime->acl,peer->handle);
+    if(!link || link->generation!=peer->generation || link->kind!=DBT_LINK_LE)return DBT_UNSUPPORTED;
+    if(control_jobs>=CONTROL_JOBS-1u)return DBT_BUSY;
+    control_job_t *job=heap_caps_malloc(sizeof(*job)+1u,MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT);
+    if(!job)return DBT_NO_SPACE;
+    memset(job,0,sizeof(*job));atomic_init(&job->cancelled,false);job->size=1;job->data[0]=0xfe;
+    job->handle=peer->handle;job->generation=peer->generation;job->result.size=size;memcpy(job->result.data,data,size);
+    for(unsigned i=0;i<CONTROL_JOBS;i++)if(!control_registry[i]){control_registry[i]=job;break;}
+    ++control_jobs;control_append(job);return DBT_OK;
+}
+
+static void product_status_changed(void){
+    if(!bearer.runtime)return;
+    for(unsigned i=0;i<DBT_MAX_LINKS;i++){
+        const dbt_link_t *l=&bearer.runtime->acl.links[i];
+        if(l->used && l->kind==DBT_LINK_LE)status_pending_generation[i]=l->generation;
+    }
+}
+dbt_result_t probe_gatt_control_led_applied(const uint8_t values[10]){
+    if(!control_configured || !values || values[0]>=22 || values[1]>100 || values[9]>4)return DBT_INVALID;
+    if(memcmp(control_display_state.led,values,10)){memcpy(control_display_state.led,values,10);product_status_changed();}
+    return DBT_OK;
+}
+dbt_result_t probe_gatt_control_sound_applied(uint8_t flags){
+    if(!control_configured || (flags&0x70u))return DBT_INVALID;
+    if(control_display_state.sound!=flags){control_display_state.sound=flags;product_status_changed();}
+    return DBT_OK;
+}
+
+dbt_result_t probe_gatt_control_name_applied(const uint8_t *name,uint8_t size){
+    if(!control_configured || !name || !size || size>32)return DBT_INVALID;
+    if(!dbt_utf8_valid(name,size))return DBT_INVALID;
+    memcpy(control_display_state.name,name,size);control_display_state.name_size=size;product_status_changed();return DBT_OK;
+}
+
+void probe_gatt_control_wake(void){
+    /* Persistent semaphore outlives lazy workers, avoiding stale task handles. */
+    if(control_signal)(void)xSemaphoreGive(control_signal);
+}
+
+dbt_result_t probe_gatt_control_worker_required(bool required){
+    if(!bearer.runtime)return DBT_INVALID;
+    if(required && !control_hooks.worker_poll)return DBT_UNSUPPORTED;
+    if(external_worker_required!=required){external_worker_required=required;probe_gatt_control_wake();}
+    return DBT_OK;
 }
