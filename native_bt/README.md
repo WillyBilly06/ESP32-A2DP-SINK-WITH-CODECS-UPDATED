@@ -189,3 +189,7 @@ maximum-rate fixture still fails before DMA playback starts.
 The [controlled DSP comparison](docs/IDF61_DSP_VARIANTS_2026_11_04.md) compares identical Os/O3 input and
 state on COM6. Os is selected for DSP after 18 matching, faster case pairs;
 conversion/resampling retains O3. The maximum-rate pipeline remains unqualified.
+
+The [exact DSP accumulation checkpoint](docs/IDF61_DSP_ACCUMULATION_2026_11_04.md) proves full-width arithmetic
+and records the measured filter improvement. All 18 target output/state pairs
+match; the maximum-rate pipeline still misses its deadline before DMA starts.

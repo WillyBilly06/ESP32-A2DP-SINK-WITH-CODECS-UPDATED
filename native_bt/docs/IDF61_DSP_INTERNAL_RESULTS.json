@@ -1526,5 +1526,1892 @@
   "boot_fatal_marker": false,
   "original_application_preserved": true,
   "scope": "Os split-accumulation reference versus output-identical observed Os, starts muted like real pipeline; core-1 CPU diagnostic after pipeline retirement",
-  "master_objective_complete": false
+  "master_objective_complete": false,
+  "proven_accumulation": {
+    "candidate_sha256": "780b2eddd39ff81d29b1c8666e12f71ea0f8c73427742735cc6254ddb77fe37e",
+    "run_archive": "runs/1793804901671610000-780b2eddd39f",
+    "pipeline_check": {
+      "probe": "target_pipeline_selftest",
+      "passed": false,
+      "configured": true,
+      "started": true,
+      "stream_result": 0,
+      "correctness": false,
+      "continuity": false,
+      "rate": 192000,
+      "sample_depth": 24,
+      "channels": 2,
+      "encoded_payload_bps": 1001600,
+      "packets": 15,
+      "completed_packets": 13,
+      "sample_frames": 12992,
+      "pcm_hash": 2756225768,
+      "synthetic_source": true,
+      "integer_dsp": true,
+      "i2s_test": true,
+      "rf_test": false,
+      "production_qualified": false
+    },
+    "pipeline_measurements": [
+      {
+        "probe": "pipeline_memory",
+        "before_free": 279936,
+        "before_largest": 114688,
+        "opened_free": 15792,
+        "opened_largest": 10240,
+        "minimum_free": 14328,
+        "after_free": 273532,
+        "decoder_tracked_peak": 63688,
+        "renderer_requested": 199680,
+        "reclaimed": true,
+        "remaining_tracked": 0,
+        "core1_stack_low": 5364,
+        "render_stack_low": 4208
+      },
+      {
+        "probe": "pipeline_timing",
+        "elapsed_us": 80060,
+        "worker_total_us": 66896,
+        "worker_total_cycles": 16042317,
+        "worker_calls": 97,
+        "worker_max_us": 4295,
+        "hash_us": 7904,
+        "arrival_p99_us": 1604,
+        "arrival_max_us": 1604,
+        "completion_p99_us": 8227,
+        "completion_max_us": 8227,
+        "completion_over_5ms": 12,
+        "queue_peak": 2,
+        "render_total_us": 69359,
+        "render_calls": 38,
+        "render_max_us": 1973
+      },
+      {
+        "probe": "pipeline_i2s",
+        "running": 0,
+        "failed": 0,
+        "accepted_frames": 12992,
+        "rendered_frames": 4864,
+        "dma_frames": 0,
+        "dma_eofs": 0,
+        "underrun_frames": 0,
+        "descriptor_errors": 0,
+        "max_eof_gap_us": 0,
+        "ready_frames": 4864,
+        "input_ready_frames": 7872,
+        "stop_tail_excluded": true
+      },
+      {
+        "probe": "pipeline_allocation",
+        "failed_bytes": 0,
+        "failure_free": 0,
+        "failure_largest": 0,
+        "page_bytes": 4096
+      },
+      {
+        "probe": "pipeline_render_stages",
+        "quiescent": true,
+        "includes_stop_drain": true,
+        "profile_frames": 4992,
+        "conversion_resampler_cycles": 6051599,
+        "dsp_cycles": 10741740,
+        "output_tail_cycles": 145168,
+        "controls_cycles": 21036,
+        "conversion_block_max_cycles": 170440,
+        "dsp_block_max_cycles": 304434,
+        "tail_block_max_cycles": 9650,
+        "media_drops": 1,
+        "worker_faults": 0,
+        "pcm_timeouts": 0,
+        "cpu_mhz": 240,
+        "elapsed_core_cycles": true
+      }
+    ],
+    "dsp_variant_checks": [
+      {
+        "probe": "dsp_variant_case",
+        "trial": 0,
+        "rate": 48000,
+        "flags": 9,
+        "variant": "Os_split_reference",
+        "equivalent": true,
+        "frames": 5120,
+        "block_frames": 128,
+        "ramp_containing_blocks": 8,
+        "ramp_mean_cycles": 361391,
+        "ramp_max_cycles": 373066,
+        "steady_blocks": 32,
+        "steady_mean_cycles": 289550,
+        "steady_p95_cycles": 291724,
+        "steady_max_cycles": 292578,
+        "pcm_hash": 114405386,
+        "elapsed_core_cycles": true,
+        "cpu_mhz": 240
+      },
+      {
+        "probe": "dsp_variant_case",
+        "trial": 0,
+        "rate": 48000,
+        "flags": 9,
+        "variant": "Os_profiled",
+        "equivalent": true,
+        "frames": 5120,
+        "block_frames": 128,
+        "ramp_containing_blocks": 8,
+        "ramp_mean_cycles": 309216,
+        "ramp_max_cycles": 316259,
+        "steady_blocks": 32,
+        "steady_mean_cycles": 232690,
+        "steady_p95_cycles": 235922,
+        "steady_max_cycles": 236323,
+        "pcm_hash": 114405386,
+        "elapsed_core_cycles": true,
+        "cpu_mhz": 240
+      },
+      {
+        "probe": "dsp_internal_stages",
+        "trial": 0,
+        "rate": 48000,
+        "flags": 9,
+        "valid": true,
+        "stages": [
+          "analysis",
+          "ramps_input",
+          "eq_comp",
+          "cross_boost",
+          "mix_limit"
+        ],
+        "ramp_mean_cycles": [
+          23815,
+          92750,
+          98718,
+          64663,
+          24626
+        ],
+        "steady_mean_cycles": [
+          24119,
+          16288,
+          98009,
+          64911,
+          24699
+        ],
+        "steady_max_cycles": [
+          27697,
+          17162,
+          98869,
+          65916,
+          25584
+        ],
+        "block_frames": 128,
+        "includes_marker_overhead": true,
+        "pipeline_muted_start": true,
+        "proven_sum_enabled": 1
+      },
+      {
+        "probe": "dsp_variant_case",
+        "trial": 0,
+        "rate": 48000,
+        "flags": 13,
+        "variant": "Os_split_reference",
+        "equivalent": true,
+        "frames": 5120,
+        "block_frames": 128,
+        "ramp_containing_blocks": 8,
+        "ramp_mean_cycles": 371292,
+        "ramp_max_cycles": 378116,
+        "steady_blocks": 32,
+        "steady_mean_cycles": 291729,
+        "steady_p95_cycles": 294078,
+        "steady_max_cycles": 294303,
+        "pcm_hash": 4050363234,
+        "elapsed_core_cycles": true,
+        "cpu_mhz": 240
+      },
+      {
+        "probe": "dsp_variant_case",
+        "trial": 0,
+        "rate": 48000,
+        "flags": 13,
+        "variant": "Os_profiled",
+        "equivalent": true,
+        "frames": 5120,
+        "block_frames": 128,
+        "ramp_containing_blocks": 8,
+        "ramp_mean_cycles": 319675,
+        "ramp_max_cycles": 326904,
+        "steady_blocks": 32,
+        "steady_mean_cycles": 235110,
+        "steady_p95_cycles": 237966,
+        "steady_max_cycles": 238309,
+        "pcm_hash": 4050363234,
+        "elapsed_core_cycles": true,
+        "cpu_mhz": 240
+      },
+      {
+        "probe": "dsp_internal_stages",
+        "trial": 0,
+        "rate": 48000,
+        "flags": 13,
+        "valid": true,
+        "stages": [
+          "analysis",
+          "ramps_input",
+          "eq_comp",
+          "cross_boost",
+          "mix_limit"
+        ],
+        "ramp_mean_cycles": [
+          23481,
+          95962,
+          98122,
+          64896,
+          32567
+        ],
+        "steady_mean_cycles": [
+          23922,
+          16373,
+          97950,
+          65117,
+          27110
+        ],
+        "steady_max_cycles": [
+          26774,
+          17192,
+          98890,
+          65970,
+          27915
+        ],
+        "block_frames": 128,
+        "includes_marker_overhead": true,
+        "pipeline_muted_start": true,
+        "proven_sum_enabled": 1
+      },
+      {
+        "probe": "dsp_variant_case",
+        "trial": 0,
+        "rate": 96000,
+        "flags": 9,
+        "variant": "Os_split_reference",
+        "equivalent": true,
+        "frames": 5120,
+        "block_frames": 128,
+        "ramp_containing_blocks": 15,
+        "ramp_mean_cycles": 355806,
+        "ramp_max_cycles": 358950,
+        "steady_blocks": 25,
+        "steady_mean_cycles": 280805,
+        "steady_p95_cycles": 283353,
+        "steady_max_cycles": 284521,
+        "pcm_hash": 1303568504,
+        "elapsed_core_cycles": true,
+        "cpu_mhz": 240
+      },
+      {
+        "probe": "dsp_variant_case",
+        "trial": 0,
+        "rate": 96000,
+        "flags": 9,
+        "variant": "Os_profiled",
+        "equivalent": true,
+        "frames": 5120,
+        "block_frames": 128,
+        "ramp_containing_blocks": 15,
+        "ramp_mean_cycles": 303408,
+        "ramp_max_cycles": 306872,
+        "steady_blocks": 25,
+        "steady_mean_cycles": 223656,
+        "steady_p95_cycles": 226868,
+        "steady_max_cycles": 227221,
+        "pcm_hash": 1303568504,
+        "elapsed_core_cycles": true,
+        "cpu_mhz": 240
+      },
+      {
+        "probe": "dsp_internal_stages",
+        "trial": 0,
+        "rate": 96000,
+        "flags": 9,
+        "valid": true,
+        "stages": [
+          "analysis",
+          "ramps_input",
+          "eq_comp",
+          "cross_boost",
+          "mix_limit"
+        ],
+        "ramp_mean_cycles": [
+          15035,
+          96089,
+          98057,
+          64968,
+          24614
+        ],
+        "steady_mean_cycles": [
+          15003,
+          16261,
+          98076,
+          64975,
+          24707
+        ],
+        "steady_max_cycles": [
+          18310,
+          16282,
+          98957,
+          65926,
+          25526
+        ],
+        "block_frames": 128,
+        "includes_marker_overhead": true,
+        "pipeline_muted_start": true,
+        "proven_sum_enabled": 1
+      },
+      {
+        "probe": "dsp_variant_case",
+        "trial": 0,
+        "rate": 96000,
+        "flags": 13,
+        "variant": "Os_split_reference",
+        "equivalent": true,
+        "frames": 5120,
+        "block_frames": 128,
+        "ramp_containing_blocks": 15,
+        "ramp_mean_cycles": 367054,
+        "ramp_max_cycles": 370678,
+        "steady_blocks": 25,
+        "steady_mean_cycles": 283150,
+        "steady_p95_cycles": 285567,
+        "steady_max_cycles": 286719,
+        "pcm_hash": 314197119,
+        "elapsed_core_cycles": true,
+        "cpu_mhz": 240
+      },
+      {
+        "probe": "dsp_variant_case",
+        "trial": 0,
+        "rate": 96000,
+        "flags": 13,
+        "variant": "Os_profiled",
+        "equivalent": true,
+        "frames": 5120,
+        "block_frames": 128,
+        "ramp_containing_blocks": 15,
+        "ramp_mean_cycles": 314808,
+        "ramp_max_cycles": 318675,
+        "steady_blocks": 25,
+        "steady_mean_cycles": 225926,
+        "steady_p95_cycles": 229306,
+        "steady_max_cycles": 229306,
+        "pcm_hash": 314197119,
+        "elapsed_core_cycles": true,
+        "cpu_mhz": 240
+      },
+      {
+        "probe": "dsp_internal_stages",
+        "trial": 0,
+        "rate": 96000,
+        "flags": 13,
+        "valid": true,
+        "stages": [
+          "analysis",
+          "ramps_input",
+          "eq_comp",
+          "cross_boost",
+          "mix_limit"
+        ],
+        "ramp_mean_cycles": [
+          14858,
+          99430,
+          98186,
+          64847,
+          32842
+        ],
+        "steady_mean_cycles": [
+          15041,
+          16296,
+          98113,
+          64906,
+          26939
+        ],
+        "steady_max_cycles": [
+          18312,
+          17157,
+          98855,
+          65687,
+          27027
+        ],
+        "block_frames": 128,
+        "includes_marker_overhead": true,
+        "pipeline_muted_start": true,
+        "proven_sum_enabled": 1
+      },
+      {
+        "probe": "dsp_variant_case",
+        "trial": 0,
+        "rate": 192000,
+        "flags": 9,
+        "variant": "Os_split_reference",
+        "equivalent": true,
+        "frames": 5120,
+        "block_frames": 128,
+        "ramp_containing_blocks": 30,
+        "ramp_mean_cycles": 351484,
+        "ramp_max_cycles": 354299,
+        "steady_blocks": 10,
+        "steady_mean_cycles": 277642,
+        "steady_p95_cycles": 278925,
+        "steady_max_cycles": 278925,
+        "pcm_hash": 1196453157,
+        "elapsed_core_cycles": true,
+        "cpu_mhz": 240
+      },
+      {
+        "probe": "dsp_variant_case",
+        "trial": 0,
+        "rate": 192000,
+        "flags": 9,
+        "variant": "Os_profiled",
+        "equivalent": true,
+        "frames": 5120,
+        "block_frames": 128,
+        "ramp_containing_blocks": 30,
+        "ramp_mean_cycles": 299511,
+        "ramp_max_cycles": 302397,
+        "steady_blocks": 10,
+        "steady_mean_cycles": 220544,
+        "steady_p95_cycles": 223086,
+        "steady_max_cycles": 223086,
+        "pcm_hash": 1196453157,
+        "elapsed_core_cycles": true,
+        "cpu_mhz": 240
+      },
+      {
+        "probe": "dsp_internal_stages",
+        "trial": 0,
+        "rate": 192000,
+        "flags": 9,
+        "valid": true,
+        "stages": [
+          "analysis",
+          "ramps_input",
+          "eq_comp",
+          "cross_boost",
+          "mix_limit"
+        ],
+        "ramp_mean_cycles": [
+          11483,
+          95461,
+          98289,
+          64909,
+          24696
+        ],
+        "steady_mean_cycles": [
+          11825,
+          16352,
+          98110,
+          64802,
+          24822
+        ],
+        "steady_max_cycles": [
+          14331,
+          17172,
+          98937,
+          65742,
+          25533
+        ],
+        "block_frames": 128,
+        "includes_marker_overhead": true,
+        "pipeline_muted_start": true,
+        "proven_sum_enabled": 1
+      },
+      {
+        "probe": "dsp_variant_case",
+        "trial": 0,
+        "rate": 192000,
+        "flags": 13,
+        "variant": "Os_split_reference",
+        "equivalent": true,
+        "frames": 5120,
+        "block_frames": 128,
+        "ramp_containing_blocks": 30,
+        "ramp_mean_cycles": 362577,
+        "ramp_max_cycles": 365907,
+        "steady_blocks": 10,
+        "steady_mean_cycles": 279855,
+        "steady_p95_cycles": 281355,
+        "steady_max_cycles": 281355,
+        "pcm_hash": 1266490235,
+        "elapsed_core_cycles": true,
+        "cpu_mhz": 240
+      },
+      {
+        "probe": "dsp_variant_case",
+        "trial": 0,
+        "rate": 192000,
+        "flags": 13,
+        "variant": "Os_profiled",
+        "equivalent": true,
+        "frames": 5120,
+        "block_frames": 128,
+        "ramp_containing_blocks": 30,
+        "ramp_mean_cycles": 310588,
+        "ramp_max_cycles": 313922,
+        "steady_blocks": 10,
+        "steady_mean_cycles": 222669,
+        "steady_p95_cycles": 225532,
+        "steady_max_cycles": 225532,
+        "pcm_hash": 1266490235,
+        "elapsed_core_cycles": true,
+        "cpu_mhz": 240
+      },
+      {
+        "probe": "dsp_internal_stages",
+        "trial": 0,
+        "rate": 192000,
+        "flags": 13,
+        "valid": true,
+        "stages": [
+          "analysis",
+          "ramps_input",
+          "eq_comp",
+          "cross_boost",
+          "mix_limit"
+        ],
+        "ramp_mean_cycles": [
+          11544,
+          98253,
+          98137,
+          65033,
+          32947
+        ],
+        "steady_mean_cycles": [
+          11826,
+          16259,
+          98203,
+          64805,
+          26943
+        ],
+        "steady_max_cycles": [
+          14321,
+          16266,
+          98928,
+          65868,
+          27017
+        ],
+        "block_frames": 128,
+        "includes_marker_overhead": true,
+        "pipeline_muted_start": true,
+        "proven_sum_enabled": 1
+      },
+      {
+        "probe": "dsp_variant_case",
+        "trial": 1,
+        "rate": 48000,
+        "flags": 9,
+        "variant": "Os_split_reference",
+        "equivalent": true,
+        "frames": 5120,
+        "block_frames": 128,
+        "ramp_containing_blocks": 8,
+        "ramp_mean_cycles": 360439,
+        "ramp_max_cycles": 367330,
+        "steady_blocks": 32,
+        "steady_mean_cycles": 289533,
+        "steady_p95_cycles": 291737,
+        "steady_max_cycles": 292071,
+        "pcm_hash": 114405386,
+        "elapsed_core_cycles": true,
+        "cpu_mhz": 240
+      },
+      {
+        "probe": "dsp_variant_case",
+        "trial": 1,
+        "rate": 48000,
+        "flags": 9,
+        "variant": "Os_profiled",
+        "equivalent": true,
+        "frames": 5120,
+        "block_frames": 128,
+        "ramp_containing_blocks": 8,
+        "ramp_mean_cycles": 308889,
+        "ramp_max_cycles": 316106,
+        "steady_blocks": 32,
+        "steady_mean_cycles": 232682,
+        "steady_p95_cycles": 235845,
+        "steady_max_cycles": 235908,
+        "pcm_hash": 114405386,
+        "elapsed_core_cycles": true,
+        "cpu_mhz": 240
+      },
+      {
+        "probe": "dsp_internal_stages",
+        "trial": 1,
+        "rate": 48000,
+        "flags": 9,
+        "valid": true,
+        "stages": [
+          "analysis",
+          "ramps_input",
+          "eq_comp",
+          "cross_boost",
+          "mix_limit"
+        ],
+        "ramp_mean_cycles": [
+          23477,
+          92849,
+          98466,
+          64892,
+          24559
+        ],
+        "steady_mean_cycles": [
+          23980,
+          16315,
+          98096,
+          65027,
+          24627
+        ],
+        "steady_max_cycles": [
+          26776,
+          17161,
+          98981,
+          65870,
+          24802
+        ],
+        "block_frames": 128,
+        "includes_marker_overhead": true,
+        "pipeline_muted_start": true,
+        "proven_sum_enabled": 1
+      },
+      {
+        "probe": "dsp_variant_case",
+        "trial": 1,
+        "rate": 48000,
+        "flags": 13,
+        "variant": "Os_split_reference",
+        "equivalent": true,
+        "frames": 5120,
+        "block_frames": 128,
+        "ramp_containing_blocks": 8,
+        "ramp_mean_cycles": 371296,
+        "ramp_max_cycles": 378148,
+        "steady_blocks": 32,
+        "steady_mean_cycles": 291783,
+        "steady_p95_cycles": 294044,
+        "steady_max_cycles": 294323,
+        "pcm_hash": 4050363234,
+        "elapsed_core_cycles": true,
+        "cpu_mhz": 240
+      },
+      {
+        "probe": "dsp_variant_case",
+        "trial": 1,
+        "rate": 48000,
+        "flags": 13,
+        "variant": "Os_profiled",
+        "equivalent": true,
+        "frames": 5120,
+        "block_frames": 128,
+        "ramp_containing_blocks": 8,
+        "ramp_mean_cycles": 319545,
+        "ramp_max_cycles": 326883,
+        "steady_blocks": 32,
+        "steady_mean_cycles": 235109,
+        "steady_p95_cycles": 237933,
+        "steady_max_cycles": 238281,
+        "pcm_hash": 4050363234,
+        "elapsed_core_cycles": true,
+        "cpu_mhz": 240
+      },
+      {
+        "probe": "dsp_internal_stages",
+        "trial": 1,
+        "rate": 48000,
+        "flags": 13,
+        "valid": true,
+        "stages": [
+          "analysis",
+          "ramps_input",
+          "eq_comp",
+          "cross_boost",
+          "mix_limit"
+        ],
+        "ramp_mean_cycles": [
+          23480,
+          95797,
+          98348,
+          64661,
+          32508
+        ],
+        "steady_mean_cycles": [
+          23920,
+          16289,
+          98178,
+          65058,
+          27025
+        ],
+        "steady_max_cycles": [
+          26770,
+          17149,
+          98973,
+          65942,
+          27886
+        ],
+        "block_frames": 128,
+        "includes_marker_overhead": true,
+        "pipeline_muted_start": true,
+        "proven_sum_enabled": 1
+      },
+      {
+        "probe": "dsp_variant_case",
+        "trial": 1,
+        "rate": 96000,
+        "flags": 9,
+        "variant": "Os_split_reference",
+        "equivalent": true,
+        "frames": 5120,
+        "block_frames": 128,
+        "ramp_containing_blocks": 15,
+        "ramp_mean_cycles": 355765,
+        "ramp_max_cycles": 358978,
+        "steady_blocks": 25,
+        "steady_mean_cycles": 280770,
+        "steady_p95_cycles": 283678,
+        "steady_max_cycles": 284289,
+        "pcm_hash": 1303568504,
+        "elapsed_core_cycles": true,
+        "cpu_mhz": 240
+      },
+      {
+        "probe": "dsp_variant_case",
+        "trial": 1,
+        "rate": 96000,
+        "flags": 9,
+        "variant": "Os_profiled",
+        "equivalent": true,
+        "frames": 5120,
+        "block_frames": 128,
+        "ramp_containing_blocks": 15,
+        "ramp_mean_cycles": 303462,
+        "ramp_max_cycles": 306930,
+        "steady_blocks": 25,
+        "steady_mean_cycles": 223697,
+        "steady_p95_cycles": 226253,
+        "steady_max_cycles": 227464,
+        "pcm_hash": 1303568504,
+        "elapsed_core_cycles": true,
+        "cpu_mhz": 240
+      },
+      {
+        "probe": "dsp_internal_stages",
+        "trial": 1,
+        "rate": 96000,
+        "flags": 9,
+        "valid": true,
+        "stages": [
+          "analysis",
+          "ramps_input",
+          "eq_comp",
+          "cross_boost",
+          "mix_limit"
+        ],
+        "ramp_mean_cycles": [
+          14919,
+          96194,
+          98059,
+          64971,
+          24675
+        ],
+        "steady_mean_cycles": [
+          15009,
+          16297,
+          98111,
+          64941,
+          24706
+        ],
+        "steady_max_cycles": [
+          18310,
+          17156,
+          99087,
+          65871,
+          25522
+        ],
+        "block_frames": 128,
+        "includes_marker_overhead": true,
+        "pipeline_muted_start": true,
+        "proven_sum_enabled": 1
+      },
+      {
+        "probe": "dsp_variant_case",
+        "trial": 1,
+        "rate": 96000,
+        "flags": 13,
+        "variant": "Os_split_reference",
+        "equivalent": true,
+        "frames": 5120,
+        "block_frames": 128,
+        "ramp_containing_blocks": 15,
+        "ramp_mean_cycles": 367079,
+        "ramp_max_cycles": 370712,
+        "steady_blocks": 25,
+        "steady_mean_cycles": 283102,
+        "steady_p95_cycles": 285916,
+        "steady_max_cycles": 286428,
+        "pcm_hash": 314197119,
+        "elapsed_core_cycles": true,
+        "cpu_mhz": 240
+      },
+      {
+        "probe": "dsp_variant_case",
+        "trial": 1,
+        "rate": 96000,
+        "flags": 13,
+        "variant": "Os_profiled",
+        "equivalent": true,
+        "frames": 5120,
+        "block_frames": 128,
+        "ramp_containing_blocks": 15,
+        "ramp_mean_cycles": 314794,
+        "ramp_max_cycles": 318590,
+        "steady_blocks": 25,
+        "steady_mean_cycles": 225963,
+        "steady_p95_cycles": 228351,
+        "steady_max_cycles": 229530,
+        "pcm_hash": 314197119,
+        "elapsed_core_cycles": true,
+        "cpu_mhz": 240
+      },
+      {
+        "probe": "dsp_internal_stages",
+        "trial": 1,
+        "rate": 96000,
+        "flags": 13,
+        "valid": true,
+        "stages": [
+          "analysis",
+          "ramps_input",
+          "eq_comp",
+          "cross_boost",
+          "mix_limit"
+        ],
+        "ramp_mean_cycles": [
+          14800,
+          99227,
+          98187,
+          64849,
+          33027
+        ],
+        "steady_mean_cycles": [
+          15004,
+          16334,
+          98000,
+          65050,
+          26941
+        ],
+        "steady_max_cycles": [
+          18310,
+          17195,
+          98867,
+          65843,
+          27024
+        ],
+        "block_frames": 128,
+        "includes_marker_overhead": true,
+        "pipeline_muted_start": true,
+        "proven_sum_enabled": 1
+      },
+      {
+        "probe": "dsp_variant_case",
+        "trial": 1,
+        "rate": 192000,
+        "flags": 9,
+        "variant": "Os_split_reference",
+        "equivalent": true,
+        "frames": 5120,
+        "block_frames": 128,
+        "ramp_containing_blocks": 30,
+        "ramp_mean_cycles": 351469,
+        "ramp_max_cycles": 354278,
+        "steady_blocks": 10,
+        "steady_mean_cycles": 277652,
+        "steady_p95_cycles": 279843,
+        "steady_max_cycles": 279843,
+        "pcm_hash": 1196453157,
+        "elapsed_core_cycles": true,
+        "cpu_mhz": 240
+      },
+      {
+        "probe": "dsp_variant_case",
+        "trial": 1,
+        "rate": 192000,
+        "flags": 9,
+        "variant": "Os_profiled",
+        "equivalent": true,
+        "frames": 5120,
+        "block_frames": 128,
+        "ramp_containing_blocks": 30,
+        "ramp_mean_cycles": 299521,
+        "ramp_max_cycles": 302509,
+        "steady_blocks": 10,
+        "steady_mean_cycles": 220530,
+        "steady_p95_cycles": 222118,
+        "steady_max_cycles": 222118,
+        "pcm_hash": 1196453157,
+        "elapsed_core_cycles": true,
+        "cpu_mhz": 240
+      },
+      {
+        "probe": "dsp_internal_stages",
+        "trial": 1,
+        "rate": 192000,
+        "flags": 9,
+        "valid": true,
+        "stages": [
+          "analysis",
+          "ramps_input",
+          "eq_comp",
+          "cross_boost",
+          "mix_limit"
+        ],
+        "ramp_mean_cycles": [
+          11512,
+          95625,
+          98196,
+          64877,
+          24668
+        ],
+        "steady_mean_cycles": [
+          11825,
+          16259,
+          97917,
+          64806,
+          25089
+        ],
+        "steady_max_cycles": [
+          14330,
+          16263,
+          98863,
+          65855,
+          25534
+        ],
+        "block_frames": 128,
+        "includes_marker_overhead": true,
+        "pipeline_muted_start": true,
+        "proven_sum_enabled": 1
+      },
+      {
+        "probe": "dsp_variant_case",
+        "trial": 1,
+        "rate": 192000,
+        "flags": 13,
+        "variant": "Os_split_reference",
+        "equivalent": true,
+        "frames": 5120,
+        "block_frames": 128,
+        "ramp_containing_blocks": 30,
+        "ramp_mean_cycles": 362552,
+        "ramp_max_cycles": 365840,
+        "steady_blocks": 10,
+        "steady_mean_cycles": 279845,
+        "steady_p95_cycles": 282260,
+        "steady_max_cycles": 282260,
+        "pcm_hash": 1266490235,
+        "elapsed_core_cycles": true,
+        "cpu_mhz": 240
+      },
+      {
+        "probe": "dsp_variant_case",
+        "trial": 1,
+        "rate": 192000,
+        "flags": 13,
+        "variant": "Os_profiled",
+        "equivalent": true,
+        "frames": 5120,
+        "block_frames": 128,
+        "ramp_containing_blocks": 30,
+        "ramp_mean_cycles": 310612,
+        "ramp_max_cycles": 314009,
+        "steady_blocks": 10,
+        "steady_mean_cycles": 222651,
+        "steady_p95_cycles": 224583,
+        "steady_max_cycles": 224583,
+        "pcm_hash": 1266490235,
+        "elapsed_core_cycles": true,
+        "cpu_mhz": 240
+      },
+      {
+        "probe": "dsp_internal_stages",
+        "trial": 1,
+        "rate": 192000,
+        "flags": 13,
+        "valid": true,
+        "stages": [
+          "analysis",
+          "ramps_input",
+          "eq_comp",
+          "cross_boost",
+          "mix_limit"
+        ],
+        "ramp_mean_cycles": [
+          11514,
+          98211,
+          98200,
+          65004,
+          33038
+        ],
+        "steady_mean_cycles": [
+          11825,
+          16259,
+          98102,
+          64802,
+          27030
+        ],
+        "steady_max_cycles": [
+          14325,
+          16265,
+          98813,
+          65808,
+          27906
+        ],
+        "block_frames": 128,
+        "includes_marker_overhead": true,
+        "pipeline_muted_start": true,
+        "proven_sum_enabled": 1
+      },
+      {
+        "probe": "dsp_variant_case",
+        "trial": 2,
+        "rate": 48000,
+        "flags": 9,
+        "variant": "Os_split_reference",
+        "equivalent": true,
+        "frames": 5120,
+        "block_frames": 128,
+        "ramp_containing_blocks": 8,
+        "ramp_mean_cycles": 360554,
+        "ramp_max_cycles": 367286,
+        "steady_blocks": 32,
+        "steady_mean_cycles": 289535,
+        "steady_p95_cycles": 291724,
+        "steady_max_cycles": 292104,
+        "pcm_hash": 114405386,
+        "elapsed_core_cycles": true,
+        "cpu_mhz": 240
+      },
+      {
+        "probe": "dsp_variant_case",
+        "trial": 2,
+        "rate": 48000,
+        "flags": 9,
+        "variant": "Os_profiled",
+        "equivalent": true,
+        "frames": 5120,
+        "block_frames": 128,
+        "ramp_containing_blocks": 8,
+        "ramp_mean_cycles": 308738,
+        "ramp_max_cycles": 316103,
+        "steady_blocks": 32,
+        "steady_mean_cycles": 232676,
+        "steady_p95_cycles": 235877,
+        "steady_max_cycles": 235922,
+        "pcm_hash": 114405386,
+        "elapsed_core_cycles": true,
+        "cpu_mhz": 240
+      },
+      {
+        "probe": "dsp_internal_stages",
+        "trial": 2,
+        "rate": 48000,
+        "flags": 9,
+        "valid": true,
+        "stages": [
+          "analysis",
+          "ramps_input",
+          "eq_comp",
+          "cross_boost",
+          "mix_limit"
+        ],
+        "ramp_mean_cycles": [
+          23704,
+          92808,
+          98238,
+          64662,
+          24682
+        ],
+        "steady_mean_cycles": [
+          24091,
+          16288,
+          98039,
+          64911,
+          24683
+        ],
+        "steady_max_cycles": [
+          27395,
+          17162,
+          98869,
+          65916,
+          25584
+        ],
+        "block_frames": 128,
+        "includes_marker_overhead": true,
+        "pipeline_muted_start": true,
+        "proven_sum_enabled": 1
+      },
+      {
+        "probe": "dsp_variant_case",
+        "trial": 2,
+        "rate": 48000,
+        "flags": 13,
+        "variant": "Os_split_reference",
+        "equivalent": true,
+        "frames": 5120,
+        "block_frames": 128,
+        "ramp_containing_blocks": 8,
+        "ramp_mean_cycles": 371237,
+        "ramp_max_cycles": 377920,
+        "steady_blocks": 32,
+        "steady_mean_cycles": 291729,
+        "steady_p95_cycles": 294078,
+        "steady_max_cycles": 294303,
+        "pcm_hash": 4050363234,
+        "elapsed_core_cycles": true,
+        "cpu_mhz": 240
+      },
+      {
+        "probe": "dsp_variant_case",
+        "trial": 2,
+        "rate": 48000,
+        "flags": 13,
+        "variant": "Os_profiled",
+        "equivalent": true,
+        "frames": 5120,
+        "block_frames": 128,
+        "ramp_containing_blocks": 8,
+        "ramp_mean_cycles": 319618,
+        "ramp_max_cycles": 326904,
+        "steady_blocks": 32,
+        "steady_mean_cycles": 235110,
+        "steady_p95_cycles": 237966,
+        "steady_max_cycles": 238309,
+        "pcm_hash": 4050363234,
+        "elapsed_core_cycles": true,
+        "cpu_mhz": 240
+      },
+      {
+        "probe": "dsp_internal_stages",
+        "trial": 2,
+        "rate": 48000,
+        "flags": 13,
+        "valid": true,
+        "stages": [
+          "analysis",
+          "ramps_input",
+          "eq_comp",
+          "cross_boost",
+          "mix_limit"
+        ],
+        "ramp_mean_cycles": [
+          23479,
+          95846,
+          98007,
+          65128,
+          32510
+        ],
+        "steady_mean_cycles": [
+          23922,
+          16373,
+          97950,
+          65117,
+          27110
+        ],
+        "steady_max_cycles": [
+          26774,
+          17192,
+          98890,
+          65970,
+          27915
+        ],
+        "block_frames": 128,
+        "includes_marker_overhead": true,
+        "pipeline_muted_start": true,
+        "proven_sum_enabled": 1
+      },
+      {
+        "probe": "dsp_variant_case",
+        "trial": 2,
+        "rate": 96000,
+        "flags": 9,
+        "variant": "Os_split_reference",
+        "equivalent": true,
+        "frames": 5120,
+        "block_frames": 128,
+        "ramp_containing_blocks": 15,
+        "ramp_mean_cycles": 355806,
+        "ramp_max_cycles": 358950,
+        "steady_blocks": 25,
+        "steady_mean_cycles": 280805,
+        "steady_p95_cycles": 283353,
+        "steady_max_cycles": 284521,
+        "pcm_hash": 1303568504,
+        "elapsed_core_cycles": true,
+        "cpu_mhz": 240
+      },
+      {
+        "probe": "dsp_variant_case",
+        "trial": 2,
+        "rate": 96000,
+        "flags": 9,
+        "variant": "Os_profiled",
+        "equivalent": true,
+        "frames": 5120,
+        "block_frames": 128,
+        "ramp_containing_blocks": 15,
+        "ramp_mean_cycles": 303407,
+        "ramp_max_cycles": 306872,
+        "steady_blocks": 25,
+        "steady_mean_cycles": 223656,
+        "steady_p95_cycles": 226868,
+        "steady_max_cycles": 227221,
+        "pcm_hash": 1303568504,
+        "elapsed_core_cycles": true,
+        "cpu_mhz": 240
+      },
+      {
+        "probe": "dsp_internal_stages",
+        "trial": 2,
+        "rate": 96000,
+        "flags": 9,
+        "valid": true,
+        "stages": [
+          "analysis",
+          "ramps_input",
+          "eq_comp",
+          "cross_boost",
+          "mix_limit"
+        ],
+        "ramp_mean_cycles": [
+          15035,
+          96149,
+          97998,
+          64967,
+          24615
+        ],
+        "steady_mean_cycles": [
+          15003,
+          16261,
+          98076,
+          64975,
+          24707
+        ],
+        "steady_max_cycles": [
+          18310,
+          16282,
+          98957,
+          65926,
+          25526
+        ],
+        "block_frames": 128,
+        "includes_marker_overhead": true,
+        "pipeline_muted_start": true,
+        "proven_sum_enabled": 1
+      },
+      {
+        "probe": "dsp_variant_case",
+        "trial": 2,
+        "rate": 96000,
+        "flags": 13,
+        "variant": "Os_split_reference",
+        "equivalent": true,
+        "frames": 5120,
+        "block_frames": 128,
+        "ramp_containing_blocks": 15,
+        "ramp_mean_cycles": 367056,
+        "ramp_max_cycles": 370678,
+        "steady_blocks": 25,
+        "steady_mean_cycles": 283150,
+        "steady_p95_cycles": 285567,
+        "steady_max_cycles": 286719,
+        "pcm_hash": 314197119,
+        "elapsed_core_cycles": true,
+        "cpu_mhz": 240
+      },
+      {
+        "probe": "dsp_variant_case",
+        "trial": 2,
+        "rate": 96000,
+        "flags": 13,
+        "variant": "Os_profiled",
+        "equivalent": true,
+        "frames": 5120,
+        "block_frames": 128,
+        "ramp_containing_blocks": 15,
+        "ramp_mean_cycles": 314813,
+        "ramp_max_cycles": 318675,
+        "steady_blocks": 25,
+        "steady_mean_cycles": 225926,
+        "steady_p95_cycles": 229306,
+        "steady_max_cycles": 229306,
+        "pcm_hash": 314197119,
+        "elapsed_core_cycles": true,
+        "cpu_mhz": 240
+      },
+      {
+        "probe": "dsp_internal_stages",
+        "trial": 2,
+        "rate": 96000,
+        "flags": 13,
+        "valid": true,
+        "stages": [
+          "analysis",
+          "ramps_input",
+          "eq_comp",
+          "cross_boost",
+          "mix_limit"
+        ],
+        "ramp_mean_cycles": [
+          14859,
+          99312,
+          98185,
+          64968,
+          32843
+        ],
+        "steady_mean_cycles": [
+          15041,
+          16296,
+          98113,
+          64906,
+          26939
+        ],
+        "steady_max_cycles": [
+          18312,
+          17157,
+          98855,
+          65687,
+          27027
+        ],
+        "block_frames": 128,
+        "includes_marker_overhead": true,
+        "pipeline_muted_start": true,
+        "proven_sum_enabled": 1
+      },
+      {
+        "probe": "dsp_variant_case",
+        "trial": 2,
+        "rate": 192000,
+        "flags": 9,
+        "variant": "Os_split_reference",
+        "equivalent": true,
+        "frames": 5120,
+        "block_frames": 128,
+        "ramp_containing_blocks": 30,
+        "ramp_mean_cycles": 351455,
+        "ramp_max_cycles": 354299,
+        "steady_blocks": 10,
+        "steady_mean_cycles": 277642,
+        "steady_p95_cycles": 278925,
+        "steady_max_cycles": 278925,
+        "pcm_hash": 1196453157,
+        "elapsed_core_cycles": true,
+        "cpu_mhz": 240
+      },
+      {
+        "probe": "dsp_variant_case",
+        "trial": 2,
+        "rate": 192000,
+        "flags": 9,
+        "variant": "Os_profiled",
+        "equivalent": true,
+        "frames": 5120,
+        "block_frames": 128,
+        "ramp_containing_blocks": 30,
+        "ramp_mean_cycles": 299540,
+        "ramp_max_cycles": 302397,
+        "steady_blocks": 10,
+        "steady_mean_cycles": 220544,
+        "steady_p95_cycles": 223086,
+        "steady_max_cycles": 223086,
+        "pcm_hash": 1196453157,
+        "elapsed_core_cycles": true,
+        "cpu_mhz": 240
+      },
+      {
+        "probe": "dsp_internal_stages",
+        "trial": 2,
+        "rate": 192000,
+        "flags": 9,
+        "valid": true,
+        "stages": [
+          "analysis",
+          "ramps_input",
+          "eq_comp",
+          "cross_boost",
+          "mix_limit"
+        ],
+        "ramp_mean_cycles": [
+          11484,
+          95519,
+          98258,
+          64909,
+          24697
+        ],
+        "steady_mean_cycles": [
+          11825,
+          16352,
+          98110,
+          64802,
+          24822
+        ],
+        "steady_max_cycles": [
+          14331,
+          17172,
+          98937,
+          65742,
+          25533
+        ],
+        "block_frames": 128,
+        "includes_marker_overhead": true,
+        "pipeline_muted_start": true,
+        "proven_sum_enabled": 1
+      },
+      {
+        "probe": "dsp_variant_case",
+        "trial": 2,
+        "rate": 192000,
+        "flags": 13,
+        "variant": "Os_split_reference",
+        "equivalent": true,
+        "frames": 5120,
+        "block_frames": 128,
+        "ramp_containing_blocks": 30,
+        "ramp_mean_cycles": 362578,
+        "ramp_max_cycles": 365907,
+        "steady_blocks": 10,
+        "steady_mean_cycles": 279855,
+        "steady_p95_cycles": 281355,
+        "steady_max_cycles": 281355,
+        "pcm_hash": 1266490235,
+        "elapsed_core_cycles": true,
+        "cpu_mhz": 240
+      },
+      {
+        "probe": "dsp_variant_case",
+        "trial": 2,
+        "rate": 192000,
+        "flags": 13,
+        "variant": "Os_profiled",
+        "equivalent": true,
+        "frames": 5120,
+        "block_frames": 128,
+        "ramp_containing_blocks": 30,
+        "ramp_mean_cycles": 310587,
+        "ramp_max_cycles": 313922,
+        "steady_blocks": 10,
+        "steady_mean_cycles": 222669,
+        "steady_p95_cycles": 225532,
+        "steady_max_cycles": 225532,
+        "pcm_hash": 1266490235,
+        "elapsed_core_cycles": true,
+        "cpu_mhz": 240
+      },
+      {
+        "probe": "dsp_internal_stages",
+        "trial": 2,
+        "rate": 192000,
+        "flags": 13,
+        "valid": true,
+        "stages": [
+          "analysis",
+          "ramps_input",
+          "eq_comp",
+          "cross_boost",
+          "mix_limit"
+        ],
+        "ramp_mean_cycles": [
+          11545,
+          98283,
+          98137,
+          65001,
+          32947
+        ],
+        "steady_mean_cycles": [
+          11826,
+          16259,
+          98203,
+          64805,
+          26943
+        ],
+        "steady_max_cycles": [
+          14321,
+          16266,
+          98928,
+          65868,
+          27017
+        ],
+        "block_frames": 128,
+        "includes_marker_overhead": true,
+        "pipeline_muted_start": true,
+        "proven_sum_enabled": 1
+      },
+      {
+        "probe": "dsp_variant_summary",
+        "passed": true,
+        "cases": 18,
+        "expected_cases": 18,
+        "workspace_bytes": 5432,
+        "stack_low_water_bytes": 5364,
+        "controller_enabled": false,
+        "i2s_test": false,
+        "speed_is_not_a_pass_gate": true
+      }
+    ],
+    "return": {
+      "probe": "codec_diagnostic_return",
+      "passed": false,
+      "baseline_selected": true,
+      "restore_result": 0,
+      "radio_test": false
+    },
+    "baseline_boot_observed": true,
+    "boot_fatal_marker": false,
+    "original_application_preserved": true
+  },
+  "stage_us_per_frame": [
+    {
+      "rate": 48000,
+      "flags": 9,
+      "split": {
+        "ramp": [
+          0.7668077256944444,
+          3.0263237847222224,
+          4.549186197916667,
+          2.9457139756944444,
+          0.8044921875
+        ],
+        "steady": [
+          0.78203125,
+          0.5298828125,
+          4.538216145833333,
+          2.950792100694444,
+          0.8035807291666667
+        ]
+      },
+      "proven": {
+        "ramp": [
+          0.7703559027777778,
+          3.0209092881944444,
+          3.2055338541666667,
+          2.1073893229166667,
+          0.8015082465277777
+        ],
+        "steady": [
+          0.7833116319444444,
+          0.5305013020833333,
+          3.191666666666667,
+          2.1142469618055553,
+          0.803049045138889
+        ]
+      }
+    },
+    {
+      "rate": 48000,
+      "flags": 13,
+      "split": {
+        "ramp": [
+          0.7656901041666667,
+          3.109006076388889,
+          4.5548719618055555,
+          2.946853298611111,
+          1.0649305555555555
+        ],
+        "steady": [
+          0.7799045138888889,
+          0.53046875,
+          4.537228732638889,
+          2.9541341145833333,
+          0.8780924479166666
+        ]
+      },
+      "proven": {
+        "ramp": [
+          0.7643229166666666,
+          3.120713975694444,
+          3.1952799479166667,
+          2.1124674479166665,
+          1.0588650173611112
+        ],
+        "steady": [
+          0.7786892361111111,
+          0.5320638020833334,
+          3.1909505208333333,
+          2.1190538194444444,
+          0.881564670138889
+        ]
+      }
+    },
+    {
+      "rate": 96000,
+      "flags": 9,
+      "split": {
+        "ramp": [
+          0.4835177951388889,
+          3.136848958333333,
+          4.536870659722222,
+          2.954513888888889,
+          0.8029296875
+        ],
+        "steady": [
+          0.49070095486111115,
+          0.5300347222222223,
+          4.539876302083333,
+          2.950759548611111,
+          0.8041449652777778
+        ]
+      },
+      "proven": {
+        "ramp": [
+          0.4881618923611111,
+          3.1296875,
+          3.1913411458333334,
+          2.114865451388889,
+          0.8019097222222222
+        ],
+        "steady": [
+          0.4884440104166667,
+          0.5297200520833333,
+          3.1929578993055556,
+          2.114702690972222,
+          0.8042534722222222
+        ]
+      }
+    },
+    {
+      "rate": 96000,
+      "flags": 13,
+      "split": {
+        "ramp": [
+          0.4829644097222222,
+          3.230935329861111,
+          4.542957899305555,
+          2.9524956597222225,
+          1.0750217013888888
+        ],
+        "steady": [
+          0.48922526041666664,
+          0.53046875,
+          4.533832465277778,
+          2.9565104166666667,
+          0.8780924479166666
+        ]
+      },
+      "proven": {
+        "ramp": [
+          0.4830403645833333,
+          3.233170572916667,
+          3.196158854166667,
+          2.1122395833333334,
+          1.07109375
+        ],
+        "steady": [
+          0.4892144097222222,
+          0.5308810763888888,
+          3.192556423611111,
+          2.114388020833333,
+          0.8769422743055556
+        ]
+      }
+    },
+    {
+      "rate": 192000,
+      "flags": 9,
+      "split": {
+        "ramp": [
+          0.37579210069444446,
+          3.1125,
+          4.537944878472222,
+          2.9487413194444443,
+          0.8064344618055556
+        ],
+        "steady": [
+          0.3879340277777778,
+          0.5292426215277778,
+          4.532345920138889,
+          2.9494683159722226,
+          0.8137586805555556
+        ]
+      },
+      "proven": {
+        "ramp": [
+          0.37412109375,
+          3.10986328125,
+          3.198166232638889,
+          2.112575954861111,
+          0.80361328125
+        ],
+        "steady": [
+          0.3849283854166667,
+          0.5312825520833333,
+          3.1915907118055555,
+          2.1094835069444446,
+          0.8109049479166667
+        ]
+      }
+    },
+    {
+      "rate": 192000,
+      "flags": 13,
+      "split": {
+        "ramp": [
+          0.37479383680555556,
+          3.201529947916667,
+          4.54140625,
+          2.9507161458333333,
+          1.0744791666666667
+        ],
+        "steady": [
+          0.3868815104166667,
+          0.5302408854166667,
+          4.532367621527778,
+          2.951378038194444,
+          0.8817925347222223
+        ]
+      },
+      "proven": {
+        "ramp": [
+          0.37546657986111115,
+          3.1982096354166667,
+          3.1952473958333334,
+          2.1162977430555556,
+          1.0734809027777779
+        ],
+        "steady": [
+          0.38495008680555554,
+          0.5292643229166667,
+          3.1956163194444445,
+          2.109505208333333,
+          0.8779947916666667
+        ]
+      }
+    }
+  ],
+  "host_bound_and_exactness": {
+    "passed": true,
+    "bounded_filter_cases": 200000,
+    "unproven_table_fallback_cases": 100000,
+    "rapid_control_stereo_frames": 106496,
+    "rates": 13,
+    "component_box": [
+      660040179,
+      1176472423,
+      530590634,
+      535795108,
+      267361804
+    ],
+    "box_sum": 3170260148,
+    "worst_sum_with_fraction": 6808081828004495359,
+    "int64_max": 9223372036854775807,
+    "oracle": "independent 128-bit sum with full state/output comparison",
+    "sanitizers": [
+      "address",
+      "undefined"
+    ],
+    "signed_overflow_wrapping": false,
+    "sources": {
+      "D:\\bt-owned61\\native_bt\\_build\\dsp_accumulation\\fast.c": "4ae695c98dc8e1b8b02c7584b194b3c6efabb4f90fde8023c24655fc43b4f503",
+      "D:\\bt-owned61\\native_bt\\_build\\dsp_accumulation\\reference.c": "6f28a689529b72c7eb56ccc96777a3dd5ee4bd84c7cdbc0bc6cc6cb3b62e5927",
+      "D:\\bt-owned61\\native_bt\\_build\\dsp_accumulation\\fallback.c": "e430de5972e61a7590337fcc2daa3a8e6fe3e658ca410f3be2e1cb0bb64ca75f",
+      "D:\\bt-owned61\\native_bt\\_build\\dsp_accumulation\\oracle.c": "7f31593155bb04be4e41dd8b3fb5f4741831c58c1e5be27e6514ac1fef814997",
+      "D:\\bt-owned61\\native_bt\\_build\\dsp_accumulation\\unproven.inc": "03266913de0e7f154768ca1ad85e0bea09bc323131de9094e16f3adc459b0d15",
+      "D:\\bt-owned61\\bt_audio_sink\\main\\dsp\\fixed_dsp.c": "0485d75e736dd73bf9f3a51d45223575ac9c4aec7f04f9d01fb3787ddce2d76b",
+      "D:\\bt-owned61\\bt_audio_sink\\main\\dsp\\fixed_dsp.h": "0da163db16a51803fe4d10b1933641ea0c6d5771e8a60975c09383281fc3ea4f",
+      "D:\\bt-owned61\\bt_audio_sink\\main\\dsp\\fixed_dsp_tables.inc": "c6a20053d23c40c1597a0d49d46ac952218544de3493ab52d8bb9923eb23a742",
+      "D:\\bt-owned61\\native_bt\\tools\\test_dsp_accumulation.py": "b64050e96a612ffdf3eb16b1d0fa201f15497131f0e30e6128987dd7474015f0",
+      "D:\\bt-owned61\\native_bt\\tools\\generate_fixed_dsp_tables.py": "4c223b8c2ebb7ec26d8c9110592bf69a1344da63fac0b1c9cfd01581380bf334"
+    },
+    "command": [
+      "C:\\Program Files\\LLVM\\bin\\clang.exe",
+      "-std=c11",
+      "-O3",
+      "-g",
+      "-Wall",
+      "-Wextra",
+      "-Werror",
+      "-fsanitize=address,undefined",
+      "-fno-sanitize-recover=all",
+      "-fno-omit-frame-pointer",
+      "-ID:\\bt-owned61\\bt_audio_sink\\main\\dsp",
+      "-ID:\\bt-owned61\\native_bt\\_build\\dsp_accumulation",
+      "D:\\bt-owned61\\native_bt\\_build\\dsp_accumulation\\fast.c",
+      "D:\\bt-owned61\\native_bt\\_build\\dsp_accumulation\\reference.c",
+      "D:\\bt-owned61\\native_bt\\_build\\dsp_accumulation\\fallback.c",
+      "D:\\bt-owned61\\native_bt\\_build\\dsp_accumulation\\oracle.c",
+      "-o",
+      "D:\\bt-owned61\\native_bt\\_build\\dsp_accumulation\\oracle.exe",
+      "-fms-runtime-lib=dll",
+      "-D_DLL",
+      "-Wl,/NODEFAULTLIB:libcmt"
+    ],
+    "hardware_accessed": false
+  },
+  "core_regression": {
+    "passed": 179,
+    "total": 179
+  },
+  "spectral_and_O3_clock_checks_passed": true,
+  "full_product_build": {
+    "schema": 1,
+    "passed": true,
+    "state": "complete",
+    "hardware_accessed": false,
+    "product_io": true,
+    "product_security": true,
+    "rfcomm": true,
+    "build_exit": 0,
+    "source_check_exit": 0,
+    "workspace_check_exit": 0,
+    "dsp_stage_profile": false,
+    "audio_stage_profile": false,
+    "pipeline_diagnostic": false,
+    "codec_diagnostic_only": false,
+    "deferred_codec_check": false,
+    "async_audio": true,
+    "lhdc_maximum_check": false,
+    "lhdc_stage_profile": false,
+    "source_manifest_sha256": "2679892aa4d435a7deee1c39142b309d8d1daa8762962efd4420d29f545ab64a",
+    "image_sha256": "acf97e44e65da4e5e2f420f3b4770d525cf8fae81051ffa2eea20ba5b7e839c8",
+    "config_sha256": "1153b97ed20e64a41eb7d2d91c1ca1ae121d974fa637424603187828864fa3d2",
+    "partition_sha256": "6a5932b101f5a4cf7a011c63cd6e5b75dae885e204584d4a7d62de3e5ecf0151"
+  },
+  "full_product_offline_admission": {
+    "passed": true,
+    "scope": "offline image checksum/digest, ESP32 revision and admitted OTA capacity; no device access or runtime qualification",
+    "image_sha256": "acf97e44e65da4e5e2f420f3b4770d525cf8fae81051ffa2eea20ba5b7e839c8",
+    "image_bytes": 1202544,
+    "project": "native_bt_probe",
+    "chip_id": 0,
+    "codec_diagnostic_only": false,
+    "pipeline_diagnostic": false,
+    "revision_range": [
+      0,
+      399
+    ],
+    "checksum_verified": true,
+    "digest_verified": true,
+    "latest_local_build_completed": true,
+    "build_sources_match": true,
+    "build_source_units": 10272,
+    "product_io": true,
+    "product_security": true,
+    "rfcomm_profile": true,
+    "controller_only_dual_mode": true,
+    "anti_rollback_fuse_updates": false,
+    "partition_offset": 3735552,
+    "partition_bytes": 2621440,
+    "partition_remaining_bytes": 1418896,
+    "compiled_table_matches_preserved_layout": true,
+    "compiled_table_sha256": "6a5932b101f5a4cf7a011c63cd6e5b75dae885e204584d4a7d62de3e5ecf0151",
+    "flash_mode": "DIO",
+    "flash_mib": 8,
+    "flash_mhz": 80,
+    "hardware_accessed": false,
+    "runtime_qualified": false
+  },
+  "full_product_hardware_rerun": false
 }
