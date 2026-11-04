@@ -197,7 +197,9 @@ static void source_frame(uint32_t sequence,int32_t *left,int32_t *right){
     *right=(63-(int32_t)(sequence%128u))*524288;
 }
 EXPORT int audio_stress_begin(void){
-    if(!fixture(DBT_PCM_S32_LE,2))return 1;
+    page_reset(0);dbt_audio_memory_t memory={0,page_allocate,page_release};
+    dbt_audio_config_t config={48000,256,8192,4096,DBT_PCM_S32_LE,2,false};
+    if(dbt_audio_init(&audio,memory)!=DBT_OK || dbt_audio_open(&audio,config)!=DBT_OK)return 1;
     if(dbt_audio_controls(&audio,0,0,0,127,FDSP_BYPASS)!=DBT_OK)return 2;
     (void)fixed_dsp_init(&reference,48000,90,500,512);fixed_dsp_controls(&reference,0,0,0,0,0,true);
     fixed_dsp_controls(&reference,0,0,0,127,FDSP_BYPASS,false);consumed_sequence=0;
@@ -223,7 +225,10 @@ EXPORT int audio_stress_consume(void){
 EXPORT int audio_stress_end(void){
     int result=atomic_load(&audio.zero_frames)==0 && atomic_load(&audio.taken_frames)==16384 &&
         atomic_load(&audio.submitted_frames)==16384?0:1;
-    dbt_audio_close(&audio);return result || errors || used[0] || used[1];
+    dbt_audio_close(&audio);
+    if(page_errors || page_calls!=page_releases)result=1;
+    for(unsigned i=0;i<DBT_AUDIO_OUTPUT_PAGES+1u;++i)if(page_used[i])result=1;
+    return result;
 }
 EXPORT int audio_snapshot_begin(void){
     if(!fixture(DBT_PCM_S16_LE,2))return 1;

@@ -173,3 +173,11 @@ retain the `-TestPeer` requirement. RFCOMM adds a bounded serial echo service;
 its current single-DLC/conformance limits are in `docs/RFCOMM.md`. This command
 never flashes. The ESP32 hold remains active, and future deployment still needs
 fresh identity/layout admission through the guarded workflow.
+
+### ESP-IDF 6.1 maximum-rate pipeline checkpoint
+
+The [COM6 pipeline record](docs/IDF61_PIPELINE_2026_11_04.md) documents the SRAM-region allocation fix,
+179 portable tests and exact-bounds ASan/UBSan checks. The full-quality LHDC
+constructor now fits, but the render path misses its throughput budget before
+DMA starts. The released fallback remains selected; production parity and the
+master objective are incomplete.
