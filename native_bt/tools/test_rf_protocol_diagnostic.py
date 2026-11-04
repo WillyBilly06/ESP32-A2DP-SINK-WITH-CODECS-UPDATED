@@ -21,9 +21,10 @@ typedef int dbt_result_t;
 enum {DBT_OK,DBT_BUSY,DBT_INVALID};
 typedef int dbt_pcm_format_t;
 static const int dbt_sbc_codec=1;
-typedef struct {uint32_t rate;uint8_t sample_bytes,channels,cie_size;const int *ops;uint8_t cie[16];} dbt_codec_config_t;
+#define DBT_CODEC_CIE_BYTES 26u
+typedef struct {uint32_t rate;uint8_t sample_bytes,channels,cie_size;const int *ops;uint8_t cie[DBT_CODEC_CIE_BYTES];} dbt_codec_config_t;
 static _Atomic uint32_t pcm_generation,pcm_frames,pcm_bytes,pcm_hash,pcm_rate,pcm_channels,pcm_codec,pcm_sample_bytes;
-static _Atomic uint32_t codec_revision,codec_cie_size,codec_cie_words[4];
+static _Atomic uint32_t codec_revision,codec_cie_size,codec_cie_words[(DBT_CODEC_CIE_BYTES+3u)/4u];
 static unsigned pcm_calls,stream_calls;static bool busy;
 #ifndef DBT_PROBE_ASYNC_AUDIO
 enum {DBT_CODEC_PCM_BEGIN=15,DBT_CODEC_PCM_END=16};

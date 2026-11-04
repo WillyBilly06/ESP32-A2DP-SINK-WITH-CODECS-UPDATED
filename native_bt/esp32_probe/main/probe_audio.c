@@ -81,7 +81,7 @@ static bool output_initialized;
 static probe_audio_product_event_fn product_observer;
 static void *product_context;
 static _Atomic uint32_t pcm_generation,pcm_frames,pcm_bytes,pcm_hash,pcm_rate,pcm_channels,pcm_codec,pcm_sample_bytes;
-static _Atomic uint32_t codec_revision,codec_cie_size,codec_cie_words[4];
+static _Atomic uint32_t codec_revision,codec_cie_size,codec_cie_words[(DBT_CODEC_CIE_BYTES+3u)/4u];
 static _Atomic uint32_t profile_snapshot,event_errors,last_channel_event,last_channel_result;
 static _Atomic uint32_t ignored_dynamic,oversized_dynamic;
 /* Separate single-writer rings for host admission and decoder events. Logging
@@ -310,9 +310,9 @@ static dbt_result_t publish_stream(bool started,const dbt_codec_config_t *config
         atomic_store_explicit(&pcm_rate,config->rate,memory_order_relaxed);
         atomic_store_explicit(&pcm_channels,config->channels,memory_order_relaxed);
         atomic_store_explicit(&pcm_sample_bytes,config->sample_bytes,memory_order_relaxed);
-        for(unsigned word=0;word<4;++word){
+        for(unsigned word=0;word<(DBT_CODEC_CIE_BYTES+3u)/4u;++word){
             uint32_t value=0;
-            for(unsigned byte=0;byte<4;++byte){unsigned at=4u*word+byte;if(at<config->cie_size && at<16u)value|=(uint32_t)config->cie[at]<<(8u*byte);}
+            for(unsigned byte=0;byte<4;++byte){unsigned at=4u*word+byte;if(at<config->cie_size && at<DBT_CODEC_CIE_BYTES)value|=(uint32_t)config->cie[at]<<(8u*byte);}
             atomic_store_explicit(&codec_cie_words[word],value,memory_order_relaxed);
         }
         atomic_store_explicit(&codec_cie_size,config->cie_size,memory_order_relaxed);
@@ -460,11 +460,11 @@ static void log_loop(void *unused){
         uint32_t hash=atomic_load_explicit(&pcm_hash,memory_order_relaxed),rate=atomic_load_explicit(&pcm_rate,memory_order_relaxed);
         uint32_t channels=atomic_load_explicit(&pcm_channels,memory_order_relaxed),codec=atomic_load_explicit(&pcm_codec,memory_order_relaxed);
         uint32_t sample_bytes=atomic_load_explicit(&pcm_sample_bytes,memory_order_relaxed);
-        uint32_t revision=atomic_load_explicit(&codec_revision,memory_order_acquire),cie_size=atomic_load(&codec_cie_size),cie_words[4];
-        for(unsigned i=0;i<4;++i)cie_words[i]=atomic_load(&codec_cie_words[i]);
+        uint32_t revision=atomic_load_explicit(&codec_revision,memory_order_acquire),cie_size=atomic_load(&codec_cie_size),cie_words[(DBT_CODEC_CIE_BYTES+3u)/4u];
+        for(unsigned i=0;i<(DBT_CODEC_CIE_BYTES+3u)/4u;++i)cie_words[i]=atomic_load(&codec_cie_words[i]);
         if(generation!=atomic_load_explicit(&pcm_generation,memory_order_acquire))continue;
         if(revision!=previous_codec_revision){
-            static const char hex[]="0123456789abcdef";char cie[33];unsigned n=cie_size>16u?16u:cie_size;
+            static const char hex[]="0123456789abcdef";char cie[2u*DBT_CODEC_CIE_BYTES+1u];unsigned n=cie_size>DBT_CODEC_CIE_BYTES?DBT_CODEC_CIE_BYTES:cie_size;
             for(unsigned i=0;i<n;++i){uint8_t b=(uint8_t)(cie_words[i/4u]>>(8u*(i%4u)));cie[2*i]=hex[b>>4];cie[2*i+1]=hex[b&15u];}
             cie[2*n]=0;
             printf("{\"probe\":\"codec_configuration\",\"at_us\":%" PRIu32 ",\"revision\":%" PRIu32 ",\"codec\":%" PRIu32

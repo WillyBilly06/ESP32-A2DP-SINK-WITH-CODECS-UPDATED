@@ -75,8 +75,11 @@ EX int probe_audio_diagnostics(void){
     for(unsigned i=0;i<13;++i)config.cie[i]=(uint8_t)i;
     CHECK(publish_stream(true,&config)==DBT_OK && atomic_load(&codec_revision)==1 && atomic_load(&codec_cie_size)==13);
     CHECK(atomic_load(&codec_cie_words[0])==0x03020100u && atomic_load(&codec_cie_words[2])==0x0b0a0908u && atomic_load(&codec_cie_words[3])==12);
-    config.cie_size=6;CHECK(publish_stream(true,&config)==DBT_OK && atomic_load(&codec_revision)==2);
+    config.cie_size=26;for(unsigned i=0;i<26;++i)config.cie[i]=(uint8_t)i;
+    CHECK(publish_stream(true,&config)==DBT_OK && atomic_load(&codec_revision)==2 && atomic_load(&codec_cie_words[6])==0x1918u);
+    config.cie_size=6;CHECK(publish_stream(true,&config)==DBT_OK && atomic_load(&codec_revision)==3);
     CHECK(atomic_load(&codec_cie_words[1])==0x00000504u && !atomic_load(&codec_cie_words[2]) && !atomic_load(&codec_cie_words[3]));
+    CHECK(!atomic_load(&codec_cie_words[6]));
     memset(media_trace_rings,0,sizeof(media_trace_rings));now=0;return 0;
 }
 EX int probe_audio_wait_policy(void){
