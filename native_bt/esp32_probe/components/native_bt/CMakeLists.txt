@@ -49,3 +49,10 @@ if(DBT_PROBE_AUDIO_STAGE_PROFILE)
     set_source_files_properties("${profile_audio_source}" PROPERTIES COMPILE_OPTIONS "-std=gnu11")
     idf_component_optional_requires(PRIVATE esp_hw_support)
 endif()
+
+# Profiled 192 kHz rendering exceeds its frame budget in both FIR and DSP.
+# Optimize only these integer hot files; retain the SDK's other build policies.
+foreach(audio_hot_source "../../../src/dbt_audio.c" "../../../src/dbt_resampler.c" "../../../../bt_audio_sink/main/dsp/fixed_dsp.c")
+    get_filename_component(audio_hot_absolute "${CMAKE_CURRENT_LIST_DIR}/${audio_hot_source}" ABSOLUTE)
+    set_property(SOURCE "${audio_hot_absolute}" APPEND PROPERTY COMPILE_OPTIONS "-O3")
+endforeach()

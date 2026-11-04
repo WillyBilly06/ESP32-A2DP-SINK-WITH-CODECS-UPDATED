@@ -1,5 +1,6 @@
 """Host ASan/UBSan for actual paged PCM ring code; never opens hardware."""
-import hashlib,json,os,pathlib,shutil,subprocess
+import argparse,hashlib,json,os,pathlib,shutil,subprocess
+parser=argparse.ArgumentParser();parser.add_argument('--opt-level',choices=('1','2','3'),default='1');options=parser.parse_args()
 
 ROOT=pathlib.Path(__file__).resolve().parents[1]
 OUT=ROOT/'_build/audio_pages'
@@ -27,7 +28,7 @@ sources=[ROOT/'tests/test_audio.c',ROOT/'src/dbt_audio.c',ROOT/'src/dbt_resample
 tracked=sources+list((ROOT/'include').glob('*.h'))+list((ROOT.parent/'bt_audio_sink/main/dsp').glob('fixed_dsp*'))+[ROOT/'src/dbt_resampler_coeffs.inc',pathlib.Path(__file__).resolve()]
 before={str(p):hashlib.sha256(p.read_bytes()).hexdigest() for p in tracked}
 exe=OUT/('paged-asan.exe' if os.name=='nt' else 'paged-asan')
-args=[cc,'-std=c11','-O1','-g','-fwrapv','-Wall','-Wextra','-Werror','-fsanitize=address,undefined','-fno-sanitize-recover=all','-fno-omit-frame-pointer']
+args=[cc,'-std=c11','-O'+options.opt_level,'-g','-fwrapv','-Wall','-Wextra','-Werror','-fsanitize=address,undefined','-fno-sanitize-recover=all','-fno-omit-frame-pointer']
 if os.name=='nt':args+=['-fms-runtime-lib=dll','-D_DLL','-Wl,/NODEFAULTLIB:libcmt']
 args+=['-I'+str(ROOT/'include'),'-I'+str(ROOT.parent/'bt_audio_sink/main/dsp'),*[str(p) for p in sources],'-o',str(exe)]
 if os.name!='nt':args+=['-lm']

@@ -1,7 +1,7 @@
 """Offline digital clock-servo model and real fixed-point render tests.
 --sanitize is a local Linux ASan/UBSan build; no radio, network or hardware."""
 import argparse,ctypes,os,pathlib,shutil,subprocess,sys
-parser=argparse.ArgumentParser();parser.add_argument('--sanitize',action='store_true');parser.add_argument('--list-inputs',action='store_true');args=parser.parse_args()
+parser=argparse.ArgumentParser();parser.add_argument('--sanitize',action='store_true');parser.add_argument('--list-inputs',action='store_true');parser.add_argument('--opt-level',choices=('1','2','3'),default='2');args=parser.parse_args()
 root=pathlib.Path(__file__).resolve().parents[1];ws=root.parent
 paths=[root/'tests/audio/clock_model.c',root/'tests/audio/clock_main.c',root/'src/dbt_audio.c',root/'include/dbt_audio.h',root/'include/dbt_queue.h',root/'include/dbt_resampler.h',root/'src/dbt_resampler.c',root/'src/dbt_resampler_coeffs.inc',ws/'bt_audio_sink/main/dsp/fixed_dsp.c',ws/'bt_audio_sink/main/dsp/fixed_dsp.h',ws/'bt_audio_sink/main/dsp/fixed_dsp_tables.inc',root/'tools/check_workspace.py',pathlib.Path(__file__).resolve()]
 if args.list_inputs:
@@ -17,7 +17,7 @@ try:
         data=subprocess.check_output(f'call "{vc}" >nul && set',shell=True,text=True);env.update(dict(x.split('=',1) for x in data.splitlines() if '=' in x and not x.startswith('=')))
     cc=shutil.which('clang',path=env.get('PATH')) or (r'C:\Program Files\LLVM\bin\clang.exe' if os.name=='nt' else 'cc')
     target=out/('audio-clock-sanitized' if args.sanitize else 'audio-clock.dll' if os.name=='nt' else 'audio-clock.so')
-    cmd=[cc,'-std=c11','-O2','-g','-Wall','-Wextra','-Werror','-fwrapv']
+    cmd=[cc,'-std=c11','-O'+args.opt_level,'-g','-Wall','-Wextra','-Werror','-fwrapv']
     if args.sanitize:cmd+=['-fsanitize=address,undefined','-fno-omit-frame-pointer','-fno-sanitize-recover=all']
     else:
         cmd+=['-shared']

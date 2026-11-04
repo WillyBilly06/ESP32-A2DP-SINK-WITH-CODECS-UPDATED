@@ -35,7 +35,8 @@ void dbt_resampler_filter(dbt_resampler_t *s,int32_t left,int32_t right,uint32_t
     const int32_t *next=s->taps==96?coefficients_96[p+1u]:s->taps==48?coefficients_48[p+1u]:coefficients_24[p+1u];
     int64_t l=0,r=0;
     for(unsigned k=0;k<s->taps;++k){
-        int32_t coefficient=(int32_t)((int64_t)first[k]+(((int64_t)next[k]-first[k])*remainder)/33554432ll);
+        int32_t coefficient=first[k];
+        if(remainder)coefficient=(int32_t)((int64_t)coefficient+(((int64_t)next[k]-first[k])*remainder)/33554432ll);
         unsigned index=(s->next-k)&(DBT_RESAMPLER_HISTORY-1u);
         int32_t x=k==0?left:k<=s->count?s->history[0][index]:s->first[0];
         int32_t y=k==0?right:k<=s->count?s->history[1][index]:s->first[1];
