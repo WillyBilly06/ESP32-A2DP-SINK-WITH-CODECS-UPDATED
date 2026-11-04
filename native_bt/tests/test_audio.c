@@ -1,4 +1,15 @@
 #include "dbt_audio.h"
+#if defined(__has_feature)
+#if __has_feature(address_sanitizer)
+#include <sanitizer/asan_interface.h>
+#define PAGE_POISON(p,n) __asan_poison_memory_region(p,n)
+#define PAGE_UNPOISON(p,n) __asan_unpoison_memory_region(p,n)
+#endif
+#endif
+#ifndef PAGE_POISON
+#define PAGE_POISON(p,n) ((void)(p),(void)(n))
+#define PAGE_UNPOISON(p,n) ((void)(p),(void)(n))
+#endif
 #ifdef _WIN32
 #define EXPORT __declspec(dllexport)
 #else
@@ -36,13 +47,20 @@ static unsigned page_calls,page_releases,page_fail,page_errors;
 static uint8_t *page_allocate(void *context,uint32_t bytes){
     (void)context;++page_calls;
     if(page_calls==page_fail || bytes>sizeof(page_storage[0]))return 0;
-    for(unsigned i=0;i<DBT_AUDIO_OUTPUT_PAGES+1u;++i)if(!page_used[i]){page_used[i]=true;return (uint8_t *)page_storage[i];}
+    for(unsigned i=0;i<DBT_AUDIO_OUTPUT_PAGES+1u;++i)if(!page_used[i]){
+        page_used[i]=true;
+        /* Give ASan the actual requested extent, even though the fixed host
+         * arena reserves a larger slot. Detect intra-slot page overruns too. */
+        PAGE_POISON((uint8_t *)page_storage[i]+bytes,sizeof(page_storage[i])-bytes);
+        return (uint8_t *)page_storage[i];
+    }
     return 0;
 }
 static void page_release(void *context,uint8_t *bytes){
     (void)context;
     for(unsigned i=0;i<DBT_AUDIO_OUTPUT_PAGES+1u;++i)if(bytes==(uint8_t *)page_storage[i]){
         if(!page_used[i])++page_errors;
+        PAGE_UNPOISON(page_storage[i],sizeof(page_storage[i]));
         page_used[i]=false;++page_releases;return;
     }
     ++page_errors;

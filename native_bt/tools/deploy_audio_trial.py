@@ -58,6 +58,7 @@ def main():
     parser.add_argument('--keep-owned',action='store_true')
     parser.add_argument('--codec-only',action='store_true',help='Finite non-radio codec diagnostic, always return to the pinned baseline')
     parser.add_argument('--pipeline-only',action='store_true',help='Finite non-radio decoder/DSP/I2S diagnostic; always return to pinned baseline')
+    parser.add_argument('--baud',type=int,choices=(115200,230400,460800),default=230400,help='Verified flash transport rate; use a lower rate after a readback error')
     args=parser.parse_args()
     if args.pipeline_only:args.codec_only=True
     hold=HARDWARE/'HARDWARE_HOLD.json'
@@ -107,7 +108,7 @@ def main():
         'Independent host probe; optional diagnostic ATT/GATT; no product/audio profiles')
     report={'scope':scope,'console_baud':console_baud,
             'port':'COM6','backup_sha256':receipt['sha256'],'candidate_sha256':hashlib.sha256(candidate).hexdigest(),
-            'candidate_elf_sha256':candidate[176:208].hex(),'writes':[]}
+            'candidate_elf_sha256':candidate[176:208].hex(),'transport_baud':args.baud,'writes':[],'write_attempts':[]}
     # Preserve the exact tested bytes and build-input receipts before a later
     # build can replace them. No NVS/full-flash backup is copied or published.
     archive=HARDWARE/'runs'/(str(time.time_ns())+'-'+report['candidate_sha256'][:12])
@@ -124,7 +125,7 @@ def main():
         mac=':'.join(f'{v:02X}' for v in controller.read_mac())
         if controller.CHIP_NAME!='ESP32' or mac!=receipt['mac']:raise RuntimeError('Chip/MAC identity mismatch')
         if controller.get_secure_boot_enabled() or controller.get_flash_encryption_enabled():raise RuntimeError('Unexpected protection state')
-        controller=controller.run_stub();controller.change_baud(460800)
+        controller=controller.run_stub();controller.change_baud(args.baud)
         if f'{controller.flash_id():06x}'!=receipt['flash_id']:raise RuntimeError('Flash chip changed')
         if controller.read_flash(0,0x9000)!=original[:0x9000]:raise RuntimeError('Bootloader/partition table differs from the preserved original')
         preserved=controller.read_flash(active['offset'],active['size'])
@@ -147,6 +148,7 @@ def main():
         sequence=max(sequences,default=0)+1
         while (sequence-1)%len(ota_apps)!=target_index:sequence+=1
         if sequence>=0xffffffff:raise RuntimeError('OTA sequence exhausted')
+        report['write_attempts'].append({'offset':trial['offset'],'bytes':len(candidate)})
         report['writes'].append(write_region(controller,trial['offset'],candidate,trial['offset']+trial['size']))
         record=bytearray(b'\xff'*4096)
         struct.pack_into('<I',record,0,sequence);struct.pack_into('<I',record,24,2 if args.keep_owned else 0)
@@ -155,6 +157,7 @@ def main():
         # Write the older selector sector, preserving the newest valid baseline
         # selector for bootloader rollback if the trial resets before completion.
         selector_position=4096-max(valid_sectors)[1] if valid_sectors else 4096
+        report['write_attempts'].append({'offset':selector['offset']+selector_position,'bytes':len(record)})
         report['writes'].append(write_region(controller,selector['offset']+selector_position,record,selector['offset']+selector['size']))
         report['ota_sequence']=sequence;report['trial_offset']=trial['offset']
         report['selector_state_written']='VALID development selection' if args.keep_owned else 'NEW trial'
@@ -253,6 +256,14 @@ def main():
         for suffix in ('.json','.bin','.txt'):shutil.copy2(destination.with_suffix(suffix),archive/destination.with_suffix(suffix).name)
         print(json.dumps(report,indent=2))
         if not report['boot_ready_marker']:raise RuntimeError('Trial readiness was not observed; inspect preserved boot capture')
+    except Exception as error:
+        # Partial writes must remain auditable too. Attempts are not verified
+        # completions. No NVS/key/backup contents are copied into this receipt.
+        report['failure']={'type':type(error).__name__,'message':str(error),'rebooted':rebooted}
+        failure=destination.with_suffix('.failure.json')
+        failure.write_text(json.dumps(report,indent=2)+'\n',encoding='utf-8')
+        shutil.copy2(failure,archive/failure.name)
+        raise
     finally:
         if controller:
             try:
