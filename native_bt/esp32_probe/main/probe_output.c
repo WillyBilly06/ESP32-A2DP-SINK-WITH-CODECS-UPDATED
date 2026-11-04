@@ -87,6 +87,7 @@ typedef struct {
   _Atomic uint32_t dma_eofs, dma_source_frames, underrun_frames,
       descriptor_errors, max_eof_gap_us;
   _Atomic uint32_t maximum_render_us, stop_fill_frames;
+  _Atomic uint32_t render_total_us,render_calls;
   _Atomic uint32_t first_underrun_accepted_frames, first_underrun_dma_frames;
 } output_t;
 static DRAM_ATTR output_t output;
@@ -332,6 +333,8 @@ static dbt_result_t start_output(uint32_t rate, uint8_t channels,
   atomic_store(&output.descriptor_errors, 0);
   atomic_store(&output.max_eof_gap_us, 0);
   atomic_store(&output.maximum_render_us, 0);
+  atomic_store(&output.render_total_us,0);
+  atomic_store(&output.render_calls,0);
   atomic_store(&output.stop_fill_frames, 0);
   atomic_store(&output.requested_bytes, output.audio.allocated_bytes +
                                             DMA_DESCRIPTORS * DMA_FRAMES * 8u);
@@ -548,6 +551,8 @@ static bool render_step(void) {
           uint32_t elapsed = (uint32_t)esp_timer_get_time() - began;
           if (elapsed > atomic_load(&output.maximum_render_us))
             atomic_store(&output.maximum_render_us, elapsed);
+          atomic_fetch_add(&output.render_total_us,elapsed);
+          atomic_fetch_add(&output.render_calls,1);
           atomic_store(&output.rendered_frames,
                        atomic_load(&output.audio.rendered_frames));
           if (output.wake_decoder)
@@ -841,12 +846,15 @@ void probe_output_stats(probe_output_stats_t *s) {
   LOAD(descriptor_errors);
   LOAD(max_eof_gap_us);
   LOAD(maximum_render_us);
+  LOAD(render_total_us);
+  LOAD(render_calls);
   LOAD(stop_fill_frames);
   LOAD(first_underrun_accepted_frames);
   LOAD(first_underrun_dma_frames);
   LOAD(request_fault);
   LOAD(stale_receipts);
 #undef LOAD
+  s->render_stack_low_water_bytes=output.task?(uint32_t)uxTaskGetStackHighWaterMark(output.task):0;
   s->failed|=s->request_fault;
   dbt_audio_clock_stats_t clock = {0};
   s->clock_snapshot_valid = dbt_audio_clock_snapshot(&output.audio, &clock);

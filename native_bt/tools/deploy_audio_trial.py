@@ -57,7 +57,9 @@ def main():
     parser.add_argument('--kind',choices=['audio','probe'],default='probe')
     parser.add_argument('--keep-owned',action='store_true')
     parser.add_argument('--codec-only',action='store_true',help='Finite non-radio codec diagnostic, always return to the pinned baseline')
+    parser.add_argument('--pipeline-only',action='store_true',help='Finite non-radio decoder/DSP/I2S diagnostic; always return to pinned baseline')
     args=parser.parse_args()
+    if args.pipeline_only:args.codec_only=True
     hold=HARDWARE/'HARDWARE_HOLD.json'
     if hold.exists() and json.loads(hold.read_text()).get('active',True):
         raise RuntimeError('ESP32 reserved by user: deployment/reset disabled; perform off-board builds/tests only')
@@ -73,6 +75,8 @@ def main():
     if not baud_match:raise RuntimeError('Console baud is missing from the actual build configuration')
     console_baud=int(baud_match.group(1))
     cache=(image_path.parent/'CMakeCache.txt').read_text()
+    if ('DBT_PROBE_PIPELINE_DIAGNOSTIC:BOOL=ON' in cache)!=args.pipeline_only:
+        raise RuntimeError('Pipeline diagnostic requires the matching explicit deployment mode')
     if ('DBT_PROBE_CODEC_DIAGNOSTIC_ONLY:BOOL=ON' in cache)!=args.codec_only:
         raise RuntimeError('Codec-only image requires the matching explicit deployment mode')
     if args.kind=='probe':
@@ -82,7 +86,7 @@ def main():
     if args.codec_only and receipt.get('active_partition')!='ota_0':raise RuntimeError('Codec diagnostic requires the preserved baseline active in ota_0')
     if args.keep_owned and 'DBT_PROBE_KEEP_OWNED_ACTIVE:BOOL=ON' not in cache:raise RuntimeError('Candidate was not built to keep the owned host active')
     if args.keep_owned and '#define CONFIG_BOOTLOADER_APP_ANTI_ROLLBACK 1' in configuration:raise RuntimeError('No anti-rollback fuse changes are admitted')
-    destination=HARDWARE/('COM6-codec-trial' if args.codec_only else 'COM6-owned-active' if args.keep_owned else 'COM6-'+args.kind+'-trial')
+    destination=HARDWARE/('COM6-pipeline-trial' if args.pipeline_only else 'COM6-codec-trial' if args.codec_only else 'COM6-owned-active' if args.keep_owned else 'COM6-'+args.kind+'-trial')
     image=ESP32FirmwareImage(io.BytesIO(candidate));image.verify()
     if candidate[32:36]!=b'\x32\x54\xcd\xab' or candidate[80:112].split(b'\0',1)[0]!=project_name.encode():
         raise RuntimeError('Unexpected candidate descriptor')
@@ -177,6 +181,8 @@ def main():
             summaries=[e for e in events if e.get('probe')=='target_codec_selftest']
             maximum=[e for e in events if e.get('probe')=='lhdc_max_selftest']
             deferred=[e for e in events if e.get('probe')=='target_deferred_codec']
+            report['pipeline_check']=next((e for e in events if e.get('probe')=='target_pipeline_selftest'),None)
+            report['pipeline_measurements']=[e for e in events if e.get('probe') in ('pipeline_memory','pipeline_timing','pipeline_i2s')]
             report['scope']='Finite isolated codec execution; no controller/NVS/I2S initialization, no RF or product qualification'
             report['cases']=[e for e in events if e.get('probe')=='target_codec_case']
             report['codec_summary']=summaries[-1] if summaries else None
@@ -195,6 +201,9 @@ def main():
             report['all_codec_checks_passed']=bool(summaries and summaries[-1].get('passed') and summaries[-1].get('configurations')==summaries[-1].get('selected'))
             if report.get('deferred_codec_checks_missing_or_failed'):report['all_codec_checks_passed']=False
             report['codec_vectors_passed']=bool(summaries and summaries[-1].get('configurations')==summaries[-1].get('selected') and report['cases'] and all(c.get('passed') for c in report['cases']))
+            if args.pipeline_only:
+                report['scope']='Finite synthetic-input LHDC/integer-DSP/I2S execution, controller/storage off; no RF/coexistence or analog-quality qualification'
+                report['all_codec_checks_passed']=bool(report['pipeline_check'] and report['pipeline_check'].get('passed') and returns and returns[-1].get('passed'))
             report['boot_capture']=destination.with_suffix('.bin').name
             destination.with_suffix('.json').write_text(json.dumps(report,indent=2)+'\n',encoding='utf-8')
             for suffix in ('.json','.bin','.txt'):shutil.copy2(destination.with_suffix(suffix),archive/destination.with_suffix(suffix).name)

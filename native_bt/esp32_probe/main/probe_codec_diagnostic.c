@@ -1,11 +1,15 @@
 /* Finite, non-radio target check. This entry point never initializes the
- * controller, NVS, filesystem, product providers or I2S. It never marks itself
+ * controller, NVS, filesystem or product providers. I2S is enabled only by the
+ * explicit pipeline diagnostic build. It never marks itself
  * valid. The existing bootloader rollback remains a second restoration path. */
 #include "probe_codec_check.h"
 #include "esp_ota_ops.h"
 #include "esp_system.h"
 #include <stdio.h>
 #include <string.h>
+#ifdef DBT_PROBE_PIPELINE_DIAGNOSTIC
+#include "probe_pipeline_check.h"
+#endif
 
 static const uint8_t baseline_elf_sha256[32]={
     0x9b,0xb5,0xc0,0x5b,0x24,0xb7,0xd7,0x65,0x30,0x75,0x5f,0xfd,0x71,0xc8,0x15,0xa3,
@@ -28,7 +32,12 @@ static void diagnostic(void *unused){
         !memcmp(description.app_elf_sha256,baseline_elf_sha256,sizeof(baseline_elf_sha256));
     printf("{\"probe\":\"codec_diagnostic_start\",\"admitted\":%s,\"core\":%d,\"radio_enabled\":false,\"storage_initialized\":false}\n",
         admitted?"true":"false",xPortGetCoreID());
-    bool passed=admitted && probe_codec_check(xTaskGetCurrentTaskHandle());
+    bool passed=admitted &&
+#ifdef DBT_PROBE_PIPELINE_DIAGNOSTIC
+        probe_pipeline_check();
+#else
+        probe_codec_check(xTaskGetCurrentTaskHandle());
+#endif
     /* This task is pinned to core 0: esp_restart must not be invoked from the
      * old core-1 path that failed during the released-firmware OTA work. */
     esp_err_t restore=admitted?esp_ota_set_boot_partition(baseline):ESP_ERR_INVALID_STATE;

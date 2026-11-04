@@ -27,6 +27,8 @@ static void count_pcm(const int32_t *pcm,unsigned n){for(unsigned i=0;i<n;i++)if
 void *heap_caps_malloc(size_t n,unsigned flags){(void)flags;if(atomic_exchange(&failed_alloc,0))return 0;void *p=malloc(n);if(p)atomic_fetch_add(&live,1);return p;}
 void heap_caps_free(void *p){if(p){atomic_fetch_sub(&live,1);free(p);}}
 int64_t esp_timer_get_time(void){return (int64_t)GetTickCount64()*1000;}
+/* Metadata plumbing only; this host mock cannot measure an ESP32 stack. */
+unsigned uxTaskGetStackHighWaterMark(TaskHandle_t t){(void)t;return 4096;}
 void xTaskNotifyGive(TaskHandle_t t){if((uintptr_t)t==atomic_load(&render_handle))atomic_fetch_add(&render_wakes,1);}
 void vTaskNotifyGiveFromISR(TaskHandle_t t,BaseType_t *w){if((uintptr_t)t==atomic_load(&render_handle)){atomic_fetch_add(&isr_wakes,1);*w=pdTRUE;}}
 unsigned ulTaskNotifyTake(int b,unsigned ticks){

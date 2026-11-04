@@ -10,6 +10,7 @@ assert build_status['passed'] and build_status['state']=='complete', 'Latest bui
 source_count=verify_manifest(a.image.parent/'local-build-sources.json',build_status['source_manifest_sha256'])
 commands=json.loads((a.image.parent/'compile_commands.json').read_text(encoding='utf-8'))
 diagnostic=bool(build_status.get('codec_diagnostic_only'))
+pipeline=bool(build_status.get('pipeline_diagnostic'))
 entry_name='probe_codec_diagnostic.c' if diagnostic else 'probe_main.c'
 main_command=next(entry['command'] for entry in commands if Path(entry['file']).name==entry_name)
 cache=(a.image.parent/'CMakeCache.txt').read_text()
@@ -20,9 +21,16 @@ assert bool(re.search(r'(?:^|\s)-DDBT_PROBE_ASYNC_AUDIO=1(?:\s|$)',main_command)
 assert bool(re.search(r'(?:^|\s)-DDBT_PROBE_DEFERRED_CODEC_CHECK=1(?:\s|$)',main_command))==bool(build_status.get('deferred_codec_check'))
 assert ('DBT_PROBE_LHDC_MAX_CHECK:BOOL=ON' in cache)==bool(build_status.get('lhdc_maximum_check'))
 assert ('DBT_PROBE_LHDC_STAGE_PROFILE:BOOL=ON' in cache)==bool(build_status.get('lhdc_stage_profile'))
+assert ('DBT_PROBE_PIPELINE_DIAGNOSTIC:BOOL=ON' in cache)==pipeline
+assert bool(re.search(r'(?:^|\s)-DDBT_PROBE_PIPELINE_DIAGNOSTIC=1(?:\s|$)',main_command))==pipeline
+if pipeline:
+    assert diagnostic and build_status.get('async_audio')
+    assert 'DBT_PROBE_AUDIO_OUTPUT:BOOL=ON' in cache and 'DBT_PROBE_LHDC_BUILD:BOOL=ON' in cache
+    assert any(Path(entry['file']).name=='probe_pipeline_check.c' for entry in commands)
 if diagnostic:
-    for feature in ('KEEP_OWNED_ACTIVE','PRODUCT_IO','PRODUCT_SECURITY','SMP','AVRCP','RFCOMM','AUDIO_TEST','AUDIO_OUTPUT','GATT_TEST','CLASSIC_SECURITY_TEST','INGRESS_TRACE'):
+    for feature in ('KEEP_OWNED_ACTIVE','PRODUCT_IO','PRODUCT_SECURITY','SMP','AVRCP','RFCOMM','AUDIO_TEST','GATT_TEST','CLASSIC_SECURITY_TEST','INGRESS_TRACE'):
         assert f'DBT_PROBE_{feature}:BOOL=ON' not in cache, feature
+    if not pipeline:assert 'DBT_PROBE_AUDIO_OUTPUT:BOOL=ON' not in cache
 product_security=bool(re.search(r'(?:^|\s)-DDBT_PROBE_PRODUCT_SECURITY=1(?:\s|$)',main_command))
 rfcomm=bool(re.search(r'(?:^|\s)-DDBT_PROBE_RFCOMM=1(?:\s|$)',main_command))
 assert product_security==build_status['product_security'] and rfcomm==build_status['rfcomm']
@@ -58,7 +66,7 @@ assert table==original[0x8000:0x8000+len(table)]
 assert image.flash_mode==2 and image.flash_size_freq==0x3f
 assert image.min_rev_full<=301<=image.max_rev_full
 report={'passed':True,'scope':'offline image checksum/digest, ESP32 revision and admitted OTA capacity; no device access or runtime qualification',
- 'image_sha256':hashlib.sha256(blob).hexdigest(),'image_bytes':len(blob),'project':project,'chip_id':image.chip_id,'codec_diagnostic_only':diagnostic,
+ 'image_sha256':hashlib.sha256(blob).hexdigest(),'image_bytes':len(blob),'project':project,'chip_id':image.chip_id,'codec_diagnostic_only':diagnostic,'pipeline_diagnostic':pipeline,
  'revision_range':[image.min_rev_full,image.max_rev_full],'checksum_verified':True,'digest_verified':bool(image.append_digest),
  'latest_local_build_completed':True,'build_sources_match':True,'build_source_units':source_count,'product_io':bool(build_status.get('product_io')),'product_security':product_security,'rfcomm_profile':rfcomm,'controller_only_dual_mode':True,'anti_rollback_fuse_updates':False,'partition_offset':slot['offset'],'partition_bytes':slot['size'],
  'partition_remaining_bytes':slot['size']-len(blob),'compiled_table_matches_preserved_layout':True,'compiled_table_sha256':hashlib.sha256(table).hexdigest(),'flash_mode':'DIO','flash_mib':8,'flash_mhz':80,'hardware_accessed':False,'runtime_qualified':False}

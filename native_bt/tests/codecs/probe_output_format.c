@@ -23,6 +23,8 @@ void xTaskNotifyGive(TaskHandle_t t){
 }
 void vTaskNotifyGiveFromISR(TaskHandle_t t,BaseType_t *w){(void)t;(void)w;}
 unsigned ulTaskNotifyTake(int b,unsigned t){(void)b;(void)t;return 0;}
+/* Metadata plumbing only; this host mock cannot measure an ESP32 stack. */
+unsigned uxTaskGetStackHighWaterMark(TaskHandle_t t){(void)t;return 4096;}
 int xTaskCreatePinnedToCore(void (*f)(void *),const char *n,unsigned s,void *a,unsigned p,TaskHandle_t *t,int core){(void)f;(void)n;(void)s;(void)a;(void)p;(void)core;*t=(void *)3;return pdPASS;}
 QueueHandle_t xQueueCreate(unsigned n,unsigned s){(void)n;(void)s;return (void *)(uintptr_t)(++queues_created);}
 int xQueueSend(QueueHandle_t q,const void *p,unsigned t){
