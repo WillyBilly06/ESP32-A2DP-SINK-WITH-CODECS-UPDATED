@@ -83,6 +83,7 @@ def main():
     parser.add_argument('--codec-only',action='store_true',help='Finite non-radio codec diagnostic, always return to the pinned baseline')
     parser.add_argument('--pipeline-only',action='store_true',help='Finite non-radio decoder/DSP/I2S diagnostic; always return to pinned baseline')
     parser.add_argument('--finite-rf',action='store_true',help='Finite native controller/GAP/profile boot capture, then reset pending trial and verify baseline return')
+    parser.add_argument('--rf-seconds',type=int,choices=(15,60,120,180),default=15,help='Bounded finite-RF interaction window; baseline return follows')
     parser.add_argument('--baud',type=int,choices=(115200,230400,460800),default=230400,help='Verified flash transport rate; use a lower rate after a readback error')
     args=parser.parse_args()
     if args.pipeline_only:args.codec_only=True
@@ -204,12 +205,16 @@ def main():
         if not report['original_application_preserved']:raise RuntimeError('Original application verification failed')
         controller._port.baudrate=console_baud
         controller.hard_reset();rebooted=True
-        boot=bytearray();deadline=time.monotonic()+(25 if args.codec_only else 15)
+        boot=bytearray();deadline=time.monotonic()+(25 if args.codec_only else args.rf_seconds if args.finite_rf else 15)
+        boot_limit=262144 if args.finite_rf else 65536
         controller._port.timeout=0.2
-        while time.monotonic()<deadline and len(boot)<65536:
-            boot.extend(controller._port.read(min(4096,65536-len(boot))))
-            if args.codec_only and b'codec_diagnostic_return' in boot and b'Loaded app from partition at offset 0x110000' in boot and b'System ready' in boot:
-                break
+        live_path=destination.with_name(destination.name+'-live.txt')
+        with live_path.open('w',encoding='utf-8') as live:
+            while time.monotonic()<deadline and len(boot)<boot_limit:
+                chunk=controller._port.read(min(4096,boot_limit-len(boot)));boot.extend(chunk)
+                if chunk:live.write(chunk.decode('utf-8',errors='backslashreplace'));live.flush()
+                if args.codec_only and b'codec_diagnostic_return' in boot and b'Loaded app from partition at offset 0x110000' in boot and b'System ready' in boot:
+                    break
         destination.with_suffix('.bin').write_bytes(boot)
         text=boot.decode('utf-8',errors='backslashreplace')
         destination.with_suffix('.txt').write_text(text,encoding='utf-8')
