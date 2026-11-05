@@ -816,6 +816,7 @@
       "saved_bytes": 7680
     }
   ],
-  "target_test_pending": true,
-  "production_qualified": false
+  "target_test_pending": false,
+  "production_qualified": false,
+  "target_result": "LHDC_PCM_REUSE_TARGET_RESULTS_2026_11_04.json"
 }

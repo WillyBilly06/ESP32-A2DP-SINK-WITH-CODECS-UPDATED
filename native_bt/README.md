@@ -51,6 +51,17 @@ exact output/state across 27 target groups but is slower in every comparison
 and stays disabled in production. The separate pipeline still fails before
 DMA starts; maximum-rate playback is not qualified.
 
+A separate [LHDC PCM storage reuse](docs/LHDC_PCM_REUSE_2026_11_04.md) removes
+another 7680 bytes at 192 kHz by emitting into retired transform storage.
+Three sets of 80 real-codec host cases pass, including copied and immutable
+loan providers; complete PCM hashes and sample timestamps agree. Physical
+decoder validation then confirms the 7680-byte saving, all 37 configurations,
+unchanged maximum-rate hashes and zero measured isolated deadline misses.
+The separate [full RF test](docs/RF_LHDC_PCM_REUSE_RESULTS_2026_11_04.json)
+still fails maximum-rate output allocation (4096 requested, 6656 free,
+largest block 1984). LHDC48 uses DMA but still underruns and triggers core0
+watchdog warnings. Full-rate playback/headroom and feature parity remain open.
+
 The [resumable PCM worker checkpoint](docs/IDF61_ASYNC_PCM_2026_11_04.md) adds
 80 real-codec host comparisons with sanitizer coverage and 38 passing ESP32
 deferred-worker checks. The render provider, stream/sound transactions and full

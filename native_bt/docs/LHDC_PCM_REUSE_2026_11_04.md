@@ -38,7 +38,57 @@ python native_bt/tools/test_probe_codec_check.py --deferred --pcm-loans --saniti
 python native_bt/tools/test_probe_codec_check.py --deferred --pcm-loans --sanitize --lhdc-esp32-paths --lhdc-source '<LHDC checkout>'
 ```
 
-Target codec/hash/deadline validation, full-product memory admission, DSP/I2S
-continuity and Bluetooth/BLE coexistence remain separate open gates. The prior
-paired-FIR experiment was rejected for speed; this allocation change makes no
-DSP speedup claim.
+## COM6 decoder validation
+
+[The exact target result](LHDC_PCM_REUSE_TARGET_RESULTS_2026_11_04.json) passes
+all 37 codec configurations and three complete maximum-LHDC runs. Each decodes
+96 packets/92160 frames with unchanged FNV 4008775619 and 512-frame prefix
+639236599. All 252 measured packets meet the isolated 5 ms deadline, including
+validation: mean 4583–4584 us, worst 4884 us. This is not a decoder speedup.
+
+The tracked peak falls from 59832 to 52152 bytes, confirming the 7680-byte
+saving on ESP32. Minimum free internal heap after decoder allocation rises
+from 224528 to 232208 bytes in the isolated diagnostic. These are source-bound
+decoder measurements, not full-product free heap. Released 1.0.4 firmware
+returns with System ready and no fatal boot marker.
+
+The build with all codecs/product/security/RFCOMM passes source/image/layout
+and the limited IRAM callback audit (six protected symbols, five direct
+functions, four indirect calls unproven). Full-product memory admission,
+DSP/I2S continuity and Bluetooth/BLE coexistence remain separate open gates.
+The prior paired-FIR experiment was rejected for speed; this allocation change
+makes no DSP speedup claim.
+
+## Full host/Redmagic follow-up
+
+[The separate RF result](RF_LHDC_PCM_REUSE_RESULTS_2026_11_04.json) still fails
+maximum output admission. Android freshly confirms LHDC V5, 192 kHz, 24-bit
+stereo and the 1000 kbps target; Android does not report measured bitrate.
+Firmware records the matching requested rate/container, then fails a 4096-byte
+allocation with 6656 bytes free and largest block 1984. No CRC-valid 192 kHz
+running-I2S snapshot follows. This is a failed maximum-rate startup, not DAC
+playback. Current allocation telemetry does not identify how many pages had
+already succeeded, so this result cannot quantify the remaining byte deficit
+or attribute changed fragmentation solely to the saving.
+
+The preceding LHDC48 epoch uses DMA and retires all 9642 PCM loans, with zero
+active/cancelled loans, stale receipts, PCM faults/timeouts or descriptor errors.
+Its 23079 IRQ callbacks take at most 45 us. Audio nevertheless fails: 638736
+underrun frames, 1332 encoded-queue drops, 15428 us maximum render span and
+18095 us maximum loan hold. Input sequence/SSRC breaks remain zero in the last
+epoch snapshot. Retained 48 kHz counters after teardown are not 192 kHz output.
+The later reconnect also returns to 48 kHz; its counters form another epoch.
+
+Across the finite capture, 15 core0 idle-starvation watchdog warnings occur;
+core1 has none. Watchdog task samples name `native_render` eleven times and
+`native_decoder` four times. Both tasks are configured on core0 in this image;
+these samples are not utilization measurements or proof that a different
+placement meets deadlines. DSP/kernel throughput remains independently open.
+
+The capture reaches its 1 MiB byte limit before the 300-second maximum. It has
+2130 CRC/time-valid periodic records; 18 interleaved/truncated records are
+excluded and 1379 one-off/trace records are outside checksum coverage. Integrity
+audit therefore fails the whole-capture gate, while retained individual
+periodic records validate. No statistics reconstruct damaged records. The
+helper observes released baseline return with no fatal marker, and phone
+playback is verified paused. EQ controls were not exercised in this RF run.

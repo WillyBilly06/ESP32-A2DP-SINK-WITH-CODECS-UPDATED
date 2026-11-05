@@ -1,0 +1,465 @@
+{
+  "scope": "COM6 owned host plus Redmagic finite RF; separate LHDC48 streaming and failed maximum-rate admission",
+  "archive": "native_bt/_build/hardware/runs/1793848691654204100-9e6f3d343ca4",
+  "source_commit": "dcb0a684a65c99e660fe514f1dabd77b927ad5e3",
+  "image_sha256": "9e6f3d343ca4aba76d314ebf766e99e1be7e6018093403086d5f6a1d1a164961",
+  "elf_sha256": "6c3e77c33ac7259717380681fa020850f2d8d4228033e684bb38bdec8793670d",
+  "source_manifest_sha256": "f07d848a6b9c6aac3f254e268cbdbb474ee2124ac63cb59de2cd9c12fb539bbf",
+  "runtime_health": {
+    "task_watchdog_triggers": 15,
+    "idle_starvation_warnings_by_core": {
+      "0": 15,
+      "1": 0
+    },
+    "watchdog_running_task_samples_by_core": {
+      "0": {
+        "native_render": 11,
+        "native_decoder": 4
+      },
+      "1": {
+        "main": 11,
+        "btController": 1,
+        "dbt_led": 1,
+        "native_pcm_log": 1,
+        "IDLE1": 1
+      }
+    },
+    "interrupt_watchdog_timeouts": 0,
+    "backtrace_records": 15,
+    "runtime_health_passed": false
+  },
+  "original_application_preserved": true,
+  "finite_rf_return": {
+    "baseline_boot_observed": true,
+    "baseline_fatal_marker": false,
+    "prime_capture_bytes": 0
+  },
+  "capture_bytes": 1048576,
+  "capture_limit_bytes": 1048576,
+  "capture_hit_byte_limit": true,
+  "integrity_audit": {
+    "scope": "offline record integrity only; no runtime/audio qualification",
+    "passed": false,
+    "snapshot_records": 2130,
+    "crc32_verified": 2130,
+    "legacy_timestamp_only": 0,
+    "other_records_unchecked": 1379,
+    "all_snapshot_records_checksummed": false,
+    "rejected": [
+      {
+        "line": 1227,
+        "reason": "malformed/interleaved JSON"
+      },
+      {
+        "line": 1471,
+        "reason": "malformed/interleaved JSON"
+      },
+      {
+        "line": 1717,
+        "reason": "malformed/interleaved JSON"
+      },
+      {
+        "line": 1963,
+        "reason": "malformed/interleaved JSON"
+      },
+      {
+        "line": 1983,
+        "reason": "malformed/interleaved JSON"
+      },
+      {
+        "line": 2211,
+        "reason": "malformed/interleaved JSON"
+      },
+      {
+        "line": 2231,
+        "reason": "malformed/interleaved JSON"
+      },
+      {
+        "line": 2457,
+        "reason": "malformed/interleaved JSON"
+      },
+      {
+        "line": 2711,
+        "reason": "malformed/interleaved JSON"
+      },
+      {
+        "line": 2731,
+        "reason": "malformed/interleaved JSON"
+      },
+      {
+        "line": 2961,
+        "reason": "malformed/interleaved JSON"
+      },
+      {
+        "line": 2981,
+        "reason": "malformed/interleaved JSON"
+      },
+      {
+        "line": 3209,
+        "reason": "malformed/interleaved JSON"
+      },
+      {
+        "line": 3229,
+        "reason": "malformed/interleaved JSON"
+      },
+      {
+        "line": 3709,
+        "reason": "malformed/interleaved JSON"
+      },
+      {
+        "line": 3957,
+        "reason": "malformed/interleaved JSON"
+      },
+      {
+        "line": 7187,
+        "reason": "malformed/interleaved JSON"
+      },
+      {
+        "line": 7489,
+        "reason": "malformed/interleaved JSON"
+      }
+    ]
+  },
+  "invalid_records_excluded_from_statistics": true,
+  "codec_configurations": [
+    {
+      "probe": "codec_configuration",
+      "collection_cycle_us": 38079928,
+      "revision": 1,
+      "codec": 9,
+      "rate": 48000,
+      "channels": 2,
+      "pcm_container_bytes": 4,
+      "cie_size": 13,
+      "cie_hex": "00ff3a050000354c1002110000",
+      "snapshot_begin_us": 38305922,
+      "at_us": 38305975,
+      "snapshot_span_us": 53,
+      "record_crc32": "606f8d05"
+    },
+    {
+      "probe": "codec_configuration",
+      "collection_cycle_us": 215943457,
+      "revision": 2,
+      "codec": 9,
+      "rate": 48000,
+      "channels": 2,
+      "pcm_container_bytes": 4,
+      "cie_size": 13,
+      "cie_hex": "00ff3a050000354c1002110000",
+      "snapshot_begin_us": 216183090,
+      "at_us": 216183127,
+      "snapshot_span_us": 37,
+      "record_crc32": "1923ea40"
+    }
+  ],
+  "first_lhdc48_epoch": {
+    "start_collection_us": 38079928,
+    "next_configuration_collection_us": 215943457,
+    "last_running_i2s_before_maximum_failure": {
+      "probe": "native_i2s",
+      "running": 1,
+      "failed": 0,
+      "rate": 48000,
+      "requested_bytes": 31744,
+      "accepted_frames": 2237040,
+      "rendered_frames": 2236800,
+      "ready_frames": 112,
+      "dma_eofs": 22293,
+      "dma_source_frames": 2236560,
+      "underrun_frames": 617088,
+      "descriptor_errors": 0,
+      "max_eof_gap_us": 2700,
+      "maximum_render_us": 15403,
+      "first_underrun_accepted_frames": 15840,
+      "first_underrun_dma_frames": 15232,
+      "snapshot_begin_us": 97115327,
+      "at_us": 97284571,
+      "snapshot_span_us": 169244,
+      "record_crc32": "ee197cae"
+    },
+    "last_stage_snapshots_in_epoch": {
+      "native_i2s": {
+        "probe": "native_i2s",
+        "running": 0,
+        "failed": 0,
+        "rate": 48000,
+        "requested_bytes": 0,
+        "accepted_frames": 2314080,
+        "rendered_frames": 2314127,
+        "ready_frames": 0,
+        "dma_eofs": 23079,
+        "dma_source_frames": 2314127,
+        "underrun_frames": 638736,
+        "descriptor_errors": 0,
+        "max_eof_gap_us": 2700,
+        "maximum_render_us": 15428,
+        "first_underrun_accepted_frames": 15840,
+        "first_underrun_dma_frames": 15232,
+        "snapshot_begin_us": 214471760,
+        "at_us": 214611248,
+        "snapshot_span_us": 139488,
+        "record_crc32": "064711e5"
+      },
+      "i2s_pcm_loans": {
+        "probe": "i2s_pcm_loans",
+        "mode": 1,
+        "input_ring_bytes_avoided": 0,
+        "renderer_begun": 9642,
+        "renderer_retired": 9642,
+        "renderer_cancelled": 0,
+        "active": 0,
+        "max_hold_us": 18095,
+        "snapshot_begin_us": 214471760,
+        "at_us": 214472092,
+        "snapshot_span_us": 332,
+        "record_crc32": "1ac71f12"
+      },
+      "media_input": {
+        "probe": "media_input",
+        "collection_cycle_us": 214150524,
+        "stream_epoch": 3,
+        "packets": 6160,
+        "payload_bytes": 3116960,
+        "rtp_first_timestamp": 0,
+        "rtp_last_timestamp": 2956320,
+        "rate": 48000,
+        "snapshot_begin_us": 214373320,
+        "at_us": 214373350,
+        "snapshot_span_us": 30,
+        "record_crc32": "eee9628c"
+      },
+      "media_drop_reasons": {
+        "probe": "media_drop_reasons",
+        "collection_cycle_us": 214150524,
+        "queue_full": 1332,
+        "decode_reject": 0,
+        "reset_failed": 0,
+        "pcm_failed": 0,
+        "pcm_timeout": 0,
+        "pcm_busy": 0,
+        "input_sequence_breaks": 0,
+        "input_ssrc_changes": 0,
+        "queue_high_water": 8,
+        "host_trace_lost": 815,
+        "worker_trace_lost": 751,
+        "snapshot_records_lost": 0,
+        "snapshot_begin_us": 214211863,
+        "at_us": 214211881,
+        "snapshot_span_us": 18,
+        "record_crc32": "3d515639"
+      },
+      "worker_timing": {
+        "probe": "worker_timing",
+        "collection_cycle_us": 214150524,
+        "steps": 14493,
+        "elapsed_us": 61413255,
+        "max_step_us": 25062,
+        "wall_time_includes_preemption": true,
+        "step_budget": 2,
+        "histogram_us_le": [
+          125,
+          250,
+          500,
+          1000,
+          2000,
+          4000,
+          8000
+        ],
+        "histogram_counts": [
+          21,
+          4,
+          3,
+          7,
+          4812,
+          4,
+          9628,
+          14
+        ],
+        "snapshot_begin_us": 214246498,
+        "at_us": 214246521,
+        "snapshot_span_us": 23,
+        "record_crc32": "d4e26f13"
+      },
+      "decoder_execution": {
+        "probe": "decoder_execution",
+        "collection_cycle_us": 214150524,
+        "calls": 14462,
+        "elapsed_us": 10839620,
+        "maximum_us": 16239,
+        "wall_time_includes_preemption": true,
+        "includes_inline_pcm": false,
+        "histogram_us_le": [
+          125,
+          250,
+          500,
+          1000,
+          2000,
+          4000,
+          8000
+        ],
+        "histogram_counts": [
+          4820,
+          0,
+          15,
+          123,
+          9503,
+          0,
+          0,
+          1
+        ],
+        "snapshot_begin_us": 214277835,
+        "at_us": 214277848,
+        "snapshot_span_us": 13,
+        "record_crc32": "1501013c"
+      },
+      "decoder_reset": {
+        "probe": "decoder_reset",
+        "collection_cycle_us": 214150524,
+        "calls": 1265,
+        "elapsed_us": 6660,
+        "maximum_us": 76,
+        "wall_time_includes_preemption": true,
+        "includes_inline_pcm": false,
+        "histogram_us_le": [
+          125,
+          250,
+          500,
+          1000,
+          2000,
+          4000,
+          8000
+        ],
+        "histogram_counts": [
+          1265,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "snapshot_begin_us": 214310560,
+        "at_us": 214310563,
+        "snapshot_span_us": 3,
+        "record_crc32": "9e455128"
+      },
+      "pcm_delivery": {
+        "probe": "pcm_delivery",
+        "collection_cycle_us": 214150524,
+        "calls": 9642,
+        "elapsed_us": 49818503,
+        "maximum_us": 18276,
+        "wall_time_includes_preemption": true,
+        "includes_inline_pcm": false,
+        "histogram_us_le": [
+          125,
+          250,
+          500,
+          1000,
+          2000,
+          4000,
+          8000
+        ],
+        "histogram_counts": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          9630,
+          11
+        ],
+        "snapshot_begin_us": 214341636,
+        "at_us": 214341639,
+        "snapshot_span_us": 3,
+        "record_crc32": "a9e14a13"
+      },
+      "i2s_callback_work": {
+        "probe": "i2s_callback_work",
+        "configured_irq_priority": 2,
+        "calls": 23079,
+        "elapsed_us": 260634,
+        "maximum_us": 45,
+        "core": 0,
+        "application_callback_only": true,
+        "elapsed_includes_preemption": true,
+        "snapshot_begin_us": 214471760,
+        "at_us": 214521845,
+        "snapshot_span_us": 50085,
+        "record_crc32": "1bb041ce"
+      },
+      "render_work": {
+        "probe": "render_work",
+        "collection_cycle_us": 214150524,
+        "calls": 19286,
+        "elapsed_us": 47613301,
+        "maximum_us": 15428,
+        "wall_time_includes_preemption": true,
+        "input_ready_frames": 0,
+        "render_stack_low_water_bytes": 4012,
+        "allocation_failed_bytes": 4096,
+        "allocation_failure_free": 6656,
+        "allocation_failure_largest": 1984,
+        "request_fault": 0,
+        "stale_receipts": 0,
+        "snapshot_begin_us": 214471760,
+        "at_us": 214546585,
+        "snapshot_span_us": 74825,
+        "record_crc32": "5c1fde18"
+      },
+      "audio_clock": {
+        "probe": "audio_clock",
+        "ppm": 0,
+        "observed_ppm": 0,
+        "error_frames": 0,
+        "state": 0,
+        "target_frames": 0,
+        "updates": 0,
+        "disturbances": 0,
+        "observed_valid": 0,
+        "snapshot_valid": 1,
+        "snapshot_begin_us": 214471760,
+        "at_us": 214651318,
+        "snapshot_span_us": 179558,
+        "record_crc32": "5c87a08b"
+      }
+    },
+    "retained_counts_are_not_maximum_lhdc_playback": true,
+    "continuity_passed": false
+  },
+  "maximum_lhdc_attempt": {
+    "phone_current_connection": {
+      "codec": "LHDC V5",
+      "rate": 192000,
+      "depth": 24,
+      "channels": 2,
+      "nominal_target_kbps": 1000,
+      "actual_bitrate_reported_by_android": false,
+      "fresh_android_query_confirmed": true,
+      "ui_archive": "phone-apply1.xml"
+    },
+    "allocation_failure": {
+      "probe": "i2s_allocation_failure",
+      "failed_bytes": 4096,
+      "free_bytes_at_failure": 6656,
+      "largest_block_at_failure": 1984,
+      "requested_rate": 192000,
+      "requested_channels": 2,
+      "requested_sample_bytes": 4,
+      "failure_at_us": 99586572,
+      "snapshot_begin_us": 101491666,
+      "at_us": 101517589,
+      "snapshot_span_us": 25923,
+      "record_crc32": "573ec185"
+    },
+    "firmware_active_192k_codec_snapshot_seen": false,
+    "i2s_192k_running_seen": false,
+    "playback_passed": false,
+    "eq_control_tested_this_run": false
+  },
+  "phone_pause_verified_after_capture": true,
+  "production_qualified": false
+}

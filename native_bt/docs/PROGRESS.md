@@ -4,6 +4,19 @@ Updated 2026-11-04 for ESP-IDF 6.1. The goal is **active and incomplete**.
 The user has released COM6 for flashing/testing; other boards remain excluded.
 Released main/recovery artifacts remain preserved. Latest measured evidence:
 
+- [LHDC PCM buffer reuse](LHDC_PCM_REUSE_2026_11_04.md): emitting into retired
+  single-slot transform storage removes a further 7680 bytes at 192 kHz.
+  Three sets of 80 real-codec host cases pass with matching full PCM hashes,
+  sample timestamps, ownership checks and sanitizers. The all-codec/product
+  build passes source/image/layout and limited IRAM admission. COM6 then
+  confirms tracked decoder peak 52152 bytes, all 37 configurations and
+  unchanged hashes across three complete maximum-rate runs; all 252 measured
+  isolated deadlines pass. The subsequent
+  [full RF test](RF_LHDC_PCM_REUSE_RESULTS_2026_11_04.json) still fails a
+  4096-byte maximum-rate output allocation (6656 free, largest block 1984).
+  Its preceding LHDC48 DMA epoch retires 9642 loans without descriptor/PCM
+  faults but has underruns and queue drops. Fifteen core0 watchdog warnings
+  occur across the capture; the released baseline returns and phone is paused.
 - [Unused LHDC overlap allocation](LHDC_UNUSED_OVERLAP_2026_11_04.md): all 37
   COM6 codec configurations and three maximum-rate decoder runs pass, with
   unchanged target PCM hashes. Removing the unused ESP32 snapshot saves 3840
