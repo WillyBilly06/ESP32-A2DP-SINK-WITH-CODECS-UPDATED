@@ -33,6 +33,7 @@ def main():
     final = rows[-1]
     assert final["frames"] == result["sent_frames"] == result["requested_frames"]
     assert final["bytes"] == result["expected_pcm_bytes"]
+    assert final.get("fnv1a32_enabled", True), "PCM hash disabled; rebuild the diagnostic with -PcmHash"
     assert final["fnv1a32"] == result["expected_pcm_fnv1a32"]
     assert final["media_packets"] == result["sent_media_packets"] and final["resident"] == 0
     assert result["att_writes"] >= 100 and result["att_readbacks"] >= 10 and result["notifications"] >= 100

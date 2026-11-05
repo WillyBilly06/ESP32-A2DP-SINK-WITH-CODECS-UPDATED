@@ -103,7 +103,11 @@ class Monitor:
             try:
                 item=json.loads(text);name=item.get('probe','event')
                 if name=='controller_identified':self.stats['firmware']='independent probe'
-                if name=='sbc_pcm':self.audio.set(f"Decoder: SBC  |  {item.get('rate',0)/1000:g} kHz  |  frames {item.get('frames',0)}  |  drops {item.get('drops',0)}");return
+                if name=='sbc_pcm':
+                    codecs=('none','SBC','Android Opus','Opus05','AAC-LC','aptX','aptX HD','aptX LL','LDAC','LHDC V5')
+                    codec_id=item.get('codec')
+                    codec=item.get('codec_name') or (codecs[codec_id] if isinstance(codec_id,int) and 0<=codec_id<len(codecs) else 'unknown')
+                    self.audio.set(f"Decoder: {codec}  |  {item.get('rate',0)/1000:g} kHz  |  PCM views {item.get('frames',0)}  |  drops {item.get('drops',0)}");return
                 if name=='native_i2s':self.counters.set(f"I2S running: {item.get('running',0)}  |  underrun frames: {item.get('underrun_frames',0)}  |  descriptor errors: {item.get('descriptor_errors',0)}");return
                 text=name+': '+', '.join(f'{k}={v}' for k,v in item.items() if k!='probe')
             except (ValueError,TypeError):pass

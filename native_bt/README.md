@@ -10,7 +10,7 @@ the viewer remains open and follows the test capture while the port is free.
 
 The owned Classic+BLE host is selected on the local COM6 board in ota1 at
 0x390000, marked VALID, with automatic Bluedroid restoration disabled. The
-verified image is `4c4043e3e17446aaabd7f34ef7d6a18237b568d1ecf3412447f95e1bb6bc7ebc`.
+verified image is `42c1722ecad48a9db94b8763fff74865441cf30647a2edbc16b767ff3696d6c5`.
 This remains development firmware with incomplete feature/runtime qualification.
 
 Recent source corrections cover [codec payload boundaries and shared PCM
@@ -23,6 +23,12 @@ identity admission](docs/CLASSIC_PAGING_REVIEW_2026_11_05.md).
 retains decision/callback/final-event lifetimes and logs each stage separately,
 using 88 additional static bytes and the unchanged log queue. The encoded
 decoder queue remains 1800 bytes × 8 slots; every codec retains its own framing.
+
+[PCM diagnostics](docs/PCM_DIAGNOSTIC_COST_2026_11_05.md) now omit full-byte
+PCM hashing from normal stay-native playback. Use `-PcmHash` for explicit
+fingerprint collection; finite legacy diagnostics retain it by default. The
+legacy UART viewer also uses the actual codec name instead of labeling every
+shared PCM record as SBC. Runtime performance improvement remains unmeasured.
 
 The new [Classic HCI paging procedure](docs/CLASSIC_PAGE_PROCEDURE_2026_11_05.md)
 compiles for ESP32 and portable C11. It has a 48-byte caller context, no heap or

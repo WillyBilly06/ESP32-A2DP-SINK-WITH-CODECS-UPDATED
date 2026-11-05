@@ -52,6 +52,13 @@
 #else
 #define AUDIO_OUTPUT_JSON "false"
 #endif
+#if defined(DBT_PROBE_PCM_HASH) || !defined(DBT_PROBE_STAY_NATIVE)
+#define AUDIO_PCM_HASH_ENABLED 1
+#define AUDIO_PCM_HASH_JSON "true"
+#else
+#define AUDIO_PCM_HASH_ENABLED 0
+#define AUDIO_PCM_HASH_JSON "false"
+#endif
 #ifdef DBT_PROBE_RF_PROTOCOL_DIAGNOSTIC
 #define AUDIO_RF_DIAG_JSON "true"
 #else
@@ -365,11 +372,13 @@ static dbt_result_t pcm(void *context,const void *samples,uint16_t count,const d
     }
 #endif
     atomic_fetch_add_explicit(&pcm_generation,1,memory_order_acq_rel);
+#if AUDIO_PCM_HASH_ENABLED
     uint32_t hash=atomic_load_explicit(&pcm_hash,memory_order_relaxed);const uint8_t *p=samples;
     for(unsigned i=0;i<bytes;++i)hash=(hash^p[i])*16777619u;
+    atomic_store_explicit(&pcm_hash,hash,memory_order_relaxed);
+#endif
     atomic_fetch_add_explicit(&pcm_frames,1,memory_order_relaxed);
     atomic_fetch_add_explicit(&pcm_bytes,bytes,memory_order_relaxed);
-    atomic_store_explicit(&pcm_hash,hash,memory_order_relaxed);
     atomic_store_explicit(&pcm_rate,rate,memory_order_relaxed);
     atomic_store_explicit(&pcm_channels,channels,memory_order_relaxed);
     atomic_store_explicit(&pcm_sample_bytes,config->sample_bytes,memory_order_relaxed);
@@ -412,7 +421,7 @@ static dbt_result_t publish_stream(bool started,const dbt_codec_config_t *config
         atomic_fetch_add_explicit(&pcm_generation,1,memory_order_acq_rel);
         atomic_store_explicit(&pcm_frames,0,memory_order_relaxed);
         atomic_store_explicit(&pcm_bytes,0,memory_order_relaxed);
-        atomic_store_explicit(&pcm_hash,2166136261u,memory_order_relaxed);
+        atomic_store_explicit(&pcm_hash,AUDIO_PCM_HASH_ENABLED?2166136261u:0u,memory_order_relaxed);
         atomic_store_explicit(&pcm_codec,codec,memory_order_relaxed);
         atomic_store_explicit(&pcm_rate,config->rate,memory_order_relaxed);
         atomic_store_explicit(&pcm_channels,config->channels,memory_order_relaxed);
@@ -619,6 +628,7 @@ static void log_loop(void *unused){
                at,atomic_load(&worker.input_stream_epoch),atomic_load(&worker.input_packets),atomic_load(&worker.input_payload_bytes),
                atomic_load(&worker.input_first_timestamp),atomic_load(&worker.input_last_timestamp),rate);
         snapshot_log(pcm_snapshot_began,"{\"probe\":\"sbc_pcm\",\"frames\":%" PRIu32 ",\"bytes\":%" PRIu32 ",\"fnv1a32\":%" PRIu32
+               ",\"fnv1a32_enabled\":" AUDIO_PCM_HASH_JSON ",\"frames_unit\":\"pcm_views\""
                ",\"rate\":%" PRIu32 ",\"channels\":%" PRIu32 ",\"media_packets\":%" PRIu32 ",\"drops\":%" PRIu32
                ",\"resets\":%" PRIu32 ",\"resident\":%" PRIu32 ",\"codec\":%" PRIu32 ",\"codec_name\":\"%s\",\"diagnostic_scope\":\"all_codecs\",\"sample_bytes\":%" PRIu32
                ",\"faults\":%" PRIu32 ",\"decoder_stack_low_water_bytes\":%u,\"internal_heap_free\":%u,\"internal_heap_min_free\":%u,\"internal_heap_largest\":%u,\"i2s_output\":" AUDIO_OUTPUT_JSON "}\n",frames,bytes,hash,rate,channels,

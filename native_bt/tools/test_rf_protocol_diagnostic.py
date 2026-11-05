@@ -7,6 +7,8 @@ def function(name):
  return m.group(0)
 start=text.index('#if defined(DBT_PROBE_RF_PROTOCOL_DIAGNOSTIC) &&')
 guard=text[start:text.index('#endif',start)+len('#endif')]
+start=text.index('#if defined(DBT_PROBE_PCM_HASH) ||')
+hash_mode=text[start:text.index('#endif',start)+len('#endif')]
 main=OUT/'main.c'
 main.write_text('''#include <assert.h>
 #include <stdbool.h>
@@ -16,7 +18,7 @@ main.write_text('''#include <assert.h>
 #define DBT_PROBE_AUDIO_OUTPUT 1
 #define DBT_PROBE_PRODUCT_IO 1
 #define DBT_PROBE_PRODUCT_SECURITY 1
-'''+guard+'''
+'''+guard+'\n'+hash_mode+'''
 typedef int dbt_result_t;
 enum {DBT_OK,DBT_BUSY,DBT_INVALID};
 typedef int dbt_pcm_format_t;
