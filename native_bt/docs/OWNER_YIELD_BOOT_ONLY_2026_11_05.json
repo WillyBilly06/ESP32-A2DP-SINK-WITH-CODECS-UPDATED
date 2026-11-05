@@ -1,0 +1,54 @@
+{
+  "scope": "Boot-only owner-ready-yield run; phone playback was not started in time",
+  "archive": "native_bt/_build/hardware/runs/1793870928178561000-3a3f9fb2ccc4",
+  "source_commit": "642869e86736b6e13bb95b0a816316d433cc6f52",
+  "last_i2s": {
+    "probe": "native_i2s",
+    "running": 0,
+    "failed": 0,
+    "rate": 0,
+    "requested_bytes": 0,
+    "accepted_frames": 0,
+    "rendered_frames": 0,
+    "ready_frames": 0,
+    "dma_eofs": 0,
+    "dma_source_frames": 0,
+    "underrun_frames": 0,
+    "descriptor_errors": 0,
+    "max_eof_gap_us": 0,
+    "maximum_render_us": 0,
+    "first_underrun_accepted_frames": 0,
+    "first_underrun_dma_frames": 0,
+    "pcm_target_ms": 16,
+    "block_dsp": 1,
+    "pcm_input_mode": 2,
+    "input_capacity_frames": 0,
+    "input_ring_bytes": 0,
+    "snapshot_begin_us": 178395952,
+    "at_us": 178523700,
+    "snapshot_span_us": 127748,
+    "record_crc32": "4f8eafb4"
+  },
+  "audio_workload_exercised": false,
+  "continuous_audio_passed": false,
+  "baseline_return": {
+    "baseline_boot_observed": true,
+    "baseline_fatal_marker": false,
+    "prime_capture_bytes": 0
+  },
+  "runtime_health": {
+    "task_watchdog_triggers": 0,
+    "idle_starvation_warnings_by_core": {
+      "0": 0,
+      "1": 0
+    },
+    "watchdog_running_task_samples_by_core": {
+      "0": {},
+      "1": {}
+    },
+    "interrupt_watchdog_timeouts": 0,
+    "backtrace_records": 0,
+    "runtime_health_passed": true
+  },
+  "next_action": "Automate readiness-to-phone configuration/playback sequence, then rerun same intended workload"
+}
