@@ -1,5 +1,19 @@
 #include <inttypes.h>
 #include <stdio.h>
+#ifdef DBT_PROBE_SCHEDULER_TRACE
+#include <stdarg.h>
+#include "probe_scheduler.h"
+#define HOST_CALL(phase,expression) do{unsigned probe_previous_phase=probe_scheduler_host_phase(phase);expression;probe_scheduler_host_phase(probe_previous_phase);}while(0)
+static int __attribute__((format(printf,1,2))) host_printf(const char *format,...){
+    unsigned previous=probe_scheduler_host_phase(PROBE_HOST_LOG);
+    va_list args;va_start(args,format);int result=vprintf(format,args);va_end(args);
+    probe_scheduler_host_phase(previous);return result;
+}
+#define HOST_PRINTF host_printf
+#else
+#define HOST_CALL(phase,expression) do{expression;}while(0)
+#define HOST_PRINTF printf
+#endif
 #include "probe_wait.h"
 #include "dbt_gap.h"
 #ifdef DBT_PROBE_AUDIO_TEST
@@ -183,7 +197,7 @@ static bool product_boot_io(void){
     atomic_store_explicit(&startup_sound_release,true,memory_order_release);
     deadline=esp_timer_get_time()+5000000;
     if(!probe_wait_flag(&startup_sound_done,deadline))return false;
-    printf("{\"probe\":\"startup_sound\",\"attached\":%s,\"retired\":true,\"cancelled\":%s}\n",good?"true":"false",cancelled?"true":"false");
+    HOST_PRINTF("{\"probe\":\"startup_sound\",\"attached\":%s,\"retired\":true,\"cancelled\":%s}\n",good?"true":"false",cancelled?"true":"false");
     probe_output_stats_t output;probe_output_stats(&output);
     return !output.failed && !output.request_fault;
 }
@@ -271,7 +285,7 @@ static void load_product_io(void *unused){
     product_io_sound=product_io_ready && mounted;
     probe_product_io_capabilities_t caps;
     if(probe_product_io_capabilities(&caps))
-        printf("{\"probe\":\"product_io_capabilities\",\"ready\":%s,\"led\":%s,\"sound\":%s,\"input_available\":%s,\"input_no_ack\":%s,\"input_probe_status\":%u}\n",
+        HOST_PRINTF("{\"probe\":\"product_io_capabilities\",\"ready\":%s,\"led\":%s,\"sound\":%s,\"input_available\":%s,\"input_no_ack\":%s,\"input_probe_status\":%u}\n",
             caps.ready?"true":"false",caps.led?"true":"false",caps.sound?"true":"false",
             caps.input==PROBE_PRODUCT_INPUT_AVAILABLE?"true":"false",
             caps.input==PROBE_PRODUCT_INPUT_NO_ACK?"true":"false",(unsigned)caps.input);
@@ -370,17 +384,17 @@ static int receive_packet(uint8_t *data, uint16_t size) {
 
 static bool transport_ready(void *context) {
     (void)context;
-    return esp_vhci_host_check_send_available();
+    bool available;HOST_CALL(PROBE_HOST_QUERY,available=esp_vhci_host_check_send_available());return available;
 }
 
 static bool transport_send(void *context, uint8_t *data, uint16_t size) {
     (void)context;
-    if (!esp_vhci_host_check_send_available()) return false;
+    if (!transport_ready(context)) return false;
 #ifdef DBT_PROBE_CLASSIC_SECURITY_TEST
     probe_echo_transmit(data,size);
 #endif
     /* Host task only, outside critical sections and scheduler suspension. */
-    esp_vhci_host_send_packet(data, size);
+    HOST_CALL(PROBE_HOST_SUBMIT,esp_vhci_host_send_packet(data,size));
     return true;
 }
 
@@ -540,7 +554,7 @@ static void confirm_owned_boot(void *unused){
         if(result==ESP_OK)result=esp_ota_get_state_partition(running,&state);
     }
     bool kept=result==ESP_OK && state==ESP_OTA_IMG_VALID;
-    printf("{\"probe\":\"boot_selection\",\"host\":\"owned\",\"kept_active\":%s,\"partition\":%u,\"ota_state\":%u,\"result\":%u,\"production_ready\":false}\n",
+    HOST_PRINTF("{\"probe\":\"boot_selection\",\"host\":\"owned\",\"kept_active\":%s,\"partition\":%u,\"ota_state\":%u,\"result\":%u,\"production_ready\":false}\n",
            kept?"true":"false",running?(unsigned)running->address:0,(unsigned)state,(unsigned)result);
     vTaskDelete(0);
 }
@@ -651,13 +665,13 @@ void app_main(void) {
     for (;;) {
         uint32_t now = now_ms();
 #ifdef DBT_PROBE_SMP
-        if(smp_initialized)probe_smp_security_request_preflight(now);
+        if(smp_initialized)HOST_CALL(PROBE_HOST_SECURITY,probe_smp_security_request_preflight(now));
 #endif
 #ifdef DBT_PROBE_AUDIO_TEST
         uint32_t poll_began_us=(uint32_t)esp_timer_get_time();
         probe_audio_transport_poll_begin(poll_began_us);
 #endif
-        dbt_runtime_poll(&runtime, now, 8, 8);
+        HOST_CALL(PROBE_HOST_RUNTIME,dbt_runtime_poll(&runtime,now,8,8));
 #ifdef DBT_PROBE_AUDIO_TEST
         probe_audio_transport_poll_end(poll_began_us);
 #endif
@@ -668,7 +682,7 @@ void app_main(void) {
             uint16_t packets=(DBT_QUEUE_BYTES-DBT_CONTROL_RESERVE_BYTES)/(DBT_MAX_H4_BYTES+2u);
             dbt_result_t result=dbt_runtime_enable_rx_flow(&runtime,bytes,packets);
             if(result!=DBT_OK) {
-                printf("{\"probe\":\"rx_flow_failed\",\"result\":%u,\"supported_octet10\":%u}\n",
+                HOST_PRINTF("{\"probe\":\"rx_flow_failed\",\"result\":%u,\"supported_octet10\":%u}\n",
                        result,runtime.host.controller.supported_commands[10]);
                 dbt_runtime_abort(&runtime,DBT_FAULT_COMMAND_REJECTED);
             }
@@ -680,7 +694,7 @@ void app_main(void) {
 #endif
         if(runtime.ready && receive_flow_ready && !receive_flow_reported) {
             receive_flow_reported=true;
-            printf("{\"probe\":\"rx_flow_ready\",\"enabled\":%s,\"packet_bytes\":%u,\"packets\":%u,\"metadata_bytes\":%u,\"sco_buffer_bytes\":255,\"sco_buffers\":1,\"voice_ready\":false}\n",
+            HOST_PRINTF("{\"probe\":\"rx_flow_ready\",\"enabled\":%s,\"packet_bytes\":%u,\"packets\":%u,\"metadata_bytes\":%u,\"sco_buffer_bytes\":255,\"sco_buffers\":1,\"voice_ready\":false}\n",
                    runtime.rx_flow.state==DBT_RX_FLOW_ACTIVE?"true":"false",runtime.rx_flow.packet_bytes,
                    runtime.rx_flow.packet_count,(unsigned)sizeof(runtime.rx_flow));
         }
@@ -703,21 +717,21 @@ void app_main(void) {
                 dbt_runtime_abort(&runtime,DBT_FAULT_BAD_RESPONSE);
             else {
                 echo_initialized=true;
-                printf("{\"probe\":\"sdp_ready\",\"records\":%u,\"metadata_bytes\":%u,\"audio_sink_advertised\":%s,\"audio_ready\":false}\n",
+                HOST_PRINTF("{\"probe\":\"sdp_ready\",\"records\":%u,\"metadata_bytes\":%u,\"audio_sink_advertised\":%s,\"audio_ready\":false}\n",
                        probe_sdp_records(),probe_sdp_bytes(),probe_sdp_audio_sink()?"true":"false");
 #ifdef DBT_PROBE_INGRESS_TRACE
-                printf("{\"probe\":\"ingress_trace\",\"diagnostic_bytes\":%u,\"production_measurement\":false}\n",probe_ingress_bytes());
+                HOST_PRINTF("{\"probe\":\"ingress_trace\",\"diagnostic_bytes\":%u,\"production_measurement\":false}\n",probe_ingress_bytes());
 #endif
             }
         }
-        probe_security_poll(now);
+        HOST_CALL(PROBE_HOST_SECURITY,probe_security_poll(now));
         if(echo_initialized) {
-            probe_echo_poll();
+            HOST_CALL(PROBE_HOST_OTHER,probe_echo_poll());
 #ifdef DBT_PROBE_AVRCP
-            probe_avrcp_poll(now);
+            HOST_CALL(PROBE_HOST_AVRCP,probe_avrcp_poll(now));
 #endif
 #ifdef DBT_PROBE_AUDIO_TEST
-            probe_audio_poll(now);
+            HOST_CALL(PROBE_HOST_AUDIO,probe_audio_poll(now));
 #endif
             if(probe_sdp_poll()!=DBT_OK)dbt_runtime_abort(&runtime,DBT_FAULT_BAD_RESPONSE);
         }
@@ -739,7 +753,7 @@ void app_main(void) {
         }
         if(smp_initialized){
             if(disconnect_overflow)dbt_runtime_abort(&runtime,DBT_FAULT_BAD_RESPONSE);
-            probe_smp_poll(now);
+            HOST_CALL(PROBE_HOST_SECURITY,probe_smp_poll(now));
 #ifdef DBT_PROBE_RF_PROTOCOL_DIAGNOSTIC
             for(unsigned i=0;i<DBT_MAX_LINKS;++i){
                 const dbt_link_t *l=&runtime.acl.links[i];dbt_smp_session_security_t state;
@@ -818,9 +832,10 @@ void app_main(void) {
             } else gatt_initialized = true;
         }
         if (gatt_initialized){
-            probe_gatt_poll(now);probe_gatt_retry_eq_publication();probe_gatt_retry_control_publication();
+            HOST_CALL(PROBE_HOST_GATT,probe_gatt_poll(now));
+            HOST_CALL(PROBE_HOST_GATT,probe_gatt_retry_eq_publication());HOST_CALL(PROBE_HOST_GATT,probe_gatt_retry_control_publication());
 #ifdef DBT_PROBE_PRODUCT_IO
-            if(product_io_ready){product_io_owner.gap=&gap;product_io_owner.sound_enabled=product_io_sound;probe_product_io_owner_poll(&product_io_owner,now);}
+            if(product_io_ready){product_io_owner.gap=&gap;product_io_owner.sound_enabled=product_io_sound;HOST_CALL(PROBE_HOST_IO,probe_product_io_owner_poll(&product_io_owner,now));}
 #endif
 #ifdef DBT_PROBE_AUDIO_OUTPUT
             static bool analysis;static uint32_t meter_at;
@@ -841,12 +856,12 @@ void app_main(void) {
         }
 #endif
 #ifdef DBT_PROBE_RFCOMM
-        if(echo_initialized)probe_rfcomm_poll(now);
+        if(echo_initialized)HOST_CALL(PROBE_HOST_OTHER,probe_rfcomm_poll(now));
 #endif
         if (runtime.ready && receive_flow_ready && gap.state == DBT_GAP_IDLE) (void)dbt_gap_start(&gap);
         dbt_gap_poll(&gap, now);
 #ifdef DBT_PROBE_PRODUCT_RUNTIME
-        if(product_runtime_ready && gatt_initialized && smp_initialized)probe_product_runtime_poll(&product_runtime);
+        if(product_runtime_ready && gatt_initialized && smp_initialized)HOST_CALL(PROBE_HOST_PRODUCT,probe_product_runtime_poll(&product_runtime));
 #ifdef DBT_PROBE_PRODUCT_SECURITY
         if(gatt_initialized)product_restart_step(now);
 #endif
@@ -873,7 +888,7 @@ void app_main(void) {
 #else
             bool pairing_open=true;unsigned pairing_origin=3; /* explicitly selected test peer */
 #endif
-            printf("{\"probe\":\"classic_security_probe_ready\",\"configured\":true,"
+            HOST_PRINTF("{\"probe\":\"classic_security_probe_ready\",\"configured\":true,"
                    "\"metadata_bytes\":%u,\"loaded_bonds\":%u,\"worker_stack_bytes\":3072,"
                    "\"logger_stack_bytes\":2048,\"classic_scan\":%u,\"pairing_open\":%s,\"pairing_origin\":%u,\"audio_ready\":false}\n",
                    probe_security_bytes(),probe_security_loaded_bonds(),gap.classic_scan,pairing_open?"true":"false",pairing_origin);
@@ -885,7 +900,7 @@ void app_main(void) {
             (void)dbt_gap_set_advertising(&gap, true);
         if ((gap.advertising || probe_gatt_connected()) && !gatt_reported) {
             gatt_reported = true;
-            printf("{\"probe\":\"gatt_probe_ready\",\"att_mtu\":517,\"gatt_bytes\":%u,"
+            HOST_PRINTF("{\"probe\":\"gatt_probe_ready\",\"att_mtu\":517,\"gatt_bytes\":%u,"
                    "\"diagnostic_only\":true,\"bonding_ready\":false,\"audio_ready\":false}\n",
                    probe_gatt_bytes());
         }
@@ -902,13 +917,13 @@ void app_main(void) {
         if(qualified && !owned_boot_started){
             owned_boot_started=true;
             if(xTaskCreatePinnedToCore(confirm_owned_boot,"owned_boot",4096,0,1,0,0)!=pdPASS)
-                printf("{\"probe\":\"boot_selection\",\"kept_active\":false,\"result\":\"task_oom\"}\n");
+                HOST_PRINTF("{\"probe\":\"boot_selection\",\"kept_active\":false,\"result\":\"task_oom\"}\n");
         }
 #endif
         if (host->state != previous) {
             previous = host->state;
             if (host->state == DBT_HOST_IDENTIFIED) {
-                printf("{\"probe\":\"controller_identified\",\"profiles_ready\":false,"
+                HOST_PRINTF("{\"probe\":\"controller_identified\",\"profiles_ready\":false,"
                        "\"hci_version\":%u,\"manufacturer\":%u,\"host_bytes\":%u,\"runtime_bytes\":%u,"
                        "\"classic_acl_bytes\":%u,\"classic_acl_packets\":%u,"
                        "\"le_acl_bytes\":%u,\"le_acl_packets\":%u,\"shared_acl_pool\":%s,"
@@ -922,12 +937,12 @@ void app_main(void) {
                        host->controller.address_le[5],host->controller.address_le[4],host->controller.address_le[3],
                        host->controller.address_le[2],host->controller.address_le[1],host->controller.address_le[0]);
             } else if (host->state == DBT_HOST_FAILED) {
-                printf("{\"probe\":\"failed\",\"fault\":%u,\"controller_status\":%u,"
+                HOST_PRINTF("{\"probe\":\"failed\",\"fault\":%u,\"controller_status\":%u,"
                        "\"pending_opcode\":%u,\"rx_rejected\":%" PRIu32 ",\"rx_flow_failed_opcode\":%u}\n",
                        (unsigned)host->fault, host->controller_status, host->pending_opcode,
                        atomic_load_explicit(&host->ingress.rejected, memory_order_relaxed),runtime.rx_flow.failed_opcode);
                 const dbt_runtime_failure_t *f=&runtime.failure;
-                printf("{\"probe\":\"parser_failure\",\"at_ms\":%" PRIu32 ",\"origin\":%u,\"result\":%u,"
+                HOST_PRINTF("{\"probe\":\"parser_failure\",\"at_ms\":%" PRIu32 ",\"origin\":%u,\"result\":%u,"
                        "\"handle\":%u,\"generation\":%" PRIu32 ",\"link_present\":%u,\"cid\":%u,\"bytes\":%u,\"declared\":%u,"
                        "\"type\":%u,\"event\":%u,\"pb\":%u,\"bc\":%u,\"code\":%u,\"identifier\":%u,"
                        "\"host_stage\":%u,\"host_packet_bytes\":%u,\"host_type\":%u,\"host_event\":%u}\n",
@@ -938,10 +953,13 @@ void app_main(void) {
         }
         if (gap.state != previous_gap) {
             previous_gap = gap.state;
-            printf("{\"probe\":\"gap_state\",\"state\":%u,\"controller_status\":%u,"
+            HOST_PRINTF("{\"probe\":\"gap_state\",\"state\":%u,\"controller_status\":%u,"
                    "\"profiles_ready\":false,\"advertising\":%s,\"classic_scan\":%u}\n",
                    (unsigned)gap.state, gap.last_status, gap.advertising ? "true" : "false", gap.classic_scan);
         }
+#ifdef DBT_PROBE_SCHEDULER_TRACE
+        unsigned previous_phase=probe_scheduler_host_phase(PROBE_HOST_WAIT);
+#endif
         uint32_t wait = dbt_runtime_wait_ms(&runtime, now_ms());
 #ifdef DBT_PROBE_AUDIO_TEST
         uint32_t wait_zeros=wait==0?1u:0;
@@ -994,6 +1012,9 @@ void app_main(void) {
 #endif
 #ifdef DBT_PROBE_AUDIO_TEST
         probe_audio_owner_wait(wait_zeros);
+#endif
+#ifdef DBT_PROBE_SCHEDULER_TRACE
+        probe_scheduler_host_phase(previous_phase);
 #endif
         if (wait == 0) continue;
         TickType_t ticks = portMAX_DELAY;

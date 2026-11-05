@@ -504,6 +504,13 @@ static void log_loop(void *unused){
                 ",\"max_callback_body_cycles\":%" PRIu32 "}\n",core,(unsigned)configTICK_RATE_HZ,sample.coherent?"true":"false",sample.known_task_mask,
                 sample.counts[0],sample.counts[1],sample.counts[2],sample.counts[3],sample.counts[4],sample.counts[5],sample.counts[6],
                 sample.at_us,sample.max_gap_us,sample.max_gap_begin_us,sample.max_gap_end_us,sample.max_gap_previous_role,sample.max_gap_current_role,sample.max_callback_cycles);
+            snapshot_log(began,"{\"probe\":\"host_phase_samples\",\"core\":%u,\"coherent\":%s,\"last_tick_us\":%" PRIu32
+                ",\"other\":%" PRIu32 ",\"controller_query\":%" PRIu32 ",\"controller_submit\":%" PRIu32 ",\"runtime_poll\":%" PRIu32
+                ",\"wait_calculation\":%" PRIu32 ",\"gatt_poll\":%" PRIu32 ",\"security_poll\":%" PRIu32 ",\"product_poll\":%" PRIu32
+                ",\"io_poll\":%" PRIu32 ",\"audio_poll\":%" PRIu32 ",\"avrcp_poll\":%" PRIu32 ",\"console_log\":%" PRIu32 "}\n",
+                core,sample.coherent?"true":"false",sample.at_us,
+                sample.host_phases[0],sample.host_phases[1],sample.host_phases[2],sample.host_phases[3],sample.host_phases[4],sample.host_phases[5],
+                sample.host_phases[6],sample.host_phases[7],sample.host_phases[8],sample.host_phases[9],sample.host_phases[10],sample.host_phases[11]);
         }
 #endif
         PROBE_SNAPSHOT_LOG("{\"probe\":\"l2cap_media_sizes\",\"collection_cycle_us\":%" PRIu32

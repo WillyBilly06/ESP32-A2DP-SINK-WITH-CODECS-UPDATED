@@ -22,7 +22,7 @@ void esp_deregister_freertos_tick_hook_for_cpu(esp_freertos_tick_cb_t hook,unsig
 }
 static void fixture(void){
     memset(samples,0,sizeof(samples));memset(tasks,0,sizeof(tasks));memset(idle_tasks,0,sizeof(idle_tasks));
-    memset(hooks,0,sizeof(hooks));atomic_store(&enabled,false);attempted=false;known_task_mask=0;
+    memset(hooks,0,sizeof(hooks));atomic_store(&enabled,false);atomic_store(&host_phase,PROBE_HOST_OTHER);attempted=false;known_task_mask=0;
     fail_core=-1;registrations=deregistrations=clock_us=cycles=0;missing_controller=false;running=0;
 }
 static void tick(unsigned core,unsigned identity,uint32_t at){running=task(identity);clock_us=at;hooks[core]();}
@@ -36,6 +36,8 @@ int main(void){
     probe_scheduler_snapshot(0,&a);probe_scheduler_snapshot(1,&b);
     CHECK(a.coherent && b.coherent && a.known_task_mask==31 && b.known_task_mask==31);
     for(unsigned i=0;i<7;++i)CHECK(a.counts[i]==1);
+    CHECK(a.host_phases[PROBE_HOST_OTHER]==1);
+    for(unsigned i=1;i<PROBE_HOST_PHASES;++i)CHECK(!a.host_phases[i]);
     CHECK(b.counts[PROBE_SAMPLE_IDLE]==1 && b.counts[PROBE_SAMPLE_DECODER]==1 && !b.counts[PROBE_SAMPLE_HOST]);
     CHECK(a.max_gap_us==1000 && a.max_callback_cycles==16);
     tick(0,2,19000);probe_scheduler_snapshot(0,&a);
@@ -51,6 +53,20 @@ int main(void){
     CHECK(a.coherent && a.max_gap_us==1000 && a.max_gap_begin_us==UINT32_MAX-499u && a.max_gap_end_us==500);
     atomic_store(&samples[0].counts[PROBE_SAMPLE_DECODER],UINT32_MAX);tick(0,2,2500);
     probe_scheduler_snapshot(0,&a);CHECK(!a.counts[PROBE_SAMPLE_DECODER]);
+    fixture();CHECK(probe_scheduler_start(task(1),task(2),task(4))==ESP_OK);
+    unsigned previous=probe_scheduler_host_phase(PROBE_HOST_RUNTIME);CHECK(previous==PROBE_HOST_OTHER);
+    tick(1,1,1000);
+    unsigned nested=probe_scheduler_host_phase(PROBE_HOST_SUBMIT);CHECK(nested==PROBE_HOST_RUNTIME);
+    tick(1,1,2000);CHECK(probe_scheduler_host_phase(nested)==PROBE_HOST_SUBMIT);
+    tick(1,1,3000);CHECK(probe_scheduler_host_phase(previous)==PROBE_HOST_RUNTIME);
+    tick(1,1,4000);probe_scheduler_host_phase(PROBE_HOST_GATT);tick(1,2,5000);
+    CHECK(probe_scheduler_host_phase(UINT32_MAX)==PROBE_HOST_GATT);tick(1,1,6000);
+    probe_scheduler_snapshot(1,&a);
+    CHECK(a.coherent && a.host_phases[PROBE_HOST_RUNTIME]==2 && a.host_phases[PROBE_HOST_SUBMIT]==1 && a.host_phases[PROBE_HOST_OTHER]==2);
+    CHECK(!a.host_phases[PROBE_HOST_GATT] && a.counts[PROBE_SAMPLE_DECODER]==1);
+    uint32_t total=0;for(unsigned i=0;i<PROBE_HOST_PHASES;++i)total+=a.host_phases[i];CHECK(total==a.counts[PROBE_SAMPLE_HOST]);
+    for(unsigned phase=0;phase<PROBE_HOST_PHASES;++phase){probe_scheduler_host_phase(phase);tick(0,1,1000u*(phase+1u));}
+    probe_scheduler_snapshot(0,&b);for(unsigned phase=0;phase<PROBE_HOST_PHASES;++phase)CHECK(b.host_phases[phase]==1);
     for(int core=0;core<2;++core){
         fixture();fail_core=core;CHECK(probe_scheduler_start(task(1),task(2),task(4))==ESP_ERR_NO_MEM);
         CHECK(!hooks[0] && !hooks[1] && deregistrations==(unsigned)core);

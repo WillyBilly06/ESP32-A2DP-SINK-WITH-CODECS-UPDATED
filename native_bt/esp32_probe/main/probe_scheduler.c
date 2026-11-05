@@ -12,6 +12,7 @@
  * No task priority query: that API takes the kernel's cross-core lock. */
 typedef struct {
     _Atomic uint32_t sequence,counts[PROBE_SAMPLE_ROLES],at_us,max_gap_us;
+    _Atomic uint32_t host_phases[PROBE_HOST_PHASES];
     _Atomic uint32_t max_gap_begin_us,max_gap_end_us,max_gap_previous_role,max_gap_current_role;
     _Atomic uint32_t max_callback_cycles;
     uint32_t previous_role;
@@ -20,6 +21,7 @@ typedef struct {
 static DRAM_ATTR sample_core_t samples[2];
 static DRAM_ATTR TaskHandle_t tasks[5],idle_tasks[2];
 static DRAM_ATTR _Atomic bool enabled;
+static DRAM_ATTR _Atomic uint32_t host_phase;
 static uint32_t known_task_mask;
 static bool attempted;
 
@@ -44,6 +46,11 @@ static void IRAM_ATTR sample_tick(unsigned core){
     }
     atomic_store_explicit(&s->at_us,now,memory_order_relaxed);s->previous_role=role;s->have_tick=true;
     atomic_store_explicit(&s->counts[role],atomic_load_explicit(&s->counts[role],memory_order_relaxed)+1u,memory_order_relaxed);
+    if(role==PROBE_SAMPLE_HOST){
+        unsigned phase=atomic_load_explicit(&host_phase,memory_order_relaxed);
+        if(phase>=PROBE_HOST_PHASES)phase=PROBE_HOST_OTHER;
+        atomic_store_explicit(&s->host_phases[phase],atomic_load_explicit(&s->host_phases[phase],memory_order_relaxed)+1u,memory_order_relaxed);
+    }
     uint32_t elapsed=esp_cpu_get_cycle_count()-began;
     if(elapsed>atomic_load_explicit(&s->max_callback_cycles,memory_order_relaxed))
         atomic_store_explicit(&s->max_callback_cycles,elapsed,memory_order_relaxed);
@@ -76,6 +83,7 @@ void probe_scheduler_snapshot(unsigned core,probe_scheduler_snapshot_t *out){
     if(core>=2 || !atomic_load_explicit(&enabled,memory_order_acquire))return;
     sample_core_t *s=&samples[core];uint32_t before=atomic_load_explicit(&s->sequence,memory_order_acquire);
     for(unsigned i=0;i<PROBE_SAMPLE_ROLES;++i)out->counts[i]=atomic_load_explicit(&s->counts[i],memory_order_relaxed);
+    for(unsigned i=0;i<PROBE_HOST_PHASES;++i)out->host_phases[i]=atomic_load_explicit(&s->host_phases[i],memory_order_relaxed);
 #define READ(field) out->field=atomic_load_explicit(&s->field,memory_order_relaxed)
     READ(at_us);READ(max_gap_us);READ(max_gap_begin_us);READ(max_gap_end_us);
     READ(max_gap_previous_role);READ(max_gap_current_role);READ(max_callback_cycles);
@@ -83,4 +91,9 @@ void probe_scheduler_snapshot(unsigned core,probe_scheduler_snapshot_t *out){
     atomic_thread_fence(memory_order_seq_cst);
     out->known_task_mask=known_task_mask;
     out->coherent=!(before&1u) && before==atomic_load_explicit(&s->sequence,memory_order_acquire);
+}
+unsigned probe_scheduler_host_phase(unsigned phase){
+    unsigned previous=atomic_load_explicit(&host_phase,memory_order_relaxed);
+    atomic_store_explicit(&host_phase,phase<PROBE_HOST_PHASES?phase:PROBE_HOST_OTHER,memory_order_relaxed);
+    return previous;
 }

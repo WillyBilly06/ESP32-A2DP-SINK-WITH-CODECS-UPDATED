@@ -8,8 +8,12 @@
 enum { PROBE_SAMPLE_HOST,PROBE_SAMPLE_DECODER,PROBE_SAMPLE_RENDERER,
        PROBE_SAMPLE_LOGGER,PROBE_SAMPLE_CONTROLLER,PROBE_SAMPLE_IDLE,
        PROBE_SAMPLE_OTHER,PROBE_SAMPLE_ROLES };
+enum { PROBE_HOST_OTHER,PROBE_HOST_QUERY,PROBE_HOST_SUBMIT,PROBE_HOST_RUNTIME,
+       PROBE_HOST_WAIT,PROBE_HOST_GATT,PROBE_HOST_SECURITY,PROBE_HOST_PRODUCT,
+       PROBE_HOST_IO,PROBE_HOST_AUDIO,PROBE_HOST_AVRCP,PROBE_HOST_LOG,PROBE_HOST_PHASES };
 typedef struct {
     uint32_t counts[PROBE_SAMPLE_ROLES],at_us,max_gap_us,max_gap_begin_us,max_gap_end_us;
+    uint32_t host_phases[PROBE_HOST_PHASES];
     uint32_t max_gap_previous_role,max_gap_current_role,max_callback_cycles,known_task_mask;
     bool coherent;
 } probe_scheduler_snapshot_t;
@@ -17,4 +21,7 @@ typedef struct {
  * No task/queue/allocation is added. Failed registration is rolled back. */
 esp_err_t probe_scheduler_start(TaskHandle_t host,TaskHandle_t decoder,TaskHandle_t logger);
 void probe_scheduler_snapshot(unsigned core,probe_scheduler_snapshot_t *out);
+/* Host-owner task only; returns previous phase for nested controller calls.
+ * One writer, atomic load/store only. No timer, lock, allocation or logging. */
+unsigned probe_scheduler_host_phase(unsigned phase);
 #endif
