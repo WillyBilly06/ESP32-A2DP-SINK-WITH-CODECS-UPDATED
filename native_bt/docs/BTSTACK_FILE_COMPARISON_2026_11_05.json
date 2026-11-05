@@ -956,18 +956,18 @@
     },
     {
       "owned": "native_bt/esp32_probe/main/probe_gatt.c",
-      "sha256": "30811dd9509e86efcee4152c4734f5e7b55da608898183bc6529f1a83ec6bf7f",
-      "lines": 1117,
+      "sha256": "2cc6c615849dc544876f6062f808375c453186d2d20f9ba58bbb968eb983e4d0",
+      "lines": 1122,
       "reference_files": [],
-      "status": "pending",
+      "status": "partial_review",
       "mapping": "product/support code; no direct protocol counterpart assigned"
     },
     {
       "owned": "native_bt/esp32_probe/main/probe_gatt.h",
-      "sha256": "8561d20e145d09c37fff92833493ba96f2e0c4f105cc2b44187ef18f7a8157c6",
-      "lines": 84,
+      "sha256": "d9c2f1eea38020eff076d78d43a8e754ed88114b2fd7107dd7ce1233e781c6b3",
+      "lines": 85,
       "reference_files": [],
-      "status": "pending",
+      "status": "partial_review",
       "mapping": "product/support code; no direct protocol counterpart assigned"
     },
     {
@@ -1027,8 +1027,8 @@
     },
     {
       "owned": "native_bt/esp32_probe/main/probe_main.c",
-      "sha256": "b499db0f6f4923eb880a5984d5ae919d96feefa32369db12bd1e42993c46e3a3",
-      "lines": 1108,
+      "sha256": "9b1af825909100dded73fe90aa3c126c6ae6cf70462efe79bee233e4bbf5d929",
+      "lines": 1140,
       "reference_files": [],
       "status": "partial_review",
       "mapping": "product/support code; no direct protocol counterpart assigned"
@@ -1272,18 +1272,18 @@
     },
     {
       "owned": "native_bt/esp32_probe/main/probe_smp.c",
-      "sha256": "ee0d1cc32088dfca7400326d5e83006e32d360f6ab0720b802079b2dd1b10919",
-      "lines": 1023,
+      "sha256": "c291cf70d8d65c24f39d9c60b87c5223f11e25c5b3a38fd30451d1756d2a8dab",
+      "lines": 1124,
       "reference_files": [],
-      "status": "pending",
+      "status": "partial_review",
       "mapping": "product/support code; no direct protocol counterpart assigned"
     },
     {
       "owned": "native_bt/esp32_probe/main/probe_smp.h",
-      "sha256": "26f13aa23dd30d1fbf23eb7a1f44592585a5c42fcb9d851c8f4a24ab12ed71ea",
-      "lines": 74,
+      "sha256": "c41aecdf3d0c3a4e519c2002be22a0677d13cfab60e8dd40b570417b7d1e3316",
+      "lines": 76,
       "reference_files": [],
-      "status": "pending",
+      "status": "partial_review",
       "mapping": "product/support code; no direct protocol counterpart assigned"
     },
     {
@@ -1369,15 +1369,15 @@
     },
     {
       "owned": "native_bt/include/dbt_att.h",
-      "sha256": "1e68064e5fac50a904e320c59ec9d2686061dcdc1ffdebe1063def764d249ba0",
-      "lines": 161,
+      "sha256": "8d070554804bfd440a94583669fafae59560ac0de9ae3147d5b743f0a1cc8eea",
+      "lines": 166,
       "reference_files": [
         "src/ble/att_db.c",
         "src/ble/att_dispatch.c",
         "src/ble/att_server.c",
         "src/ble/gatt_client.c"
       ],
-      "status": "pending",
+      "status": "partial_review",
       "mapping": "counterpart_candidates"
     },
     {
@@ -1558,14 +1558,14 @@
     },
     {
       "owned": "native_bt/include/dbt_channels.h",
-      "sha256": "ac925cda1caa667bc3ecdfc35a8825e572c0bf9e071ac82d12c171dc88bdafb9",
-      "lines": 230,
+      "sha256": "b5339b8c9f392fc377137f5107cc2b864381c0eb2859b79e1301133a004ff0f0",
+      "lines": 234,
       "reference_files": [
         "src/hci.c",
         "src/l2cap.c",
         "src/l2cap.h"
       ],
-      "status": "pending",
+      "status": "partial_review",
       "mapping": "counterpart_candidates"
     },
     {
@@ -2155,15 +2155,15 @@
     },
     {
       "owned": "native_bt/src/dbt_att.c",
-      "sha256": "eb2988352a601aebe2376fc7b43666ed663460b5cd41cc7d106fa09a3e5cbb64",
-      "lines": 925,
+      "sha256": "9ad4b84ff59d7cc78d4cbeb53cdee0e31bc374111fb5739c57c02f2c7004317e",
+      "lines": 946,
       "reference_files": [
         "src/ble/att_db.c",
         "src/ble/att_dispatch.c",
         "src/ble/att_server.c",
         "src/ble/gatt_client.c"
       ],
-      "status": "pending",
+      "status": "partial_review",
       "mapping": "counterpart_candidates"
     },
     {
@@ -2332,8 +2332,8 @@
     },
     {
       "owned": "native_bt/src/dbt_channels.c",
-      "sha256": "95ab247e3268fa5888485fea7d4808811b99b73eb83ffe4aae78f8d8624e12ee",
-      "lines": 1594,
+      "sha256": "44c7126221cecd4b7af89d7e6650f4b3813bc11299b14ebcc866d0703e63b7df",
+      "lines": 1603,
       "reference_files": [
         "src/hci.c",
         "src/l2cap.c",
@@ -2586,8 +2586,8 @@
     },
     {
       "owned": "native_bt/src/dbt_runtime.c",
-      "sha256": "86cd43aa1bfee0851dec26f218330ebfbbaf0a32881307b686b20ce54e6247d6",
-      "lines": 452,
+      "sha256": "9bbaa7dcad1fcf6947dc0109d7921c9fd31add0e29cceba69149a262646ddf1b",
+      "lines": 458,
       "reference_files": [],
       "status": "partial_review",
       "mapping": "product/support code; no direct protocol counterpart assigned"
@@ -3183,7 +3183,31 @@
       "issue": "A peer declaration above the bounded recombination capacity returned NO_SPACE and globally failed the host. Simply dropping oversized signaling would also omit the required MTU rejection.",
       "fix": "Add allocation-free discard framing with ordered borrowed chunks. Stream signaling headers and skip bodies, validate complete framing, then queue one identifier-only MTU-reject job for the first Request. Preserve response-only discard, channel-mode retirement, generation/deadline cleanup, controller RX credits and existing mandatory-reply capacity.",
       "resource_change": "No payload buffer, task, queue or MTU change. Whole BSS +80 bytes, text +1308 bytes, aggregate data +16 bytes.",
-      "limits": "Registered fixed protocols retain explicit NO_SPACE until their ATT/SMP-specific policy is connected. Full over-limit containment is unfinished. Peer injection/backpressure/timeout/fragment qualification is not run under the user hold."
+      "limits": "Fixed-owner integration is now connected in BLE-014. Peer injection/backpressure/timeout/fragment qualification remains held; this is not full wire qualification."
+    },
+    {
+      "id": "BLE-014",
+      "state": "compiled_static_analysis_passed_wire_paths_unqualified",
+      "owned": [
+        "native_bt/esp32_probe/main/probe_gatt.c",
+        "native_bt/esp32_probe/main/probe_gatt.h",
+        "native_bt/esp32_probe/main/probe_smp.c",
+        "native_bt/esp32_probe/main/probe_smp.h",
+        "native_bt/esp32_probe/main/probe_main.c",
+        "native_bt/include/dbt_att.h",
+        "native_bt/include/dbt_channels.h",
+        "native_bt/src/dbt_att.c",
+        "native_bt/src/dbt_channels.c",
+        "native_bt/src/dbt_runtime.c"
+      ],
+      "reference": [
+        "src/ble/sm.c:4427-4457",
+        "src/ble/att_server.c:898-945"
+      ],
+      "issue": "Registered fixed oversized PDUs lacked owner policy; malformed short SMP could reach pairing preparation before exact command-length validation.",
+      "fix": "Explicit four-byte-prefix/declared-size hook; preallocated ATT error response under existing request ownership; SMP exact-size preflight and per-link owned failure reply following asynchronous prior-loan/crypto/storage cleanup. Per-peer disconnect intents are drained outside callbacks.",
+      "resource_change": "Whole-image BSS +8 bytes; existing SMP slots remain 128 bytes total; text +1692 and aggregate data +16 bytes. No payload buffer, task, queue, MTU, codec or affinity change.",
+      "limits": "No wire/peer qualification or measured speed/underrun improvement. Full layer source comparison remains incomplete."
     }
   ],
   "sections_reviewed": [
@@ -3339,6 +3363,28 @@
       ],
       "outcome": "Implemented bounded streaming discard for signaling/dynamic owners, keeping parser framing, mandatory MTU reply and receive-credit ownership explicit. Registered fixed protocol integration remains required.",
       "full_layer_complete": false
+    },
+    {
+      "layer": "ATT/SMP invalid-length and fixed-channel owner boundary",
+      "owned": [
+        "native_bt/esp32_probe/main/probe_gatt.c",
+        "native_bt/esp32_probe/main/probe_gatt.h",
+        "native_bt/esp32_probe/main/probe_smp.c",
+        "native_bt/esp32_probe/main/probe_smp.h",
+        "native_bt/esp32_probe/main/probe_main.c",
+        "native_bt/include/dbt_att.h",
+        "native_bt/include/dbt_channels.h",
+        "native_bt/src/dbt_att.c",
+        "native_bt/src/dbt_channels.c",
+        "native_bt/src/dbt_runtime.c"
+      ],
+      "reference": [
+        "src/ble/sm.c:4427-4457",
+        "src/ble/att_server.c:898-945",
+        "Core 6.1 ATT/SMP error semantics"
+      ],
+      "outcome": "Exact length check before pairing preparation; owned deferred protocol errors preserve loans and asynchronous cleanup. Only sections/lifetimes reviewed; no complete ATT/SMP/product-body review claimed.",
+      "full_layer_complete": false
     }
   ],
   "integration_gaps": [
@@ -3386,8 +3432,8 @@
   "coverage": {
     "owned_files": 277,
     "reviewed_owned_c_bodies": 20,
-    "partial_files": 6,
-    "pending_files": 229,
+    "partial_files": 13,
+    "pending_files": 222,
     "compiled_owned_units_missing": 0,
     "reviewed_headers": 13,
     "reviewed_build_files": 5,
@@ -3490,31 +3536,20 @@
     },
     {
       "id": "L2CAP-DECLARED-OVERSIZE",
-      "status": "signaling_dynamic_stage_implemented_fixed_owner_policy_pending",
+      "status": "signaling_dynamic_fixed_owner_stages_implemented_wire_qualification_pending",
       "notes": [
-        "Oversized signaling/dynamic PDUs drain without payload allocation. Framed signaling Requests retain first-request MTU rejection; response-only and malformed frames are contained.",
-        "Registered fixed protocols still need explicit ATT/SMP invalid-length policy; no truncated PDU is delivered. Genuine reply/resource/API failures remain explicit.",
-        "Existing ertm_policy_valid enforces receive.mps+6 <= maximum_mtu; that guard was confirmed, so no missing-overhead defect is established."
+        "Fixed ATT/SMP owner policy connected through explicit borrowed-prefix/declared-size hook; no fabricated short PDU or new payload allocation.",
+        "ATT request ownership and SMP prior-loan/failed-slot retirement precede replacement errors; per-peer teardown on unavailable obligations. Malformed short SMP is checked before expensive pairing preparation.",
+        "Wire, malformed-fragment, deadline, backpressure and lifecycle/security qualification remain pending under test hold. Existing ERTM receive.mps+6 guard remains."
       ]
     }
   ],
-  "next_review": {
-    "layer": "Registered fixed-protocol oversized-PDU policy, then full pending protocol/backend audit",
-    "owned": [
-      "native_bt/src/dbt_att.c",
-      "native_bt/src/dbt_smp_session.c",
-      "native_bt/esp32_probe/main/probe_gatt.c",
-      "native_bt/esp32_probe/main/probe_smp.c",
-      "native_bt/src/dbt_channels.c"
-    ],
-    "reference": [
-      "src/ble/att_server.c",
-      "src/ble/sm.c",
-      "Core 6.1 ATT 3.3 and SMP invalid-parameter rules"
-    ],
-    "notes": "Pass explicit invalid-length information to owning protocols. Preserve mandatory replies, pinned responses, SMP crypto/storage jobs and transport retirement. Do not present a prefix as a complete PDU or hide resource failure. No held campaigns."
-  },
-  "latest_build_image": "7f7870966de019ed10e01d09287341e9cd350b6d39706ea3aba861ce42f9d262",
+  "next_review": [
+    "Continue full ATT/SMP/security source coverage and remaining L2CAP lifecycle states; new invalid-length behavior is not wire-qualified.",
+    "Continue all remaining BTstack/backend/generator rows and product outgoing reconnect/A2DP integration.",
+    "Profile remaining FIR/DSP render pressure and LHDC192k/24-bit/1M headroom only within authorized evidence scope."
+  ],
+  "latest_build_image": "1e60552044fa930a9a0c0915f2173098727d6dd61d4ed36df65c3ac50a39d596",
   "verification_source_contracts": [
     {
       "file": "native_bt/tools/test_ldac_target_component.py",

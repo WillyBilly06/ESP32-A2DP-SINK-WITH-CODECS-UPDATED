@@ -26,6 +26,8 @@ dbt_result_t probe_smp_set_passkey(uint32_t passkey);
 /* Forward from the shared runtime's fixed-data hook only for LE CID 6.
  * A non-OK return means that PDU was not accepted; the caller must fail the
  * affected SMP procedure explicitly. Other CIDs still go to their owners. */
+/* Explicit malformed-size intent; no pairing/crypto is started to reject it. */
+dbt_result_t probe_smp_reject_size(const dbt_link_t *,uint8_t opcode,uint16_t declared);
 dbt_result_t probe_smp_receive(const dbt_link_t *, uint16_t cid, const uint8_t *, uint16_t);
 /* Central initiation is explicit. Peripheral requests arrive via receive. */
 dbt_result_t probe_smp_start(const dbt_link_t *);

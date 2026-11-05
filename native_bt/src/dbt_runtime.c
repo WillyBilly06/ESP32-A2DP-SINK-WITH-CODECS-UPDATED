@@ -108,6 +108,11 @@ static void fixed(void *context, const dbt_link_t *link, uint16_t cid, const uin
     dbt_channel_hooks_t *hooks = &runtime->hooks.channels;
     if (hooks->fixed_data) hooks->fixed_data(hooks->context, link, cid, bytes, size);
 }
+static dbt_result_t fixed_oversized(void *context,const dbt_link_t *link,uint16_t cid,
+    const uint8_t *prefix,uint16_t bytes,uint16_t declared){
+    dbt_runtime_t *r=context;dbt_channel_hooks_t *h=&r->hooks.channels;
+    return h->fixed_oversized?h->fixed_oversized(h->context,link,cid,prefix,bytes,declared):DBT_NO_SPACE;
+}
 static bool parameters(void *context, const dbt_link_t *link, uint16_t minimum,
                          uint16_t maximum, uint16_t latency, uint16_t timeout) {
     dbt_runtime_t *runtime = context;
@@ -122,6 +127,7 @@ static bool initialize_layers(dbt_runtime_t *runtime) {
     hooks.security_request=request_security;
     hooks.accept=accept_channel;
     hooks.event = event; hooks.data = data; hooks.fixed_data = fixed; hooks.le_parameters = parameters;
+    hooks.fixed_oversized=fixed_oversized;
     hooks.allocate=allocate;hooks.release=release;hooks.le_security=qualify_le_security;
     if (dbt_acl_init(&runtime->acl, &runtime->host.controller) != DBT_OK ||
         dbt_channels_init(&runtime->channels, &runtime->acl, hooks, runtime->maximum_mtu, 1000, 60000) != DBT_OK) {

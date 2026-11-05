@@ -139,6 +139,11 @@ void dbt_att_clear(dbt_att_server_t *server);
 /* Only a verified security owner may assert authentication/key size/bonding. */
 dbt_result_t dbt_att_security(dbt_att_server_t *server, const dbt_link_t *link, bool authenticated,
                               uint8_t key_size, bool bonded);
+/* Explicit over-MTU length error; consumes only an opcode, never a partial PDU.
+ * Existing request/response ownership is preserved under BUSY. */
+dbt_result_t dbt_att_receive_oversized(dbt_att_server_t *server,const dbt_link_t *link,
+    uint8_t opcode,uint16_t declared,uint32_t now_ms);
+
 dbt_result_t dbt_att_receive(dbt_att_server_t *server, const dbt_link_t *link, const uint8_t *data,
                              uint16_t size, uint32_t now_ms);
 /* Owner continuation for an accepted DEFERRED write. Token/generation are both

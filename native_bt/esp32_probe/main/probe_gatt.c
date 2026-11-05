@@ -591,6 +591,11 @@ void probe_gatt_link(void *context, const dbt_link_change_t *change) {
     if (result != DBT_OK)
         dbt_host_abort(&bearer.runtime->host, DBT_FAULT_BAD_RESPONSE);
 }
+dbt_result_t probe_gatt_receive_oversized(const dbt_link_t *link,uint8_t opcode,uint16_t declared){
+    if(!bearer.runtime)return DBT_INVALID;
+    guard_pending_acks();
+    return dbt_att_receive_oversized(&server,link,opcode,declared,bearer.runtime->now_ms);
+}
 void probe_gatt_receive(void *context, const dbt_link_t *link, uint16_t cid, const uint8_t *data,
                         uint16_t size) {
     (void)context;

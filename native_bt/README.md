@@ -19,14 +19,16 @@ preserves the filter exactly while reducing coefficient-interpolation work.
 across resets with bounded allocation and explicit teardown ownership.
 [Over-limit signaling and dynamic L2CAP](docs/L2CAP_OVERSIZED_STREAM_2026_11_05.md)
 now drain excess data without payload allocation and retain required signaling
-MTU replies. Registered fixed-protocol handling remains unfinished.
+MTU replies. [Fixed ATT/SMP length policy](docs/FIXED_PROTOCOL_LENGTH_2026_11_05.md)
+now uses explicit owner errors and deferred teardown without fabricated short PDUs.
+Wire qualification remains incomplete.
 Sustained performance remains unqualified.
 
 ## Current development checkpoint — 2026-11-05
 
 The owned Classic+BLE host is selected on the local COM6 board in ota1 at
 0x390000, marked VALID, with automatic Bluedroid restoration disabled. The
-verified image is `7f7870966de019ed10e01d09287341e9cd350b6d39706ea3aba861ce42f9d262`.
+verified image is `1e60552044fa930a9a0c0915f2173098727d6dd61d4ed36df65c3ac50a39d596`.
 This remains development firmware with incomplete feature/runtime qualification.
 
 Recent source corrections cover [codec payload boundaries and shared PCM

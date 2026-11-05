@@ -607,12 +607,12 @@ dbt_result_t dbt_channels_receive_oversized(dbt_channels_t *m,uint16_t handle,ui
        last!=((uint32_t)offset+bytes==declared))return DBT_INVALID;
     const dbt_link_t *link=dbt_acl_find(m->acl,handle);
     if(!link || link->generation!=generation)return DBT_INVALID;
-    if(cid!=(link->kind==DBT_LINK_CLASSIC?1u:5u)){
-        if(cid<64u){
-            /* The owning fixed protocol must form its own error response. Do
-             * not fabricate a complete/truncated ATT or SMP PDU here. */
-            return cid && (m->fixed_mask[link->kind]&((uint64_t)1u<<cid))?DBT_NO_SPACE:DBT_OK;
-        }
+    bool signaling=cid==(link->kind==DBT_LINK_CLASSIC?1u:5u);
+    if(!signaling && cid<64u){
+        if(!cid || !(m->fixed_mask[link->kind]&((uint64_t)1u<<cid)))return DBT_OK;
+        if(!m->hooks.fixed_oversized)return DBT_NO_SPACE;
+    }
+    if(!signaling && cid>=64u){
         if(!first)return DBT_OK;
         dbt_channel_t *c=find(m,handle,cid);
         if(!c){++m->ignored_dynamic_pdus;return DBT_OK;}
@@ -627,11 +627,20 @@ dbt_result_t dbt_channels_receive_oversized(dbt_channels_t *m,uint16_t handle,ui
     dbt_signal_link_t *state=first?ensure_signal_link(m,link):signal_link(m,handle,generation);
     if(!state)return DBT_NO_SPACE;
     if(first){
-        state->large_total=declared;state->large_received=state->large_skip=0;
+        state->large_total=declared;state->large_cid=cid;state->large_received=state->large_skip=0;
         state->large_used=state->large_id=state->large_commands=0;
         state->large_bad=false;state->large_active=true;
     }
-    if(!state->large_active || state->large_total!=declared || state->large_received!=offset)return DBT_INVALID;
+    if(!state->large_active || state->large_total!=declared || state->large_cid!=cid || state->large_received!=offset)return DBT_INVALID;
+    if(!signaling){
+        unsigned n=4u-state->large_used;if(n>bytes)n=bytes;
+        if(n)copy(state->large_header+state->large_used,data,n);
+        state->large_used=(uint8_t)(state->large_used+n);state->large_received=(uint16_t)(offset+bytes);
+        if(!last)return DBT_OK;
+        state->large_active=false;m->in_callback=true;
+        dbt_result_t result=m->hooks.fixed_oversized(m->hooks.context,link,cid,state->large_header,state->large_used,declared);
+        m->in_callback=false;return result;
+    }
     unsigned cursor=0;
     while(cursor<bytes && !state->large_bad){
         if(state->large_skip){

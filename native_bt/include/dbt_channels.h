@@ -85,6 +85,10 @@ typedef struct {
      * qualification; this does not implement SMP or claim successful pairing. */
     uint16_t (*le_security)(void *context,const dbt_link_t *link,uint16_t spsm,
         dbt_security_t security,uint8_t minimum_key_size);
+    /* Explicit length violation with at most four borrowed prefix octets, never
+     * a truncated normal PDU. OK accepts protocol-owned error/teardown work. */
+    dbt_result_t (*fixed_oversized)(void *context,const dbt_link_t *link,uint16_t cid,
+        const uint8_t *prefix,uint16_t prefix_size,uint16_t declared);
 } dbt_channel_hooks_t;
 
 typedef struct {
@@ -93,7 +97,7 @@ typedef struct {
     uint8_t next_id, feature_id, feature_state;
     bool used;
     /* Over-limit C-frame scanner; payload bodies are skipped, never retained. */
-    uint16_t large_total,large_received,large_skip;
+    uint16_t large_total,large_received,large_skip,large_cid;
     uint8_t large_header[4],large_used,large_id,large_commands;
     bool large_bad,large_active;
 } dbt_signal_link_t;
@@ -204,8 +208,8 @@ const dbt_channel_t *dbt_channels_find(const dbt_channels_t *manager, uint16_t h
  * data/fixed-channel callbacks borrow bytes only for the duration of this call. */
 /* Runtime-only ordered chunks of a PDU exceeding maximum_mtu. A framed
  * signaling Request queues one MTU reject after its final chunk. Registered
- * fixed protocols without an oversized policy remain an explicit resource
- * failure; no partial data is passed through fixed_data. */
+ * fixed protocols use fixed_oversized or remain an explicit resource failure;
+ * no partial data is passed through fixed_data. */
 dbt_result_t dbt_channels_receive_oversized(dbt_channels_t *manager,uint16_t handle,uint32_t generation,
     uint16_t cid,const uint8_t *data,uint16_t bytes,uint16_t declared,uint16_t offset,bool first,bool last);
 

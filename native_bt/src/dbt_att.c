@@ -26,6 +26,8 @@ static bool due(uint32_t now, uint32_t deadline) {
 static const uint8_t base_uuid[16] = {0xfb, 0x34, 0x9b, 0x5f, 0x80, 0, 0, 0x80,
                                       0,    0x10, 0,    0,    0,    0, 0, 0};
 static bool uuid_equal(const uint8_t *a, uint8_t as, const uint8_t *b, uint8_t bs) {
+    if ((as != 2 && as != 16) || (bs != 2 && bs != 16))
+        return false;
     if (as == bs)
         return equal(a, b, as);
     const uint8_t *wide = as == 16 ? a : b, *small = as == 2 ? a : b;
@@ -660,6 +662,25 @@ static void prepare(dbt_att_server_t *server, dbt_att_connection_t *c, const dbt
     copy(c->response, data, size);
     c->response[0] = 0x17;
     ready_response(c, size);
+}
+dbt_result_t dbt_att_receive_oversized(dbt_att_server_t *server,const dbt_link_t *link,
+    uint8_t opcode,uint16_t declared,uint32_t now_ms){
+    if(!server || server->in_callback || !link || !link->used)return DBT_INVALID;
+    dbt_att_connection_t *c=connection(server,link->handle,link->generation);
+    if(!c || declared<=c->mtu)return DBT_INVALID;
+    if(c->failed)return DBT_BUSY;
+    if(opcode&0x40u){++server->ignored_commands;return DBT_OK;}
+    if(opcode==0x1e)return DBT_BUSY; /* Invalid confirmation: no error loop. */
+    if(opcode&1u)return DBT_UNSUPPORTED;
+    if(c->request_busy)return DBT_BUSY;
+    c->request_busy=true;c->request_deadline=now_ms+30000u;c->pending_opcode=opcode;
+    uint8_t error=DBT_ATT_NOT_SUPPORTED;
+    switch(opcode){
+    case 2:case 4:case 6:case 8:case 0x0a:case 0x0c:case 0x0e:
+    case 0x10:case 0x12:case 0x16:case 0x18:case 0x20:error=DBT_ATT_INVALID_PDU;break;
+    default:break;
+    }
+    error_response(server,c,opcode,0,error);return DBT_OK;
 }
 dbt_result_t dbt_att_receive(dbt_att_server_t *server, const dbt_link_t *link, const uint8_t *data,
                              uint16_t size, uint32_t now_ms) {

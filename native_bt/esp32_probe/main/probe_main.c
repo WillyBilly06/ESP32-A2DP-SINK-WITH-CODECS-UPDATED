@@ -110,10 +110,13 @@ _Alignas(8) static uint8_t l2cap_rx_storage[DBT_MAX_LINKS * PROBE_L2CAP_RX_MAX];
 static dbt_gap_t gap;
 static TaskHandle_t owner;
 #ifdef DBT_PROBE_SMP
-static bool smp_initialized,disconnect_overflow;
+static bool smp_initialized;
 #ifdef DBT_PROBE_RF_PROTOCOL_DIAGNOSTIC
 static struct {uint32_t generation;uint16_t value;} traced_le_security[DBT_MAX_LINKS];
 #endif
+#endif
+#if defined(DBT_PROBE_SMP) || defined(DBT_PROBE_GATT_TEST)
+static bool disconnect_overflow;
 static struct {bool used;uint16_t handle;uint32_t generation;} disconnects[DBT_MAX_LINKS];
 static void defer_disconnect(const dbt_link_t *link){
     if(!link)return;
@@ -466,6 +469,30 @@ static void profile_fixed(void *context,const dbt_link_t *link,uint16_t cid,cons
     }
 #endif
 }
+static dbt_result_t profile_fixed_oversized(void *context,const dbt_link_t *link,uint16_t cid,
+                                           const uint8_t *prefix,uint16_t bytes,uint16_t declared){
+    (void)context;
+    if(!link || !prefix || !bytes || bytes>4 || declared<=bytes)return DBT_INVALID;
+    dbt_result_t rc;
+#ifdef DBT_PROBE_SMP
+    if(cid==6){
+        if(!smp_initialized){defer_disconnect(link);return DBT_OK;}
+        rc=probe_smp_reject_size(link,prefix[0],declared);
+        if(rc==DBT_OK)return DBT_OK;
+        if(rc!=DBT_BUSY && rc!=DBT_NO_SPACE)return rc;
+        defer_disconnect(link);return DBT_OK;
+    }
+#endif
+#ifdef DBT_PROBE_GATT_TEST
+    if(cid==4){
+        rc=probe_gatt_receive_oversized(link,prefix[0],declared);
+        if(rc==DBT_OK || rc==DBT_UNSUPPORTED)return DBT_OK;
+        if(rc!=DBT_BUSY)return rc;
+        defer_disconnect(link);return DBT_OK;
+    }
+#endif
+    defer_disconnect(link);return DBT_OK;
+}
 #endif
 static void observe(void *context, const dbt_hci_packet_t *packet) {
     (void)context;
@@ -596,6 +623,7 @@ void app_main(void) {
     hooks.allocate = allocate_rx; hooks.release = release_rx; hooks.packet = observe;
 #if defined(DBT_PROBE_GATT_TEST) || defined(DBT_PROBE_SMP)
     hooks.channels.fixed_data = profile_fixed;
+    hooks.channels.fixed_oversized = profile_fixed_oversized;
 #endif
 #if defined(DBT_PROBE_GATT_TEST) || defined(DBT_PROBE_CLASSIC_SECURITY_TEST) || defined(DBT_PROBE_SMP)
     hooks.link = profile_link;
@@ -802,7 +830,6 @@ void app_main(void) {
             else dbt_runtime_abort(&runtime,DBT_FAULT_BAD_RESPONSE);
         }
         if(smp_initialized){
-            if(disconnect_overflow)dbt_runtime_abort(&runtime,DBT_FAULT_BAD_RESPONSE);
             HOST_CALL(PROBE_HOST_SECURITY,probe_smp_poll(now));
 #ifdef DBT_PROBE_RF_PROTOCOL_DIAGNOSTIC
             for(unsigned i=0;i<DBT_MAX_LINKS;++i){
@@ -826,6 +853,11 @@ void app_main(void) {
                 const dbt_link_t *link=dbt_acl_find(&runtime.acl,failed_handle);
                 if(link && link->generation==failed_generation)defer_disconnect(link);
             }
+        }
+#endif
+#if defined(DBT_PROBE_SMP) || defined(DBT_PROBE_GATT_TEST)
+        if(runtime.ready){
+            if(disconnect_overflow)dbt_runtime_abort(&runtime,DBT_FAULT_BAD_RESPONSE);
             for(unsigned i=0;i<DBT_MAX_LINKS;++i)if(disconnects[i].used){
                 const dbt_link_t *link=dbt_acl_find(&runtime.acl,disconnects[i].handle);
                 if(!link || link->generation!=disconnects[i].generation || dbt_gap_disconnect(&gap,link,0x13)==DBT_OK)

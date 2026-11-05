@@ -74,6 +74,7 @@ dbt_result_t probe_gatt_retry_control_publication(void);
 dbt_result_t probe_gatt_init(dbt_runtime_t *runtime, dbt_gap_t *gap);
 void probe_gatt_advertisement(dbt_gap_config_t *configuration);
 void probe_gatt_link(void *context, const dbt_link_change_t *change);
+dbt_result_t probe_gatt_receive_oversized(const dbt_link_t *link,uint8_t opcode,uint16_t declared);
 void probe_gatt_receive(void *context, const dbt_link_t *link, uint16_t cid, const uint8_t *data,
                         uint16_t size);
 void probe_gatt_poll(uint32_t now_ms);
