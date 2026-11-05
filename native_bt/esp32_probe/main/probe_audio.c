@@ -781,9 +781,8 @@ void probe_audio_poll(uint32_t now){
         ((uint32_t)profile.sink.failed<<19)|((uint32_t)profile.sink.signal.failed<<20)|
         ((uint32_t)(profile.signaling.serial!=0)<<21)|((uint32_t)(profile.media.serial!=0)<<22)|(staged<<23));
 #ifdef DBT_PROBE_AUDIO_OUTPUT
-    probe_output_stats_t stats;probe_output_stats(&stats);
 #ifndef DBT_PROBE_RF_PROTOCOL_DIAGNOSTIC
-    if(stats.failed)failed=true;
+    if(probe_output_failed())failed=true;
 #endif
     static uint32_t delay_binding,delay_at;
     if(profile.active && !profile.draining && profile.sink.delay_enabled &&

@@ -7,7 +7,7 @@
 #define EX __attribute__((visibility("default")))
 #endif
 #define CHECK(x) do {if(!(x))return __LINE__;}while(0)
-static unsigned live,queues_created;
+static unsigned live,queues_created,stack_queries;
 static request_t pending_request;
 static response_t pending_response;
 static bool request_pending,response_pending;
@@ -30,7 +30,7 @@ void xTaskNotifyGive(TaskHandle_t t){
 void vTaskNotifyGiveFromISR(TaskHandle_t t,BaseType_t *w){(void)t;(void)w;}
 unsigned ulTaskNotifyTake(int b,unsigned t){(void)b;(void)t;return 0;}
 /* Metadata plumbing only; this host mock cannot measure an ESP32 stack. */
-unsigned uxTaskGetStackHighWaterMark(TaskHandle_t t){(void)t;return 4096;}
+unsigned uxTaskGetStackHighWaterMark(TaskHandle_t t){(void)t;++stack_queries;return 4096;}
 int xTaskCreatePinnedToCore(void (*f)(void *),const char *n,unsigned s,void *a,unsigned p,TaskHandle_t *t,int core){(void)f;(void)n;(void)s;(void)a;(void)p;(void)core;*t=(void *)3;return pdPASS;}
 QueueHandle_t xQueueCreate(unsigned n,unsigned s){(void)n;(void)s;return (void *)(uintptr_t)(++queues_created);}
 int xQueueSend(QueueHandle_t q,const void *p,unsigned t){
@@ -47,10 +47,21 @@ esp_err_t i2s_channel_register_event_callback(i2s_chan_handle_t ch,const i2s_eve
 esp_err_t i2s_channel_disable(i2s_chan_handle_t ch){(void)ch;return ESP_OK;}
 esp_err_t i2s_channel_enable(i2s_chan_handle_t ch){(void)ch;return ESP_OK;}
 esp_err_t i2s_channel_preload_data(i2s_chan_handle_t ch,const void *p,size_t n,size_t *loaded){(void)ch;(void)p;*loaded=n;return ESP_OK;}
+static int output_status_contract(void){
+    for(unsigned mask=0;mask<8;++mask){
+        atomic_store(&output.running,mask&1u);atomic_store(&output.failed,mask&2u);atomic_store(&output.request_fault,mask&4u);
+        unsigned before=stack_queries;bool failed=probe_output_failed(),running=probe_output_running();
+        CHECK(stack_queries==before && failed==((mask&6u)!=0) && running==((mask&1u)!=0));
+        probe_output_stats_t snapshot;probe_output_stats(&snapshot);
+        CHECK((snapshot.failed!=0)==failed && (snapshot.running!=0)==running && stack_queries==before+1u);
+    }
+    atomic_store(&output.running,0);atomic_store(&output.failed,0);atomic_store(&output.request_fault,0);return 0;
+}
 EX int probe_output_formats(void){
     CHECK(event_wait_ticks(2)>0);
     CHECK(event_wait_ticks(0)==1);
     CHECK(probe_output_init(0,0)==DBT_OK);
+    {int result=output_status_contract();if(result)return result;}
     CHECK(render_wait_ticks()==portMAX_DELAY);
     static const uint8_t sample16[]={0,0x80,0xff,0x7f,1,2,3,4};
     static const uint8_t sample24[]={0,0,0x80,0xff,0xff,0x7f,1,2,3,0xfd,0xfe,0xff};
@@ -131,6 +142,7 @@ EX int probe_output_descriptor_diagnostics(void){
 #ifdef DBT_PROBE_PCM_COPIED
 EX int probe_output_compact_copy(void){
     CHECK(probe_output_init(wake_compact,0)==DBT_OK);
+    {int result=output_status_contract();if(result)return result;}
     const uint32_t rates[]={8000,48000,96000,192000},capacities[]={256,256,512,1024};
     const uint32_t payloads[]={13312,17408,23552,39936};
     for(unsigned i=0;i<4;++i)for(unsigned width=2;width<=4;++width)for(unsigned channels=1;channels<=2;++channels){

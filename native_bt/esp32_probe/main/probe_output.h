@@ -68,6 +68,7 @@ dbt_result_t probe_output_try_pcm_format(const void *,uint16_t,uint8_t,uint32_t,
 void probe_output_stats(probe_output_stats_t *stats);
 /* Cheap failure fence for hot-path monitoring; no stack scanning/snapshot. */
 bool probe_output_failed(void);
+bool probe_output_running(void);
 uint16_t probe_output_delay_100us(uint32_t rate);
 dbt_result_t probe_output_controls(int8_t bass,int8_t mid,int8_t treble,uint8_t volume,uint8_t flags);
 dbt_result_t probe_output_volume(uint8_t volume);

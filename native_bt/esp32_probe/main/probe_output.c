@@ -1046,6 +1046,7 @@ dbt_result_t probe_output_pcm(const int16_t *samples, uint16_t frames,
                                  DBT_PCM_S16_LE);
 }
 bool probe_output_failed(void){return atomic_load(&output.failed) || atomic_load(&output.request_fault);}
+bool probe_output_running(void){return atomic_load(&output.running)!=0;}
 void probe_output_stats(probe_output_stats_t *s) {
   if (!s)
     return;

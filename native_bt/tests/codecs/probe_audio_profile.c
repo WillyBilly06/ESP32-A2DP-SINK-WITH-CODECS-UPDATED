@@ -208,6 +208,7 @@ EX int probe_audio_formats(void){
     CHECK(probe_output_stream_format(false,0,0,0)==DBT_OK && !live_allocs);return 0;
 }
 void probe_output_stats(probe_output_stats_t *stats){memset(stats,0,sizeof(*stats));}
+bool probe_output_failed(void){return false;}
 uint16_t probe_output_delay_100us(uint32_t rate){return rate?640:0;}
 #endif
 void *heap_caps_malloc(size_t n,unsigned flags) {

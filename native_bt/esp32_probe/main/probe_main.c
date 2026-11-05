@@ -849,7 +849,7 @@ void app_main(void) {
             if(desired!=analysis && probe_output_analysis(desired)==DBT_OK)analysis=desired;
             if(desired && now-meter_at>=40){uint8_t levels[3];probe_output_meter(levels);if(ble_meter)probe_gatt_meter(levels[0],levels[1],levels[2]);
 #ifdef DBT_PROBE_PRODUCT_IO
-                if(product_io_ready){probe_output_stats_t stats;probe_output_stats(&stats);probe_product_io_meter(levels[0],levels[1],levels[2],stats.running!=0);}
+                if(product_io_ready)probe_product_io_meter(levels[0],levels[1],levels[2],probe_output_running());
 #endif
                 meter_at=now;}
 #endif
