@@ -19,6 +19,15 @@ for command in ['cc','cc -DDBT_PROBE_DECODER_PRIORITY=5','cc -DDBT_PROBE_DECODER
 check({'diagnostic':True},False);check({'pipeline':True},False);check({'build_status':{'decoder_priority':6,'async_audio':False}},False);check({'build_status':{'decoder_priority':6,'async_audio':True,'rf_protocol_diagnostic':True}},False);check({'cache':'DBT_PROBE_DECODER_PRIORITY:STRING=6\nDBT_PROBE_KEEP_OWNED_ACTIVE:BOOL=ON'},False)
 check({'build_status':{},'cache':'','commands':[{'file':'probe_audio.c','command':'cc'}]},True);check({'build_status':{},'cache':''},False)
 check({'build_status':{'decoder_priority':5},'cache':'DBT_PROBE_DECODER_PRIORITY:STRING=5','commands':[{'file':'probe_audio.c','command':'cc -DDBT_PROBE_DECODER_PRIORITY=5'}]},True)
+yield_start=next(i for i,n in enumerate(tree.body) if isinstance(n,ast.Assign) and any(isinstance(t,ast.Name) and t.id=='owner_ready_yield' for t in n.targets));yield_nodes=tree.body[yield_start:yield_start+3];assert isinstance(yield_nodes[-1],ast.If);yield_code=compile(ast.Module(body=yield_nodes,type_ignores=[]),'<actual owner yield admission>','exec');yield_cases=0
+def check_yield(change,valid):
+    global yield_cases
+    state={'decoder_priority':6,'build_status':{'owner_ready_yield':True},'main_command':'cc -DDBT_PROBE_DECODER_PRIORITY=6','re':re};state.update(change)
+    try:exec(yield_code,state)
+    except AssertionError:assert not valid
+    else:assert valid
+    yield_cases+=1
+check_yield({},True);check_yield({'build_status':{}},False);check_yield({'build_status':{'owner_ready_yield':1}},False);check_yield({'main_command':'cc -DDBT_PROBE_DECODER_PRIORITY=5'},False);check_yield({'main_command':'cc -DDBT_PROBE_DECODER_PRIORITY=6 -UDBT_PROBE_DECODER_PRIORITY'},False);check_yield({'decoder_priority':5},False);check_yield({'decoder_priority':5,'build_status':{}},True)
 tree=ast.parse((ROOT/'tools/deploy_audio_trial.py').read_text());fn=next(n for n in tree.body if isinstance(n,ast.FunctionDef) and n.name=='admit_pcm_target_deployment');space={'re':re};exec(compile(ast.Module(body=[fn],type_ignores=[]),'<actual finite guard>','exec'),space)
 for finite,keep,valid in [(False,False,False),(True,False,True),(True,True,False)]:
     try:space['admit_pcm_target_deployment']('DBT_PROBE_PCM_TARGET_MS:STRING=64\nDBT_PROBE_DECODER_PRIORITY:STRING=6','probe',finite,False,keep)
@@ -27,4 +36,4 @@ for finite,keep,valid in [(False,False,False),(True,False,True),(True,True,False
 cli=0
 if sys.platform=='win32':
     run=subprocess.run(['powershell','-NoProfile','-ExecutionPolicy','Bypass','-File',str(ROOT/'tools/build_probe.ps1'),'-DecoderPriority','6'],capture_output=True,text=True);assert run.returncode and 'Decoder priority experiment requires' in run.stderr;cli=1
-(OUT/'results.json').write_text(json.dumps({'passed':True,'cmake_cases':len(cases),'actual_image_cases':count,'actual_finite_cases':3,'cli_rejections':cli,'hardware_accessed':False},indent=2)+'\n');print(f'PASS decoder priority: {len(cases)} CMake, {count} image, 3 finite and {cli} CLI cases')
+(OUT/'results.json').write_text(json.dumps({'passed':True,'cmake_cases':len(cases),'actual_image_cases':count,'actual_owner_yield_cases':yield_cases,'actual_finite_cases':3,'cli_rejections':cli,'hardware_accessed':False},indent=2)+'\n');print(f'PASS decoder priority: {len(cases)} CMake, {count} image, {yield_cases} owner yield, 3 finite and {cli} CLI cases')

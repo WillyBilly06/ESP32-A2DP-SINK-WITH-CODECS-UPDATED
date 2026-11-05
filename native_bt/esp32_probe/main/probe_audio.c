@@ -120,6 +120,7 @@ static _Atomic uint32_t rx_packets,rx_acl,rx_events,rx_bytes,rx_isr,rx_rejected,
 static _Atomic uint32_t rx_callback_max_us,first_rx_to_poll_max_us,host_poll_max_us;
 static _Atomic uint32_t worker_steps,worker_elapsed_us,worker_step_max_us,worker_hist[8];
 static _Atomic uint32_t owner_iterations,owner_immediate[15];
+static _Atomic uint32_t owner_ready_yields;
 static _Atomic uint32_t snapshot_format_lost;
 static DRAM_ATTR _Atomic uint32_t watchdog_events,watchdog_hook_us,watchdog_isr_core;
 static void IRAM_ATTR record_watchdog(unsigned core){
@@ -240,6 +241,7 @@ void probe_audio_owner_wait(uint32_t immediate_mask){
     atomic_fetch_add_explicit(&owner_iterations,1,memory_order_relaxed);
     for(unsigned i=0;i<15;++i)if(immediate_mask&(1u<<i))atomic_fetch_add_explicit(&owner_immediate[i],1,memory_order_relaxed);
 }
+void probe_audio_owner_ready_yield(void){atomic_fetch_add_explicit(&owner_ready_yields,1,memory_order_relaxed);}
 /* Each endpoint is validated independently before an asynchronous worker job.
  * Opus 05 offers forward mono/stereo only; reverse audio is not supported. */
 static const uint8_t sbc_capabilities[]={1,0,7,6,0,0,0x3f,0xff,2,53,8,0};
@@ -536,12 +538,12 @@ static void log_loop(void *unused){
                ",\"runtime\":%" PRIu32 ",\"admission\":%" PRIu32 ",\"smp\":%" PRIu32 ",\"avrcp\":%" PRIu32
                ",\"restart\":%" PRIu32 ",\"pair_button\":%" PRIu32 ",\"rfcomm\":%" PRIu32 ",\"gap\":%" PRIu32
                ",\"product\":%" PRIu32 ",\"io\":%" PRIu32 ",\"att\":%" PRIu32 ",\"security\":%" PRIu32
-               ",\"echo\":%" PRIu32 ",\"sdp\":%" PRIu32 ",\"a2dp\":%" PRIu32 "}\n",at,atomic_load(&owner_iterations),
+               ",\"echo\":%" PRIu32 ",\"sdp\":%" PRIu32 ",\"a2dp\":%" PRIu32 ",\"runnable_yields\":%" PRIu32 "}\n",at,atomic_load(&owner_iterations),
                atomic_load(&owner_immediate[0]),atomic_load(&owner_immediate[1]),atomic_load(&owner_immediate[2]),
                atomic_load(&owner_immediate[3]),atomic_load(&owner_immediate[4]),atomic_load(&owner_immediate[5]),
                atomic_load(&owner_immediate[6]),atomic_load(&owner_immediate[7]),atomic_load(&owner_immediate[8]),
                atomic_load(&owner_immediate[9]),atomic_load(&owner_immediate[10]),atomic_load(&owner_immediate[11]),
-               atomic_load(&owner_immediate[12]),atomic_load(&owner_immediate[13]),atomic_load(&owner_immediate[14]));
+               atomic_load(&owner_immediate[12]),atomic_load(&owner_immediate[13]),atomic_load(&owner_immediate[14]),atomic_load(&owner_ready_yields));
         PROBE_SNAPSHOT_LOG("{\"probe\":\"vhci_timing\",\"collection_cycle_us\":%" PRIu32 ",\"packets\":%" PRIu32 ",\"acl\":%" PRIu32
                ",\"events\":%" PRIu32 ",\"bytes\":%" PRIu32 ",\"isr_callbacks\":%" PRIu32 ",\"rejected\":%" PRIu32
                ",\"callback_max_us\":%" PRIu32 ",\"first_rx_to_poll_max_us\":%" PRIu32 ",\"host_poll_max_us\":%" PRIu32
@@ -717,7 +719,7 @@ dbt_result_t probe_audio_init(dbt_runtime_t *runtime,TaskHandle_t host_owner){
         sampled==ESP_OK?"true":"false",(unsigned)sampled,(unsigned)configTICK_RATE_HZ);
 #endif
     initialized=true;
-    printf("{\"probe\":\"scheduler_layout\",\"decoder_core\":%u,\"decoder_priority\":%u,\"renderer_core\":0,\"renderer_priority\":6,\"logger_core\":%u,\"logger_priority\":1}\n",(unsigned)DBT_PROBE_DECODER_CORE,(unsigned)DBT_PROBE_DECODER_PRIORITY,(unsigned)AUDIO_LOGGER_CORE);
+    printf("{\"probe\":\"scheduler_layout\",\"decoder_core\":%u,\"decoder_priority\":%u,\"owner_ready_yield\":%u,\"renderer_core\":0,\"renderer_priority\":6,\"logger_core\":%u,\"logger_priority\":1}\n",(unsigned)DBT_PROBE_DECODER_CORE,(unsigned)DBT_PROBE_DECODER_PRIORITY,(unsigned)(DBT_PROBE_DECODER_PRIORITY==6),(unsigned)AUDIO_LOGGER_CORE);
     printf("{\"probe\":\"sbc_probe_ready\",\"psm\":25,\"mtu\":%u,\"worker_bytes\":%u,\"profile_bytes\":%u,\"decoder_stack\":8192,"
            "\"logger_stack\":4096,\"codecs\":" AUDIO_CODECS_JSON ",\"diagnostic_only\":true,\"audio_sink_sdp_advertised\":" AUDIO_SDP_JSON ",\"i2s_output\":" AUDIO_OUTPUT_JSON ",\"rf_protocol_diagnostic\":" AUDIO_RF_DIAG_JSON "}\n",
            (unsigned)PROBE_A2DP_RX_MTU,(unsigned)sizeof(worker),(unsigned)sizeof(profile));

@@ -30,6 +30,7 @@ void probe_audio_transport_received(uint32_t began_us,uint16_t bytes,uint8_t typ
 void probe_audio_transport_poll_begin(uint32_t began_us);
 void probe_audio_transport_poll_end(uint32_t began_us);
 void probe_audio_owner_wait(uint32_t immediate_mask);
+void probe_audio_owner_ready_yield(void);
 /* Before controller startup, initialize the shared output exactly once. */
 dbt_result_t probe_audio_output_bootstrap(void);
 /* Owner: stop new sessions and drain existing channels/worker loans. Keep

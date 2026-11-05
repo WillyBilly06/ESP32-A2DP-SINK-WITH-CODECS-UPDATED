@@ -1016,7 +1016,16 @@ void app_main(void) {
 #ifdef DBT_PROBE_SCHEDULER_TRACE
         probe_scheduler_host_phase(previous_phase);
 #endif
-        if (wait == 0) continue;
+        if (wait == 0) {
+#if DBT_PROBE_DECODER_PRIORITY == 6
+            /* The decoder also yields after a bounded batch. Return to the
+             * scheduler here so a ready equal-priority decoder need not wait
+             * for the host's entire run of immediate protocol work. No delay. */
+            probe_audio_owner_ready_yield();
+            taskYIELD();
+#endif
+            continue;
+        }
         TickType_t ticks = portMAX_DELAY;
         if (wait != UINT32_MAX) {
             ticks = pdMS_TO_TICKS(wait);

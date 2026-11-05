@@ -172,6 +172,7 @@ $buildReceipt.block_dsp=[bool]$BlockDsp
 $buildReceipt.rf_protocol_diagnostic=[bool]$RfProtocolDiagnostic
 $buildReceipt.decoder_core=$DecoderCore
 $buildReceipt.decoder_priority=$DecoderPriority
+$buildReceipt.owner_ready_yield=($DecoderPriority -eq 6)
 $buildReceipt.logger_core=$LoggerCore
 $buildReceipt.scheduler_trace=[bool]$SchedulerTrace
 $buildReceipt.lhdc_maximum_check=[bool]$LhdcMaximumCheck
