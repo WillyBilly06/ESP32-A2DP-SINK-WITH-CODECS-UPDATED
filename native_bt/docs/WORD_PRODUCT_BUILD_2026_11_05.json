@@ -1,0 +1,28 @@
+{
+  "scope": "Complete codec/product word-DSP candidate build; not flashed or runtime-qualified",
+  "source_commit": "a465b1947a65d27efc66ea6b863a3ca66a625f62",
+  "archive": "native_bt/_build/hardware/candidates/1793879341958423000-d02658a85463",
+  "image_sha256": "d02658a854636062c891aec0a7425aef1540ad777c79b650ea05b2f014deeeac",
+  "elf_sha256": "73064245070d67adb95aa0ca6e837febff9c7106cdbb29e5925f964b76bc5bf2",
+  "image_bytes": 1221808,
+  "priority_order": {
+    "controller_sdk_default": 23,
+    "host": 7,
+    "decoder": 6,
+    "renderer": 5
+  },
+  "word_dsp": true,
+  "block_dsp": true,
+  "pcm_copied": true,
+  "pcm_target_ms": 16,
+  "logger_core": 1,
+  "image_admission_passed": true,
+  "limited_iram_audit": {
+    "passed": true,
+    "protected_symbols": 6,
+    "direct_functions_walked": 5,
+    "indirect_calls_unproven": 4
+  },
+  "target_flashed": false,
+  "maximum_lhdc_audio_passed": false
+}

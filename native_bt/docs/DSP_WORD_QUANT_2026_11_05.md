@@ -58,3 +58,12 @@ pass, as do the existing block/finite guards. Renderer/pipeline target timing
 and maximum-rate RF continuity remain separate, incomplete gates.
 
 The next integrated synthetic trial uses the shared 1800-byte x8 decoder queue and two-step worker budget from the current RF probe, plus the explicit compact copied/16ms/word-block options. Earlier diagnostics used a separate 628-byte x2 queue and one-step budget; their results retain that scope. The new `pipeline_decoder_input` record exposes the actual reservation. Controller, BLE and storage remain absent, so this is not a full-product headroom test.
+
+That [integrated trial](WORD_PIPELINE_2026_11_05.md) has now run and fails the
+complete stream gate. DMA starts, but only four packets complete before the
+encoded queue saturates. The very short prefix is not a continuity pass.
+The [complete product candidate](WORD_PRODUCT_BUILD_2026_11_05.json) also builds
+with all codec/product options, the requested priority ordering and word DSP.
+Its source-matched image and limited callback-placement checks pass. Exact
+binary/ELF/build inputs are archived; this product candidate has not been
+flashed or qualified under live Bluetooth load.

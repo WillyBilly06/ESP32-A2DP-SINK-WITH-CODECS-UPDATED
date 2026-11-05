@@ -120,6 +120,13 @@
       "baseline_selected": true,
       "restore_result": 0,
       "radio_test": false
+    },
+    "pipeline_allocation": {
+      "probe": "pipeline_allocation",
+      "failed_bytes": 0,
+      "failure_free": 0,
+      "failure_largest": 0,
+      "page_bytes": 4096
     }
   },
   "profile_including_stop_drain_us_per_pcm_sample_frame": {
