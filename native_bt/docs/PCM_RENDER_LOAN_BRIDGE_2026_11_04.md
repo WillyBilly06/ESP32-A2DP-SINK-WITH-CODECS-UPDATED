@@ -65,7 +65,30 @@ python native_bt/tools/test_probe_codec_check.py --deferred --pcm-loans --saniti
 powershell -File native_bt/tools/build_probe.ps1 -PcmLoans -AsyncAudio -DecoderCore 0 -WithProductIo -WithRfcomm -WithLhdc -WithOpus -WithAac -WithAptx -WithLdac -LhdcSourceDir '<LHDC checkout>'
 ```
 
-The isolated pipeline also accepts `-PcmLoans -PipelineDiagnostic`. Compilation
-and local tests do not qualify maximum LHDC RAM, CPU headroom, sound continuity,
-physical output or complete feature parity. Hardware validation is pending.
-Released 1.0.4 remains the fallback.
+The [source-bound local receipts](PCM_RENDER_LOAN_LOCAL_RESULTS_2026_11_04.json)
+also record a separate `-PcmLoans -PipelineDiagnostic -AudioStageProfile` image
+that builds and passes offline admission. That isolated image has not run on
+COM6; its controller-free layout is distinct from the full RF image.
+
+The [first full-product COM6 trial](RF_PCM_LOANS_LDAC96_2026_11_04.json) confirms
+56320 bytes of live LDAC96 PCM/DMA payload versus the previous 89088-byte
+policy, a 32768-byte input-ring removal. All 4882 renderer loans retire; stale
+receipts, request faults, PCM failures/timeouts and descriptor errors remain
+zero in this finite trial. Maximum renderer hold is 15359 us. Rendered data
+includes the existing finite stop/drain tail; no DAC/acoustic quality pass is
+inferred from a retired input pointer.
+
+Audio continuity still fails: mean work is 1950 us per bounded render unit
+against a 1333 us/128-frame budget, with 1290 encoded-queue drops, 1317376
+underrun frames and five core0 watchdog warnings. Duration/control differences
+prevent an isolated CPU-speed comparison with earlier images.
+
+The [subsequent maximum LHDC attempt](RF_PCM_LOANS_LHDC_MAX_2026_11_04.json)
+confirms 192 kHz/S24/stereo/1000 kbps target in Android but still fails an output
+page allocation: 4096 bytes requested, 11440 bytes free after partial allocation,
+largest block 3200. No LHDC I2S start follows. The input ring is omitted, but the
+102400-byte output-page requirement and remaining product/codec allocations
+still need SRAM work. Full headroom, storage/OTA/controls, lifecycle stress and
+feature parity remain unqualified. The bounded capture hit its 1 MiB limit;
+three malformed/interleaved/truncated records are excluded. COM6 returned to
+released 1.0.4 with System ready and phone playback was verified paused.

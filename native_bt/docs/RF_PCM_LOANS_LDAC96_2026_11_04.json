@@ -1,0 +1,261 @@
+{
+  "date": "2026-11-04",
+  "source_commit": "d9b2a3a855ebe77a9eda5e63f3f6d3abfa9c2241",
+  "image_sha256": "4b5ed6c1cd195cfd7dc4d1ff17021456450958d7b8a8436f987297dfc49f0bbc",
+  "hardware_evidence_archive": "native_bt/_build/hardware/runs/1793842473410266900-4b5ed6c1cd19",
+  "capture_audit": {
+    "scope": "offline record integrity only; no runtime/audio qualification",
+    "passed": false,
+    "snapshot_records": 2648,
+    "crc32_verified": 2648,
+    "legacy_timestamp_only": 0,
+    "other_records_unchecked": 538,
+    "all_snapshot_records_checksummed": false,
+    "rejected": [
+      {
+        "line": 2379,
+        "reason": "malformed/interleaved JSON"
+      },
+      {
+        "line": 2877,
+        "reason": "malformed/interleaved JSON"
+      },
+      {
+        "line": 6623,
+        "reason": "malformed/interleaved JSON"
+      }
+    ]
+  },
+  "finite_rf_return": {
+    "baseline_boot_observed": true,
+    "baseline_fatal_marker": false,
+    "prime_capture_bytes": 0
+  },
+  "phone_paused_verified": true,
+  "capture_limit_bytes": 1048576,
+  "raw_capture_bytes": 1048576,
+  "scope": "Actual Redmagic LDAC96/S32, PCM loans, full DSP/I2S and app EQ; decoder/render0 logger/controller/host1",
+  "result": "INPUT_COPY_RING_REMOVAL_AND_LOAN_RETIREMENT_OBSERVED; AUDIO_CONTINUITY_FAILS",
+  "last_crc_time_valid_ldac_phase_records": {
+    "codec_configuration": {
+      "probe": "codec_configuration",
+      "collection_cycle_us": 91291333,
+      "revision": 1,
+      "codec": 8,
+      "rate": 96000,
+      "channels": 2,
+      "pcm_container_bytes": 4,
+      "cie_size": 10,
+      "cie_hex": "00ff2d010000aa000401",
+      "snapshot_begin_us": 91585454,
+      "at_us": 91585501,
+      "snapshot_span_us": 47,
+      "record_crc32": "49995d57"
+    },
+    "media_drop_reasons": {
+      "probe": "media_drop_reasons",
+      "collection_cycle_us": 191121338,
+      "queue_full": 1290,
+      "decode_reject": 0,
+      "reset_failed": 0,
+      "pcm_failed": 0,
+      "pcm_timeout": 0,
+      "pcm_busy": 0,
+      "input_sequence_breaks": 0,
+      "input_ssrc_changes": 0,
+      "queue_high_water": 8,
+      "host_trace_lost": 1054,
+      "worker_trace_lost": 836,
+      "snapshot_records_lost": 0,
+      "snapshot_begin_us": 191182341,
+      "at_us": 191182365,
+      "snapshot_span_us": 24,
+      "record_crc32": "35ca3d3b"
+    },
+    "render_work": {
+      "probe": "render_work",
+      "collection_cycle_us": 191121338,
+      "calls": 9765,
+      "elapsed_us": 19044508,
+      "maximum_us": 13384,
+      "wall_time_includes_preemption": true,
+      "input_ready_frames": 0,
+      "render_stack_low_water_bytes": 4124,
+      "allocation_failed_bytes": 0,
+      "allocation_failure_free": 0,
+      "allocation_failure_largest": 0,
+      "request_fault": 0,
+      "stale_receipts": 0,
+      "snapshot_begin_us": 191408858,
+      "at_us": 191483118,
+      "snapshot_span_us": 74260,
+      "record_crc32": "a7a34b28"
+    },
+    "native_i2s": {
+      "probe": "native_i2s",
+      "running": 0,
+      "failed": 0,
+      "rate": 96000,
+      "requested_bytes": 0,
+      "accepted_frames": 1249792,
+      "rendered_frames": 1249815,
+      "ready_frames": 0,
+      "dma_eofs": 20073,
+      "dma_source_frames": 1249815,
+      "underrun_frames": 1317376,
+      "descriptor_errors": 0,
+      "max_eof_gap_us": 1368,
+      "maximum_render_us": 13384,
+      "first_underrun_accepted_frames": 13312,
+      "first_underrun_dma_frames": 12800,
+      "snapshot_begin_us": 191408858,
+      "at_us": 191545851,
+      "snapshot_span_us": 136993,
+      "record_crc32": "9814b60c"
+    },
+    "i2s_pcm_loans": {
+      "probe": "i2s_pcm_loans",
+      "mode": 1,
+      "input_ring_bytes_avoided": 32768,
+      "renderer_begun": 4882,
+      "renderer_retired": 4882,
+      "renderer_cancelled": 0,
+      "active": 0,
+      "max_hold_us": 15359,
+      "snapshot_begin_us": 191408858,
+      "at_us": 191409246,
+      "snapshot_span_us": 388,
+      "record_crc32": "7c000d27"
+    },
+    "i2s_callback_work": {
+      "probe": "i2s_callback_work",
+      "configured_irq_priority": 2,
+      "calls": 20073,
+      "elapsed_us": 176522,
+      "maximum_us": 46,
+      "core": 0,
+      "application_callback_only": true,
+      "elapsed_includes_preemption": true,
+      "snapshot_begin_us": 191408858,
+      "at_us": 191457395,
+      "snapshot_span_us": 48537,
+      "record_crc32": "0c2fb58c"
+    },
+    "i2s_descriptor_faults": {
+      "probe": "i2s_descriptor_faults",
+      "collection_cycle_us": 191121338,
+      "shape": 0,
+      "pool": 0,
+      "order": 0,
+      "expected_index": 0,
+      "observed_index": 0,
+      "observed_size": 0,
+      "fault_at_us": 0,
+      "fault_gap_us": 0,
+      "fault_stopping": 0,
+      "snapshot_begin_us": 191408858,
+      "at_us": 191519462,
+      "snapshot_span_us": 110604,
+      "record_crc32": "898df92a"
+    },
+    "sbc_pcm": {
+      "probe": "sbc_pcm",
+      "frames": 4882,
+      "bytes": 9998336,
+      "fnv1a32": 1032173771,
+      "rate": 96000,
+      "channels": 2,
+      "media_packets": 1226,
+      "drops": 1290,
+      "resets": 1069,
+      "resident": 63968,
+      "codec": 8,
+      "sample_bytes": 4,
+      "faults": 0,
+      "decoder_stack_low_water_bytes": 6200,
+      "internal_heap_free": 77040,
+      "internal_heap_min_free": 57852,
+      "internal_heap_largest": 55296,
+      "i2s_output": true,
+      "snapshot_begin_us": 191346460,
+      "at_us": 191370918,
+      "snapshot_span_us": 24458,
+      "record_crc32": "8ebd606f"
+    },
+    "vhci_timing": {
+      "probe": "vhci_timing",
+      "collection_cycle_us": 191121338,
+      "packets": 5035,
+      "acl": 2829,
+      "events": 2206,
+      "bytes": 1732223,
+      "isr_callbacks": 0,
+      "rejected": 0,
+      "callback_max_us": 172,
+      "first_rx_to_poll_max_us": 27929,
+      "host_poll_max_us": 18404,
+      "ingress_high_water_bytes": 1370,
+      "ingress_rejected": 0,
+      "logger_stack_low_water_bytes": 1516,
+      "watchdog_events": 5,
+      "watchdog_hook_at_us": 114926432,
+      "watchdog_isr_core": 1,
+      "snapshot_begin_us": 191142242,
+      "at_us": 191142355,
+      "snapshot_span_us": 113,
+      "record_crc32": "66d6ec06"
+    }
+  },
+  "active_pcm_dma_payload_bytes": 56320,
+  "previous_same_rate_payload_policy_bytes": 89088,
+  "input_ring_bytes_removed": 32768,
+  "loan_accounting": {
+    "renderer_begun": 4882,
+    "renderer_retired": 4882,
+    "renderer_cancelled": 0,
+    "active": 0,
+    "accepted_raw_frames": 1249792,
+    "raw_bytes": 9998336,
+    "maximum_renderer_hold_us": 15359,
+    "stale_receipts": 0,
+    "request_fault": 0
+  },
+  "render_mean_us_per_bounded_unit": 1950.2824372759856,
+  "budget_us_per_128_frames": 1333.3333333333333,
+  "runtime_health": {
+    "task_watchdog_triggers": 5,
+    "idle_starvation_warnings_by_core": {
+      "0": 5,
+      "1": 0
+    },
+    "watchdog_running_task_samples_by_core": {
+      "0": {
+        "native_decoder": 2,
+        "native_render": 3
+      },
+      "1": {
+        "main": 2,
+        "dbt_led": 1,
+        "IDLE1": 2
+      }
+    },
+    "interrupt_watchdog_timeouts": 0,
+    "backtrace_records": 5,
+    "runtime_health_passed": false
+  },
+  "ble_observations": {
+    "deep_bass_dashboard_readback": [
+      8,
+      -1,
+      -2
+    ],
+    "balanced_restore_sent": true,
+    "balanced_readback_captured": false
+  },
+  "limits": [
+    "Payload request excludes SDK driver and allocator overhead; it is not total firmware RAM.",
+    "Render mean includes preemption, stop/drain and partial work; no isolated speedup is claimed.",
+    "Core0 watchdog, encoded-queue drops and I2S underruns remain failures.",
+    "No acoustic fidelity or complete profile/product/stress qualification."
+  ]
+}

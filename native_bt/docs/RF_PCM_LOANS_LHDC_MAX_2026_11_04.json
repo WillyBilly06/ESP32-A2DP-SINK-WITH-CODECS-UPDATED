@@ -1,0 +1,72 @@
+{
+  "date": "2026-11-04",
+  "source_commit": "d9b2a3a855ebe77a9eda5e63f3f6d3abfa9c2241",
+  "image_sha256": "4b5ed6c1cd195cfd7dc4d1ff17021456450958d7b8a8436f987297dfc49f0bbc",
+  "hardware_evidence_archive": "native_bt/_build/hardware/runs/1793842473410266900-4b5ed6c1cd19",
+  "capture_audit": {
+    "scope": "offline record integrity only; no runtime/audio qualification",
+    "passed": false,
+    "snapshot_records": 2648,
+    "crc32_verified": 2648,
+    "legacy_timestamp_only": 0,
+    "other_records_unchecked": 538,
+    "all_snapshot_records_checksummed": false,
+    "rejected": [
+      {
+        "line": 2379,
+        "reason": "malformed/interleaved JSON"
+      },
+      {
+        "line": 2877,
+        "reason": "malformed/interleaved JSON"
+      },
+      {
+        "line": 6623,
+        "reason": "malformed/interleaved JSON"
+      }
+    ]
+  },
+  "finite_rf_return": {
+    "baseline_boot_observed": true,
+    "baseline_fatal_marker": false,
+    "prime_capture_bytes": 0
+  },
+  "phone_paused_verified": true,
+  "capture_limit_bytes": 1048576,
+  "raw_capture_bytes": 1048576,
+  "scope": "Subsequent actual Redmagic maximum LHDC full-product start attempt with PCM loan mode",
+  "result": "FAIL_OUTPUT_PAGE_ALLOCATION_BEFORE_LHDC_I2S_START",
+  "configuration": {
+    "codec": "LHDC V5",
+    "rate": 192000,
+    "encoded_depth_bits": 24,
+    "channels": 2,
+    "nominal_target_kbps": 1000,
+    "fresh_android_readback_confirmed": true,
+    "actual_wire_bitrate_not_measured": true
+  },
+  "allocation_failure_record": {
+    "probe": "i2s_allocation_failure",
+    "failed_bytes": 4096,
+    "free_bytes_at_failure": 11440,
+    "largest_block_at_failure": 3200,
+    "requested_rate": 192000,
+    "requested_channels": 2,
+    "requested_sample_bytes": 4,
+    "failure_at_us": 192093277,
+    "snapshot_begin_us": 192928095,
+    "at_us": 192952870,
+    "snapshot_span_us": 24775,
+    "record_crc32": "43ad84fc"
+  },
+  "required_output_pcm_bytes": 102400,
+  "nominal_dma_payload_bytes": 3072,
+  "second_input_ring_allocated": false,
+  "successful_lhdc_output_start": false,
+  "limits": [
+    "The 192 kHz output pages still fail allocation; the largest free block is smaller than one 4096-byte page.",
+    "Total free bytes at the failure are after partial allocation, not the initial budget.",
+    "Old LDAC counters/rate remain after this failed new start and are not LHDC playback.",
+    "Native successful-start CIE/PCM telemetry is not published for this rejected start."
+  ]
+}

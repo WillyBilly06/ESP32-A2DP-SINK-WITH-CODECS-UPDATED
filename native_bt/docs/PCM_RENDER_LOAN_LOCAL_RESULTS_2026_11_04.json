@@ -1,0 +1,105 @@
+{
+  "date": "2026-11-04",
+  "source_commit": "d9b2a3a8",
+  "scope": "PCM-loan bridge local qualification and two separate target build modes; full product remains unqualified",
+  "portable_host_groups": 184,
+  "local_checks": {
+    "provider": {
+      "passed": true,
+      "sanitizers": [
+        "address",
+        "undefined"
+      ],
+      "signed_overflow_wrapping": false,
+      "scope": "actual provider/render ownership with deterministic queues and mocked I2S; no hardware timing/audio qualification",
+      "receipt_sha256": "3145995df62e00f0fabc6abea11c7be010728319f84f2a35606a83e7220aa089",
+      "local_receipt": "native_bt/_build/output_loan/results.json",
+      "current_sources_rechecked": true
+    },
+    "sound_loans": {
+      "passed": true,
+      "sanitized": true,
+      "async_client": true,
+      "pcm_loans": true,
+      "scope": "real render/output/sound code with host simulated tasks and I2S; ESP32 objects only",
+      "receipt_sha256": "ce8a211a267b712daf9f3b0b8d2839fbe8efb900d6fcf649da679fce628fbebc",
+      "local_receipt": "native_bt/_build/sound_output_async_pcm_loans/ubsan_results.json",
+      "current_sources_rechecked": true
+    },
+    "sound_copy": {
+      "passed": true,
+      "sanitized": true,
+      "async_client": true,
+      "pcm_loans": false,
+      "scope": "real render/output/sound code with host simulated tasks and I2S; ESP32 objects only",
+      "receipt_sha256": "007790ef02a9f37ba8977d82607559dd9fa34d2309b86eaa1ea309a27f3a7e06",
+      "local_receipt": "native_bt/_build/sound_output_async/ubsan_results.json",
+      "current_sources_rechecked": true
+    },
+    "codec_loans": {
+      "passed": true,
+      "pcm_loans": true,
+      "scope": "real host codec algorithms and worker, byte/sample-timestamp comparison with simulated output backpressure and 150 ms pause; optional async PCM-loan mock, no target/RF timing",
+      "sanitizers": [
+        "address for all source-built codecs",
+        "undefined for owned adapters/worker/test harness"
+      ],
+      "guarded_opus_instrumented": true,
+      "summary": {
+        "probe": "deferred_codec_summary",
+        "passed": true,
+        "cases": 80,
+        "maximum_rate_tested": true,
+        "pcm_loans": true,
+        "rf_test": false
+      },
+      "receipt_sha256": "123caa6d5ee6a1d24e60918e0c72ca00a0f7499a5735e452851364ec531c3372",
+      "local_receipt": "native_bt/_build/native_codecs/deferred_loans_asan/results.json",
+      "current_sources_rechecked": true
+    },
+    "codec_copy": {
+      "passed": true,
+      "pcm_loans": false,
+      "scope": "real host codec algorithms and worker, byte/sample-timestamp comparison with simulated output backpressure and 150 ms pause; optional async PCM-loan mock, no target/RF timing",
+      "sanitizers": [
+        "address for all source-built codecs",
+        "undefined for owned adapters/worker/test harness"
+      ],
+      "guarded_opus_instrumented": true,
+      "summary": {
+        "probe": "deferred_codec_summary",
+        "passed": true,
+        "cases": 80,
+        "maximum_rate_tested": true,
+        "pcm_loans": false,
+        "rf_test": false
+      },
+      "receipt_sha256": "8c54290ab1bb295b0b994ea263cc546814aeb46d02f3816fea6ca4415130c0a7",
+      "local_receipt": "native_bt/_build/native_codecs/deferred_asan/results.json",
+      "current_sources_rechecked": true
+    },
+    "mode_policy": {
+      "passed": true,
+      "cmake_cases": 7,
+      "actual_validator_cases": 11,
+      "cli_rejections": 2,
+      "scope": "actual configuration/receipt/compile-mode rules only; no hardware",
+      "receipt_sha256": "07d0d8006f8672e07796945a3c40c7ba71e4885c2e06bd2238ae36b2996a664a",
+      "local_receipt": "native_bt/_build/pcm_loan_mode/results.json",
+      "current_sources_rechecked": true
+    }
+  },
+  "full_product_image_sha256": "4b5ed6c1cd195cfd7dc4d1ff17021456450958d7b8a8436f987297dfc49f0bbc",
+  "isolated_pipeline_image_sha256": "388fc82dd485553583b31f2c1d0a28889a357ad14bf0e7d971053ee4823cf2b3",
+  "isolated_pipeline_image_bytes": 603712,
+  "isolated_pipeline_executed_on_target": false,
+  "hardware_results": [
+    "RF_PCM_LOANS_LDAC96_2026_11_04.json",
+    "RF_PCM_LOANS_LHDC_MAX_2026_11_04.json"
+  ],
+  "open_gates": [
+    "Maximum-rate output allocation, sustainable DSP/renderer deadlines and measured headroom.",
+    "Long-duration full audio and simultaneous BLE/storage/OTA/control stress.",
+    "Complete existing profile/product parity and equivalent baseline resource comparison."
+  ]
+}

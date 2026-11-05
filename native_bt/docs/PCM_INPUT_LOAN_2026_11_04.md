@@ -68,8 +68,9 @@ python native_bt/tools/test_probe_codec_check.py --deferred --sanitize --lhdc-so
 ```
 
 The [source-bound foundation results](PCM_LOAN_FOUNDATIONS_RESULTS_2026_11_04.json)
-keep these scopes separate. Renderer/provider integration remains open and
-neither loan mode nor the PCM provider hook is selected by the current product.
-Sound overlays, stop/drain/restart/fault transitions, deadlines and teardown
-require integration tests before selection. No product SRAM saving,
-decoder-to-render speedup or hardware playback pass is claimed by this checkpoint.
+preserve this earlier checkpoint. The later
+[optional renderer bridge](PCM_RENDER_LOAN_BRIDGE_2026_11_04.md) wires both loan
+interfaces, adds sound/lifecycle integration checks and measures a 32 KiB
+input-ring removal during LDAC96 on COM6. The copied path remains the default.
+The maximum LHDC output attempt still fails allocation; renderer throughput,
+full audio continuity and complete feature/stress qualification remain open.

@@ -8,10 +8,11 @@ Released main/recovery artifacts remain preserved. Latest measured evidence:
   192 kHz/S24/stereo/1000 kbps target, simultaneous secured BLE/EQ, no decoder
   errors, queue drops or watchdog warnings during the finite checksum run.
   This path omits A2DP DSP/I2S forwarding.
-- [Full maximum LHDC attempt](RF_CAPACITY_LHDC_MAX_2026_11_04.json): Android
+- [Full maximum LHDC attempt](RF_PCM_LOANS_LHDC_MAX_2026_11_04.json): Android
   confirmed the maximum preference; audio startup failed a 4096-byte allocation
-  with 11740 bytes free and a 3712-byte largest block. Requested rate/format
-  now have their own CRC-validated failure record. No LHDC I2S start follows.
+  with 11440 bytes free after partial allocation and a 3200-byte largest block.
+  The input ring is now omitted, but output pages still do not fit. Requested
+  rate/format have their own CRC-valid failure record. No LHDC I2S start follows.
 - [I2S priority2 with live logging](RF_LOGGER_CORE1_2026_11_04.json): 28465
   LDAC96 callbacks, maximum callback 46 us and EOF gap 1374 us, with zero
   descriptor errors. Seven core0 watchdog warnings, 1804 queue drops and
@@ -26,11 +27,13 @@ Released main/recovery artifacts remain preserved. Latest measured evidence:
   required memory at 192 kHz without changing target/prefill. Its LDAC96 DMA
   trial has zero descriptor errors; throughput still fails. All 184 host groups,
   ASan/UBSan boundaries/formats and the non-power-of-two concurrent case pass.
-- [Optional PCM input loan](PCM_INPUT_LOAN_2026_11_04.md): 108 copied/borrowed
-  stream comparisons and ten sanitized worker ownership/control groups pass.
-  Eighty real-codec deferred-copy regressions also pass. The renderer bridge,
-  sound/lifecycle integration and product selection remain open; no product
-  input-ring saving or maximum LHDC output pass is claimed yet.
+- [Optional PCM loan bridge](PCM_RENDER_LOAN_BRIDGE_2026_11_04.md): worker,
+  renderer and sound/lifecycle integration checks pass. Eighty real-codec cases
+  pass both copied and async-loan provider-mock paths. COM6 confirms 32768 bytes
+  removed at LDAC96 (56320-byte PCM/DMA payload), with all 4882 loans retired,
+  no stale/request/PCM/descriptor faults, and a 15359 us maximum renderer hold.
+  Queue drops, underruns and watchdog warnings still fail audio continuity.
+  `-PcmLoans` is finite and optional; copied input remains the default.
 
 The last hardware trial returned to released 1.0.4-idf6.1 ota0 with System ready;
 phone playback was verified paused. Full profile/product parity and maximum
