@@ -13,7 +13,7 @@ static response_t pending_response;
 static bool request_pending,response_pending;
 static int64_t test_clock_us;
 static int64_t test_clock_step;
-static unsigned configured_irq_priority;
+static unsigned configured_irq_priority,created_render_priority;
 static unsigned allocation_attempt,fail_at_allocation;
 static unsigned decoder_wakes;
 static void wake_compact(void *unused){(void)unused;++decoder_wakes;}
@@ -31,7 +31,7 @@ void vTaskNotifyGiveFromISR(TaskHandle_t t,BaseType_t *w){(void)t;(void)w;}
 unsigned ulTaskNotifyTake(int b,unsigned t){(void)b;(void)t;return 0;}
 /* Metadata plumbing only; this host mock cannot measure an ESP32 stack. */
 unsigned uxTaskGetStackHighWaterMark(TaskHandle_t t){(void)t;++stack_queries;return 4096;}
-int xTaskCreatePinnedToCore(void (*f)(void *),const char *n,unsigned s,void *a,unsigned p,TaskHandle_t *t,int core){(void)f;(void)n;(void)s;(void)a;(void)p;(void)core;*t=(void *)3;return pdPASS;}
+int xTaskCreatePinnedToCore(void (*f)(void *),const char *n,unsigned s,void *a,unsigned p,TaskHandle_t *t,int core){(void)f;(void)n;(void)s;(void)a;created_render_priority=p;(void)core;*t=(void *)3;return pdPASS;}
 QueueHandle_t xQueueCreate(unsigned n,unsigned s){(void)n;(void)s;return (void *)(uintptr_t)(++queues_created);}
 int xQueueSend(QueueHandle_t q,const void *p,unsigned t){
     (void)t;if(q==(void *)1){pending_request=*(const request_t *)p;request_pending=true;return pdTRUE;}
@@ -61,6 +61,7 @@ EX int probe_output_formats(void){
     CHECK(event_wait_ticks(2)>0);
     CHECK(event_wait_ticks(0)==1);
     CHECK(probe_output_init(0,0)==DBT_OK);
+    CHECK(created_render_priority==DBT_PROBE_RENDER_PRIORITY);
     {int result=output_status_contract();if(result)return result;}
     CHECK(render_wait_ticks()==portMAX_DELAY);
     static const uint8_t sample16[]={0,0x80,0xff,0x7f,1,2,3,4};
@@ -142,6 +143,7 @@ EX int probe_output_descriptor_diagnostics(void){
 #ifdef DBT_PROBE_PCM_COPIED
 EX int probe_output_compact_copy(void){
     CHECK(probe_output_init(wake_compact,0)==DBT_OK);
+    CHECK(created_render_priority==DBT_PROBE_RENDER_PRIORITY);
     {int result=output_status_contract();if(result)return result;}
     const uint32_t rates[]={8000,48000,96000,192000},capacities[]={256,256,512,1024};
     const uint32_t payloads[]={13312,17408,23552,39936};

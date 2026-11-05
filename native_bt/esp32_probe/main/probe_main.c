@@ -1,3 +1,5 @@
+#include "probe_schedule_limits.h"
+#include "esp_task.h"
 #include <inttypes.h>
 #include <stdio.h>
 #ifdef DBT_PROBE_SCHEDULER_TRACE
@@ -562,7 +564,9 @@ static void confirm_owned_boot(void *unused){
 
 void app_main(void) {
     owner = xTaskGetCurrentTaskHandle();
-    vTaskPrioritySet(owner, 6);
+    _Static_assert(DBT_PROBE_HOST_PRIORITY < ESP_TASK_BT_CONTROLLER_PRIO,
+                   "The host must remain below the controller");
+    vTaskPrioritySet(owner, DBT_PROBE_HOST_PRIORITY);
 #ifdef DBT_PROBE_PRODUCT_SECURITY
     if(!probe_reset_dispatch_init(owner))owner_fault_park("core-0 restart timer initialization");
     if(!probe_pair_button_init(owner))owner_fault_park("local pairing button initialization");
@@ -1017,7 +1021,7 @@ void app_main(void) {
         probe_scheduler_host_phase(previous_phase);
 #endif
         if (wait == 0) {
-#if DBT_PROBE_DECODER_PRIORITY == 6
+#if DBT_PROBE_OWNER_READY_YIELD
             /* The decoder also yields after a bounded batch. Return to the
              * scheduler here so a ready equal-priority decoder need not wait
              * for the host's entire run of immediate protocol work. No delay. */

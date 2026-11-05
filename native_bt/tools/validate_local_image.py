@@ -65,8 +65,22 @@ if decoder_priority!=5:
     assert priority_option and build_status.get('async_audio') and not diagnostic and not pipeline and not build_status.get('rf_protocol_diagnostic')
     assert 'DBT_PROBE_KEEP_OWNED_ACTIVE:BOOL=ON' not in cache
     assert any(Path(e['file']).name=='probe_audio.c' for e in commands), 'Priority experiment has no decoder task unit'
+priority_order=build_status.get('priority_order',False)
+assert type(priority_order) is bool and ('DBT_PROBE_PRIORITY_ORDER:BOOL=ON' in cache)==priority_order, 'Priority order receipt/cache mismatch'
+host_priority=build_status.get('host_priority',6)
+renderer_priority=build_status.get('renderer_priority',6)
+assert type(host_priority) is int and host_priority==(7 if priority_order else 6), 'Invalid host priority receipt'
+assert type(renderer_priority) is int and renderer_priority==(5 if priority_order else 6), 'Invalid renderer priority receipt'
+schedule_units=[e for e in commands if Path(e['file']).name in (entry_name,'probe_audio.c','probe_output.c')]
+for entry in schedule_units:
+    assert re.findall(r'(?:^|\s)-DDBT_PROBE_PRIORITY_ORDER=(\S+)',entry['command'])==(['1'] if priority_order else []), 'Scheduling mode not actually compiled'
+    assert not re.search(r'(?:^|\s)-UDBT_PROBE_PRIORITY_ORDER(?:\s|$)',entry['command'])
+if priority_order:
+    assert decoder_priority==6 and not diagnostic and not pipeline and build_status.get('async_audio')
+    assert not build_status.get('rf_protocol_diagnostic') and 'DBT_PROBE_KEEP_OWNED_ACTIVE:BOOL=ON' not in cache
+    assert {Path(e['file']).name for e in schedule_units}=={entry_name,'probe_audio.c','probe_output.c'}, 'Missing ordered task unit'
 owner_ready_yield=build_status.get('owner_ready_yield',False)
-assert type(owner_ready_yield) is bool and owner_ready_yield==(decoder_priority==6), 'Owner ready-yield receipt mismatch'
+assert type(owner_ready_yield) is bool and owner_ready_yield==(decoder_priority==host_priority), 'Owner ready-yield receipt mismatch'
 if owner_ready_yield:
     assert re.findall(r'(?:^|\s)-DDBT_PROBE_DECODER_PRIORITY=(\S+)',main_command)==['6'], 'Owner yield not actually compiled'
     assert not re.search(r'(?:^|\s)-UDBT_PROBE_DECODER_PRIORITY(?:\s|$)',main_command)
@@ -219,7 +233,7 @@ assert hashlib.sha256(original).hexdigest()==receipt['sha256']
 assert table==original[0x8000:0x8000+len(table)]
 assert image.flash_mode==2 and image.flash_size_freq==0x3f
 assert image.min_rev_full<=301<=image.max_rev_full
-report={'passed':True,'scheduler_trace':scheduler_trace,'decoder_priority':decoder_priority,'owner_ready_yield':owner_ready_yield,'scope':'offline image checksum/digest, ESP32 revision and admitted OTA capacity; no device access or runtime qualification',
+report={'passed':True,'scheduler_trace':scheduler_trace,'priority_order':priority_order,'host_priority':host_priority,'decoder_priority':decoder_priority,'renderer_priority':renderer_priority,'owner_ready_yield':owner_ready_yield,'scope':'offline image checksum/digest, ESP32 revision and admitted OTA capacity; no device access or runtime qualification',
  'image_sha256':hashlib.sha256(blob).hexdigest(),'image_bytes':len(blob),'project':project,'chip_id':image.chip_id,'codec_diagnostic_only':diagnostic,'pipeline_diagnostic':pipeline,
  'rf_protocol_diagnostic':rf_diagnostic,'pcm_target_ms':pcm_target_ms,'pcm_copied':pcm_copied,'logger_core':logger_core,'block_dsp':block_dsp,'experimental_short_pcm_target':pcm_target_ms!=64,'revision_range':[image.min_rev_full,image.max_rev_full],'checksum_verified':True,'digest_verified':bool(image.append_digest),
  'latest_local_build_completed':True,'build_sources_match':True,'build_source_units':source_count,'product_io':bool(build_status.get('product_io')),'product_security':product_security,'rfcomm_profile':rfcomm,'controller_only_dual_mode':True,'anti_rollback_fuse_updates':False,'partition_offset':slot['offset'],'partition_bytes':slot['size'],

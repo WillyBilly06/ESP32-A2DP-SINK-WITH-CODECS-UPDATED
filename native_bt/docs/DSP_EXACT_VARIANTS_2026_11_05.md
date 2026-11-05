@@ -25,3 +25,27 @@ with full PCM/state equality under ASan/UBSan. Six actual CMake configurations,
 ten image-validator unit/optimization checks and two early CLI rejections
 pass. Host timer/cycle/RTOS/heap values are stubs. Target timing and performance
 remain unproven until the separately admitted finite hardware run completes.
+
+## Target result
+
+The [target receipt](DSP_EXACT_TARGET_RESULTS_2026_11_05.json) records all 108
+rows and complete PCM/state equality. At 192 kHz, the median steady costs for
+the current block kernel versus the product-state prototype are 5.998 versus
+7.160 us per PCM sample frame for flags9, 6.072 versus 7.232 for flags13,
+and 3.153 versus 3.518 with flat EQ. The prototype therefore costs about
+19.1–19.4% more time with the non-flat policies and 11.6% more with flat EQ.
+Keep the current block kernel. Plain whole-unit O3 is also slower than the
+current block implementation in these cases.
+
+Disassembly already shows native `mull`/`mulsh` products in the current stable
+kernel. The prototype has a larger helper and more load/store instructions;
+static counts are not dynamic execution counts or speed proof. Target timing,
+rather than an assumption that a different formula or optimization level is
+faster, drives the decision.
+
+The separate synthetic pipeline accepts 12992 PCM sample frames but completes
+only 13 of 96 required packets. It has no allocation failure; it fails the full
+correctness/continuity gates and never starts DMA in that observation. Its
+startup/ramp stage costs cannot be substituted for steady kernel timing.
+Controller-off kernel correctness does not qualify the full pipeline. The
+diagnostic selects the baseline and its released boot is observed cleanly.

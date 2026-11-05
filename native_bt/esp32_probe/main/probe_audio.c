@@ -1,3 +1,4 @@
+#include "probe_schedule_limits.h"
 #include "probe_audio.h"
 #include "probe_audio_limits.h"
 #ifdef DBT_PROBE_SCHEDULER_TRACE
@@ -719,7 +720,7 @@ dbt_result_t probe_audio_init(dbt_runtime_t *runtime,TaskHandle_t host_owner){
         sampled==ESP_OK?"true":"false",(unsigned)sampled,(unsigned)configTICK_RATE_HZ);
 #endif
     initialized=true;
-    printf("{\"probe\":\"scheduler_layout\",\"decoder_core\":%u,\"decoder_priority\":%u,\"owner_ready_yield\":%u,\"renderer_core\":0,\"renderer_priority\":6,\"logger_core\":%u,\"logger_priority\":1}\n",(unsigned)DBT_PROBE_DECODER_CORE,(unsigned)DBT_PROBE_DECODER_PRIORITY,(unsigned)(DBT_PROBE_DECODER_PRIORITY==6),(unsigned)AUDIO_LOGGER_CORE);
+    printf("{\"probe\":\"scheduler_layout\",\"host_priority\":%u,\"decoder_core\":%u,\"decoder_priority\":%u,\"owner_ready_yield\":%u,\"renderer_core\":0,\"renderer_priority\":%u,\"logger_core\":%u,\"logger_priority\":1}\n",(unsigned)DBT_PROBE_HOST_PRIORITY,(unsigned)DBT_PROBE_DECODER_CORE,(unsigned)DBT_PROBE_DECODER_PRIORITY,(unsigned)DBT_PROBE_OWNER_READY_YIELD,(unsigned)DBT_PROBE_RENDER_PRIORITY,(unsigned)AUDIO_LOGGER_CORE);
     printf("{\"probe\":\"sbc_probe_ready\",\"psm\":25,\"mtu\":%u,\"worker_bytes\":%u,\"profile_bytes\":%u,\"decoder_stack\":8192,"
            "\"logger_stack\":4096,\"codecs\":" AUDIO_CODECS_JSON ",\"diagnostic_only\":true,\"audio_sink_sdp_advertised\":" AUDIO_SDP_JSON ",\"i2s_output\":" AUDIO_OUTPUT_JSON ",\"rf_protocol_diagnostic\":" AUDIO_RF_DIAG_JSON "}\n",
            (unsigned)PROBE_A2DP_RX_MTU,(unsigned)sizeof(worker),(unsigned)sizeof(profile));

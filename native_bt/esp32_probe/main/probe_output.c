@@ -1,3 +1,4 @@
+#include "probe_schedule_limits.h"
 #include "probe_output.h"
 #include "dbt_async_ticket.h"
 #include "driver/i2s_std.h"
@@ -861,7 +862,7 @@ dbt_result_t probe_output_init(void (*wake_decoder)(void *), void *context) {
   output.requests = xQueueCreate(2, sizeof(request_t));
   if (!output.requests)
     return DBT_NO_SPACE;
-  return xTaskCreatePinnedToCore(render_loop, "native_render", 6144, 0, 6,
+  return xTaskCreatePinnedToCore(render_loop, "native_render", 6144, 0, DBT_PROBE_RENDER_PRIORITY,
                                  &output.task, 0) == pdPASS
              ? DBT_OK
              : DBT_NO_SPACE;

@@ -1,6 +1,6 @@
 """Offline production output-format test with real dbt_audio and mocked I2S."""
 import argparse,ctypes,os,pathlib,shutil,subprocess,sys
-parser=argparse.ArgumentParser();parser.add_argument('--compact-copy',action='store_true');parser.add_argument('--block-dsp',action='store_true');options=parser.parse_args()
+parser=argparse.ArgumentParser();parser.add_argument('--compact-copy',action='store_true');parser.add_argument('--block-dsp',action='store_true');parser.add_argument('--priority-order',action='store_true');options=parser.parse_args()
 root=pathlib.Path(__file__).resolve().parents[1];ws=root.parent;out=root/'_build/avrcp';out.mkdir(parents=True,exist_ok=True)
 check=[sys.executable,str(root/'tools/check_workspace.py')];subprocess.run(check,check=True)
 env=os.environ.copy()
@@ -21,6 +21,7 @@ try:
     cmd=[cache,cc,'-std=c11','-O1','-g','-fwrapv','-shared','-DCONFIG_I2S_ISR_IRAM_SAFE=1','-DCONFIG_NATIVE_AUDIO_BCLK=26','-DCONFIG_NATIVE_AUDIO_LRCK=25','-DCONFIG_NATIVE_AUDIO_DATA=27']
     if options.compact_copy:cmd+=['-DDBT_PROBE_PCM_COPIED=1','-DDBT_PROBE_ASYNC_AUDIO=1','-DDBT_PROBE_PCM_TARGET_MS=16']
     if options.block_dsp:cmd+=['-DDBT_AUDIO_BLOCK_DSP=1','-DFIXED_DSP_BLOCK_API=1','-DDBT_PROBE_BLOCK_DSP=1']
+    if options.priority_order:cmd+=['-DDBT_PROBE_PRIORITY_ORDER=1','-DDBT_PROBE_DECODER_PRIORITY=6']
     if os.name!='nt':cmd+=['-fPIC']
     cmd+=sum((['-I',str(i)] for i in incs),[])+[str(s) for s in src]
     for hz in (100,1000):

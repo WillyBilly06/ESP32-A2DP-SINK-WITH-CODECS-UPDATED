@@ -15,6 +15,20 @@ The existing portable Tailscale daemon and read-only IPN watcher were restarted
 successfully using the saved identity. Do not confuse an online Tailscale node
 with a verified usable phone-viewer link.
 
+The launcher now supports a **manual** activation step after reviewing those
+changes. It preserves the retained history and verifies the owned viewer PID
+and actual UART release before restarting. It does not change Tailscale's
+existing forwarding configuration. This command has not been executed by the
+agent because automatic activation was rejected:
+
+```powershell
+& D:\bt-owned61\native_bt\tools\start_serial_dashboard.ps1 -Restart -Listen -PhoneHostname esp32-logs.tail1b9fbd.ts.net
+```
+
+The command prints the private phone URL when the new service is ready. Use the
+phone's existing Tailscale account. Remote access is a private URL path, stripped
+of the local control token; the local viewer remains the only port controller.
+
 Run `native_bt/tools/start_serial_dashboard.ps1` to reuse or start the background
 service. It prints the local URL (normally `http://127.0.0.1:8765/`). Opening or
 closing its browser tab does not open or close the serial port. A reopened tab

@@ -22,12 +22,14 @@ check({'build_status':{'decoder_priority':5},'cache':'DBT_PROBE_DECODER_PRIORITY
 yield_start=next(i for i,n in enumerate(tree.body) if isinstance(n,ast.Assign) and any(isinstance(t,ast.Name) and t.id=='owner_ready_yield' for t in n.targets));yield_nodes=tree.body[yield_start:yield_start+3];assert isinstance(yield_nodes[-1],ast.If);yield_code=compile(ast.Module(body=yield_nodes,type_ignores=[]),'<actual owner yield admission>','exec');yield_cases=0
 def check_yield(change,valid):
     global yield_cases
-    state={'decoder_priority':6,'build_status':{'owner_ready_yield':True},'main_command':'cc -DDBT_PROBE_DECODER_PRIORITY=6','re':re};state.update(change)
+    state={'decoder_priority':6,'host_priority':6,'build_status':{'owner_ready_yield':True},'main_command':'cc -DDBT_PROBE_DECODER_PRIORITY=6','re':re};state.update(change)
     try:exec(yield_code,state)
     except AssertionError:assert not valid
     else:assert valid
     yield_cases+=1
 check_yield({},True);check_yield({'build_status':{}},False);check_yield({'build_status':{'owner_ready_yield':1}},False);check_yield({'main_command':'cc -DDBT_PROBE_DECODER_PRIORITY=5'},False);check_yield({'main_command':'cc -DDBT_PROBE_DECODER_PRIORITY=6 -UDBT_PROBE_DECODER_PRIORITY'},False);check_yield({'decoder_priority':5},False);check_yield({'decoder_priority':5,'build_status':{}},True)
+check_yield({'host_priority':7,'build_status':{'owner_ready_yield':False}},True)
+check_yield({'host_priority':7},False)
 tree=ast.parse((ROOT/'tools/deploy_audio_trial.py').read_text());fn=next(n for n in tree.body if isinstance(n,ast.FunctionDef) and n.name=='admit_pcm_target_deployment');space={'re':re};exec(compile(ast.Module(body=[fn],type_ignores=[]),'<actual finite guard>','exec'),space)
 for finite,keep,valid in [(False,False,False),(True,False,True),(True,True,False)]:
     try:space['admit_pcm_target_deployment']('DBT_PROBE_PCM_TARGET_MS:STRING=64\nDBT_PROBE_DECODER_PRIORITY:STRING=6','probe',finite,False,keep)
