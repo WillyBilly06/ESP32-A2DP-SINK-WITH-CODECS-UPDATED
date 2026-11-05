@@ -32,6 +32,9 @@ carry and restart fencing. The default copied-output tests also pass. Eight
 actual CMake configurations, sixteen actual image-admission cases and two
 early CLI rejections cover mode isolation, receipt/cache mismatches, missing/
 overridden/undefined compile definitions and unreceipted short targets.
+Six actual deployment-guard cases additionally require explicit finite RF or
+pipeline capture with baseline return; a bare probe deployment cannot leave a
+short-target experiment running.
 
 ```powershell
 python native_bt/tools/test_probe_output_loan.py

@@ -40,9 +40,18 @@ check({'commands':[{'file':'probe_output.c','command':'cc -DDBT_PROBE_PCM_TARGET
 check({'commands':[{'file':'probe_output.c','command':'cc -DDBT_PROBE_PCM_TARGET_MS=16 -UDBT_PROBE_PCM_TARGET_MS'}]},False)
 check({'build_status':{'pcm_target_ms':64},'cache':''},False)
 cli=0
+deployment_tree=ast.parse((ROOT/'tools/deploy_audio_trial.py').read_text())
+function=next(n for n in deployment_tree.body if isinstance(n,ast.FunctionDef) and n.name=='admit_pcm_target_deployment')
+space={'re':re};exec(compile(ast.Module(body=[function],type_ignores=[]),'<actual deployment guard>','exec'),space)
+deployment_cases=[(16,False,False,False,False),(16,True,False,False,True),(32,False,True,False,True),
+                  (16,True,False,True,False),(64,False,False,False,True),(8,True,False,False,False)]
+for target,rf,pipeline,keep,valid in deployment_cases:
+    try:space['admit_pcm_target_deployment']('DBT_PROBE_PCM_TARGET_MS:STRING='+str(target),'probe',rf,pipeline,keep)
+    except RuntimeError:assert not valid
+    else:assert valid
 if sys.platform=='win32':
     for target in (16,32):
         run=subprocess.run(['powershell','-NoProfile','-ExecutionPolicy','Bypass','-File',str(ROOT/'tools/build_probe.ps1'),'-PcmTargetMs',str(target)],capture_output=True,text=True)
         assert run.returncode and 'Short PCM target requires' in run.stderr;cli+=1
-(OUT/'results.json').write_text(json.dumps({'passed':True,'cmake_cases':len(cases),'actual_validator_cases':count,'cli_rejections':cli,'hardware_accessed':False},indent=2)+'\n')
-print(f'PASS PCM target: {len(cases)} CMake configurations, {count} actual admission cases, {cli} early CLI rejections')
+(OUT/'results.json').write_text(json.dumps({'passed':True,'cmake_cases':len(cases),'actual_validator_cases':count,'actual_deployment_cases':len(deployment_cases),'cli_rejections':cli,'hardware_accessed':False},indent=2)+'\n')
+print(f'PASS PCM target: {len(cases)} CMake configurations, {count} actual admission cases, {len(deployment_cases)} actual deployment cases, {cli} early CLI rejections')

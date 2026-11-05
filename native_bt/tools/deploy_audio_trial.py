@@ -18,6 +18,14 @@ from esptool.bin_image import ESP32FirmwareImage
 ROOT=Path(__file__).resolve().parents[1]
 HARDWARE=ROOT/'_build/hardware'
 
+def admit_pcm_target_deployment(cache,kind,finite_rf,pipeline_only,keep_owned):
+    """Short-target experiments must observe return to the released image."""
+    option=re.search(r'^DBT_PROBE_PCM_TARGET_MS:STRING=(\S+)$',cache,re.M)
+    target=int(option.group(1)) if option else 64
+    if target not in (16,32,64):raise RuntimeError('Invalid compiled PCM target')
+    if kind=='probe' and target!=64 and (keep_owned or not (finite_rf or pipeline_only)):
+        raise RuntimeError('Short PCM target requires explicit finite RF or pipeline deployment with baseline return')
+
 def runtime_health(text):
     """Boot readiness does not imply a healthy streaming scheduler."""
     clean=re.sub(r'\x1b\[[0-9;]*m','',text)
@@ -149,6 +157,7 @@ def main():
     if not baud_match:raise RuntimeError('Console baud is missing from the actual build configuration')
     console_baud=int(baud_match.group(1))
     cache=(image_path.parent/'CMakeCache.txt').read_text()
+    admit_pcm_target_deployment(cache,args.kind,args.finite_rf,args.pipeline_only,args.keep_owned)
     if ('DBT_PROBE_RF_PROTOCOL_DIAGNOSTIC:BOOL=ON' in cache)!=args.rf_protocol_diagnostic:
         raise RuntimeError('RF protocol diagnostic image requires its matching explicit finite mode')
     if args.press_pairing_button:
