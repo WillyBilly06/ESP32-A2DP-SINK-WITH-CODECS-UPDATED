@@ -2,10 +2,14 @@
 #define DBT_GAP_H
 
 #include "dbt_runtime.h"
+#include "dbt_page.h"
 
 #define DBT_GAP_REPLY_SLOTS 4u
 #define DBT_GAP_CLASSIC_SERVICES 6u
 #define DBT_GAP_CLASSIC_SETUP_MS 60000u
+#define DBT_GAP_CLASSIC_ACCEPT_MS 5000u
+#define DBT_GAP_CLASSIC_DEFER_MS 4500u
+#define DBT_GAP_PAGE_RETIRE_MAX_MS 4000u
 typedef enum { DBT_GAP_IDLE, DBT_GAP_CONFIGURING, DBT_GAP_READY, DBT_GAP_FAILED } dbt_gap_state_t;
 typedef struct {
     char name[33];
@@ -38,13 +42,23 @@ typedef struct {
 } dbt_gap_incoming_t;
 typedef enum {
     DBT_GAP_INCOMING_QUEUED=1,DBT_GAP_INCOMING_SUBMITTED,DBT_GAP_INCOMING_ACK,
-    DBT_GAP_INCOMING_FINAL,DBT_GAP_INCOMING_RETIRED,DBT_GAP_INCOMING_EXPIRED
+    DBT_GAP_INCOMING_FINAL,DBT_GAP_INCOMING_RETIRED,DBT_GAP_INCOMING_EXPIRED,
+    DBT_GAP_INCOMING_RESOLVED
 } dbt_gap_incoming_phase_t;
 /* Optional owner-only bounded observer. Entry is borrowed for this callback;
  * copy metadata without waiting or reentering GAP. Outcome is valid only for
  * ACK; status is valid for FINAL or a successful/rejected HCI ACK. */
 typedef void (*dbt_gap_incoming_observer_t)(void *,dbt_gap_incoming_phase_t,
     const dbt_gap_incoming_t *,uint16_t,dbt_command_outcome_t);
+typedef struct {
+    dbt_page_result_t outgoing;
+    dbt_page_outcome_t outcome;
+    uint32_t generation;
+    uint16_t handle;
+    uint8_t incoming_command_status,incoming_connection_status,incoming_status_mask;
+    bool via_incoming,user_cancel_requested;
+} dbt_gap_connect_result_t;
+enum { DBT_GAP_CONNECT_ACK=1,DBT_GAP_CONNECT_FINAL=2 };
 typedef struct dbt_gap {
     dbt_host_t *host;
     dbt_gap_config_t config;
@@ -62,6 +76,11 @@ typedef struct dbt_gap {
     dbt_gap_incoming_t incoming[DBT_MAX_LINKS];
     dbt_gap_incoming_observer_t incoming_observer;
     void *incoming_context;
+    dbt_page_t *page;
+    const dbt_acl_t *page_acl;
+    uint32_t page_generation;
+    uint16_t page_incoming_handle;
+    uint8_t page_flags,page_incoming_mask,page_incoming_ack,page_incoming_status,page_incoming_outcome;
 } dbt_gap_t;
 
 /* Controller configuration and legacy advertising/page scanning. Does not
@@ -86,6 +105,20 @@ uint32_t dbt_gap_wait_ms(const dbt_gap_t *gap);
 bool dbt_gap_classic_pending(const dbt_gap_t *,const uint8_t address_le[6]);
 uint8_t dbt_gap_classic_reservations(const dbt_gap_t *,const dbt_acl_t *);
 void dbt_gap_set_incoming_observer(dbt_gap_t *,dbt_gap_incoming_observer_t,void *);
+/* Caller authorizes peer selection; this grants no pairing window or protected
+ * access. The ACL view must be this host's runtime. Page storage must already be
+ * initialized for this host and remain valid until connect_result returns OK.
+ * Use the GAP result, not the standalone page result, as the release fence.
+ * One operation per GAP. Reserved incoming/outgoing ACL capacity is respected.
+ * A matching incoming request cancels/retires the outgoing page before its
+ * decision is submitted. retire_ms must be 1..DBT_GAP_PAGE_RETIRE_MAX_MS. */
+dbt_result_t dbt_gap_connect(dbt_gap_t *,dbt_page_t *,const dbt_acl_t *,const dbt_page_config_t *,
+                             uint32_t now_ms,uint32_t timeout_ms,uint32_t retire_ms,uint32_t *token);
+dbt_result_t dbt_gap_connect_cancel(dbt_gap_t *,uint32_t token,uint32_t now_ms);
+/* Copies progress while PENDING. A terminal OK consumes the completion and
+ * releases caller page storage. CONNECTED may win cancellation: the caller
+ * must then disconnect the exact handle/generation if still desired. */
+dbt_result_t dbt_gap_connect_result(dbt_gap_t *,uint32_t token,dbt_gap_connect_result_t *);
 /* READY does not imply either bearer is discoverable. Enable explicitly only
  * after profile/security initialization. Properties change only on successful
  * command completion; on LE connection complete advertising becomes false. */

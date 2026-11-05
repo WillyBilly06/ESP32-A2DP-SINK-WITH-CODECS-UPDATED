@@ -10,7 +10,7 @@ BTstack hci.c at pinned commit 9edb5d82ea6ec4466a393415d65030929330acdf explicit
 
 ## Reconnection work still required
 
-The current product dbt_gap API has no outgoing Create Connection procedure. The separately compiled [dbt_page procedure](CLASSIC_PAGE_PROCEDURE_2026_11_05.md) now supplies the HCI lifecycle; product routing/admission/collision integration remains pending. Speaker-initiated reconnect, outgoing SDP and A2DP initiation remain incomplete. This pass does not claim to add them. Review of the Core HCI procedure and current host/runtime contracts established these implementation constraints:
+The [GAP paging API](GAP_PAGING_INTEGRATION_2026_11_05.md) now routes the owned controller procedure and defers matching incoming setup until outgoing retirement. Product peer selection, outgoing SDP and A2DP initiation remain incomplete. Speaker-initiated reconnect, outgoing SDP and A2DP initiation remain incomplete. This pass does not claim to add them. Review of the Core HCI procedure and current host/runtime contracts established these implementation constraints:
 
 - Create Connection Command Status is admission, not completion; the final event supplies the ACL handle.
 - Cancel Command Complete is not final retirement. A corresponding Connection Complete still follows a successful cancellation. Keep the request identity reserved until that boundary.

@@ -234,7 +234,7 @@ static void logger(void *context) {
         if (xQueueReceive(log_queue, &item, portMAX_DELAY) != pdTRUE)
             continue;
         if(item.local_record==12){
-            static const char *const phases[]={"none","queued","submitted","acknowledged","completed","retired","expired"};
+            static const char *const phases[]={"none","queued","submitted","acknowledged","completed","retired","expired","resolved"};
             unsigned phase=item.incoming.phase;bool ack=phase==DBT_GAP_INCOMING_ACK;
             bool status_valid=phase==DBT_GAP_INCOMING_FINAL ||
                 (ack && (item.incoming.outcome==DBT_COMMAND_SUCCESS || item.incoming.outcome==DBT_COMMAND_REJECTED));

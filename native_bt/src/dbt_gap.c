@@ -5,10 +5,30 @@ static void copy(uint8_t *out, const uint8_t *in, unsigned size) {
     for (unsigned i = 0; i < size; ++i) out[i] = in[i];
 }
 static void put16(uint8_t *out, uint16_t value) { out[0] = (uint8_t)value; out[1] = (uint8_t)(value >> 8); }
-enum { IN_USED=1,IN_QUEUED=2,IN_COMMAND=4,IN_FINAL=8,IN_ACCEPT=16,IN_ADMITTED=32 };
+enum { IN_USED=1,IN_QUEUED=2,IN_COMMAND=4,IN_FINAL=8,IN_ACCEPT=16,IN_ADMITTED=32,IN_PAGE=64,IN_DEFER_LIMIT=128 };
+enum { PAGE_IN_SEEN=1,PAGE_IN_DONE=2,PAGE_USER_CANCEL=4,PAGE_KEEP_OUTGOING=8,PAGE_IN_RESOLVED=16 };
 static bool same(const uint8_t a[6],const uint8_t b[6]){
     uint8_t difference=0;for(unsigned i=0;i<6;++i)difference|=(uint8_t)(a[i]^b[i]);
     return difference==0;
+}
+static bool page_incoming(const dbt_gap_incoming_t *entry){
+    return (entry->flags&IN_PAGE) && entry->gap->page && same(entry->address_le,entry->gap->page->address_le);
+}
+static const dbt_link_t *classic_peer(const dbt_acl_t *acl,const uint8_t address[6]){
+    if(acl)for(unsigned i=0;i<DBT_MAX_LINKS;++i){
+        const dbt_link_t *link=&acl->links[i];
+        if(link->used && link->kind==DBT_LINK_CLASSIC && same(link->peer,address))return link;
+    }
+    return 0;
+}
+static bool page_reserves(const dbt_gap_t *gap){
+    if(!gap->page || !gap->page->active || classic_peer(gap->page_acl,gap->page->address_le))return false;
+    for(unsigned i=0;i<DBT_MAX_LINKS;++i){
+        const dbt_gap_incoming_t *entry=&gap->incoming[i];
+        if((entry->flags&(IN_USED|IN_ACCEPT|IN_FINAL))==(IN_USED|IN_ACCEPT) &&
+           same(entry->address_le,gap->page->address_le))return false;
+    }
+    return true;
 }
 static void incoming_trace(dbt_gap_incoming_t *entry,dbt_gap_incoming_phase_t phase,dbt_command_outcome_t outcome){
     dbt_gap_t *gap=entry->gap;
@@ -17,6 +37,7 @@ static void incoming_trace(dbt_gap_incoming_t *entry,dbt_gap_incoming_phase_t ph
 }
 static void release_incoming(dbt_gap_incoming_t *entry){
     if((entry->flags&IN_FINAL) && !(entry->flags&(IN_QUEUED|IN_COMMAND))){
+        if(page_incoming(entry))entry->gap->page_flags|=PAGE_IN_DONE;
         incoming_trace(entry,DBT_GAP_INCOMING_RETIRED,DBT_COMMAND_SUCCESS);entry->flags=0;
     }
 }
@@ -42,7 +63,7 @@ static void configured(void *context, uint16_t opcode, dbt_command_outcome_t out
     (void)opcode; (void)returns;
     gap->command_pending = false; gap->last_status = status;
     if (outcome != DBT_COMMAND_SUCCESS || size != 1) { gap->state = DBT_GAP_FAILED; return; }
-    if (++gap->step == 10) gap->state = DBT_GAP_READY;
+    if (++gap->step == 11) gap->state = DBT_GAP_READY;
 }
 static void replied(void *context, uint16_t opcode, dbt_command_outcome_t outcome,
                       uint8_t status, const uint8_t *returns, uint8_t size) {
@@ -63,13 +84,24 @@ static void incoming_replied(void *context,uint16_t opcode,dbt_command_outcome_t
     uint16_t expected=(entry->flags&IN_ACCEPT)?0x0409:0x040a;
     if(!(entry->flags&IN_COMMAND) || opcode!=expected){dbt_host_abort(gap->host,DBT_FAULT_BAD_RESPONSE);return;}
     entry->flags&=(uint8_t)~IN_COMMAND;entry->status=status;
-    queued_replied(gap,opcode,outcome,status,returns,size);
-    incoming_trace(entry,DBT_GAP_INCOMING_ACK,outcome);
+    bool unsent_retired=outcome==DBT_COMMAND_ABORTED && (entry->flags&IN_FINAL) && gap->host->state==DBT_HOST_IDENTIFIED;
+    if(unsent_retired){
+        if(!gap->reply_inflight){dbt_host_abort(gap->host,DBT_FAULT_BAD_RESPONSE);return;}
+        --gap->reply_inflight; /* Expected tracked cancellation, not GAP failure. */
+    }else queued_replied(gap,opcode,outcome,status,returns,size);
     if(outcome==DBT_COMMAND_SUCCESS || outcome==DBT_COMMAND_REJECTED){
         if(size!=1 || !returns || returns[0]!=status){dbt_host_abort(gap->host,DBT_FAULT_BAD_RESPONSE);return;}
     }
     if(outcome==DBT_COMMAND_SUCCESS)entry->flags|=IN_ADMITTED;
     else entry->flags|=IN_FINAL; /* Controller did not admit this decision. */
+    if(page_incoming(entry)){
+        if(outcome==DBT_COMMAND_SUCCESS || outcome==DBT_COMMAND_REJECTED){
+            gap->page_incoming_ack=status;gap->page_incoming_mask|=DBT_GAP_CONNECT_ACK;
+        }
+        if(outcome!=DBT_COMMAND_SUCCESS && !(gap->page_incoming_mask&DBT_GAP_CONNECT_FINAL))
+            gap->page_incoming_outcome=outcome==DBT_COMMAND_REJECTED?DBT_PAGE_REJECTED:DBT_PAGE_FAILED;
+    }
+    incoming_trace(entry,DBT_GAP_INCOMING_ACK,outcome);
     release_incoming(entry);
 }
 static void visibility(void *context, uint16_t opcode, dbt_command_outcome_t outcome,
@@ -137,6 +169,8 @@ static dbt_result_t configure_next(dbt_gap_t *gap) {
         copy(data + 1, gap->config.scan_response, data[0]); break;
     case 9:
         opcode=0x0c52;size=241;inquiry_response(data,gap->config.name,&gap->config);break;
+    case 10:
+        opcode=0x0c16;size=2;put16(data,(uint16_t)(DBT_GAP_CLASSIC_ACCEPT_MS*8u/5u));break;
     default: return DBT_INVALID;
     }
     return dbt_host_command(gap->host, opcode, data, size, DBT_COMMAND_COMPLETE, configured, gap, gap->now_ms);
@@ -178,11 +212,72 @@ dbt_result_t dbt_gap_rename_result(const dbt_gap_t *g,uint32_t token,bool *appli
     if(token!=g->rename_done)return DBT_EMPTY;
     *applied=g->rename_applied;*status=g->rename_status;return DBT_OK;
 }
+dbt_result_t dbt_gap_connect(dbt_gap_t *gap,dbt_page_t *page,const dbt_acl_t *acl,const dbt_page_config_t *config,
+                             uint32_t now,uint32_t timeout,uint32_t retire_ms,uint32_t *token){
+    if(!gap || !page || !acl || !config || !token || page->host!=gap->host ||
+       !retire_ms || retire_ms>DBT_GAP_PAGE_RETIRE_MAX_MS)return DBT_INVALID;
+    if(gap->state!=DBT_GAP_READY || gap->page || gap->reply_count || gap->reply_inflight ||
+       dbt_gap_classic_pending(gap,config->address_le) || classic_peer(acl,config->address_le))return DBT_BUSY;
+    unsigned occupied=dbt_gap_classic_reservations(gap,acl);
+    for(unsigned i=0;i<DBT_MAX_LINKS;++i)if(acl->links[i].used)++occupied;
+    if(occupied>=DBT_MAX_LINKS)return DBT_NO_SPACE;
+    dbt_result_t result=dbt_page_begin(page,acl,config,now,timeout,retire_ms,token);
+    if(result!=DBT_OK)return result;
+    gap->page=page;gap->page_acl=acl;gap->page_generation=0;gap->page_flags=0;
+    gap->page_incoming_handle=0;gap->page_incoming_mask=0;gap->page_incoming_ack=0;
+    gap->page_incoming_status=0;gap->page_incoming_outcome=DBT_PAGE_NONE;gap->now_ms=now;
+    return DBT_OK;
+}
+dbt_result_t dbt_gap_connect_cancel(dbt_gap_t *gap,uint32_t token,uint32_t now){
+    if(!gap || !token)return DBT_INVALID;
+    if(!gap->page || gap->page->result.token!=token)return DBT_EMPTY;
+    gap->page_flags|=PAGE_USER_CANCEL;gap->now_ms=now;
+    if(gap->page->active)(void)dbt_page_cancel(gap->page,token,now);
+    return DBT_PENDING; /* GAP's terminal receipt owns the caller-storage fence. */
+}
+dbt_result_t dbt_gap_connect_result(dbt_gap_t *gap,uint32_t token,dbt_gap_connect_result_t *result){
+    if(!gap || !token || !result)return DBT_INVALID;
+    if(!gap->page || gap->page->result.token!=token)return DBT_EMPTY;
+    dbt_page_t *page=gap->page;
+    if(gap->host->state==DBT_HOST_FAILED)dbt_page_poll(page,gap->now_ms);
+    bool incoming=(gap->page_flags&PAGE_IN_SEEN) && !(gap->page_flags&PAGE_KEEP_OUTGOING);
+    *result=(dbt_gap_connect_result_t){0};result->outgoing=page->result;
+    result->via_incoming=incoming;result->user_cancel_requested=(gap->page_flags&PAGE_USER_CANCEL)!=0;
+    result->incoming_command_status=gap->page_incoming_ack;
+    result->incoming_connection_status=gap->page_incoming_status;result->incoming_status_mask=gap->page_incoming_mask;
+    result->outcome=incoming?(dbt_page_outcome_t)gap->page_incoming_outcome:page->result.outcome;
+    if(result->outcome==DBT_PAGE_CONNECTED){
+        result->handle=incoming?gap->page_incoming_handle:page->result.handle;result->generation=gap->page_generation;
+    }
+    bool pending=page->active || ((gap->page_flags&PAGE_IN_SEEN) && !(gap->page_flags&PAGE_IN_DONE));
+    if(gap->host->state==DBT_HOST_FAILED){
+        result->outcome=DBT_PAGE_FAILED;result->handle=0;result->generation=0;
+        pending=page->create_pending || page->cancel_pending || gap->reply_inflight;
+    }
+    if(pending)return DBT_PENDING;
+    gap->page=0;gap->page_acl=0;gap->page_flags=0;return DBT_OK;
+}
+static bool page_generation(dbt_gap_t *gap,uint16_t handle,const uint8_t address[6]){
+    const dbt_link_t *link=dbt_acl_find(gap->page_acl,handle);
+    if(!link || link->kind!=DBT_LINK_CLASSIC || !same(link->peer,address))return false;
+    gap->page_generation=link->generation;return true;
+}
 static dbt_result_t incoming_final(dbt_gap_t *gap,const uint8_t *data){
     if(data[9]!=1)return DBT_UNSUPPORTED;
     for(unsigned i=0;i<DBT_MAX_LINKS;++i){
         dbt_gap_incoming_t *entry=&gap->incoming[i];
         if(!(entry->flags&IN_USED) || (entry->flags&IN_FINAL) || !same(entry->address_le,data+3))continue;
+        if(page_incoming(entry)){
+            gap->page_incoming_status=data[0];gap->page_incoming_mask|=DBT_GAP_CONNECT_FINAL;
+            if(!data[0]){
+                uint16_t handle=dbt_read_le16(data+1);
+                if((gap->page_flags&PAGE_KEEP_OUTGOING) || !page_generation(gap,handle,data+3))return DBT_INVALID;
+                gap->page_incoming_handle=handle;gap->page_incoming_outcome=DBT_PAGE_CONNECTED;
+            }else if((gap->page_flags&PAGE_USER_CANCEL) && !(entry->flags&IN_ACCEPT) &&
+                     (entry->flags&IN_ADMITTED) && data[0]==0x0fu)
+                gap->page_incoming_outcome=DBT_PAGE_CANCELLED;
+            else gap->page_incoming_outcome=DBT_PAGE_REJECTED;
+        }
         entry->flags|=IN_FINAL;entry->status=data[0];
         incoming_trace(entry,DBT_GAP_INCOMING_FINAL,DBT_COMMAND_SUCCESS);
         if(entry->flags&IN_COMMAND){
@@ -196,19 +291,52 @@ static dbt_result_t incoming_final(dbt_gap_t *gap,const uint8_t *data){
     }
     return DBT_UNSUPPORTED;
 }
+static bool reply_blocked(const dbt_gap_t *gap,const dbt_gap_reply_t *reply){
+    if(reply->incoming>=DBT_MAX_LINKS || !gap->page || !gap->page->active)return false;
+    uint8_t flags=gap->incoming[reply->incoming].flags;
+    return (flags&IN_PAGE) && !(flags&IN_FINAL);
+}
+static void select_reply(dbt_gap_t *gap){
+    if(!gap->reply_count)return;
+    for(unsigned offset=0;offset<gap->reply_count;++offset){
+        unsigned index=(gap->reply_head+offset)%DBT_GAP_REPLY_SLOTS;
+        unsigned owner=gap->replies[index].incoming;
+        if(owner>=DBT_MAX_LINKS || !(gap->incoming[owner].flags&IN_FINAL))continue;
+        dbt_gap_reply_t saved=gap->replies[gap->reply_head];
+        gap->replies[gap->reply_head]=gap->replies[index];gap->replies[index]=saved;return;
+    }
+    if(!reply_blocked(gap,&gap->replies[gap->reply_head]))return;
+    for(unsigned offset=1;offset<gap->reply_count;++offset){
+        unsigned index=(gap->reply_head+offset)%DBT_GAP_REPLY_SLOTS;
+        if(reply_blocked(gap,&gap->replies[index]))continue;
+        /* Deferred handover must not hold unrelated mandatory replies hostage.
+         * Only unpublished descriptors move; HCI already owns copied bytes. */
+        dbt_gap_reply_t saved=gap->replies[gap->reply_head];
+        gap->replies[gap->reply_head]=gap->replies[index];gap->replies[index]=saved;return;
+    }
+}
 void dbt_gap_poll(dbt_gap_t *gap, uint32_t now_ms) {
     if (!gap) return;
     gap->now_ms = now_ms;
+    if(gap->page){
+        if(gap->state==DBT_GAP_FAILED && gap->host->state!=DBT_HOST_FAILED)
+            dbt_host_abort(gap->host,DBT_FAULT_CONTROLLER);
+        dbt_page_poll(gap->page,now_ms);
+    }
     if (gap->host->state == DBT_HOST_FAILED) { gap->state = DBT_GAP_FAILED;if(gap->rename_active){gap->rename_done=gap->rename_serial;gap->rename_applied=false;gap->rename_active=false;}return; }
     if (gap->state == DBT_GAP_FAILED || gap->state == DBT_GAP_IDLE) return;
     for(unsigned i=0;i<DBT_MAX_LINKS;++i){
-        const dbt_gap_incoming_t *entry=&gap->incoming[i];
+        dbt_gap_incoming_t *entry=&gap->incoming[i];
+        if((entry->flags&(IN_USED|IN_DEFER_LIMIT|IN_ADMITTED))==(IN_USED|IN_DEFER_LIMIT|IN_ADMITTED)){
+            entry->flags&=(uint8_t)~IN_DEFER_LIMIT;entry->deadline=now_ms+DBT_GAP_CLASSIC_SETUP_MS;
+        }
         if((entry->flags&IN_USED) && !(entry->flags&IN_FINAL) && (int32_t)(now_ms-entry->deadline)>=0){
             incoming_trace(&gap->incoming[i],DBT_GAP_INCOMING_EXPIRED,DBT_COMMAND_TIMEOUT);
             gap->state=DBT_GAP_FAILED;dbt_host_abort(gap->host,DBT_FAULT_TIMEOUT);return;
         }
     }
     /* Security and connection decisions precede nonurgent setup commands. */
+    select_reply(gap);
     if (gap->reply_count) {
         dbt_gap_reply_t *reply = &gap->replies[gap->reply_head];
         dbt_gap_incoming_t *entry=reply->incoming<DBT_MAX_LINKS?&gap->incoming[reply->incoming]:0;
@@ -220,7 +348,17 @@ void dbt_gap_poll(dbt_gap_t *gap, uint32_t now_ms) {
             /* Controller finished before this decision reached HCI. Drop the
              * queued reply; it must not act on a later request for that peer. */
             entry->flags&=(uint8_t)~IN_QUEUED;release_incoming(entry);result=DBT_OK;
+        }else if(entry && (entry->flags&IN_PAGE) && gap->page && gap->page->active){
+            result=DBT_BUSY; /* Page cancellation/final retirement must finish first. */
         }else if(entry){
+            if((entry->flags&IN_PAGE) && !(gap->page_flags&PAGE_IN_RESOLVED)){
+                bool outgoing=gap->page && gap->page->result.outcome==DBT_PAGE_CONNECTED;
+                bool refuse=outgoing || (gap->page_flags&PAGE_USER_CANCEL) || !(entry->flags&IN_ACCEPT);
+                if(outgoing)gap->page_flags|=PAGE_KEEP_OUTGOING;
+                if(refuse){entry->flags&=(uint8_t)~IN_ACCEPT;reply->opcode=0x040a;reply->bytes[6]=0x0f;}
+                gap->page_flags|=PAGE_IN_RESOLVED;
+                incoming_trace(entry,DBT_GAP_INCOMING_RESOLVED,DBT_COMMAND_SUCCESS);
+            }
             uint32_t token;
             result=dbt_host_command_tracked(gap->host,reply->opcode,reply->bytes,reply->size,
                 reply->response,incoming_replied,entry,now_ms,&token);
@@ -271,6 +409,12 @@ dbt_result_t dbt_gap_event_at(dbt_gap_t *gap, const dbt_hci_packet_t *packet,uin
     switch (packet->event) {
     case 0x03:
         if(packet->size!=11)return DBT_INVALID;
+        if(data[9]==1 && gap->page && gap->page->active && !gap->page->final_seen && same(data+3,gap->page->address_le)){
+            if(!data[0] && data[9]==1 && !page_generation(gap,dbt_read_le16(data+1),data+3))return DBT_INVALID;
+            dbt_result_t result=dbt_page_event(gap->page,packet);
+            if(result==DBT_OK && gap->page->result.outcome==DBT_PAGE_CONNECTED)gap->page_flags|=PAGE_KEEP_OUTGOING;
+            if(result!=DBT_EMPTY && result!=DBT_UNSUPPORTED)return result;
+        }
         return incoming_final(gap,data);
     case 0x04: { /* Connection Request. Status is admission, Connection Complete is final. */
         if (packet->size != 10) return DBT_INVALID;
@@ -278,9 +422,9 @@ dbt_result_t dbt_gap_event_at(dbt_gap_t *gap, const dbt_hci_packet_t *packet,uin
         if(data[9]>2u)return DBT_INVALID;
         if(data[9]!=1u){
             bytes[6]=0x0f;
-            /* eSCO requires the synchronous rejection command. No synchronous
+            /* Use synchronous rejection for both SCO and eSCO. No synchronous
              * profile is installed, and no ACL reservation belongs to it. */
-            return reply(gap,data[9]==2u?0x042a:0x040a,bytes,7,DBT_COMMAND_STATUS);
+            return reply(gap,0x042a,bytes,7,DBT_COMMAND_STATUS);
         }
         unsigned free_slot=DBT_MAX_LINKS;
         for(unsigned i=0;i<DBT_MAX_LINKS;++i){
@@ -294,15 +438,32 @@ dbt_result_t dbt_gap_event_at(dbt_gap_t *gap, const dbt_hci_packet_t *packet,uin
          * Reject before the policy hook can grant a pairing/admission lease. */
         uint8_t remote=0;
         for(unsigned i=0;i<6;++i)remote|=(uint8_t)(data[i]^gap->host->controller.address_le[i]);
-        bool accepted = remote && data[9] == 1 && gap->state == DBT_GAP_READY && gap->hooks.accept_classic &&
+        bool capacity=true;
+        if(gap->page_acl){
+            unsigned occupied=dbt_gap_classic_reservations(gap,gap->page_acl);
+            for(unsigned i=0;i<DBT_MAX_LINKS;++i)if(gap->page_acl->links[i].used)++occupied;
+            bool reserved=page_reserves(gap);if(reserved)++occupied;
+            if(reserved && same(data,gap->page->address_le))--occupied; /* One shared handover slot. */
+            capacity=occupied<DBT_MAX_LINKS && !classic_peer(gap->page_acl,data);
+        }
+        bool accepted = remote && capacity && gap->state == DBT_GAP_READY && gap->hooks.accept_classic &&
             gap->hooks.accept_classic(gap->hooks.context, data, data + 6);
-        bytes[6] = accepted ? 1 : 0x0f;
+        bytes[6] = accepted ? 1 : capacity?0x0f:0x0d;
         dbt_gap_incoming_t *entry=&gap->incoming[free_slot];
         copy(entry->address_le,data,6);entry->deadline=now_ms+DBT_GAP_CLASSIC_SETUP_MS;
         entry->token=0;entry->status=0;entry->flags=(uint8_t)(IN_USED|IN_QUEUED|(accepted?IN_ACCEPT:0));
+        bool handover=gap->page && !(gap->page_flags&PAGE_IN_SEEN) &&
+            gap->page->result.outcome!=DBT_PAGE_CONNECTED && same(data,gap->page->address_le);
+        if(handover){entry->flags|=IN_PAGE|IN_DEFER_LIMIT;entry->deadline=now_ms+DBT_GAP_CLASSIC_DEFER_MS;}
         dbt_result_t result=reply_owned(gap,accepted?0x0409:0x040a,bytes,7,DBT_COMMAND_STATUS,(uint8_t)free_slot);
         if(result!=DBT_OK)entry->flags=0;
-        else incoming_trace(entry,DBT_GAP_INCOMING_QUEUED,DBT_COMMAND_SUCCESS);
+        else{
+            if(handover){
+                gap->page_flags|=PAGE_IN_SEEN;gap->page_incoming_outcome=DBT_PAGE_REJECTED;
+                if(gap->page->active)(void)dbt_page_cancel(gap->page,gap->page->result.token,now_ms);
+            }
+            incoming_trace(entry,DBT_GAP_INCOMING_QUEUED,DBT_COMMAND_SUCCESS);
+        }
         return result;
     }
     case 0x16: opcode = 0x040e; expected = 6; break; /* PIN negative. */
@@ -358,8 +519,13 @@ uint8_t dbt_gap_classic_reservations(const dbt_gap_t *gap,const dbt_acl_t *acl){
     return reserved;
 }
 uint32_t dbt_gap_wait_ms(const dbt_gap_t *gap) {
-    if (!gap || gap->state == DBT_GAP_FAILED || gap->state == DBT_GAP_IDLE) return UINT32_MAX;
-    uint32_t wait=UINT32_MAX;
+    if(!gap)return UINT32_MAX;
+    uint32_t wait=gap->page?dbt_page_wait_ms(gap->page,gap->now_ms):UINT32_MAX;
+    if(gap->state==DBT_GAP_FAILED){
+        if(gap->page && gap->host->state!=DBT_HOST_FAILED)return 0;
+        return wait;
+    }
+    if(gap->state==DBT_GAP_IDLE)return wait;
     for(unsigned i=0;i<DBT_MAX_LINKS;++i){
         const dbt_gap_incoming_t *entry=&gap->incoming[i];
         if((entry->flags&IN_USED) && !(entry->flags&IN_FINAL)){
@@ -367,15 +533,19 @@ uint32_t dbt_gap_wait_ms(const dbt_gap_t *gap) {
             if(next<wait)wait=next;
         }
     }
+    bool actionable=false;
     if(gap->reply_count){
-        unsigned owner=gap->replies[gap->reply_head].incoming;
-        if(owner<DBT_MAX_LINKS && (gap->incoming[owner].flags&IN_FINAL))return 0;
+        for(unsigned offset=0;offset<gap->reply_count;++offset){
+            const dbt_gap_reply_t *reply=&gap->replies[(gap->reply_head+offset)%DBT_GAP_REPLY_SLOTS];
+            if(reply->incoming<DBT_MAX_LINKS && (gap->incoming[reply->incoming].flags&IN_FINAL))return 0;
+            if(!reply_blocked(gap,reply))actionable=true;
+        }
     }
     if(gap->host->command_count==DBT_COMMAND_SLOTS)return wait;
-    if(gap->reply_count ||
-       (gap->state==DBT_GAP_CONFIGURING && !gap->command_pending && !gap->reply_inflight) ||
+    if(actionable ||
+       (gap->state==DBT_GAP_CONFIGURING && !gap->command_pending && !gap->reply_count && !gap->reply_inflight) ||
        (gap->state==DBT_GAP_READY && gap->rename_active && !gap->rename_pending &&
-        !gap->classic_pending && !gap->advertising_pending && !gap->reply_inflight))return 0;
+        !gap->classic_pending && !gap->advertising_pending && !gap->reply_count && !gap->reply_inflight))return 0;
     return wait;
 }
 dbt_result_t dbt_gap_set_classic_scan(dbt_gap_t *gap, bool discoverable, bool connectable) {

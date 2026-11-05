@@ -2,7 +2,7 @@
 
 ## Implemented layer
 
-The independently authored dbt_page module adds the outgoing BR/EDR Create Connection/Cancel HCI lifecycle. It is compiled into the native library in both host and ESP32 component manifests. It is not yet instantiated or routed by product GAP/reconnection code. Incoming/outgoing collision arbitration, capacity/admission reservation, bond policy, outgoing SDP and A2DP initiation still require integration. No automatic paging is enabled by this change.
+The independently authored dbt_page module adds the outgoing BR/EDR Create Connection/Cancel HCI lifecycle. It is compiled into the native library in both host and ESP32 component manifests. The [GAP integration](GAP_PAGING_INTEGRATION_2026_11_05.md) now supplies owner routing, reservations and deferred incoming handover. Product peer selection/bond policy, outgoing SDP and A2DP initiation remain incomplete. No automatic paging policy is enabled.
 
 ## Ownership and completion
 
@@ -28,14 +28,14 @@ Packet types are derived from the identified controller's feature page: Basic Ra
 
 The [Core HCI specification, sections 7.1.5 and 7.1.7](https://www.bluetooth.com/wp-content/uploads/Files/Specification/HTML/Core-61/out/en/host-controller-interface/host-controller-interface-functional-specification.html) defines command admission, final completion and cancel retirement. Packet-type bit meanings are in section 7.1.5. Local feature positions were checked against the installed SDK's hcidefs.h; no SDK host implementation is linked by this module. BTstack remains a pinned behavior reference only.
 
-The caller's exclusive-establishment precondition is not a complete collision solution. Product integration must arbitrate simultaneous incoming/outgoing setup before routing events; ordinary matching by peer address cannot identify both competing lifetimes. This is recorded as remaining work rather than advertised as working reconnection.
+Direct dbt_page callers still require exclusive establishment ownership. The GAP integration now arbitrates matching incoming setup by retiring the page before submitting its decision; product policy must use that integration rather than routing competing lifetimes by address alone. Automatic A2DP reconnection remains incomplete.
 
 ## Evidence and unqualified work
 
 - Full ESP-IDF 6.1 ccache build, source stability and workspace checks passed. The new target translation unit is present in compile_commands.json and was actually compiled.
 - Portable Clang strict C11 syntax/warnings and static analysis passed. These do not simulate controller behavior.
 - A target-compiler-only ABI probe reports the context/result sizes above; it executes no code.
-- The product firmware binary remains exactly SHA256 1814f791e74a2a2461f6b53956d151c13b7f8afd3fa7cf7eb37c259299679ada because unused procedures are removed by the linker. COM6 therefore keeps the already verified identical image; no redundant flash/reset was performed.
+- At the standalone 278bd103 checkpoint, the product firmware binary remained exactly SHA256 1814f791e74a2a2461f6b53956d151c13b7f8afd3fa7cf7eb37c259299679ada because unused procedures are removed by the linker. No redundant flash/reset was performed at that checkpoint. Later GAP integration has separate image/deployment evidence.
 - No unit, HCI simulation, pairing, paging, playback or app test campaign ran, following the user's instruction. The module is not functionally qualified.
 
 Qualification still needs success/rejection, unsent cancellation, cancellation retirement, establishment-versus-cancel races, full queues, token exhaustion, timeout, malformed/stale events, host abort, context reuse and product collision/admission integration. Maximum-rate audio performance, reported codec crashes and full feature parity remain unresolved.
