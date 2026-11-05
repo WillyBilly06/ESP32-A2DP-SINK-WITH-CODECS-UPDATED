@@ -184,7 +184,11 @@ dbt_result_t dbt_gap_event(dbt_gap_t *gap, const dbt_hci_packet_t *packet) {
     case 0x04: { /* Connection Request. Status is admission, Connection Complete is final. */
         if (packet->size != 10) return DBT_INVALID;
         copy(bytes, data, 6);
-        bool accepted = data[9] == 1 && gap->state == DBT_GAP_READY && gap->hooks.accept_classic &&
+        /* A peer cannot legitimately use this controller's own public BD_ADDR.
+         * Reject before the policy hook can grant a pairing/admission lease. */
+        uint8_t remote=0;
+        for(unsigned i=0;i<6;++i)remote|=(uint8_t)(data[i]^gap->host->controller.address_le[i]);
+        bool accepted = remote && data[9] == 1 && gap->state == DBT_GAP_READY && gap->hooks.accept_classic &&
             gap->hooks.accept_classic(gap->hooks.context, data, data + 6);
         bytes[6] = accepted ? 1 : 0x0f;
         return reply(gap, accepted ? 0x0409 : 0x040a, bytes, 7, DBT_COMMAND_STATUS);
