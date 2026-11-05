@@ -4,6 +4,24 @@ Updated 2026-11-04 for ESP-IDF 6.1. The goal is **active and incomplete**.
 The user has released COM6 for flashing/testing; other boards remain excluded.
 Released main/recovery artifacts remain preserved. Latest measured evidence:
 
+- [Decoder input capacity](DECODER_INPUT_1800_2026_11_04.md) now reserves
+  1800 bytes across eight slots and advertises a matching media receive MTU.
+  Separate size-rejection and queue-saturation diagnostics preserve their
+  distinction. Boundary/wrap/copy checks pass ASan/UBSan, all 185 portable
+  host groups pass, and the ccache ESP32 build/admission pass. The live maximum
+  LHDC trial records a 640-byte maximum media SDU / 628-byte payload and zero
+  size rejects; larger capacity does not fix its queue saturation. Maximum I2S
+  runs briefly with no allocation failure, but an 11.741 ms EOF gap produces a
+  descriptor-order fault, 35 us before the watchdog user hook. One core1 idle
+  watchdog occurs. Baseline return and phone pause are verified. Exact-ELF
+  readiness-query sampling does not establish a blocking query; scheduler
+  execution shares and interrupt-entry timing remain unmeasured.
+- [Compact copied input](COMPACT_COPIED_PIPELINE_2026_11_04.md) separates
+  decoder1 and renderer0 without holding the decoder's raw PCM view. Its
+  first RF test negotiates only 48 kHz and has zero watchdog/descriptor faults,
+  but queue drops and underruns remain. Decoder calls reach 52.533 ms wall
+  time; scheduling and execution need separate measurement. The 1 MiB cap
+  ends capture before the maximum-codec change. Baseline return is verified.
 - [Exact block DSP](BLOCK_DSP_2026_11_04.md) passes 3.38 million host frames,
   108 full-render stream pairs and both 27-group target comparisons. The
   retained hybrid measures 12–13% steady full-EQ and 33–36% flat-EQ kernel gains.

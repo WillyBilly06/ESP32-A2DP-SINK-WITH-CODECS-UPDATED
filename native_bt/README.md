@@ -15,6 +15,14 @@ identical PCM hashes and passes all 252 measured isolated 5 ms deadlines at
 qualification remains open. All finite runs returned to released 1.0.4 firmware. The user released
 COM6 for testing in this chat; the historical reservation below is superseded.
 
+The latest [1800-byte/eight-slot decoder queue trial](docs/DECODER_INPUT_1800_2026_11_04.md)
+tests the requested larger input capacity with a matching media MTU. Maximum
+LHDC negotiates and I2S runs briefly, but the observed largest media SDU is only
+640 bytes and both size-rejection counters are zero. Queue saturation remains.
+One core1 watchdog and a nearby 11.741 ms DMA EOF gap fail runtime qualification;
+the released baseline is restored. Separate logs distinguish packet sizes,
+queue admission, decoder work, PCM delivery, rendering and DMA faults.
+
 Latest phone evidence separates the [maximum LHDC radio/decoder pass](docs/RF_LHDC_MAX_2026_11_04.json)
 from the [failed full-output attempt](docs/RF_LHDC_MAX_OUTPUT_2026_11_04.json).
 Android confirmed LHDC V5 at 192 kHz/S24/stereo with the 1000 kbps target, but
