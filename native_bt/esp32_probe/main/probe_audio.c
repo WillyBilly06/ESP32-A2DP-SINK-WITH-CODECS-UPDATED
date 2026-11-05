@@ -97,6 +97,9 @@ static dbt_a2dp_acceptor_t profile;
 static dbt_codec_worker_t worker;
 static TaskHandle_t owner,decoder_task,logger_task;
 static bool initialized,failed,restart_hold,restart_drained;
+/* Owner-only cursor; cumulative worker faults are diagnostics, not a permanent
+ * service-disable flag. Session retirement still fences all borrowed PCM. */
+static uint32_t worker_faults_seen;
 #ifdef DBT_PROBE_AUDIO_OUTPUT
 static bool output_initialized;
 #endif
@@ -761,7 +764,15 @@ void probe_audio_poll(uint32_t now){
     dbt_codec_receipt_t receipt;
     for(unsigned i=0;i<DBT_CODEC_WORKER_JOBS && dbt_codec_worker_receipt(&worker,&receipt)==DBT_OK;++i)
         (void)dbt_a2dp_acceptor_complete(&profile,receipt.binding,receipt.token,receipt.result,now);
-    if(atomic_load_explicit(&worker.faults,memory_order_acquire))failed=true;
+    uint32_t faults=atomic_load_explicit(&worker.faults,memory_order_acquire);
+    if(faults!=worker_faults_seen){
+        worker_faults_seen=faults;
+        /* Retire this binding through channel closure and acknowledged DROP.
+         * Do not disable the service forever because its lifetime counter is
+         * nonzero. Admission stays closed while draining; restart holds and
+         * renderer/ownership failures retain their explicit stop policy. */
+        (void)dbt_a2dp_acceptor_retire(&profile,now);
+    }
     if(failed || restart_hold)restart_drained=dbt_a2dp_acceptor_stop(&profile,now)==DBT_OK;
     (void)dbt_a2dp_acceptor_poll(&profile,now);
     atomic_store(&ignored_dynamic,profile.runtime->channels.ignored_dynamic_pdus);
