@@ -22,21 +22,23 @@
         "src/btstack_resample.c",
         "src/btstack_sample_rate_compensation.c"
       ],
-      "status": "pending",
-      "mapping": "Added through full filesystem/build-manifest cross-check; source generation/build inputs included"
+      "status": "reviewed_static_data",
+      "mapping": "Added through full filesystem/build-manifest cross-check; source generation/build inputs included",
+      "review_scope": "Complete owning source/contract/generation/build input reviewed; generated values structurally checked against generator and baseline sections. No runtime/feature/performance qualification claim."
     },
     {
       "owned": "bt_audio_sink/main/dsp/fixed_dsp.c",
-      "sha256": "78343f17eadbfe5b9ae36f2eb15c88dc8fdd0d6f55116480618585d92209ae69",
-      "lines": 486,
+      "sha256": "6b3c8df656324b79c833b6b3631934b6d2bbf3dffc7d4ab29fedd6e8bedd2261",
+      "lines": 501,
       "reference_files": [
         "src/classic/avdtp.c",
         "example/a2dp_sink_demo.c",
         "src/btstack_resample.c",
         "src/btstack_sample_rate_compensation.c"
       ],
-      "status": "pending",
-      "mapping": "counterpart_candidates"
+      "status": "reviewed_with_findings",
+      "mapping": "counterpart_candidates",
+      "review_scope": "Complete owning source/contract/generation/build input reviewed; generated values structurally checked against generator and baseline sections. No runtime/feature/performance qualification claim."
     },
     {
       "owned": "bt_audio_sink/main/dsp/fixed_dsp.h",
@@ -48,8 +50,9 @@
         "src/btstack_resample.c",
         "src/btstack_sample_rate_compensation.c"
       ],
-      "status": "pending",
-      "mapping": "counterpart_candidates"
+      "status": "reviewed_contract",
+      "mapping": "counterpart_candidates",
+      "review_scope": "Complete owning source/contract/generation/build input reviewed; generated values structurally checked against generator and baseline sections. No runtime/feature/performance qualification claim."
     },
     {
       "owned": "native_bt/CMakeLists.txt",
@@ -609,8 +612,9 @@
       "sha256": "959f208664138418e378adc667cbf2fa118f663ce6c1753676434c980a7a8b6b",
       "lines": 72,
       "reference_files": [],
-      "status": "pending",
-      "mapping": "Added through full filesystem/build-manifest cross-check; source generation/build inputs included"
+      "status": "reviewed_build",
+      "mapping": "Added through full filesystem/build-manifest cross-check; source generation/build inputs included",
+      "review_scope": "Complete owning source/contract/generation/build input reviewed; generated values structurally checked against generator and baseline sections. No runtime/feature/performance qualification claim."
     },
     {
       "owned": "native_bt/esp32_probe/components/opus_decoder/CMakeLists.txt",
@@ -2893,8 +2897,9 @@
       "reference_files": [
         "example/a2dp_sink_demo.c"
       ],
-      "status": "pending",
-      "mapping": "project_specific_offline_generator_no_direct_reference_implementation"
+      "status": "reviewed_generator",
+      "mapping": "project_specific_offline_generator_no_direct_reference_implementation",
+      "review_scope": "Complete owning source/contract/generation/build input reviewed; generated values structurally checked against generator and baseline sections. No runtime/feature/performance qualification claim."
     },
     {
       "owned": "native_bt/tools/generate_opus_profile_oracle.py",
@@ -3264,6 +3269,26 @@
       "issue": "Renderer task-creation failure did not free the newly allocated queue; repeated initialization could overwrite it.",
       "fix": "Delete queue and clear handles on task-creation failure; duplicate initialization is BUSY before mutating state. Document startup owner and correct render-core invariant.",
       "limits": "No allocation-fault injection/lifecycle/concurrency qualification. Blocking compatibility wrappers remain source-only for other builds; absent from the selected linked image."
+    },
+    {
+      "id": "DSP-018",
+      "state": "compiled_static_analysis_and_data_checked_runtime_unqualified",
+      "owned": [
+        "bt_audio_sink/main/dsp/fixed_dsp.c",
+        "bt_audio_sink/main/dsp/fixed_dsp.h",
+        "bt_audio_sink/main/dsp/fixed_dsp_tables.inc",
+        "native_bt/tools/generate_fixed_dsp_tables.py",
+        "native_bt/esp32_probe/components/native_bt/CMakeLists.txt"
+      ],
+      "reference": [
+        "Baseline dsp_processor.h:590-622,628-809",
+        "Baseline biquad.h complete",
+        "Baseline goertzel.h:125-174 and config/app_config.h:54-57"
+      ],
+      "issue": "Bounded decimation averaging used a general signed64 division per analysis sample.",
+      "fix": "Exact base65536 long division uses two native word divisions, restores sign safely and retains all sum/sample/cadence/state semantics.",
+      "resource_change": "Flash text +52 bytes; IRAM/data/BSS and analysis own compiler frame unchanged. No new table/state.",
+      "limits": "No measured cycle/underrun gain. Limiter/window normalization wide division, interrupted-EQ/acoustic and full performance/feature qualification remain open."
     }
   ],
   "sections_reviewed": [
@@ -3475,6 +3500,22 @@
       ],
       "outcome": "Derived zero-product omission without signal changes, checked active async API reachability and fixed failed-init queue retirement. Complete owned output body/contract read; complete upstream adapter and layer/runtime qualification not claimed.",
       "full_layer_complete": false
+    },
+    {
+      "layer": "Complete integer DSP body, controls, generation and build policy",
+      "owned": [
+        "bt_audio_sink/main/dsp/fixed_dsp.c",
+        "bt_audio_sink/main/dsp/fixed_dsp.h",
+        "bt_audio_sink/main/dsp/fixed_dsp_tables.inc",
+        "native_bt/tools/generate_fixed_dsp_tables.py",
+        "native_bt/esp32_probe/components/native_bt/CMakeLists.txt"
+      ],
+      "reference": [
+        "Baseline DSP formulas/control/analysis sections and table-generator structural equality",
+        "BTstack audio/resampling is a transport/linear reference, not an EQ/limiter substitute"
+      ],
+      "outcome": "Complete sources/contract/generator/build reviewed and all generated endpoint/accumulator bounds checked; replaced only exact decimation average. Kept measured Os/O3 split and explicit low-rate clamp difference. Full layer/qualification unfinished.",
+      "full_layer_complete": false
     }
   ],
   "integration_gaps": [
@@ -3521,14 +3562,14 @@
   ],
   "coverage": {
     "owned_files": 277,
-    "reviewed_owned_c_bodies": 22,
+    "reviewed_owned_c_bodies": 23,
     "partial_files": 13,
-    "pending_files": 218,
+    "pending_files": 213,
     "compiled_owned_units_missing": 0,
-    "reviewed_headers": 15,
-    "reviewed_build_files": 5,
-    "reviewed_generators": 3,
-    "reviewed_static_data": 1
+    "reviewed_headers": 16,
+    "reviewed_build_files": 6,
+    "reviewed_generators": 4,
+    "reviewed_static_data": 2
   },
   "inventory_corrections": [
     {
@@ -3657,14 +3698,23 @@
         "Task-creation failure releases queue; repeated startup preserves existing instance.",
         "Current image omits compatibility blocking API symbols; full lifecycle, fault and concurrency qualification remain."
       ]
+    },
+    {
+      "id": "DSP-ANALYSIS-AVERAGE",
+      "status": "implemented_source_compiler_checked_runtime_pending",
+      "notes": [
+        "Native two-word division preserves exact completed Q31 average, including negative endpoint.",
+        "Limiter and window normalization retain separate wide divisions; no measured speed benefit or acoustic/rapid-ramp qualification.",
+        "Whole DSP unit remains -Os by existing measured policy; only steady block has an -O3 function attribute."
+      ]
     }
   ],
   "next_review": [
-    "Continue linked FIR/DSP instruction review and real renderer compute bottleneck; zero-tail omission does not prove deadline headroom.",
-    "Continue remaining protocol/backend/product source rows and outgoing reconnect/A2DP integration.",
-    "Full output lifecycle/ISR/stack/concurrency and sustained maximum-LHDC/audio/BLE qualification remain held."
+    "Trace remaining actual decoder/renderer costs and protocol/backend/product rows; avoid blanket compiler-policy changes or replacing full FIR with reference linear interpolation.",
+    "Retain unresolved limiter/window cost, rapid-control stability/acoustic and sustained max-LHDC headroom as qualification gaps.",
+    "Product outgoing reconnect/SDP/AVDTP integration and complete BLE/AVRCP/security feature parity remain unfinished."
   ],
-  "latest_build_image": "b29dcbb31e470761777ceedf8b069524e407cd34cafdc920667958536de5c3cc",
+  "latest_build_image": "1735633a1705677d93f4b77f2a7226b1896f9846e3258eed3f92df0b725f82bd",
   "verification_source_contracts": [
     {
       "file": "native_bt/tools/test_ldac_target_component.py",

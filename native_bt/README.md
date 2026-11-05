@@ -27,13 +27,15 @@ copy loops and single-writer counter retries while preserving publication order.
 [Exact zero-tail FIR work](docs/FIR_ZERO_TAIL_2026_11_05.md) now omits two universally
 zero taps’ work per output frame and fixes failed renderer initialization cleanup.
 The full coefficient bank, filter delay, history and precision remain unchanged.
+[DSP analysis averaging](docs/DSP_ANALYSIS_AVERAGE_2026_11_05.md) now uses exact
+native-word division without changing analysis samples, cadence, state or tables.
 Sustained performance remains unqualified.
 
 ## Current development checkpoint — 2026-11-05
 
 The owned Classic+BLE host is selected on the local COM6 board in ota1 at
 0x390000, marked VALID, with automatic Bluedroid restoration disabled. The
-verified image is `b29dcbb31e470761777ceedf8b069524e407cd34cafdc920667958536de5c3cc`.
+verified image is `1735633a1705677d93f4b77f2a7226b1896f9846e3258eed3f92df0b725f82bd`.
 This remains development firmware with incomplete feature/runtime qualification.
 
 Recent source corrections cover [codec payload boundaries and shared PCM

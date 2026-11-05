@@ -260,11 +260,26 @@ static uint64_t integer_sqrt(uint64_t value) {
     return result;
 }
 
+/* A completed decimation sum contains divisor Q31 samples. For uint16
+ * divisor, abs(sum) <= divisor*2^31 < 2^47, so its upper base-2^16
+ * digit fits uint32. Two word divisions produce the exact magnitude:
+ * U=q_hi*d+r_hi; sum=(q_hi*2^16)*d+(r_hi*2^16+low).
+ * r_hi<d keeps the second numerator in uint32. The final quotient is
+ * <=2^31; restore the sign in int64 so INT32_MIN remains defined. */
+static inline __attribute__((always_inline)) int32_t analysis_average(int64_t sum,uint16_t divisor){
+    if(divisor==1)return (int32_t)sum;
+    bool negative=sum<0;uint64_t magnitude=negative?(uint64_t)(-sum):(uint64_t)sum;
+    uint32_t upper=(uint32_t)(magnitude>>16);
+    uint32_t high=upper/divisor,remainder=upper-high*divisor;
+    uint32_t low=(remainder<<16)|(uint32_t)(magnitude&65535u);
+    uint32_t quotient=(high<<16)+low/divisor;
+    return negative?(int32_t)(-(int64_t)quotient):(int32_t)quotient;
+}
 static void analysis(fixed_dsp_t *dsp, int32_t mono) {
     if (!(dsp->flags & FDSP_ANALYSIS)) return;
     dsp->analysis_sum += mono;
     if (++dsp->analysis_count < dsp->decimation) return;
-    int32_t sample = (int32_t)(dsp->analysis_sum / dsp->decimation);
+    int32_t sample = analysis_average(dsp->analysis_sum,dsp->decimation);
     dsp->analysis_sum = 0; dsp->analysis_count = 0;
     int32_t q15 = sample >> 16;
     for (unsigned i = 0; i < 3; ++i) {
