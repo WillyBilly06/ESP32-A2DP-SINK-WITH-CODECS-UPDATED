@@ -131,3 +131,69 @@ EX int probe_test_sdp(void) {
     CHECK(probe_sdp_enable_avrcp(false,false)==DBT_INVALID);
     return 0;
 }
+
+EX int probe_test_wait_backpressure(void) {
+    CHECK(!s.storage && !done);
+    memset(&s,0,sizeof(s));memset(&rt,0,sizeof(rt));
+    rt.ready=true;rt.host.state=DBT_HOST_IDENTIFIED;rt.hooks.allocate=allocate;rt.hooks.release=release;
+    link=(dbt_link_t){.used=true,.encrypted=true,.handle=1,.generation=9,.kind=DBT_LINK_CLASSIC};
+    channel=(dbt_channel_t){.state=DBT_CH_OPEN,.serial=13,.link_generation=9,.handle=1,.local_cid=64,.remote_cid=65,.psm=0x17,.rx_mtu=48,.tx_mtu=48};
+    CHECK(probe_avrcp_init(&rt,set_volume,0,55)==DBT_OK);
+    probe_avrcp_event(DBT_CH_EVENT_OPEN,&channel);CHECK(s.bearer.attached);
+    s.cap_need=s.meta_need=s.status_need=false;s.reg_wanted=s.reg_sent=0;
+    /* Fill real transaction slots and complete their runtime borrows. Each
+     * transaction still awaits its peer response; no timer is expired. */
+    for(unsigned i=0;i<16;i++){
+        CHECK(probe_avrcp_key(0x44,false,100+i)==DBT_OK);step(100+i);CHECK(done);finish();
+    }
+    CHECK(s.transport.local_pending==0xffffu && !s.transport.tx_used && !s.bearer.active);
+    s.cap_need=true;
+    uint32_t remaining=dbt_avrcp_bearer_wait_ms(&s.bearer,&s.profile,116);
+    CHECK(remaining>0 && remaining<UINT32_MAX);
+    CHECK(probe_avrcp_wait_ms(116)==remaining);
+    for(unsigned i=0;i<64;i++)step(116);
+    CHECK(!done && s.cap_need && s.transport.local_pending==0xffffu);
+    CHECK(probe_avrcp_wait_ms(116)==remaining);
+    /* A real matching reply releases one label and immediately makes the
+     * retained controller operation runnable again. */
+    {const uint8_t reply[]={2,0x11,0x0e,9,0x48,0x7c,0x44,0};probe_avrcp_receive(&channel,reply,sizeof(reply));}
+    CHECK(s.transport.local_pending==0xfffeu && probe_avrcp_wait_ms(116)==0);
+    step(116);CHECK(done && pdu()==0x10 && !s.cap_need);finish();
+    probe_avrcp_event(DBT_CH_EVENT_CLOSED,&channel);channel.state=DBT_CH_FREE;step(117);
+    CHECK(!s.storage && allocations==releases);
+    /* Fifteen real interim notifications hold their labels indefinitely.
+     * The remaining label is reserved for ordinary controller commands. */
+    channel.state=DBT_CH_OPEN;channel.serial++;probe_avrcp_event(DBT_CH_EVENT_OPEN,&channel);
+    CHECK(s.bearer.attached);s.cap_need=s.meta_need=s.status_need=false;s.reg_wanted=s.reg_sent=0;
+    for(unsigned i=0;i<15;i++){
+        const uint8_t request[]={1,0,0,0,0};uint8_t transaction;
+        CHECK(dbt_avrcp_command(&s.profile,0x31,request,sizeof(request),200+i,&transaction)==DBT_OK);
+        step(200+i);CHECK(done);finish();
+        {const uint8_t interim[]={1,1};feed(transaction,true,15,0x31,interim,sizeof(interim));}
+    }
+    CHECK(s.transport.local_pending==0x7fffu);
+    s.reg_wanted=1;
+    CHECK(probe_avrcp_wait_ms(215)==UINT32_MAX);
+    s.status_need=true;CHECK(probe_avrcp_wait_ms(215)==0);
+    step(215);CHECK(done && pdu()==0x30 && s.status_sent && s.reg_wanted==1);finish();
+    CHECK(s.transport.local_pending==0xffffu);
+    /* A pending target vendor reply waits for the continuation deadline,
+     * while retaining its obligation even with all local labels occupied. */
+    step(300);
+    {const uint8_t value[]={80};feed(7,false,0,0x50,value,sizeof(value));}
+    CHECK(s.work_count==1);s.profile.target_active=true;s.profile.target_deadline=550;
+    CHECK(probe_avrcp_wait_ms(300)==250);
+    unsigned calls=volume_calls;step(300);CHECK(!done && s.work_count==1 && volume_calls==calls+1);
+    CHECK(probe_avrcp_wait_ms(300)==250);
+    CHECK(probe_avrcp_wait_ms(550)==0);step(550);
+    CHECK(done && label()==7 && pdu()==0x50 && s.work_count==0 && volume_calls==calls+1);finish();
+    /* Pass-through replies use the peer label and remain runnable during
+     * a target continuation; local-label exhaustion must not block them. */
+    s.profile.target_active=true;s.profile.target_deadline=800;
+    {const uint8_t request[]={0x90,0x11,0x0e,0,0x48,0x7c,0x41,0};probe_avrcp_receive(&channel,request,sizeof(request));}
+    CHECK(s.work_count==1 && probe_avrcp_wait_ms(550)==0);step(550);
+    CHECK(done && label()==9 && wire[5]==0x7c && s.profile.target_active);finish();
+    probe_avrcp_event(DBT_CH_EVENT_CLOSED,&channel);channel.state=DBT_CH_FREE;step(551);
+    CHECK(!s.storage && allocations==releases);
+    return 0;
+}

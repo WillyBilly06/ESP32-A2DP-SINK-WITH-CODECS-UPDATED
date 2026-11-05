@@ -269,11 +269,26 @@ static bool send_notification(uint32_t now) {
     }
     return false;
 }
+static bool notification_room(void) {
+    unsigned count=0;
+    for(unsigned i=0;i<16;i++)if((s.transport.local_pending&(1u<<i)) &&
+        s.profile.local_opcode[i]==0 && s.profile.local_pdu[i]==0x31)++count;
+    return count<15;
+}
+static bool controller_ready(void) {
+    if(s.transport.local_pending==UINT16_MAX)return false;
+    if(s.cap_need && !s.cap_sent)return true;
+    if((s.reg_wanted & (uint8_t)~s.reg_sent) && notification_room())return true;
+    if(s.meta_need && !s.meta_sent && !s.profile.abort_needed && !s.profile.local_abort &&
+       !s.profile.continuation_active)return true;
+    return s.status_need && !s.status_sent;
+}
 static void controller(uint32_t now) {
+    if(!controller_ready())return;
     uint8_t label; dbt_result_t r;
     if (s.cap_need && !s.cap_sent) {uint8_t p=3; r=dbt_avrcp_command(&s.profile,0x10,&p,1,now,&label);
         if (r==DBT_OK) {s.cap_need=false; s.cap_sent=true;} return;}
-    for (unsigned i=0;i<2;i++) if ((s.reg_wanted&(1u<<i)) && !(s.reg_sent&(1u<<i))) {
+    for (unsigned i=0;i<2;i++) if ((s.reg_wanted&(1u<<i)) && !(s.reg_sent&(1u<<i)) && notification_room()) {
         uint8_t p[5]={(uint8_t)(i+1),0,0,0,0}; r=dbt_avrcp_command(&s.profile,0x31,p,5,now,&label);
         if (r==DBT_OK) {s.reg_wanted&=(uint8_t)~(1u<<i); s.reg_sent|=(uint8_t)(1u<<i); s.reg_label[i]=label;} return;
     }
@@ -376,13 +391,16 @@ uint32_t probe_avrcp_wait_ms(uint32_t now) {
         const dbt_channel_t *ch=dbt_channels_find(&s.runtime->channels,s.close_handle,s.close_cid);
         return ch && ch->state==DBT_CH_DISCONNECTING ? UINT32_MAX : (!ch && s.bearer.active ? UINT32_MAX : 0);
     }
-    bool runnable=s.work_count || s.volume_dirty || (s.cap_need && !s.cap_sent) ||
-        (s.reg_wanted & (uint8_t)~s.reg_sent) ||
-        (s.meta_need && !s.meta_sent && !s.profile.abort_needed && !s.profile.local_abort && !s.profile.continuation_active) ||
-        (s.status_need && !s.status_sent);
+    /* Target replies do not consume local transaction labels. Vendor replies
+     * wait for an active continuation to finish/expire; pass-through does not.
+     * Controller work waits for a free label, including the one-slot reserve
+     * for ordinary commands after fifteen long-lived notifications. */
+    bool target_ready=(s.work_count && (!s.profile.target_active || s.work[s.work_head].opcode==0x7c)) ||
+                      (s.volume_dirty && !s.profile.target_active);
+    bool runnable=target_ready || controller_ready();
     if (s.bearer.attached && runnable) {
         uint32_t delay=due(now,s.next_work)?0:s.next_work-now;
-        if (delay<w && !s.transport.tx_used && !s.bearer.active) w=delay;
+        if (delay<w && !s.transport.tx_used && !s.transport.pinned && !s.bearer.active) w=delay;
     }
     if (!s.storage && !has_channel() && !due(now,s.next_connect) && s.next_connect-now<w) w=s.next_connect-now;
     return w;
