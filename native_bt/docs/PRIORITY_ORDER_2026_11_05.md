@@ -27,3 +27,5 @@ codec/worker run with the ordered mode, and actual renderer task-creation,
 format, compact-copy and descriptor checks at 100/1000 Hz. These are not RF or
 deadline evidence. Target build and a maximum-LHDC playback comparison remain
 separate gates; no priority benefit has yet been measured on hardware.
+
+The ccache target build is now complete. The [build/admission receipt](PRIORITY_ORDER_BUILD_2026_11_05.json) binds the compiled 7/6/5 mode to the image and source manifest. Image/layout and limited ISR-placement checks pass. The candidate has not been flashed or exercised under audio load.

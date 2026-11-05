@@ -1,0 +1,32 @@
+{
+  "scope": "Offline priority-order candidate build/admission only; no runtime or audio qualification",
+  "source_commit": "c8d82f88926e20f8fb2c09a81ca23be6ba95b21f",
+  "controller_priority_from_unchanged_sdk_default": 23,
+  "build": {
+    "image_sha256": "280bf0ea9743f3f087ceb128dc16f578c6d00732c709104955c4d368b5776f0f",
+    "decoder_priority": 6,
+    "host_priority": 7,
+    "renderer_priority": 5,
+    "priority_order": true,
+    "owner_ready_yield": false,
+    "pcm_copied": true,
+    "pcm_target_ms": 16,
+    "block_dsp": true,
+    "logger_core": 1,
+    "async_audio": true,
+    "product_io": true,
+    "product_security": true,
+    "rfcomm": true,
+    "elf_sha256": "12b1aee198e5a91a75fcbcbfaa109e1c133dc7d0c9df36e03e277ccd0ae35970",
+    "image_bytes": 1221632
+  },
+  "image_admission_passed": true,
+  "limited_iram_callback_audit": {
+    "passed": true,
+    "protected_symbols": 6,
+    "direct_functions_walked": 5,
+    "indirect_calls_unproven": 4
+  },
+  "target_flashed": false,
+  "live_audio_comparison_performed": false
+}
