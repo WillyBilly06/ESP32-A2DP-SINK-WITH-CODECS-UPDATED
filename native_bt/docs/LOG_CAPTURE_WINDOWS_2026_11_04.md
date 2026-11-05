@@ -45,3 +45,26 @@ I2S callback gap, with no stop request. This supports an interrupt-priority
 interference experiment; temporal correlation alone does not prove causality.
 Full output still failed. Do not use old periodic loop timestamps as if they
 were fault-event timestamps.
+
+The later priority2 capture also contains a watchdog-interleaved JSON record,
+one parseable record missing a character in a timestamp key, and a trailing
+fragment at the capture deadline. They are excluded, rather than repaired.
+The new logger appends `record_crc32`: IEEE CRC32 of the exact UTF-8 bytes
+before the comma introducing that member. It protects periodic snapshot
+records; one-off SDK/trace output remains outside that checksum scheme. CRC
+detects accidental capture corruption, not authenticity or coherent sampling.
+The bounded calculation runs only in the logger and adds no ISR/decoder work.
+
+`i2s_allocation_failure` now reports the requested rate/channels/sample-container
+bytes and the failure's own timer timestamp separately from render work.
+These are captured by the render owner's allocator and reset on the next
+start attempt. An unsuccessful 192 kHz start must not inherit the previous
+successful 96 kHz output rate in its failure diagnosis.
+
+Host checks compare the actual C-formatted record with Python zlib, reject
+changed counters, missing characters, duplicate keys, invalid timestamps and
+truncation, and verify partial-allocation reclamation plus failure-context reset.
+`audit_audio_capture.py` validates records offline; `--allow-legacy` permits
+timestamp-only analysis and explicitly reports the absence of CRC protection.
+The CRC and allocation-context additions have not yet run on COM6; they do not
+retroactively checksum historical captures or establish an audio pass.

@@ -21,5 +21,21 @@ The configured priority and counters appear in `i2s_callback_work`; counters
 reset on output start. Host tests verify the actual driver configuration,
 callback timing and existing format/error/teardown behavior.
 
-Hardware comparison is pending. Watchdog or underrun failures remain failures,
-even if interrupt gaps improve. The released fallback remains preserved.
+The [finite hardware comparison](RF_I2S_IRQ2_2026_11_04.json) serviced 23638
+callbacks on core0, with a 46 us maximum application callback and a 1378 us
+maximum EOF gap. Descriptor shape/pool/order errors remained zero through six
+core0 watchdog events. Priority1 previously faulted after an 11677 us gap;
+this supports retaining priority2 for further experiments, without claiming
+an isolated cause or long-duration qualification.
+
+Full LDAC output still fails: 1502592 underrun frames and 1472 encoded-queue
+drops. Mean render work is 1898 us per bounded unit, above the 1333 us budget
+for 128 frames at 96 kHz; the mean includes drain/partial work and preemption.
+One record with a missing timestamp-field character is excluded. Counters were
+observed repeatedly after pause; the historical UART records have no checksum.
+
+A subsequent [maximum LHDC output attempt](RF_LHDC_MAX_OUTPUT_2026_11_04.json)
+confirmed 192 kHz/S24/stereo/1000 kbps target in Android, but failed a 4096-byte
+audio allocation with 7540 free bytes and a 3072-byte largest block. No LHDC
+output start or continuity pass follows. COM6 returned to released 1.0.4-idf6.1
+ota0 with System ready; phone playback was verified paused.

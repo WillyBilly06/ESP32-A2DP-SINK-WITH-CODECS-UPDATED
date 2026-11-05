@@ -94,6 +94,9 @@ typedef struct {
   _Atomic uint32_t maximum_render_us, stop_fill_frames;
   _Atomic uint32_t render_total_us,render_calls;
   _Atomic uint32_t allocation_failed_bytes,allocation_failure_free,allocation_failure_largest;
+  _Atomic uint32_t allocation_failure_rate,allocation_failure_channels,allocation_failure_sample_bytes,allocation_failure_at_us;
+  /* Render-owner startup context, read only by its allocator callback. */
+  uint32_t allocation_request_rate,allocation_request_channels,allocation_request_sample_bytes;
   _Atomic uint32_t first_underrun_accepted_frames, first_underrun_dma_frames;
 } output_t;
 static DRAM_ATTR output_t output;
@@ -108,6 +111,10 @@ static uint8_t *allocate(void *context, uint32_t bytes) {
   uint8_t *p=heap_caps_malloc(bytes, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
   if(!p){
     atomic_store(&output.allocation_failed_bytes,bytes);
+    atomic_store(&output.allocation_failure_rate,output.allocation_request_rate);
+    atomic_store(&output.allocation_failure_channels,output.allocation_request_channels);
+    atomic_store(&output.allocation_failure_sample_bytes,output.allocation_request_sample_bytes);
+    atomic_store(&output.allocation_failure_at_us,(uint32_t)esp_timer_get_time());
 #ifdef ESP_PLATFORM
     atomic_store(&output.allocation_failure_free,heap_caps_get_free_size(MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT));
     atomic_store(&output.allocation_failure_largest,heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT));
@@ -349,6 +356,9 @@ static dbt_result_t start_output(uint32_t rate, uint8_t channels,
   atomic_store(&output.allocation_failed_bytes,0);
   atomic_store(&output.allocation_failure_free,0);
   atomic_store(&output.allocation_failure_largest,0);
+  atomic_store(&output.allocation_failure_rate,0);atomic_store(&output.allocation_failure_channels,0);
+  atomic_store(&output.allocation_failure_sample_bytes,0);atomic_store(&output.allocation_failure_at_us,0);
+  output.allocation_request_rate=rate;output.allocation_request_channels=channels;output.allocation_request_sample_bytes=(uint32_t)format;
   uint32_t target = (rate * 64u + 999u) / 1000u;
   dbt_audio_config_t config = {
       rate,
@@ -920,6 +930,7 @@ void probe_output_stats(probe_output_stats_t *s) {
   LOAD(allocation_failed_bytes);
   LOAD(allocation_failure_free);
   LOAD(allocation_failure_largest);
+  LOAD(allocation_failure_rate);LOAD(allocation_failure_channels);LOAD(allocation_failure_sample_bytes);LOAD(allocation_failure_at_us);
   LOAD(stop_fill_frames);
   LOAD(first_underrun_accepted_frames);
   LOAD(first_underrun_dma_frames);

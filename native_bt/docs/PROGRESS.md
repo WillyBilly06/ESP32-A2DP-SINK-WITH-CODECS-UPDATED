@@ -1,5 +1,32 @@
 # Current project progress
 
+Updated 2026-11-04 for ESP-IDF 6.1. The goal is **active and incomplete**.
+The user has released COM6 for flashing/testing; other boards remain excluded.
+Released main/recovery artifacts remain preserved. Latest measured evidence:
+
+- [Maximum LHDC radio/decoder](RF_LHDC_MAX_2026_11_04.json): actual Redmagic
+  192 kHz/S24/stereo/1000 kbps target, simultaneous secured BLE/EQ, no decoder
+  errors, queue drops or watchdog warnings during the finite checksum run.
+  This path omits A2DP DSP/I2S forwarding.
+- [Full maximum LHDC attempt](RF_LHDC_MAX_OUTPUT_2026_11_04.json): Android
+  confirmed the maximum preference; audio startup failed a 4096-byte allocation
+  with 7540 bytes free and a 3072-byte largest block. No LHDC I2S start follows.
+- [I2S priority2](I2S_IRQ_PRIORITY_2026_11_04.md): 23638 LDAC96 callbacks,
+  maximum callback 46 us and EOF gap 1378 us, with zero descriptor errors.
+  Six core0 watchdog warnings, 1472 queue drops and 1502592 underrun frames
+  still fail continuity. The renderer needs further CPU and SRAM work.
+- [Separate telemetry and capture integrity](LOG_CAPTURE_WINDOWS_2026_11_04.md):
+  per-stage timing, same-clock fault/watchdog markers and bounded observation
+  windows. New CRC-protected records and rate/format-specific allocation
+  diagnostics pass host tests; their hardware run remains pending.
+
+The last hardware trial returned to released 1.0.4-idf6.1 ota0 with System ready;
+phone playback was verified paused. Full profile/product parity and maximum
+LHDC output/headroom remain open. Historical claims below are superseded by
+the dated 6.1 checkpoints and their exact image receipts.
+
+## Historical pre-6.1 progress
+
 Updated 2026-11-03. The independent-host goal is **active and incomplete**.
 The current authoritative scope, feature inventory and evidence boundaries are
 in [FEATURE_MATRIX.md](FEATURE_MATRIX.md). In particular, the owned probe is

@@ -14,7 +14,8 @@ static bool request_pending,response_pending;
 static int64_t test_clock_us;
 static int64_t test_clock_step;
 static unsigned configured_irq_priority;
-void *heap_caps_malloc(size_t n,unsigned flags){(void)flags;void *p=malloc(n);if(p)live++;return p;}
+static unsigned allocation_attempt,fail_at_allocation;
+void *heap_caps_malloc(size_t n,unsigned flags){(void)flags;if(++allocation_attempt==fail_at_allocation)return 0;void *p=malloc(n);if(p)live++;return p;}
 void heap_caps_free(void *p){if(p){live--;free(p);}}
 int64_t esp_timer_get_time(void){int64_t value=test_clock_us;test_clock_us+=test_clock_step;return value;}
 void xTaskNotifyGive(TaskHandle_t t){
@@ -78,6 +79,18 @@ EX int probe_output_formats(void){
     CHECK(probe_output_stream_format(true,0,2,DBT_PCM_S16_LE)==DBT_INVALID);
     CHECK(probe_output_stream_format(true,48000,3,DBT_PCM_S16_LE)==DBT_INVALID);
     CHECK(probe_output_stream_format(true,UINT32_MAX,2,DBT_PCM_S16_LE)==DBT_INVALID);
+    /* A rejected 192 kHz request must not inherit the previous 48 kHz format
+     * in failure telemetry, and partially allocated pages must be reclaimed. */
+    fail_at_allocation=allocation_attempt+3u;test_clock_us=424242;
+    CHECK(probe_output_stream_format(true,192000,2,DBT_PCM_S32_LE)==DBT_NO_SPACE && !live && !output.active);
+    probe_output_stats_t stats;probe_output_stats(&stats);
+    CHECK(stats.allocation_failed_bytes==4096 && stats.allocation_failure_rate==192000);
+    CHECK(stats.allocation_failure_channels==2 && stats.allocation_failure_sample_bytes==4 && stats.allocation_failure_at_us==424242);
+    fail_at_allocation=0;
+    CHECK(probe_output_stream(true,48000,2)==DBT_OK);
+    probe_output_stats(&stats);
+    CHECK(!stats.allocation_failed_bytes && !stats.allocation_failure_rate && !stats.allocation_failure_channels && !stats.allocation_failure_sample_bytes && !stats.allocation_failure_at_us);
+    CHECK(probe_output_stream(false,0,0)==DBT_OK && !live);test_clock_us=0;
     return 0;
 }
 EX int probe_output_descriptor_diagnostics(void){

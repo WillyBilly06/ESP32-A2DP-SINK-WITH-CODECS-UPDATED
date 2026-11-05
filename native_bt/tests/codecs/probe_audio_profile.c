@@ -17,10 +17,18 @@ static uint32_t now;
 static bool snapshot_for_test(char *line,size_t capacity,uint32_t began,const char *format,...){
     va_list arguments;va_start(arguments,format);bool ok=snapshot_vformat(line,capacity,began,format,arguments);va_end(arguments);return ok;
 }
+EX int probe_audio_format_record(char *line,unsigned capacity){
+    return snapshot_for_test(line,capacity,1000,"{\"probe\":\"snapshot_test\",\"value\":%u}\n",7u);
+}
 EX int probe_audio_snapshot_records(void){
     char line[1024],large[1000];now=30;
+    CHECK(snapshot_crc32("123456789",9)==0xcbf43926u && snapshot_crc32("",0)==0);
     CHECK(snapshot_for_test(line,sizeof(line),1000,"{\"probe\":\"snapshot_test\",\"value\":%u}\n",7u));
     CHECK(strstr(line,"\"snapshot_begin_us\":1000") && strstr(line,"\"at_us\":30000") && strstr(line,"\"snapshot_span_us\":29000"));
+    char *checksum=strstr(line,",\"record_crc32\":\"");unsigned stored=0;
+    CHECK(checksum && sscanf(checksum,",\"record_crc32\":\"%x",&stored)==1);
+    CHECK(stored==snapshot_crc32(line,(size_t)(checksum-line)));
+    line[2]^=1;CHECK(stored!=snapshot_crc32(line,(size_t)(checksum-line)));line[2]^=1;
     now=1;CHECK(snapshot_for_test(line,sizeof(line),UINT32_MAX-1999u,"{\"probe\":\"wrap\"}\n"));
     CHECK(strstr(line,"\"at_us\":1000") && strstr(line,"\"snapshot_span_us\":3000"));
     memset(large,'x',sizeof(large)-1);large[sizeof(large)-1]=0;

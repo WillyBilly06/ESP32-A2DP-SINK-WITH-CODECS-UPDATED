@@ -1,6 +1,7 @@
 """Offline AVDTP-to-worker tests with real SBC, Opus, AAC-LC and aptX codecs.
 No ESP32, Bluetooth radio, connections or network are used."""
 import argparse,ctypes,os,pathlib,shutil,subprocess,sys
+from audit_audio_capture import audit_capture
 parser=argparse.ArgumentParser();parser.add_argument('--eight-mod-16',action='store_true',help='exercise an alternate 8-byte-aligned allocator base');parser.add_argument('--async-output',action='store_true');parser.add_argument('--decoder-core',type=int,choices=(0,1),default=1);args=parser.parse_args()
 root=pathlib.Path(__file__).resolve().parents[1];ws=root.parent;out=root/'_build/avrcp';out.mkdir(parents=True,exist_ok=True)
 opus=ws/'esp-idf/components/bt/host/bluedroid/external/opus';sbc=ws/'esp-idf/components/bt/host/bluedroid/external/sbc/decoder'
@@ -78,6 +79,12 @@ try:
         dll=ctypes.CDLL(str(artifact));fn=dll.probe_audio_profiles;u8=ctypes.c_ubyte;fn.argtypes=[ctypes.POINTER(u8),ctypes.c_uint16,ctypes.POINTER(u8),ctypes.POINTER(u8),ctypes.c_uint16,ctypes.POINTER(u8),ctypes.c_uint16]
         line=dll.probe_audio_snapshot_records()
         if line:raise SystemExit('FAIL timestamp capture-window/format-loss line '+str(line))
+        record=ctypes.create_string_buffer(1024)
+        dll.probe_audio_format_record.argtypes=[ctypes.c_void_p,ctypes.c_uint]
+        if not dll.probe_audio_format_record(record,len(record)):raise SystemExit('FAIL C snapshot formatting')
+        audit=audit_capture(record.value)
+        if not audit['all_snapshot_records_checksummed']:raise SystemExit('FAIL C snapshot CRC versus Python zlib '+str(audit))
+        if audit_capture(record.value.replace(b'"value":7',b'"value":8'))['passed']:raise SystemExit('FAIL damaged C snapshot accepted')
         line=dll.probe_audio_diagnostics()
         if line:raise SystemExit('FAIL detailed diagnostic rings/timing line '+str(line))
         line=dll.probe_audio_wait_policy()

@@ -11,6 +11,7 @@ typedef struct {
     uint32_t maximum_render_us,stop_fill_frames;
     uint32_t render_total_us,render_calls,render_stack_low_water_bytes;
     uint32_t allocation_failed_bytes,allocation_failure_free,allocation_failure_largest;
+    uint32_t allocation_failure_rate,allocation_failure_channels,allocation_failure_sample_bytes,allocation_failure_at_us;
     uint32_t profile_conversion,profile_dsp,profile_tail,profile_controls,profile_frames;
     uint32_t profile_conversion_max,profile_dsp_max,profile_tail_max;
     uint32_t first_underrun_accepted_frames,first_underrun_dma_frames;

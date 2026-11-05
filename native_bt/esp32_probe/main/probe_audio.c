@@ -130,15 +130,29 @@ static void maximum(_Atomic uint32_t *value,uint32_t candidate){
  * includes preemption during their collection, never the UART transmission.
  * Ordinary task loggers emit one complete JSON write. SDK early/ISR output
  * can still interleave independently on the UART. */
+/* IEEE CRC32 of the exact bytes preceding the checksum member. Logger-only,
+ * bounded by its 1024-byte buffer; detects capture corruption, not authenticity. */
+static uint32_t snapshot_crc32(const char *bytes,size_t length){
+    uint32_t crc=UINT32_MAX;
+    for(size_t i=0;i<length;++i){
+        crc^=(uint8_t)bytes[i];
+        for(unsigned bit=0;bit<8;++bit)crc=(crc>>1)^(0xedb88320u&(0u-(crc&1u)));
+    }
+    return crc^UINT32_MAX;
+}
 static bool snapshot_vformat(char *line,size_t capacity,uint32_t began,const char *format,va_list arguments){
     uint32_t ended=(uint32_t)esp_timer_get_time();
     if(capacity<160u)goto lost;
     int n=vsnprintf(line,capacity-128u,format,arguments);
     if(n<2 || (size_t)n>=capacity-128u || line[n-2]!='}' || line[n-1]!='\n')goto lost;
     int tail=snprintf(line+n-2,capacity-(size_t)n+2u,
-        ",\"snapshot_begin_us\":%" PRIu32 ",\"at_us\":%" PRIu32 ",\"snapshot_span_us\":%" PRIu32 "}\n",
+        ",\"snapshot_begin_us\":%" PRIu32 ",\"at_us\":%" PRIu32 ",\"snapshot_span_us\":%" PRIu32,
         began,ended,ended-began);
     if(tail<0 || (size_t)tail>=capacity-(size_t)n+2u)goto lost;
+    size_t prefix=(size_t)n-2u+(size_t)tail;
+    uint32_t crc=snapshot_crc32(line,prefix);
+    tail=snprintf(line+prefix,capacity-prefix,",\"record_crc32\":\"%08" PRIx32 "\"}\n",crc);
+    if(tail<0 || (size_t)tail>=capacity-prefix)goto lost;
     return true;
 lost:
     atomic_fetch_add_explicit(&snapshot_format_lost,1,memory_order_relaxed);return false;
@@ -545,6 +559,12 @@ static void log_loop(void *unused){
 #ifdef DBT_PROBE_AUDIO_OUTPUT
         uint32_t output_snapshot_began=(uint32_t)esp_timer_get_time();
         probe_output_stats_t stats;probe_output_stats(&stats);
+        snapshot_log(output_snapshot_began,"{\"probe\":\"i2s_allocation_failure\",\"failed_bytes\":%" PRIu32
+               ",\"free_bytes_at_failure\":%" PRIu32 ",\"largest_block_at_failure\":%" PRIu32
+               ",\"requested_rate\":%" PRIu32 ",\"requested_channels\":%" PRIu32 ",\"requested_sample_bytes\":%" PRIu32
+               ",\"failure_at_us\":%" PRIu32 "}\n",stats.allocation_failed_bytes,stats.allocation_failure_free,
+               stats.allocation_failure_largest,stats.allocation_failure_rate,stats.allocation_failure_channels,
+               stats.allocation_failure_sample_bytes,stats.allocation_failure_at_us);
         snapshot_log(output_snapshot_began,"{\"probe\":\"i2s_callback_work\",\"configured_irq_priority\":%" PRIu32
                ",\"calls\":%" PRIu32 ",\"elapsed_us\":%" PRIu32 ",\"maximum_us\":%" PRIu32 ",\"core\":%" PRIu32
                ",\"application_callback_only\":true,\"elapsed_includes_preemption\":true}\n",

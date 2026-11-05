@@ -195,6 +195,22 @@
       "snapshot_begin_us": 40854675,
       "at_us": 40854704,
       "snapshot_span_us": 29
+    },
+    "i2s_descriptor_faults": {
+      "probe": "i2s_descriptor_faults",
+      "collection_cycle_us": 118182254,
+      "shape": 0,
+      "pool": 0,
+      "order": 1,
+      "expected_index": 0,
+      "observed_index": 1,
+      "observed_size": 1024,
+      "fault_at_us": 40573918,
+      "fault_gap_us": 11677,
+      "fault_stopping": 0,
+      "snapshot_begin_us": 118443927,
+      "at_us": 118478723,
+      "snapshot_span_us": 34796
     }
   },
   "finite_rf_return": {

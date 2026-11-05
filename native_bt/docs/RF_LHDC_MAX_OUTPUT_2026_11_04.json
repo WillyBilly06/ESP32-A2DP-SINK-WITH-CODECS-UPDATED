@@ -1,0 +1,85 @@
+{
+  "date": "2026-11-04",
+  "source_commit": "5a990d08e5385553b02c8120a21803135d53ae21",
+  "image_sha256": "cdb4a08d393995d760a4cf81154d53460d9295d98b5b5f36156d3defe4608044",
+  "hardware_evidence_archive": "native_bt/_build/hardware/runs/1793836502570259600-cdb4a08d3939",
+  "finite_rf_return": {
+    "baseline_boot_observed": true,
+    "baseline_fatal_marker": false,
+    "prime_capture_bytes": 0
+  },
+  "phone_paused_verified": true,
+  "capture_integrity": {
+    "timestamp_records_parsed": 1439,
+    "timestamp_records_rejected": 1,
+    "rejected_records": [
+      {
+        "probe": "audio_clock",
+        "ppm": 0,
+        "observed_ppm": 0,
+        "error_frames": 0,
+        "state": 0,
+        "target_frames": 0,
+        "updates": 0,
+        "disturbances": 0,
+        "observed_valid": 0,
+        "snapshot_valid": 1,
+        "snapshot_begin_us": 171128865,
+        "at_us": 171248986,
+        "sapshot_span_us": 120121
+      }
+    ],
+    "unchecksummed_historical_uart_records": true,
+    "cause_of_missing_character": "undetermined",
+    "offline_audit": {
+      "scope": "offline record integrity only; no runtime/audio qualification",
+      "passed": false,
+      "snapshot_records": 1439,
+      "crc32_verified": 0,
+      "legacy_timestamp_only": 1438,
+      "other_records_unchecked": 105,
+      "all_snapshot_records_checksummed": false,
+      "rejected": [
+        {
+          "line": 703,
+          "reason": "malformed/interleaved JSON"
+        },
+        {
+          "line": 3203,
+          "probe": "audio_clock",
+          "reason": "missing/invalid snapshot time"
+        },
+        {
+          "line": 3357,
+          "reason": "malformed/interleaved JSON"
+        }
+      ]
+    }
+  },
+  "scope": "Actual Redmagic maximum LHDC preference and full-product playback attempt after LDAC stopped",
+  "result": "FAIL_AUDIO_BUFFER_ALLOCATION_BEFORE_I2S_START",
+  "configuration": {
+    "codec": "LHDC V5",
+    "sample_rate": 192000,
+    "encoded_depth_bits": 24,
+    "channels": 2,
+    "nominal_target_kbps": 1000,
+    "fresh_android_query_confirmed": true,
+    "native_successful_start_cie_not_published": true,
+    "actual_wire_bitrate_not_measured": true
+  },
+  "audio_allocation_failure": {
+    "allocation_failed_bytes": 4096,
+    "allocation_failure_free": 7540,
+    "allocation_failure_largest": 3072
+  },
+  "retained_last_successful_output_rate": 96000,
+  "minimum_free_heap_during_trial": 2896,
+  "projected_pcm_ring_bytes": 196608,
+  "limits": [
+    "Output allocation fails before publish_stream, so stale LDAC output/PCM counters are not LHDC playback.",
+    "Historical failure row lacks requested rate/format; attribution uses the phone action interval and fresh codec query, not native CIE telemetry.",
+    "No LHDC PCM/DSP/DMA/analog/headroom pass from this failed admission attempt.",
+    "The independent previous maximum LHDC radio/decoder pass remains a separate result."
+  ]
+}

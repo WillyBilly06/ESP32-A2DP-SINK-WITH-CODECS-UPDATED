@@ -15,6 +15,16 @@ identical PCM hashes and passes all 252 measured isolated 5 ms deadlines at
 qualification remains open. All finite runs returned to released 1.0.4 firmware. The user released
 COM6 for testing in this chat; the historical reservation below is superseded.
 
+Latest phone evidence separates the [maximum LHDC radio/decoder pass](docs/RF_LHDC_MAX_2026_11_04.json)
+from the [failed full-output attempt](docs/RF_LHDC_MAX_OUTPUT_2026_11_04.json).
+Android confirmed LHDC V5 at 192 kHz/S24/stereo with the 1000 kbps target, but
+the full product could not allocate another 4096-byte PCM page (7540 bytes free,
+largest block 3072). No maximum-rate DAC playback pass is claimed.
+The [priority2 I2S test](docs/I2S_IRQ_PRIORITY_2026_11_04.md) avoided the prior
+descriptor-order fault during a finite LDAC96 overload test; renderer overruns,
+queue drops, underruns and core0 watchdog warnings remain unresolved. COM6
+returned to released 1.0.4-idf6.1 ota0 and phone playback was paused.
+
 The [resumable PCM worker checkpoint](docs/IDF61_ASYNC_PCM_2026_11_04.md) adds
 80 real-codec host comparisons with sanitizer coverage and 38 passing ESP32
 deferred-worker checks. The render provider, stream/sound transactions and full
