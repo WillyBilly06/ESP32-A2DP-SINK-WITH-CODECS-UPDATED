@@ -308,6 +308,24 @@ void DSP_HOT fixed_dsp_process(fixed_dsp_t *dsp, int32_t *left, int32_t *right) 
 #else
 #define BLOCK_KERNEL
 #endif
+#if defined(FIXED_DSP_WORD_QUANT) && FDSP_PROVEN_SUM_ENABLED
+#ifdef FIXED_DSP_TRANSPOSED_BLOCK
+#error Select one exact block-kernel experiment
+#endif
+/* For sum>>28 to fit int32_t, the signed upper word must fit signed28.
+ * This is a full-width test: multiplication, feedback and the Q28 remainder
+ * retain their original precision. Unsigned offset arithmetic cannot overflow
+ * with undefined behavior. Ramping and the conservative split sum are unchanged. */
+static inline __attribute__((always_inline)) int32_t block_word_quantize(int64_t sum,uint32_t *fraction){
+    uint32_t low=(uint32_t)(uint64_t)sum,high=(uint32_t)((uint64_t)sum>>32);
+    if(high+UINT32_C(0x08000000)<=UINT32_C(0x0fffffff)){
+        *fraction=low&0x0fffffffu;
+        return (int32_t)((high<<4)|(low>>28));
+    }
+    *fraction=0;
+    return (int32_t)high<0?INT32_MIN:INT32_MAX;
+}
+#endif
 /* One channel at a time keeps coefficient/history reuse within LX6's register
  * budget. It changes neither arithmetic nor the carried Q28 fraction. */
 static BLOCK_KERNEL void filter_steady_block(const int32_t c[5],fdsp_history_t *h,
@@ -349,8 +367,12 @@ static BLOCK_KERNEL void filter_steady_block(const int32_t c[5],fdsp_history_t *
         int32_t input=pcm[2u*i];int64_t sum=fraction;
         sum+=(int64_t)c0*input;sum+=(int64_t)c1*x1;sum+=(int64_t)c2*x2;
         sum-=(int64_t)c3*y1;sum-=(int64_t)c4*y2;
+#ifdef FIXED_DSP_WORD_QUANT
+        int32_t output=block_word_quantize(sum,&fraction);
+#else
         int64_t integer=sum>>28;int32_t output=clamp32(integer);
         fraction=(int64_t)output==integer?(uint32_t)((uint64_t)sum&0x0fffffffu):0;
+#endif
         x2=x1;x1=input;y2=y1;y1=output;pcm[2u*i]=output;
     }
     h->x1=x1;h->x2=x2;h->y1=y1;h->y2=y2;h->fraction=fraction;

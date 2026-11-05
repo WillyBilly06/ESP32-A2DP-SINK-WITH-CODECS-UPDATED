@@ -37,7 +37,7 @@ if os.name=='nt':base+=['-fms-runtime-lib=dll','-D_DLL']
 candidate='probe_dsp_profile.c' if options.profile_stages else 'probe_dsp_inline.c' if options.inline_filter else 'probe_dsp_o3.c'
 sources=[(ROOT/'esp32_probe/main/probe_dsp_os.c','-Os'),(ROOT/'esp32_probe/main'/candidate,'-Os' if options.profile_stages or options.inline_filter else '-O3'),(ROOT/'esp32_probe/main/probe_dsp_compare.c','-O2'),(ROOT/'esp32_probe/main/probe_diagnostic_stats.c','-O2'),(main,'-O2')]
 if not options.profile_stages and not options.inline_filter:
-    sources.extend((ROOT/'esp32_probe/main'/name,'-Os') for name in ('probe_dsp_block.c','probe_dsp_transposed.c'))
+    sources.extend((ROOT/'esp32_probe/main'/name,'-Os') for name in ('probe_dsp_block.c','probe_dsp_word.c'))
 if options.profile_stages:base+=['-DDBT_DSP_STAGE_PROFILE=1']
 if options.inline_filter:base+=['-DDBT_PROBE_DSP_INLINE_CHECK=1']
 tracked=[p for p,_ in sources]+list((ROOT/'esp32_probe/main').glob('*.h'))+list(STUB.rglob('*.h'))+list((ROOT.parent/'bt_audio_sink/main/dsp').glob('fixed_dsp*'))+[pathlib.Path(__file__).resolve()]
@@ -62,5 +62,5 @@ if options.profile_stages:
     stages=[e for e in events if e['probe']=='dsp_internal_stages']
     assert len(stages)==18 and all(e['valid'] and e['pipeline_muted_start'] and e['proven_sum_enabled']==1 for e in stages)
 assert all(hashlib.sha256(pathlib.Path(p).read_bytes()).hexdigest()==digest for p,digest in before.items())
-(OUT/('inline-results.json' if options.inline_filter else 'profile-results.json' if options.profile_stages else 'results.json')).write_text(json.dumps({'passed':True,'case_groups':groups,'variants':['Os_current','Os_force_inline'] if options.inline_filter else ['Os_split_reference','Os_profiled_proven'] if options.profile_stages else ['Os_configured','O3_configured','Os_block','Os_transposed_block'],'sanitizers':['address','undefined'],'signed_overflow_wrapping':False,'scope':'host actual comparison runner, full PCM/state equality; timer/cycles/RTOS/heap are stubs, no hardware performance evidence','sources':before,'commands':commands,'hardware_accessed':False},indent=2)+'\n')
+(OUT/('inline-results.json' if options.inline_filter else 'profile-results.json' if options.profile_stages else 'results.json')).write_text(json.dumps({'passed':True,'case_groups':groups,'variants':['Os_current','Os_force_inline'] if options.inline_filter else ['Os_split_reference','Os_profiled_proven'] if options.profile_stages else ['Os_configured','O3_configured','Os_block','Os_word_block'],'sanitizers':['address','undefined'],'signed_overflow_wrapping':False,'scope':'host actual comparison runner, full PCM/state equality; timer/cycles/RTOS/heap are stubs, no hardware performance evidence','sources':before,'commands':commands,'hardware_accessed':False},indent=2)+'\n')
 print(f'PASS {groups} controlled DSP groups with {variants} variants, profile='+str(options.profile_stages)+', inline='+str(options.inline_filter)+', full output/state comparison, host ASan/UBSan; no target timings')
