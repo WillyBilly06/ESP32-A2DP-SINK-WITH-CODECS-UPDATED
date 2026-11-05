@@ -195,50 +195,50 @@
     },
     {
       "owned": "native_bt/codecs/ldac/dbt_ldac_bt.c",
-      "sha256": "92010868b1b0929308764542c4e52eb4637d2e17c6e66f433feec48654d89086",
-      "lines": 21,
+      "sha256": "094635735312260ddacb45c0766ba423307521d67310f99ae8548975b223ee08",
+      "lines": 33,
       "reference_files": [
         "src/classic/avdtp.c",
         "example/a2dp_sink_demo.c",
         "src/btstack_resample.c",
         "src/btstack_sample_rate_compensation.c"
       ],
-      "status": "reviewed_no_change",
+      "status": "reviewed_with_findings",
       "mapping": "counterpart_candidates",
-      "review_scope": "Complete owned body read and mapped source boundaries checked; included SDK backend internals remain a separate incomplete review."
+      "review_scope": "Bounded retained LDAC workspace, SDK caller-memory init/free/handle contracts and generated allocation graph reviewed. Repeated gap/fault and long-playback qualification remain open."
     },
     {
       "owned": "native_bt/codecs/ldac/dbt_ldac_decoder.c",
-      "sha256": "7da6fd3cec0b008fc5c89687d0987c37b04885563167dd5630ab27dffbc3b83b",
-      "lines": 99,
+      "sha256": "013ba9a59f466e25bd0dc369968168437a22d50a45697fdfa940e8128945efcc",
+      "lines": 131,
       "reference_files": [
         "src/classic/avdtp.c",
         "example/a2dp_sink_demo.c",
         "src/btstack_resample.c",
         "src/btstack_sample_rate_compensation.c"
       ],
-      "status": "partial_review",
+      "status": "reviewed_with_findings",
       "mapping": "counterpart_candidates",
-      "review_scope": "Complete wrapper body read. LDAC header/frame mask and LHDC emitted depth checked; full vendor backend/reference/state/performance review remains open."
+      "review_scope": "Bounded retained LDAC workspace, SDK caller-memory init/free/handle contracts and generated allocation graph reviewed. Repeated gap/fault and long-playback qualification remain open."
     },
     {
       "owned": "native_bt/codecs/ldac/dbt_ldac_lib.c",
-      "sha256": "08d7a3359018a5a58485daa812c0d2125307e87d6e863945a1d7033674bf4473",
-      "lines": 19,
+      "sha256": "87d9afcdcbffd07828a353b8aee6cd46b6eca82618172c48c1963cbafb231340",
+      "lines": 38,
       "reference_files": [
         "src/classic/avdtp.c",
         "example/a2dp_sink_demo.c",
         "src/btstack_resample.c",
         "src/btstack_sample_rate_compensation.c"
       ],
-      "status": "reviewed_no_change",
+      "status": "reviewed_with_findings",
       "mapping": "counterpart_candidates",
-      "review_scope": "Complete owned body read and mapped source boundaries checked; included SDK backend internals remain a separate incomplete review."
+      "review_scope": "Bounded retained LDAC workspace, SDK caller-memory init/free/handle contracts and generated allocation graph reviewed. Repeated gap/fault and long-playback qualification remain open."
     },
     {
       "owned": "native_bt/codecs/ldac/dbt_ldac_port.h",
-      "sha256": "78d1747ee69d94bc964c2a99707fb6491ea2bfa6f329a083e67315b40d4df5a4",
-      "lines": 13,
+      "sha256": "b2c2a338f68601890befb9e59a97e26ec2f13cc655dadd1f8df7ecd92b9e68f7",
+      "lines": 19,
       "reference_files": [
         "src/classic/avdtp.c",
         "example/a2dp_sink_demo.c",
@@ -247,7 +247,7 @@
       ],
       "status": "reviewed_contract",
       "mapping": "counterpart_candidates",
-      "review_scope": "Complete declaration and lifetime contract reviewed against its owning implementation."
+      "review_scope": "Bounded retained LDAC workspace, SDK caller-memory init/free/handle contracts and generated allocation graph reviewed. Repeated gap/fault and long-playback qualification remain open."
     },
     {
       "owned": "native_bt/codecs/ldac/dbt_ldac.c",
@@ -278,12 +278,12 @@
     },
     {
       "owned": "native_bt/codecs/ldac/prepare_port.py",
-      "sha256": "fb9b77712a2e3aa22d219e79431278cd867dd404928c8f1eb1b7db691014b0fa",
-      "lines": 130,
+      "sha256": "d0500ad2fea71405699df880d12417558c6b17b0d44cd595e9f5920d9dcb1b69",
+      "lines": 150,
       "reference_files": [],
       "status": "reviewed_generator",
       "mapping": "Added through full filesystem/build-manifest cross-check; source generation/build inputs included",
-      "review_scope": "Complete generation body read. FIR bounds/data checked; LDAC tail replacement and ownership/bit-reader patches inspected. Broader SDK internals remain open."
+      "review_scope": "Bounded retained LDAC workspace, SDK caller-memory init/free/handle contracts and generated allocation graph reviewed. Repeated gap/fault and long-playback qualification remain open."
     },
     {
       "owned": "native_bt/codecs/lhdcv5/CMakeLists.txt",
@@ -3140,6 +3140,28 @@
       "fix": "For generated adjacent delta <=2^25-1, compute high32((abs(delta)<<7)*remainder), then restore sign. All Q30 coefficients, full 64-bit stereo products, rounding, tap counts, history and source phase remain exact.",
       "limits": "BTstack linear interpolation is not substituted for FIR. No measured cycle/underrun improvement is claimed. Product selects the high-word expression; wider existing arithmetic remains for larger compile-time bounds.",
       "resource_change": "No new storage/tasks/allocations. Filter text 957 to 946 bytes; whole image text -12 bytes, aggregate data/BSS unchanged."
+    },
+    {
+      "id": "LDAC-012",
+      "state": "compiled_static_analysis_startup_checked_gap_fault_timing_unqualified",
+      "owned": [
+        "native_bt/codecs/ldac/dbt_ldac_decoder.c",
+        "native_bt/codecs/ldac/dbt_ldac_port.h",
+        "native_bt/codecs/ldac/dbt_ldac_bt.c",
+        "native_bt/codecs/ldac/dbt_ldac_lib.c",
+        "native_bt/codecs/ldac/prepare_port.py"
+      ],
+      "reference": [
+        "src/classic/btstack_sbc_decoder_bluedroid.c:decoder-state lifetime (different codec)",
+        "Pinned SDK memory_ldac.o.c:19-28",
+        "Pinned SDK decode_ldac.o.c:4-84",
+        "Pinned SDK ldacBT_api.o.c:53-96,129-192",
+        "Pinned SDK ldaclib_api.o.c:198-223,228-269,332-359"
+      ],
+      "issue": "LDAC gap/error reset freed and reallocated AC/ACSUB/AB working storage through the general heap.",
+      "fix": "Retain a configuration-sized arena in the existing session allocation. Rewind before the original SDK init procedure and zero every capacity-checked block. Heap access is allowed only while initially constructing the two handles. Detach caller-owned pointers after SDK close so the library handle is freed correctly; ignore interior arena frees on partial initialization. Preserve PCM retirement and every frame/format guard.",
+      "ram_tradeoff": "No new BSS or global maximum-rate pool. Work bytes range 2368..8832 by samples/mode. Existing startup tracked peaks fall 33 bytes mono /61 bytes stereo/dual, instrumentation included.",
+      "limits": "Automatic cold startup cases pass and teardown checks show no remaining tracked allocations. Repeated RF gaps, internal arena exhaustion/fault handling, updated host regression harnesses and elapsed-time gains are not qualified."
     }
   ],
   "sections_reviewed": [
@@ -3324,8 +3346,8 @@
   ],
   "coverage": {
     "owned_files": 277,
-    "reviewed_owned_c_bodies": 19,
-    "partial_files": 7,
+    "reviewed_owned_c_bodies": 20,
+    "partial_files": 6,
     "pending_files": 230,
     "compiled_owned_units_missing": 0,
     "reviewed_headers": 12,
@@ -3391,22 +3413,38 @@
     }
   ],
   "next_review": {
-    "layer": "Remaining codec backend/generator boundaries and renderer/FIR scheduling",
+    "layer": "Remaining L2CAP resource/wire boundary, codec internals and full protocol integration",
     "owned": [
-      "native_bt/codecs/ldac/prepare_port.py",
-      "native_bt/codecs/ldac/dbt_ldac_lib.c",
+      "native_bt/src/dbt_l2cap.c",
+      "native_bt/src/dbt_runtime.c",
+      "native_bt/codecs/ldac/dbt_ldac.c",
       "native_bt/codecs/aptx/dbt_aptx_backend.c",
       "native_bt/codecs/opus/dbt_opus.c",
-      "native_bt/codecs/lhdcv5/prepare_port.py",
-      "native_bt/esp32_probe/main/probe_output.c"
+      "native_bt/codecs/lhdcv5/prepare_port.py"
     ],
     "reference": [
-      "src/classic/btstack_sbc_decoder_bluedroid.c",
-      "example/a2dp_sink_demo.c",
-      "src/btstack_resample.c",
-      "src/btstack_sample_rate_compensation.c"
+      "src/hci.c",
+      "src/l2cap.c",
+      "src/classic/avdtp.c",
+      "src/classic/btstack_sbc_decoder_bluedroid.c"
     ],
-    "notes": "Codec wrapper/build reviews do not finish backend internals or full BTstack audit. Preserve decoder0/radio+render1, 1800x8 input and arithmetic fidelity; no held functional campaigns. Prior measured FIR/render deficit remains an open bottleneck."
+    "notes": "Declared L2CAP length above maximum_pdu still needs wire/resource failure classification. LDAC working allocation has been replaced, with repeated-gap/fault/timing qualification pending. Continue every pending row and product reconnect/BLE/AVRCP/security scope."
   },
-  "latest_build_image": "7d4b58613694061dec7d8b9b4acfe008d943707257ff85e7977b3bb8d7fcc4be"
+  "latest_build_image": "b150c844ba744f3f8d00dbef59044a56372c0ff3311a4f087ab4f8806634cdb3",
+  "verification_source_contracts": [
+    {
+      "file": "native_bt/tools/test_ldac_target_component.py",
+      "change": "ten pinned generated units, -O2 and all required workspace symbols",
+      "syntax_compiled": true,
+      "executed": false,
+      "sha256": "f09e50b7a52ef2fe3e3e32364ab7c9fe5018f888002d7e1789f7e1d9e8b61657"
+    },
+    {
+      "file": "native_bt/tools/test_native_codec_ldac_real.py",
+      "change": "zero allocation calls during reset with provider failure armed; preserve open-failure and final cleanup checks",
+      "syntax_compiled": true,
+      "executed": false,
+      "sha256": "af2862d10c824b39ba8bb996c9f87a58ab201d0569e083a41b5497a4521fa6e3"
+    }
+  ]
 }

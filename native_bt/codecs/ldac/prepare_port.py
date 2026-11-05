@@ -5,6 +5,9 @@ import json
 from pathlib import Path
 
 PINNED={
+ "memory_ldac.o.c":"6eb621c4730fe82a395cd19c93dff9a1803fd40d0231786a04582c5fc1b33378",
+ "ldaclib_api.o.c":"fe2bb67ab8297de9cc71c759a8e798acd434ebc949903ed80617aeab0886838b",
+ "ldacBT_api.o.c":"b6f810b19aaa03a199c08ce9061890f6f9b3df414e038134f7d2d1a52f1af706",
  "ldac.h":"d68fa82a3fb936be9cc02fd65cebe258d59472ea9404b7130a22de45997bacaa",
  "ldacBT_internal.h":"65f2a85b248f024a86df2e576b195973fd597275f7057d3d8a17770ea568e949",
  "ldacBT_internal.o.c":"b88050482ad67e2a62b9f57ef0cfbd81d264d6fb32d75d78f29c7e57aaeffffd",
@@ -31,6 +34,23 @@ def generate(source,output):
             text=once(text,'SCALAR a_spec[LDAC_MAXLSU];','SCALAR *a_spec;')
             text=once(text,'int16_t a_qspec[LDAC_MAXLSU];','int16_t *a_qspec;')
             text=once(text,'int16_t a_rspec[LDAC_MAXLSU];','int16_t *a_rspec;')
+        elif name=='memory_ldac.o.c':
+            text=once(text,'''DECLFUNC void* calloc_ldac(SFINFO* p_sfinfo, size_t nmemb, size_t size) {
+  char* p_mempos;
+
+  p_mempos = p_sfinfo->p_mempos;
+  if (p_mempos) {
+    p_sfinfo->p_mempos = &p_mempos[nmemb * align_ldac(size)];
+    return p_mempos;
+  } else {
+    return calloc(nmemb, size);
+  }
+}''',
+                      '''DECLFUNC void* calloc_ldac(SFINFO* p_sfinfo, size_t nmemb, size_t size) {
+  /* Product-owned caller memory: reject exhaustion instead of falling through
+   * to the heap, and preserve fresh calloc state on every reset. */
+  return dbt_ldac_work_calloc(&p_sfinfo->p_mempos, nmemb, size);
+}''')
         elif name=='ldacBT_internal.h':
             text=once(text,'  char a_pcm[LDAC_PRCNCH * LDACBT_MAX_LSU * LDACBT_PCM_WLEN_MAX];','  /* PCM is bound to the negotiated-size worker allocation. */')
         elif name=='ldacBT_internal.o.c':

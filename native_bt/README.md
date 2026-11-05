@@ -15,13 +15,15 @@ The [codec build-profile review](docs/CODEC_BUILD_PROFILE_2026_11_05.md) restore
 The [SBC CRC change](docs/SBC_CRC_COMPARISON_2026_11_05.md) keeps every validation
 pass and reduces checksum arithmetic. The [FIR high-word change](docs/FIR_HIGH_WORD_2026_11_05.md)
 preserves the filter exactly while reducing coefficient-interpolation work.
+[LDAC working storage](docs/LDAC_RETAINED_WORKSPACE_2026_11_05.md) is now retained
+across resets with bounded allocation and explicit teardown ownership.
 Sustained performance remains unqualified.
 
 ## Current development checkpoint — 2026-11-05
 
 The owned Classic+BLE host is selected on the local COM6 board in ota1 at
 0x390000, marked VALID, with automatic Bluedroid restoration disabled. The
-verified image is `7d4b58613694061dec7d8b9b4acfe008d943707257ff85e7977b3bb8d7fcc4be`.
+verified image is `b150c844ba744f3f8d00dbef59044a56372c0ff3311a4f087ab4f8806634cdb3`.
 This remains development firmware with incomplete feature/runtime qualification.
 
 Recent source corrections cover [codec payload boundaries and shared PCM

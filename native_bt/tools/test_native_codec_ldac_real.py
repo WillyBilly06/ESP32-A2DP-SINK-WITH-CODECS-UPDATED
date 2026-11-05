@@ -102,24 +102,25 @@ def main():
             lib.probe_fail_in(0);assert lib.worker_init()==0;lib.probe_fail_in(fail_index)
             assert control(0,config)==1,(case,fail_index)
             assert lib.probe_live()==0,(case,fail_index,lib.probe_live());failure_sites+=1
-    # Reset can allocate again after releasing the previous working set. Each
-    # failure must discard its partial codec state before the worker faults.
-    reset_failures=0;reset_peaks=[]
+    # Retained reset must not touch the external provider, even when its next
+    # allocation would fail. Exercise both suspend and restart with it armed.
+    reset_failures=0;reset_provider_failure_armed=0;reset_peaks=[]
     for case in configurations:
         config=cie(case['rate'],case['mode']);lib.probe_fail_in(0)
         assert lib.worker_init()==0 and control(0,config)==0
         reset_live=lib.probe_live();lib.probe_peak_reset();before=lib.probe_calls()
         assert control(3)==0;reset_allocations=lib.probe_calls()-before;reset_peak=lib.probe_peak()
         assert reset_peak==reset_live,(case,reset_peak,reset_live)
-        assert reset_allocations>0 and control(5)==0 and lib.probe_live()==0
+        assert reset_allocations==0,(case,reset_allocations)
+        lib.probe_fail_in(1)
+        for operation in (4,3):
+            before=lib.probe_calls()
+            assert control(operation)==0,(case,operation)
+            assert lib.probe_calls()==before and lib.probe_live()==reset_live,(case,operation)
+            assert lib.probe_peak()==reset_live,(case,operation,lib.probe_peak())
+            reset_provider_failure_armed+=1
+        lib.probe_fail_in(0);assert control(5)==0 and lib.probe_live()==0
         reset_peaks.append(dict(rate=case['rate'],mode=case['mode'],allocations=reset_allocations,peak_bytes=reset_peak))
-        for fail_index in range(1,reset_allocations+1):
-            lib.probe_fail_in(0);assert lib.worker_init()==0 and control(0,config)==0
-            original_live=lib.probe_live();lib.probe_fail_in(fail_index)
-            assert control(3)==2,(case,fail_index,reset_allocations)
-            assert 0<lib.probe_live()<original_live,(case,fail_index,lib.probe_live(),original_live)
-            lib.probe_fail_in(0);assert control(5)==0 and lib.probe_live()==0
-            reset_failures+=1
     config=cie(96000,1)
     sbc=bytes([0,0,0x11,0x15,2,53]);lib.probe_fail_in(0)
     assert lib.worker_init()==0 and control(0,sbc)==0
@@ -163,6 +164,7 @@ def main():
     report=dict(passed=True,address_sanitizer=ASAN,scope="LDAC lifecycle and synthetic frame comparison; no genuine encoded fixture or RF evidence",
                 configurations=configurations,synthetic_reference_pcm_matches=comparisons,actual_encoded_fixture=fixture_result,
                 open_allocation_failures_checked=failure_sites,reset_allocation_failures_checked=reset_failures,
+                reset_provider_failure_armed_cases=reset_provider_failure_armed,reset_expected_external_allocations=0,
                 successful_reset_peaks=reset_peaks,
                 sbc_live_bytes=sbc_live,ldac_worker_live_bytes=ldac_live,
                 switch_peak_bytes=max(sbc_live,ldac_live),random_packets=fuzz_count,

@@ -30,10 +30,10 @@ def main():
         key,value=line.split('|',1);fields.setdefault(key,[]).append(value)
     sources=[Path(x) for x in fields['SRCS']]
     assert [p.name for p in sources]==['dbt_ldac.c','dbt_ldac_decoder.c','dbt_ldac_bt.c','dbt_ldac_lib.c']
-    assert set(fields['REQUIRES'])=={'native_bt','codec_core'} and {'-std=c11','-fwrapv'}<=set(fields['OPTION'])
+    assert set(fields['REQUIRES'])=={'native_bt','codec_core'} and {'-O2','-std=c11','-fwrapv'}<=set(fields['OPTION'])
     generated=OUT/'port';receipt=json.loads((generated/'ldac_port.json').read_text())
     assert set(receipt)=={'ldac.h','ldacBT_internal.h','ldacBT_internal.o.c','decode_ldac.o.c','unpack_ldac.o.c',
-                          'tables_ldac.o.c','tables_sigproc_ldac.o.c'}
+                          'tables_ldac.o.c','tables_sigproc_ldac.o.c','memory_ldac.o.c','ldaclib_api.o.c','ldacBT_api.o.c'}
     rejected=OUT/'port_rejected';existing=rejected/'ldac.h'
     before=hashlib.sha256(existing.read_bytes()).hexdigest() if existing.exists() else None
     check=subprocess.run([sys.executable,str(ROOT/'codecs/ldac/prepare_port.py'),'--source',str(generated),
@@ -71,7 +71,8 @@ def main():
     linked=OUT/'ldac_codec_core.esp32.o'
     run([str(compiler),'-nostdlib','-Wl,-r',*[str(o) for o in objects],'-o',str(linked)])
     undefined=run([str(tools/'xtensa-esp32-elf-nm.exe'),'-u',str(linked)])
-    for symbol in ('dbt_ldac_codec','dbt_ldac_mem_alloc','ldacBT_decode','dbt_ldac_bind_pcm','dbt_codec_allocate'):
+    for symbol in ('dbt_ldac_codec','dbt_ldac_mem_alloc','ldacBT_decode','dbt_ldac_bind_pcm','dbt_codec_allocate',
+                   'dbt_ldac_work_calloc','dbt_ldac_work_bytes','dbt_ldac_work_bind','dbt_ldac_work_unbind'):
         assert not re.search(r'\b'+symbol+r'\b',undefined),f'unresolved required codec symbol: {symbol}'
     size=run([str(tools/'xtensa-esp32-elf-size.exe'),str(linked)]).splitlines()[-1].split()
     text_size,data_size,bss_size=map(int,size[:3])
