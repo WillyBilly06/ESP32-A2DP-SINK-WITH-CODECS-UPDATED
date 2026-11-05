@@ -41,6 +41,9 @@ idf_component_register(
     INCLUDE_DIRS "../../../include" "../../../../bt_audio_sink/main/dsp"
 )
 target_compile_options(${COMPONENT_LIB} PRIVATE -std=c11 -Wall -Wextra -Werror)
+if(DBT_PROBE_BLOCK_DSP)
+    target_compile_definitions(${COMPONENT_LIB} PRIVATE DBT_AUDIO_BLOCK_DSP=1 FIXED_DSP_BLOCK_API=1)
+endif()
 if(DBT_PROBE_AUDIO_STAGE_PROFILE)
     target_compile_definitions(${COMPONENT_LIB} PRIVATE DBT_AUDIO_STAGE_PROFILE=1)
     # The public ESP CPU header uses GNU asm in its inline Xtensa helpers.

@@ -1,6 +1,7 @@
 """Sanitize the actual PCM-loan provider/render loop with deterministic SDK stubs."""
-import hashlib,json,os,pathlib,shutil,subprocess
-ROOT=pathlib.Path(__file__).resolve().parents[1];OUT=ROOT/'_build/output_loan';OUT.mkdir(exist_ok=True)
+import argparse,hashlib,json,os,pathlib,shutil,subprocess
+parser=argparse.ArgumentParser();parser.add_argument('--block-dsp',action='store_true');options=parser.parse_args()
+ROOT=pathlib.Path(__file__).resolve().parents[1];OUT=ROOT/('_build/output_loan_block' if options.block_dsp else '_build/output_loan');OUT.mkdir(exist_ok=True)
 report=OUT/'results.json';report.write_text(json.dumps({'passed':False,'state':'building','hardware_accessed':False})+'\n')
 env=os.environ.copy()
 if os.name=='nt':
@@ -19,6 +20,7 @@ before={str(p):hashlib.sha256(p.read_bytes()).hexdigest() for p in tracked}
 inc=[ROOT/'tests/codecs/probe_audio_stubs',ROOT/'include',ROOT/'esp32_probe/main',ROOT.parent/'bt_audio_sink/main/dsp']
 exe=OUT/('output-loan.exe' if os.name=='nt' else 'output-loan')
 cmd=[cache,cc,'-std=c11','-O3','-g','-Wall','-Wextra','-Werror','-fsanitize=address,undefined','-fno-sanitize-recover=all','-fno-omit-frame-pointer','-DDBT_PROBE_PCM_LOANS=1','-DDBT_PROBE_ASYNC_AUDIO=1','-DDBT_OUTPUT_TEST_HOOKS=1','-DCONFIG_I2S_ISR_IRAM_SAFE=1','-DCONFIG_NATIVE_AUDIO_BCLK=26','-DCONFIG_NATIVE_AUDIO_LRCK=25','-DCONFIG_NATIVE_AUDIO_DATA=27']
+if options.block_dsp:cmd+=['-DDBT_AUDIO_BLOCK_DSP=1','-DFIXED_DSP_BLOCK_API=1','-DDBT_PROBE_BLOCK_DSP=1']
 cmd+=['-I'+str(p) for p in inc]+list(map(str,sources))+['-o',str(exe)]
 if os.name=='nt':cmd+=['-fms-runtime-lib=dll','-D_DLL','-Wl,/NODEFAULTLIB:libcmt']
 if os.name=='nt':
@@ -31,4 +33,4 @@ for target in (64,32,16):
     subprocess.run(selected_command,check=True,env=env)
     subprocess.run([str(selected)],check=True,env=env,timeout=60);commands.append(selected_command)
 assert all(hashlib.sha256(pathlib.Path(p).read_bytes()).hexdigest()==digest for p,digest in before.items())
-report.write_text(json.dumps({'passed':True,'pcm_targets_ms':[64,32,16],'sanitizers':['address','undefined'],'signed_overflow_wrapping':False,'sources':before,'commands':commands,'scope':'actual provider/render ownership, target geometry and delay reporting with deterministic queues and mocked I2S; no hardware timing/audio qualification'},indent=2)+'\n')
+report.write_text(json.dumps({'passed':True,'block_dsp':options.block_dsp,'pcm_targets_ms':[64,32,16],'sanitizers':['address','undefined'],'signed_overflow_wrapping':False,'sources':before,'commands':commands,'scope':'actual provider/render ownership, target geometry and delay reporting with deterministic queues and mocked I2S; no hardware timing/audio qualification'},indent=2)+'\n')

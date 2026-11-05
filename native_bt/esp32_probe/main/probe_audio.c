@@ -609,10 +609,10 @@ static void log_loop(void *unused){
                ",\"requested_bytes\":%" PRIu32 ",\"accepted_frames\":%" PRIu32 ",\"rendered_frames\":%" PRIu32 ",\"ready_frames\":%" PRIu32
                ",\"dma_eofs\":%" PRIu32 ",\"dma_source_frames\":%" PRIu32 ",\"underrun_frames\":%" PRIu32
                ",\"descriptor_errors\":%" PRIu32 ",\"max_eof_gap_us\":%" PRIu32 ",\"maximum_render_us\":%" PRIu32
-               ",\"first_underrun_accepted_frames\":%" PRIu32 ",\"first_underrun_dma_frames\":%" PRIu32 ",\"pcm_target_ms\":%" PRIu32 "}\n",
+               ",\"first_underrun_accepted_frames\":%" PRIu32 ",\"first_underrun_dma_frames\":%" PRIu32 ",\"pcm_target_ms\":%" PRIu32 ",\"block_dsp\":%" PRIu32 "}\n",
                stats.running,stats.failed,stats.rate,stats.requested_bytes,stats.accepted_frames,stats.rendered_frames,stats.ready_frames,
                stats.dma_eofs,stats.dma_source_frames,stats.underrun_frames,stats.descriptor_errors,stats.max_eof_gap_us,stats.maximum_render_us,
-               stats.first_underrun_accepted_frames,stats.first_underrun_dma_frames,stats.pcm_target_ms);
+               stats.first_underrun_accepted_frames,stats.first_underrun_dma_frames,stats.pcm_target_ms,stats.block_dsp);
         snapshot_log(output_snapshot_began,"{\"probe\":\"audio_clock\",\"ppm\":%" PRId32 ",\"observed_ppm\":%" PRId32 ",\"error_frames\":%" PRId32
                ",\"state\":%" PRIu32 ",\"target_frames\":%" PRIu32 ",\"updates\":%" PRIu32 ",\"disturbances\":%" PRIu32
                ",\"observed_valid\":%" PRIu32 ",\"snapshot_valid\":%" PRIu32 "}\n",stats.clock_ppm,stats.clock_observed_ppm,stats.clock_error_frames,

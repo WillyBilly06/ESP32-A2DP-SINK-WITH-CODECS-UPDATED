@@ -1,53 +1,54 @@
 {
-  "scope": "source-matched host block DSP/runner checks; no target timing",
+  "scope": "source-matched block DSP and renderer/provider host checks; target kernel timings are a separate artifact",
   "passed": true,
-  "maximum_frames_per_block": 128,
-  "numerical_modes": [
-    {
-      "mode": "proven",
-      "blocks": 26624,
-      "frames": 1691971
-    },
-    {
-      "mode": "split_fallback",
-      "blocks": 26624,
-      "frames": 1691971
-    }
+  "total_dsp_frames_compared": 3383942,
+  "renderer_case_pairs": 108,
+  "input_frames_per_renderer_case": 4096,
+  "provider_pcm_targets_ms": [
+    64,
+    32,
+    16
   ],
-  "total_compared_frames": 3383942,
-  "rates": 13,
-  "pcm_and_full_state_equal": true,
   "sanitizers": [
     "address",
     "undefined"
   ],
-  "signed_overflow_wrapping": false,
-  "comparison_groups": 27,
-  "comparison_rows": 81,
-  "regression_pairs_per_mode": 18,
   "host_receipts": {
-    "numerical": {
-      "archive": "native_bt/_build/experiments/block-dsp-1793853789390931400/numerical.json",
-      "sha256": "eccfc398ce7f3e7cbbea869ac3afe76fc317ab8d1f414c5062bfab5dba46dd4b"
+    "numeric": {
+      "archive": "native_bt/_build/experiments/block-dsp-integrated-1793855133983266600/numeric.json",
+      "sha256": "97445fbb70d3ae0a827e12c463504857f93d1bff6169fdfbe510d3c816c87174"
     },
     "comparison": {
-      "archive": "native_bt/_build/experiments/block-dsp-1793853789390931400/comparison.json",
-      "sha256": "3c7650fe59bdc28bd8dfaf6c3b47304bcadcc7e2c62f8ad3b6dadd06106444cc"
+      "archive": "native_bt/_build/experiments/block-dsp-integrated-1793855133983266600/comparison.json",
+      "sha256": "ccec07c092be89afebdfc658d7314e12743ec2ab2c93055b591ac45f181de0a8"
     },
-    "profile_regression": {
-      "archive": "native_bt/_build/experiments/block-dsp-1793853789390931400/profile_regression.json",
-      "sha256": "417159d63a39cb5807763be765f58b05dbab0c30c130e63aaebdeb59cd3a2caa"
+    "profile": {
+      "archive": "native_bt/_build/experiments/block-dsp-integrated-1793855133983266600/profile.json",
+      "sha256": "fa660cee1e362af00f189e443031ea282a39fa7a4725f5715f0de2c0152f3b70"
     },
-    "inline_regression": {
-      "archive": "native_bt/_build/experiments/block-dsp-1793853789390931400/inline_regression.json",
-      "sha256": "3b6be2ee2c3ed6e6872ee9aae72446aa88544969e050c3a8e34e0c062484284f"
+    "inline": {
+      "archive": "native_bt/_build/experiments/block-dsp-integrated-1793855133983266600/inline.json",
+      "sha256": "d05950b5666f3cfd643f110aba1ce43998649f4c671685158013da588e12e1c3"
+    },
+    "render_pairs": {
+      "archive": "native_bt/_build/experiments/block-dsp-integrated-1793855133983266600/render_pairs.json",
+      "sha256": "252e8453870eded3a21266c6669b8386e1286bf00a1f1f35a545830255223db5"
+    },
+    "render_pages": {
+      "archive": "native_bt/_build/experiments/block-dsp-integrated-1793855133983266600/render_pages.json",
+      "sha256": "c7c76b9d9ded5395d64872b77e4badba46f0f1dbe113638b82538edd1d68c2a4"
+    },
+    "provider": {
+      "archive": "native_bt/_build/experiments/block-dsp-integrated-1793855133983266600/provider.json",
+      "sha256": "b57bf2fc4de8da5895dc6cdb90d832a703ad55068400b480cdfabba08baa5381"
     },
     "mode_guards": {
-      "archive": "native_bt/_build/experiments/block-dsp-1793853789390931400/mode_guards.json",
-      "sha256": "e1cba271297f4e8fb1ef6e9dbe19fc1c643228cffd7215b73c6b1f9ebf6f1c83"
+      "archive": "native_bt/_build/experiments/block-dsp-integrated-1793855133983266600/mode_guards.json",
+      "sha256": "ab599f70066c95f986df24eef01ef99f8098c8569539f3176a58280e207a1e31"
     }
   },
-  "target_result_pending": true,
-  "renderer_changed": false,
+  "target_kernel_result": "BLOCK_DSP_TARGET_HYBRID_2026_11_04.json",
+  "renderer_hardware_qualified": false,
+  "default_renderer_changed": false,
   "production_qualified": false
 }

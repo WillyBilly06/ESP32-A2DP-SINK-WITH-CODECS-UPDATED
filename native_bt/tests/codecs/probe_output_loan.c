@@ -82,6 +82,11 @@ static int formats_and_allocations(void){
         CHECK(output.audio.borrowed_input && !output.audio.input.bytes && output.audio.allocated_bytes==payload && live==pages && irq_priority==2 && configured_rate==192000);
         probe_output_stats_t stats;probe_output_stats(&stats);
         CHECK(stats.pcm_loan_mode==1 && stats.pcm_target_ms==DBT_PROBE_PCM_TARGET_MS && stats.input_ring_bytes_avoided==8192u*2u*width && stats.requested_bytes==payload+3072);
+#ifdef DBT_PROBE_BLOCK_DSP
+        CHECK(stats.block_dsp==1);
+#else
+        CHECK(stats.block_dsp==0);
+#endif
         CHECK(probe_output_try_pcm_format(raw,1,2,192000,(dbt_pcm_format_t)width)==DBT_INVALID);
         uint32_t id=0;CHECK(probe_output_pcm_begin(raw,256,2,192000,(dbt_pcm_format_t)width,&id)==DBT_PENDING);
         (void)render_step();CHECK(output.pcm_loan_id==id && output.audio.input_view==raw && probe_output_pcm_poll(id)==DBT_PENDING);

@@ -73,6 +73,17 @@ else:
 if pcm_target_ms!=64:
     assert pcm_loans and build_status.get('async_audio') and not rf_diagnostic
     assert 'DBT_PROBE_KEEP_OWNED_ACTIVE:BOOL=ON' not in cache and pcm_target_option
+block_dsp=bool(build_status.get('block_dsp'))
+assert ('DBT_PROBE_BLOCK_DSP:BOOL=ON' in cache)==block_dsp, 'Block DSP receipt/cache mismatch'
+assert re.findall(r'(?:^|\s)-DDBT_PROBE_BLOCK_DSP=(\S+)',main_command)==(['1'] if block_dsp else []) and not re.search(r'(?:^|\s)-UDBT_PROBE_BLOCK_DSP(?:\s|$)',main_command)
+block_core_commands=[e for e in commands if Path(e['file']).name in ('dbt_audio.c','fixed_dsp.c')]
+for entry in block_core_commands:
+    for definition in ('DBT_AUDIO_BLOCK_DSP','FIXED_DSP_BLOCK_API'):
+        assert re.findall(r'(?:^|\s)-D'+definition+r'=(\S+)',entry['command'])==(['1'] if block_dsp else []), 'Block core mode missing, overridden or unreceipted'
+        assert not re.search(r'(?:^|\s)-U'+definition+r'(?:\s|$)',entry['command'])
+if block_dsp:
+    assert pcm_loans and build_status.get('async_audio') and not rf_diagnostic and 'DBT_PROBE_KEEP_OWNED_ACTIVE:BOOL=ON' not in cache
+    assert {Path(e['file']).name for e in block_core_commands}=={'dbt_audio.c','fixed_dsp.c'}, 'Missing compiled block core'
 assert bool(re.search(r'(?:^|\s)-DDBT_PROBE_DEFERRED_CODEC_CHECK=1(?:\s|$)',main_command))==bool(build_status.get('deferred_codec_check'))
 assert ('DBT_PROBE_LHDC_MAX_CHECK:BOOL=ON' in cache)==bool(build_status.get('lhdc_maximum_check'))
 assert ('DBT_PROBE_LHDC_STAGE_PROFILE:BOOL=ON' in cache)==bool(build_status.get('lhdc_stage_profile'))
@@ -151,7 +162,7 @@ assert image.flash_mode==2 and image.flash_size_freq==0x3f
 assert image.min_rev_full<=301<=image.max_rev_full
 report={'passed':True,'scope':'offline image checksum/digest, ESP32 revision and admitted OTA capacity; no device access or runtime qualification',
  'image_sha256':hashlib.sha256(blob).hexdigest(),'image_bytes':len(blob),'project':project,'chip_id':image.chip_id,'codec_diagnostic_only':diagnostic,'pipeline_diagnostic':pipeline,
- 'rf_protocol_diagnostic':rf_diagnostic,'pcm_target_ms':pcm_target_ms,'experimental_short_pcm_target':pcm_target_ms!=64,'revision_range':[image.min_rev_full,image.max_rev_full],'checksum_verified':True,'digest_verified':bool(image.append_digest),
+ 'rf_protocol_diagnostic':rf_diagnostic,'pcm_target_ms':pcm_target_ms,'block_dsp':block_dsp,'experimental_short_pcm_target':pcm_target_ms!=64,'revision_range':[image.min_rev_full,image.max_rev_full],'checksum_verified':True,'digest_verified':bool(image.append_digest),
  'latest_local_build_completed':True,'build_sources_match':True,'build_source_units':source_count,'product_io':bool(build_status.get('product_io')),'product_security':product_security,'rfcomm_profile':rfcomm,'controller_only_dual_mode':True,'anti_rollback_fuse_updates':False,'partition_offset':slot['offset'],'partition_bytes':slot['size'],
  'partition_remaining_bytes':slot['size']-len(blob),'compiled_table_matches_preserved_layout':True,'compiled_table_sha256':hashlib.sha256(table).hexdigest(),'flash_mode':'DIO','flash_mib':8,'flash_mhz':80,'hardware_accessed':False,'runtime_qualified':False}
 output=ROOT/'_build/host/local-image-validation.json';output.write_text(json.dumps(report,indent=2)+'\n');print(json.dumps(report,indent=2))

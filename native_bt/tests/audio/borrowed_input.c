@@ -3,6 +3,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#ifdef DBT_TEST_BLOCK_RENDER
+uint32_t block_dbt_audio_render(dbt_audio_t *,uint32_t);
+#endif
 #if defined(__has_feature)
 #if __has_feature(address_sanitizer)
 #include <sanitizer/asan_interface.h>
@@ -29,7 +32,13 @@ static uint32_t rng=0x517ca391u;
 static uint32_t random32(void){rng^=rng<<13;rng^=rng>>17;rng^=rng<<5;return rng;}
 static int compare_step(dbt_audio_t *borrowed,dbt_audio_t *copied){
     int32_t actual[256],expected[256];
-    uint32_t a=dbt_audio_render(borrowed,128),b=dbt_audio_render(copied,128);
+    uint32_t a=
+#ifdef DBT_TEST_BLOCK_RENDER
+        block_dbt_audio_render(borrowed,128),
+#else
+        dbt_audio_render(borrowed,128),
+#endif
+        b=dbt_audio_render(copied,128);
     if(a!=b || dbt_audio_input_frames(borrowed)!=dbt_audio_input_frames(copied))return -1;
     if(dbt_audio_take(borrowed,actual,a)!=a || dbt_audio_take(copied,expected,b)!=b)return -1;
     if(memcmp(actual,expected,a*8u) || memcmp(&borrowed->dsp,&copied->dsp,sizeof(borrowed->dsp)) ||

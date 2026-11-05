@@ -1,0 +1,410 @@
+{
+  "scope": "COM6 isolated original-ramp-prefix plus block-steady DSP comparison; controller/I2S inactive during kernel timing",
+  "archive": "native_bt/_build/hardware/runs/1793854219761301200-5a1cbc252fa5",
+  "source_commit": "b4ac9f3014b3ab7af1a6102b53bebf1f772eee3b",
+  "image_sha256": "5a1cbc252fa55a62493442fab3f4a9cbe363b68f8f2bc8eedc295bcbfae7cab8",
+  "elf_sha256": "b3995b3beaadd95a91b8a4f3440bce11310aa07c8448b64e6f10ad880624794a",
+  "all_81_rows_equivalent": true,
+  "summary": [
+    {
+      "probe": "dsp_variant_summary",
+      "passed": true,
+      "cases": 27,
+      "expected_cases": 27,
+      "variants": 3,
+      "workspace_bytes": 6944,
+      "stack_low_water_bytes": 5028,
+      "controller_enabled": false,
+      "i2s_test": false,
+      "speed_is_not_a_pass_gate": true
+    }
+  ],
+  "comparisons": [
+    {
+      "rate": 48000,
+      "flags": 9,
+      "gains": [
+        3,
+        -2,
+        2
+      ],
+      "median_steady_gain_percent": 12.136322500291207,
+      "median_ramp_gain_percent": -0.3496279080765774,
+      "trials": [
+        {
+          "trial": 0,
+          "reference_steady_cycles": 223206,
+          "block_steady_cycles": 196117,
+          "reference_ramp_cycles": 296951,
+          "block_ramp_cycles": 300471,
+          "steady_gain_percent": 12.136322500291207,
+          "ramp_gain_percent": -1.1853807530535443
+        },
+        {
+          "trial": 1,
+          "reference_steady_cycles": 223202,
+          "block_steady_cycles": 196122,
+          "reference_ramp_cycles": 296039,
+          "block_ramp_cycles": 296947,
+          "steady_gain_percent": 12.132507773227841,
+          "ramp_gain_percent": -0.306716344805924
+        },
+        {
+          "trial": 2,
+          "reference_steady_cycles": 223241,
+          "block_steady_cycles": 196090,
+          "reference_ramp_cycles": 296029,
+          "block_ramp_cycles": 297064,
+          "steady_gain_percent": 12.162192428810116,
+          "ramp_gain_percent": -0.3496279080765774
+        }
+      ]
+    },
+    {
+      "rate": 48000,
+      "flags": 13,
+      "gains": [
+        3,
+        -2,
+        2
+      ],
+      "median_steady_gain_percent": 11.990726580404365,
+      "median_ramp_gain_percent": -0.3452585686454235,
+      "trials": [
+        {
+          "trial": 0,
+          "reference_steady_cycles": 225589,
+          "block_steady_cycles": 198540,
+          "reference_ramp_cycles": 306514,
+          "block_ramp_cycles": 307381,
+          "steady_gain_percent": 11.990389602329898,
+          "ramp_gain_percent": -0.28285820549796004
+        },
+        {
+          "trial": 1,
+          "reference_steady_cycles": 225591,
+          "block_steady_cycles": 198541,
+          "reference_ramp_cycles": 306334,
+          "block_ramp_cycles": 307478,
+          "steady_gain_percent": 11.990726580404365,
+          "ramp_gain_percent": -0.37344858879524434
+        },
+        {
+          "trial": 2,
+          "reference_steady_cycles": 225618,
+          "block_steady_cycles": 198511,
+          "reference_ramp_cycles": 306437,
+          "block_ramp_cycles": 307495,
+          "steady_gain_percent": 12.014555576239482,
+          "ramp_gain_percent": -0.3452585686454235
+        }
+      ]
+    },
+    {
+      "rate": 48000,
+      "flags": 8,
+      "gains": [
+        0,
+        0,
+        0
+      ],
+      "median_steady_gain_percent": 32.757218882428305,
+      "median_ramp_gain_percent": 0.18032960244001028,
+      "trials": [
+        {
+          "trial": 0,
+          "reference_steady_cycles": 162348,
+          "block_steady_cycles": 109142,
+          "reference_ramp_cycles": 179576,
+          "block_ramp_cycles": 179653,
+          "steady_gain_percent": 32.772809027521134,
+          "ramp_gain_percent": -0.042878781128874444
+        },
+        {
+          "trial": 1,
+          "reference_steady_cycles": 162316,
+          "block_steady_cycles": 109172,
+          "reference_ramp_cycles": 179785,
+          "block_ramp_cycles": 179454,
+          "steady_gain_percent": 32.741072968776955,
+          "ramp_gain_percent": 0.18410879661818758
+        },
+        {
+          "trial": 2,
+          "reference_steady_cycles": 162352,
+          "block_steady_cycles": 109170,
+          "reference_ramp_cycles": 179671,
+          "block_ramp_cycles": 179347,
+          "steady_gain_percent": 32.757218882428305,
+          "ramp_gain_percent": 0.18032960244001028
+        }
+      ]
+    },
+    {
+      "rate": 96000,
+      "flags": 9,
+      "gains": [
+        3,
+        -2,
+        2
+      ],
+      "median_steady_gain_percent": 12.477778244376324,
+      "median_ramp_gain_percent": -0.6216183925310315,
+      "trials": [
+        {
+          "trial": 0,
+          "reference_steady_cycles": 214317,
+          "block_steady_cycles": 187575,
+          "reference_ramp_cycles": 292945,
+          "block_ramp_cycles": 294766,
+          "steady_gain_percent": 12.477778244376324,
+          "ramp_gain_percent": -0.6216183925310315
+        },
+        {
+          "trial": 1,
+          "reference_steady_cycles": 214351,
+          "block_steady_cycles": 187631,
+          "reference_ramp_cycles": 292945,
+          "block_ramp_cycles": 294802,
+          "steady_gain_percent": 12.465535500184277,
+          "ramp_gain_percent": -0.6339073887589919
+        },
+        {
+          "trial": 2,
+          "reference_steady_cycles": 214358,
+          "block_steady_cycles": 187498,
+          "reference_ramp_cycles": 293001,
+          "block_ramp_cycles": 294759,
+          "steady_gain_percent": 12.530439731663856,
+          "ramp_gain_percent": -0.5999979522254284
+        }
+      ]
+    },
+    {
+      "rate": 96000,
+      "flags": 13,
+      "gains": [
+        3,
+        -2,
+        2
+      ],
+      "median_steady_gain_percent": 12.326080435635344,
+      "median_ramp_gain_percent": -0.6068912801386439,
+      "trials": [
+        {
+          "trial": 0,
+          "reference_steady_cycles": 216652,
+          "block_steady_cycles": 189965,
+          "reference_ramp_cycles": 303530,
+          "block_ramp_cycles": 305370,
+          "steady_gain_percent": 12.3179107508816,
+          "ramp_gain_percent": -0.6062003755806566
+        },
+        {
+          "trial": 1,
+          "reference_steady_cycles": 216695,
+          "block_steady_cycles": 189985,
+          "reference_ramp_cycles": 303511,
+          "block_ramp_cycles": 305389,
+          "steady_gain_percent": 12.326080435635344,
+          "ramp_gain_percent": -0.6187584634494314
+        },
+        {
+          "trial": 2,
+          "reference_steady_cycles": 216693,
+          "block_steady_cycles": 189895,
+          "reference_ramp_cycles": 303514,
+          "block_ramp_cycles": 305356,
+          "steady_gain_percent": 12.366804649896402,
+          "ramp_gain_percent": -0.6068912801386439
+        }
+      ]
+    },
+    {
+      "rate": 96000,
+      "flags": 8,
+      "gains": [
+        0,
+        0,
+        0
+      ],
+      "median_steady_gain_percent": 34.803794009732236,
+      "median_ramp_gain_percent": -1.4804207997967556,
+      "trials": [
+        {
+          "trial": 0,
+          "reference_steady_cycles": 153686,
+          "block_steady_cycles": 100181,
+          "reference_ramp_cycles": 173250,
+          "block_ramp_cycles": 175757,
+          "steady_gain_percent": 34.814491886053375,
+          "ramp_gain_percent": -1.4470418470418522
+        },
+        {
+          "trial": 1,
+          "reference_steady_cycles": 153716,
+          "block_steady_cycles": 100217,
+          "reference_ramp_cycles": 173194,
+          "block_ramp_cycles": 175758,
+          "steady_gain_percent": 34.803794009732236,
+          "ramp_gain_percent": -1.4804207997967556
+        },
+        {
+          "trial": 2,
+          "reference_steady_cycles": 153688,
+          "block_steady_cycles": 100213,
+          "reference_ramp_cycles": 173138,
+          "block_ramp_cycles": 175819,
+          "steady_gain_percent": 34.79451876529072,
+          "ramp_gain_percent": -1.5484757823239326
+        }
+      ]
+    },
+    {
+      "rate": 192000,
+      "flags": 9,
+      "gains": [
+        3,
+        -2,
+        2
+      ],
+      "median_steady_gain_percent": 12.556705717451633,
+      "median_ramp_gain_percent": -0.7654167635292364,
+      "trials": [
+        {
+          "trial": 0,
+          "reference_steady_cycles": 211099,
+          "block_steady_cycles": 184701,
+          "reference_ramp_cycles": 288260,
+          "block_ramp_cycles": 290385,
+          "steady_gain_percent": 12.505033183482627,
+          "ramp_gain_percent": -0.7371817109553813
+        },
+        {
+          "trial": 1,
+          "reference_steady_cycles": 211178,
+          "block_steady_cycles": 184661,
+          "reference_ramp_cycles": 288209,
+          "block_ramp_cycles": 290415,
+          "steady_gain_percent": 12.556705717451633,
+          "ramp_gain_percent": -0.7654167635292364
+        },
+        {
+          "trial": 2,
+          "reference_steady_cycles": 211197,
+          "block_steady_cycles": 184601,
+          "reference_ramp_cycles": 288216,
+          "block_ramp_cycles": 290436,
+          "steady_gain_percent": 12.592981907886946,
+          "ramp_gain_percent": -0.7702556416021356
+        }
+      ]
+    },
+    {
+      "rate": 192000,
+      "flags": 13,
+      "gains": [
+        3,
+        -2,
+        2
+      ],
+      "median_steady_gain_percent": 12.401357101351474,
+      "median_ramp_gain_percent": -0.7186913381603599,
+      "trials": [
+        {
+          "trial": 0,
+          "reference_steady_cycles": 213299,
+          "block_steady_cycles": 186936,
+          "reference_ramp_cycles": 298320,
+          "block_ramp_cycles": 300464,
+          "steady_gain_percent": 12.359645380428407,
+          "ramp_gain_percent": -0.7186913381603599
+        },
+        {
+          "trial": 1,
+          "reference_steady_cycles": 213396,
+          "block_steady_cycles": 186932,
+          "reference_ramp_cycles": 298332,
+          "block_ramp_cycles": 300439,
+          "steady_gain_percent": 12.401357101351474,
+          "ramp_gain_percent": -0.7062601397101131
+        },
+        {
+          "trial": 2,
+          "reference_steady_cycles": 213394,
+          "block_steady_cycles": 186833,
+          "reference_ramp_cycles": 298312,
+          "block_ramp_cycles": 300457,
+          "steady_gain_percent": 12.44692915452168,
+          "ramp_gain_percent": -0.7190458312102743
+        }
+      ]
+    },
+    {
+      "rate": 192000,
+      "flags": 8,
+      "gains": [
+        0,
+        0,
+        0
+      ],
+      "median_steady_gain_percent": 35.52705815196108,
+      "median_ramp_gain_percent": -1.5629982167530754,
+      "trials": [
+        {
+          "trial": 0,
+          "reference_steady_cycles": 150546,
+          "block_steady_cycles": 97133,
+          "reference_ramp_cycles": 169378,
+          "block_ramp_cycles": 172021,
+          "steady_gain_percent": 35.47952120946422,
+          "ramp_gain_percent": -1.5604151660782328
+        },
+        {
+          "trial": 1,
+          "reference_steady_cycles": 150643,
+          "block_steady_cycles": 97084,
+          "reference_ramp_cycles": 169354,
+          "block_ramp_cycles": 172001,
+          "steady_gain_percent": 35.55359359545416,
+          "ramp_gain_percent": -1.5629982167530754
+        },
+        {
+          "trial": 2,
+          "reference_steady_cycles": 150657,
+          "block_steady_cycles": 97133,
+          "reference_ramp_cycles": 169318,
+          "block_ramp_cycles": 172054,
+          "steady_gain_percent": 35.52705815196108,
+          "ramp_gain_percent": -1.6158943526382252
+        }
+      ]
+    }
+  ],
+  "pipeline_check": {
+    "probe": "target_pipeline_selftest",
+    "passed": false,
+    "configured": true,
+    "started": true,
+    "stream_result": 0,
+    "correctness": false,
+    "continuity": false,
+    "rate": 192000,
+    "sample_depth": 24,
+    "channels": 2,
+    "encoded_payload_bps": 1001600,
+    "packets": 2,
+    "completed_packets": 0,
+    "sample_frames": 512,
+    "pcm_hash": 639236599,
+    "synthetic_source": true,
+    "integer_dsp": true,
+    "i2s_test": true,
+    "rf_test": false,
+    "production_qualified": false
+  },
+  "baseline_boot_observed": true,
+  "boot_fatal_marker": false,
+  "renderer_selected_in_this_image": false,
+  "production_qualified": false
+}

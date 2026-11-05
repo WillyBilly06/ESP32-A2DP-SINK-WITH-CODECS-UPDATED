@@ -1,4 +1,7 @@
 #include "dbt_audio.h"
+#if defined(DBT_AUDIO_BLOCK_DSP) && !defined(FIXED_DSP_BLOCK_API)
+#error "Block rendering requires the exact bounded DSP block API"
+#endif
 #ifdef DBT_AUDIO_STAGE_PROFILE
 #include "esp_cpu.h"
 #endif
@@ -271,8 +274,36 @@ static void apply_mix(dbt_audio_t *a,uint32_t out,uint32_t count){
         a->mix(a->mix_context,output_frame(a,out),first);out=output_advance(a,out,first);count-=first;
     }
 }
+#ifdef DBT_AUDIO_BLOCK_DSP
+static uint32_t render_dsp_block(dbt_audio_t *a,int32_t *pcm,unsigned frames,uint32_t slot
+#ifdef DBT_AUDIO_STAGE_PROFILE
+                                ,uint32_t *dsp_cycles,uint32_t *tail_cycles
+#endif
+){
+#ifdef DBT_AUDIO_STAGE_PROFILE
+    uint32_t began=esp_cpu_get_cycle_count();
+#endif
+    /* Internal bounds/alignment are established by the fixed stack array and
+     * its <=128-frame fill count. This API rejects only invalid arguments. */
+    (void)fixed_dsp_process_block(&a->dsp,pcm,(uint16_t)frames);
+#ifdef DBT_AUDIO_STAGE_PROFILE
+    uint32_t at=esp_cpu_get_cycle_count();*dsp_cycles+=at-began;
+#endif
+    for(unsigned i=0;i<frames;++i){
+        int32_t *destination=output_frame(a,slot);
+        destination[0]=pcm[2u*i];destination[1]=pcm[2u*i+1u];slot=output_advance(a,slot,1);
+    }
+#ifdef DBT_AUDIO_STAGE_PROFILE
+    *tail_cycles+=esp_cpu_get_cycle_count()-at;
+#endif
+    return slot;
+}
+#endif
 uint32_t dbt_audio_render(dbt_audio_t *a,uint32_t budget){
     if(!a || !a->opened)return 0;
+#ifdef DBT_AUDIO_BLOCK_DSP
+    int32_t pcm_block[FIXED_DSP_BLOCK_FRAMES*2u];unsigned block_frames=0;
+#endif
 #ifdef DBT_AUDIO_STAGE_PROFILE
     uint32_t stage=esp_cpu_get_cycle_count(),conversion=0,dsp=0,tail=0;
 #endif
@@ -324,17 +355,37 @@ uint32_t dbt_audio_render(dbt_audio_t *a,uint32_t budget){
 #ifdef DBT_AUDIO_STAGE_PROFILE
         uint32_t at=esp_cpu_get_cycle_count();conversion+=at-stage;stage=at;
 #endif
+#ifdef DBT_AUDIO_BLOCK_DSP
+        pcm_block[2u*block_frames]=left;pcm_block[2u*block_frames+1u]=right;++block_frames;
+#else
         fixed_dsp_process(&a->dsp,&left,&right);
 #ifdef DBT_AUDIO_STAGE_PROFILE
         at=esp_cpu_get_cycle_count();dsp+=at-stage;stage=at;
 #endif
         int32_t *destination=output_frame(a,slot);destination[0]=left;destination[1]=right;
         slot=output_advance(a,slot,1);
+#endif
         a->fraction=(uint32_t)next;++produced;
 #ifdef DBT_AUDIO_STAGE_PROFILE
         tail+=esp_cpu_get_cycle_count()-stage;
 #endif
+#ifdef DBT_AUDIO_BLOCK_DSP
+        if(block_frames==FIXED_DSP_BLOCK_FRAMES){
+            slot=render_dsp_block(a,pcm_block,block_frames,slot
+#ifdef DBT_AUDIO_STAGE_PROFILE
+                                  ,&dsp,&tail
+#endif
+            );block_frames=0;
+        }
+#endif
     }
+#ifdef DBT_AUDIO_BLOCK_DSP
+    if(block_frames)slot=render_dsp_block(a,pcm_block,block_frames,slot
+#ifdef DBT_AUDIO_STAGE_PROFILE
+                                        ,&dsp,&tail
+#endif
+    );
+#endif
     apply_mix(a,a->output_write_slot,produced);
     a->output_write_slot=slot;
 #ifdef DBT_AUDIO_STAGE_PROFILE

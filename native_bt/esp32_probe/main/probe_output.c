@@ -1042,6 +1042,11 @@ void probe_output_stats(probe_output_stats_t *s) {
   if (!s)
     return;
   s->pcm_target_ms=DBT_PROBE_PCM_TARGET_MS;
+#ifdef DBT_PROBE_BLOCK_DSP
+  s->block_dsp=1;
+#else
+  s->block_dsp=0;
+#endif
 #define LOAD(field) s->field = atomic_load(&output.field)
   LOAD(running);
   LOAD(failed);

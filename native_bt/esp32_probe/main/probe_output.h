@@ -12,7 +12,7 @@
 #endif
 typedef struct {
     uint32_t running,failed,rate,requested_bytes,accepted_frames,rendered_frames,ready_frames,input_ready_frames;
-    uint32_t pcm_target_ms;
+    uint32_t pcm_target_ms,block_dsp;
     uint32_t dma_eofs,dma_source_frames,underrun_frames,descriptor_errors,max_eof_gap_us;
     uint32_t descriptor_shape_errors,descriptor_pool_errors,descriptor_order_errors;
     uint32_t descriptor_expected_index,descriptor_observed_index,descriptor_observed_size;
