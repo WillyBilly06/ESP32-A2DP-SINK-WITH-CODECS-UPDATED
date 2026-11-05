@@ -11,6 +11,11 @@ typedef struct {
     void (*pdu)(void *context, uint16_t handle, uint32_t generation,
                 uint16_t cid, const uint8_t *data, uint16_t bytes);
 } dbt_l2cap_hooks_t;
+/* Borrowed chunks of one over-limit PDU. No truncated PDU is delivered.
+ * A non-OK policy result is terminal, never ingress retry. Owner-only. */
+typedef dbt_result_t (*dbt_l2cap_oversize_fn)(void *context,uint16_t handle,uint32_t generation,
+    uint16_t cid,const uint8_t *data,uint16_t bytes,uint16_t declared,uint16_t offset,bool first,bool last);
+
 typedef struct {
     uint8_t *data;
     uint32_t generation;
@@ -24,7 +29,8 @@ typedef struct {
     uint32_t delivered, abandoned;
     /* Owner-only wire rejection counters. INVALID without a new rejection is
      * an API/invariant error; the runtime must not conflate the two. */
-    uint32_t rejected, orphaned;
+    uint32_t rejected, orphaned, oversized;
+    dbt_l2cap_oversize_fn oversize;
     uint8_t *storage;
     uint16_t storage_stride;
     uint16_t max_pdu_payload;
@@ -45,6 +51,10 @@ dbt_result_t dbt_l2cap_rx_init(dbt_l2cap_rx_t *rx, dbt_l2cap_hooks_t hooks,
  * for the RX lifetime. There is no provider fallback when storage is bound. */
 dbt_result_t dbt_l2cap_rx_bind_storage(dbt_l2cap_rx_t *rx,uint8_t *storage,
                                      uint32_t bytes,uint16_t stride);
+/* Install before traffic. Without a policy, an over-limit declaration remains
+ * explicit NO_SPACE; a policy must handle mandatory protocol replies. */
+dbt_result_t dbt_l2cap_rx_set_oversize_handler(dbt_l2cap_rx_t *rx,dbt_l2cap_oversize_fn handler);
+
 dbt_result_t dbt_l2cap_receive(dbt_l2cap_rx_t *rx, const dbt_acl_t *acl,
                               const dbt_hci_packet_t *packet, uint32_t now_ms);
 void dbt_l2cap_link_change(dbt_l2cap_rx_t *rx, const dbt_link_change_t *change);

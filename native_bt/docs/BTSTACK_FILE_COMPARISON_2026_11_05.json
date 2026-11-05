@@ -680,8 +680,8 @@
     },
     {
       "owned": "native_bt/esp32_probe/main/probe_audio.c",
-      "sha256": "30efbe543a7b3889f0919ff7da269867e35f649394ab013c271665cf89dcbcc4",
-      "lines": 921,
+      "sha256": "6349de4a4b56980263b19558c786982a670677bac1d7fa7e6784d9f81c4566ca",
+      "lines": 922,
       "reference_files": [],
       "status": "pending",
       "mapping": "product/support code; no direct protocol counterpart assigned"
@@ -1558,8 +1558,8 @@
     },
     {
       "owned": "native_bt/include/dbt_channels.h",
-      "sha256": "c0eda808351799adb2f5bd8f424ab878c96890b5fc49699ba35003ca53afa914",
-      "lines": 219,
+      "sha256": "ac925cda1caa667bc3ecdfc35a8825e572c0bf9e071ac82d12c171dc88bdafb9",
+      "lines": 230,
       "reference_files": [
         "src/hci.c",
         "src/l2cap.c",
@@ -1686,15 +1686,16 @@
     },
     {
       "owned": "native_bt/include/dbt_l2cap.h",
-      "sha256": "cd9dc65eefd450442c3450ffd915ee88e05df46727e10027b546e3c273fdd4ed",
-      "lines": 67,
+      "sha256": "967c58f30e0f17778c714061b8dcc09b8c6699f27eb17d7cdf130a106d3cc2a7",
+      "lines": 77,
       "reference_files": [
         "src/hci.c",
         "src/l2cap.c",
         "src/l2cap.h"
       ],
-      "status": "pending",
-      "mapping": "counterpart_candidates"
+      "status": "reviewed_contract",
+      "mapping": "counterpart_candidates",
+      "review_scope": "Complete framing/borrow/overflow-handler contract read against the owner implementation."
     },
     {
       "owned": "native_bt/include/dbt_led_esp32.h",
@@ -2331,8 +2332,8 @@
     },
     {
       "owned": "native_bt/src/dbt_channels.c",
-      "sha256": "3962f5211ab0ba55daf1650d6669c19f8b03f546a64afa24a06318033c638137",
-      "lines": 1520,
+      "sha256": "95ab247e3268fa5888485fea7d4808811b99b73eb83ffe4aae78f8d8624e12ee",
+      "lines": 1594,
       "reference_files": [
         "src/hci.c",
         "src/l2cap.c",
@@ -2436,8 +2437,8 @@
     },
     {
       "owned": "native_bt/src/dbt_l2cap.c",
-      "sha256": "646456374549f2883fad87e008ea6a8f39edb0c0bf864fa7ccd14c77d94e1905",
-      "lines": 202,
+      "sha256": "a45e9e8e943a30bf5069053ff556c6c4b755fbfb8d12d872d0bb23cafa56e678",
+      "lines": 235,
       "reference_files": [
         "src/hci.c",
         "src/l2cap.c",
@@ -2585,8 +2586,8 @@
     },
     {
       "owned": "native_bt/src/dbt_runtime.c",
-      "sha256": "3e3fa66cdc820152bb6ba1af356855c293781143bb4f87311f0c07e072f06401",
-      "lines": 440,
+      "sha256": "86cd43aa1bfee0851dec26f218330ebfbbaf0a32881307b686b20ce54e6247d6",
+      "lines": 452,
       "reference_files": [],
       "status": "partial_review",
       "mapping": "product/support code; no direct protocol counterpart assigned"
@@ -3162,6 +3163,27 @@
       "fix": "Retain a configuration-sized arena in the existing session allocation. Rewind before the original SDK init procedure and zero every capacity-checked block. Heap access is allowed only while initially constructing the two handles. Detach caller-owned pointers after SDK close so the library handle is freed correctly; ignore interior arena frees on partial initialization. Preserve PCM retirement and every frame/format guard.",
       "ram_tradeoff": "No new BSS or global maximum-rate pool. Work bytes range 2368..8832 by samples/mode. Existing startup tracked peaks fall 33 bytes mono /61 bytes stereo/dual, instrumentation included.",
       "limits": "Automatic cold startup cases pass and teardown checks show no remaining tracked allocations. Repeated RF gaps, internal arena exhaustion/fault handling, updated host regression harnesses and elapsed-time gains are not qualified."
+    },
+    {
+      "id": "L2CAP-013",
+      "state": "compiled_static_analysis_passed_wire_paths_unqualified",
+      "owned": [
+        "native_bt/include/dbt_l2cap.h",
+        "native_bt/src/dbt_l2cap.c",
+        "native_bt/include/dbt_channels.h",
+        "native_bt/src/dbt_channels.c",
+        "native_bt/src/dbt_runtime.c",
+        "native_bt/esp32_probe/main/probe_audio.c"
+      ],
+      "reference": [
+        "src/hci.c:1268-1375",
+        "Core 6.1 Vol 3 A sections 4 and 4.1"
+      ],
+      "specification": "https://www.bluetooth.com/wp-content/uploads/Files/Specification/HTML/Core-61/out/en/host/logical-link-control-and-adaptation-protocol-specification.html",
+      "issue": "A peer declaration above the bounded recombination capacity returned NO_SPACE and globally failed the host. Simply dropping oversized signaling would also omit the required MTU rejection.",
+      "fix": "Add allocation-free discard framing with ordered borrowed chunks. Stream signaling headers and skip bodies, validate complete framing, then queue one identifier-only MTU-reject job for the first Request. Preserve response-only discard, channel-mode retirement, generation/deadline cleanup, controller RX credits and existing mandatory-reply capacity.",
+      "resource_change": "No payload buffer, task, queue or MTU change. Whole BSS +80 bytes, text +1308 bytes, aggregate data +16 bytes.",
+      "limits": "Registered fixed protocols retain explicit NO_SPACE until their ATT/SMP-specific policy is connected. Full over-limit containment is unfinished. Peer injection/backpressure/timeout/fragment qualification is not run under the user hold."
     }
   ],
   "sections_reviewed": [
@@ -3300,6 +3322,23 @@
       ],
       "outcome": "Implemented exact high-word FIR interpolation. Verified LDAC generator tail is solely the replaced setter, so no following function is removed. Traced normal header stability and confirmed allocation-bearing sequence-gap reset as separate unfinished work.",
       "full_layer_complete": false
+    },
+    {
+      "layer": "L2CAP over-limit recombination and signaling framing",
+      "owned": [
+        "native_bt/include/dbt_l2cap.h",
+        "native_bt/src/dbt_l2cap.c",
+        "native_bt/include/dbt_channels.h",
+        "native_bt/src/dbt_channels.c",
+        "native_bt/src/dbt_runtime.c",
+        "native_bt/esp32_probe/main/probe_audio.c"
+      ],
+      "reference": [
+        "src/hci.c:1268-1375",
+        "Core 6.1 Vol 3 A sections 3.4 and 4/4.1"
+      ],
+      "outcome": "Implemented bounded streaming discard for signaling/dynamic owners, keeping parser framing, mandatory MTU reply and receive-credit ownership explicit. Registered fixed protocol integration remains required.",
+      "full_layer_complete": false
     }
   ],
   "integration_gaps": [
@@ -3348,9 +3387,9 @@
     "owned_files": 277,
     "reviewed_owned_c_bodies": 20,
     "partial_files": 6,
-    "pending_files": 230,
+    "pending_files": 229,
     "compiled_owned_units_missing": 0,
-    "reviewed_headers": 12,
+    "reviewed_headers": 13,
     "reviewed_build_files": 5,
     "reviewed_generators": 3,
     "reviewed_static_data": 1
@@ -3410,27 +3449,72 @@
       "owned": "native_bt/src/dbt_channels.c:allocate_channel",
       "reference": "src/l2cap.c:1000-1013",
       "difference": "Owned allocation starts at the lowest free CID; reference rotates its next-CID cursor. Compare close/retirement guarantees before changing a wire-legal allocation policy."
+    },
+    {
+      "id": "AVDTP-REVIEW",
+      "status": "pending",
+      "notes": [
+        "Complete outgoing initiation and collision policy, broader signaling/state qualification and codec-specific render/backpressure behavior remain incomplete."
+      ]
+    },
+    {
+      "id": "SBC-REVIEW",
+      "status": "partial",
+      "notes": [
+        "Equivalent nibble CRC arithmetic and wrapper contracts are reviewed; all validation passes remain.",
+        "Generated synthesis/backend internals and fragment/error/reconnect/stress qualification remain incomplete."
+      ]
+    },
+    {
+      "id": "LDAC-HEADER",
+      "status": "checked_no_change",
+      "source": "https://android.googlesource.com/platform/packages/modules/Bluetooth/+/refs/heads/main/system/stack/include/a2dp_vendor_ldac_constants.h",
+      "notes": [
+        "Count mask 0x0f matches the encoder and baseline. Fragmented LDAC remains a separate feature/scope review."
+      ]
+    },
+    {
+      "id": "LHDC-DEPTH",
+      "status": "checked_no_change",
+      "notes": [
+        "Generated decoder reports 24-bit output in a 32-bit container; the wrapper’s container check matches. No rejection cause established by that check."
+      ]
+    },
+    {
+      "id": "LDAC-RESET-ALLOCATION",
+      "status": "implemented_qualification_pending",
+      "notes": [
+        "Configuration-sized retained workspace replaces working-buffer heap activity during reset; original SDK initialization and zero-state semantics remain.",
+        "Cold startup/teardown checks pass, but repeated gaps, internal arena faults, host regression harnesses and timing gains remain unqualified."
+      ]
+    },
+    {
+      "id": "L2CAP-DECLARED-OVERSIZE",
+      "status": "signaling_dynamic_stage_implemented_fixed_owner_policy_pending",
+      "notes": [
+        "Oversized signaling/dynamic PDUs drain without payload allocation. Framed signaling Requests retain first-request MTU rejection; response-only and malformed frames are contained.",
+        "Registered fixed protocols still need explicit ATT/SMP invalid-length policy; no truncated PDU is delivered. Genuine reply/resource/API failures remain explicit.",
+        "Existing ertm_policy_valid enforces receive.mps+6 <= maximum_mtu; that guard was confirmed, so no missing-overhead defect is established."
+      ]
     }
   ],
   "next_review": {
-    "layer": "Remaining L2CAP resource/wire boundary, codec internals and full protocol integration",
+    "layer": "Registered fixed-protocol oversized-PDU policy, then full pending protocol/backend audit",
     "owned": [
-      "native_bt/src/dbt_l2cap.c",
-      "native_bt/src/dbt_runtime.c",
-      "native_bt/codecs/ldac/dbt_ldac.c",
-      "native_bt/codecs/aptx/dbt_aptx_backend.c",
-      "native_bt/codecs/opus/dbt_opus.c",
-      "native_bt/codecs/lhdcv5/prepare_port.py"
+      "native_bt/src/dbt_att.c",
+      "native_bt/src/dbt_smp_session.c",
+      "native_bt/esp32_probe/main/probe_gatt.c",
+      "native_bt/esp32_probe/main/probe_smp.c",
+      "native_bt/src/dbt_channels.c"
     ],
     "reference": [
-      "src/hci.c",
-      "src/l2cap.c",
-      "src/classic/avdtp.c",
-      "src/classic/btstack_sbc_decoder_bluedroid.c"
+      "src/ble/att_server.c",
+      "src/ble/sm.c",
+      "Core 6.1 ATT 3.3 and SMP invalid-parameter rules"
     ],
-    "notes": "Declared L2CAP length above maximum_pdu still needs wire/resource failure classification. LDAC working allocation has been replaced, with repeated-gap/fault/timing qualification pending. Continue every pending row and product reconnect/BLE/AVRCP/security scope."
+    "notes": "Pass explicit invalid-length information to owning protocols. Preserve mandatory replies, pinned responses, SMP crypto/storage jobs and transport retirement. Do not present a prefix as a complete PDU or hide resource failure. No held campaigns."
   },
-  "latest_build_image": "b150c844ba744f3f8d00dbef59044a56372c0ff3311a4f087ab4f8806634cdb3",
+  "latest_build_image": "7f7870966de019ed10e01d09287341e9cd350b6d39706ea3aba861ce42f9d262",
   "verification_source_contracts": [
     {
       "file": "native_bt/tools/test_ldac_target_component.py",
@@ -3446,5 +3530,6 @@
       "executed": false,
       "sha256": "af2862d10c824b39ba8bb996c9f87a58ab201d0569e083a41b5497a4521fa6e3"
     }
-  ]
+  ],
+  "follow_up_schema_correction": "Preserved the existing array schema and upserted by id. Earlier dictionary-style assignments on this array were not serialized; verified open items recorded in source/docs/checkpoints are now explicit array rows."
 }

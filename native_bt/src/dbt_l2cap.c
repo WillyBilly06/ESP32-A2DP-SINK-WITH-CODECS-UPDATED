@@ -7,6 +7,10 @@ static dbt_result_t reject_wire(dbt_l2cap_rx_t *rx, bool orphan) {
     return DBT_INVALID;
 }
 
+static bool partial_active(const dbt_l2cap_rx_t *rx,const dbt_l2cap_partial_t *p){
+    return p->data!=0 || p->expected>rx->max_pdu_payload;
+}
+
 static void release_partial(dbt_l2cap_rx_t *rx, dbt_l2cap_partial_t *partial) {
     if (partial->data != 0 && !rx->storage) rx->hooks.release(rx->hooks.context, partial->data);
     partial->data = 0;
@@ -32,9 +36,15 @@ dbt_result_t dbt_l2cap_rx_bind_storage(dbt_l2cap_rx_t *rx,uint8_t *storage,
         !stride || bytes < (uint32_t)DBT_MAX_LINKS * stride) return DBT_INVALID;
     uintptr_t begin=(uintptr_t)storage,object=(uintptr_t)rx;
     if (begin<=object ? object-begin<bytes : begin-object<sizeof(*rx)) return DBT_INVALID;
-    for (unsigned i=0;i<DBT_MAX_LINKS;++i) if (rx->partial[i].data) return DBT_BUSY;
+    for (unsigned i=0;i<DBT_MAX_LINKS;++i) if (partial_active(rx,&rx->partial[i])) return DBT_BUSY;
     rx->storage=storage;rx->storage_stride=stride;
     return DBT_OK;
+}
+
+dbt_result_t dbt_l2cap_rx_set_oversize_handler(dbt_l2cap_rx_t *rx,dbt_l2cap_oversize_fn handler){
+    if(!rx || !rx->hooks.pdu || !handler)return DBT_INVALID;
+    for(unsigned i=0;i<DBT_MAX_LINKS;++i)if(partial_active(rx,&rx->partial[i]))return DBT_BUSY;
+    rx->oversize=handler;return DBT_OK;
 }
 
 void dbt_l2cap_rx_clear(dbt_l2cap_rx_t *rx) {
@@ -45,7 +55,7 @@ void dbt_l2cap_link_change(dbt_l2cap_rx_t *rx, const dbt_link_change_t *change) 
     if (change->kind != DBT_LINK_REMOVED) return;
     for (unsigned i = 0; i < DBT_MAX_LINKS; ++i) {
         dbt_l2cap_partial_t *partial = &rx->partial[i];
-        if (partial->data != 0 && partial->handle == change->handle &&
+        if (partial_active(rx,partial) && partial->handle == change->handle &&
             partial->generation == change->generation) release_partial(rx, partial);
     }
 }
@@ -54,7 +64,7 @@ unsigned dbt_l2cap_expire(dbt_l2cap_rx_t *rx, uint32_t now_ms) {
     unsigned expired = 0;
     for (unsigned i = 0; i < DBT_MAX_LINKS; ++i) {
         dbt_l2cap_partial_t *partial = &rx->partial[i];
-        if (partial->data != 0 && (uint32_t)(now_ms - partial->deadline) < 0x80000000u) {
+        if (partial_active(rx,partial) && (uint32_t)(now_ms - partial->deadline) < 0x80000000u) {
             release_partial(rx, partial);
             ++expired;
             ++rx->abandoned;
@@ -75,7 +85,7 @@ dbt_result_t dbt_l2cap_receive(dbt_l2cap_rx_t *rx, const dbt_acl_t *acl,
     unsigned index=(unsigned)(link-acl->links);
     dbt_l2cap_partial_t *slot=&rx->partial[index];
     if (!rx->storage) (void)dbt_l2cap_expire(rx, now_ms);
-    dbt_l2cap_partial_t *current=slot->data?slot:0;
+    dbt_l2cap_partial_t *current=partial_active(rx,slot)?slot:0;
     if (current && (current->handle!=link->handle || current->generation!=link->generation ||
                    (uint32_t)(now_ms-current->deadline)<0x80000000u)) {
         release_partial(rx,current);++rx->abandoned;current=0;
@@ -88,15 +98,23 @@ dbt_result_t dbt_l2cap_receive(dbt_l2cap_rx_t *rx, const dbt_acl_t *acl,
             ++rx->abandoned;
             return reject_wire(rx, false);
         }
-        memcpy(current->data+current->received,packet->payload,packet->size);
+        uint16_t offset=current->received;
         current->received += packet->size;
-        if (current->received == current->expected) {
-            rx->hooks.pdu(rx->hooks.context, link->handle, link->generation,
-                          current->cid, current->data, current->expected);
-            ++rx->delivered;
-            release_partial(rx, current);
+        bool last=current->received==current->expected;
+        dbt_result_t result=DBT_OK;
+        if(current->expected>rx->max_pdu_payload){
+            if(!rx->oversize)return DBT_INVALID;
+            result=rx->oversize(rx->hooks.context,link->handle,link->generation,current->cid,
+                packet->payload,packet->size,current->expected,offset,false,last);
+        }else{
+            memcpy(current->data+offset,packet->payload,packet->size);
+            if(last){
+                rx->hooks.pdu(rx->hooks.context,link->handle,link->generation,current->cid,current->data,current->expected);
+                ++rx->delivered;
+            }
         }
-        return DBT_OK;
+        if(last)release_partial(rx,current);
+        return result;
     }
     if (current != 0) {
         release_partial(rx, current);
@@ -107,7 +125,22 @@ dbt_result_t dbt_l2cap_receive(dbt_l2cap_rx_t *rx, const dbt_acl_t *acl,
     uint16_t cid = dbt_read_le16(packet->payload + 2);
     uint16_t received = packet->size - 4u;
     if (cid == 0 || received > expected) return reject_wire(rx, false);
-    if (expected > rx->max_pdu_payload) return DBT_NO_SPACE;
+    if (expected > rx->max_pdu_payload){
+        ++rx->oversized;
+        if(!rx->oversize)return DBT_NO_SPACE;
+        /* expected > max is the discard-state discriminator. No data buffer
+         * or allocation belongs to this partial; preserve framing/generation. */
+        slot->handle=link->handle;slot->generation=link->generation;slot->cid=cid;
+        slot->expected=expected;slot->received=received;slot->deadline=now_ms+rx->timeout_ms;
+        bool last=received==expected;
+        dbt_result_t result=rx->oversize(rx->hooks.context,link->handle,link->generation,cid,
+            packet->payload+4u,received,expected,0,true,last);
+        /* Only an accepted containment policy is a local wire rejection. An
+         * INVALID policy result must remain an API/invariant failure. */
+        if(result==DBT_OK)++rx->rejected;
+        if(last)release_partial(rx,slot);
+        return result;
+    }
     if (received == expected) {
         rx->hooks.pdu(rx->hooks.context, link->handle, link->generation,
                       cid, packet->payload + 4, expected);

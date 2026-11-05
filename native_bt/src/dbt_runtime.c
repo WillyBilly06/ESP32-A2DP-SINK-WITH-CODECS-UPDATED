@@ -45,6 +45,16 @@ static void pdu(void *context, uint16_t handle, uint32_t generation,
         dbt_host_abort(&runtime->host, result == DBT_NO_SPACE ? DBT_FAULT_RX_OVERRUN : DBT_FAULT_BAD_PACKET);
     }
 }
+static dbt_result_t oversized_pdu(void *context,uint16_t handle,uint32_t generation,uint16_t cid,
+    const uint8_t *data,uint16_t bytes,uint16_t declared,uint16_t offset,bool first,bool last){
+    dbt_runtime_t *r=context;uint32_t malformed=r->channels.malformed_pdus;
+    dbt_result_t result=dbt_channels_receive_oversized(&r->channels,handle,generation,cid,data,bytes,declared,offset,first,last);
+    if(result==DBT_INVALID && r->channels.malformed_pdus!=malformed)return DBT_OK;
+    if(result!=DBT_OK && remember_failure(r,DBT_RUNTIME_FAULT_CHANNEL_PDU,result,0,handle,cid,bytes)){
+        r->failure.generation=generation;r->failure.declared=declared;
+    }
+    return result;
+}
 static bool authorize(void *context, const dbt_link_t *link, uint16_t psm, dbt_security_t security) {
     dbt_runtime_t *runtime = context;
     dbt_channel_hooks_t *hooks = &runtime->hooks.channels;
@@ -203,6 +213,8 @@ dbt_result_t dbt_runtime_init(dbt_runtime_t *runtime, dbt_transport_t transport,
     dbt_l2cap_hooks_t rx_hooks = {runtime, allocate, release, pdu};
     dbt_result_t result = dbt_l2cap_rx_init(&runtime->rx, rx_hooks, maximum_mtu, 1000);
     if (result != DBT_OK) return result;
+    result=dbt_l2cap_rx_set_oversize_handler(&runtime->rx,oversized_pdu);
+    if(result!=DBT_OK)return result;
     result=dbt_rx_flow_init(&runtime->rx_flow,&runtime->host,&runtime->acl);
     if(result!=DBT_OK)return result;
     return dbt_host_init(&runtime->host, transport, packet, runtime, timeout_ms);

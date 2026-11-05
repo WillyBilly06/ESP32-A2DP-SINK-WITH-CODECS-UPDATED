@@ -92,6 +92,10 @@ typedef struct {
     uint16_t handle;
     uint8_t next_id, feature_id, feature_state;
     bool used;
+    /* Over-limit C-frame scanner; payload bodies are skipped, never retained. */
+    uint16_t large_total,large_received,large_skip;
+    uint8_t large_header[4],large_used,large_id,large_commands;
+    bool large_bad,large_active;
 } dbt_signal_link_t;
 typedef struct {
     uint32_t generation, serial;
@@ -198,6 +202,13 @@ const dbt_channel_t *dbt_channels_find(const dbt_channels_t *manager, uint16_t h
 /* Signaling is copied into a bounded inbox. NO_SPACE means not accepted; the
  * caller must apply RX flow control or terminate the affected link. Dynamic
  * data/fixed-channel callbacks borrow bytes only for the duration of this call. */
+/* Runtime-only ordered chunks of a PDU exceeding maximum_mtu. A framed
+ * signaling Request queues one MTU reject after its final chunk. Registered
+ * fixed protocols without an oversized policy remain an explicit resource
+ * failure; no partial data is passed through fixed_data. */
+dbt_result_t dbt_channels_receive_oversized(dbt_channels_t *manager,uint16_t handle,uint32_t generation,
+    uint16_t cid,const uint8_t *data,uint16_t bytes,uint16_t declared,uint16_t offset,bool first,bool last);
+
 dbt_result_t dbt_channels_receive(dbt_channels_t *manager, uint16_t handle, uint32_t generation,
                                   uint16_t cid, const uint8_t *data, uint16_t size);
 uint16_t dbt_channels_poll(dbt_channels_t *manager, uint32_t now_ms, uint16_t budget);

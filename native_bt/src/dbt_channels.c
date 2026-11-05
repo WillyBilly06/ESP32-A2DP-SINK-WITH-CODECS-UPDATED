@@ -253,7 +253,7 @@ static dbt_channel_t *allocate_channel(dbt_channels_t *manager, const dbt_link_t
     empty->security = security; empty->state = DBT_CH_CONNECTING;
     return empty;
 }
-static uint8_t request_id(dbt_channels_t *manager, const dbt_link_t *link) {
+static dbt_signal_link_t *ensure_signal_link(dbt_channels_t *manager,const dbt_link_t *link){
     dbt_signal_link_t *state = 0;
     for (unsigned i = 0; i < DBT_MAX_LINKS; ++i) {
         dbt_signal_link_t *candidate = &manager->links[i];
@@ -264,6 +264,11 @@ static uint8_t request_id(dbt_channels_t *manager, const dbt_link_t *link) {
     if (!state->used || state->handle != link->handle || state->generation != link->generation) {
         zero(state, sizeof(*state)); state->used = true; state->handle = link->handle; state->generation = link->generation;
     }
+    return state;
+}
+static uint8_t request_id(dbt_channels_t *manager, const dbt_link_t *link) {
+    dbt_signal_link_t *state=ensure_signal_link(manager,link);
+    if(!state)return 0;
     for (unsigned attempt = 0; attempt < 255; ++attempt) {
         if (++state->next_id == 0) ++state->next_id;
         bool busy = (state->feature_state==FEATURES_QUEUED || state->feature_state==FEATURES_SENT) &&
@@ -595,6 +600,71 @@ static bool response_code(uint8_t code){
     default:return false;
     }
 }
+dbt_result_t dbt_channels_receive_oversized(dbt_channels_t *m,uint16_t handle,uint32_t generation,
+    uint16_t cid,const uint8_t *data,uint16_t bytes,uint16_t declared,uint16_t offset,bool first,bool last){
+    if(!m || m->in_callback || (bytes && !data) || declared<=m->maximum_mtu ||
+       offset>declared || bytes>declared-offset || (first && offset) ||
+       last!=((uint32_t)offset+bytes==declared))return DBT_INVALID;
+    const dbt_link_t *link=dbt_acl_find(m->acl,handle);
+    if(!link || link->generation!=generation)return DBT_INVALID;
+    if(cid!=(link->kind==DBT_LINK_CLASSIC?1u:5u)){
+        if(cid<64u){
+            /* The owning fixed protocol must form its own error response. Do
+             * not fabricate a complete/truncated ATT or SMP PDU here. */
+            return cid && (m->fixed_mask[link->kind]&((uint64_t)1u<<cid))?DBT_NO_SPACE:DBT_OK;
+        }
+        if(!first)return DBT_OK;
+        dbt_channel_t *c=find(m,handle,cid);
+        if(!c){++m->ignored_dynamic_pdus;return DBT_OK;}
+        if(c->link_generation!=generation)return DBT_INVALID;
+        bool open=c->state==DBT_CH_OPEN || (c->state==DBT_CH_CONFIGURING && c->opened_once && c->reconfiguring);
+        if(!open){++m->ignored_dynamic_pdus;return DBT_OK;}
+        if(c->le){le_fault(m,c);return DBT_OK;}
+        if(c->ertm){ertm_fault(m,c);return DBT_OK;}
+        m->last_oversized=(dbt_channel_oversize_t){generation,handle,cid,c->psm,c->rx_mtu,declared};
+        ++m->oversized_dynamic_pdus;return DBT_OK;
+    }
+    dbt_signal_link_t *state=first?ensure_signal_link(m,link):signal_link(m,handle,generation);
+    if(!state)return DBT_NO_SPACE;
+    if(first){
+        state->large_total=declared;state->large_received=state->large_skip=0;
+        state->large_used=state->large_id=state->large_commands=0;
+        state->large_bad=false;state->large_active=true;
+    }
+    if(!state->large_active || state->large_total!=declared || state->large_received!=offset)return DBT_INVALID;
+    unsigned cursor=0;
+    while(cursor<bytes && !state->large_bad){
+        if(state->large_skip){
+            unsigned n=state->large_skip;if(n>bytes-cursor)n=bytes-cursor;
+            state->large_skip=(uint16_t)(state->large_skip-n);cursor+=n;continue;
+        }
+        unsigned n=4u-state->large_used;if(n>bytes-cursor)n=bytes-cursor;
+        copy(state->large_header+state->large_used,data+cursor,n);
+        cursor+=n;state->large_used=(uint8_t)(state->large_used+n);
+        if(state->large_used!=4u)break;
+        uint16_t length=dbt_read_le16(state->large_header+2);
+        uint32_t end=(uint32_t)offset+cursor;
+        if(!state->large_header[1] || length>declared-end){state->large_bad=true;break;}
+        if(state->large_commands<2u)++state->large_commands;
+        if(link->kind==DBT_LINK_LE && state->large_commands>1u){state->large_bad=true;break;}
+        if(!state->large_id && !response_code(state->large_header[0]))state->large_id=state->large_header[1];
+        state->large_skip=length;state->large_used=0;
+    }
+    state->large_received=(uint16_t)(offset+bytes);
+    if(!last)return DBT_OK;
+    state->large_active=false;++m->oversized_signaling_pdus;
+    if(state->large_bad || state->large_used || state->large_skip || !state->large_commands){
+        ++m->malformed_pdus;return DBT_INVALID;
+    }
+    if(!state->large_id)return DBT_OK; /* Identified responses only. */
+    if(m->rx_count==DBT_SIGNAL_RX_SLOTS)return DBT_NO_SPACE;
+    dbt_signal_rx_t *job=&m->rx[(m->rx_head+m->rx_count)%DBT_SIGNAL_RX_SLOTS];
+    zero(job,sizeof(*job));job->handle=handle;job->generation=generation;job->cid=cid;
+    /* This internal oversized job is an identifier, not a truncated PDU. */
+    job->size=4;job->oversized=true;job->bytes[1]=state->large_id;
+    ++m->rx_count;m->rx_deferred=false;return DBT_OK;
+}
+
 dbt_result_t dbt_channels_receive(dbt_channels_t *manager, uint16_t handle, uint32_t generation,
                                   uint16_t cid, const uint8_t *data, uint16_t size) {
     if (!manager || manager->in_callback || (size && !data)) return DBT_INVALID;
@@ -1386,6 +1456,10 @@ dbt_result_t dbt_channels_tx_cancel(dbt_channels_t *manager) {
 }
 void dbt_channels_link_change(dbt_channels_t *manager, const dbt_link_change_t *change) {
     if (!manager || manager->in_callback || !change || change->kind != DBT_LINK_REMOVED) return;
+    for(unsigned i=0;i<DBT_MAX_LINKS;++i){
+        dbt_signal_link_t *state=&manager->links[i];
+        if(state->used && state->handle==change->handle && state->generation==change->generation)state->large_active=false;
+    }
     for (unsigned i = 0; i < DBT_CHANNEL_LIMIT; ++i) {
         dbt_channel_t *channel = &manager->channels[i];
         if (channel->state != DBT_CH_FREE && channel->handle == change->handle && channel->link_generation == change->generation)
