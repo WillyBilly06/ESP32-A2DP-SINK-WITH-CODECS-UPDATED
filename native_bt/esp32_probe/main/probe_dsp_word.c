@@ -1,6 +1,7 @@
-/* Diagnostic-only exact signed28 upper-word quantization comparison. */
+/* Diagnostic-only exact steady/ramp upper-word quantization comparison. */
 #define FIXED_DSP_BLOCK_API 1
 #define FIXED_DSP_WORD_QUANT 1
+#define FIXED_DSP_WORD_RAMP 1
 #define fixed_dsp_init probe_dsp_word_init
 #define fixed_dsp_controls probe_dsp_word_controls
 #define fixed_dsp_process probe_dsp_word_process

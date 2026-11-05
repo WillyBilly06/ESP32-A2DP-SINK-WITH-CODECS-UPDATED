@@ -30,6 +30,28 @@
 #define FDSP_PROVEN_SUM_ENABLED 0
 #endif
 
+#if defined(FIXED_DSP_WORD_RAMP) && !defined(FIXED_DSP_WORD_QUANT)
+#error Word ramp quantization requires word quantization
+#endif
+#if defined(FIXED_DSP_WORD_QUANT) && FDSP_PROVEN_SUM_ENABLED
+#ifdef FIXED_DSP_TRANSPOSED_BLOCK
+#error Select one exact block-kernel experiment
+#endif
+/* For sum>>28 to fit int32_t, the signed upper word must fit signed28.
+ * This is a full-width test: multiplication, feedback and the Q28 remainder
+ * retain their original precision. Unsigned offset arithmetic cannot overflow
+ * with undefined behavior. The scalar use is separately opt-in; the conservative split sum is unchanged. */
+static inline __attribute__((always_inline)) int32_t block_word_quantize(int64_t sum,uint32_t *fraction){
+    uint32_t low=(uint32_t)(uint64_t)sum,high=(uint32_t)((uint64_t)sum>>32);
+    if(high+UINT32_C(0x08000000)<=UINT32_C(0x0fffffff)){
+        *fraction=low&0x0fffffffu;
+        return (int32_t)((high<<4)|(low>>28));
+    }
+    *fraction=0;
+    return (int32_t)high<0?INT32_MIN:INT32_MAX;
+}
+#endif
+
 static inline int32_t clamp32(int64_t value) {
     return value > INT32_MAX ? INT32_MAX : value < INT32_MIN ? INT32_MIN : (int32_t)value;
 }
@@ -113,10 +135,14 @@ static inline int32_t FILTER_INLINE filter(const int32_t c[5],
         sum += (int64_t)c[2] * history->x2;
         sum -= (int64_t)c[3] * history->y1;
         sum -= (int64_t)c[4] * history->y2;
+#ifdef FIXED_DSP_WORD_RAMP
+        output = block_word_quantize(sum,&history->fraction);
+#else
         int64_t integer = sum >> 28;
         history->fraction = (uint32_t)((uint64_t)sum & 0x0fffffffu);
         output = clamp32(integer);
         if ((int64_t)output != integer) history->fraction = 0;
+#endif
 #else
         /* Split the Q55 sum into integer and fractional parts to avoid a
          * five-product int64 overflow. Carry the discarded fraction forward
@@ -307,24 +333,6 @@ void DSP_HOT fixed_dsp_process(fixed_dsp_t *dsp, int32_t *left, int32_t *right) 
 #define BLOCK_KERNEL __attribute__((optimize("O3"),noinline))
 #else
 #define BLOCK_KERNEL
-#endif
-#if defined(FIXED_DSP_WORD_QUANT) && FDSP_PROVEN_SUM_ENABLED
-#ifdef FIXED_DSP_TRANSPOSED_BLOCK
-#error Select one exact block-kernel experiment
-#endif
-/* For sum>>28 to fit int32_t, the signed upper word must fit signed28.
- * This is a full-width test: multiplication, feedback and the Q28 remainder
- * retain their original precision. Unsigned offset arithmetic cannot overflow
- * with undefined behavior. Ramping and the conservative split sum are unchanged. */
-static inline __attribute__((always_inline)) int32_t block_word_quantize(int64_t sum,uint32_t *fraction){
-    uint32_t low=(uint32_t)(uint64_t)sum,high=(uint32_t)((uint64_t)sum>>32);
-    if(high+UINT32_C(0x08000000)<=UINT32_C(0x0fffffff)){
-        *fraction=low&0x0fffffffu;
-        return (int32_t)((high<<4)|(low>>28));
-    }
-    *fraction=0;
-    return (int32_t)high<0?INT32_MIN:INT32_MAX;
-}
 #endif
 /* One channel at a time keeps coefficient/history reuse within LX6's register
  * budget. It changes neither arithmetic nor the carried Q28 fraction. */

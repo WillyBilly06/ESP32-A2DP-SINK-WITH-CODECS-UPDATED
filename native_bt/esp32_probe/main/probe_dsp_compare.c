@@ -146,7 +146,7 @@ static bool one_case(context_t *c,unsigned trial,uint32_t rate,uint8_t flags,boo
             const char *name=variant?SECOND_NAME:REFERENCE_NAME;
 #ifdef HAVE_BLOCK_VARIANT
             if(variant==2)name="Os_block";
-            if(variant==3)name="Os_word_block";
+            if(variant==3)name="Os_word_ramp_block";
 #endif
             printf("{\"probe\":\"dsp_variant_case\",\"trial\":%u,\"rate\":%u,\"flags\":%u,\"gains\":[%d,%d,%d],\"variant\":\"%s\",\"equivalent\":%s,\"frames\":5120,\"block_frames\":128,\"ramp_containing_blocks\":%u,\"ramp_mean_cycles\":%u,\"ramp_max_cycles\":%u,\"steady_blocks\":%u,\"steady_mean_cycles\":%u,\"steady_p95_cycles\":%u,\"steady_max_cycles\":%u,\"pcm_hash\":%u,\"elapsed_core_cycles\":true,\"cpu_mhz\":240}\n",
                 trial,(unsigned)rate,flags,bass,mid,treble,name,passed?"true":"false",warm_blocks,
