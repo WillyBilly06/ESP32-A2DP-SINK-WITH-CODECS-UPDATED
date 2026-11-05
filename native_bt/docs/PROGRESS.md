@@ -4,6 +4,22 @@ Updated 2026-11-04 for ESP-IDF 6.1. The goal is **active and incomplete**.
 The user has released COM6 for flashing/testing; other boards remain excluded.
 Released main/recovery artifacts remain preserved. Latest measured evidence:
 
+- [Hot audio status queries](HOT_STATUS_QUERIES_2026_11_04.md) replace a complete
+  output snapshot and renderer-stack scan on every host audio poll with the
+  existing atomic failure fence; the product meter uses an atomic running flag.
+  Complete periodic telemetry remains. Actual provider equivalence/no-scan
+  tests, sanitized scalar/block cases, real-codec regression, ccache target
+  build and source/IRAM admission pass. Maximum-LHDC RF lowers audio-poll share
+  from 17.47% to 5.49% of host samples in different startup/fault windows;
+  this is not a controlled speedup or exact CPU utilization. Other polling
+  remains substantial, core1 still starves and audio still fails. Baseline
+  return and phone pause are verified.
+- [Host phase profiling](HOST_PHASE_PROFILING_2026_11_04.md) separates exclusive
+  controller/query, runtime, deadline, GATT/security/product/I/O/audio/AVRCP and
+  main-console samples, with nested restoration and no added task/queue/heap.
+  The original trial distributes cost across polling; controller calls account
+  for only 3.17% of host samples in its window. Frozen original source bytes
+  preserve the baseline separately from the candidate fix.
 - [Per-core sampling](SCHEDULER_SAMPLING_2026_11_04.md) adds opt-in finite tick
   hooks with no task/queue/allocation. Sanitized ownership/wrap/failure checks,
   CMake/image/finite guards and the source/IRAM-audited ccache build pass.

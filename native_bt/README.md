@@ -15,6 +15,14 @@ identical PCM hashes and passes all 252 measured isolated 5 ms deadlines at
 qualification remains open. All finite runs returned to released 1.0.4 firmware. The user released
 COM6 for testing in this chat; the historical reservation below is superseded.
 
+The latest [host status fix](docs/HOT_STATUS_QUERIES_2026_11_04.md) removes
+repeated diagnostic renderer-stack scans from the host's failure and running
+checks, keeping complete periodic telemetry. Local equivalence/sanitizer/target
+checks pass. Maximum-LHDC RF shows lower sampled audio-poll cost, but remaining
+host polling, core1 idle starvation, underruns and a watchdog-adjacent DMA fault
+still fail continuity. Fair host/decoder service and full-rate headroom remain
+open; COM6 returns to released firmware and the phone is paused.
+
 The opt-in [per-core scheduler measurement](docs/SCHEDULER_SAMPLING_2026_11_04.md)
 now separates interrupted host/decoder/renderer/controller/logger/idle samples
 and records tick-gap endpoints. The first maximum-LHDC startup/fault window
