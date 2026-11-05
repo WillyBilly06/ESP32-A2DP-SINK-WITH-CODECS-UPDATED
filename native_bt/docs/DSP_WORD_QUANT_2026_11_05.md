@@ -38,7 +38,7 @@ lower to 0.04% higher across the measured groups. The new helper is 274 bytes /
 native multiply forms. Static counts are not dynamic execution counts.
 
 The separate preliminary pipeline in that diagnostic still uses the scalar
-default64ms path. It completes only13 of96 required packets, so the combined
+default 64 ms path. It completes only 13 of 96 required packets, so the combined
 harness exits with a failing pipeline gate even though the kernel comparison
 passes. That failure cannot be attributed to a word kernel it did not select.
 No continuous-playback claim follows from the isolated improvement.
@@ -49,10 +49,12 @@ by omitting `-WordDsp`; the scalar/default and released Bluedroid paths remain
 available. Receipt/cache/actual compilation flags bind both core units, and
 `native_i2s.word_dsp` plus the pipeline I2S record expose the selected mode.
 
-Actual block-render tests pass all108 stream pairs against the scalar copied
-reference under ASan/UBSan, including formats, +/-500ppm, wrap, rapid controls,
+Actual block-render tests pass all 108 stream pairs against the scalar copied
+reference under ASan/UBSan, including formats, +/-500 ppm, wrap, rapid controls,
 OOM/cancellation and poisoned retired loans. Production output-provider tests
-pass at100/1000Hz with the word mode and priority-order mode together. Eight
+pass at 100/1000 Hz with the word mode and priority-order mode together. Eight
 CMake configurations, sixteen image-admission cases and one early CLI rejection
 pass, as do the existing block/finite guards. Renderer/pipeline target timing
 and maximum-rate RF continuity remain separate, incomplete gates.
+
+The next integrated synthetic trial uses the shared 1800-byte x8 decoder queue and two-step worker budget from the current RF probe, plus the explicit compact copied/16ms/word-block options. Earlier diagnostics used a separate 628-byte x2 queue and one-step budget; their results retain that scope. The new `pipeline_decoder_input` record exposes the actual reservation. Controller, BLE and storage remain absent, so this is not a full-product headroom test.

@@ -1,6 +1,7 @@
 /* Actual decoder/worker/DSP/I2S, synthetic loss-free 5 ms input. No controller,
  * filesystem or NVS. This is not RF/coexistence or analog-quality evidence. */
 #include "probe_pipeline_check.h"
+#include "probe_audio_limits.h"
 #ifdef DBT_PROBE_FIR_COMPILER_CHECK
 #include "probe_fir_compare.h"
 #elif defined(DBT_AUDIO_STAGE_PROFILE)
@@ -133,7 +134,7 @@ static void run(void *unused){
 #ifdef DBT_PROBE_PCM_LOANS
     hooks.async_pcm=(dbt_codec_pcm_async_t){pcm_begin,pcm_poll,pcm_cancel};
 #endif
-    bool initialized=dbt_codec_worker_init(&pipeline.worker,hooks,628,2)==DBT_OK;
+    bool initialized=dbt_codec_worker_init(&pipeline.worker,hooks,PROBE_A2DP_RX_MTU,PROBE_A2DP_MEDIA_SLOTS)==DBT_OK;
     bool output_initialized=initialized && probe_output_init(wake,NULL)==DBT_OK;
     bool configured=false,started=false;
     if(output_initialized){
@@ -170,7 +171,7 @@ static void run(void *unused){
         uint32_t queue=atomic_load(&pipeline.worker.media_written)-atomic_load(&pipeline.worker.media_read);
         if(queue>pipeline.queue_peak)pipeline.queue_peak=queue;
         int64_t step_at=esp_timer_get_time();uint32_t cycles=esp_cpu_get_cycle_count();
-        dbt_codec_worker_step(&pipeline.worker,now_ms(),1);
+        dbt_codec_worker_step(&pipeline.worker,now_ms(),2);
         uint32_t elapsed_cycles=esp_cpu_get_cycle_count()-cycles;
         uint32_t elapsed=(uint32_t)(esp_timer_get_time()-step_at);
         pipeline.step_us+=elapsed;pipeline.step_cycles+=elapsed_cycles;++pipeline.step_calls;
@@ -202,6 +203,9 @@ static void run(void *unused){
     probe_diagnostic_stats_t arrival={0},completion={0};
     if(supplied)probe_diagnostic_stats(pipeline.arrival,supplied,5000,&arrival);
     if(completed)probe_diagnostic_stats(pipeline.completion,completed,5000,&completion);
+    printf("{\"probe\":\"pipeline_decoder_input\",\"packet_capacity_bytes\":%u,\"packet_slots\":%u,\"reserved_packet_bytes\":%u,\"worker_step_budget\":2}\n",
+        (unsigned)pipeline.worker.maximum_payload,(unsigned)pipeline.worker.depth,
+        (unsigned)(pipeline.worker.stride*pipeline.worker.depth));
     printf("{\"probe\":\"pipeline_memory\",\"before_free\":%u,\"before_largest\":%u,\"opened_free\":%u,\"opened_largest\":%u,\"minimum_free\":%u,\"after_free\":%u,\"decoder_tracked_peak\":%u,\"renderer_requested\":%u,\"reclaimed\":%s,\"remaining_tracked\":%u,\"core1_stack_low\":%u,\"render_stack_low\":%u}\n",
         (unsigned)before_free,(unsigned)before_largest,(unsigned)opened_free,(unsigned)opened_largest,
         (unsigned)heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT),
