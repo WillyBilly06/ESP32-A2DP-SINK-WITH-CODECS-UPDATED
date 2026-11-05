@@ -57,11 +57,15 @@ static int32_t saturated(int64_t value){
 }
 static inline __attribute__((always_inline)) int32_t coefficient_at(int32_t first,int32_t next,uint32_t remainder){
 #if defined(DBT_RESAMPLER_ADJACENT_DELTA_MAX) && DBT_RESAMPLER_ADJACENT_DELTA_MAX <= 2147483647u && !defined(DBT_RESAMPLER_FORCE_WIDE_DELTA)
-    /* Generator proves every adjacent-row subtraction fits int32. Remainder
-     * is <2^25; truncation keeps the interpolated value between the endpoints.
-     * Keep the same signed division/rounding and complete Q30 precision. */
+    /* The generated adjacent-row bound excludes INT32_MIN, so abs(delta)
+     * fits int32. For positive R <2^25, trunc(delta*R/2^25) equals
+     * sign(delta)*floor(abs(delta)*R/2^25). This retains every Q30 bit and
+     * truncation toward zero without a multiword signed-division bias/carry.
+     * The result lies between first and next, so their final sum is safe. */
     int32_t delta=next-first;
-    return first+(int32_t)(((int64_t)delta*(int32_t)remainder)/33554432ll);
+    uint32_t magnitude=(uint32_t)(delta<0?-delta:delta);
+    int32_t step=(int32_t)(((uint64_t)magnitude*remainder)>>25);
+    return first+(delta<0?-step:step);
 #else
     return (int32_t)((int64_t)first+(((int64_t)next-first)*remainder)/33554432ll);
 #endif
