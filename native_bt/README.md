@@ -25,6 +25,13 @@ descriptor-order fault during a finite LDAC96 overload test; renderer overruns,
 queue drops, underruns and core0 watchdog warnings remain unresolved. COM6
 returned to released 1.0.4-idf6.1 ota0 and phone playback was paused.
 
+The later [page-sized output ring](docs/OUTPUT_CAPACITY_2026_11_04.md) removes
+28 KiB of required allocation at 192 kHz while retaining the 64 ms target and
+prefill margin. LDAC96 DMA ran without descriptor errors, but underruns and
+watchdog warnings remain. Maximum LHDC still fails memory admission. Separate
+[CRC-validated records](docs/CAPTURE_CRC_2026_11_04.json) now identify its exact
+requested format and allocation failure; damaged records are excluded.
+
 The [resumable PCM worker checkpoint](docs/IDF61_ASYNC_PCM_2026_11_04.md) adds
 80 real-codec host comparisons with sanitizer coverage and 38 passing ESP32
 deferred-worker checks. The render provider, stream/sound transactions and full

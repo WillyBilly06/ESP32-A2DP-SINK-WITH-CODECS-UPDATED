@@ -215,7 +215,7 @@ static void source_frame(uint32_t sequence,int32_t *left,int32_t *right){
 }
 EXPORT int audio_stress_begin(void){
     page_reset(0);dbt_audio_memory_t memory={0,page_allocate,page_release};
-    dbt_audio_config_t config={48000,256,8192,4096,DBT_PCM_S32_LE,2,false};
+    dbt_audio_config_t config={48000,256,6656,4096,DBT_PCM_S32_LE,2,false};
     if(dbt_audio_init(&audio,memory)!=DBT_OK || dbt_audio_open(&audio,config)!=DBT_OK)return 1;
     if(dbt_audio_controls(&audio,0,0,0,127,FDSP_BYPASS)!=DBT_OK)return 2;
     (void)fixed_dsp_init(&reference,48000,90,500,512);fixed_dsp_controls(&reference,0,0,0,0,0,true);

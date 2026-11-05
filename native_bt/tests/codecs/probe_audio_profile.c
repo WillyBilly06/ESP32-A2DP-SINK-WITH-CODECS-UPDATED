@@ -12,6 +12,7 @@
 #define CHECK(x) do {if(!(x))return __LINE__;}while(0)
 static unsigned live_allocs,fail_alloc,owner_wakes;
 static int created_decoder_core=-1;
+static int created_logger_core=-1;
 static dbt_result_t stop_result=DBT_OK;
 static uint32_t now;
 static bool snapshot_for_test(char *line,size_t capacity,uint32_t began,const char *format,...){
@@ -206,7 +207,7 @@ void xTaskNotifyGive(TaskHandle_t task){(void)task;owner_wakes++;}
 void taskYIELD(void){} unsigned ulTaskNotifyTake(int c,unsigned t){(void)c;(void)t;return 0;}
 void vTaskDelay(unsigned t){(void)t;}void vTaskDelete(TaskHandle_t t){(void)t;}
 unsigned uxTaskGetStackHighWaterMark(TaskHandle_t t){(void)t;return 4096;}
-int xTaskCreatePinnedToCore(void (*f)(void *),const char *n,unsigned bytes,void *a,unsigned p,TaskHandle_t *task,int core){(void)f;(void)bytes;(void)a;(void)p;if(!strcmp(n,"native_decoder"))created_decoder_core=core;*task=(void *)1;return pdPASS;}
+int xTaskCreatePinnedToCore(void (*f)(void *),const char *n,unsigned bytes,void *a,unsigned p,TaskHandle_t *task,int core){(void)f;(void)bytes;(void)a;(void)p;if(!strcmp(n,"native_decoder"))created_decoder_core=core;if(!strcmp(n,"native_pcm_log"))created_logger_core=core;*task=(void *)1;return pdPASS;}
 dbt_result_t dbt_a2dp_acceptor_init(dbt_a2dp_acceptor_t *p,dbt_runtime_t *r,dbt_avdtp_sink_hooks_t h,const dbt_avdtp_endpoint_t *e,uint8_t n,uint16_t mtu,uint16_t c,uint32_t a,uint32_t b,uint32_t d){(void)h;(void)mtu;(void)c;(void)a;(void)b;(void)d;p->runtime=r;return e==endpoints&&n==sizeof(endpoints)/sizeof(endpoints[0])?DBT_OK:DBT_INVALID;}
 bool dbt_a2dp_acceptor_accept(const dbt_a2dp_acceptor_t *p,const dbt_link_t *l){(void)p;(void)l;return true;}
 dbt_result_t dbt_a2dp_acceptor_event(dbt_a2dp_acceptor_t *p,dbt_channel_event_t e,const dbt_channel_t *c){
@@ -294,6 +295,7 @@ EX int probe_audio_profiles(const uint8_t *sbc,uint16_t n,const uint8_t *sbc_cie
 
     CHECK(probe_audio_init(&runtime,(void *)2)==DBT_OK && initialized && !live_allocs);
     CHECK(created_decoder_core==DBT_PROBE_DECODER_CORE);
+    CHECK(created_logger_core==1-DBT_PROBE_DECODER_CORE);
     dbt_link_t restart_peer={0};stop_result=DBT_BUSY;
     CHECK(probe_audio_restart_hold(true,++now)==DBT_BUSY && !probe_audio_restart_quiescent());
     CHECK(!probe_audio_accept(0,&restart_peer,0x19));

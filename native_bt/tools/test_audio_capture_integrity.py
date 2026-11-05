@@ -29,6 +29,9 @@ class CaptureIntegrity(unittest.TestCase):
         self.assertFalse(audit_capture(raw)['passed'])
         self.assertIn('CRC32', audit_capture(raw)['rejected'][0]['reason'])
 
+    def test_damaged_probe_key_cannot_hide_a_record(self):
+        self.assertFalse(audit_capture(checked(self.prefix).replace(b'"probe"', b'"pobe"'))['passed'])
+
     def test_missing_character_and_truncation(self):
         for raw in (checked(self.prefix).replace(b'snapshot_span', b'sapshot_span'),
                     checked(self.prefix)[:-12], checked(self.prefix).replace(b'3000', b'300')):

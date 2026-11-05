@@ -8,17 +8,23 @@ Released main/recovery artifacts remain preserved. Latest measured evidence:
   192 kHz/S24/stereo/1000 kbps target, simultaneous secured BLE/EQ, no decoder
   errors, queue drops or watchdog warnings during the finite checksum run.
   This path omits A2DP DSP/I2S forwarding.
-- [Full maximum LHDC attempt](RF_LHDC_MAX_OUTPUT_2026_11_04.json): Android
+- [Full maximum LHDC attempt](RF_CAPACITY_LHDC_MAX_2026_11_04.json): Android
   confirmed the maximum preference; audio startup failed a 4096-byte allocation
-  with 7540 bytes free and a 3072-byte largest block. No LHDC I2S start follows.
+  with 11740 bytes free and a 3712-byte largest block. Requested rate/format
+  now have their own CRC-validated failure record. No LHDC I2S start follows.
 - [I2S priority2](I2S_IRQ_PRIORITY_2026_11_04.md): 23638 LDAC96 callbacks,
   maximum callback 46 us and EOF gap 1378 us, with zero descriptor errors.
   Six core0 watchdog warnings, 1472 queue drops and 1502592 underrun frames
   still fail continuity. The renderer needs further CPU and SRAM work.
 - [Separate telemetry and capture integrity](LOG_CAPTURE_WINDOWS_2026_11_04.md):
   per-stage timing, same-clock fault/watchdog markers and bounded observation
-  windows. New CRC-protected records and rate/format-specific allocation
-  diagnostics pass host tests; their hardware run remains pending.
+  windows. COM6 yielded 2747 CRC/time-valid records; five damaged/interleaved/
+  truncated records are excluded. Logger affinity away from decoder0 passes
+  host tests and build admission; its hardware run remains pending.
+- [Page-sized output capacity](OUTPUT_CAPACITY_2026_11_04.md) saves 28 KiB of
+  required memory at 192 kHz without changing target/prefill. Its LDAC96 DMA
+  trial has zero descriptor errors; throughput still fails. All 180 host groups,
+  ASan/UBSan boundaries/formats and the non-power-of-two concurrent case pass.
 
 The last hardware trial returned to released 1.0.4-idf6.1 ota0 with System ready;
 phone playback was verified paused. Full profile/product parity and maximum

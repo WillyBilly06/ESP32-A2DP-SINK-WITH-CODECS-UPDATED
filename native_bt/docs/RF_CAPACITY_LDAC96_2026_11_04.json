@@ -1,0 +1,228 @@
+{
+  "date": "2026-11-04",
+  "source_commit": "4050158ba52c12868fbeb31a9243a49ee61ae95f",
+  "image_sha256": "2902953b896415a91e8473ff85bd448bdba51102759346400cd65fb3f8209fb1",
+  "hardware_evidence_archive": "native_bt/_build/hardware/runs/1793837829993540300-2902953b8964",
+  "finite_rf_return": {
+    "baseline_boot_observed": true,
+    "baseline_fatal_marker": false,
+    "prime_capture_bytes": 0
+  },
+  "phone_paused_verified": true,
+  "scope": "LDAC96/S32 stereo + secured app controls, after failed maximum-LHDC attempt",
+  "result": "FINITE_DMA_ORDER_PASS_AUDIO_THROUGHPUT_FAIL",
+  "runtime_health": {
+    "task_watchdog_triggers": 6,
+    "idle_starvation_warnings_by_core": {
+      "0": 6,
+      "1": 0
+    },
+    "watchdog_running_task_samples_by_core": {
+      "0": {
+        "native_decoder": 2,
+        "native_render": 4
+      },
+      "1": {
+        "IDLE1": 2,
+        "main": 4
+      }
+    },
+    "interrupt_watchdog_timeouts": 0,
+    "backtrace_records": 6,
+    "runtime_health_passed": false
+  },
+  "last_crc_and_time_valid_records": {
+    "vhci_timing": {
+      "probe": "vhci_timing",
+      "collection_cycle_us": 299217241,
+      "packets": 7576,
+      "acl": 3391,
+      "events": 4185,
+      "bytes": 1959087,
+      "isr_callbacks": 0,
+      "rejected": 0,
+      "callback_max_us": 168,
+      "first_rx_to_poll_max_us": 18390,
+      "host_poll_max_us": 18571,
+      "ingress_high_water_bytes": 1370,
+      "ingress_rejected": 0,
+      "logger_stack_low_water_bytes": 1548,
+      "watchdog_events": 6,
+      "watchdog_hook_at_us": 172848772,
+      "watchdog_isr_core": 1,
+      "snapshot_begin_us": 299236327,
+      "at_us": 299236426,
+      "snapshot_span_us": 99,
+      "record_crc32": "ec0adb53"
+    },
+    "media_drop_reasons": {
+      "probe": "media_drop_reasons",
+      "collection_cycle_us": 299217241,
+      "queue_full": 1352,
+      "decode_reject": 0,
+      "reset_failed": 0,
+      "pcm_failed": 0,
+      "pcm_timeout": 0,
+      "pcm_busy": 0,
+      "input_sequence_breaks": 0,
+      "input_ssrc_changes": 0,
+      "queue_high_water": 8,
+      "host_trace_lost": 1336,
+      "worker_trace_lost": 1164,
+      "snapshot_records_lost": 0,
+      "snapshot_begin_us": 299278169,
+      "at_us": 299278184,
+      "snapshot_span_us": 15,
+      "record_crc32": "4f09cc3b"
+    },
+    "decoder_execution": {
+      "probe": "decoder_execution",
+      "collection_cycle_us": 299217241,
+      "calls": 7335,
+      "elapsed_us": 6259594,
+      "maximum_us": 21970,
+      "wall_time_includes_preemption": true,
+      "includes_inline_pcm": false,
+      "histogram_us_le": [
+        125,
+        250,
+        500,
+        1000,
+        2000,
+        4000,
+        8000
+      ],
+      "histogram_counts": [
+        1471,
+        0,
+        0,
+        1469,
+        4394,
+        0,
+        0,
+        1
+      ],
+      "snapshot_begin_us": 299344328,
+      "at_us": 299344343,
+      "snapshot_span_us": 15,
+      "record_crc32": "b97818bd"
+    },
+    "render_work": {
+      "probe": "render_work",
+      "collection_cycle_us": 297755241,
+      "calls": 11729,
+      "elapsed_us": 21123254,
+      "maximum_us": 15069,
+      "wall_time_includes_preemption": true,
+      "input_ready_frames": 0,
+      "render_stack_low_water_bytes": 4316,
+      "allocation_failed_bytes": 0,
+      "allocation_failure_free": 0,
+      "allocation_failure_largest": 0,
+      "request_fault": 0,
+      "stale_receipts": 0,
+      "snapshot_begin_us": 298040850,
+      "at_us": 298090912,
+      "snapshot_span_us": 50062,
+      "record_crc32": "e3ed96ac"
+    },
+    "i2s_callback_work": {
+      "probe": "i2s_callback_work",
+      "configured_irq_priority": 2,
+      "calls": 22537,
+      "elapsed_us": 203898,
+      "maximum_us": 45,
+      "core": 0,
+      "application_callback_only": true,
+      "elapsed_includes_preemption": true,
+      "snapshot_begin_us": 299502850,
+      "at_us": 299528182,
+      "snapshot_span_us": 25332,
+      "record_crc32": "e544a42f"
+    },
+    "i2s_descriptor_faults": {
+      "probe": "i2s_descriptor_faults",
+      "collection_cycle_us": 297755241,
+      "shape": 0,
+      "pool": 0,
+      "order": 0,
+      "expected_index": 0,
+      "observed_index": 0,
+      "observed_size": 0,
+      "fault_at_us": 0,
+      "fault_gap_us": 0,
+      "fault_stopping": 0,
+      "snapshot_begin_us": 298040850,
+      "at_us": 298128327,
+      "snapshot_span_us": 87477,
+      "record_crc32": "ce8bed8e"
+    },
+    "native_i2s": {
+      "probe": "native_i2s",
+      "running": 0,
+      "failed": 0,
+      "rate": 96000,
+      "requested_bytes": 0,
+      "accepted_frames": 1501184,
+      "rendered_frames": 1501207,
+      "ready_frames": 0,
+      "dma_eofs": 22537,
+      "dma_source_frames": 1501207,
+      "underrun_frames": 1381248,
+      "descriptor_errors": 0,
+      "max_eof_gap_us": 1378,
+      "maximum_render_us": 15069,
+      "first_underrun_accepted_frames": 14080,
+      "first_underrun_dma_frames": 13568,
+      "snapshot_begin_us": 298040850,
+      "at_us": 298154622,
+      "snapshot_span_us": 113772,
+      "record_crc32": "bb10cfda"
+    },
+    "sbc_pcm": {
+      "probe": "sbc_pcm",
+      "frames": 5864,
+      "bytes": 12009472,
+      "fnv1a32": 3988388976,
+      "rate": 96000,
+      "channels": 2,
+      "media_packets": 1471,
+      "drops": 1352,
+      "resets": 1180,
+      "resident": 21881,
+      "codec": 8,
+      "sample_bytes": 4,
+      "faults": 0,
+      "decoder_stack_low_water_bytes": 6200,
+      "internal_heap_free": 128212,
+      "internal_heap_min_free": 7220,
+      "internal_heap_largest": 110592,
+      "i2s_output": true,
+      "snapshot_begin_us": 299440241,
+      "at_us": 299464665,
+      "snapshot_span_us": 24424,
+      "record_crc32": "fca4f9f9"
+    }
+  },
+  "mean_render_unit_us": 1800.942450336772,
+  "render_unit_budget_us": 1333.3333333333333,
+  "output_capacity_frames": 6656,
+  "output_target_frames": 6144,
+  "ble_controls": {
+    "deep_bass_requested_and_dashboard_confirmed": [
+      8,
+      -1,
+      -2
+    ],
+    "balanced_restore_requested_and_dashboard_confirmed": [
+      0,
+      0,
+      0
+    ]
+  },
+  "limits": [
+    "Different stream duration/control timing from prior runs; no isolated CPU speedup claim.",
+    "Source/decoder/renderer continuity fails despite descriptor order remaining valid.",
+    "Mean bounded render unit includes preemption, drain and partial work."
+  ]
+}

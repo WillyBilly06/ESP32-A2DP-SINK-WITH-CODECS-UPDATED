@@ -1,0 +1,56 @@
+{
+  "date": "2026-11-04",
+  "source_commit": "4050158ba52c12868fbeb31a9243a49ee61ae95f",
+  "image_sha256": "2902953b896415a91e8473ff85bd448bdba51102759346400cd65fb3f8209fb1",
+  "hardware_evidence_archive": "native_bt/_build/hardware/runs/1793837829993540300-2902953b8964",
+  "finite_rf_return": {
+    "baseline_boot_observed": true,
+    "baseline_fatal_marker": false,
+    "prime_capture_bytes": 0
+  },
+  "phone_paused_verified": true,
+  "scope": "First hardware CRC32 periodic-snapshot capture; zero legacy acceptance",
+  "capture_audit": {
+    "scope": "offline record integrity only; no runtime/audio qualification",
+    "passed": false,
+    "snapshot_records": 2748,
+    "crc32_verified": 2747,
+    "legacy_timestamp_only": 0,
+    "other_records_unchecked": 119,
+    "all_snapshot_records_checksummed": false,
+    "rejected": [
+      {
+        "line": 2771,
+        "reason": "malformed/interleaved JSON"
+      },
+      {
+        "line": 3231,
+        "reason": "malformed/interleaved JSON"
+      },
+      {
+        "line": 3351,
+        "reason": "malformed/interleaved JSON"
+      },
+      {
+        "line": 5503,
+        "probe": "audio_clock",
+        "reason": "CRC32 mismatch/invalid suffix"
+      },
+      {
+        "line": 6007,
+        "reason": "malformed/interleaved JSON"
+      }
+    ]
+  },
+  "valid_rows_used_for_analysis": 2747,
+  "integrity_failure_is_not_repaired": true,
+  "longest_vhci_observation_gap_us": 32057291,
+  "logger_core_in_test": 0,
+  "decoder_core_in_test": 0,
+  "renderer_core_in_test": 0,
+  "limits": [
+    "One-off SDK/security/trace records are unchecked by this CRC scheme.",
+    "CRC does not establish counter coherence, authenticity or absence of whole-record loss.",
+    "Four malformed/interleaved or truncated lines and one parseable CRC failure were excluded."
+  ]
+}

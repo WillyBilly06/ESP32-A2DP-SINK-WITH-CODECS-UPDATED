@@ -1,0 +1,44 @@
+{
+  "date": "2026-11-04",
+  "source_commit": "4050158ba52c12868fbeb31a9243a49ee61ae95f",
+  "image_sha256": "2902953b896415a91e8473ff85bd448bdba51102759346400cd65fb3f8209fb1",
+  "hardware_evidence_archive": "native_bt/_build/hardware/runs/1793837829993540300-2902953b8964",
+  "finite_rf_return": {
+    "baseline_boot_observed": true,
+    "baseline_fatal_marker": false,
+    "prime_capture_bytes": 0
+  },
+  "phone_paused_verified": true,
+  "scope": "Actual Redmagic LHDC V5 192kHz/24bit/stereo/1000kbps target; full product output admission",
+  "result": "FAIL_ALLOCATION_BEFORE_LHDC_I2S_START",
+  "android_fresh_readback_confirmed": true,
+  "nominal_target_not_measured_wire_rate": true,
+  "allocation_failure_record": {
+    "probe": "i2s_allocation_failure",
+    "failed_bytes": 4096,
+    "free_bytes_at_failure": 11740,
+    "largest_block_at_failure": 3712,
+    "requested_rate": 192000,
+    "requested_channels": 2,
+    "requested_sample_bytes": 4,
+    "failure_at_us": 85989673,
+    "snapshot_begin_us": 86663390,
+    "at_us": 86663679,
+    "snapshot_span_us": 289,
+    "record_crc32": "dffdc649"
+  },
+  "pcm_policy": {
+    "input_frames": 8192,
+    "output_frames": 12800,
+    "output_target_frames": 12288,
+    "input_output_bytes": 167936,
+    "previous_input_output_bytes": 196608,
+    "policy_saving_bytes": 28672,
+    "saving_is_capacity_policy_not_a_completed_192k_allocation": true
+  },
+  "limits": [
+    "No LHDC DSP/I2S/analog/continuity/headroom pass.",
+    "Native successful-start CIE is not published when output admission fails.",
+    "Allocator free/largest figures depend on live connection/fragmentation state and do not isolate a memory improvement."
+  ]
+}

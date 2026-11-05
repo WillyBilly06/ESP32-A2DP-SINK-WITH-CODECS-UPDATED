@@ -31,7 +31,8 @@ def audit_capture(raw, allow_legacy=False):
     verified = legacy = candidates = other = 0
     rejected = []
     for number, line in enumerate(raw.splitlines(), 1):
-        if b'"probe"' not in line:
+        if not (line.lstrip().startswith(b'{') or b'"probe"' in line
+                or b'"record_crc32"' in line or b'"snapshot_' in line):
             continue
         try:
             record = json.loads(line, object_pairs_hook=unique_object)

@@ -66,5 +66,19 @@ changed counters, missing characters, duplicate keys, invalid timestamps and
 truncation, and verify partial-allocation reclamation plus failure-context reset.
 `audit_audio_capture.py` validates records offline; `--allow-legacy` permits
 timestamp-only analysis and explicitly reports the absence of CRC protection.
-The CRC and allocation-context additions have not yet run on COM6; they do not
-retroactively checksum historical captures or establish an audio pass.
+The [COM6 follow-up](CAPTURE_CRC_2026_11_04.json) contains 2747 records passing
+CRC and timestamp checks. Four malformed/interleaved or truncated lines and
+one parseable CRC failure are excluded. The overall capture audit therefore
+reports failure; only individually verified rows are used for measurements.
+The checksum does not repair those records or retroactively protect old runs.
+The [192 kHz failure context](RF_CAPACITY_LHDC_MAX_2026_11_04.json) is now
+explicitly captured on hardware. Neither result establishes an audio pass.
+
+The same trace has a 32057291 us gap between valid `vhci_timing` observations
+while decoder/render starve core0's priority1 logger. A follow-up policy places
+the logger on `1 - decoder_core`: current decoder0 uses logger1; the historical
+decoder1 comparison retains logger0. Controller/host priorities, renderer,
+watchdogs, logging cadence and the 4096-byte logger stack are retained. Host
+tests verify both actual task-creation affinities and reported layout; the
+ccache build and image admission pass. This affinity change has not yet run on
+COM6. It targets observation latency, not renderer compute throughput.
