@@ -80,9 +80,10 @@ void dbt_audio_close(dbt_audio_t *a){
         a->output_pages[i]=0;
     }
     a->input.bytes=a->output.bytes=0;a->opened=false;a->allocated_bytes=0;a->mix=0;a->mix_context=0;
+    a->input_view=0;a->borrowed_input=a->input_carry_valid=false;
     dbt_audio_clock_reset(a,0);
 }
-dbt_result_t dbt_audio_open(dbt_audio_t *a,dbt_audio_config_t config){
+static dbt_result_t audio_open(dbt_audio_t *a,dbt_audio_config_t config,bool borrowed){
     if(!a || !a->memory.allocate || !power2(config.input_frames) || config.output_frames<2u ||
        config.input_frames>32768 || config.output_frames>32768 || config.target_frames>=config.output_frames ||
        config.channels<1 || config.channels>2 || config.format<DBT_PCM_S16_LE || config.format>DBT_PCM_S32_LE)return DBT_INVALID;
@@ -90,9 +91,10 @@ dbt_result_t dbt_audio_open(dbt_audio_t *a,dbt_audio_config_t config){
     if(!fixed_dsp_init(&check,config.rate,90,500,512))return DBT_UNSUPPORTED;
     dbt_audio_close(a);
     uint32_t stride=(uint32_t)config.format*config.channels;
-    uint8_t *input=a->memory.allocate(a->memory.context,config.input_frames*stride);
-    if(!input)return DBT_NO_SPACE;
-    ring_init(&a->input,input,config.input_frames,stride);
+    uint8_t *input=borrowed?0:a->memory.allocate(a->memory.context,config.input_frames*stride);
+    if(!borrowed && !input)return DBT_NO_SPACE;
+    ring_init(&a->input,input,config.input_frames+(borrowed?1u:0u),stride);
+    a->borrowed_input=borrowed;
     unsigned pages=(config.output_frames+DBT_AUDIO_OUTPUT_PAGE_FRAMES-1u)/DBT_AUDIO_OUTPUT_PAGE_FRAMES;
     for(unsigned i=0;i<pages;++i){
         uint32_t page_frames=config.output_frames-i*DBT_AUDIO_OUTPUT_PAGE_FRAMES;
@@ -103,7 +105,7 @@ dbt_result_t dbt_audio_open(dbt_audio_t *a,dbt_audio_config_t config){
     }
     ring_init(&a->output,a->output_pages[0],config.output_frames,8);
     a->output_write_slot=a->output_read_slot=0;
-    a->config=config;a->allocated_bytes=config.input_frames*stride+config.output_frames*8u;
+    a->config=config;a->allocated_bytes=(borrowed?0:config.input_frames*stride)+config.output_frames*8u;
     (void)fixed_dsp_init(&a->dsp,config.rate,90,500,512);
     fixed_dsp_controls(&a->dsp,0,0,0,0,0,true);
     a->fraction=0;a->step_adjust=a->filtered_error_q8=a->integral_ppm=0;
@@ -117,6 +119,8 @@ dbt_result_t dbt_audio_open(dbt_audio_t *a,dbt_audio_config_t config){
     dbt_audio_clock_reset(a,0);a->clock_primed=false;
     return DBT_OK;
 }
+dbt_result_t dbt_audio_open(dbt_audio_t *a,dbt_audio_config_t config){return audio_open(a,config,false);}
+dbt_result_t dbt_audio_open_borrowed(dbt_audio_t *a,dbt_audio_config_t config){return audio_open(a,config,true);}
 uint32_t dbt_audio_input_frames(const dbt_audio_t *a){
     if(!a || !a->opened)return 0;
     return atomic_load_explicit(&a->input.written,memory_order_acquire)-atomic_load_explicit(&a->input.read,memory_order_acquire);
@@ -125,8 +129,43 @@ uint32_t dbt_audio_output_frames(const dbt_audio_t *a){
     if(!a || !a->opened)return 0;
     return atomic_load_explicit(&a->output.written,memory_order_acquire)-atomic_load_explicit(&a->output.read,memory_order_acquire);
 }
+dbt_result_t dbt_audio_input_borrow(dbt_audio_t *a,const void *pcm,uint32_t frames){
+    if(!a || !a->opened || !a->borrowed_input || !pcm || !frames || frames>a->config.input_frames || a->draining_input)return DBT_INVALID;
+    if(a->input_view)return DBT_BUSY;
+    uint32_t written=atomic_load_explicit(&a->input.written,memory_order_relaxed);
+    uint32_t remaining=written-atomic_load_explicit(&a->input.read,memory_order_relaxed);
+    if(remaining>1u || (remaining && !a->input_carry_valid))return DBT_BUSY;
+    a->input_view=pcm;a->input_view_begin=written;
+    atomic_store_explicit(&a->input.written,written+frames,memory_order_release);
+    atomic_fetch_add_explicit(&a->submitted_frames,frames,memory_order_relaxed);return DBT_OK;
+}
+static inline const uint8_t *input_frame(const dbt_audio_t *a,uint32_t index){
+    if(!a->borrowed_input)return a->input.bytes+(index&a->input.mask)*a->input.stride;
+    if(a->input_carry_valid && index==a->input_carry_index)return a->input_carry;
+    return a->input_view+(index-a->input_view_begin)*a->input.stride;
+}
+bool dbt_audio_input_release(dbt_audio_t *a){
+    if(!a || !a->opened || !a->borrowed_input)return false;
+    if(!a->input_view)return true;
+    uint32_t read=atomic_load_explicit(&a->input.read,memory_order_relaxed);
+    uint32_t remaining=atomic_load_explicit(&a->input.written,memory_order_relaxed)-read;
+    if(remaining>1u)return false;
+    if(remaining){
+        const uint8_t *source=input_frame(a,read);
+        for(unsigned i=0;i<a->input.stride;++i)a->input_carry[i]=source[i];
+        a->input_carry_index=read;a->input_carry_valid=true;
+    }else a->input_carry_valid=false;
+    a->input_view=0;return true;
+}
+uint32_t dbt_audio_input_cancel(dbt_audio_t *a){
+    if(!a || !a->opened || !a->borrowed_input)return 0;
+    uint32_t written=atomic_load_explicit(&a->input.written,memory_order_relaxed);
+    uint32_t remaining=written-atomic_load_explicit(&a->input.read,memory_order_relaxed);
+    a->input_view=0;a->input_carry_valid=false;
+    atomic_store_explicit(&a->input.read,written,memory_order_release);return remaining;
+}
 dbt_result_t dbt_audio_submit(dbt_audio_t *a,const void *pcm,uint32_t frames){
-    if(!a || !a->opened || (!pcm && frames) || frames>a->input.frames)return DBT_INVALID;
+    if(!a || !a->opened || a->borrowed_input || (!pcm && frames) || frames>a->input.frames)return DBT_INVALID;
     uint32_t written=atomic_load_explicit(&a->input.written,memory_order_relaxed);
     uint32_t read=atomic_load_explicit(&a->input.read,memory_order_acquire);
     if(frames>a->input.frames-(written-read)){
@@ -195,7 +234,7 @@ static void controls(dbt_audio_t *a){
     }
 }
 static int32_t sample(const dbt_audio_t *a,uint32_t index,unsigned channel){
-    const uint8_t *p=a->input.bytes+(index&a->input.mask)*a->input.stride+channel*(unsigned)a->config.format;
+    const uint8_t *p=input_frame(a,index)+channel*(unsigned)a->config.format;
 #if defined(__BYTE_ORDER__) && __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
     if(a->config.format==DBT_PCM_S32_LE && !((uintptr_t)p&3u)){
         int32_t value;__builtin_memcpy(&value,__builtin_assume_aligned(p,4),sizeof(value));return value;
@@ -304,6 +343,7 @@ uint32_t dbt_audio_render(dbt_audio_t *a,uint32_t budget){
     PROFILE_PUBLISH(conversion,conversion);PROFILE_PUBLISH(dsp,dsp);PROFILE_PUBLISH(tail,tail);
 #undef PROFILE_PUBLISH
 #endif
+    if(a->borrowed_input && a->input_carry_valid && in!=a->input_carry_index)a->input_carry_valid=false;
     atomic_store_explicit(&a->input.read,in,memory_order_release);
     atomic_store_explicit(&a->output.written,out+produced,memory_order_release);
     atomic_fetch_add_explicit(&a->rendered_frames,produced,memory_order_relaxed);return produced;

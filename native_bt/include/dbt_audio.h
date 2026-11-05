@@ -35,6 +35,12 @@ typedef struct {
     dbt_audio_memory_t memory;
     dbt_audio_config_t config;
     dbt_audio_ring_t input,output;
+    /* Render-owned optional input loan. One retained raw frame bridges a
+     * fractional-clock boundary after the caller's view has been retired. */
+    const uint8_t *input_view;
+    uint32_t input_view_begin,input_carry_index;
+    uint8_t input_carry[8];
+    bool borrowed_input,input_carry_valid;
     /* One logical SPSC ring; <=4 KiB allocations span ESP32 SRAM regions.
      * output.bytes aliases page zero. Physical cursors have distinct owners:
      * render writes write_slot; DMA writes read_slot. They are independent of
@@ -73,6 +79,17 @@ typedef struct {
  * lazy and configuration-specific. No floating-point signal processing. */
 dbt_result_t dbt_audio_init(dbt_audio_t *audio,dbt_audio_memory_t memory);
 dbt_result_t dbt_audio_open(dbt_audio_t *audio,dbt_audio_config_t config);
+/* Optional render-owner input mode. input_frames bounds one immutable loan;
+ * no input ring is allocated. The provider must retain its view until release
+ * succeeds or cancel/close returns, then acknowledge that retirement to the
+ * decoder. These functions do not implement a cross-task acknowledgement. */
+dbt_result_t dbt_audio_open_borrowed(dbt_audio_t *,dbt_audio_config_t);
+dbt_result_t dbt_audio_input_borrow(dbt_audio_t *,const void *,uint32_t);
+/* At most one raw frame is copied to owned carry storage. False means the
+ * original view remains live; no repeated attempts/waits occur internally. */
+bool dbt_audio_input_release(dbt_audio_t *);
+/* Explicit abort only: retire the view and discard unrendered input. */
+uint32_t dbt_audio_input_cancel(dbt_audio_t *);
 void dbt_audio_close(dbt_audio_t *audio);
 /* Producer only; whole block or BUSY, with no partial publication. */
 dbt_result_t dbt_audio_submit(dbt_audio_t *audio,const void *pcm,uint32_t frames);
