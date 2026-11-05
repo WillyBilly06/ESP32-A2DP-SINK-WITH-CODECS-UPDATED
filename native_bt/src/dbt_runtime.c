@@ -29,10 +29,12 @@ static void release(void *context, uint8_t *data) {
 static void pdu(void *context, uint16_t handle, uint32_t generation,
                  uint16_t cid, const uint8_t *data, uint16_t size) {
     dbt_runtime_t *runtime = context;
+    uint32_t malformed=runtime->channels.malformed_pdus;
     dbt_result_t result = dbt_channels_receive(&runtime->channels, handle, generation, cid, data, size);
     /* VHCI does not offer reliable ingress retry. Never silently discard a
      * signaling request after inbox/allocator exhaustion. Recovery is explicit. */
-    if (result != DBT_OK && result != DBT_UNSUPPORTED){
+    bool discarded=result==DBT_INVALID && runtime->channels.malformed_pdus!=malformed;
+    if (result != DBT_OK && result != DBT_UNSUPPORTED && !discarded){
         if(remember_failure(runtime,DBT_RUNTIME_FAULT_CHANNEL_PDU,result,0,handle,cid,size)){
             runtime->failure.generation=generation;
             if((cid==1 || cid==5) && size>=4){
@@ -156,8 +158,14 @@ static void packet(void *context, const dbt_hci_packet_t *view) {
                 if (runtime->hooks.link) runtime->hooks.link(runtime->hooks.context, &change);
             }
         } else if (view->type == DBT_H4_ACL) {
+            uint32_t rejected=runtime->rx.rejected;
             dbt_result_t result = dbt_l2cap_receive(&runtime->rx, &runtime->acl, view, runtime->now_ms);
-            if (result != DBT_OK){
+            /* A malformed/late PDU retires this RX packet, not the whole host.
+             * Only the parser's explicit wire-rejection path is recoverable;
+             * invalid API state and resource/mandatory-reply failures remain
+             * fatal. The next valid start can resume bounded reassembly. */
+            bool discarded=result==DBT_INVALID && runtime->rx.rejected!=rejected;
+            if (result != DBT_OK && !discarded){
                 bool first=remember_failure(runtime,DBT_RUNTIME_FAULT_L2CAP,result,view,view->handle,0,view->size);
                 if(first && view->pb==2 && view->size>=4){
                     runtime->failure.cid=dbt_read_le16(view->payload+2);
@@ -174,7 +182,9 @@ static void packet(void *context, const dbt_hci_packet_t *view) {
     if(view->type==DBT_H4_ACL && runtime->host.state==DBT_HOST_IDENTIFIED &&
        runtime->rx_flow.state==DBT_RX_FLOW_ACTIVE) {
         const dbt_link_t *link=dbt_acl_find(&runtime->acl,view->handle);
-        dbt_result_t result=dbt_rx_flow_completed(&runtime->rx_flow,link);
+        /* Disconnect already retires the controller's buffers for an unknown
+         * handle. Never invent a completion for a stale/reused connection. */
+        dbt_result_t result=link?dbt_rx_flow_completed(&runtime->rx_flow,link):DBT_OK;
         if(result!=DBT_OK){
             remember_failure(runtime,DBT_RUNTIME_FAULT_RX_FLOW,result,view,view->handle,0,view->size);
             dbt_host_abort(&runtime->host,result==DBT_NO_SPACE?DBT_FAULT_RX_OVERRUN:DBT_FAULT_BAD_PACKET);
@@ -357,6 +367,9 @@ void dbt_runtime_poll(dbt_runtime_t *runtime, uint32_t now_ms, uint16_t rx_budge
     /* Return released RX buffers before another ordinary command can take the
      * transport. Acks remain independent of command and outbound ACL credits. */
     dbt_rx_flow_poll(&runtime->rx_flow,now_ms);
+    /* Expire once per owner turn, before a bounded RX batch. Retained-storage
+     * receive checks only its own slot; it does not rescan all links per PDU. */
+    if(runtime->ready)(void)dbt_l2cap_expire(&runtime->rx,now_ms);
     (void)dbt_host_poll(&runtime->host, now_ms, rx_budget);
     (void)initialize_layers(runtime);
     dbt_rx_flow_poll(&runtime->rx_flow,now_ms);
@@ -365,7 +378,6 @@ void dbt_runtime_poll(dbt_runtime_t *runtime, uint32_t now_ms, uint16_t rx_budge
         runtime->in_poll = false; return;
     }
     if (runtime->ready) {
-        (void)dbt_l2cap_expire(&runtime->rx, now_ms);
         (void)dbt_channels_poll(&runtime->channels, now_ms, rx_budget);
         for(unsigned i=0;i<DBT_MAX_LINKS;++i){
             dbt_runtime_tx_t *tx=&runtime->tx[i];

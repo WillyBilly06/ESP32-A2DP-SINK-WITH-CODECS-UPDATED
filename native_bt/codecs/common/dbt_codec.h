@@ -161,6 +161,7 @@ typedef struct {
 dbt_result_t dbt_codec_worker_init(dbt_codec_worker_t *worker,dbt_codec_worker_hooks_t hooks,
     uint16_t maximum_payload,uint8_t depth);
 dbt_result_t dbt_codec_worker_submit(void *worker,const dbt_sink_job_t *job);
+/* Host input remains valid for the call and is disjoint from packet_storage. */
 dbt_result_t dbt_codec_worker_media(void *worker,const dbt_avdtp_media_t *packet);
 dbt_result_t dbt_codec_worker_receipt(dbt_codec_worker_t *worker,dbt_codec_receipt_t *receipt);
 /* First service at most one accepted PCM-loan completion/cancellation so codec

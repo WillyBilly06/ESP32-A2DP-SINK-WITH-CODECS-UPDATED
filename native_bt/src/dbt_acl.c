@@ -134,6 +134,19 @@ dbt_result_t dbt_acl_event(dbt_acl_t *acl, const dbt_hci_packet_t *packet,
         if (data[0] == 0) acl->links[index].encrypted = data[3] != 0;
         return DBT_OK;
     }
+    case 0x12: { /* Role Change identifies the Classic ACL by peer address. */
+        if (packet->size != 8) return DBT_INVALID;
+        if (data[0] != 0) return DBT_OK;
+        if (data[7] > 1) return DBT_INVALID;
+        for (unsigned i = 0; i < DBT_MAX_LINKS; ++i) {
+            dbt_link_t *link = &acl->links[i];
+            if (!link->used || link->kind != DBT_LINK_CLASSIC) continue;
+            unsigned equal = 0;
+            while (equal < 6u && link->peer[equal] == data[1u + equal]) ++equal;
+            if (equal == 6u) { link->role = data[7]; return DBT_OK; }
+        }
+        return DBT_UNSUPPORTED; /* Late event after that connection retired. */
+    }
     case 0x13: return completed(acl, data, packet->size);
     default: return DBT_UNSUPPORTED;
     }

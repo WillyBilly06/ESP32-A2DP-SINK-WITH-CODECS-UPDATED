@@ -1,7 +1,14 @@
 #include "dbt_l2cap.h"
+#include <string.h>
+
+static dbt_result_t reject_wire(dbt_l2cap_rx_t *rx, bool orphan) {
+    ++rx->rejected;
+    if (orphan) ++rx->orphaned;
+    return DBT_INVALID;
+}
 
 static void release_partial(dbt_l2cap_rx_t *rx, dbt_l2cap_partial_t *partial) {
-    if (partial->data != 0) rx->hooks.release(rx->hooks.context, partial->data);
+    if (partial->data != 0 && !rx->storage) rx->hooks.release(rx->hooks.context, partial->data);
     partial->data = 0;
     partial->received = partial->expected = 0;
 }
@@ -15,6 +22,18 @@ dbt_result_t dbt_l2cap_rx_init(dbt_l2cap_rx_t *rx, dbt_l2cap_hooks_t hooks,
     rx->hooks = hooks;
     rx->max_pdu_payload = max_payload;
     rx->timeout_ms = timeout_ms;
+    return DBT_OK;
+}
+
+dbt_result_t dbt_l2cap_rx_bind_storage(dbt_l2cap_rx_t *rx,uint8_t *storage,
+                                     uint32_t bytes,uint16_t stride) {
+    if (!rx || !storage || !rx->hooks.pdu || rx->storage ||
+        ((uintptr_t)storage & 7u) || (stride & 7u) || stride < rx->max_pdu_payload ||
+        !stride || bytes < (uint32_t)DBT_MAX_LINKS * stride) return DBT_INVALID;
+    uintptr_t begin=(uintptr_t)storage,object=(uintptr_t)rx;
+    if (begin<=object ? object-begin<bytes : begin-object<sizeof(*rx)) return DBT_INVALID;
+    for (unsigned i=0;i<DBT_MAX_LINKS;++i) if (rx->partial[i].data) return DBT_BUSY;
+    rx->storage=storage;rx->storage_stride=stride;
     return DBT_OK;
 }
 
@@ -47,31 +66,29 @@ unsigned dbt_l2cap_expire(dbt_l2cap_rx_t *rx, uint32_t now_ms) {
 dbt_result_t dbt_l2cap_receive(dbt_l2cap_rx_t *rx, const dbt_acl_t *acl,
                               const dbt_hci_packet_t *packet, uint32_t now_ms) {
     if (rx == 0 || acl == 0 || packet == 0 || packet->type != DBT_H4_ACL ||
-        packet->bc != 0 || (packet->size != 0 && packet->payload == 0) ||
-        (packet->pb != 1 && packet->pb != 2)) return DBT_INVALID;
+        (packet->size != 0 && packet->payload == 0)) return DBT_INVALID;
+    if (packet->bc != 0 || (packet->pb != 1 && packet->pb != 2)) return reject_wire(rx, false);
     const dbt_link_t *link = dbt_acl_find(acl, packet->handle);
-    if (link == 0) return DBT_INVALID;
-    dbt_l2cap_partial_t *current = 0;
-    dbt_l2cap_partial_t *empty = 0;
-    (void)dbt_l2cap_expire(rx, now_ms);
-    for (unsigned i = 0; i < DBT_MAX_LINKS; ++i) {
-        dbt_l2cap_partial_t *partial = &rx->partial[i];
-        if (partial->data != 0 && partial->handle == link->handle) {
-            if (partial->generation == link->generation) current = partial;
-            else { release_partial(rx, partial); ++rx->abandoned; }
-        }
-        if (partial->data == 0) empty = partial;
+    if (link == 0) return reject_wire(rx, false);
+    /* The ACL owner already identifies a stable link slot. Reassembly follows
+     * that slot directly instead of searching a second table per fragment. */
+    unsigned index=(unsigned)(link-acl->links);
+    dbt_l2cap_partial_t *slot=&rx->partial[index];
+    if (!rx->storage) (void)dbt_l2cap_expire(rx, now_ms);
+    dbt_l2cap_partial_t *current=slot->data?slot:0;
+    if (current && (current->handle!=link->handle || current->generation!=link->generation ||
+                   (uint32_t)(now_ms-current->deadline)<0x80000000u)) {
+        release_partial(rx,current);++rx->abandoned;current=0;
     }
     if (packet->pb == 1) {
-        if (current == 0 || packet->size == 0) return DBT_INVALID;
+        if (current == 0) return reject_wire(rx, true);
+        if (packet->size == 0) return reject_wire(rx, false);
         if ((uint32_t)current->received + packet->size > current->expected) {
             release_partial(rx, current);
             ++rx->abandoned;
-            return DBT_INVALID;
+            return reject_wire(rx, false);
         }
-        for (unsigned i = 0; i < packet->size; ++i) {
-            current->data[current->received + i] = packet->payload[i];
-        }
+        memcpy(current->data+current->received,packet->payload,packet->size);
         current->received += packet->size;
         if (current->received == current->expected) {
             rx->hooks.pdu(rx->hooks.context, link->handle, link->generation,
@@ -84,13 +101,12 @@ dbt_result_t dbt_l2cap_receive(dbt_l2cap_rx_t *rx, const dbt_acl_t *acl,
     if (current != 0) {
         release_partial(rx, current);
         ++rx->abandoned;
-        empty = current;
     }
-    if (packet->size < 4) return DBT_INVALID;
+    if (packet->size < 4) return reject_wire(rx, false);
     uint16_t expected = dbt_read_le16(packet->payload);
     uint16_t cid = dbt_read_le16(packet->payload + 2);
     uint16_t received = packet->size - 4u;
-    if (cid == 0 || received > expected) return DBT_INVALID;
+    if (cid == 0 || received > expected) return reject_wire(rx, false);
     if (expected > rx->max_pdu_payload) return DBT_NO_SPACE;
     if (received == expected) {
         rx->hooks.pdu(rx->hooks.context, link->handle, link->generation,
@@ -98,17 +114,17 @@ dbt_result_t dbt_l2cap_receive(dbt_l2cap_rx_t *rx, const dbt_acl_t *acl,
         ++rx->delivered;
         return DBT_OK;
     }
-    if (empty == 0) return DBT_NO_SPACE;
-    uint8_t *data = rx->hooks.allocate(rx->hooks.context, expected);
+    uint8_t *data = rx->storage?rx->storage+(uint32_t)index*rx->storage_stride:
+                   rx->hooks.allocate(rx->hooks.context, expected);
     if (data == 0) return DBT_NO_SPACE;
-    empty->data = data;
-    empty->handle = link->handle;
-    empty->generation = link->generation;
-    empty->cid = cid;
-    empty->expected = expected;
-    empty->received = received;
-    empty->deadline = now_ms + rx->timeout_ms;
-    for (unsigned i = 0; i < received; ++i) data[i] = packet->payload[4u + i];
+    slot->data = data;
+    slot->handle = link->handle;
+    slot->generation = link->generation;
+    slot->cid = cid;
+    slot->expected = expected;
+    slot->received = received;
+    slot->deadline = now_ms + rx->timeout_ms;
+    memcpy(data,packet->payload+4u,received);
     return DBT_OK;
 }
 

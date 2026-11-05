@@ -1,5 +1,6 @@
 #include "dbt_codec.h"
 #include <stddef.h>
+#include <string.h>
 
 typedef struct {uint32_t bytes,pad;} allocation_t;
 typedef struct {
@@ -182,7 +183,7 @@ dbt_result_t dbt_codec_worker_media(void *context,const dbt_avdtp_media_t *packe
     media_t *slot=(media_t *)(w->packet_storage+(written&(w->depth-1u))*w->stride);
     slot->timestamp=packet->timestamp;slot->ssrc=packet->ssrc;slot->sequence=packet->sequence;slot->size=packet->size;
     slot->payload_type=packet->payload_type;slot->marker=packet->marker;
-    slot->prefix[0]=input.prefix[0];slot->prefix[1]=input.prefix[1];copy(slot->bytes,packet->payload,packet->size);
+    slot->prefix[0]=input.prefix[0];slot->prefix[1]=input.prefix[1];memcpy(slot->bytes,packet->payload,packet->size);
     atomic_store_explicit(&w->media_written,written+1u,memory_order_release);wake_worker(w);return DBT_OK;
 }
 dbt_result_t dbt_codec_worker_receipt(dbt_codec_worker_t *w,dbt_codec_receipt_t *receipt){

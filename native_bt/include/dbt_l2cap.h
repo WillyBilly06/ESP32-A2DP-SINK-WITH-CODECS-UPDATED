@@ -22,6 +22,11 @@ typedef struct {
     dbt_l2cap_hooks_t hooks;
     uint32_t timeout_ms;
     uint32_t delivered, abandoned;
+    /* Owner-only wire rejection counters. INVALID without a new rejection is
+     * an API/invariant error; the runtime must not conflate the two. */
+    uint32_t rejected, orphaned;
+    uint8_t *storage;
+    uint16_t storage_stride;
     uint16_t max_pdu_payload;
 } dbt_l2cap_rx_t;
 typedef struct {
@@ -35,6 +40,11 @@ typedef struct {
  * are separate layers; these functions do not establish an L2CAP channel. */
 dbt_result_t dbt_l2cap_rx_init(dbt_l2cap_rx_t *rx, dbt_l2cap_hooks_t hooks,
                               uint16_t max_payload, uint32_t timeout_ms);
+/* Bind retained, disjoint per-link storage before traffic. Eight-byte aligned
+ * stride >= max_payload, bytes >= DBT_MAX_LINKS * stride. The caller retains it
+ * for the RX lifetime. There is no provider fallback when storage is bound. */
+dbt_result_t dbt_l2cap_rx_bind_storage(dbt_l2cap_rx_t *rx,uint8_t *storage,
+                                     uint32_t bytes,uint16_t stride);
 dbt_result_t dbt_l2cap_receive(dbt_l2cap_rx_t *rx, const dbt_acl_t *acl,
                               const dbt_hci_packet_t *packet, uint32_t now_ms);
 void dbt_l2cap_link_change(dbt_l2cap_rx_t *rx, const dbt_link_change_t *change);

@@ -1,4 +1,5 @@
 #include "dbt_queue.h"
+#include <string.h>
 
 _Static_assert(ATOMIC_INT_LOCK_FREE == 2 && sizeof(unsigned int) == 4,
                "Ingress needs lock-free 32-bit atomics");
@@ -32,9 +33,10 @@ static dbt_result_t push(dbt_queue_t *queue, const uint8_t *data,
     }
     queue->bytes[slot(written)] = (uint8_t)size;
     queue->bytes[slot(written + 1u)] = (uint8_t)((size >> 8) | (sensitive ? 0x80u : 0u));
-    for (uint32_t i = 0; i < size; ++i) {
-        queue->bytes[slot(written + 2u + i)] = data[i];
-    }
+    uint32_t start=slot(written+2u),first=DBT_QUEUE_BYTES-start;
+    if(first>size)first=size;
+    memcpy(queue->bytes+start,data,first);
+    if(first<size)memcpy(queue->bytes,data+first,size-first);
     uint32_t occupancy = used + required;
     if (occupancy > atomic_load_explicit(&queue->high_water, memory_order_relaxed)) {
         atomic_store_explicit(&queue->high_water, occupancy, memory_order_relaxed);
@@ -70,9 +72,10 @@ dbt_result_t dbt_queue_pop(dbt_queue_t *queue, uint8_t *data,
     }
     *size = length;
     if (length > capacity) return DBT_NO_SPACE;
-    for (uint32_t i = 0; i < length; ++i) {
-        data[i] = queue->bytes[slot(read + 2u + i)];
-    }
+    uint32_t start=slot(read+2u),first=DBT_QUEUE_BYTES-start;
+    if(first>length)first=length;
+    memcpy(data,queue->bytes+start,first);
+    if(first<length)memcpy(data+first,queue->bytes,length-first);
     if(sensitive) {
         volatile uint8_t *bytes = queue->bytes;
         for(uint32_t i=0;i<length;++i)bytes[slot(read+2u+i)]=0;

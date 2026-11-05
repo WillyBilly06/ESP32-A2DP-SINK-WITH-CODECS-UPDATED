@@ -101,6 +101,12 @@ static int __attribute__((format(printf,1,2))) host_printf(const char *format,..
 extern bool probe_codec_check(TaskHandle_t owner);
 #endif
 static dbt_runtime_t runtime;
+#define PROBE_L2CAP_RX_MAX 4096u
+#ifdef DBT_PROBE_STAY_NATIVE
+/* Same four-link/max-PDU capacity as dynamic reassembly, retained before
+ * controller enable so packet delivery never enters the heap allocator. */
+_Alignas(8) static uint8_t l2cap_rx_storage[DBT_MAX_LINKS * PROBE_L2CAP_RX_MAX];
+#endif
 static dbt_gap_t gap;
 static TaskHandle_t owner;
 #ifdef DBT_PROBE_SMP
@@ -601,10 +607,14 @@ void app_main(void) {
     hooks.channels.data=profile_data;
     hooks.channels.accept=profile_accept;
 #endif
-    if (dbt_runtime_init(&runtime, transport, hooks, 4096, 2000) != DBT_OK) {
+    if (dbt_runtime_init(&runtime, transport, hooks, PROBE_L2CAP_RX_MAX, 2000) != DBT_OK) {
         ESP_LOGE(tag, "core initialization failed");
         owner_fault_park("runtime initialization");
     }
+#ifdef DBT_PROBE_STAY_NATIVE
+    if(dbt_l2cap_rx_bind_storage(&runtime.rx,l2cap_rx_storage,sizeof(l2cap_rx_storage),PROBE_L2CAP_RX_MAX)!=DBT_OK)
+        owner_fault_park("retained L2CAP receive storage");
+#endif
     /* Startup storage work precedes controller enable; never erase user NVS. */
     esp_err_t startup_error=nvs_flash_init();
     if(startup_error!=ESP_OK){ESP_LOGE(tag,"NVS initialization failed: %d",(int)startup_error);owner_fault_park("NVS initialization");}

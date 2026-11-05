@@ -1,0 +1,3107 @@
+{
+  "schema": 1,
+  "reference": {
+    "repository": "https://github.com/bluekitchen/btstack",
+    "commit": "9edb5d82ea6ec4466a393415d65030929330acdf",
+    "checkout": "D:/BluetoothReferences/btstack-20261105",
+    "downloaded_clean": true,
+    "implementation_integrated": false
+  },
+  "owned_worktree": "D:/bt-owned61",
+  "starting_commit": "113e8369",
+  "comparison_complete": false,
+  "scope": "All owned host/platform/product/codec-adapter C/header/data/linker files, codec source generators and ESP32 build integration; compiled owned translation units cross-checked",
+  "files": [
+    {
+      "owned": "bt_audio_sink/main/dsp/fixed_dsp_tables.inc",
+      "sha256": "c6a20053d23c40c1597a0d49d46ac952218544de3493ab52d8bb9923eb23a742",
+      "lines": 2724,
+      "reference_files": [
+        "src/classic/avdtp.c",
+        "example/a2dp_sink_demo.c",
+        "src/btstack_resample.c",
+        "src/btstack_sample_rate_compensation.c"
+      ],
+      "status": "pending",
+      "mapping": "Added through full filesystem/build-manifest cross-check; source generation/build inputs included"
+    },
+    {
+      "owned": "bt_audio_sink/main/dsp/fixed_dsp.c",
+      "sha256": "78343f17eadbfe5b9ae36f2eb15c88dc8fdd0d6f55116480618585d92209ae69",
+      "lines": 486,
+      "reference_files": [
+        "src/classic/avdtp.c",
+        "example/a2dp_sink_demo.c",
+        "src/btstack_resample.c",
+        "src/btstack_sample_rate_compensation.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "bt_audio_sink/main/dsp/fixed_dsp.h",
+      "sha256": "f74d10213170e7f2920793a3ec6d70642079fbf644b81b05e312762efa30d0d7",
+      "lines": 57,
+      "reference_files": [
+        "src/classic/avdtp.c",
+        "example/a2dp_sink_demo.c",
+        "src/btstack_resample.c",
+        "src/btstack_sample_rate_compensation.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/CMakeLists.txt",
+      "sha256": "b000af38841fc8ffaee88c4a7e46c43ba36a71dcf1638391a4110a4b1fe61a4d",
+      "lines": 42,
+      "reference_files": [],
+      "status": "pending",
+      "mapping": "Added through full filesystem/build-manifest cross-check; source generation/build inputs included"
+    },
+    {
+      "owned": "native_bt/codecs/aac/dbt_aac_decoder.c",
+      "sha256": "b03e379d23ec8103f297195820a42e163f60bc4b7471c53a6f54d2be5206adbb",
+      "lines": 158,
+      "reference_files": [
+        "src/classic/avdtp.c",
+        "example/a2dp_sink_demo.c",
+        "src/btstack_resample.c",
+        "src/btstack_sample_rate_compensation.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/codecs/aac/dbt_aac_transport.c",
+      "sha256": "2dcfd46bbf17d8d53ad8be89b2e07a9e686b8f6eebaaead1cce67ccd674c6d8d",
+      "lines": 86,
+      "reference_files": [
+        "src/classic/avdtp.c",
+        "example/a2dp_sink_demo.c",
+        "src/btstack_resample.c",
+        "src/btstack_sample_rate_compensation.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/codecs/aac/dbt_aac.h",
+      "sha256": "ab2d713cf7fdd0b18490a2991d631e53335082ab1bd86680e5130a01db46205d",
+      "lines": 22,
+      "reference_files": [
+        "src/classic/avdtp.c",
+        "example/a2dp_sink_demo.c",
+        "src/btstack_resample.c",
+        "src/btstack_sample_rate_compensation.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/codecs/aac/host_target_math.h",
+      "sha256": "d33b0156ee33acb749a21d640aaf800d2238e8a53a16a25e6591fd231a4ed66d",
+      "lines": 17,
+      "reference_files": [],
+      "status": "pending",
+      "mapping": "product/support code; no direct protocol counterpart assigned"
+    },
+    {
+      "owned": "native_bt/codecs/aac/prepare_port.py",
+      "sha256": "36dffa340624e4652cca44269a02493cc3653ac29523669a81db95f485c70945",
+      "lines": 50,
+      "reference_files": [],
+      "status": "pending",
+      "mapping": "Added through full filesystem/build-manifest cross-check; source generation/build inputs included"
+    },
+    {
+      "owned": "native_bt/codecs/aptx/CMakeLists.txt",
+      "sha256": "f482092929b164bdc694726720a67ca4998427e0b2092e911855c09655cc140b",
+      "lines": 14,
+      "reference_files": [],
+      "status": "pending",
+      "mapping": "Added through full filesystem/build-manifest cross-check; source generation/build inputs included"
+    },
+    {
+      "owned": "native_bt/codecs/aptx/dbt_aptx_backend.c",
+      "sha256": "3ced933c854a92a5d0fd3af97218af73b9fb27a3558e1f0d3f9635760ffb77d2",
+      "lines": 11,
+      "reference_files": [
+        "src/classic/avdtp.c",
+        "example/a2dp_sink_demo.c",
+        "src/btstack_resample.c",
+        "src/btstack_sample_rate_compensation.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/codecs/aptx/dbt_aptx.c",
+      "sha256": "f08457e91d4120c6a2f5a8234fc4e801424008212c1ddc3e006168491d6bec19",
+      "lines": 78,
+      "reference_files": [
+        "src/classic/avdtp.c",
+        "example/a2dp_sink_demo.c",
+        "src/btstack_resample.c",
+        "src/btstack_sample_rate_compensation.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/codecs/aptx/dbt_aptx.h",
+      "sha256": "e0eac08f9e9bf50fcaadfa23b940e576e75254953a1f3ba93d57ee9151567e9c",
+      "lines": 8,
+      "reference_files": [
+        "src/classic/avdtp.c",
+        "example/a2dp_sink_demo.c",
+        "src/btstack_resample.c",
+        "src/btstack_sample_rate_compensation.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/codecs/common/dbt_codec.c",
+      "sha256": "255df41728a544f00c4fda9cd37c907d2a1577a16be9e008595ea18fcde04fad",
+      "lines": 482,
+      "reference_files": [
+        "src/classic/avdtp.c",
+        "example/a2dp_sink_demo.c",
+        "src/btstack_resample.c",
+        "src/btstack_sample_rate_compensation.c"
+      ],
+      "status": "partial_review",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/codecs/common/dbt_codec.h",
+      "sha256": "75a205926edd26c53b6f65f3aebf4fbc1d4ed5240677039a3457417d7fb70216",
+      "lines": 178,
+      "reference_files": [
+        "src/classic/avdtp.c",
+        "example/a2dp_sink_demo.c",
+        "src/btstack_resample.c",
+        "src/btstack_sample_rate_compensation.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/codecs/ldac/dbt_ldac_bt.c",
+      "sha256": "92010868b1b0929308764542c4e52eb4637d2e17c6e66f433feec48654d89086",
+      "lines": 21,
+      "reference_files": [
+        "src/classic/avdtp.c",
+        "example/a2dp_sink_demo.c",
+        "src/btstack_resample.c",
+        "src/btstack_sample_rate_compensation.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/codecs/ldac/dbt_ldac_decoder.c",
+      "sha256": "7da6fd3cec0b008fc5c89687d0987c37b04885563167dd5630ab27dffbc3b83b",
+      "lines": 99,
+      "reference_files": [
+        "src/classic/avdtp.c",
+        "example/a2dp_sink_demo.c",
+        "src/btstack_resample.c",
+        "src/btstack_sample_rate_compensation.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/codecs/ldac/dbt_ldac_lib.c",
+      "sha256": "08d7a3359018a5a58485daa812c0d2125307e87d6e863945a1d7033674bf4473",
+      "lines": 19,
+      "reference_files": [
+        "src/classic/avdtp.c",
+        "example/a2dp_sink_demo.c",
+        "src/btstack_resample.c",
+        "src/btstack_sample_rate_compensation.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/codecs/ldac/dbt_ldac_port.h",
+      "sha256": "78d1747ee69d94bc964c2a99707fb6491ea2bfa6f329a083e67315b40d4df5a4",
+      "lines": 13,
+      "reference_files": [
+        "src/classic/avdtp.c",
+        "example/a2dp_sink_demo.c",
+        "src/btstack_resample.c",
+        "src/btstack_sample_rate_compensation.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/codecs/ldac/dbt_ldac.c",
+      "sha256": "eb3cabf27c506087f7bc1fd6c2e70becfacbbda57d60240b905e9463d009a4fe",
+      "lines": 47,
+      "reference_files": [
+        "src/classic/avdtp.c",
+        "example/a2dp_sink_demo.c",
+        "src/btstack_resample.c",
+        "src/btstack_sample_rate_compensation.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/codecs/ldac/dbt_ldac.h",
+      "sha256": "4d9ef9c9fbc9717f95d2248ba1fb6c36f404cc4c0fad8a7324c1de6eede776bd",
+      "lines": 13,
+      "reference_files": [
+        "src/classic/avdtp.c",
+        "example/a2dp_sink_demo.c",
+        "src/btstack_resample.c",
+        "src/btstack_sample_rate_compensation.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/codecs/ldac/prepare_port.py",
+      "sha256": "fb9b77712a2e3aa22d219e79431278cd867dd404928c8f1eb1b7db691014b0fa",
+      "lines": 130,
+      "reference_files": [],
+      "status": "pending",
+      "mapping": "Added through full filesystem/build-manifest cross-check; source generation/build inputs included"
+    },
+    {
+      "owned": "native_bt/codecs/lhdcv5/CMakeLists.txt",
+      "sha256": "e952f8de82501ee9fc0195029874b6bb43a7527f17be54eafb9d04339942d394",
+      "lines": 4,
+      "reference_files": [],
+      "status": "pending",
+      "mapping": "Added through full filesystem/build-manifest cross-check; source generation/build inputs included"
+    },
+    {
+      "owned": "native_bt/codecs/lhdcv5/dbt_lhdc_alloc.h",
+      "sha256": "035fcc5c71d5a14a0298aea04662e700fc17a9ffabec66db07b49f08ee5f0410",
+      "lines": 9,
+      "reference_files": [
+        "src/classic/avdtp.c",
+        "example/a2dp_sink_demo.c",
+        "src/btstack_resample.c",
+        "src/btstack_sample_rate_compensation.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/codecs/lhdcv5/dbt_lhdc_bits.h",
+      "sha256": "2a94e020da0eca8a902ba1d3ef542e595c0474e454addcf13666e79949094a2e",
+      "lines": 41,
+      "reference_files": [
+        "src/classic/avdtp.c",
+        "example/a2dp_sink_demo.c",
+        "src/btstack_resample.c",
+        "src/btstack_sample_rate_compensation.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/codecs/lhdcv5/dbt_lhdcv5_codec.c",
+      "sha256": "a37d6b05c18381b35baee3026302b052888a91b4f869b94a386328b7f43940cf",
+      "lines": 165,
+      "reference_files": [
+        "src/classic/avdtp.c",
+        "example/a2dp_sink_demo.c",
+        "src/btstack_resample.c",
+        "src/btstack_sample_rate_compensation.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/codecs/lhdcv5/dbt_lhdcv5_codec.h",
+      "sha256": "6d739471967946d2977af695680cdfbba1584c250a2ab2ed88ce076d24d64c73",
+      "lines": 8,
+      "reference_files": [
+        "src/classic/avdtp.c",
+        "example/a2dp_sink_demo.c",
+        "src/btstack_resample.c",
+        "src/btstack_sample_rate_compensation.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/codecs/lhdcv5/dbt_lhdcv5.c",
+      "sha256": "2575fa94cb85f5284e27a1e0c7753e4eda129f93c80f475c9a6f940188a15b7e",
+      "lines": 137,
+      "reference_files": [
+        "src/classic/avdtp.c",
+        "example/a2dp_sink_demo.c",
+        "src/btstack_resample.c",
+        "src/btstack_sample_rate_compensation.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/codecs/lhdcv5/dbt_lhdcv5.h",
+      "sha256": "b226914acc93f5397700bc1b57c5c9f51e0183cefd91b3ac6555c52f41bb5119",
+      "lines": 31,
+      "reference_files": [
+        "src/classic/avdtp.c",
+        "example/a2dp_sink_demo.c",
+        "src/btstack_resample.c",
+        "src/btstack_sample_rate_compensation.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/codecs/lhdcv5/prepare_port.py",
+      "sha256": "649ff47f74e633fdc5a14330836b169924a1a033d18fe5a17f68d64658dbf027",
+      "lines": 292,
+      "reference_files": [],
+      "status": "pending",
+      "mapping": "Added through full filesystem/build-manifest cross-check; source generation/build inputs included"
+    },
+    {
+      "owned": "native_bt/codecs/opus/dbt_opus.c",
+      "sha256": "70c3316520a7967f88445f5d6b2175f83bf6b3892fdda1842129fc72818c5d3c",
+      "lines": 338,
+      "reference_files": [
+        "src/classic/avdtp.c",
+        "example/a2dp_sink_demo.c",
+        "src/btstack_resample.c",
+        "src/btstack_sample_rate_compensation.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/codecs/opus/dbt_opus.h",
+      "sha256": "cd9b7166fd14babacbfda42b909a63289983d1d4f686895bf342a9a1023dfc01",
+      "lines": 11,
+      "reference_files": [
+        "src/classic/avdtp.c",
+        "example/a2dp_sink_demo.c",
+        "src/btstack_resample.c",
+        "src/btstack_sample_rate_compensation.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/codecs/opus/scratch/dbt_opus_guarded_api.h",
+      "sha256": "0b075488e76b4c6128853532d11834656f26e67b602fa6f308e4f206b798df50",
+      "lines": 8,
+      "reference_files": [
+        "src/classic/avdtp.c",
+        "example/a2dp_sink_demo.c",
+        "src/btstack_resample.c",
+        "src/btstack_sample_rate_compensation.c"
+      ],
+      "status": "pending",
+      "mapping": "Added through full filesystem/build-manifest cross-check; source generation/build inputs included"
+    },
+    {
+      "owned": "native_bt/codecs/opus/scratch/dbt_opus_scratch_override.h",
+      "sha256": "ff0d3d0c58fd7e01fe0cca82f506e82c420e08614646b625eb7259552fc1d594",
+      "lines": 21,
+      "reference_files": [
+        "src/classic/avdtp.c",
+        "example/a2dp_sink_demo.c",
+        "src/btstack_resample.c",
+        "src/btstack_sample_rate_compensation.c"
+      ],
+      "status": "pending",
+      "mapping": "Added through full filesystem/build-manifest cross-check; source generation/build inputs included"
+    },
+    {
+      "owned": "native_bt/codecs/opus/scratch/dbt_opus_scratch.c",
+      "sha256": "747e43b06d320c46c4110c003bcd75fa1175c52820a570609f81679728387cf5",
+      "lines": 91,
+      "reference_files": [
+        "src/classic/avdtp.c",
+        "example/a2dp_sink_demo.c",
+        "src/btstack_resample.c",
+        "src/btstack_sample_rate_compensation.c"
+      ],
+      "status": "pending",
+      "mapping": "Added through full filesystem/build-manifest cross-check; source generation/build inputs included"
+    },
+    {
+      "owned": "native_bt/codecs/opus/scratch/dbt_opus_scratch.h",
+      "sha256": "6146bc554a01c9fa72747a7524ab310259ca7efda1db081cd5d47341e6607a76",
+      "lines": 40,
+      "reference_files": [
+        "src/classic/avdtp.c",
+        "example/a2dp_sink_demo.c",
+        "src/btstack_resample.c",
+        "src/btstack_sample_rate_compensation.c"
+      ],
+      "status": "pending",
+      "mapping": "Added through full filesystem/build-manifest cross-check; source generation/build inputs included"
+    },
+    {
+      "owned": "native_bt/codecs/sbc/dbt_sbc_codec.c",
+      "sha256": "cd32a7d0d12b353c9da8cb6e0c437c5731840dd377c48a4669fd88767141e7d4",
+      "lines": 117,
+      "reference_files": [
+        "src/classic/btstack_sbc_decoder_bluedroid.c",
+        "example/a2dp_sink_demo.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/codecs/sbc/dbt_sbc_codec.h",
+      "sha256": "3a28711eb63465c3be20c392d11ca7e6ebc8ed40833faaace1f29640673cc202",
+      "lines": 6,
+      "reference_files": [
+        "src/classic/btstack_sbc_decoder_bluedroid.c",
+        "example/a2dp_sink_demo.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/codecs/sbc/dbt_sbc_decoder.c",
+      "sha256": "e3d175d360990f7032ea4df0e456fa4e53853dd272625bb7a8bc300cda1237f6",
+      "lines": 74,
+      "reference_files": [
+        "src/classic/btstack_sbc_decoder_bluedroid.c",
+        "example/a2dp_sink_demo.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/codecs/sbc/dbt_sbc_decoder.h",
+      "sha256": "1dc56f493d812114b540dcdd5af1d1c48f63e4a619b04567f103ef456f5f590c",
+      "lines": 33,
+      "reference_files": [
+        "src/classic/btstack_sbc_decoder_bluedroid.c",
+        "example/a2dp_sink_demo.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/codecs/sbc/dbt_sbc_worker.c",
+      "sha256": "6cd8ca2c94391a981390f51fef939b8ca162cb1e334a92aea814d19172b21fd8",
+      "lines": 168,
+      "reference_files": [
+        "src/classic/btstack_sbc_decoder_bluedroid.c",
+        "example/a2dp_sink_demo.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/codecs/sbc/dbt_sbc_worker.h",
+      "sha256": "cfa9dd0884bb5e1a99775d3a251b0a2444d31ef5e4621151e0011731afd16d57",
+      "lines": 57,
+      "reference_files": [
+        "src/classic/btstack_sbc_decoder_bluedroid.c",
+        "example/a2dp_sink_demo.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/codecs/sbc/port/common/bt_target.h",
+      "sha256": "154b81fba3e67bbd14b87ebbc8fb2c1ade4c2bd722ee35ccf56c4f5b851fd577",
+      "lines": 12,
+      "reference_files": [],
+      "status": "pending",
+      "mapping": "product/support code; no direct protocol counterpart assigned"
+    },
+    {
+      "owned": "native_bt/codecs/sbc/port/dbt_oi_types.h",
+      "sha256": "4da2b8b283722d785f71fd189986e5f33b736ccfc5e35b954464a33e3983bef3",
+      "lines": 26,
+      "reference_files": [],
+      "status": "pending",
+      "mapping": "product/support code; no direct protocol counterpart assigned"
+    },
+    {
+      "owned": "native_bt/codecs/sbc/prepare_port.py",
+      "sha256": "d2b55782033748a44d2a22b27da89f1aa7515abe4fda809abf588229d4629b1f",
+      "lines": 53,
+      "reference_files": [],
+      "status": "pending",
+      "mapping": "Added through full filesystem/build-manifest cross-check; source generation/build inputs included"
+    },
+    {
+      "owned": "native_bt/esp32_probe/CMakeLists.txt",
+      "sha256": "fb8a6160f89c72722421eb6b4ff92feda53e4d2eaf5e73dc34699960de8f81fa",
+      "lines": 186,
+      "reference_files": [],
+      "status": "pending",
+      "mapping": "Added through full filesystem/build-manifest cross-check; source generation/build inputs included"
+    },
+    {
+      "owned": "native_bt/esp32_probe/components/aac_decoder/CMakeLists.txt",
+      "sha256": "b63118afd32465941f1b667fa6f041b6d5c079bbe0998c29e89d7e5c0c80244b",
+      "lines": 31,
+      "reference_files": [],
+      "status": "pending",
+      "mapping": "Added through full filesystem/build-manifest cross-check; source generation/build inputs included"
+    },
+    {
+      "owned": "native_bt/esp32_probe/components/aptx_decoder/CMakeLists.txt",
+      "sha256": "6b1fb2511baf370c261f5314960392e97cd5ddcc7c34993f9668127931dd2eb9",
+      "lines": 19,
+      "reference_files": [],
+      "status": "pending",
+      "mapping": "Added through full filesystem/build-manifest cross-check; source generation/build inputs included"
+    },
+    {
+      "owned": "native_bt/esp32_probe/components/codec_core/CMakeLists.txt",
+      "sha256": "47a20865993b01908543867b04c62e5382eb466b78f44d8f66161d36a0097f7c",
+      "lines": 9,
+      "reference_files": [],
+      "status": "pending",
+      "mapping": "Added through full filesystem/build-manifest cross-check; source generation/build inputs included"
+    },
+    {
+      "owned": "native_bt/esp32_probe/components/ldac_decoder/CMakeLists.txt",
+      "sha256": "4893d48800994bf60d8adf027b51d228817d6495be0dcf69101eac5361b43ad6",
+      "lines": 25,
+      "reference_files": [],
+      "status": "pending",
+      "mapping": "Added through full filesystem/build-manifest cross-check; source generation/build inputs included"
+    },
+    {
+      "owned": "native_bt/esp32_probe/components/lhdcv5_decoder/CMakeLists.txt",
+      "sha256": "c457dffcda11ea2b96e0f7a9c853e474dc196a4ac4bbf2ab8c4183a5d35e264c",
+      "lines": 51,
+      "reference_files": [],
+      "status": "pending",
+      "mapping": "Added through full filesystem/build-manifest cross-check; source generation/build inputs included"
+    },
+    {
+      "owned": "native_bt/esp32_probe/components/native_bt/CMakeLists.txt",
+      "sha256": "959f208664138418e378adc667cbf2fa118f663ce6c1753676434c980a7a8b6b",
+      "lines": 72,
+      "reference_files": [],
+      "status": "pending",
+      "mapping": "Added through full filesystem/build-manifest cross-check; source generation/build inputs included"
+    },
+    {
+      "owned": "native_bt/esp32_probe/components/opus_decoder/CMakeLists.txt",
+      "sha256": "53928148ecd483647f36b28131034ff14ee8e2b3d3c55653c84cc67ea5cd1b7d",
+      "lines": 157,
+      "reference_files": [],
+      "status": "pending",
+      "mapping": "Added through full filesystem/build-manifest cross-check; source generation/build inputs included"
+    },
+    {
+      "owned": "native_bt/esp32_probe/components/opus_decoder/config/config.h",
+      "sha256": "95db90be2701d6e87623afa4abc483db9029cd8b615c97dceeb7a4d81fc5af14",
+      "lines": 12,
+      "reference_files": [],
+      "status": "pending",
+      "mapping": "Added through full filesystem/build-manifest cross-check; source generation/build inputs included"
+    },
+    {
+      "owned": "native_bt/esp32_probe/components/sbc_decoder/CMakeLists.txt",
+      "sha256": "3e8f6f56e08b3b2aa59653c06d17b2dd2c0346534ebfc6e98e5c628c56b79ece",
+      "lines": 26,
+      "reference_files": [],
+      "status": "pending",
+      "mapping": "Added through full filesystem/build-manifest cross-check; source generation/build inputs included"
+    },
+    {
+      "owned": "native_bt/esp32_probe/main/CMakeLists.txt",
+      "sha256": "e4c0440bdb73c50546e476953759c393ed940d2a97cb9cdd96508911589f4a02",
+      "lines": 212,
+      "reference_files": [],
+      "status": "pending",
+      "mapping": "Added through full filesystem/build-manifest cross-check; source generation/build inputs included"
+    },
+    {
+      "owned": "native_bt/esp32_probe/main/Kconfig.projbuild",
+      "sha256": "267510a05a1cc45d588e5dbabdcce6f1db7e89b331f0225978dcfac9b5aac1fa",
+      "lines": 15,
+      "reference_files": [],
+      "status": "pending",
+      "mapping": "Added through full filesystem/build-manifest cross-check; source generation/build inputs included"
+    },
+    {
+      "owned": "native_bt/esp32_probe/main/probe_admission.c",
+      "sha256": "64a6c6e90836aecc6d03307338c19dbceb3354569d68921db78e368d187463dc",
+      "lines": 296,
+      "reference_files": [],
+      "status": "pending",
+      "mapping": "product/support code; no direct protocol counterpart assigned"
+    },
+    {
+      "owned": "native_bt/esp32_probe/main/probe_admission.h",
+      "sha256": "bbcff0acaef3bbb1b9336c4bc6a5719760af37a796031568f30cbdf50abd6a60",
+      "lines": 48,
+      "reference_files": [],
+      "status": "pending",
+      "mapping": "product/support code; no direct protocol counterpart assigned"
+    },
+    {
+      "owned": "native_bt/esp32_probe/main/probe_audio_limits.h",
+      "sha256": "8052accffa71ff3cebfa684dfc3f14789b1fc6b116ede6903b19f79bc4f84e94",
+      "lines": 10,
+      "reference_files": [],
+      "status": "pending",
+      "mapping": "product/support code; no direct protocol counterpart assigned"
+    },
+    {
+      "owned": "native_bt/esp32_probe/main/probe_audio.c",
+      "sha256": "30efbe543a7b3889f0919ff7da269867e35f649394ab013c271665cf89dcbcc4",
+      "lines": 921,
+      "reference_files": [],
+      "status": "pending",
+      "mapping": "product/support code; no direct protocol counterpart assigned"
+    },
+    {
+      "owned": "native_bt/esp32_probe/main/probe_audio.h",
+      "sha256": "f89223a522f5b025aedf7bf46f65da7ca9680721af12c880b3dc934236b42c1b",
+      "lines": 41,
+      "reference_files": [],
+      "status": "pending",
+      "mapping": "product/support code; no direct protocol counterpart assigned"
+    },
+    {
+      "owned": "native_bt/esp32_probe/main/probe_avrcp.c",
+      "sha256": "81961e64083b62f17277f9dd508b8df6f3e530c8048f65e039ec093348ff5025",
+      "lines": 430,
+      "reference_files": [],
+      "status": "pending",
+      "mapping": "product/support code; no direct protocol counterpart assigned"
+    },
+    {
+      "owned": "native_bt/esp32_probe/main/probe_avrcp.h",
+      "sha256": "502b08bc5df5fd699ba6ce79c5bd2e01a26eecaa12e1dc550bd5299902c19f45",
+      "lines": 45,
+      "reference_files": [],
+      "status": "pending",
+      "mapping": "product/support code; no direct protocol counterpart assigned"
+    },
+    {
+      "owned": "native_bt/esp32_probe/main/probe_cccd_store.c",
+      "sha256": "b777afebbd81fbe4468a2e1ac6dd51a01d862b98ddd978d3f39c1bffc1a8375a",
+      "lines": 63,
+      "reference_files": [],
+      "status": "pending",
+      "mapping": "product/support code; no direct protocol counterpart assigned"
+    },
+    {
+      "owned": "native_bt/esp32_probe/main/probe_cccd_store.h",
+      "sha256": "f37ad997f2dd232cd67ba99f20db31ec868ba5c2d2d11ad88ca48b1badb9e74c",
+      "lines": 15,
+      "reference_files": [],
+      "status": "pending",
+      "mapping": "product/support code; no direct protocol counterpart assigned"
+    },
+    {
+      "owned": "native_bt/esp32_probe/main/probe_codec_check.c",
+      "sha256": "d7db3194ab2880f4504583a0c8793da531ab52dcf480078a99f53fbd25d7b453",
+      "lines": 471,
+      "reference_files": [
+        "src/classic/avdtp.c",
+        "example/a2dp_sink_demo.c",
+        "src/btstack_resample.c",
+        "src/btstack_sample_rate_compensation.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/esp32_probe/main/probe_codec_check.h",
+      "sha256": "0653bdd5cd5565228eab67cc5b97835d98e2ce1b28c8d96fd79e6b464d332ec2",
+      "lines": 16,
+      "reference_files": [
+        "src/classic/avdtp.c",
+        "example/a2dp_sink_demo.c",
+        "src/btstack_resample.c",
+        "src/btstack_sample_rate_compensation.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/esp32_probe/main/probe_codec_diagnostic.c",
+      "sha256": "f35b9f9a145a059daf957c652939b224439a32d894f1c2d01d7e7690a94f2a4c",
+      "lines": 59,
+      "reference_files": [
+        "src/classic/avdtp.c",
+        "example/a2dp_sink_demo.c",
+        "src/btstack_resample.c",
+        "src/btstack_sample_rate_compensation.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/esp32_probe/main/probe_codec_vectors.h",
+      "sha256": "467b9165faef8c7cd658a966b156863a46e364b721a413c8f9026a88db903a2e",
+      "lines": 234,
+      "reference_files": [
+        "src/classic/avdtp.c",
+        "example/a2dp_sink_demo.c",
+        "src/btstack_resample.c",
+        "src/btstack_sample_rate_compensation.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/esp32_probe/main/probe_diagnostic_stats.c",
+      "sha256": "85f1c6ef19d93d5f57389f84ed4694fe55a1df3e26be8d44487f1132020e5969",
+      "lines": 16,
+      "reference_files": [],
+      "status": "pending",
+      "mapping": "product/support code; no direct protocol counterpart assigned"
+    },
+    {
+      "owned": "native_bt/esp32_probe/main/probe_diagnostic_stats.h",
+      "sha256": "765e99ed686f8829ba3b5f2617addf12349c37d38a60334c56481942b90fe892",
+      "lines": 14,
+      "reference_files": [],
+      "status": "pending",
+      "mapping": "product/support code; no direct protocol counterpart assigned"
+    },
+    {
+      "owned": "native_bt/esp32_probe/main/probe_dsp_block.c",
+      "sha256": "7cca2035b2d7f07cbba53c086beb4c8178aa8db4b6e18479559798cfea76dfe5",
+      "lines": 10,
+      "reference_files": [],
+      "status": "pending",
+      "mapping": "product/support code; no direct protocol counterpart assigned"
+    },
+    {
+      "owned": "native_bt/esp32_probe/main/probe_dsp_compare.c",
+      "sha256": "c5d43eab2d188641ee1fc3aee4be40125d276e6663ff4e9958350b83f32e109a",
+      "lines": 191,
+      "reference_files": [],
+      "status": "pending",
+      "mapping": "product/support code; no direct protocol counterpart assigned"
+    },
+    {
+      "owned": "native_bt/esp32_probe/main/probe_dsp_compare.h",
+      "sha256": "8b14d1e0d745c773042a4f9f9914b89bfe55f0122772f909800fbcd1c254f705",
+      "lines": 8,
+      "reference_files": [],
+      "status": "pending",
+      "mapping": "product/support code; no direct protocol counterpart assigned"
+    },
+    {
+      "owned": "native_bt/esp32_probe/main/probe_dsp_inline.c",
+      "sha256": "fa7d97e97c7b033b6bf7c65c5c8a3ffb7534afb0031c889a02ddc6d80cb0082d",
+      "lines": 9,
+      "reference_files": [],
+      "status": "pending",
+      "mapping": "product/support code; no direct protocol counterpart assigned"
+    },
+    {
+      "owned": "native_bt/esp32_probe/main/probe_dsp_o3.c",
+      "sha256": "12000c684430ad2315eb2bd1210a758e3dee0e02b461c7749019bf5fe56d4a09",
+      "lines": 8,
+      "reference_files": [],
+      "status": "pending",
+      "mapping": "product/support code; no direct protocol counterpart assigned"
+    },
+    {
+      "owned": "native_bt/esp32_probe/main/probe_dsp_os.c",
+      "sha256": "e78ec994b9c29a78be8b8a5ceff9636d19ca216f565a76e93e3d7d83c32766f3",
+      "lines": 12,
+      "reference_files": [],
+      "status": "pending",
+      "mapping": "product/support code; no direct protocol counterpart assigned"
+    },
+    {
+      "owned": "native_bt/esp32_probe/main/probe_dsp_profile.c",
+      "sha256": "6a54c98e5d5065195a815bbbd12862d10f131c3f471e522afe869e6ebf32850d",
+      "lines": 27,
+      "reference_files": [],
+      "status": "pending",
+      "mapping": "product/support code; no direct protocol counterpart assigned"
+    },
+    {
+      "owned": "native_bt/esp32_probe/main/probe_dsp_profile.h",
+      "sha256": "0ed53eb9e5fc4f0f469ec93a81d02c82e0eb33b526e528ec15cd58b160ad0164",
+      "lines": 11,
+      "reference_files": [],
+      "status": "pending",
+      "mapping": "product/support code; no direct protocol counterpart assigned"
+    },
+    {
+      "owned": "native_bt/esp32_probe/main/probe_dsp_transposed.c",
+      "sha256": "0cb06c7ab149d2e2daf53e1d5b4648ff6ee1ec6c8f299ec0b750344f33b8f38f",
+      "lines": 11,
+      "reference_files": [],
+      "status": "pending",
+      "mapping": "product/support code; no direct protocol counterpart assigned"
+    },
+    {
+      "owned": "native_bt/esp32_probe/main/probe_dsp_word.c",
+      "sha256": "7359cb44f7f26374d1301004ef6fc98930f65865be04ddbb210d1ae9f0974566",
+      "lines": 12,
+      "reference_files": [],
+      "status": "pending",
+      "mapping": "product/support code; no direct protocol counterpart assigned"
+    },
+    {
+      "owned": "native_bt/esp32_probe/main/probe_echo.c",
+      "sha256": "9cf1b8e2e5d199e0bd3c30a16323993684e8a2fe3108b4cc8d47e548c53c2322",
+      "lines": 222,
+      "reference_files": [],
+      "status": "pending",
+      "mapping": "product/support code; no direct protocol counterpart assigned"
+    },
+    {
+      "owned": "native_bt/esp32_probe/main/probe_echo.h",
+      "sha256": "04293feb4447f2b429c484a3ffae2ae6d00de323b17da63f5ac01ff12f3479b9",
+      "lines": 15,
+      "reference_files": [],
+      "status": "pending",
+      "mapping": "product/support code; no direct protocol counterpart assigned"
+    },
+    {
+      "owned": "native_bt/esp32_probe/main/probe_fir_compare.c",
+      "sha256": "3e9781ccf8132c9d1175a69bb239604320e1c3c7dd58ed12af0ca73a43702b8d",
+      "lines": 101,
+      "reference_files": [],
+      "status": "pending",
+      "mapping": "product/support code; no direct protocol counterpart assigned"
+    },
+    {
+      "owned": "native_bt/esp32_probe/main/probe_fir_compare.h",
+      "sha256": "a5d5bb7f1fb5a68760f5b9d0d95b4be017446c895b4fb271f46fbf155b449894",
+      "lines": 8,
+      "reference_files": [],
+      "status": "pending",
+      "mapping": "product/support code; no direct protocol counterpart assigned"
+    },
+    {
+      "owned": "native_bt/esp32_probe/main/probe_fir_fold.c",
+      "sha256": "f6ab7a8276158efd37e252b5bd7ad976ae22b450c6d5602ae3eb3dd36f5a4130",
+      "lines": 9,
+      "reference_files": [],
+      "status": "pending",
+      "mapping": "product/support code; no direct protocol counterpart assigned"
+    },
+    {
+      "owned": "native_bt/esp32_probe/main/probe_fir_o2.c",
+      "sha256": "9d4b787ea7de61ea59d41986c09e2baed2d8ebe81596312a28cbafcb2393bee9",
+      "lines": 8,
+      "reference_files": [],
+      "status": "pending",
+      "mapping": "product/support code; no direct protocol counterpart assigned"
+    },
+    {
+      "owned": "native_bt/esp32_probe/main/probe_fir_o3.c",
+      "sha256": "e396887db10af75d41ce8d043d9607e0c20f1721f99d98babc96625e9f64f1a4",
+      "lines": 8,
+      "reference_files": [],
+      "status": "pending",
+      "mapping": "product/support code; no direct protocol counterpart assigned"
+    },
+    {
+      "owned": "native_bt/esp32_probe/main/probe_fir_os.c",
+      "sha256": "979737cfad07250fb3b99037036d275c1102e2b6fe55cf040593f22fd3ac6a94",
+      "lines": 8,
+      "reference_files": [],
+      "status": "pending",
+      "mapping": "product/support code; no direct protocol counterpart assigned"
+    },
+    {
+      "owned": "native_bt/esp32_probe/main/probe_fir_pair.c",
+      "sha256": "b6fbfc721b089a5757565b5a30a57c94eb64f4b271764013c89ef783b8bff2e5",
+      "lines": 9,
+      "reference_files": [],
+      "status": "pending",
+      "mapping": "product/support code; no direct protocol counterpart assigned"
+    },
+    {
+      "owned": "native_bt/esp32_probe/main/probe_fir_wide.c",
+      "sha256": "bf9bae87d94a8eba1eeedeed7a85af8c1a4a40e9cb4556ca6c3231728887781e",
+      "lines": 9,
+      "reference_files": [],
+      "status": "pending",
+      "mapping": "product/support code; no direct protocol counterpart assigned"
+    },
+    {
+      "owned": "native_bt/esp32_probe/main/probe_gatt.c",
+      "sha256": "30811dd9509e86efcee4152c4734f5e7b55da608898183bc6529f1a83ec6bf7f",
+      "lines": 1117,
+      "reference_files": [],
+      "status": "pending",
+      "mapping": "product/support code; no direct protocol counterpart assigned"
+    },
+    {
+      "owned": "native_bt/esp32_probe/main/probe_gatt.h",
+      "sha256": "8561d20e145d09c37fff92833493ba96f2e0c4f105cc2b44187ef18f7a8157c6",
+      "lines": 84,
+      "reference_files": [],
+      "status": "pending",
+      "mapping": "product/support code; no direct protocol counterpart assigned"
+    },
+    {
+      "owned": "native_bt/esp32_probe/main/probe_ingress.c",
+      "sha256": "70db27792303cffa0d0a76fe595696f17f75294b8011d5c605c7ec4a6eec4930",
+      "lines": 84,
+      "reference_files": [],
+      "status": "pending",
+      "mapping": "product/support code; no direct protocol counterpart assigned"
+    },
+    {
+      "owned": "native_bt/esp32_probe/main/probe_ingress.h",
+      "sha256": "5f122fc159bc312b686ecb21b26a6653b2609e15ff3305e47d5a792ad1c3005b",
+      "lines": 24,
+      "reference_files": [],
+      "status": "pending",
+      "mapping": "product/support code; no direct protocol counterpart assigned"
+    },
+    {
+      "owned": "native_bt/esp32_probe/main/probe_lhdc_max_fixture.h",
+      "sha256": "5fcee914072362d19931be65778a5532821ea252f44187978af5efedb485386f",
+      "lines": 258,
+      "reference_files": [
+        "src/classic/avdtp.c",
+        "example/a2dp_sink_demo.c",
+        "src/btstack_resample.c",
+        "src/btstack_sample_rate_compensation.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/esp32_probe/main/probe_lhdc_profile.c",
+      "sha256": "151306e1cdd2c1c94c54f2297b115b5540311b7c6f983d40e1ce3462f5b861fc",
+      "lines": 21,
+      "reference_files": [
+        "src/classic/avdtp.c",
+        "example/a2dp_sink_demo.c",
+        "src/btstack_resample.c",
+        "src/btstack_sample_rate_compensation.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/esp32_probe/main/probe_lhdc_profile.h",
+      "sha256": "4c846a2c1c9dff6cc6e6af6b065bacd2d1998bea6ace573d5cd65fdc836b33b6",
+      "lines": 17,
+      "reference_files": [
+        "src/classic/avdtp.c",
+        "example/a2dp_sink_demo.c",
+        "src/btstack_resample.c",
+        "src/btstack_sample_rate_compensation.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/esp32_probe/main/probe_main.c",
+      "sha256": "b499db0f6f4923eb880a5984d5ae919d96feefa32369db12bd1e42993c46e3a3",
+      "lines": 1108,
+      "reference_files": [],
+      "status": "partial_review",
+      "mapping": "product/support code; no direct protocol counterpart assigned"
+    },
+    {
+      "owned": "native_bt/esp32_probe/main/probe_opus_vectors.h",
+      "sha256": "b2d18765f18a887f4494d7b17b9fa6dd55c5cfae4e8ff671303963891c65374e",
+      "lines": 99,
+      "reference_files": [
+        "src/classic/avdtp.c",
+        "example/a2dp_sink_demo.c",
+        "src/btstack_resample.c",
+        "src/btstack_sample_rate_compensation.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/esp32_probe/main/probe_output.c",
+      "sha256": "303490c46911cddd2e4367c848daad7ddd5d84eab4b46bd58a98634187ad6aa2",
+      "lines": 1193,
+      "reference_files": [],
+      "status": "pending",
+      "mapping": "product/support code; no direct protocol counterpart assigned"
+    },
+    {
+      "owned": "native_bt/esp32_probe/main/probe_output.h",
+      "sha256": "b1184710d0eb3295e4adc2509affba503162e93abe582f9d7cb136a876ffa59a",
+      "lines": 106,
+      "reference_files": [],
+      "status": "pending",
+      "mapping": "product/support code; no direct protocol counterpart assigned"
+    },
+    {
+      "owned": "native_bt/esp32_probe/main/probe_pair_button.c",
+      "sha256": "e4de0825c8013a674866cfd5e48f755e524dd01f023b65a6b83c63657517ab95",
+      "lines": 65,
+      "reference_files": [],
+      "status": "pending",
+      "mapping": "product/support code; no direct protocol counterpart assigned"
+    },
+    {
+      "owned": "native_bt/esp32_probe/main/probe_pair_button.h",
+      "sha256": "5218264ca7dff55d48128e25c6b8a9f810fe97e16d117e246da832193164b138",
+      "lines": 15,
+      "reference_files": [],
+      "status": "pending",
+      "mapping": "product/support code; no direct protocol counterpart assigned"
+    },
+    {
+      "owned": "native_bt/esp32_probe/main/probe_pipeline_check.c",
+      "sha256": "c94de09a7654e3010a2b30f1b2951fe60eb1124e05507776afc7d9161df612e7",
+      "lines": 268,
+      "reference_files": [],
+      "status": "pending",
+      "mapping": "product/support code; no direct protocol counterpart assigned"
+    },
+    {
+      "owned": "native_bt/esp32_probe/main/probe_pipeline_check.h",
+      "sha256": "30ed57f42872439f29c7b42b39ed29de106a67cf6c78e17e83c8123dc85027bc",
+      "lines": 8,
+      "reference_files": [],
+      "status": "pending",
+      "mapping": "product/support code; no direct protocol counterpart assigned"
+    },
+    {
+      "owned": "native_bt/esp32_probe/main/probe_product_io_owner.c",
+      "sha256": "72faa6d1a3830c8a8349218a46cf73692396327c084aef161bffb82b9e0d4390",
+      "lines": 266,
+      "reference_files": [],
+      "status": "pending",
+      "mapping": "product/support code; no direct protocol counterpart assigned"
+    },
+    {
+      "owned": "native_bt/esp32_probe/main/probe_product_io_owner.h",
+      "sha256": "e07637f3ad394fc87be774028d8b2306b3ae9b944155a3fcc34f49caf5ab168a",
+      "lines": 38,
+      "reference_files": [],
+      "status": "pending",
+      "mapping": "product/support code; no direct protocol counterpart assigned"
+    },
+    {
+      "owned": "native_bt/esp32_probe/main/probe_product_io.c",
+      "sha256": "f4cf7059c6799dd492b4566df9f0b83a93e5d74a67ac1ba167abc6a2736f592e",
+      "lines": 769,
+      "reference_files": [],
+      "status": "pending",
+      "mapping": "product/support code; no direct protocol counterpart assigned"
+    },
+    {
+      "owned": "native_bt/esp32_probe/main/probe_product_io.h",
+      "sha256": "5e6df0058a24bf5bda5971f5575b23b5ff5d6efe40e2543391e1a0dcf90bc9db",
+      "lines": 112,
+      "reference_files": [],
+      "status": "pending",
+      "mapping": "product/support code; no direct protocol counterpart assigned"
+    },
+    {
+      "owned": "native_bt/esp32_probe/main/probe_product_runtime.c",
+      "sha256": "6443f40c916cb29f8095955ab69acba06ee453ac8e62259fddea10076274b8d2",
+      "lines": 184,
+      "reference_files": [],
+      "status": "pending",
+      "mapping": "product/support code; no direct protocol counterpart assigned"
+    },
+    {
+      "owned": "native_bt/esp32_probe/main/probe_product_runtime.h",
+      "sha256": "62933adc52b157a30c97f8ebda171a7d6493b8af6dcf9ad4ce9a330be337fa3f",
+      "lines": 55,
+      "reference_files": [],
+      "status": "pending",
+      "mapping": "product/support code; no direct protocol counterpart assigned"
+    },
+    {
+      "owned": "native_bt/esp32_probe/main/probe_product.c",
+      "sha256": "b922a39f65eeee2816321fa94b8891b13315bcd51333a08f384de59f5857835f",
+      "lines": 230,
+      "reference_files": [],
+      "status": "pending",
+      "mapping": "product/support code; no direct protocol counterpart assigned"
+    },
+    {
+      "owned": "native_bt/esp32_probe/main/probe_product.h",
+      "sha256": "ece2570cc38eafc19e69ef44fe877be17262cb3fec94f8b1379ad305cb841b5c",
+      "lines": 58,
+      "reference_files": [],
+      "status": "pending",
+      "mapping": "product/support code; no direct protocol counterpart assigned"
+    },
+    {
+      "owned": "native_bt/esp32_probe/main/probe_reset_dispatch.c",
+      "sha256": "743406614befcb15eb63b4b79a4374c5c77ea0a62d43e9efff96d5d127ccf520",
+      "lines": 43,
+      "reference_files": [],
+      "status": "pending",
+      "mapping": "product/support code; no direct protocol counterpart assigned"
+    },
+    {
+      "owned": "native_bt/esp32_probe/main/probe_reset_dispatch.h",
+      "sha256": "4146c44c56aafbf904702ea03c22edadb4397882cb4857cb35d3ba6428d432a7",
+      "lines": 13,
+      "reference_files": [],
+      "status": "pending",
+      "mapping": "product/support code; no direct protocol counterpart assigned"
+    },
+    {
+      "owned": "native_bt/esp32_probe/main/probe_restart.c",
+      "sha256": "8470f3145f12cc5300b24a36c601fb10b730a3e0886d8d3cd052ba15d4237c95",
+      "lines": 94,
+      "reference_files": [],
+      "status": "pending",
+      "mapping": "product/support code; no direct protocol counterpart assigned"
+    },
+    {
+      "owned": "native_bt/esp32_probe/main/probe_restart.h",
+      "sha256": "4c90e57804f41249afc21dc9af6a779b23e95ce71b8631f8b1c7ce65e047e2e3",
+      "lines": 17,
+      "reference_files": [],
+      "status": "pending",
+      "mapping": "product/support code; no direct protocol counterpart assigned"
+    },
+    {
+      "owned": "native_bt/esp32_probe/main/probe_rfcomm.c",
+      "sha256": "9d57ed10adf1e5a27a4081097eb1988c31a52500ca64bbf038a97d15c5e35cc4",
+      "lines": 150,
+      "reference_files": [],
+      "status": "pending",
+      "mapping": "product/support code; no direct protocol counterpart assigned"
+    },
+    {
+      "owned": "native_bt/esp32_probe/main/probe_rfcomm.h",
+      "sha256": "a80676889c3f00e139372a31f8bb664246e372c369be4a298aa67dcf1cbe63b5",
+      "lines": 25,
+      "reference_files": [],
+      "status": "pending",
+      "mapping": "product/support code; no direct protocol counterpart assigned"
+    },
+    {
+      "owned": "native_bt/esp32_probe/main/probe_schedule_limits.h",
+      "sha256": "868e72eacb625c688051ec580514304634f0ea79a2650cee885564973a7b1541",
+      "lines": 36,
+      "reference_files": [],
+      "status": "pending",
+      "mapping": "product/support code; no direct protocol counterpart assigned"
+    },
+    {
+      "owned": "native_bt/esp32_probe/main/probe_scheduler.c",
+      "sha256": "42528e1b51da8ab5cfc309ea4ad056f67a3f2e14f7fac4488ef4e605a85be91e",
+      "lines": 100,
+      "reference_files": [],
+      "status": "pending",
+      "mapping": "product/support code; no direct protocol counterpart assigned"
+    },
+    {
+      "owned": "native_bt/esp32_probe/main/probe_scheduler.h",
+      "sha256": "55515a972a6a2382f0ab6a4f3492607d76464a7d18a95dee1fa8f40c8f534d9e",
+      "lines": 28,
+      "reference_files": [],
+      "status": "pending",
+      "mapping": "product/support code; no direct protocol counterpart assigned"
+    },
+    {
+      "owned": "native_bt/esp32_probe/main/probe_scheduler.lf",
+      "sha256": "6bba3ffc81e39ab8b434c74d0c974ddb851fed38bad8b8a834f768e4531a5953",
+      "lines": 7,
+      "reference_files": [],
+      "status": "pending",
+      "mapping": "Added through full filesystem/build-manifest cross-check; source generation/build inputs included"
+    },
+    {
+      "owned": "native_bt/esp32_probe/main/probe_sdp.c",
+      "sha256": "983253625d07829f873e54dda577986dff2622a501ad90f303e1757a9e22ad95",
+      "lines": 152,
+      "reference_files": [],
+      "status": "pending",
+      "mapping": "product/support code; no direct protocol counterpart assigned"
+    },
+    {
+      "owned": "native_bt/esp32_probe/main/probe_sdp.h",
+      "sha256": "be9d8c2be2f52106611a72112591fe75f0787ea540714431a69c1345e80963ae",
+      "lines": 27,
+      "reference_files": [],
+      "status": "pending",
+      "mapping": "product/support code; no direct protocol counterpart assigned"
+    },
+    {
+      "owned": "native_bt/esp32_probe/main/probe_security.c",
+      "sha256": "fc7408dde90850a5c932dd7d5461728977cc11502e0e71aa8730c7de19a7ca4c",
+      "lines": 704,
+      "reference_files": [],
+      "status": "pending",
+      "mapping": "product/support code; no direct protocol counterpart assigned"
+    },
+    {
+      "owned": "native_bt/esp32_probe/main/probe_security.h",
+      "sha256": "1eb3947d154170b25d5cb8309abf35f967853ea7d2a0ef404a8173399bdf2ee2",
+      "lines": 38,
+      "reference_files": [],
+      "status": "pending",
+      "mapping": "product/support code; no direct protocol counterpart assigned"
+    },
+    {
+      "owned": "native_bt/esp32_probe/main/probe_smp.c",
+      "sha256": "ee0d1cc32088dfca7400326d5e83006e32d360f6ab0720b802079b2dd1b10919",
+      "lines": 1023,
+      "reference_files": [],
+      "status": "pending",
+      "mapping": "product/support code; no direct protocol counterpart assigned"
+    },
+    {
+      "owned": "native_bt/esp32_probe/main/probe_smp.h",
+      "sha256": "26f13aa23dd30d1fbf23eb7a1f44592585a5c42fcb9d851c8f4a24ab12ed71ea",
+      "lines": 74,
+      "reference_files": [],
+      "status": "pending",
+      "mapping": "product/support code; no direct protocol counterpart assigned"
+    },
+    {
+      "owned": "native_bt/esp32_probe/main/probe_sound.c",
+      "sha256": "215d3fc361b147eb0911731cb76c110a1b38e7bede1be0180469c28c041e14cf",
+      "lines": 218,
+      "reference_files": [],
+      "status": "pending",
+      "mapping": "product/support code; no direct protocol counterpart assigned"
+    },
+    {
+      "owned": "native_bt/esp32_probe/main/probe_sound.h",
+      "sha256": "881b8bccb134032ad08b78c1c0b6884b76b853e084c7b31412ee6b932934a485",
+      "lines": 30,
+      "reference_files": [],
+      "status": "pending",
+      "mapping": "product/support code; no direct protocol counterpart assigned"
+    },
+    {
+      "owned": "native_bt/esp32_probe/main/probe_wait.h",
+      "sha256": "0a87ed0138acc10c2f0344752f99e57259ef567dfd6528e1db6ba2735ee86fbb",
+      "lines": 25,
+      "reference_files": [],
+      "status": "pending",
+      "mapping": "product/support code; no direct protocol counterpart assigned"
+    },
+    {
+      "owned": "native_bt/esp32_probe/sdkconfig.defaults",
+      "sha256": "c53a0f0cd37c8f09e5dc38389ddfca5b4f74574c1d76b3b531838cb1d5bd7b94",
+      "lines": 44,
+      "reference_files": [],
+      "status": "pending",
+      "mapping": "Added through full filesystem/build-manifest cross-check; source generation/build inputs included"
+    },
+    {
+      "owned": "native_bt/include/dbt_a2dp_acceptor.h",
+      "sha256": "2db54dba55bd3cd6639e207579ebf45b4a0625323ab478e9e9c4ebd4629ad61b",
+      "lines": 53,
+      "reference_files": [
+        "src/classic/a2dp.c",
+        "src/classic/a2dp_sink.c",
+        "src/classic/a2dp_source.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/include/dbt_acl.h",
+      "sha256": "37fc4d1ce24e87ceda6a7d96f794ca6efb9e1f3c1cdd3631529714e5553d62fe",
+      "lines": 47,
+      "reference_files": [
+        "src/hci.c",
+        "src/hci.h",
+        "port/esp32/components/btstack/hci_transport_esp32_vhci.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/include/dbt_async_ticket.h",
+      "sha256": "c40472d8cc65d06d373f490fe19a41dbbde91c8c2f5a967f2b8d4e01a1fd4cbc",
+      "lines": 82,
+      "reference_files": [
+        "src/btstack_ring_buffer.c",
+        "platform/freertos/btstack_run_loop_freertos.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/include/dbt_att_bearer.h",
+      "sha256": "f6a19de9a728100615858a9ba28b79c1e15e740adb1bdefb857ed640adf6bd23",
+      "lines": 33,
+      "reference_files": [
+        "src/ble/att_db.c",
+        "src/ble/att_dispatch.c",
+        "src/ble/att_server.c",
+        "src/ble/gatt_client.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/include/dbt_att.h",
+      "sha256": "1e68064e5fac50a904e320c59ec9d2686061dcdc1ffdebe1063def764d249ba0",
+      "lines": 161,
+      "reference_files": [
+        "src/ble/att_db.c",
+        "src/ble/att_dispatch.c",
+        "src/ble/att_server.c",
+        "src/ble/gatt_client.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/include/dbt_audio.h",
+      "sha256": "cd95e6b05dfbbfcc48194f5c8ac72ef91391b6ba3a85778622cdec4a84c966dc",
+      "lines": 146,
+      "reference_files": [
+        "src/classic/avdtp.c",
+        "example/a2dp_sink_demo.c",
+        "src/btstack_resample.c",
+        "src/btstack_sample_rate_compensation.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/include/dbt_avctp_bearer.h",
+      "sha256": "bf14af609744d40d7040885e9208908fbda61034143f3140e4eff0c9f12f070a",
+      "lines": 34,
+      "reference_files": [
+        "src/classic/avrcp.c",
+        "src/classic/avrcp_controller.c",
+        "src/classic/avrcp_target.c",
+        "src/classic/avrcp_browsing.c",
+        "src/classic/avrcp_browsing_controller.c",
+        "src/classic/avrcp_browsing_target.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/include/dbt_avctp.h",
+      "sha256": "20afe0b9b156723caf654b8dcd05068b6097a5672bf2a9bda04cac01d5c87aef",
+      "lines": 68,
+      "reference_files": [
+        "src/classic/avrcp.c",
+        "src/classic/avrcp_controller.c",
+        "src/classic/avrcp_target.c",
+        "src/classic/avrcp_browsing.c",
+        "src/classic/avrcp_browsing_controller.c",
+        "src/classic/avrcp_browsing_target.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/include/dbt_avdtp_bearer.h",
+      "sha256": "5e8595dd22d993fad8fffa75dd14a01cda67bd1553fa2f677ae5bdaee7522f22",
+      "lines": 34,
+      "reference_files": [
+        "src/classic/avdtp.c",
+        "src/classic/avdtp_acceptor.c",
+        "src/classic/avdtp_initiator.c",
+        "src/classic/avdtp_sink.c",
+        "src/classic/avdtp_util.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/include/dbt_avdtp_caps.h",
+      "sha256": "5a08bfd74e598c2b2a99d070d52d8fa9ba2bc6450bc75bc562f22b1fc8973f7c",
+      "lines": 39,
+      "reference_files": [
+        "src/classic/avdtp.c",
+        "src/classic/avdtp_acceptor.c",
+        "src/classic/avdtp_initiator.c",
+        "src/classic/avdtp_sink.c",
+        "src/classic/avdtp_util.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/include/dbt_avdtp_sink.h",
+      "sha256": "f54b09a78ef33b84f622184734372a968426650c78b117231ae9738490ce7dc7",
+      "lines": 107,
+      "reference_files": [
+        "src/classic/avdtp.c",
+        "src/classic/avdtp_acceptor.c",
+        "src/classic/avdtp_initiator.c",
+        "src/classic/avdtp_sink.c",
+        "src/classic/avdtp_util.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/include/dbt_avdtp.h",
+      "sha256": "18e200184954e7972e900d09fdba4e8dde38cde49a9a97f9239c79633f11c2a0",
+      "lines": 124,
+      "reference_files": [
+        "src/classic/avdtp.c",
+        "src/classic/avdtp_acceptor.c",
+        "src/classic/avdtp_initiator.c",
+        "src/classic/avdtp_sink.c",
+        "src/classic/avdtp_util.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/include/dbt_avrcp_bearer.h",
+      "sha256": "6a6807bd144ead1728028f720b887aa6bd7780d863c1912f37fa53d32af0503a",
+      "lines": 11,
+      "reference_files": [
+        "src/classic/avrcp.c",
+        "src/classic/avrcp_controller.c",
+        "src/classic/avrcp_target.c",
+        "src/classic/avrcp_browsing.c",
+        "src/classic/avrcp_browsing_controller.c",
+        "src/classic/avrcp_browsing_target.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/include/dbt_avrcp_browse.h",
+      "sha256": "bee8522fef827b122000d35a199ec30379f490843c0f91d3bcc6a97e580fc050",
+      "lines": 43,
+      "reference_files": [
+        "src/classic/avrcp.c",
+        "src/classic/avrcp_controller.c",
+        "src/classic/avrcp_target.c",
+        "src/classic/avrcp_browsing.c",
+        "src/classic/avrcp_browsing_controller.c",
+        "src/classic/avrcp_browsing_target.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/include/dbt_avrcp.h",
+      "sha256": "2eb808040741148ccdb72baca3b93e0b15586e538fb2c23939b0602119531179",
+      "lines": 86,
+      "reference_files": [
+        "src/classic/avrcp.c",
+        "src/classic/avrcp_controller.c",
+        "src/classic/avrcp_target.c",
+        "src/classic/avrcp_browsing.c",
+        "src/classic/avrcp_browsing_controller.c",
+        "src/classic/avrcp_browsing_target.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/include/dbt_ble_control.h",
+      "sha256": "7c280a30a563bf509c06610c893e2063cd97bc712917d4add5e4b7d7430c8d7d",
+      "lines": 41,
+      "reference_files": [],
+      "status": "pending",
+      "mapping": "product/support code; no direct protocol counterpart assigned"
+    },
+    {
+      "owned": "native_bt/include/dbt_ble_nvs.h",
+      "sha256": "e03973fae8e6ced9d4286bf73845b51e9c6e9f84f4891900bacc6c9c88b812e9",
+      "lines": 14,
+      "reference_files": [
+        "src/ble/sm.c",
+        "src/ble/le_device_db_memory.c",
+        "src/ble/le_device_db_tlv.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/include/dbt_boot_policy.h",
+      "sha256": "5a28e5ba26de2d60f0315b718bcf8f63712a46827d7a113e0b268814763c298e",
+      "lines": 8,
+      "reference_files": [],
+      "status": "pending",
+      "mapping": "product/support code; no direct protocol counterpart assigned"
+    },
+    {
+      "owned": "native_bt/include/dbt_channels.h",
+      "sha256": "c0eda808351799adb2f5bd8f424ab878c96890b5fc49699ba35003ca53afa914",
+      "lines": 219,
+      "reference_files": [
+        "src/hci.c",
+        "src/l2cap.c",
+        "src/l2cap.h"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/include/dbt_classic_security.h",
+      "sha256": "828a842255ba205841f9de796f29405b8bcdcb85104e610ea89039ed34daf91a",
+      "lines": 148,
+      "reference_files": [
+        "src/hci.c",
+        "src/hci.h",
+        "port/esp32/components/btstack/hci_transport_esp32_vhci.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/include/dbt_credit.h",
+      "sha256": "6259d301c65bb692019092c085149479e395bb5c21a21af5ec894d396bcdeb45",
+      "lines": 58,
+      "reference_files": [
+        "src/hci.c",
+        "src/l2cap.c",
+        "src/l2cap.h"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/include/dbt_crypto.h",
+      "sha256": "4565eecc56a5080b709db65bc8ea8879ebba9069af5abbae5e5f0aa26ee749d2",
+      "lines": 66,
+      "reference_files": [],
+      "status": "pending",
+      "mapping": "product/support code; no direct protocol counterpart assigned"
+    },
+    {
+      "owned": "native_bt/include/dbt_ertm_engine.h",
+      "sha256": "e6e06a029793602a0d6a2c6c1b73c8a6eaee53fcdb8e38afc734d345e1cbc4a4",
+      "lines": 60,
+      "reference_files": [
+        "src/hci.c",
+        "src/l2cap.c",
+        "src/l2cap.h"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/include/dbt_ertm.h",
+      "sha256": "2251f8f109a10bfb7149f77a9332feaba63bd5b44c23d69478b480d356155c14",
+      "lines": 26,
+      "reference_files": [
+        "src/hci.c",
+        "src/l2cap.c",
+        "src/l2cap.h"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/include/dbt_esp32_affinity.h",
+      "sha256": "6be4693abbfe66a285da9eba12e462e470f1b8b31fcb7627aa29ddcafca6e8e1",
+      "lines": 12,
+      "reference_files": [],
+      "status": "pending",
+      "mapping": "product/support code; no direct protocol counterpart assigned"
+    },
+    {
+      "owned": "native_bt/include/dbt_gap.h",
+      "sha256": "1add6b82d6021242b5c43b714ca0ce22afc8821be338946d8017612a95e1e127",
+      "lines": 135,
+      "reference_files": [
+        "src/hci.c",
+        "src/hci.h",
+        "port/esp32/components/btstack/hci_transport_esp32_vhci.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/include/dbt_hci.h",
+      "sha256": "8b9d6e36edd0d13ee7f95516f77e40d505867c99e3e34fcd1c5f9a104eebc2d1",
+      "lines": 37,
+      "reference_files": [
+        "src/hci.c",
+        "src/hci.h",
+        "port/esp32/components/btstack/hci_transport_esp32_vhci.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/include/dbt_host.h",
+      "sha256": "bd9f38671ec54ea1d042576f47da5ca481d3e4155280fb75a310f50b2e847d67",
+      "lines": 134,
+      "reference_files": [
+        "src/hci.c",
+        "src/hci.h",
+        "port/esp32/components/btstack/hci_transport_esp32_vhci.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/include/dbt_input_esp32.h",
+      "sha256": "9fa524c8e82c50101fd07ad2854f23787bc9b5a68092e63dec6518a7efe752a8",
+      "lines": 42,
+      "reference_files": [],
+      "status": "pending",
+      "mapping": "product/support code; no direct protocol counterpart assigned"
+    },
+    {
+      "owned": "native_bt/include/dbt_input.h",
+      "sha256": "debffa9443efb1ab9fd2402dda7b5b04ccd427a68a54dd67990df38b44e7fd55",
+      "lines": 74,
+      "reference_files": [],
+      "status": "pending",
+      "mapping": "product/support code; no direct protocol counterpart assigned"
+    },
+    {
+      "owned": "native_bt/include/dbt_l2cap.h",
+      "sha256": "cd9dc65eefd450442c3450ffd915ee88e05df46727e10027b546e3c273fdd4ed",
+      "lines": 67,
+      "reference_files": [
+        "src/hci.c",
+        "src/l2cap.c",
+        "src/l2cap.h"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/include/dbt_led_esp32.h",
+      "sha256": "3f4b74349ae533d307c4e2d7f18e3d5bb199aa3cf68cef3c0b497bc2c449c908",
+      "lines": 33,
+      "reference_files": [],
+      "status": "pending",
+      "mapping": "product/support code; no direct protocol counterpart assigned"
+    },
+    {
+      "owned": "native_bt/include/dbt_led.h",
+      "sha256": "b0689aea671fbc9439df5cc79a69db735ac900180b5a8f263ede1ec49458d9b2",
+      "lines": 124,
+      "reference_files": [],
+      "status": "pending",
+      "mapping": "product/support code; no direct protocol counterpart assigned"
+    },
+    {
+      "owned": "native_bt/include/dbt_ota_esp.h",
+      "sha256": "6f83a33bb5781b273c3c8d10dc90cbe250680e866fea98b46bf0ae92cac72f57",
+      "lines": 14,
+      "reference_files": [],
+      "status": "pending",
+      "mapping": "product/support code; no direct protocol counterpart assigned"
+    },
+    {
+      "owned": "native_bt/include/dbt_ota.h",
+      "sha256": "00b0eb13cba3bb913c53d35a6ae09adfa2090def1383f2346f72c28349bb69ac",
+      "lines": 46,
+      "reference_files": [],
+      "status": "pending",
+      "mapping": "product/support code; no direct protocol counterpart assigned"
+    },
+    {
+      "owned": "native_bt/include/dbt_page.h",
+      "sha256": "934ab050300cbdb6950f5eb6b57c7d4790536b3e795ad152e91d89babb7109ed",
+      "lines": 73,
+      "reference_files": [
+        "src/hci.c",
+        "src/hci.h",
+        "port/esp32/components/btstack/hci_transport_esp32_vhci.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/include/dbt_product_peer.h",
+      "sha256": "52639f28c1fd64c6c486730e9e805a9de19f9dbde9abc00dfc69a7bf59a08ee6",
+      "lines": 20,
+      "reference_files": [],
+      "status": "pending",
+      "mapping": "product/support code; no direct protocol counterpart assigned"
+    },
+    {
+      "owned": "native_bt/include/dbt_queue.h",
+      "sha256": "b717599bf8e71f2e76a47f761a4fffaa65f93154f4f3a898eccd7d874d92c2e8",
+      "lines": 50,
+      "reference_files": [
+        "src/btstack_ring_buffer.c",
+        "platform/freertos/btstack_run_loop_freertos.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/include/dbt_resampler.h",
+      "sha256": "fa7f74950ee4f6e296692a45390124494da1f14a4594d4008b9c696d13b59662",
+      "lines": 23,
+      "reference_files": [
+        "src/classic/avdtp.c",
+        "example/a2dp_sink_demo.c",
+        "src/btstack_resample.c",
+        "src/btstack_sample_rate_compensation.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/include/dbt_rfcomm_bearer.h",
+      "sha256": "52b984e11019a857a74ac0647881097e43daf02daa13988bfeed0b8355c0a907",
+      "lines": 35,
+      "reference_files": [
+        "src/classic/rfcomm.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/include/dbt_rfcomm_credit.h",
+      "sha256": "b78861ac2d4f893d93d67ff97a349637f171adcda2510a17ca9e0948914623d2",
+      "lines": 20,
+      "reference_files": [
+        "src/classic/rfcomm.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/include/dbt_rfcomm_dlc.h",
+      "sha256": "79532ce627090e3fa4b704b031e7d0428001f2bfd139a82c82f8e45cf42bb644",
+      "lines": 44,
+      "reference_files": [
+        "src/classic/rfcomm.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/include/dbt_rfcomm_mux.h",
+      "sha256": "eccf04c768e81a74091d5200a9c58c6528f3c2c1a129ed5e38e5c02ca140bc75",
+      "lines": 33,
+      "reference_files": [
+        "src/classic/rfcomm.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/include/dbt_rfcomm_spp.h",
+      "sha256": "0fe862fcc6fca3d2914b2c86cf66bcbfdaacc3b320585094f86fce7457102eeb",
+      "lines": 26,
+      "reference_files": [
+        "src/classic/rfcomm.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/include/dbt_rfcomm.h",
+      "sha256": "51e04db6c2062b5b3fb29e537d2d40e58d7bda808704c75cc40229faf8850b81",
+      "lines": 33,
+      "reference_files": [
+        "src/classic/rfcomm.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/include/dbt_runtime.h",
+      "sha256": "6c392f4d5c28519512401384784d53f3f5347641b332ab41437fc2315306bf7c",
+      "lines": 94,
+      "reference_files": [],
+      "status": "pending",
+      "mapping": "product/support code; no direct protocol counterpart assigned"
+    },
+    {
+      "owned": "native_bt/include/dbt_rx_flow.h",
+      "sha256": "c60da405ece15d26528f449f38c68c15075523a70c08b3c1571930fd46ceb949",
+      "lines": 53,
+      "reference_files": [
+        "src/hci.c",
+        "src/hci.h",
+        "port/esp32/components/btstack/hci_transport_esp32_vhci.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/include/dbt_sbc_media.h",
+      "sha256": "2c8573ce72879f05de9485c4a5da1269db83d0d788832ed3a0d5b4d3d350de46",
+      "lines": 65,
+      "reference_files": [
+        "src/classic/btstack_sbc_decoder_bluedroid.c",
+        "example/a2dp_sink_demo.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/include/dbt_sdp_bearer.h",
+      "sha256": "15ce1184df14432d65b0179b77c8eb1629cd7ef5a99ee41a24b29d1895f642e1",
+      "lines": 42,
+      "reference_files": [
+        "src/classic/sdp_client.c",
+        "src/classic/sdp_server.c",
+        "src/classic/sdp_util.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/include/dbt_sdp_client_bearer.h",
+      "sha256": "0991f5cff26444658a6f187187d3803aa76b2e2f609c5dd1a9baa9a5e4af77d3",
+      "lines": 35,
+      "reference_files": [
+        "src/classic/sdp_client.c",
+        "src/classic/sdp_server.c",
+        "src/classic/sdp_util.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/include/dbt_sdp_client.h",
+      "sha256": "de208f83e5e6876023adc976de3e0c37bb8f34e04dc1665dbd0ec1c3b6e388e8",
+      "lines": 70,
+      "reference_files": [
+        "src/classic/sdp_client.c",
+        "src/classic/sdp_server.c",
+        "src/classic/sdp_util.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/include/dbt_sdp_discovery.h",
+      "sha256": "7505f4d5dae9916f1f71fe1c1c8d7fa1f3d00c1db960a65bf76eb59d43925b69",
+      "lines": 55,
+      "reference_files": [
+        "src/classic/sdp_client.c",
+        "src/classic/sdp_server.c",
+        "src/classic/sdp_util.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/include/dbt_sdp.h",
+      "sha256": "a8ffd97ad8a0e615ed12213f2a4d44da0d974feb5c9ad6e06dd3bc30becb9126",
+      "lines": 76,
+      "reference_files": [
+        "src/classic/sdp_client.c",
+        "src/classic/sdp_server.c",
+        "src/classic/sdp_util.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/include/dbt_sha256.h",
+      "sha256": "f16030caca22a2a9acb363c64010ee8577723a061d7cf986e4efd1490473f141",
+      "lines": 46,
+      "reference_files": [],
+      "status": "pending",
+      "mapping": "product/support code; no direct protocol counterpart assigned"
+    },
+    {
+      "owned": "native_bt/include/dbt_smp_association.h",
+      "sha256": "2b58cb6ddbc2e7f39fce937f93b5c17ed40b0a45ebff0773832a17d33cf411b0",
+      "lines": 21,
+      "reference_files": [
+        "src/ble/sm.c",
+        "src/ble/le_device_db_memory.c",
+        "src/ble/le_device_db_tlv.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/include/dbt_smp_bearer.h",
+      "sha256": "b9a555338b63ffa0cc59684677caf81c87699c7777146074fc32d9273b6875a2",
+      "lines": 50,
+      "reference_files": [
+        "src/ble/sm.c",
+        "src/ble/le_device_db_memory.c",
+        "src/ble/le_device_db_tlv.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/include/dbt_smp_bond.h",
+      "sha256": "89e1f9096362400202298623be3cc0164e250fd8ea23c71dc3b5fd3a62c7b370",
+      "lines": 97,
+      "reference_files": [
+        "src/ble/sm.c",
+        "src/ble/le_device_db_memory.c",
+        "src/ble/le_device_db_tlv.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/include/dbt_smp_crypto.h",
+      "sha256": "cc620fc5fa3d77ece551c517bac54adfa14711e914a3c53d014a7eabcfbb2268",
+      "lines": 56,
+      "reference_files": [
+        "src/ble/sm.c",
+        "src/ble/le_device_db_memory.c",
+        "src/ble/le_device_db_tlv.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/include/dbt_smp_dist.h",
+      "sha256": "da640f17ee59d69e2b3ed4ee260a2e4c19410388e5878097d486c40d4e2f5566",
+      "lines": 46,
+      "reference_files": [
+        "src/ble/sm.c",
+        "src/ble/le_device_db_memory.c",
+        "src/ble/le_device_db_tlv.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/include/dbt_smp_features.h",
+      "sha256": "fe72613c0f4df6fcb88cd566939aff4775edecd3b3884ff1d9020c34ad7bc111",
+      "lines": 49,
+      "reference_files": [
+        "src/ble/sm.c",
+        "src/ble/le_device_db_memory.c",
+        "src/ble/le_device_db_tlv.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/include/dbt_smp_guard.h",
+      "sha256": "3b5595b4812cd0f75fe26b0a365d319c54502a275929bd0652c9d9211507c51f",
+      "lines": 20,
+      "reference_files": [
+        "src/ble/sm.c",
+        "src/ble/le_device_db_memory.c",
+        "src/ble/le_device_db_tlv.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/include/dbt_smp_nvs.h",
+      "sha256": "af0f3da9c6afd280d45b2dd2972ad7852096e107dd976e1d85b3b98bf33ad5d5",
+      "lines": 36,
+      "reference_files": [
+        "src/ble/sm.c",
+        "src/ble/le_device_db_memory.c",
+        "src/ble/le_device_db_tlv.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/include/dbt_smp_sc.h",
+      "sha256": "51105ddb3cde5a159b90f0ee6566c9efeba9e8d9a2e2650cdcc7662eefa172eb",
+      "lines": 129,
+      "reference_files": [
+        "src/ble/sm.c",
+        "src/ble/le_device_db_memory.c",
+        "src/ble/le_device_db_tlv.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/include/dbt_smp_session.h",
+      "sha256": "4a01af1a19a92c7f781550024431f9cc2e826abd47856f3a97cf84bbf2a1e637",
+      "lines": 93,
+      "reference_files": [
+        "src/ble/sm.c",
+        "src/ble/le_device_db_memory.c",
+        "src/ble/le_device_db_tlv.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/include/dbt_smp_worker_mbedtls.h",
+      "sha256": "9e2289dd9def4fa2d7e1815ceff0b2069fae166d90e789b51250e490cd655027",
+      "lines": 29,
+      "reference_files": [
+        "src/ble/sm.c",
+        "src/ble/le_device_db_memory.c",
+        "src/ble/le_device_db_tlv.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/include/dbt_smp.h",
+      "sha256": "d4a4f97ebafa9b62e3ab101e6a6ffc6dc12e60804c7ee88dbbc604d7a1e98988",
+      "lines": 95,
+      "reference_files": [
+        "src/ble/sm.c",
+        "src/ble/le_device_db_memory.c",
+        "src/ble/le_device_db_tlv.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/include/dbt_sound_esp32.h",
+      "sha256": "7a0a53ca04d22c4aefd36e12c0dfdf68ad7b8baeb52486f41427e70fbb4d3da7",
+      "lines": 19,
+      "reference_files": [],
+      "status": "pending",
+      "mapping": "product/support code; no direct protocol counterpart assigned"
+    },
+    {
+      "owned": "native_bt/include/dbt_sound.h",
+      "sha256": "6a97342ebaa05e109b0ed22505c36e6c11cb3ef04db6a564ef3c93d1ed91db00",
+      "lines": 76,
+      "reference_files": [],
+      "status": "pending",
+      "mapping": "product/support code; no direct protocol counterpart assigned"
+    },
+    {
+      "owned": "native_bt/include/dbt_utf8.h",
+      "sha256": "8e8dd809cd9ba56ade31c551f5ed83c99cd9ed7e1026176d6c9f8a4b10e922ff",
+      "lines": 22,
+      "reference_files": [],
+      "status": "pending",
+      "mapping": "product/support code; no direct protocol counterpart assigned"
+    },
+    {
+      "owned": "native_bt/src/dbt_a2dp_acceptor.c",
+      "sha256": "c5547f07e662f974b5782c1f5927b12d81c847389ffff8786534718a9c5fb374",
+      "lines": 199,
+      "reference_files": [
+        "src/classic/a2dp.c",
+        "src/classic/a2dp_sink.c",
+        "src/classic/a2dp_source.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/src/dbt_a2dp_sbc.c",
+      "sha256": "362b4a41d3ba10e7097189c79a55544d36a4a55f9983b3a6ef1c9e50184ff91d",
+      "lines": 27,
+      "reference_files": [
+        "src/classic/a2dp.c",
+        "src/classic/a2dp_sink.c",
+        "src/classic/a2dp_source.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/src/dbt_acl.c",
+      "sha256": "ba5976c70809a13fe7e256982389eaf0945d4a50750cd89d24255c60fa8f7c02",
+      "lines": 174,
+      "reference_files": [
+        "src/hci.c",
+        "src/hci.h",
+        "port/esp32/components/btstack/hci_transport_esp32_vhci.c"
+      ],
+      "status": "reviewed_with_findings",
+      "mapping": "counterpart_candidates",
+      "review_note": "Complete owned C body inspected against corresponding HCI/ACL framing, credits, reassembly and transmission sections. See findings and remaining integration/qualification gaps."
+    },
+    {
+      "owned": "native_bt/src/dbt_att_bearer.c",
+      "sha256": "d77d7b399d0efdf6f9e606ce42fec166a6cad3b35b6a625f8c15f5ed308b36f3",
+      "lines": 128,
+      "reference_files": [
+        "src/ble/att_db.c",
+        "src/ble/att_dispatch.c",
+        "src/ble/att_server.c",
+        "src/ble/gatt_client.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/src/dbt_att.c",
+      "sha256": "eb2988352a601aebe2376fc7b43666ed663460b5cd41cc7d106fa09a3e5cbb64",
+      "lines": 925,
+      "reference_files": [
+        "src/ble/att_db.c",
+        "src/ble/att_dispatch.c",
+        "src/ble/att_server.c",
+        "src/ble/gatt_client.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/src/dbt_audio.c",
+      "sha256": "6ed8a6996fdd03d0bc1e2afecad392953af64de4a0128bae5a8064cd054c4724",
+      "lines": 578,
+      "reference_files": [
+        "src/classic/avdtp.c",
+        "example/a2dp_sink_demo.c",
+        "src/btstack_resample.c",
+        "src/btstack_sample_rate_compensation.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/src/dbt_avctp_bearer.c",
+      "sha256": "92eca14ed0ff96d64b0c4a87c237eff0c62048466825287fa47d90188e288b58",
+      "lines": 87,
+      "reference_files": [
+        "src/classic/avrcp.c",
+        "src/classic/avrcp_controller.c",
+        "src/classic/avrcp_target.c",
+        "src/classic/avrcp_browsing.c",
+        "src/classic/avrcp_browsing_controller.c",
+        "src/classic/avrcp_browsing_target.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/src/dbt_avctp.c",
+      "sha256": "90a902a3520c2338d81cce719ba08697f697a9929e8c812f3534b0bd0b661468",
+      "lines": 178,
+      "reference_files": [
+        "src/classic/avrcp.c",
+        "src/classic/avrcp_controller.c",
+        "src/classic/avrcp_target.c",
+        "src/classic/avrcp_browsing.c",
+        "src/classic/avrcp_browsing_controller.c",
+        "src/classic/avrcp_browsing_target.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/src/dbt_avdtp_bearer.c",
+      "sha256": "464900d0cc9f490aeda702072da794dbf4448bbebf95e49111753776b57ec893",
+      "lines": 87,
+      "reference_files": [
+        "src/classic/avdtp.c",
+        "src/classic/avdtp_acceptor.c",
+        "src/classic/avdtp_initiator.c",
+        "src/classic/avdtp_sink.c",
+        "src/classic/avdtp_util.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/src/dbt_avdtp_caps.c",
+      "sha256": "c9e1f65878344b5425dbb419c752427b0797a8ac205ceb02d3cb5b1e9c818a44",
+      "lines": 93,
+      "reference_files": [
+        "src/classic/avdtp.c",
+        "src/classic/avdtp_acceptor.c",
+        "src/classic/avdtp_initiator.c",
+        "src/classic/avdtp_sink.c",
+        "src/classic/avdtp_util.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/src/dbt_avdtp_sink.c",
+      "sha256": "7e2ce507a9edcf6993c3fb3089cd59135f3bb2f67b7dabce96f742a9049a5e38",
+      "lines": 368,
+      "reference_files": [
+        "src/classic/avdtp.c",
+        "src/classic/avdtp_acceptor.c",
+        "src/classic/avdtp_initiator.c",
+        "src/classic/avdtp_sink.c",
+        "src/classic/avdtp_util.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/src/dbt_avdtp.c",
+      "sha256": "8e57e9bfc065b8c51456d5382299ca7d1b3b42bab5c023e09d114ad88ff39fd7",
+      "lines": 393,
+      "reference_files": [
+        "src/classic/avdtp.c",
+        "src/classic/avdtp_acceptor.c",
+        "src/classic/avdtp_initiator.c",
+        "src/classic/avdtp_sink.c",
+        "src/classic/avdtp_util.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/src/dbt_avrcp_bearer.c",
+      "sha256": "7c33b50b3b417966a8225c6e078968bdc68d2799578c66523fcd840c529b5506",
+      "lines": 23,
+      "reference_files": [
+        "src/classic/avrcp.c",
+        "src/classic/avrcp_controller.c",
+        "src/classic/avrcp_target.c",
+        "src/classic/avrcp_browsing.c",
+        "src/classic/avrcp_browsing_controller.c",
+        "src/classic/avrcp_browsing_target.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/src/dbt_avrcp_browse.c",
+      "sha256": "966c8b67b6d97cdd15035f3623acd456abd9eb8b104135629f2be8d93f43405f",
+      "lines": 255,
+      "reference_files": [
+        "src/classic/avrcp.c",
+        "src/classic/avrcp_controller.c",
+        "src/classic/avrcp_target.c",
+        "src/classic/avrcp_browsing.c",
+        "src/classic/avrcp_browsing_controller.c",
+        "src/classic/avrcp_browsing_target.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/src/dbt_avrcp.c",
+      "sha256": "4122b1e0f4673a55d38468e983ab4bd39b8e7904c958a01335665ae2bc08b071",
+      "lines": 480,
+      "reference_files": [
+        "src/classic/avrcp.c",
+        "src/classic/avrcp_controller.c",
+        "src/classic/avrcp_target.c",
+        "src/classic/avrcp_browsing.c",
+        "src/classic/avrcp_browsing_controller.c",
+        "src/classic/avrcp_browsing_target.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/src/dbt_ble_control.c",
+      "sha256": "69597b5a99204efb5b276f6130247aa1ddc550f31901fcbdb7a5a3821831551f",
+      "lines": 80,
+      "reference_files": [],
+      "status": "pending",
+      "mapping": "product/support code; no direct protocol counterpart assigned"
+    },
+    {
+      "owned": "native_bt/src/dbt_boot_policy.c",
+      "sha256": "836609bc87391487d51eb573cdc488088f254e03417f0be4fb827c75ecc7c8b5",
+      "lines": 11,
+      "reference_files": [],
+      "status": "pending",
+      "mapping": "product/support code; no direct protocol counterpart assigned"
+    },
+    {
+      "owned": "native_bt/src/dbt_channels.c",
+      "sha256": "3962f5211ab0ba55daf1650d6669c19f8b03f546a64afa24a06318033c638137",
+      "lines": 1520,
+      "reference_files": [
+        "src/hci.c",
+        "src/l2cap.c",
+        "src/l2cap.h"
+      ],
+      "status": "partial_review",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/src/dbt_classic_security.c",
+      "sha256": "b86d201b6ba872c856e386456b763816ff61e7eaa2fd3897cc9796ef2e3fdc79",
+      "lines": 1043,
+      "reference_files": [
+        "src/hci.c",
+        "src/hci.h",
+        "port/esp32/components/btstack/hci_transport_esp32_vhci.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/src/dbt_credit.c",
+      "sha256": "4a96482ac78d5e04c69572c23ae10c86278543a57d695e6db18c9142c0ad2bef",
+      "lines": 95,
+      "reference_files": [
+        "src/hci.c",
+        "src/l2cap.c",
+        "src/l2cap.h"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/src/dbt_ertm_engine.c",
+      "sha256": "5b7e4bcad21f0d574c881bb67408d5dbe120b0b22cbda62dc56671fb3322fc38",
+      "lines": 288,
+      "reference_files": [
+        "src/hci.c",
+        "src/l2cap.c",
+        "src/l2cap.h"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/src/dbt_ertm.c",
+      "sha256": "421741d3a773bb032193c53d69132d96a61b6f5fb2b95696a6e0345b18f511c2",
+      "lines": 45,
+      "reference_files": [
+        "src/hci.c",
+        "src/l2cap.c",
+        "src/l2cap.h"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/src/dbt_gap.c",
+      "sha256": "e4517e91c125c31cebb7b1327cdc8950629699e9c85e84bb4becdd175f078e78",
+      "lines": 571,
+      "reference_files": [
+        "src/hci.c",
+        "src/hci.h",
+        "port/esp32/components/btstack/hci_transport_esp32_vhci.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/src/dbt_hci.c",
+      "sha256": "61dbde583dcb1939f35a46904a5c7e9636a7e11c42b577280eb0b2396fb5d113",
+      "lines": 60,
+      "reference_files": [
+        "src/hci.c",
+        "src/hci.h",
+        "port/esp32/components/btstack/hci_transport_esp32_vhci.c"
+      ],
+      "status": "reviewed_no_change",
+      "mapping": "counterpart_candidates",
+      "review_note": "Complete owned C body inspected against corresponding HCI/ACL framing, credits, reassembly and transmission sections. See findings and remaining integration/qualification gaps."
+    },
+    {
+      "owned": "native_bt/src/dbt_host.c",
+      "sha256": "f104ac7beb5abfef0b94e138583b36359711480d53a59d60df9b410a13ae3cc2",
+      "lines": 409,
+      "reference_files": [
+        "src/hci.c",
+        "src/hci.h",
+        "port/esp32/components/btstack/hci_transport_esp32_vhci.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/src/dbt_input.c",
+      "sha256": "e224d0fd1fe2931b4ebf6265f3b1d548a8d22a478af5f5816e3f45847a687812",
+      "lines": 186,
+      "reference_files": [],
+      "status": "pending",
+      "mapping": "product/support code; no direct protocol counterpart assigned"
+    },
+    {
+      "owned": "native_bt/src/dbt_l2cap.c",
+      "sha256": "646456374549f2883fad87e008ea6a8f39edb0c0bf864fa7ccd14c77d94e1905",
+      "lines": 202,
+      "reference_files": [
+        "src/hci.c",
+        "src/l2cap.c",
+        "src/l2cap.h"
+      ],
+      "status": "reviewed_with_findings",
+      "mapping": "counterpart_candidates",
+      "review_note": "Complete owned C body inspected against corresponding HCI/ACL framing, credits, reassembly and transmission sections. See findings and remaining integration/qualification gaps."
+    },
+    {
+      "owned": "native_bt/src/dbt_led.c",
+      "sha256": "128882b29dc76d54fe7be992438cd425b2789946c0aeb37bcc22ab53e41b9ad6",
+      "lines": 793,
+      "reference_files": [],
+      "status": "pending",
+      "mapping": "product/support code; no direct protocol counterpart assigned"
+    },
+    {
+      "owned": "native_bt/src/dbt_ota.c",
+      "sha256": "c19427c3a1159373795ae4630417ddb588ac0bbf1da931246999cfb4674cd2bf",
+      "lines": 82,
+      "reference_files": [],
+      "status": "pending",
+      "mapping": "product/support code; no direct protocol counterpart assigned"
+    },
+    {
+      "owned": "native_bt/src/dbt_page.c",
+      "sha256": "c8d1d7ae98f4a867f50cad2be04b2932baa1a5ab215342449edbb5e42a488302",
+      "lines": 173,
+      "reference_files": [
+        "src/hci.c",
+        "src/hci.h",
+        "port/esp32/components/btstack/hci_transport_esp32_vhci.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/src/dbt_product_peer.c",
+      "sha256": "105a3c1cb85b0fe61e2eedd65085ba7302211f8d4d15847e7bd6ce459e71c18a",
+      "lines": 42,
+      "reference_files": [],
+      "status": "pending",
+      "mapping": "product/support code; no direct protocol counterpart assigned"
+    },
+    {
+      "owned": "native_bt/src/dbt_queue.c",
+      "sha256": "a8214f994d309e15339c531537169d0cc24fc96cd9aae0970b130209af329be4",
+      "lines": 91,
+      "reference_files": [
+        "src/btstack_ring_buffer.c",
+        "platform/freertos/btstack_run_loop_freertos.c"
+      ],
+      "status": "reviewed_with_findings",
+      "mapping": "counterpart_candidates",
+      "review_note": "Complete source compared with ring read/write capacity and wrap handling; sensitive wiping and SPSC publication remain owned additions."
+    },
+    {
+      "owned": "native_bt/src/dbt_resampler_coeffs.inc",
+      "sha256": "370d8ec4dcce5bfe9a5d14e1d678dcb9ceca4a1d62b2d4624a432239ea173c56",
+      "lines": 403,
+      "reference_files": [
+        "src/classic/avdtp.c",
+        "example/a2dp_sink_demo.c",
+        "src/btstack_resample.c",
+        "src/btstack_sample_rate_compensation.c"
+      ],
+      "status": "pending",
+      "mapping": "Added through full filesystem/build-manifest cross-check; source generation/build inputs included"
+    },
+    {
+      "owned": "native_bt/src/dbt_resampler.c",
+      "sha256": "cb24b6fc3a07d04fcb2406bd05468548f4989062bb21da435cd8298083f4ecc3",
+      "lines": 139,
+      "reference_files": [
+        "src/classic/avdtp.c",
+        "example/a2dp_sink_demo.c",
+        "src/btstack_resample.c",
+        "src/btstack_sample_rate_compensation.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/src/dbt_rfcomm_bearer.c",
+      "sha256": "0c347475d69c8fdc0f1cc1d7564fa757edaa1315645ad38157aa261a2119b89f",
+      "lines": 127,
+      "reference_files": [
+        "src/classic/rfcomm.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/src/dbt_rfcomm_credit.c",
+      "sha256": "cb2b107c166934f4eed45960f1b8604bdf6d6c9f9396bbf5e5d5779de482dc45",
+      "lines": 45,
+      "reference_files": [
+        "src/classic/rfcomm.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/src/dbt_rfcomm_dlc.c",
+      "sha256": "d24387d7194ba08ff81ce45118cfb2e6a34c543df9d02343c43b3feb5a81d536",
+      "lines": 223,
+      "reference_files": [
+        "src/classic/rfcomm.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/src/dbt_rfcomm_mux.c",
+      "sha256": "45b2e58e241e6f736fcd3ba9ddf60a2920e4e0064695416b0c0d414e222cf50b",
+      "lines": 83,
+      "reference_files": [
+        "src/classic/rfcomm.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/src/dbt_rfcomm_spp.c",
+      "sha256": "64f32da319031bbcc554118b11f00c1b75ff5d421186d10e1b22229d5c851619",
+      "lines": 84,
+      "reference_files": [
+        "src/classic/rfcomm.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/src/dbt_rfcomm.c",
+      "sha256": "b17489ee3815bcb4a362857383c5c6d78b73463fbf123dca027a1a2136d30023",
+      "lines": 65,
+      "reference_files": [
+        "src/classic/rfcomm.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/src/dbt_runtime.c",
+      "sha256": "3e3fa66cdc820152bb6ba1af356855c293781143bb4f87311f0c07e072f06401",
+      "lines": 440,
+      "reference_files": [],
+      "status": "partial_review",
+      "mapping": "product/support code; no direct protocol counterpart assigned"
+    },
+    {
+      "owned": "native_bt/src/dbt_rx_flow.c",
+      "sha256": "38d9162660f4342d70db024d4b72a945f4452ca78874b654bd67df2ce257590b",
+      "lines": 219,
+      "reference_files": [
+        "src/hci.c",
+        "src/hci.h",
+        "port/esp32/components/btstack/hci_transport_esp32_vhci.c"
+      ],
+      "status": "reviewed_no_change",
+      "mapping": "counterpart_candidates",
+      "review_note": "Complete owned C body inspected against corresponding HCI/ACL framing, credits, reassembly and transmission sections. See findings and remaining integration/qualification gaps."
+    },
+    {
+      "owned": "native_bt/src/dbt_sbc_media.c",
+      "sha256": "11fac4c1915812d2188f28b98d2427b4b5ca85e27a62c399ff735ee69a23e774",
+      "lines": 126,
+      "reference_files": [
+        "src/classic/btstack_sbc_decoder_bluedroid.c",
+        "example/a2dp_sink_demo.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/src/dbt_sdp_bearer.c",
+      "sha256": "d330562aaa65101cd6956711e283b78f6ec84209ff7a523906bf6ae803a0b264",
+      "lines": 180,
+      "reference_files": [
+        "src/classic/sdp_client.c",
+        "src/classic/sdp_server.c",
+        "src/classic/sdp_util.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/src/dbt_sdp_client_bearer.c",
+      "sha256": "69f8bf50d47a2d2a4618d65ba84190bb8c9351313be4a48401e90524c51d366a",
+      "lines": 115,
+      "reference_files": [
+        "src/classic/sdp_client.c",
+        "src/classic/sdp_server.c",
+        "src/classic/sdp_util.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/src/dbt_sdp_client.c",
+      "sha256": "c6fcb5252fdc5c4a9c9991ee4d2412f405af423908c6aa3e620669c24bd6d6f1",
+      "lines": 178,
+      "reference_files": [
+        "src/classic/sdp_client.c",
+        "src/classic/sdp_server.c",
+        "src/classic/sdp_util.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/src/dbt_sdp_discovery.c",
+      "sha256": "fe67d4dccb079e80cca819b8eb996c80030d0d25e2668e258050abd8bd2f3c66",
+      "lines": 151,
+      "reference_files": [
+        "src/classic/sdp_client.c",
+        "src/classic/sdp_server.c",
+        "src/classic/sdp_util.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/src/dbt_sdp.c",
+      "sha256": "2b02ab972e7079f8336fcdd5b2039347401b79713d3334969918071dd08419f3",
+      "lines": 609,
+      "reference_files": [
+        "src/classic/sdp_client.c",
+        "src/classic/sdp_server.c",
+        "src/classic/sdp_util.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/src/dbt_smp_bearer.c",
+      "sha256": "84206738825aea5aeb69ad04dd0bb75d82f01ccad1fa5784b00bf30e004fcc3f",
+      "lines": 184,
+      "reference_files": [
+        "src/ble/sm.c",
+        "src/ble/le_device_db_memory.c",
+        "src/ble/le_device_db_tlv.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/src/dbt_smp_bond.c",
+      "sha256": "bd1ba4282fab70bd1a02714eb31272035e060fc0e689d3b23e7964c64a28f7fb",
+      "lines": 278,
+      "reference_files": [
+        "src/ble/sm.c",
+        "src/ble/le_device_db_memory.c",
+        "src/ble/le_device_db_tlv.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/src/dbt_smp_crypto.c",
+      "sha256": "992a14784f1c95cabc11769d6da2944bbe70f5ee82101aff70261da7bd1b5814",
+      "lines": 200,
+      "reference_files": [
+        "src/ble/sm.c",
+        "src/ble/le_device_db_memory.c",
+        "src/ble/le_device_db_tlv.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/src/dbt_smp_dist.c",
+      "sha256": "0fcac67ba2aa5b6bf48dfdc003ea96ed132d644b35031a354425acbb39eca566",
+      "lines": 263,
+      "reference_files": [
+        "src/ble/sm.c",
+        "src/ble/le_device_db_memory.c",
+        "src/ble/le_device_db_tlv.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/src/dbt_smp_features.c",
+      "sha256": "ec017f8dacb2479f50b98cde9d1e8e3e620c1fb576671da046308ec6e434f8d9",
+      "lines": 243,
+      "reference_files": [
+        "src/ble/sm.c",
+        "src/ble/le_device_db_memory.c",
+        "src/ble/le_device_db_tlv.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/src/dbt_smp_guard.c",
+      "sha256": "8dc05f51e65d8b14b634235f14c6c97d35754b0138dac00789e8794467d1ba91",
+      "lines": 49,
+      "reference_files": [
+        "src/ble/sm.c",
+        "src/ble/le_device_db_memory.c",
+        "src/ble/le_device_db_tlv.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/src/dbt_smp_sc.c",
+      "sha256": "7bd122a981729a982b791f7b92c50fc32208b5c4276b8310ab29ec4982874216",
+      "lines": 632,
+      "reference_files": [
+        "src/ble/sm.c",
+        "src/ble/le_device_db_memory.c",
+        "src/ble/le_device_db_tlv.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/src/dbt_smp_session.c",
+      "sha256": "6fe5340ca983a702a782009e040d104cd425a6e43d1a3a95ec8fbd6c8299bc23",
+      "lines": 767,
+      "reference_files": [
+        "src/ble/sm.c",
+        "src/ble/le_device_db_memory.c",
+        "src/ble/le_device_db_tlv.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/src/dbt_smp.c",
+      "sha256": "1b93ee9ad2d7bb3f110408cc117bbc0e83a38ace303b7637ff10ce7e4f0c2f9f",
+      "lines": 580,
+      "reference_files": [
+        "src/ble/sm.c",
+        "src/ble/le_device_db_memory.c",
+        "src/ble/le_device_db_tlv.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/src/dbt_sound_mix.c",
+      "sha256": "688c8480a67e1124a48c30909a4b907e67d54dc41930501c54f4baaafd8af835",
+      "lines": 141,
+      "reference_files": [],
+      "status": "pending",
+      "mapping": "product/support code; no direct protocol counterpart assigned"
+    },
+    {
+      "owned": "native_bt/src/dbt_sound.c",
+      "sha256": "f65cf52e0f845394cb3a9ba3b5b6c821bff97ad3bba32193f175fecf4a18231e",
+      "lines": 135,
+      "reference_files": [],
+      "status": "pending",
+      "mapping": "product/support code; no direct protocol counterpart assigned"
+    },
+    {
+      "owned": "native_bt/src/esp32/dbt_ble_nvs.c",
+      "sha256": "69a103f86f0ba09fabe6b454af5a30bfac4d673c669de7f445e6efa24b57ad61",
+      "lines": 70,
+      "reference_files": [
+        "src/ble/sm.c",
+        "src/ble/le_device_db_memory.c",
+        "src/ble/le_device_db_tlv.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/src/esp32/dbt_input_esp32.c",
+      "sha256": "3dd98f8bd347ec747231fbfda0530bfdb87e0e233a8be5ff97a5aa815cc8c395",
+      "lines": 223,
+      "reference_files": [],
+      "status": "pending",
+      "mapping": "product/support code; no direct protocol counterpart assigned"
+    },
+    {
+      "owned": "native_bt/src/esp32/dbt_led_esp32.c",
+      "sha256": "8074814a19bbb53773049b0071a1122d2ce536b224a72967346225cb43cd8093",
+      "lines": 398,
+      "reference_files": [],
+      "status": "pending",
+      "mapping": "product/support code; no direct protocol counterpart assigned"
+    },
+    {
+      "owned": "native_bt/src/esp32/dbt_ota_esp.c",
+      "sha256": "e575ffa50c87d73fb2e4eff387df243cf35f4863a6196e9b1b03b5661238f33b",
+      "lines": 100,
+      "reference_files": [],
+      "status": "pending",
+      "mapping": "product/support code; no direct protocol counterpart assigned"
+    },
+    {
+      "owned": "native_bt/src/esp32/dbt_smp_nvs.c",
+      "sha256": "71b9cd4aec993e22cccfb0117da98a3113f3de144f057ffb5b33b4c31cac2aed",
+      "lines": 377,
+      "reference_files": [
+        "src/ble/sm.c",
+        "src/ble/le_device_db_memory.c",
+        "src/ble/le_device_db_tlv.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/src/esp32/dbt_smp_worker_mbedtls.c",
+      "sha256": "16045e1ef4ea8cf2a3e778f02b0c8a4dffed7938af412693e01f5f1d010e1874",
+      "lines": 378,
+      "reference_files": [
+        "src/ble/sm.c",
+        "src/ble/le_device_db_memory.c",
+        "src/ble/le_device_db_tlv.c"
+      ],
+      "status": "pending",
+      "mapping": "counterpart_candidates"
+    },
+    {
+      "owned": "native_bt/src/esp32/dbt_sound_spiffs.c",
+      "sha256": "6b4b585d16e1353d22fb78c01c621cecf7105848036c2478c1f29635ed235360",
+      "lines": 162,
+      "reference_files": [],
+      "status": "pending",
+      "mapping": "product/support code; no direct protocol counterpart assigned"
+    }
+  ],
+  "findings": [
+    {
+      "id": "ACL-001",
+      "state": "compiled_static_analysis_passed_runtime_unqualified",
+      "owned": [
+        "native_bt/src/dbt_l2cap.c:47",
+        "native_bt/src/dbt_runtime.c:158"
+      ],
+      "reference": [
+        "src/hci.c:1268",
+        "src/hci.c:1299"
+      ],
+      "issue": "An explicitly rejected malformed/orphaned ACL fragment aborted the entire owned host; the reference discards the packet and keeps protocol state alive.",
+      "fix": "Explicit wire-rejection counters distinguish recoverable packet discard from API/resource faults; valid future starts can resume. Known-link HCI buffers still complete."
+    },
+    {
+      "id": "ACL-002",
+      "state": "compiled_static_analysis_passed_runtime_unqualified",
+      "owned": [
+        "native_bt/src/dbt_runtime.c:174"
+      ],
+      "reference": [
+        "src/hci.c:1276"
+      ],
+      "issue": "A late ACL packet on an unknown/disconnected handle attempted receive-credit completion with a null link and faulted the whole host.",
+      "fix": "Unknown-handle packets are counted/discarded; disconnect owns controller-buffer retirement, so no fictitious completion is submitted."
+    },
+    {
+      "id": "L2CAP-003",
+      "state": "compiled_static_analysis_passed_runtime_unqualified",
+      "owned": [
+        "native_bt/src/dbt_channels.c:647-675",
+        "native_bt/src/dbt_channels.c:1076",
+        "native_bt/src/dbt_runtime.c:29-44"
+      ],
+      "reference": [
+        "src/l2cap.c:3930-3950",
+        "src/l2cap.c:5141-5170"
+      ],
+      "specification": "Core 6.1 Vol3 PartA sections4 and4.1",
+      "issue": "Malformed signaling bodies/framing caused a global host abort before a bounded protocol response could be generated.",
+      "fix": "Framed malformed requests reach owner dispatch and receive Command Reject. Identified malformed responses are discarded. Invalid framing is counted/discarded without host abort. Queue/API/resource failures remain explicit."
+    },
+    {
+      "id": "ACL-004",
+      "state": "compiled_static_analysis_passed_runtime_unqualified",
+      "owned": [
+        "native_bt/src/dbt_acl.c:dbt_acl_event",
+        "native_bt/src/dbt_gap.c:event mask"
+      ],
+      "reference": [
+        "src/hci.c:5249-5258"
+      ],
+      "issue": "Role Change was enabled in the controller event mask but was never applied to owned Classic link state.",
+      "fix": "Validate status/size/role and update the live Classic peer selected by the HCI address; ignore late unknown-peer events without changing LE links.",
+      "limit": "Initial Classic role remains explicitly unknown until established by a role event; no claim that this caused audio underruns."
+    },
+    {
+      "id": "RX-005",
+      "state": "compiled_static_analysis_passed_runtime_unqualified",
+      "owned": [
+        "native_bt/src/dbt_l2cap.c:dbt_l2cap_receive/release_partial",
+        "native_bt/esp32_probe/main/probe_main.c:runtime initialization"
+      ],
+      "reference": [
+        "src/hci.h:683-686",
+        "src/hci.c:1268-1378"
+      ],
+      "issue": "Fragmented-PDU delivery allocated/freed heap storage on the host path and rescanned the reassembly table/timeouts per packet. BTstack retains connection reassembly storage.",
+      "fix": "Product binds four retained 4096-byte regions before controller enable. RX maps directly to its ACL slot; timeout expiration scans once per owner turn, with a local deadline check. Bound mode never calls allocation/release providers and has no heap fallback. Payload copies use memcpy.",
+      "ram_tradeoff": "16 KiB retained buffer reserve plus binding metadata; same configured maximum simultaneous reassembly capacity, lower idle heap rather than a RAM-win claim.",
+      "limits": "Other allocation paths and throughput remain under audit. Provider mode remains explicit for nonproduct callers; this is not automatic fallback."
+    },
+    {
+      "id": "QUEUE-006",
+      "state": "compiled_static_analysis_passed_runtime_unqualified",
+      "owned": [
+        "native_bt/src/dbt_queue.c:push/dbt_queue_pop"
+      ],
+      "reference": [
+        "src/btstack_ring_buffer.c:85-160"
+      ],
+      "issue": "Every normal HCI payload copy repeatedly masked each byte index in ingress/consumer loops, while the reference copies the contiguous ring spans.",
+      "fix": "Copy each payload in at most two memcpy spans. Preserve packet tags, sensitive-data wiping, control reserve and release/acquire publication order. No new storage or synchronization.",
+      "limit": "No elapsed-time speedup is claimed without timing evidence."
+    },
+    {
+      "id": "CODEC-007",
+      "state": "compiled_static_analysis_passed_runtime_unqualified",
+      "owned": [
+        "native_bt/codecs/common/dbt_codec.c:dbt_codec_worker_media"
+      ],
+      "reference": [
+        "src/btstack_ring_buffer.c:85-160",
+        "example/a2dp_sink_demo.c:media handoff"
+      ],
+      "issue": "The encoded handoff copied every payload byte through a manual loop on the host producer path.",
+      "fix": "Use SDK memcpy for the disjoint encoded payload; preserve metadata, queue size and release publication. Small configuration copies are not changed.",
+      "limit": "Timing is unmeasured. This is not a zero-copy decoder loan or proof that decoding meets every deadline."
+    }
+  ],
+  "sections_reviewed": [
+    {
+      "layer": "H4/ACL ingress and RX credits",
+      "owned": [
+        "native_bt/src/dbt_hci.c",
+        "native_bt/src/dbt_rx_flow.c",
+        "native_bt/src/dbt_l2cap.c:47-113",
+        "native_bt/src/dbt_runtime.c:126-183"
+      ],
+      "reference": [
+        "src/hci.c:1268-1378",
+        "src/hci.c:6611-6654",
+        "src/hci.c:8508-8526",
+        "port/esp32/components/btstack/hci_transport_esp32_vhci.c:69-249"
+      ],
+      "outcome": "Two host-wide error-boundary defects identified; credit timing alone is not a demonstrated throughput defect.",
+      "full_layer_complete": false
+    },
+    {
+      "layer": "L2CAP signaling admission/error boundaries",
+      "owned": [
+        "native_bt/src/dbt_channels.c:571-675",
+        "native_bt/src/dbt_channels.c:1076-1209",
+        "native_bt/src/dbt_runtime.c:29-44"
+      ],
+      "reference": [
+        "src/l2cap.c:3701-3755",
+        "src/l2cap.c:3930-3975",
+        "src/l2cap.c:5141-5170"
+      ],
+      "outcome": "Host-wide error escalation and missing bounded negative-response path corrected; valid transaction/state coverage still in progress.",
+      "full_layer_complete": false
+    },
+    {
+      "layer": "ACL credits, completion and Classic role events",
+      "owned": [
+        "native_bt/src/dbt_acl.c",
+        "native_bt/include/dbt_acl.h"
+      ],
+      "reference": [
+        "src/hci.c:683-706",
+        "src/hci.c:4443-4477",
+        "src/hci.c:5249-5258"
+      ],
+      "outcome": "Credit aggregation/unknown completion handling retained. Missing Role Change state update implemented. Initial Classic role discovery remains a separate review item.",
+      "full_layer_complete": false
+    },
+    {
+      "layer": "Basic L2CAP configuration response bounds",
+      "owned": [
+        "native_bt/src/dbt_channels.c:parse_options/config_request/enqueue/wait_ms"
+      ],
+      "reference": [
+        "src/l2cap.c:3462-3481"
+      ],
+      "outcome": "Investigated a possible oversize-response retry spin. The owned parser limits response options to 38 bytes, matching the 44-byte body/48-byte signaling slot; overflow is converted to a bounded rejected response. No such defect is established by this path.",
+      "full_layer_complete": false
+    }
+  ],
+  "integration_gaps": [
+    {
+      "id": "OUTGOING-001",
+      "status": "confirmed_unwired",
+      "owned": [
+        "native_bt/src/dbt_gap.c",
+        "native_bt/src/dbt_sdp_discovery.c",
+        "native_bt/src/dbt_avdtp_sink.c",
+        "native_bt/src/dbt_a2dp_acceptor.c"
+      ],
+      "reference": [
+        "src/classic/avdtp_initiator.c",
+        "src/classic/a2dp_sink.c"
+      ],
+      "evidence": [
+        "Only product dbt_avdtp_command call is Delay Report",
+        "Latest ELF has no dbt_gap_connect or dbt_sdp_discovery_begin/probe_sdp_discover_audio_source symbol"
+      ],
+      "impact": "No enabled product automatic outgoing connection/discovery/stream-setup policy. Generic command helpers and caller-owned modules do not supply that policy.",
+      "requirement": "Explicit master-goal automatic reconnection; released app disabled speaker-initiated auto reconnect."
+    },
+    {
+      "id": "BROWSE-001",
+      "status": "confirmed_unwired_baseline_scope_pending",
+      "owned": [
+        "native_bt/src/dbt_avrcp_browse.c",
+        "native_bt/esp32_probe/main/probe_avrcp.c",
+        "native_bt/esp32_probe/main/probe_sdp.c"
+      ],
+      "reference": [
+        "src/classic/avrcp_browsing.c",
+        "src/classic/avrcp_browsing_controller.c",
+        "src/classic/avrcp_browsing_target.c"
+      ],
+      "evidence": [
+        "Browse engine compiled as a source unit but absent from latest ELF symbols",
+        "Product registers control PSM only and its SDP explicitly advertises no browsing"
+      ],
+      "impact": "Browsing source exists without reachable product integration.",
+      "requirement": "Determine released product profile exposure; do not infer a lost app feature solely from reference-library capability."
+    }
+  ],
+  "coverage": {
+    "owned_files": 270,
+    "reviewed_owned_c_bodies": 5,
+    "partial_files": 4,
+    "pending_files": 261,
+    "compiled_owned_units_missing": 0
+  },
+  "inventory_corrections": [
+    {
+      "issue": "Initial directory filter omitted the real Opus scratch directory and non-C build/generation inputs",
+      "action": "Removed directory-name exclusion and cross-checked every compiled owned translation unit",
+      "added": [
+        "native_bt/src/dbt_resampler_coeffs.inc",
+        "native_bt/codecs/aac/prepare_port.py",
+        "native_bt/codecs/aptx/CMakeLists.txt",
+        "native_bt/codecs/ldac/prepare_port.py",
+        "native_bt/codecs/lhdcv5/CMakeLists.txt",
+        "native_bt/codecs/lhdcv5/prepare_port.py",
+        "native_bt/codecs/opus/scratch/dbt_opus_guarded_api.h",
+        "native_bt/codecs/opus/scratch/dbt_opus_scratch.c",
+        "native_bt/codecs/opus/scratch/dbt_opus_scratch.h",
+        "native_bt/codecs/opus/scratch/dbt_opus_scratch_override.h",
+        "native_bt/codecs/sbc/prepare_port.py",
+        "native_bt/esp32_probe/CMakeLists.txt",
+        "native_bt/esp32_probe/components/aac_decoder/CMakeLists.txt",
+        "native_bt/esp32_probe/components/aptx_decoder/CMakeLists.txt",
+        "native_bt/esp32_probe/components/codec_core/CMakeLists.txt",
+        "native_bt/esp32_probe/components/ldac_decoder/CMakeLists.txt",
+        "native_bt/esp32_probe/components/lhdcv5_decoder/CMakeLists.txt",
+        "native_bt/esp32_probe/components/native_bt/CMakeLists.txt",
+        "native_bt/esp32_probe/components/opus_decoder/CMakeLists.txt",
+        "native_bt/esp32_probe/components/opus_decoder/config/config.h",
+        "native_bt/esp32_probe/components/sbc_decoder/CMakeLists.txt",
+        "native_bt/esp32_probe/main/CMakeLists.txt",
+        "native_bt/esp32_probe/main/Kconfig.projbuild",
+        "native_bt/esp32_probe/main/probe_scheduler.lf",
+        "native_bt/esp32_probe/sdkconfig.defaults",
+        "native_bt/CMakeLists.txt",
+        "bt_audio_sink/main/dsp/fixed_dsp_tables.inc"
+      ]
+    }
+  ],
+  "follow_up_checks": [
+    {
+      "id": "CID-REVIEW",
+      "status": "pending_retirement_review_not_a_confirmed_defect",
+      "owned": "native_bt/src/dbt_channels.c:allocate_channel",
+      "reference": "src/l2cap.c:1000-1013",
+      "difference": "Owned allocation starts at the lowest free CID; reference rotates its next-CID cursor. Compare close/retirement guarantees before changing a wire-legal allocation policy."
+    }
+  ],
+  "next_review": {
+    "layer": "AVDTP/A2DP signaling, media routing and codec handoff",
+    "owned": [
+      "native_bt/src/dbt_avdtp.c",
+      "native_bt/src/dbt_avdtp_bearer.c",
+      "native_bt/src/dbt_avdtp_sink.c",
+      "native_bt/src/dbt_a2dp_acceptor.c",
+      "native_bt/src/dbt_avdtp_caps.c",
+      "native_bt/codecs/common/dbt_codec.c"
+    ],
+    "reference": [
+      "src/classic/avdtp.c",
+      "src/classic/avdtp_acceptor.c",
+      "src/classic/avdtp_initiator.c",
+      "src/classic/a2dp_sink.c",
+      "example/a2dp_sink_demo.c"
+    ],
+    "notes": "Keep core0 decoder/core1 Bluetooth+DSP; do not integrate BTstack implementation or run held functional campaigns."
+  },
+  "latest_build_image": "1c6210a0610df3e61dfc357e33677341137b07db94b8456d77c9a7d220bc6f30"
+}

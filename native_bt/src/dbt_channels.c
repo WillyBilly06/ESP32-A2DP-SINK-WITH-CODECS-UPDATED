@@ -649,8 +649,7 @@ dbt_result_t dbt_channels_receive(dbt_channels_t *manager, uint16_t handle, uint
         if (size - cursor < 4u) goto malformed;
         uint16_t length = dbt_read_le16(data + cursor + 2);
         uint32_t total = 4u + length;
-        if (total > size - cursor || data[cursor + 1] == 0 ||
-            !command_shape(data + cursor, (uint16_t)total)) goto malformed;
+        if (total > size - cursor || data[cursor + 1] == 0) goto malformed;
         if(first_request==UINT32_MAX && !response_code(data[cursor]))first_request=cursor;
         cursor += total; ++commands;
     }
@@ -1076,6 +1075,13 @@ static void le_connection_response(dbt_channels_t *m,const dbt_link_t *link,cons
 static dbt_result_t process_command(dbt_channels_t *manager, const dbt_link_t *link, uint16_t cid,
                                      const uint8_t *command, uint16_t size) {
     uint8_t code = command[0], id = command[1];
+    /* Framing was validated before queue admission. Validate the command body
+     * here, where a Request can retain its required bounded Reject response.
+     * Identified Responses are discarded rather than creating Reject loops. */
+    if(!command_shape(command,size)){
+        ++manager->malformed_pdus;
+        return response_code(code)?DBT_OK:reject(manager,link,cid,id,0,0,0);
+    }
     const uint8_t *body = command + 4;
     if (link->kind == DBT_LINK_LE && code != 1 && code != 6 && code != 7 && code != 0x12 && code != 0x13 &&
         code!=LE_CONNECT_REQUEST && code!=LE_CONNECT_RESPONSE && code!=LE_CREDITS)return reject(manager,link,cid,id,0,0,0);

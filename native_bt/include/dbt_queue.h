@@ -5,7 +5,8 @@
 #include <stdint.h>
 #include <stdatomic.h>
 
-/* One controller-task producer, one host-task consumer. No borrowed RX data. */
+/* One controller-task producer, one host-task consumer. No borrowed RX data.
+ * Caller input/output buffers must be disjoint from queue storage. */
 #define DBT_QUEUE_BYTES 4096u
 #define DBT_MAX_H4_BYTES 1029u /* 1024-byte host ACL payload + H4/ACL header. */
 #define DBT_CONTROL_RESERVE_BYTES 520u

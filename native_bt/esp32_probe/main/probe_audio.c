@@ -129,6 +129,8 @@ static _Atomic uint32_t pcm_generation,pcm_frames,pcm_bytes,pcm_hash,pcm_rate,pc
 static _Atomic uint32_t codec_revision,codec_cie_size,codec_cie_words[(DBT_CODEC_CIE_BYTES+3u)/4u];
 static _Atomic uint32_t profile_snapshot,event_errors,last_channel_event,last_channel_result;
 static _Atomic uint32_t ignored_dynamic,oversized_dynamic;
+static _Atomic uint32_t l2cap_delivered,l2cap_abandoned,l2cap_rejected,l2cap_orphaned;
+static _Atomic uint32_t l2cap_malformed_signaling,l2cap_unknown_responses,l2cap_retained_bytes;
 static _Atomic uint32_t media_sdu_max,last_oversized_size,last_oversized_mtu,last_oversized_psm;
 /* Separate single-writer rings for host admission and decoder events. Logging
  * never waits on the producer; record loss is itself exposed every second. */
@@ -604,6 +606,9 @@ static void log_loop(void *unused){
                atomic_load(&worker.pcm_failures),atomic_load(&worker.pcm_timeouts),atomic_load(&worker.pcm_backpressure),
                atomic_load(&worker.input_sequence_breaks),atomic_load(&worker.input_ssrc_changes),atomic_load(&worker.queue_high_water),
                atomic_load(&media_trace_rings[0].lost),atomic_load(&media_trace_rings[1].lost),atomic_load(&snapshot_format_lost));
+        PROBE_SNAPSHOT_LOG("{\"probe\":\"l2cap_reassembly\",\"collection_cycle_us\":%" PRIu32 ",\"delivered\":%" PRIu32
+            ",\"abandoned\":%" PRIu32 ",\"rejected_wire_packets\":%" PRIu32 ",\"orphan_continuations\":%" PRIu32 ",\"malformed_signaling\":%" PRIu32 ",\"unknown_responses\":%" PRIu32 ",\"retained_storage_bytes\":%" PRIu32 "}\n",
+            at,atomic_load(&l2cap_delivered),atomic_load(&l2cap_abandoned),atomic_load(&l2cap_rejected),atomic_load(&l2cap_orphaned),atomic_load(&l2cap_malformed_signaling),atomic_load(&l2cap_unknown_responses),atomic_load(&l2cap_retained_bytes));
         PROBE_SNAPSHOT_LOG("{\"probe\":\"worker_timing\",\"collection_cycle_us\":%" PRIu32 ",\"steps\":%" PRIu32 ",\"elapsed_us\":%" PRIu32
                ",\"max_step_us\":%" PRIu32 ",\"wall_time_includes_preemption\":true,\"step_budget\":2,\"histogram_us_le\":[125,250,500,1000,2000,4000,8000],\"histogram_counts\":[%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 "]}\n",
                at,atomic_load(&worker_steps),atomic_load(&worker_elapsed_us),atomic_load(&worker_step_max_us),
@@ -829,6 +834,13 @@ void probe_audio_poll(uint32_t now){
     }
     if(failed || restart_hold)restart_drained=dbt_a2dp_acceptor_stop(&profile,now)==DBT_OK;
     (void)dbt_a2dp_acceptor_poll(&profile,now);
+    atomic_store(&l2cap_delivered,profile.runtime->rx.delivered);
+    atomic_store(&l2cap_abandoned,profile.runtime->rx.abandoned);
+    atomic_store(&l2cap_rejected,profile.runtime->rx.rejected);
+    atomic_store(&l2cap_orphaned,profile.runtime->rx.orphaned);
+    atomic_store(&l2cap_malformed_signaling,profile.runtime->channels.malformed_pdus);
+    atomic_store(&l2cap_unknown_responses,profile.runtime->channels.unknown_responses);
+    atomic_store(&l2cap_retained_bytes,profile.runtime->rx.storage?(uint32_t)DBT_MAX_LINKS*profile.runtime->rx.storage_stride:0u);
     atomic_store(&ignored_dynamic,profile.runtime->channels.ignored_dynamic_pdus);
     atomic_store(&oversized_dynamic,profile.runtime->channels.oversized_dynamic_pdus);
     const dbt_channel_oversize_t *oversize=&profile.runtime->channels.last_oversized;

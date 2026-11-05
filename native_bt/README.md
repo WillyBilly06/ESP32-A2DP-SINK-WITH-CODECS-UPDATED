@@ -6,11 +6,16 @@ capture replay and export. `tools/start_serial_dashboard.ps1` prints its URL.
 Release COM6 in the viewer or through `serial_monitor_ctl.py` before flashing;
 the viewer remains open and follows the test capture while the port is free.
 
+The [BTstack code audit](docs/BTSTACK_CODE_AUDIT_2026_11_05.md) now tracks
+all 270 owned implementation/build inputs, confirmed layer defects, unwired modules and
+remaining review coverage against a fresh pinned upstream checkout. The
+comparison is in progress; file presence or compilation is not feature parity.
+
 ## Current development checkpoint — 2026-11-05
 
 The owned Classic+BLE host is selected on the local COM6 board in ota1 at
 0x390000, marked VALID, with automatic Bluedroid restoration disabled. The
-verified image is `444c690ecdccfddcad72271f6458d106ec1e0cb3d5b5c1bc9a6d354f5b1a1579`.
+verified image is `1c6210a0610df3e61dfc357e33677341137b07db94b8456d77c9a7d220bc6f30`.
 This remains development firmware with incomplete feature/runtime qualification.
 
 Recent source corrections cover [codec payload boundaries and shared PCM
