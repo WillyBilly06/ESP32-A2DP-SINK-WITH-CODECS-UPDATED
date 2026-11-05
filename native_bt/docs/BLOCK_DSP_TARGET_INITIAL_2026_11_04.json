@@ -1,0 +1,411 @@
+{
+  "scope": "COM6 controller-off isolated block DSP comparison; no renderer selection or RF headroom proof",
+  "archive": "native_bt/_build/hardware/runs/1793853592088454200-2de58fbf8bc5",
+  "source_commit": "8a9ceb9af47fca04f29c28e2bfadda29369a739f",
+  "image_sha256": "2de58fbf8bc5d68bd39fcd083985219121c81879fb97b82f28b2d99da1322b85",
+  "elf_sha256": "a604b52bf55deb01e4ea002f584f7d7bca22c7501db3061446b3a22b212da5ba",
+  "source_manifest_sha256": "b46fb1ac47adcfe61e61340abc5f3b16628f17d09e8d487131280c2f0c9a13e4",
+  "all_81_variant_rows_equivalent": true,
+  "summary": [
+    {
+      "probe": "dsp_variant_summary",
+      "passed": true,
+      "cases": 27,
+      "expected_cases": 27,
+      "variants": 3,
+      "workspace_bytes": 6944,
+      "stack_low_water_bytes": 5220,
+      "controller_enabled": false,
+      "i2s_test": false,
+      "speed_is_not_a_pass_gate": true
+    }
+  ],
+  "comparisons": [
+    {
+      "rate": 48000,
+      "flags": 9,
+      "gains": [
+        3,
+        -2,
+        2
+      ],
+      "median_steady_gain_percent": 10.263749652843101,
+      "median_ramp_gain_percent": -9.445911002788332,
+      "trials": [
+        {
+          "trial": 0,
+          "per_frame_steady_cycles": 223202,
+          "block_steady_cycles": 199873,
+          "per_frame_ramp_cycles": 297331,
+          "block_ramp_cycles": 327812,
+          "steady_gain_percent": 10.451967276278884,
+          "ramp_gain_percent": -10.251537848391191
+        },
+        {
+          "trial": 1,
+          "per_frame_steady_cycles": 223216,
+          "block_steady_cycles": 200363,
+          "per_frame_ramp_cycles": 296234,
+          "block_ramp_cycles": 324216,
+          "steady_gain_percent": 10.238065371657946,
+          "ramp_gain_percent": -9.445911002788332
+        },
+        {
+          "trial": 2,
+          "per_frame_steady_cycles": 223242,
+          "block_steady_cycles": 200329,
+          "per_frame_ramp_cycles": 296348,
+          "block_ramp_cycles": 324224,
+          "steady_gain_percent": 10.263749652843101,
+          "ramp_gain_percent": -9.406508564255533
+        }
+      ]
+    },
+    {
+      "rate": 48000,
+      "flags": 13,
+      "gains": [
+        3,
+        -2,
+        2
+      ],
+      "median_steady_gain_percent": 10.12220582173109,
+      "median_ramp_gain_percent": -9.112138118362045,
+      "trials": [
+        {
+          "trial": 0,
+          "per_frame_steady_cycles": 225589,
+          "block_steady_cycles": 202784,
+          "per_frame_ramp_cycles": 307041,
+          "block_ramp_cycles": 335019,
+          "steady_gain_percent": 10.109092198644444,
+          "ramp_gain_percent": -9.112138118362045
+        },
+        {
+          "trial": 1,
+          "per_frame_steady_cycles": 225603,
+          "block_steady_cycles": 202767,
+          "per_frame_ramp_cycles": 306793,
+          "block_ramp_cycles": 334769,
+          "steady_gain_percent": 10.12220582173109,
+          "ramp_gain_percent": -9.118852125048482
+        },
+        {
+          "trial": 2,
+          "per_frame_steady_cycles": 225635,
+          "block_steady_cycles": 202743,
+          "per_frame_ramp_cycles": 306923,
+          "block_ramp_cycles": 334871,
+          "steady_gain_percent": 10.145589115163867,
+          "ramp_gain_percent": -9.10586694382629
+        }
+      ]
+    },
+    {
+      "rate": 48000,
+      "flags": 8,
+      "gains": [
+        0,
+        0,
+        0
+      ],
+      "median_steady_gain_percent": 30.955885522839388,
+      "median_ramp_gain_percent": 22.12588935111388,
+      "trials": [
+        {
+          "trial": 0,
+          "per_frame_steady_cycles": 162348,
+          "block_steady_cycles": 112080,
+          "per_frame_ramp_cycles": 179896,
+          "block_ramp_cycles": 140260,
+          "steady_gain_percent": 30.963116268756007,
+          "ramp_gain_percent": 22.03273002179037
+        },
+        {
+          "trial": 1,
+          "per_frame_steady_cycles": 162338,
+          "block_steady_cycles": 112105,
+          "per_frame_ramp_cycles": 180047,
+          "block_ramp_cycles": 140210,
+          "steady_gain_percent": 30.943463637595634,
+          "ramp_gain_percent": 22.12588935111388
+        },
+        {
+          "trial": 2,
+          "per_frame_steady_cycles": 162373,
+          "block_steady_cycles": 112109,
+          "per_frame_ramp_cycles": 180053,
+          "block_ramp_cycles": 140083,
+          "steady_gain_percent": 30.955885522839388,
+          "ramp_gain_percent": 22.199019177686573
+        }
+      ]
+    },
+    {
+      "rate": 96000,
+      "flags": 9,
+      "gains": [
+        3,
+        -2,
+        2
+      ],
+      "median_steady_gain_percent": 10.58148974088623,
+      "median_ramp_gain_percent": -10.436769847360793,
+      "trials": [
+        {
+          "trial": 0,
+          "per_frame_steady_cycles": 214346,
+          "block_steady_cycles": 191665,
+          "per_frame_ramp_cycles": 293175,
+          "block_ramp_cycles": 323773,
+          "steady_gain_percent": 10.58148974088623,
+          "ramp_gain_percent": -10.436769847360793
+        },
+        {
+          "trial": 1,
+          "per_frame_steady_cycles": 214367,
+          "block_steady_cycles": 191692,
+          "per_frame_ramp_cycles": 293152,
+          "block_ramp_cycles": 323758,
+          "steady_gain_percent": 10.577654209836407,
+          "ramp_gain_percent": -10.440317650911467
+        },
+        {
+          "trial": 2,
+          "per_frame_steady_cycles": 214361,
+          "block_steady_cycles": 191585,
+          "per_frame_ramp_cycles": 293261,
+          "block_ramp_cycles": 323611,
+          "steady_gain_percent": 10.625067059772997,
+          "ramp_gain_percent": -10.3491429136503
+        }
+      ]
+    },
+    {
+      "rate": 96000,
+      "flags": 13,
+      "gains": [
+        3,
+        -2,
+        2
+      ],
+      "median_steady_gain_percent": 10.469382386738602,
+      "median_ramp_gain_percent": -10.073864477602124,
+      "trials": [
+        {
+          "trial": 0,
+          "per_frame_steady_cycles": 216689,
+          "block_steady_cycles": 194003,
+          "per_frame_ramp_cycles": 303732,
+          "block_ramp_cycles": 334561,
+          "steady_gain_percent": 10.469382386738602,
+          "ramp_gain_percent": -10.150066505998701
+        },
+        {
+          "trial": 1,
+          "per_frame_steady_cycles": 216723,
+          "block_steady_cycles": 194065,
+          "per_frame_ramp_cycles": 303935,
+          "block_ramp_cycles": 334553,
+          "steady_gain_percent": 10.45482020828431,
+          "ramp_gain_percent": -10.073864477602124
+        },
+        {
+          "trial": 2,
+          "per_frame_steady_cycles": 216701,
+          "block_steady_cycles": 193932,
+          "per_frame_ramp_cycles": 303994,
+          "block_ramp_cycles": 334413,
+          "steady_gain_percent": 10.507104258863597,
+          "ramp_gain_percent": -10.006447495674253
+        }
+      ]
+    },
+    {
+      "rate": 96000,
+      "flags": 8,
+      "gains": [
+        0,
+        0,
+        0
+      ],
+      "median_steady_gain_percent": 32.8330487598243,
+      "median_ramp_gain_percent": 22.893388124480563,
+      "trials": [
+        {
+          "trial": 0,
+          "per_frame_steady_cycles": 153446,
+          "block_steady_cycles": 103065,
+          "per_frame_ramp_cycles": 173199,
+          "block_ramp_cycles": 133626,
+          "steady_gain_percent": 32.8330487598243,
+          "ramp_gain_percent": 22.848284343443094
+        },
+        {
+          "trial": 1,
+          "per_frame_steady_cycles": 153446,
+          "block_steady_cycles": 103099,
+          "per_frame_ramp_cycles": 173273,
+          "block_ramp_cycles": 133561,
+          "steady_gain_percent": 32.810891127823474,
+          "ramp_gain_percent": 22.918746717607476
+        },
+        {
+          "trial": 2,
+          "per_frame_steady_cycles": 153467,
+          "block_steady_cycles": 103062,
+          "per_frame_ramp_cycles": 173264,
+          "block_ramp_cycles": 133598,
+          "steady_gain_percent": 32.844194517388104,
+          "ramp_gain_percent": 22.893388124480563
+        }
+      ]
+    },
+    {
+      "rate": 192000,
+      "flags": 9,
+      "gains": [
+        3,
+        -2,
+        2
+      ],
+      "median_steady_gain_percent": 10.720440084835637,
+      "median_ramp_gain_percent": -10.516886483189758,
+      "trials": [
+        {
+          "trial": 0,
+          "per_frame_steady_cycles": 211147,
+          "block_steady_cycles": 188581,
+          "per_frame_ramp_cycles": 288563,
+          "block_ramp_cycles": 318906,
+          "steady_gain_percent": 10.687341046758892,
+          "ramp_gain_percent": -10.515208117464825
+        },
+        {
+          "trial": 1,
+          "per_frame_steady_cycles": 211232,
+          "block_steady_cycles": 188587,
+          "per_frame_ramp_cycles": 288545,
+          "block_ramp_cycles": 318907,
+          "steady_gain_percent": 10.720440084835637,
+          "ramp_gain_percent": -10.522448838136157
+        },
+        {
+          "trial": 2,
+          "per_frame_steady_cycles": 211193,
+          "block_steady_cycles": 188501,
+          "per_frame_ramp_cycles": 288574,
+          "block_ramp_cycles": 318923,
+          "steady_gain_percent": 10.74467430265208,
+          "ramp_gain_percent": -10.516886483189758
+        }
+      ]
+    },
+    {
+      "rate": 192000,
+      "flags": 13,
+      "gains": [
+        3,
+        -2,
+        2
+      ],
+      "median_steady_gain_percent": 10.605130607941904,
+      "median_ramp_gain_percent": -10.173952351454062,
+      "trials": [
+        {
+          "trial": 0,
+          "per_frame_steady_cycles": 213336,
+          "block_steady_cycles": 190800,
+          "per_frame_ramp_cycles": 298645,
+          "block_ramp_cycles": 329029,
+          "steady_gain_percent": 10.563617954775562,
+          "ramp_gain_percent": -10.173952351454062
+        },
+        {
+          "trial": 1,
+          "per_frame_steady_cycles": 213425,
+          "block_steady_cycles": 190791,
+          "per_frame_ramp_cycles": 298627,
+          "block_ramp_cycles": 329107,
+          "steady_gain_percent": 10.605130607941904,
+          "ramp_gain_percent": -10.20671272189051
+        },
+        {
+          "trial": 2,
+          "per_frame_steady_cycles": 213396,
+          "block_steady_cycles": 190706,
+          "per_frame_ramp_cycles": 298754,
+          "block_ramp_cycles": 328998,
+          "steady_gain_percent": 10.632814110854937,
+          "ramp_gain_percent": -10.123379101200314
+        }
+      ]
+    },
+    {
+      "rate": 192000,
+      "flags": 8,
+      "gains": [
+        0,
+        0,
+        0
+      ],
+      "median_steady_gain_percent": 33.848655824759376,
+      "median_ramp_gain_percent": 23.524238435613054,
+      "trials": [
+        {
+          "trial": 0,
+          "per_frame_steady_cycles": 150510,
+          "block_steady_cycles": 99747,
+          "per_frame_ramp_cycles": 169421,
+          "block_ramp_cycles": 129566,
+          "steady_gain_percent": 33.72732708790114,
+          "ramp_gain_percent": 23.524238435613054
+        },
+        {
+          "trial": 1,
+          "per_frame_steady_cycles": 150693,
+          "block_steady_cycles": 99657,
+          "per_frame_ramp_cycles": 169424,
+          "block_ramp_cycles": 129506,
+          "steady_gain_percent": 33.86753200215007,
+          "ramp_gain_percent": 23.561006705071296
+        },
+        {
+          "trial": 2,
+          "per_frame_steady_cycles": 150650,
+          "block_steady_cycles": 99657,
+          "per_frame_ramp_cycles": 169385,
+          "block_ramp_cycles": 129556,
+          "steady_gain_percent": 33.848655824759376,
+          "ramp_gain_percent": 23.513888478908996
+        }
+      ]
+    }
+  ],
+  "pipeline_check": {
+    "probe": "target_pipeline_selftest",
+    "passed": false,
+    "configured": true,
+    "started": true,
+    "stream_result": 0,
+    "correctness": false,
+    "continuity": false,
+    "rate": 192000,
+    "sample_depth": 24,
+    "channels": 2,
+    "encoded_payload_bps": 1001600,
+    "packets": 2,
+    "completed_packets": 0,
+    "sample_frames": 512,
+    "pcm_hash": 639236599,
+    "synthetic_source": true,
+    "integer_dsp": true,
+    "i2s_test": true,
+    "rf_test": false,
+    "production_qualified": false
+  },
+  "baseline_boot_observed": true,
+  "boot_fatal_marker": false,
+  "selection": "not selected: retain stable kernel for hybrid experiment; avoid measured ramp regression by using canonical per-frame prefix",
+  "production_qualified": false
+}

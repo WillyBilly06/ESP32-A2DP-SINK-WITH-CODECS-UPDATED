@@ -1,0 +1,53 @@
+{
+  "scope": "source-matched host block DSP/runner checks; no target timing",
+  "passed": true,
+  "maximum_frames_per_block": 128,
+  "numerical_modes": [
+    {
+      "mode": "proven",
+      "blocks": 26624,
+      "frames": 1691971
+    },
+    {
+      "mode": "split_fallback",
+      "blocks": 26624,
+      "frames": 1691971
+    }
+  ],
+  "total_compared_frames": 3383942,
+  "rates": 13,
+  "pcm_and_full_state_equal": true,
+  "sanitizers": [
+    "address",
+    "undefined"
+  ],
+  "signed_overflow_wrapping": false,
+  "comparison_groups": 27,
+  "comparison_rows": 81,
+  "regression_pairs_per_mode": 18,
+  "host_receipts": {
+    "numerical": {
+      "archive": "native_bt/_build/experiments/block-dsp-1793853789390931400/numerical.json",
+      "sha256": "eccfc398ce7f3e7cbbea869ac3afe76fc317ab8d1f414c5062bfab5dba46dd4b"
+    },
+    "comparison": {
+      "archive": "native_bt/_build/experiments/block-dsp-1793853789390931400/comparison.json",
+      "sha256": "3c7650fe59bdc28bd8dfaf6c3b47304bcadcc7e2c62f8ad3b6dadd06106444cc"
+    },
+    "profile_regression": {
+      "archive": "native_bt/_build/experiments/block-dsp-1793853789390931400/profile_regression.json",
+      "sha256": "417159d63a39cb5807763be765f58b05dbab0c30c130e63aaebdeb59cd3a2caa"
+    },
+    "inline_regression": {
+      "archive": "native_bt/_build/experiments/block-dsp-1793853789390931400/inline_regression.json",
+      "sha256": "3b6be2ee2c3ed6e6872ee9aae72446aa88544969e050c3a8e34e0c062484284f"
+    },
+    "mode_guards": {
+      "archive": "native_bt/_build/experiments/block-dsp-1793853789390931400/mode_guards.json",
+      "sha256": "e1cba271297f4e8fb1ef6e9dbe19fc1c643228cffd7215b73c6b1f9ebf6f1c83"
+    }
+  },
+  "target_result_pending": true,
+  "renderer_changed": false,
+  "production_qualified": false
+}
