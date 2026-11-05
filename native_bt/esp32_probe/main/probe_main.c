@@ -562,6 +562,13 @@ static void confirm_owned_boot(void *unused){
 }
 #endif
 
+static void boot_memory(const char *phase){
+    const unsigned caps=MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT;
+    HOST_PRINTF("{\"probe\":\"boot_memory\",\"host\":\"owned\",\"phase\":\"%s\",\"internal_free\":%u,\"internal_largest\":%u,\"internal_minimum\":%u,\"internal_total\":%u,\"owner_stack_low\":%u}\n",
+        phase,(unsigned)heap_caps_get_free_size(caps),(unsigned)heap_caps_get_largest_free_block(caps),
+        (unsigned)heap_caps_get_minimum_free_size(caps),(unsigned)heap_caps_get_total_size(caps),
+        (unsigned)uxTaskGetStackHighWaterMark(NULL));
+}
 void app_main(void) {
     owner = xTaskGetCurrentTaskHandle();
     _Static_assert(DBT_PROBE_HOST_PRIORITY < ESP_TASK_BT_CONTROLLER_PRIO,
@@ -642,13 +649,16 @@ void app_main(void) {
     probe_admission_first_boot(now_ms(),probe_security_loaded_bonds());
 #endif
     esp_bt_controller_config_t configuration = BT_CONTROLLER_INIT_CONFIG_DEFAULT();
+    boot_memory("before_controller");
     startup_error=esp_bt_controller_init(&configuration);
     if(startup_error!=ESP_OK){ESP_LOGE(tag,"Controller init failed: %d",(int)startup_error);owner_fault_park("controller initialization");}
+    boot_memory("controller_initialized");
     static const esp_vhci_host_callback_t callbacks = { send_available, receive_packet };
     startup_error=esp_vhci_host_register_callback(&callbacks);
     if(startup_error!=ESP_OK){ESP_LOGE(tag,"Controller callback registration failed: %d",(int)startup_error);owner_fault_park("controller callback registration");}
     startup_error=esp_bt_controller_enable(ESP_BT_MODE_BTDM);
     if(startup_error!=ESP_OK){ESP_LOGE(tag,"Controller enable failed: %d",(int)startup_error);owner_fault_park("controller enable");}
+    boot_memory("controller_enabled");
     if (dbt_runtime_start(&runtime, now_ms()) != DBT_OK) {
         ESP_LOGE(tag, "core start failed");
         owner_fault_park("runtime start after controller enable");
@@ -657,6 +667,7 @@ void app_main(void) {
     dbt_host_state_t previous = DBT_HOST_IDLE;
     dbt_gap_state_t previous_gap = DBT_GAP_IDLE;
     bool receive_flow_started=false,receive_flow_reported=false;
+    bool memory_services_reported=false;
 #ifdef DBT_PROBE_KEEP_OWNED_ACTIVE
     bool owned_boot_started=false;
 #endif
@@ -924,6 +935,16 @@ void app_main(void) {
                 HOST_PRINTF("{\"probe\":\"boot_selection\",\"kept_active\":false,\"result\":\"task_oom\"}\n");
         }
 #endif
+        if(!memory_services_reported && runtime.ready && gap.state==DBT_GAP_READY
+#ifdef DBT_PROBE_CLASSIC_SECURITY_TEST
+            && security_reported
+#endif
+#ifdef DBT_PROBE_GATT_TEST
+            && gatt_reported
+#endif
+        ){
+            memory_services_reported=true;boot_memory("services_ready");
+        }
         if (host->state != previous) {
             previous = host->state;
             if (host->state == DBT_HOST_IDENTIFIED) {

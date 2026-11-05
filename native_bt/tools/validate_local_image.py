@@ -14,13 +14,22 @@ pipeline=bool(build_status.get('pipeline_diagnostic'))
 entry_name='probe_codec_diagnostic.c' if diagnostic else 'probe_main.c'
 main_command=next(entry['command'] for entry in commands if Path(entry['file']).name==entry_name)
 cache=(a.image.parent/'CMakeCache.txt').read_text()
+stay_native=build_status.get('stay_native',False)
+assert type(stay_native) is bool and ('DBT_PROBE_STAY_NATIVE:BOOL=ON' in cache)==stay_native, 'Stay-native receipt/cache mismatch'
+assert re.findall(r'(?:^|\s)-DDBT_PROBE_STAY_NATIVE=(\S+)',main_command)==(['1'] if stay_native else [])
+assert not re.search(r'(?:^|\s)-UDBT_PROBE_STAY_NATIVE(?:\s|$)',main_command)
+if stay_native:
+    assert not diagnostic and not pipeline and build_status.get('async_audio') and build_status.get('product_io') and build_status.get('product_security')
+    assert not build_status.get('rf_protocol_diagnostic') and not build_status.get('scheduler_trace')
+    assert 'DBT_PROBE_KEEP_OWNED_ACTIVE:BOOL=ON' in cache and entry_name=='probe_main.c'
+
 scheduler_trace=bool(build_status.get('scheduler_trace'))
 assert ('DBT_PROBE_SCHEDULER_TRACE:BOOL=ON' in cache)==scheduler_trace, 'Scheduler sampler receipt/cache mismatch'
 assert re.findall(r'(?:^|\s)-DDBT_PROBE_SCHEDULER_TRACE=(\S+)',main_command)==(['1'] if scheduler_trace else [])
 sampler_units=[e for e in commands if Path(e['file']).name=='probe_scheduler.c']
 assert bool(sampler_units)==scheduler_trace, 'Unexpected or missing sampler unit'
 if scheduler_trace:
-    assert not diagnostic and not pipeline and 'DBT_PROBE_KEEP_OWNED_ACTIVE:BOOL=ON' not in cache
+    assert not diagnostic and not pipeline and ('DBT_PROBE_KEEP_OWNED_ACTIVE:BOOL=ON' not in cache or (build_status.get('stay_native') is True and 'DBT_PROBE_STAY_NATIVE:BOOL=ON' in cache))
     assert not re.search(r'(?:^|\s)-UDBT_PROBE_SCHEDULER_TRACE(?:\s|$)',main_command)
     for unit in ('probe_audio.c','probe_scheduler.c'):
         command=next(e['command'] for e in commands if Path(e['file']).name==unit)
@@ -63,7 +72,7 @@ else:
             assert not re.search(r'(?:^|\s)-UDBT_PROBE_DECODER_PRIORITY(?:\s|$)',entry['command'])
 if decoder_priority!=5:
     assert priority_option and build_status.get('async_audio') and not diagnostic and not pipeline and not build_status.get('rf_protocol_diagnostic')
-    assert 'DBT_PROBE_KEEP_OWNED_ACTIVE:BOOL=ON' not in cache
+    assert ('DBT_PROBE_KEEP_OWNED_ACTIVE:BOOL=ON' not in cache or (build_status.get('stay_native') is True and 'DBT_PROBE_STAY_NATIVE:BOOL=ON' in cache))
     assert any(Path(e['file']).name=='probe_audio.c' for e in commands), 'Priority experiment has no decoder task unit'
 priority_order=build_status.get('priority_order',False)
 assert type(priority_order) is bool and ('DBT_PROBE_PRIORITY_ORDER:BOOL=ON' in cache)==priority_order, 'Priority order receipt/cache mismatch'
@@ -77,7 +86,7 @@ for entry in schedule_units:
     assert not re.search(r'(?:^|\s)-UDBT_PROBE_PRIORITY_ORDER(?:\s|$)',entry['command'])
 if priority_order:
     assert decoder_priority==6 and not diagnostic and not pipeline and build_status.get('async_audio')
-    assert not build_status.get('rf_protocol_diagnostic') and 'DBT_PROBE_KEEP_OWNED_ACTIVE:BOOL=ON' not in cache
+    assert not build_status.get('rf_protocol_diagnostic') and ('DBT_PROBE_KEEP_OWNED_ACTIVE:BOOL=ON' not in cache or (build_status.get('stay_native') is True and 'DBT_PROBE_STAY_NATIVE:BOOL=ON' in cache))
     assert {Path(e['file']).name for e in schedule_units}=={entry_name,'probe_audio.c','probe_output.c'}, 'Missing ordered task unit'
 owner_ready_yield=build_status.get('owner_ready_yield',False)
 assert type(owner_ready_yield) is bool and owner_ready_yield==(decoder_priority==host_priority), 'Owner ready-yield receipt mismatch'
@@ -102,7 +111,7 @@ if rf_diagnostic:
     probe_command=next(e['command'] for e in commands if Path(e['file']).name=='probe_audio.c')
     assert re.search(r'(?:^|\s)-DDBT_PROBE_RF_PROTOCOL_DIAGNOSTIC=1(?:\s|$)',probe_command)
     assert not diagnostic and not pipeline and not build_status.get('async_audio')
-    assert 'DBT_PROBE_KEEP_OWNED_ACTIVE:BOOL=ON' not in cache
+    assert ('DBT_PROBE_KEEP_OWNED_ACTIVE:BOOL=ON' not in cache or (build_status.get('stay_native') is True and 'DBT_PROBE_STAY_NATIVE:BOOL=ON' in cache))
     assert build_status.get('product_io') and build_status.get('product_security')
 assert ('DBT_PROBE_CODEC_DIAGNOSTIC_ONLY:BOOL=ON' in cache)==diagnostic
 assert ('DBT_PROBE_DEFERRED_CODEC_CHECK:BOOL=ON' in cache)==bool(build_status.get('deferred_codec_check'))
@@ -113,7 +122,7 @@ assert ('DBT_PROBE_PCM_LOANS:BOOL=ON' in cache)==pcm_loans, 'PCM loan receipt/ca
 assert bool(re.search(r'(?:^|\s)-DDBT_PROBE_PCM_LOANS=1(?:\s|$)',main_command))==pcm_loans
 if pcm_loans:
     assert build_status.get('async_audio') and not rf_diagnostic
-    assert 'DBT_PROBE_KEEP_OWNED_ACTIVE:BOOL=ON' not in cache
+    assert ('DBT_PROBE_KEEP_OWNED_ACTIVE:BOOL=ON' not in cache or (build_status.get('stay_native') is True and 'DBT_PROBE_STAY_NATIVE:BOOL=ON' in cache))
     for loan_unit in ('probe_output.c','probe_pipeline_check.c' if pipeline else 'probe_audio.c'):
         loan_command=next(entry['command'] for entry in commands if Path(entry['file']).name==loan_unit)
         assert re.search(r'(?:^|\s)-DDBT_PROBE_PCM_LOANS=1(?:\s|$)',loan_command), 'PCM loan provider/client not actually compiled'
@@ -125,7 +134,7 @@ for entry in commands:
         assert re.findall(r'(?:^|\s)-DDBT_PROBE_PCM_COPIED=(\S+)',entry['command'])==(['1'] if pcm_copied else [])
         assert not re.search(r'(?:^|\s)-UDBT_PROBE_PCM_COPIED(?:\s|$)',entry['command'])
 if pcm_copied:
-    assert not pcm_loans and build_status.get('async_audio') and not rf_diagnostic and 'DBT_PROBE_KEEP_OWNED_ACTIVE:BOOL=ON' not in cache
+    assert not pcm_loans and build_status.get('async_audio') and not rf_diagnostic and ('DBT_PROBE_KEEP_OWNED_ACTIVE:BOOL=ON' not in cache or (build_status.get('stay_native') is True and 'DBT_PROBE_STAY_NATIVE:BOOL=ON' in cache))
     for unit in ('probe_output.c','probe_pipeline_check.c' if pipeline else 'probe_audio.c'):
         assert any(Path(e['file']).name==unit for e in commands), 'Missing compact PCM provider/client'
 pcm_target_ms=build_status.get('pcm_target_ms',64)
@@ -144,7 +153,7 @@ else:
             assert re.findall(r'(?:^|\s)-DDBT_PROBE_PCM_TARGET_MS=(\S+)',entry['command']) in ([],['64']), 'Unreceipted short PCM target'
 if pcm_target_ms!=64:
     assert (pcm_loans or pcm_copied) and build_status.get('async_audio') and not rf_diagnostic
-    assert 'DBT_PROBE_KEEP_OWNED_ACTIVE:BOOL=ON' not in cache and pcm_target_option
+    assert ('DBT_PROBE_KEEP_OWNED_ACTIVE:BOOL=ON' not in cache or (build_status.get('stay_native') is True and 'DBT_PROBE_STAY_NATIVE:BOOL=ON' in cache)) and pcm_target_option
 block_dsp=bool(build_status.get('block_dsp'))
 assert ('DBT_PROBE_BLOCK_DSP:BOOL=ON' in cache)==block_dsp, 'Block DSP receipt/cache mismatch'
 assert re.findall(r'(?:^|\s)-DDBT_PROBE_BLOCK_DSP=(\S+)',main_command)==(['1'] if block_dsp else []) and not re.search(r'(?:^|\s)-UDBT_PROBE_BLOCK_DSP(?:\s|$)',main_command)
@@ -154,7 +163,7 @@ for entry in block_core_commands:
         assert re.findall(r'(?:^|\s)-D'+definition+r'=(\S+)',entry['command'])==(['1'] if block_dsp else []), 'Block core mode missing, overridden or unreceipted'
         assert not re.search(r'(?:^|\s)-U'+definition+r'(?:\s|$)',entry['command'])
 if block_dsp:
-    assert (pcm_loans or pcm_copied) and build_status.get('async_audio') and not rf_diagnostic and 'DBT_PROBE_KEEP_OWNED_ACTIVE:BOOL=ON' not in cache
+    assert (pcm_loans or pcm_copied) and build_status.get('async_audio') and not rf_diagnostic and ('DBT_PROBE_KEEP_OWNED_ACTIVE:BOOL=ON' not in cache or (build_status.get('stay_native') is True and 'DBT_PROBE_STAY_NATIVE:BOOL=ON' in cache))
     assert {Path(e['file']).name for e in block_core_commands}=={'dbt_audio.c','fixed_dsp.c'}, 'Missing compiled block core'
 assert bool(re.search(r'(?:^|\s)-DDBT_PROBE_DEFERRED_CODEC_CHECK=1(?:\s|$)',main_command))==bool(build_status.get('deferred_codec_check'))
 word_dsp=build_status.get('word_dsp',False)
@@ -166,7 +175,7 @@ for entry in block_core_commands:
     assert not re.search(r'(?:^|\s)-UFIXED_DSP_WORD_QUANT(?:\s|$)',entry['command'])
 if word_dsp:
     assert block_dsp and build_status.get('async_audio') and not rf_diagnostic
-    assert 'DBT_PROBE_KEEP_OWNED_ACTIVE:BOOL=ON' not in cache
+    assert ('DBT_PROBE_KEEP_OWNED_ACTIVE:BOOL=ON' not in cache or (build_status.get('stay_native') is True and 'DBT_PROBE_STAY_NATIVE:BOOL=ON' in cache))
     assert {Path(e['file']).name for e in block_core_commands}=={'dbt_audio.c','fixed_dsp.c'}
 assert ('DBT_PROBE_LHDC_MAX_CHECK:BOOL=ON' in cache)==bool(build_status.get('lhdc_maximum_check'))
 assert ('DBT_PROBE_LHDC_STAGE_PROFILE:BOOL=ON' in cache)==bool(build_status.get('lhdc_stage_profile'))
@@ -244,7 +253,7 @@ assert hashlib.sha256(original).hexdigest()==receipt['sha256']
 assert table==original[0x8000:0x8000+len(table)]
 assert image.flash_mode==2 and image.flash_size_freq==0x3f
 assert image.min_rev_full<=301<=image.max_rev_full
-report={'passed':True,'scheduler_trace':scheduler_trace,'priority_order':priority_order,'host_priority':host_priority,'decoder_priority':decoder_priority,'renderer_priority':renderer_priority,'owner_ready_yield':owner_ready_yield,'scope':'offline image checksum/digest, ESP32 revision and admitted OTA capacity; no device access or runtime qualification',
+report={'passed':True,'scheduler_trace':scheduler_trace,'stay_native':stay_native,'priority_order':priority_order,'host_priority':host_priority,'decoder_priority':decoder_priority,'renderer_priority':renderer_priority,'owner_ready_yield':owner_ready_yield,'scope':'offline image checksum/digest, ESP32 revision and admitted OTA capacity; no device access or runtime qualification',
  'image_sha256':hashlib.sha256(blob).hexdigest(),'image_bytes':len(blob),'project':project,'chip_id':image.chip_id,'codec_diagnostic_only':diagnostic,'pipeline_diagnostic':pipeline,
  'rf_protocol_diagnostic':rf_diagnostic,'pcm_target_ms':pcm_target_ms,'pcm_copied':pcm_copied,'logger_core':logger_core,'block_dsp':block_dsp,'word_dsp':word_dsp,'experimental_short_pcm_target':pcm_target_ms!=64,'revision_range':[image.min_rev_full,image.max_rev_full],'checksum_verified':True,'digest_verified':bool(image.append_digest),
  'latest_local_build_completed':True,'build_sources_match':True,'build_source_units':source_count,'product_io':bool(build_status.get('product_io')),'product_security':product_security,'rfcomm_profile':rfcomm,'controller_only_dual_mode':True,'anti_rollback_fuse_updates':False,'partition_offset':slot['offset'],'partition_bytes':slot['size'],

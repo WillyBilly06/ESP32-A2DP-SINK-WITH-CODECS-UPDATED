@@ -1,4 +1,4 @@
-param([switch]$WordDsp,[switch]$PriorityOrder,[ValidateSet(5,6)][int]$DecoderPriority=5,[switch]$SchedulerTrace,[switch]$PcmCopied,[ValidateSet(-1,0,1)][int]$LoggerCore=-1,[switch]$BlockDsp,[ValidateSet(16,32,64)][int]$PcmTargetMs=64,[switch]$PcmLoans,[switch]$DspInlineCheck,[ValidateSet(0,1)][int]$DecoderCore=1,[switch]$RfProtocolDiagnostic,[switch]$FirCompilerCheck,[switch]$DspStageProfile,[switch]$AudioStageProfile,[switch]$PipelineDiagnostic,[switch]$AsyncAudio,[switch]$DeferredCodecCheck,[switch]$LhdcStageProfile,[switch]$LhdcMaximumCheck,[switch]$CodecDiagnosticOnly,[switch]$WithProductIo,[switch]$WithProductSecurity,[switch]$WithRfcomm,[switch]$WithLhdc,[switch]$WithOpus,[switch]$WithAac,[switch]$WithAptx,[switch]$WithLdac,[switch]$WithSmp,[switch]$WithAvrcp,[switch]$WithSbc,[switch]$WithAudioProbe,[switch]$WithAudioOutput,[switch]$WithGatt,[switch]$WithClassicSecurity,[switch]$TraceIngress,[switch]$WithoutRxFlow,[switch]$KeepOwned=$true,[string]$TestPeer='',[string]$LhdcSourceDir='')
+param([switch]$StayNative,[switch]$WordDsp,[switch]$PriorityOrder,[ValidateSet(5,6)][int]$DecoderPriority=5,[switch]$SchedulerTrace,[switch]$PcmCopied,[ValidateSet(-1,0,1)][int]$LoggerCore=-1,[switch]$BlockDsp,[ValidateSet(16,32,64)][int]$PcmTargetMs=64,[switch]$PcmLoans,[switch]$DspInlineCheck,[ValidateSet(0,1)][int]$DecoderCore=1,[switch]$RfProtocolDiagnostic,[switch]$FirCompilerCheck,[switch]$DspStageProfile,[switch]$AudioStageProfile,[switch]$PipelineDiagnostic,[switch]$AsyncAudio,[switch]$DeferredCodecCheck,[switch]$LhdcStageProfile,[switch]$LhdcMaximumCheck,[switch]$CodecDiagnosticOnly,[switch]$WithProductIo,[switch]$WithProductSecurity,[switch]$WithRfcomm,[switch]$WithLhdc,[switch]$WithOpus,[switch]$WithAac,[switch]$WithAptx,[switch]$WithLdac,[switch]$WithSmp,[switch]$WithAvrcp,[switch]$WithSbc,[switch]$WithAudioProbe,[switch]$WithAudioOutput,[switch]$WithGatt,[switch]$WithClassicSecurity,[switch]$TraceIngress,[switch]$WithoutRxFlow,[switch]$KeepOwned=$true,[string]$TestPeer='',[string]$LhdcSourceDir='')
 $ErrorActionPreference = 'Stop'
 if ($PriorityOrder) { $DecoderPriority=6; $KeepOwned=$false }
 if ($WordDsp -and -not $BlockDsp) { throw 'Word DSP requires -BlockDsp' }
@@ -53,6 +53,10 @@ if ($TraceIngress -and -not $WithClassicSecurity) {
 }
 if (($TestPeer -and $TestPeer -notmatch '^[0-9a-fA-F]{2}(:[0-9a-fA-F]{2}){5}$') -or ($WithClassicSecurity -and -not $WithProductSecurity -and -not $TestPeer)) {
     throw 'The Classic pairing probe requires -TestPeer with the exact test peer address'
+}
+if ($StayNative) {
+    if (-not $WithProductIo -or -not $AsyncAudio -or $CodecDiagnosticOnly -or $PipelineDiagnostic -or $RfProtocolDiagnostic -or $SchedulerTrace) { throw 'Stay-native requires the complete asynchronous product entry' }
+    $KeepOwned=$true
 }
 $nativeRoot = Split-Path -Parent $PSScriptRoot
 $workspaceRoot = Split-Path -Parent $nativeRoot
@@ -134,6 +138,7 @@ $idfArguments += "-DDBT_PROBE_PCM_COPIED=$(if ($PcmCopied) { 'ON' } else { 'OFF'
 $idfArguments += "-DDBT_PROBE_PCM_TARGET_MS=$PcmTargetMs"
 $idfArguments += "-DDBT_PROBE_BLOCK_DSP=$(if ($BlockDsp) { 'ON' } else { 'OFF' })"
 $idfArguments += "-DDBT_PROBE_WORD_DSP=$(if ($WordDsp) { 'ON' } else { 'OFF' })"
+$idfArguments += "-DDBT_PROBE_STAY_NATIVE=$(if ($StayNative) { 'ON' } else { 'OFF' })"
 $idfArguments += "-DDBT_PROBE_RF_PROTOCOL_DIAGNOSTIC=$rfDiagnosticBuild"
 $idfArguments += "-DDBT_PROBE_DECODER_CORE=$DecoderCore"
 $idfArguments += "-DDBT_PROBE_DECODER_PRIORITY=$DecoderPriority"
@@ -174,6 +179,7 @@ $buildReceipt.pcm_copied=[bool]$PcmCopied
 $buildReceipt.pcm_target_ms=$PcmTargetMs
 $buildReceipt.block_dsp=[bool]$BlockDsp
 $buildReceipt.word_dsp=[bool]$WordDsp
+$buildReceipt.stay_native=[bool]$StayNative
 $buildReceipt.rf_protocol_diagnostic=[bool]$RfProtocolDiagnostic
 $buildReceipt.decoder_core=$DecoderCore
 $buildReceipt.decoder_priority=$DecoderPriority

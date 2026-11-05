@@ -18,11 +18,15 @@ from esptool.bin_image import ESP32FirmwareImage
 ROOT=Path(__file__).resolve().parents[1]
 HARDWARE=ROOT/'_build/hardware'
 
-def admit_pcm_target_deployment(cache,kind,finite_rf,pipeline_only,keep_owned):
+def admit_pcm_target_deployment(cache,kind,finite_rf,pipeline_only,keep_owned,stay_native=False):
     """Short-target experiments must observe return to the released image."""
     option=re.search(r'^DBT_PROBE_PCM_TARGET_MS:STRING=(\S+)$',cache,re.M)
     target=int(option.group(1)) if option else 64
     if target not in (16,32,64):raise RuntimeError('Invalid compiled PCM target')
+    if stay_native:
+        if kind!='probe' or not keep_owned or finite_rf or pipeline_only or 'DBT_PROBE_STAY_NATIVE:BOOL=ON' not in cache or 'DBT_PROBE_KEEP_OWNED_ACTIVE:BOOL=ON' not in cache or 'DBT_PROBE_CODEC_DIAGNOSTIC_ONLY:BOOL=ON' in cache:
+            raise RuntimeError('Stay-native deployment requires its complete persistent product image')
+        return
     experiment=target!=64 or 'DBT_PROBE_BLOCK_DSP:BOOL=ON' in cache or 'DBT_PROBE_PCM_COPIED:BOOL=ON' in cache or 'DBT_PROBE_SCHEDULER_TRACE:BOOL=ON' in cache or 'DBT_PROBE_DECODER_PRIORITY:STRING=6' in cache
     if kind=='probe' and experiment and (keep_owned or not (finite_rf or pipeline_only)):
         raise RuntimeError('Experimental PCM output requires explicit finite RF or pipeline deployment with baseline return')
@@ -128,6 +132,7 @@ def main():
     parser=argparse.ArgumentParser()
     parser.add_argument('--kind',choices=['audio','probe'],default='probe')
     parser.add_argument('--keep-owned',action='store_true')
+    parser.add_argument('--stay-native',action='store_true',help='Explicit persistent development image; never automatically return to the baseline')
     parser.add_argument('--codec-only',action='store_true',help='Finite non-radio codec diagnostic, always return to the pinned baseline')
     parser.add_argument('--pipeline-only',action='store_true',help='Finite non-radio decoder/DSP/I2S diagnostic; always return to pinned baseline')
     parser.add_argument('--finite-rf',action='store_true',help='Finite native controller/GAP/profile boot capture, then reset pending trial and verify baseline return')
@@ -158,7 +163,9 @@ def main():
     if not baud_match:raise RuntimeError('Console baud is missing from the actual build configuration')
     console_baud=int(baud_match.group(1))
     cache=(image_path.parent/'CMakeCache.txt').read_text()
-    admit_pcm_target_deployment(cache,args.kind,args.finite_rf,args.pipeline_only,args.keep_owned)
+    if ('DBT_PROBE_STAY_NATIVE:BOOL=ON' in cache)!=args.stay_native:
+        raise RuntimeError('Stay-native image requires the matching explicit deployment option')
+    admit_pcm_target_deployment(cache,args.kind,args.finite_rf,args.pipeline_only,args.keep_owned,args.stay_native)
     if ('DBT_PROBE_RF_PROTOCOL_DIAGNOSTIC:BOOL=ON' in cache)!=args.rf_protocol_diagnostic:
         raise RuntimeError('RF protocol diagnostic image requires its matching explicit finite mode')
     if args.press_pairing_button:
