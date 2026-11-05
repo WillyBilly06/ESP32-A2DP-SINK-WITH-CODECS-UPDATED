@@ -110,32 +110,36 @@ document.querySelector('h1').firstChild.textContent='UART console ';
 const rawPanel=element('section',undefined,'raw-panel');
 const rawTools=element('div',undefined,'raw-tools');
 const rawSearch=element('input');rawSearch.type='search';rawSearch.placeholder='Search the UART stream…';rawSearch.setAttribute('aria-label','Search raw UART');
+const rawScope=element('select');rawScope.setAttribute('aria-label','UART source');
+for(const [value,text] of [['current','Current input'],['all','All retained inputs']]){const option=element('option',text);option.value=value;rawScope.append(option);}
 const rawPause=element('button','Ⅱ Pause view','button subtle');
 const rawDownload=element('button','↓ Download UART .txt','button subtle');
 const rawFollowLabel=element('label',' Follow latest','check');
 const rawFollow=element('input');rawFollow.type='checkbox';rawFollow.checked=true;rawFollowLabel.prepend(rawFollow);
-rawTools.append(rawSearch,rawPause,rawDownload,rawFollowLabel);
+rawTools.append(rawSearch,rawScope,rawPause,rawDownload,rawFollowLabel);
 const rawConsole=element('div',undefined,'raw-console');rawConsole.tabIndex=0;rawConsole.setAttribute('aria-label','Continuous raw UART output');
 const rawStatus=element('p','Waiting for UART lines…','raw-status');
 rawPanel.append(rawTools,rawConsole,rawStatus);document.querySelector('main').insertBefore(rawPanel,document.querySelector('.metric-grid'));
 const rawToggle=element('button','Structured details','button subtle');document.querySelector('.header-actions').prepend(rawToggle);
 let rawAfter=0,rawSource=null,rawQuery='';
-function rawUartEvents(){const query=rawSearch.value.toLowerCase();return events.filter(e=>e.source_id===state?.source_id&&!/^MONITOR:|^Serial reader connected$/.test(e.text)&&(!query||e.text.toLowerCase().includes(query)));}
+function rawUartEvents(){const query=rawSearch.value.toLowerCase();return events.filter(e=>(rawScope.value==='all'||e.source_id===state?.source_id)&&!/^MONITOR:|^Serial reader connected$/.test(e.text)&&(!query||e.text.toLowerCase().includes(query)));}
 function renderRawUART(force=false){
   if(!state||paused&&!force)return;
   const query=rawSearch.value.toLowerCase();
-  if(force||rawSource!==state.source_id||rawQuery!==query){rawConsole.replaceChildren();rawAfter=0;rawSource=state.source_id;rawQuery=query;}
+  const sourceKey=state.pid+'|'+(rawScope.value==='all'?'all':state.source_id);
+  if(force||rawSource!==sourceKey||rawQuery!==query){rawConsole.replaceChildren();rawAfter=0;rawSource=sourceKey;rawQuery=query;}
   while(rawConsole.firstChild&&Number(rawConsole.firstChild.dataset.id)<state.oldest_id)rawConsole.firstChild.remove();
   const lines=rawUartEvents(),fragment=document.createDocumentFragment();
   for(const record of lines){if(record.id<=rawAfter)continue;const line=element('span',record.text||' ','raw-line');line.dataset.id=record.id;fragment.append(line);rawAfter=record.id;}
   rawConsole.append(fragment);
-  rawStatus.textContent=(paused?'View paused · collection continues':'Collecting in background')+' · '+fmt(lines.length)+' retained matching UART lines · '+(state.source_kind==='uart'?'Direct COM6 UART':state.source_kind==='archive'?'Recorded capture':'Test-tool capture')+' · up to '+fmt(state.history_limit)+' records retained';
+  rawStatus.textContent=(paused?'View paused · collection continues':'Collecting in background')+' · '+fmt(lines.length)+' retained matching UART lines · '+(rawScope.value==='all'?'All retained inputs':state.source_kind==='uart'?'Direct COM6 UART':state.source_kind==='archive'?'Recorded capture':'Test-tool capture')+' · up to '+fmt(state.history_limit)+' records retained';
   if(rawFollow.checked)rawConsole.scrollTop=rawConsole.scrollHeight;
   renderDirty=false;
 }
 const structuredRender=render;
 render=function(force=false){if(document.body.classList.contains('raw-mode'))renderRawUART(force);else structuredRender(force);};
 rawSearch.addEventListener('input',()=>renderRawUART(true));
+rawScope.addEventListener('change',()=>renderRawUART(true));
 rawPause.addEventListener('click',()=>{paused=!paused;rawPause.textContent=paused?'▶ Resume view':'Ⅱ Pause view';$('pause').textContent=rawPause.textContent;if(!paused)renderRawUART(true);else rawStatus.textContent='View paused · UART collection continues in the background';});
 rawFollow.addEventListener('change',()=>{if(rawFollow.checked)rawConsole.scrollTop=rawConsole.scrollHeight;});
 rawDownload.addEventListener('click',()=>{const blob=new Blob([rawUartEvents().map(e=>e.text).join('\n')+'\n'],{type:'text/plain;charset=utf-8'});const url=URL.createObjectURL(blob),link=element('a');link.href=url;link.download='COM6-UART-'+new Date().toISOString().replace(/[:.]/g,'-')+'.txt';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);});
