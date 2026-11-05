@@ -323,6 +323,27 @@ static BLOCK_KERNEL void filter_steady_block(const int32_t c[5],fdsp_history_t *
     }
 #if FDSP_PROVEN_SUM_ENABLED
     int32_t c0=c[0],c1=c[1],c2=c[2],c3=c[3],c4=c[4];
+#ifdef FIXED_DSP_TRANSPOSED_BLOCK
+    /* Exact product-domain state, rebuilt from canonical history for each
+     * stable block. No state quantization: z1/z2 exclude the carried fraction.
+     * The same coefficient-box bound covers these four/two-product states.
+     * Ramping samples never enter this helper. */
+    int32_t last_input=pcm[2u*(frames-1u)],previous_input=frames>1u?pcm[2u*(frames-2u)]:h->x1;
+    int32_t previous_output=h->y1;
+    int64_t z1=(int64_t)c1*h->x1+(int64_t)c2*h->x2-(int64_t)c3*h->y1-(int64_t)c4*h->y2;
+    int64_t z2=(int64_t)c2*h->x1-(int64_t)c4*h->y1;
+    uint32_t fraction=h->fraction;
+    for(unsigned i=0;i<frames;++i){
+        int32_t input=pcm[2u*i];int64_t sum=(int64_t)c0*input+z1+fraction;
+        int64_t integer=sum>>28;int32_t output=clamp32(integer);
+        fraction=(int64_t)output==integer?(uint32_t)((uint64_t)sum&0x0fffffffu):0;
+        z1=(int64_t)c1*input-(int64_t)c3*output+z2;
+        z2=(int64_t)c2*input-(int64_t)c4*output;
+        pcm[2u*i]=output;
+    }
+    h->x1=last_input;h->x2=previous_input;h->y2=frames>1u?pcm[2u*(frames-2u)]:previous_output;
+    h->y1=pcm[2u*(frames-1u)];h->fraction=fraction;
+#else
     int32_t x1=h->x1,x2=h->x2,y1=h->y1,y2=h->y2;uint32_t fraction=h->fraction;
     for(unsigned i=0;i<frames;++i){
         int32_t input=pcm[2u*i];int64_t sum=fraction;
@@ -333,6 +354,7 @@ static BLOCK_KERNEL void filter_steady_block(const int32_t c[5],fdsp_history_t *
         x2=x1;x1=input;y2=y1;y1=output;pcm[2u*i]=output;
     }
     h->x1=x1;h->x2=x2;h->y1=y1;h->y2=y2;h->fraction=fraction;
+#endif
 #else
     /* Custom/unproven tables retain the original overflow-safe split sum. */
     for(unsigned i=0;i<frames;++i)pcm[2u*i]=filter(c,h,pcm[2u*i]);

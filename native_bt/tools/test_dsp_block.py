@@ -1,6 +1,7 @@
 """Compare opt-in block DSP to canonical per-frame DSP, with ASan/UBSan."""
-import hashlib,json,os,pathlib,re,shutil,subprocess
-ROOT=pathlib.Path(__file__).resolve().parents[1];DSP=ROOT.parent/'bt_audio_sink/main/dsp';OUT=ROOT/'_build/dsp_block';OUT.mkdir(exist_ok=True)
+import argparse,hashlib,json,os,pathlib,re,shutil,subprocess
+parser=argparse.ArgumentParser();parser.add_argument('--transposed',action='store_true');options=parser.parse_args()
+ROOT=pathlib.Path(__file__).resolve().parents[1];DSP=ROOT.parent/'bt_audio_sink/main/dsp';OUT=ROOT/('_build/dsp_block_transposed' if options.transposed else '_build/dsp_block');OUT.mkdir(exist_ok=True)
 env=os.environ.copy()
 if os.name=='nt':
     vc=pathlib.Path(r'C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Auxiliary\Build\vcvars64.bat')
@@ -21,6 +22,7 @@ if os.name=='nt':
 for mode in ['proven','split_fallback']:
     commands=[];objects=[]
     base=[cache,cc,'-std=c11','-O3','-g','-Wall','-Wextra','-Werror','-fsanitize=address,undefined','-fno-sanitize-recover=all','-fno-omit-frame-pointer','-I'+str(DSP),'-DFIXED_DSP_BLOCK_API=1']
+    if options.transposed:base+=['-DFIXED_DSP_TRANSPOSED_BLOCK=1']
     if os.name=='nt':base+=['-fms-runtime-lib=dll','-D_DLL']
     for i,source in enumerate(sources):
         obj=OUT/(mode+'_'+str(i)+('.obj' if os.name=='nt' else '.o'));command=base+(['-DFIXED_DSP_FORCE_SPLIT_SUM=1'] if mode=='split_fallback' and i==0 else [])+['-c',str(source),'-o',str(obj)]
@@ -32,4 +34,4 @@ for mode in ['proven','split_fallback']:
     match=re.search(r'(\d+) blocks, (\d+) frames',run.stdout);assert match
     results.append({'mode':mode,'blocks':int(match[1]),'frames':int(match[2]),'commands':commands})
 assert all(hashlib.sha256(pathlib.Path(p).read_bytes()).hexdigest()==digest for p,digest in before.items())
-(OUT/'results.json').write_text(json.dumps({'passed':True,'scope':'host exact PCM/state comparison to the existing per-frame implementation; no hardware timing','sanitizers':['address','undefined'],'signed_overflow_wrapping':False,'maximum_block_frames':128,'modes':results,'sources':before,'hardware_accessed':False},indent=2)+'\n')
+(OUT/'results.json').write_text(json.dumps({'passed':True,'transposed':options.transposed,'scope':'host exact PCM/state comparison to the existing per-frame implementation; no hardware timing','sanitizers':['address','undefined'],'signed_overflow_wrapping':False,'maximum_block_frames':128,'modes':results,'sources':before,'hardware_accessed':False},indent=2)+'\n')
