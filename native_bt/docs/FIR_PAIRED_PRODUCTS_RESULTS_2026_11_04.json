@@ -1,0 +1,358 @@
+{
+  "scope": "COM6 finite controller-off six-variant FIR comparison; not a product audio pass",
+  "archive": "native_bt/_build/hardware/runs/1793847083744519300-acb27218f93e",
+  "source_commit": "01953fec846a20530116dfa02014be2cb2df8a68",
+  "image_sha256": "acb27218f93e6cef12d8ef5a361f1bdcbefe7948eac68ee5bd1f68e299bd0a14",
+  "elf_sha256": "5e172142cae65b5eeff4240329aaa87247f9bc752e3a4e33b6c4a8b290dccfc7",
+  "source_manifest_sha256": "a7615391306d4de91008cb73e656e69a2593fb5036e42eb4e5d5b9d83479c955",
+  "baseline_boot_observed": true,
+  "boot_fatal_marker": false,
+  "return": {
+    "probe": "codec_diagnostic_return",
+    "passed": false,
+    "baseline_selected": true,
+    "restore_result": 0,
+    "radio_test": false
+  },
+  "variant_rows": 162,
+  "all_rows_equivalent": true,
+  "summary": [
+    {
+      "probe": "fir_variant_summary",
+      "passed": true,
+      "cases": 27,
+      "expected_cases": 27,
+      "workspace_bytes": 14952,
+      "stack_low_water_bytes": 5092,
+      "controller_enabled": false,
+      "i2s_test": false,
+      "speed_is_not_a_pass_gate": true
+    }
+  ],
+  "comparison": [
+    {
+      "rate": 48000,
+      "ppm": 0,
+      "median_additional_cycles_percent": 31.311927633919655,
+      "trials": [
+        {
+          "trial": 0,
+          "current_cycles": 410524,
+          "paired_cycles": 538733,
+          "additional_cycles_percent": 31.230573608363944
+        },
+        {
+          "trial": 1,
+          "current_cycles": 410358,
+          "paired_cycles": 538849,
+          "additional_cycles_percent": 31.311927633919655
+        },
+        {
+          "trial": 2,
+          "current_cycles": 410305,
+          "paired_cycles": 538850,
+          "additional_cycles_percent": 31.329133205785944
+        }
+      ]
+    },
+    {
+      "rate": 48000,
+      "ppm": 500,
+      "median_additional_cycles_percent": 28.317018567470576,
+      "trials": [
+        {
+          "trial": 0,
+          "current_cycles": 691850,
+          "paired_cycles": 886462,
+          "additional_cycles_percent": 28.129218761292197
+        },
+        {
+          "trial": 1,
+          "current_cycles": 691909,
+          "paired_cycles": 887837,
+          "additional_cycles_percent": 28.317018567470576
+        },
+        {
+          "trial": 2,
+          "current_cycles": 690315,
+          "paired_cycles": 887869,
+          "additional_cycles_percent": 28.617949776551278
+        }
+      ]
+    },
+    {
+      "rate": 48000,
+      "ppm": -500,
+      "median_additional_cycles_percent": 28.687900339383553,
+      "trials": [
+        {
+          "trial": 0,
+          "current_cycles": 691289,
+          "paired_cycles": 887328,
+          "additional_cycles_percent": 28.358472361053046
+        },
+        {
+          "trial": 1,
+          "current_cycles": 690664,
+          "paired_cycles": 888801,
+          "additional_cycles_percent": 28.687900339383553
+        },
+        {
+          "trial": 2,
+          "current_cycles": 689729,
+          "paired_cycles": 888005,
+          "additional_cycles_percent": 28.746942639790408
+        }
+      ]
+    },
+    {
+      "rate": 96000,
+      "ppm": 0,
+      "median_additional_cycles_percent": 28.138469154642355,
+      "trials": [
+        {
+          "trial": 0,
+          "current_cycles": 220231,
+          "paired_cycles": 281942,
+          "additional_cycles_percent": 28.021032461370112
+        },
+        {
+          "trial": 1,
+          "current_cycles": 220060,
+          "paired_cycles": 282084,
+          "additional_cycles_percent": 28.185040443515398
+        },
+        {
+          "trial": 2,
+          "current_cycles": 220179,
+          "paired_cycles": 282134,
+          "additional_cycles_percent": 28.138469154642355
+        }
+      ]
+    },
+    {
+      "rate": 96000,
+      "ppm": 500,
+      "median_additional_cycles_percent": 24.419478563762365,
+      "trials": [
+        {
+          "trial": 0,
+          "current_cycles": 360316,
+          "paired_cycles": 448531,
+          "additional_cycles_percent": 24.48267631745469
+        },
+        {
+          "trial": 1,
+          "current_cycles": 360581,
+          "paired_cycles": 448633,
+          "additional_cycles_percent": 24.419478563762365
+        },
+        {
+          "trial": 2,
+          "current_cycles": 360722,
+          "paired_cycles": 448334,
+          "additional_cycles_percent": 24.287955821934904
+        }
+      ]
+    },
+    {
+      "rate": 96000,
+      "ppm": -500,
+      "median_additional_cycles_percent": 24.308576755748913,
+      "trials": [
+        {
+          "trial": 0,
+          "current_cycles": 360416,
+          "paired_cycles": 448028,
+          "additional_cycles_percent": 24.308576755748913
+        },
+        {
+          "trial": 1,
+          "current_cycles": 360004,
+          "paired_cycles": 447263,
+          "additional_cycles_percent": 24.238341796202256
+        },
+        {
+          "trial": 2,
+          "current_cycles": 360128,
+          "paired_cycles": 447819,
+          "additional_cycles_percent": 24.34995334992003
+        }
+      ]
+    },
+    {
+      "rate": 192000,
+      "ppm": 0,
+      "median_additional_cycles_percent": 24.694130083832523,
+      "trials": [
+        {
+          "trial": 0,
+          "current_cycles": 122029,
+          "paired_cycles": 152163,
+          "additional_cycles_percent": 24.694130083832523
+        },
+        {
+          "trial": 1,
+          "current_cycles": 122077,
+          "paired_cycles": 152210,
+          "additional_cycles_percent": 24.683601333584537
+        },
+        {
+          "trial": 2,
+          "current_cycles": 122024,
+          "paired_cycles": 152166,
+          "additional_cycles_percent": 24.701698026617724
+        }
+      ]
+    },
+    {
+      "rate": 192000,
+      "ppm": 500,
+      "median_additional_cycles_percent": 23.663841530026364,
+      "trials": [
+        {
+          "trial": 0,
+          "current_cycles": 193147,
+          "paired_cycles": 238853,
+          "additional_cycles_percent": 23.663841530026364
+        },
+        {
+          "trial": 1,
+          "current_cycles": 193176,
+          "paired_cycles": 238743,
+          "additional_cycles_percent": 23.58833395452851
+        },
+        {
+          "trial": 2,
+          "current_cycles": 193224,
+          "paired_cycles": 238960,
+          "additional_cycles_percent": 23.669937481886304
+        }
+      ]
+    },
+    {
+      "rate": 192000,
+      "ppm": -500,
+      "median_additional_cycles_percent": 28.03949268374055,
+      "trials": [
+        {
+          "trial": 0,
+          "current_cycles": 191950,
+          "paired_cycles": 245890,
+          "additional_cycles_percent": 28.101067986454797
+        },
+        {
+          "trial": 1,
+          "current_cycles": 191929,
+          "paired_cycles": 245482,
+          "additional_cycles_percent": 27.902505614055208
+        },
+        {
+          "trial": 2,
+          "current_cycles": 191833,
+          "paired_cycles": 245622,
+          "additional_cycles_percent": 28.03949268374055
+        }
+      ]
+    }
+  ],
+  "selection": "reject paired products for production: all 27 comparisons slower; normal renderer remains C",
+  "pipeline_check": {
+    "probe": "target_pipeline_selftest",
+    "passed": false,
+    "configured": true,
+    "started": true,
+    "stream_result": 0,
+    "correctness": false,
+    "continuity": false,
+    "rate": 192000,
+    "sample_depth": 24,
+    "channels": 2,
+    "encoded_payload_bps": 1001600,
+    "packets": 2,
+    "completed_packets": 0,
+    "sample_frames": 512,
+    "pcm_hash": 639236599,
+    "synthetic_source": true,
+    "integer_dsp": true,
+    "i2s_test": true,
+    "rf_test": false,
+    "production_qualified": false
+  },
+  "pipeline_measurements": [
+    {
+      "probe": "pipeline_memory",
+      "before_free": 279720,
+      "before_largest": 114688,
+      "opened_free": 113652,
+      "opened_largest": 106496,
+      "minimum_free": 112188,
+      "after_free": 273296,
+      "decoder_tracked_peak": 59832,
+      "renderer_requested": 105472,
+      "reclaimed": true,
+      "remaining_tracked": 0,
+      "core1_stack_low": 5092,
+      "render_stack_low": 4208
+    },
+    {
+      "probe": "pipeline_timing",
+      "elapsed_us": 15080,
+      "worker_total_us": 4831,
+      "worker_total_cycles": 1158550,
+      "worker_calls": 11,
+      "worker_max_us": 4364,
+      "hash_us": 276,
+      "arrival_p99_us": 92,
+      "arrival_max_us": 92,
+      "completion_p99_us": 0,
+      "completion_max_us": 0,
+      "completion_over_5ms": 0,
+      "queue_peak": 2,
+      "render_total_us": 3764,
+      "render_calls": 2,
+      "render_max_us": 1976
+    },
+    {
+      "probe": "pipeline_i2s",
+      "running": 0,
+      "failed": 0,
+      "accepted_frames": 512,
+      "rendered_frames": 256,
+      "dma_frames": 0,
+      "dma_eofs": 0,
+      "underrun_frames": 0,
+      "descriptor_errors": 0,
+      "max_eof_gap_us": 0,
+      "ready_frames": 256,
+      "input_ready_frames": 0,
+      "stop_tail_excluded": true
+    },
+    {
+      "probe": "pipeline_allocation",
+      "failed_bytes": 0,
+      "failure_free": 0,
+      "failure_largest": 0,
+      "page_bytes": 4096
+    },
+    {
+      "probe": "pipeline_render_stages",
+      "quiescent": true,
+      "includes_stop_drain": true,
+      "profile_frames": 384,
+      "conversion_resampler_cycles": 444959,
+      "dsp_cycles": 886367,
+      "output_tail_cycles": 12426,
+      "controls_cycles": 21992,
+      "conversion_block_max_cycles": 167777,
+      "dsp_block_max_cycles": 298865,
+      "tail_block_max_cycles": 4735,
+      "media_drops": 1,
+      "worker_faults": 0,
+      "pcm_timeouts": 0,
+      "cpu_mhz": 240,
+      "elapsed_core_cycles": true
+    }
+  ],
+  "production_qualified": false
+}

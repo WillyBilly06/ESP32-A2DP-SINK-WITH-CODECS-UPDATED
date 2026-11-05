@@ -42,6 +42,15 @@ request/stale-ticket/descriptor errors. Underruns and watchdog warnings remain;
 maximum LHDC still fails output-page allocation. The copied path remains the
 default and no maximum-rate output/headroom or full feature-parity pass is claimed.
 
+The [unused LHDC snapshot removal](docs/LHDC_UNUSED_OVERLAP_2026_11_04.md)
+subsequently passes all 37 target codec configurations and three complete
+maximum-rate decoder runs with unchanged target PCM hashes, saving 3840 payload
+bytes. Its decoder-only deadline pass does not include DSP/I2S/BLE. The
+[paired Xtensa FIR experiment](docs/FIR_PAIRED_PRODUCTS_2026_11_04.md) preserves
+exact output/state across 27 target groups but is slower in every comparison
+and stays disabled in production. The separate pipeline still fails before
+DMA starts; maximum-rate playback is not qualified.
+
 The [resumable PCM worker checkpoint](docs/IDF61_ASYNC_PCM_2026_11_04.md) adds
 80 real-codec host comparisons with sanitizer coverage and 38 passing ESP32
 deferred-worker checks. The render provider, stream/sound transactions and full

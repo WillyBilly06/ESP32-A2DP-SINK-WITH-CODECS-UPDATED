@@ -4,6 +4,18 @@ Updated 2026-11-04 for ESP-IDF 6.1. The goal is **active and incomplete**.
 The user has released COM6 for flashing/testing; other boards remain excluded.
 Released main/recovery artifacts remain preserved. Latest measured evidence:
 
+- [Unused LHDC overlap allocation](LHDC_UNUSED_OVERLAP_2026_11_04.md): all 37
+  COM6 codec configurations and three maximum-rate decoder runs pass, with
+  unchanged target PCM hashes. Removing the unused ESP32 snapshot saves 3840
+  payload bytes; target tracked peak falls by 3856 bytes including headers.
+  All 252 measured decoder/validation packets meet 5 ms (worst 4887 us).
+  These isolated tests omit RF, BLE, DSP and I2S.
+- [Paired FIR instruction experiment](FIR_PAIRED_PRODUCTS_2026_11_04.md): all
+  27 target groups preserve exact output/state, but the assembly is slower
+  in every comparison and remains diagnostic-only. The separate
+  [192 kHz loan pipeline](PCM_LOAN_PIPELINE_RESULTS_2026_11_04.json) accepts
+  only 512 source frames before an encoded queue drop; DMA never starts.
+  Its prefix matches the complete target decoder, not full pipeline correctness.
 - [Maximum LHDC radio/decoder](RF_LHDC_MAX_2026_11_04.json): actual Redmagic
   192 kHz/S24/stereo/1000 kbps target, simultaneous secured BLE/EQ, no decoder
   errors, queue drops or watchdog warnings during the finite checksum run.

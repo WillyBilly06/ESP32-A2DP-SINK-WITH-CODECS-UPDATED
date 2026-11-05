@@ -1,4 +1,20 @@
-# Earlier static IRAM placement comparison
+# ESP-IDF 6.1 placement audit
+
+The current 6.1 defaults use `CONFIG_FREERTOS_IN_IRAM=n`. The older
+`FREERTOS_PLACE_FUNCTIONS_INTO_FLASH` name below is historical; 6.1 does not
+recognize it and already defaults ordinary task APIs to flash. Correcting that
+setting produces no new RAM saving. ISR-in-flash stays disabled and
+`CONFIG_I2S_ISR_IRAM_SAFE=y` stays enabled.
+
+`check_iram_placement.py --build-dir <archived-build> --expect-task-flash`
+checks actual linked addresses in addition to the current configuration. The
+archived full-product image `4b5ed6c1cd19` passes six protected RAM symbols,
+three task-only flash symbols and five direct callback/helper functions,
+including owned `finish_sent`. Four indirect calls and SDK/vendor/ROM/cache
+internals remain outside that limited proof. This is not an end-to-end
+cache-disabled playback guarantee.
+
+## Earlier static IRAM placement comparison
 
 The combined owned product uses the existing SDK option
 `CONFIG_FREERTOS_PLACE_FUNCTIONS_INTO_FLASH=y`. The SDK linker fragment moves

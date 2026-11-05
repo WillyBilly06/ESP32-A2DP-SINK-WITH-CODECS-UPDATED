@@ -36,6 +36,22 @@ encoded queue overflowed. It never started DMA or completed the 96-packet
 correctness comparison. Host and target LHDC floating-point decoding already
 use a numerical oracle; an unequal cross-CPU FNV hash alone cannot diagnose
 corruption. The target maximum-codec diagnostic now records a separate 512-frame
-prefix hash for a within-target comparison. Its complete target run remains
-pending. Maximum-product SRAM admission, renderer throughput and full
-feature/stress qualification remain open.
+prefix hash for a within-target comparison. The complete COM6 codec diagnostic
+now passes all 37 configurations. Its three maximum LHDC runs each decode 96
+packets/92160 frames, retaining full FNV 4008775619 and first-512-frame FNV
+639236599. The latter matches the earlier pipeline prefix on the same target.
+The independent numerical oracle also passes; no cross-CPU hash equality is
+claimed.
+
+The 252 measured maximum-rate packets have zero 5 ms deadline misses, including
+PCM validation: mean 4584 us, maximum 4887 us. This is isolated decoder timing,
+without controller, BLE, DSP or I2S. The target tracked peak falls from 63688 to
+59832 bytes: 3840 payload bytes plus two eight-byte allocation headers. This
+3856-byte tracked reduction is not a whole-product free-heap measurement.
+[Exact results](LHDC_UNUSED_OVERLAP_RESULTS_2026_11_04.json) preserve source,
+image, ELF, checks and baseline-return identity.
+
+The separate [loan pipeline result](PCM_LOAN_PIPELINE_RESULTS_2026_11_04.json)
+still fails continuity and complete correctness; no DMA starts. Maximum-product
+SRAM admission, renderer throughput and full feature/stress qualification remain
+open. All three finite trials returned to released firmware.
