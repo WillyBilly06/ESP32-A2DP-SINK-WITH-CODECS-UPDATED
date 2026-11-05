@@ -15,6 +15,14 @@ identical PCM hashes and passes all 252 measured isolated 5 ms deadlines at
 qualification remains open. All finite runs returned to released 1.0.4 firmware. The user released
 COM6 for testing in this chat; the historical reservation below is superseded.
 
+The opt-in [per-core scheduler measurement](docs/SCHEDULER_SAMPLING_2026_11_04.md)
+now separates interrupted host/decoder/renderer/controller/logger/idle samples
+and records tick-gap endpoints. The first maximum-LHDC startup/fault window
+shows host work dominating core1 while decoder samples are scarce and core0
+is mostly idle. Tick gaps on both cores correlate with the watchdog/DMA event;
+earlier queue drops remain separate. Sampling is not exact CPU utilization.
+Host phase profiling and fair service remain open; audio qualification fails.
+
 The latest [1800-byte/eight-slot decoder queue trial](docs/DECODER_INPUT_1800_2026_11_04.md)
 tests the requested larger input capacity with a matching media MTU. Maximum
 LHDC negotiates and I2S runs briefly, but the observed largest media SDU is only

@@ -4,6 +4,15 @@ Updated 2026-11-04 for ESP-IDF 6.1. The goal is **active and incomplete**.
 The user has released COM6 for flashing/testing; other boards remain excluded.
 Released main/recovery artifacts remain preserved. Latest measured evidence:
 
+- [Per-core sampling](SCHEDULER_SAMPLING_2026_11_04.md) adds opt-in finite tick
+  hooks with no task/queue/allocation. Sanitized ownership/wrap/failure checks,
+  CMake/image/finite guards and the source/IRAM-audited ccache build pass.
+  Both task maps resolve on COM6. The maximum-LHDC startup/fault window samples
+  host 62.23% and decoder 5.97% on core1 while core0 idle is 86.46%; these are
+  biased interrupted-task samples, not exact CPU utilization. Independent
+  11.420/32.138 ms tick gaps correlate with the watchdog/DMA event. Earlier
+  queue rejection precedes that event by 4.618 s. Host phase cost/fair service
+  is the next investigation. Audio still fails; baseline and pause verified.
 - [Decoder input capacity](DECODER_INPUT_1800_2026_11_04.md) now reserves
   1800 bytes across eight slots and advertises a matching media receive MTU.
   Separate size-rejection and queue-saturation diagnostics preserve their

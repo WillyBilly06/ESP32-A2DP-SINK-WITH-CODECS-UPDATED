@@ -20,7 +20,10 @@ before/after the largest gap. Those roles do not identify work inside the gap.
 
 These are interrupted-task sample counts, **not exact CPU utilization**.
 Periodic work aliases tick sampling; masked/higher-priority interrupts delay
-it. Tick gaps do not by themselves distinguish interrupt masking, another ISR,
+it. The ESP32 port's `_frxt_timer_int` catch-up loop also replays overdue ticks,
+which can credit several samples to the task observed after the delay. Do not
+attribute the missing interval's execution from those counts. Tick gaps do not
+by themselves distinguish interrupt masking, another ISR,
 cache stalls or watchdog diagnostics. DMA and tick timestamps share ESP timer
 units, making correlation possible without mixing SDK console timestamps.
 
@@ -56,6 +59,60 @@ direct call. Five indirect calls remain conservatively reported: four I2S
 callbacks and the getter's manually resolved ROM call. Owned linker fragments
 are now included in source fingerprints.
 
-Live role counts, callback overhead, interrupt gaps, maximum-LHDC behavior and
-baseline return remain pending. No audio continuity or feature-parity pass is
-claimed.
+## First RF measurement
+
+[Exact results](SCHEDULER_SAMPLING_RF_RESULTS_2026_11_04.json) bind source
+5db1c811, image 36e01d12bdab and its archived ELF. Both hooks register and all
+five task identities resolve (`known_task_mask:31`). All 37 pre-controller
+codec configurations pass. Android and the ESP32 separately confirm maximum
+LHDC configuration, CIE `00ff3a050000354c0102110000`. Playback is started only
+after Android confirms 192 kHz/S24/stereo and the 1000 kbps nominal target;
+actual encoded bitrate is not exposed.
+
+The following interval contains stream startup, the watchdog/DMA fault and
+some time afterward. It is not a steady-state throughput or CPU-utilization
+measurement. Counts include the tick replay limitation above.
+
+| Core | ESP-timer interval | Host samples | Decoder samples | Renderer samples | Idle samples |
+| --- | --- | ---: | ---: | ---: | ---: |
+| 0 | 75.287203–81.928202 s | 0% | 0% | 10.48% | 86.46% |
+| 1 | 75.316489–81.961489 s | 62.23% | 5.97% | 0% | 11.87% |
+
+Core1 also observes controller 9.13%, logger 10.71%, other 0.08%. The host is
+the dominant observed task while the producer gets little execution and core0
+often lacks input. This changes the next investigation to host phase cost and
+fair scheduling, rather than assuming decoder or renderer work alone explains
+the starvation. A sampled PC in this run is a product-runtime security-value
+comparison, not the readiness query sampled in the prior trial. Neither PC
+alone proves that its function blocks or dominates execution.
+
+The first recorded queue rejection is sequence 9 at 75.678887 s, 628 bytes,
+eight queued. Upstream sequence-break and size-rejection counters remain zero.
+Those software drops precede the watchdog-related DMA event by about 4.618 s;
+the later DMA fault does not explain all earlier underruns.
+
+At the fault, independent clocks from the two tick hooks correlate as follows:
+
+- Core0's largest tick gap: 80.285203–80.296623 s (11,420 us), idle to renderer.
+- DMA descriptor fault: 80.296605 s, expected index 0, observed 1, 1024 bytes,
+  valid shape/pool and not stopping; preceding EOF gap 11,866 us.
+- Public task-watchdog hook: 80.296637 s, **32 us after the DMA fault**.
+- Core1's largest tick gap: 80.284489–80.316627 s (32,138 us), host to host.
+
+Both cores experience delayed tick service around watchdog diagnostics; SDK
+source prints task diagnostics before the user hook. This supports the
+watchdog-activity explanation for this fatal EOF gap. It does not identify
+execution inside those gaps or eliminate the preceding host starvation.
+Keep the watchdog and descriptor ownership checks intact.
+
+The sampler's maximum observed body duration is 1118 cycles on core0 and 9698
+on core1 (4.66/40.41 us at 240 MHz), including possible higher-level preemption.
+These maxima exclude hook/ISR entry and final publication and are not averages.
+Logger stack remaining is 1460 bytes. No new allocation failure occurs.
+
+Audio qualification fails: one core1 idle-starvation watchdog, one descriptor
+fault and 795968 underrun frames. Only 79680 source frames reach DMA. The finite
+helper correctly fails its runtime-health gate and returns to released firmware;
+phone pause is independently observed. All 2005 complete periodic records used
+here pass individual CRC/time validation; three malformed/interleaved lines are
+excluded. No audio continuity or feature-parity pass is claimed.
