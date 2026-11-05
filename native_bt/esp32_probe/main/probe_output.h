@@ -1,8 +1,18 @@
 #ifndef PROBE_OUTPUT_H
 #define PROBE_OUTPUT_H
 #include "dbt_audio.h"
+#ifndef DBT_PROBE_PCM_TARGET_MS
+#define DBT_PROBE_PCM_TARGET_MS 64
+#endif
+#if DBT_PROBE_PCM_TARGET_MS != 16 && DBT_PROBE_PCM_TARGET_MS != 32 && DBT_PROBE_PCM_TARGET_MS != 64
+#error "PCM target must be 16, 32 or 64 ms"
+#endif
+#if DBT_PROBE_PCM_TARGET_MS != 64 && (!defined(DBT_PROBE_PCM_LOANS) || !defined(DBT_PROBE_ASYNC_AUDIO))
+#error "Short PCM target requires the finite async PCM-loan experiment"
+#endif
 typedef struct {
     uint32_t running,failed,rate,requested_bytes,accepted_frames,rendered_frames,ready_frames,input_ready_frames;
+    uint32_t pcm_target_ms;
     uint32_t dma_eofs,dma_source_frames,underrun_frames,descriptor_errors,max_eof_gap_us;
     uint32_t descriptor_shape_errors,descriptor_pool_errors,descriptor_order_errors;
     uint32_t descriptor_expected_index,descriptor_observed_index,descriptor_observed_size;

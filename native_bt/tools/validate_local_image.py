@@ -56,6 +56,23 @@ if pcm_loans:
     for loan_unit in ('probe_output.c','probe_pipeline_check.c' if pipeline else 'probe_audio.c'):
         loan_command=next(entry['command'] for entry in commands if Path(entry['file']).name==loan_unit)
         assert re.search(r'(?:^|\s)-DDBT_PROBE_PCM_LOANS=1(?:\s|$)',loan_command), 'PCM loan provider/client not actually compiled'
+pcm_target_ms=build_status.get('pcm_target_ms',64)
+assert type(pcm_target_ms) is int and pcm_target_ms in (16,32,64), 'Invalid PCM target receipt'
+pcm_target_option=re.search(r'^DBT_PROBE_PCM_TARGET_MS:STRING=(16|32|64)$',cache,re.M)
+if pcm_target_option:
+    assert int(pcm_target_option.group(1))==pcm_target_ms, 'PCM target receipt/cache mismatch'
+    for entry in commands:
+        if Path(entry['file']).name in (entry_name,'probe_output.c','probe_audio.c','probe_pipeline_check.c'):
+            assert re.findall(r'(?:^|\s)-DDBT_PROBE_PCM_TARGET_MS=(\S+)',entry['command'])==[str(pcm_target_ms)], 'PCM target missing, overridden or not actually compiled'
+            assert not re.search(r'(?:^|\s)-UDBT_PROBE_PCM_TARGET_MS(?:\s|$)',entry['command']), 'PCM target undefined after selection'
+else:
+    assert pcm_target_ms==64, 'Missing explicit short PCM target'
+    for entry in commands:
+        if Path(entry['file']).name in (entry_name,'probe_output.c','probe_audio.c','probe_pipeline_check.c'):
+            assert re.findall(r'(?:^|\s)-DDBT_PROBE_PCM_TARGET_MS=(\S+)',entry['command']) in ([],['64']), 'Unreceipted short PCM target'
+if pcm_target_ms!=64:
+    assert pcm_loans and build_status.get('async_audio') and not rf_diagnostic
+    assert 'DBT_PROBE_KEEP_OWNED_ACTIVE:BOOL=ON' not in cache and pcm_target_option
 assert bool(re.search(r'(?:^|\s)-DDBT_PROBE_DEFERRED_CODEC_CHECK=1(?:\s|$)',main_command))==bool(build_status.get('deferred_codec_check'))
 assert ('DBT_PROBE_LHDC_MAX_CHECK:BOOL=ON' in cache)==bool(build_status.get('lhdc_maximum_check'))
 assert ('DBT_PROBE_LHDC_STAGE_PROFILE:BOOL=ON' in cache)==bool(build_status.get('lhdc_stage_profile'))
@@ -131,7 +148,7 @@ assert image.flash_mode==2 and image.flash_size_freq==0x3f
 assert image.min_rev_full<=301<=image.max_rev_full
 report={'passed':True,'scope':'offline image checksum/digest, ESP32 revision and admitted OTA capacity; no device access or runtime qualification',
  'image_sha256':hashlib.sha256(blob).hexdigest(),'image_bytes':len(blob),'project':project,'chip_id':image.chip_id,'codec_diagnostic_only':diagnostic,'pipeline_diagnostic':pipeline,
- 'rf_protocol_diagnostic':rf_diagnostic,'revision_range':[image.min_rev_full,image.max_rev_full],'checksum_verified':True,'digest_verified':bool(image.append_digest),
+ 'rf_protocol_diagnostic':rf_diagnostic,'pcm_target_ms':pcm_target_ms,'experimental_short_pcm_target':pcm_target_ms!=64,'revision_range':[image.min_rev_full,image.max_rev_full],'checksum_verified':True,'digest_verified':bool(image.append_digest),
  'latest_local_build_completed':True,'build_sources_match':True,'build_source_units':source_count,'product_io':bool(build_status.get('product_io')),'product_security':product_security,'rfcomm_profile':rfcomm,'controller_only_dual_mode':True,'anti_rollback_fuse_updates':False,'partition_offset':slot['offset'],'partition_bytes':slot['size'],
  'partition_remaining_bytes':slot['size']-len(blob),'compiled_table_matches_preserved_layout':True,'compiled_table_sha256':hashlib.sha256(table).hexdigest(),'flash_mode':'DIO','flash_mib':8,'flash_mhz':80,'hardware_accessed':False,'runtime_qualified':False}
 output=ROOT/'_build/host/local-image-validation.json';output.write_text(json.dumps(report,indent=2)+'\n');print(json.dumps(report,indent=2))

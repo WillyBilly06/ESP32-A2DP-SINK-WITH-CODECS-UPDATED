@@ -67,13 +67,21 @@ static bool stop_stream(void){
     (void)render_step();return probe_output_request_poll(id)==DBT_OK;
 }
 static int formats_and_allocations(void){
+#if DBT_PROBE_PCM_TARGET_MS == 16
+    const unsigned payload=28672,pages=7,delay48=267;
+#elif DBT_PROBE_PCM_TARGET_MS == 32
+    const unsigned payload=53248,pages=13,delay48=427;
+#else
+    const unsigned payload=102400,pages=25,delay48=747;
+#endif
     uint8_t raw[256*8];memset(raw,0x31,sizeof(raw));
     CHECK(probe_output_init(0,0)==DBT_OK);
+    CHECK(probe_output_delay_100us(48000)==delay48);
     for(unsigned width=2;width<=4;++width){
         CHECK(open_stream(192000,(dbt_pcm_format_t)width));
-        CHECK(output.audio.borrowed_input && !output.audio.input.bytes && output.audio.allocated_bytes==102400 && live==25 && irq_priority==2 && configured_rate==192000);
+        CHECK(output.audio.borrowed_input && !output.audio.input.bytes && output.audio.allocated_bytes==payload && live==pages && irq_priority==2 && configured_rate==192000);
         probe_output_stats_t stats;probe_output_stats(&stats);
-        CHECK(stats.pcm_loan_mode==1 && stats.input_ring_bytes_avoided==8192u*2u*width && stats.requested_bytes==105472);
+        CHECK(stats.pcm_loan_mode==1 && stats.pcm_target_ms==DBT_PROBE_PCM_TARGET_MS && stats.input_ring_bytes_avoided==8192u*2u*width && stats.requested_bytes==payload+3072);
         CHECK(probe_output_try_pcm_format(raw,1,2,192000,(dbt_pcm_format_t)width)==DBT_INVALID);
         uint32_t id=0;CHECK(probe_output_pcm_begin(raw,256,2,192000,(dbt_pcm_format_t)width,&id)==DBT_PENDING);
         (void)render_step();CHECK(output.pcm_loan_id==id && output.audio.input_view==raw && probe_output_pcm_poll(id)==DBT_PENDING);
@@ -85,13 +93,13 @@ static int formats_and_allocations(void){
     uint32_t id=0;CHECK(probe_output_stream_begin(true,192000,2,DBT_PCM_S32_LE,&id)==DBT_PENDING);
     (void)render_step();CHECK(probe_output_request_poll(id)==DBT_NO_SPACE && !live && releases==before+1u && !output.audio.input_view);
     probe_output_stats_t failed;probe_output_stats(&failed);
-    CHECK(failed.allocation_failed_bytes==4096 && failed.allocation_failure_audio_requested==102400);
+    CHECK(failed.allocation_failed_bytes==4096 && failed.allocation_failure_audio_requested==payload);
     CHECK(failed.allocation_failure_audio_allocated==4096 && failed.allocation_failure_pages==1);
     fail_allocation=allocations+1u;
     CHECK(probe_output_stream_begin(true,192000,2,DBT_PCM_S32_LE,&id)==DBT_PENDING);
     (void)render_step();CHECK(probe_output_request_poll(id)==DBT_NO_SPACE && !live);
     probe_output_stats(&failed);CHECK(failed.allocation_failure_audio_allocated==0 && failed.allocation_failure_pages==0);
-    CHECK(failed.allocation_failure_audio_requested==102400 && failed.allocation_failure_rate==192000);
+    CHECK(failed.allocation_failure_audio_requested==payload && failed.allocation_failure_rate==192000);
     fail_allocation=0;return 0;
 }
 static int cancellation_and_identity(void){

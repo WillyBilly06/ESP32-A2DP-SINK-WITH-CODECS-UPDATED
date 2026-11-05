@@ -433,7 +433,7 @@ static dbt_result_t start_output(uint32_t rate, uint8_t channels,
 #endif
   output.allocation_success_bytes=output.allocation_success_calls=0;
   output.allocation_request_rate=rate;output.allocation_request_channels=channels;output.allocation_request_sample_bytes=(uint32_t)format;
-  uint32_t target = (rate * 64u + 999u) / 1000u;
+  uint32_t target = (rate * DBT_PROBE_PCM_TARGET_MS + 999u) / 1000u;
   uint32_t input_frames=power2((rate * 32u + 999u) / 1000u),avoided=0;
   atomic_store(&output.input_ring_bytes_avoided,0);
 #ifdef DBT_PROBE_PCM_LOANS
@@ -1041,6 +1041,7 @@ bool probe_output_failed(void){return atomic_load(&output.failed) || atomic_load
 void probe_output_stats(probe_output_stats_t *s) {
   if (!s)
     return;
+  s->pcm_target_ms=DBT_PROBE_PCM_TARGET_MS;
 #define LOAD(field) s->field = atomic_load(&output.field)
   LOAD(running);
   LOAD(failed);
@@ -1106,7 +1107,7 @@ uint16_t probe_output_delay_100us(uint32_t rate) {
                     atomic_load(&output.input_ready_frames) +
                     DMA_DESCRIPTORS * DMA_FRAMES + 80u;
   if (!atomic_load(&output.running))
-    frames = (rate * 64u + 999u) / 1000u + DMA_DESCRIPTORS * DMA_FRAMES + 80u;
+    frames = (rate * DBT_PROBE_PCM_TARGET_MS + 999u) / 1000u + DMA_DESCRIPTORS * DMA_FRAMES + 80u;
   frames += dbt_resampler_delay_frames(rate);
   uint32_t value = (uint32_t)(((uint64_t)frames * 10000u + rate - 1u) / rate);
   return value > UINT16_MAX ? UINT16_MAX : (uint16_t)value;
