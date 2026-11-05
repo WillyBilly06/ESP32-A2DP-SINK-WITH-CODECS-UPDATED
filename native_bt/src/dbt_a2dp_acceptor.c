@@ -106,8 +106,14 @@ dbt_result_t dbt_a2dp_acceptor_receive(dbt_a2dp_acceptor_t *p,const dbt_channel_
     if(channel->psm!=0x19)return DBT_UNSUPPORTED;
     if(!p->active || p->draining)return DBT_BUSY;
     if(matches(&p->signaling,channel)){
+        uint32_t discarded=p->sink.signal.discarded;
         dbt_result_t result=dbt_avdtp_bearer_receive(&p->bearer,channel,data,size);
-        if(result!=DBT_OK && result!=DBT_EMPTY)p->draining=true;
+        /* AVDTP integrity failures discard only that message (8.4.6). Preserve
+         * live media and pending valid transactions; API/lifetime/resource and
+         * actual transaction failures still require retirement. */
+        bool wire_discard=result==DBT_INVALID && !p->sink.signal.failed &&
+            p->sink.signal.discarded!=discarded;
+        if(result!=DBT_OK && result!=DBT_EMPTY && !wire_discard)p->draining=true;
         return result;
     }
     if(matches(&p->media,channel)){

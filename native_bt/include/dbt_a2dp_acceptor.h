@@ -35,6 +35,8 @@ bool dbt_a2dp_acceptor_accept(const dbt_a2dp_acceptor_t *profile,const dbt_link_
  * a composite application must close that channel explicitly. */
 dbt_result_t dbt_a2dp_acceptor_event(dbt_a2dp_acceptor_t *profile,dbt_channel_event_t event,
     const dbt_channel_t *channel);
+/* Malformed signaling returns INVALID and increments sink.signal.discarded
+ * without retiring live media. Transport/lifetime/resource failures still drain. */
 dbt_result_t dbt_a2dp_acceptor_receive(dbt_a2dp_acceptor_t *profile,const dbt_channel_t *channel,
     const uint8_t *data,uint16_t size);
 dbt_result_t dbt_a2dp_acceptor_poll(dbt_a2dp_acceptor_t *profile,uint32_t now_ms);

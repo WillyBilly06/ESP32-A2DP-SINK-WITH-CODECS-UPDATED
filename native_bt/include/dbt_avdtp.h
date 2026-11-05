@@ -102,8 +102,9 @@ dbt_result_t dbt_avdtp_tx_commit(dbt_avdtp_t *signal, uint32_t now_ms);
 dbt_result_t dbt_avdtp_tx_cancel(dbt_avdtp_t *signal);
 dbt_result_t dbt_avdtp_poll(dbt_avdtp_t *signal, uint32_t now_ms);
 uint32_t dbt_avdtp_wait_ms(const dbt_avdtp_t *signal, uint32_t now_ms);
-/* Fails closed after any transaction/reassembly deadline. Caller must close the
- * signaling channel, quiesce its transport and clear. clear returns BUSY while
+/* Incomplete received messages expire locally and increment discarded; local
+ * command/remote response transmission deadlines still fail closed. On failure
+ * close the signaling channel, quiesce its transport and clear. clear returns BUSY while
  * a view is pinned; it must never release bytes still borrowed by the runtime. */
 dbt_result_t dbt_avdtp_clear(dbt_avdtp_t *signal);
 

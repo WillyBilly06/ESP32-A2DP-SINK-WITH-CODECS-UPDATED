@@ -171,8 +171,9 @@
         "src/btstack_resample.c",
         "src/btstack_sample_rate_compensation.c"
       ],
-      "status": "partial_review",
-      "mapping": "counterpart_candidates"
+      "status": "reviewed_with_findings",
+      "mapping": "counterpart_candidates",
+      "review_scope": "Complete owned body read; mapped reference sections and ownership/state boundaries compared. Not protocol qualification."
     },
     {
       "owned": "native_bt/codecs/common/dbt_codec.h",
@@ -184,8 +185,9 @@
         "src/btstack_resample.c",
         "src/btstack_sample_rate_compensation.c"
       ],
-      "status": "pending",
-      "mapping": "counterpart_candidates"
+      "status": "reviewed_contract",
+      "mapping": "counterpart_candidates",
+      "review_scope": "Complete owned declaration and lifetime/callback contract read against the reviewed implementation."
     },
     {
       "owned": "native_bt/codecs/ldac/dbt_ldac_bt.c",
@@ -453,8 +455,9 @@
         "src/classic/btstack_sbc_decoder_bluedroid.c",
         "example/a2dp_sink_demo.c"
       ],
-      "status": "pending",
-      "mapping": "counterpart_candidates"
+      "status": "partial_review",
+      "mapping": "counterpart_candidates",
+      "review_scope": "Complete owned body read; SBC fragment/CRC and OI backend comparison begun. Header, complete reference configure/reset and decoder port review pending."
     },
     {
       "owned": "native_bt/codecs/sbc/dbt_sbc_codec.h",
@@ -475,8 +478,9 @@
         "src/classic/btstack_sbc_decoder_bluedroid.c",
         "example/a2dp_sink_demo.c"
       ],
-      "status": "pending",
-      "mapping": "counterpart_candidates"
+      "status": "partial_review",
+      "mapping": "counterpart_candidates",
+      "review_scope": "Complete owned body read; SBC fragment/CRC and OI backend comparison begun. Header, complete reference configure/reset and decoder port review pending."
     },
     {
       "owned": "native_bt/codecs/sbc/dbt_sbc_decoder.h",
@@ -1297,15 +1301,16 @@
     },
     {
       "owned": "native_bt/include/dbt_a2dp_acceptor.h",
-      "sha256": "2db54dba55bd3cd6639e207579ebf45b4a0625323ab478e9e9c4ebd4629ad61b",
-      "lines": 53,
+      "sha256": "47d59eadfd04a399ca60743e90ba193d1125309ad4ec90962f99dde5ecb4cdb7",
+      "lines": 55,
       "reference_files": [
         "src/classic/a2dp.c",
         "src/classic/a2dp_sink.c",
         "src/classic/a2dp_source.c"
       ],
-      "status": "pending",
-      "mapping": "counterpart_candidates"
+      "status": "reviewed_contract",
+      "mapping": "counterpart_candidates",
+      "review_scope": "Complete owned declaration and lifetime/callback contract read against the reviewed implementation."
     },
     {
       "owned": "native_bt/include/dbt_acl.h",
@@ -1410,8 +1415,9 @@
         "src/classic/avdtp_sink.c",
         "src/classic/avdtp_util.c"
       ],
-      "status": "pending",
-      "mapping": "counterpart_candidates"
+      "status": "reviewed_contract",
+      "mapping": "counterpart_candidates",
+      "review_scope": "Complete owned declaration and lifetime/callback contract read against the reviewed implementation."
     },
     {
       "owned": "native_bt/include/dbt_avdtp_caps.h",
@@ -1424,8 +1430,9 @@
         "src/classic/avdtp_sink.c",
         "src/classic/avdtp_util.c"
       ],
-      "status": "pending",
-      "mapping": "counterpart_candidates"
+      "status": "reviewed_contract",
+      "mapping": "counterpart_candidates",
+      "review_scope": "Complete owned declaration and lifetime/callback contract read against the reviewed implementation."
     },
     {
       "owned": "native_bt/include/dbt_avdtp_sink.h",
@@ -1438,13 +1445,14 @@
         "src/classic/avdtp_sink.c",
         "src/classic/avdtp_util.c"
       ],
-      "status": "pending",
-      "mapping": "counterpart_candidates"
+      "status": "reviewed_contract",
+      "mapping": "counterpart_candidates",
+      "review_scope": "Complete owned declaration and lifetime/callback contract read against the reviewed implementation."
     },
     {
       "owned": "native_bt/include/dbt_avdtp.h",
-      "sha256": "18e200184954e7972e900d09fdba4e8dde38cde49a9a97f9239c79633f11c2a0",
-      "lines": 124,
+      "sha256": "08843b317d38928251c802c68a6599550975b963154ac78db6a5da538271e62d",
+      "lines": 125,
       "reference_files": [
         "src/classic/avdtp.c",
         "src/classic/avdtp_acceptor.c",
@@ -1452,8 +1460,9 @@
         "src/classic/avdtp_sink.c",
         "src/classic/avdtp_util.c"
       ],
-      "status": "pending",
-      "mapping": "counterpart_candidates"
+      "status": "reviewed_contract",
+      "mapping": "counterpart_candidates",
+      "review_scope": "Complete owned declaration and lifetime/callback contract read against the reviewed implementation."
     },
     {
       "owned": "native_bt/include/dbt_avrcp_bearer.h",
@@ -2073,15 +2082,16 @@
     },
     {
       "owned": "native_bt/src/dbt_a2dp_acceptor.c",
-      "sha256": "c5547f07e662f974b5782c1f5927b12d81c847389ffff8786534718a9c5fb374",
-      "lines": 199,
+      "sha256": "83ff3e23e649efbf3030bb36371dc9b541924d923370e5379e57530b4aa36eff",
+      "lines": 205,
       "reference_files": [
         "src/classic/a2dp.c",
         "src/classic/a2dp_sink.c",
         "src/classic/a2dp_source.c"
       ],
-      "status": "pending",
-      "mapping": "counterpart_candidates"
+      "status": "reviewed_with_findings",
+      "mapping": "counterpart_candidates",
+      "review_scope": "Complete owned body read; mapped reference sections and ownership/state boundaries compared. Not protocol qualification."
     },
     {
       "owned": "native_bt/src/dbt_a2dp_sbc.c",
@@ -2188,8 +2198,9 @@
         "src/classic/avdtp_sink.c",
         "src/classic/avdtp_util.c"
       ],
-      "status": "pending",
-      "mapping": "counterpart_candidates"
+      "status": "reviewed_no_change",
+      "mapping": "counterpart_candidates",
+      "review_scope": "Complete owned body read; mapped reference sections and ownership/state boundaries compared. Not protocol qualification."
     },
     {
       "owned": "native_bt/src/dbt_avdtp_caps.c",
@@ -2202,8 +2213,9 @@
         "src/classic/avdtp_sink.c",
         "src/classic/avdtp_util.c"
       ],
-      "status": "pending",
-      "mapping": "counterpart_candidates"
+      "status": "reviewed_no_change",
+      "mapping": "counterpart_candidates",
+      "review_scope": "Complete owned body read; mapped reference sections and ownership/state boundaries compared. Not protocol qualification."
     },
     {
       "owned": "native_bt/src/dbt_avdtp_sink.c",
@@ -2216,13 +2228,14 @@
         "src/classic/avdtp_sink.c",
         "src/classic/avdtp_util.c"
       ],
-      "status": "pending",
-      "mapping": "counterpart_candidates"
+      "status": "reviewed_no_change",
+      "mapping": "counterpart_candidates",
+      "review_scope": "Complete owned body read; mapped reference sections and ownership/state boundaries compared. Not protocol qualification."
     },
     {
       "owned": "native_bt/src/dbt_avdtp.c",
-      "sha256": "8e57e9bfc065b8c51456d5382299ca7d1b3b42bab5c023e09d114ad88ff39fd7",
-      "lines": 393,
+      "sha256": "71bea970c12d72caf439a47b4d111e7d9376dc17d20ba1fa383b9110cb6b759f",
+      "lines": 399,
       "reference_files": [
         "src/classic/avdtp.c",
         "src/classic/avdtp_acceptor.c",
@@ -2230,8 +2243,9 @@
         "src/classic/avdtp_sink.c",
         "src/classic/avdtp_util.c"
       ],
-      "status": "pending",
-      "mapping": "counterpart_candidates"
+      "status": "reviewed_with_findings",
+      "mapping": "counterpart_candidates",
+      "review_scope": "Complete owned body read; mapped reference sections and ownership/state boundaries compared. Not protocol qualification."
     },
     {
       "owned": "native_bt/src/dbt_avrcp_bearer.c",
@@ -2575,8 +2589,9 @@
         "src/classic/btstack_sbc_decoder_bluedroid.c",
         "example/a2dp_sink_demo.c"
       ],
-      "status": "pending",
-      "mapping": "counterpart_candidates"
+      "status": "partial_review",
+      "mapping": "counterpart_candidates",
+      "review_scope": "Complete owned body read; SBC fragment/CRC and OI backend comparison begun. Header, complete reference configure/reset and decoder port review pending."
     },
     {
       "owned": "native_bt/src/dbt_sdp_bearer.c",
@@ -2930,6 +2945,33 @@
       "issue": "The encoded handoff copied every payload byte through a manual loop on the host producer path.",
       "fix": "Use SDK memcpy for the disjoint encoded payload; preserve metadata, queue size and release publication. Small configuration copies are not changed.",
       "limit": "Timing is unmeasured. This is not a zero-copy decoder loan or proof that decoding meets every deadline."
+    },
+    {
+      "id": "AVDTP-008",
+      "state": "compiled_static_analysis_passed_runtime_unqualified",
+      "owned": [
+        "native_bt/src/dbt_a2dp_acceptor.c:dbt_a2dp_acceptor_receive",
+        "native_bt/src/dbt_avdtp.c:dbt_avdtp_poll/reply_length"
+      ],
+      "reference": [
+        "src/classic/avdtp.c:587-606",
+        "src/classic/avdtp_acceptor.c:74-112",
+        "src/classic/avdtp_util.c:208-259",
+        "src/classic/avdtp_initiator.c:173-210"
+      ],
+      "specification": {
+        "url": "https://www.bluetooth.org/DocMan/handlers/DownloadDoc.ashx?doc_id=260860",
+        "sections": [
+          "8.3",
+          "8.4.5",
+          "8.4.6",
+          "8.6.2"
+        ]
+      },
+      "issue": "The signaling parser counted wire integrity discards but the profile drained the complete session on INVALID. An incomplete inbound fragmented command also failed the signaling engine rather than retiring only reassembly. Discover Accept allowed zero endpoints.",
+      "fix": "Use the existing discard counter to distinguish wire rejection from API/lifetime/resource failures at the profile boundary. Expire only received reassembly; keep local-command and mandatory-response deadlines intact. Require a nonempty, even-sized Discover Accept body.",
+      "ram_tradeoff": "No new persistent fields, buffers, queues, tasks or waits.",
+      "limits": "No peer/fragment injection or streaming campaign run. This corrects recovery behavior and does not establish the steady underrun cause."
     }
   ],
   "sections_reviewed": [
@@ -2989,6 +3031,34 @@
       ],
       "outcome": "Investigated a possible oversize-response retry spin. The owned parser limits response options to 38 bytes, matching the 44-byte body/48-byte signaling slot; overflow is converted to a bounded rejected response. No such defect is established by this path.",
       "full_layer_complete": false
+    },
+    {
+      "layer": "AVDTP/A2DP signaling and common codec handoff",
+      "owned": [
+        "native_bt/src/dbt_avdtp.c",
+        "native_bt/src/dbt_avdtp_bearer.c",
+        "native_bt/src/dbt_avdtp_caps.c",
+        "native_bt/src/dbt_avdtp_sink.c",
+        "native_bt/src/dbt_a2dp_acceptor.c",
+        "native_bt/codecs/common/dbt_codec.c",
+        "native_bt/include/dbt_avdtp.h",
+        "native_bt/include/dbt_avdtp_bearer.h",
+        "native_bt/include/dbt_avdtp_caps.h",
+        "native_bt/include/dbt_avdtp_sink.h",
+        "native_bt/include/dbt_a2dp_acceptor.h",
+        "native_bt/codecs/common/dbt_codec.h"
+      ],
+      "reference": [
+        "src/classic/avdtp.c:587-606,891-980",
+        "src/classic/avdtp_util.c:208-259,330-475,570-605",
+        "src/classic/avdtp_acceptor.c:48-594,636-746",
+        "src/classic/avdtp_initiator.c:167-243",
+        "src/classic/avdtp_sink.c:55-209",
+        "src/classic/a2dp_sink.c:60-211",
+        "example/a2dp_sink_demo.c:550-660"
+      ],
+      "outcome": "Fixed the wire-discard/profile-retirement boundary. Checked generation/CID routing, fragment sizing/counts, pinned TX admission, command/response deadlines, worker epochs and bounded PCM retirement. No new steady-packet allocator found in the common handoff. Codec-specific parser/decoder internals, renderer integration, outgoing initiator and broader reference states remain open.",
+      "full_layer_complete": false
     }
   ],
   "integration_gaps": [
@@ -3035,10 +3105,11 @@
   ],
   "coverage": {
     "owned_files": 270,
-    "reviewed_owned_c_bodies": 5,
-    "partial_files": 4,
-    "pending_files": 261,
-    "compiled_owned_units_missing": 0
+    "reviewed_owned_c_bodies": 11,
+    "partial_files": 6,
+    "pending_files": 247,
+    "compiled_owned_units_missing": 0,
+    "reviewed_headers": 6
   },
   "inventory_corrections": [
     {
@@ -3085,23 +3156,24 @@
     }
   ],
   "next_review": {
-    "layer": "AVDTP/A2DP signaling, media routing and codec handoff",
+    "layer": "Codec-specific media framing, decode deadlines/reset and render backpressure",
     "owned": [
-      "native_bt/src/dbt_avdtp.c",
-      "native_bt/src/dbt_avdtp_bearer.c",
-      "native_bt/src/dbt_avdtp_sink.c",
-      "native_bt/src/dbt_a2dp_acceptor.c",
-      "native_bt/src/dbt_avdtp_caps.c",
-      "native_bt/codecs/common/dbt_codec.c"
+      "native_bt/src/dbt_sbc_media.c",
+      "native_bt/codecs/sbc/dbt_sbc_codec.c",
+      "native_bt/codecs/sbc/dbt_sbc_decoder.c",
+      "native_bt/codecs/aac/dbt_aac_transport.c",
+      "native_bt/codecs/aac/dbt_aac_decoder.c",
+      "native_bt/codecs/ldac/dbt_ldac.c",
+      "native_bt/codecs/lhdcv5/dbt_lhdcv5.c",
+      "native_bt/esp32_probe/main/probe_output.c"
     ],
     "reference": [
-      "src/classic/avdtp.c",
-      "src/classic/avdtp_acceptor.c",
-      "src/classic/avdtp_initiator.c",
-      "src/classic/a2dp_sink.c",
-      "example/a2dp_sink_demo.c"
+      "src/classic/btstack_sbc_decoder_bluedroid.c",
+      "example/a2dp_sink_demo.c",
+      "src/btstack_resample.c",
+      "src/btstack_sample_rate_compensation.c"
     ],
-    "notes": "Keep core0 decoder/core1 Bluetooth+DSP; do not integrate BTstack implementation or run held functional campaigns."
+    "notes": "Reference SBC example is not an implementation counterpart for other codec internals. Continue cross-checking original project/backend/AOSP as applicable. AVDTP outgoing state/integration and the other pending layers remain open."
   },
-  "latest_build_image": "1c6210a0610df3e61dfc357e33677341137b07db94b8456d77c9a7d220bc6f30"
+  "latest_build_image": "4e14f02267381e9fd72e9686751d1b60df5799b20e065e732dd93fbce3b07e03"
 }

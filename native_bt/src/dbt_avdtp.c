@@ -118,7 +118,7 @@ static bool reply_length(const dbt_avdtp_message_t *m) {
         return m->size == (detail ? 2u : 1u);
     }
     switch (m->signal) {
-    case DBT_AVDTP_DISCOVER: return m->size <= 124 && !(m->size & 1u);
+    case DBT_AVDTP_DISCOVER: return m->size >= 2 && m->size <= 124 && !(m->size & 1u);
     case DBT_AVDTP_GET_CAPABILITIES: case DBT_AVDTP_GET_ALL_CAPABILITIES:
     case DBT_AVDTP_GET_CONFIGURATION: case DBT_AVDTP_SECURITY_CONTROL: return true;
     default: return m->size == 0;
@@ -315,8 +315,14 @@ dbt_result_t dbt_avdtp_tx_cancel(dbt_avdtp_t *s) {
 dbt_result_t dbt_avdtp_poll(dbt_avdtp_t *s, uint32_t now) {
     if (!s || !s->binding || s->in_callback || s->failed) return DBT_INVALID;
     s->now_ms = now;
-    if ((s->rx && due(now, s->rx_deadline)) ||
-        (s->remote_pending && !s->tx[1].used && due(now, s->remote_deadline)) ||
+    /* An incomplete received message is a local integrity discard, not a
+     * completed transaction or a reason to terminate unrelated media. A local
+     * command still keeps its original response deadline below. */
+    if (s->rx && due(now, s->rx_deadline)) {
+        drop_rx(s);
+        ++s->discarded;
+    }
+    if ((s->remote_pending && !s->tx[1].used && due(now, s->remote_deadline)) ||
         (s->tx[0].used && due(now, s->tx[0].deadline)) ||
         (s->tx[1].used && due(now, s->tx[1].deadline))) {
         s->failed = true;

@@ -15,7 +15,7 @@ comparison is in progress; file presence or compilation is not feature parity.
 
 The owned Classic+BLE host is selected on the local COM6 board in ota1 at
 0x390000, marked VALID, with automatic Bluedroid restoration disabled. The
-verified image is `1c6210a0610df3e61dfc357e33677341137b07db94b8456d77c9a7d220bc6f30`.
+verified image is `4e14f02267381e9fd72e9686751d1b60df5799b20e065e732dd93fbce3b07e03`.
 This remains development firmware with incomplete feature/runtime qualification.
 
 Recent source corrections cover [codec payload boundaries and shared PCM
