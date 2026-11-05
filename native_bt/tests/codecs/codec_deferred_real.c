@@ -21,6 +21,11 @@ typedef struct {
     dbt_codec_config_t config;dbt_aac_mux_t builder_mux;
     bool deferred,want_pause,pause_request,busy_retry;
     unsigned calls,busy_calls;int error;
+#ifdef DBT_TEST_PCM_LOANS
+    const void *loan_samples;
+    uint32_t loan_id,next_loan_id,loan_timestamp;
+    uint16_t loan_frames;bool loan_cancelled;
+#endif
 } context_t;
 static uint8_t *allocate(void *context,uint32_t size){
     context_t *c=context;if(!size)return NULL;
@@ -34,6 +39,9 @@ static uint8_t *allocate(void *context,uint32_t size){
 }
 static void release(void *context,uint8_t *p){
     context_t *c=context;
+#ifdef DBT_TEST_PCM_LOANS
+    if(c->loan_samples)c->error=__LINE__;
+#endif
     for(unsigned i=0;i<64;++i)if(c->allocation[i]==p){
         c->allocation[i]=NULL;c->live-=c->sizes[i];++c->frees;free(p);return;
     }
@@ -71,6 +79,25 @@ static dbt_result_t pcm(void *context,const void *samples,uint16_t frames,const 
     for(unsigned i=0;i<frames;++i)if(c->timestamps[c->compared_frames+i]!=timestamp+i){c->error=__LINE__;return DBT_INVALID;}
     c->compared_frames+=frames;return DBT_OK;
 }
+#ifdef DBT_TEST_PCM_LOANS
+/* No I2S resources exist in this codec harness, so stream control completes
+ * immediately. The PCM view remains live across delayed/busy completion. */
+static dbt_result_t stream_begin(void *context,bool start,const dbt_codec_config_t *cfg,uint32_t *id){(void)context;(void)start;(void)cfg;*id=0;return DBT_OK;}
+static dbt_result_t no_stream_ticket(void *context,uint32_t id){(void)context;(void)id;return DBT_INVALID;}
+static dbt_result_t loan_begin(void *context,const void *samples,uint16_t frames,const dbt_codec_config_t *cfg,uint32_t timestamp,uint32_t *id){
+    context_t *c=context;*id=0;if(c->loan_id)return DBT_BUSY;
+    if(!cfg || !frames || frames>DBT_CODEC_PCM_CHUNK_FRAMES || !live_span(c,samples,(uint32_t)frames*cfg->channels*cfg->sample_bytes))return DBT_INVALID;
+    c->loan_samples=samples;c->loan_frames=frames;c->loan_timestamp=timestamp;c->loan_cancelled=false;
+    c->loan_id=++c->next_loan_id;*id=c->loan_id;return DBT_PENDING;
+}
+static dbt_result_t loan_poll(void *context,uint32_t id){
+    context_t *c=context;if(!id || id!=c->loan_id)return DBT_INVALID;
+    dbt_result_t result=c->loan_cancelled?DBT_CANCELLED:pcm(context,c->loan_samples,c->loan_frames,&c->config,c->loan_timestamp);
+    if(result==DBT_BUSY)return DBT_PENDING;
+    c->loan_id=0;c->loan_samples=NULL;return result==DBT_OK?DBT_OK:DBT_CANCELLED;
+}
+static dbt_result_t loan_cancel(void *context,uint32_t id){context_t *c=context;if(!id || id!=c->loan_id)return DBT_INVALID;c->loan_cancelled=true;return DBT_PENDING;}
+#endif
 static const dbt_codec_ops_t *ops_for(case_t c){return c.v?c.v->ops:c.opus?&dbt_opus_codec:&dbt_lhdcv5_codec;}
 static unsigned packet_count(case_t c){return c.v?c.v->packet_count:c.opus?3u:96u;}
 static uint32_t expected_frames(case_t c){return c.v?c.v->sample_frames:c.opus?3u*c.opus->samples:92160u;}
@@ -110,8 +137,11 @@ static bool duplicate_packet(case_t c,context_t *ctx,const uint8_t *source,uint1
 static bool control(dbt_codec_worker_t *w,dbt_sink_operation_t op,const uint8_t *configuration,uint16_t size){
     dbt_sink_job_t job={1,1,op,1,configuration,size};
     if(dbt_codec_worker_submit(w,&job)!=DBT_OK)return false;
-    dbt_codec_worker_step(w,0,0);dbt_codec_receipt_t r;
-    return dbt_codec_worker_receipt(w,&r)==DBT_OK && r.result==DBT_SINK_WORK_READY;
+    for(unsigned i=0;i<8;++i){
+        dbt_codec_worker_step(w,w->last_progress,0);dbt_codec_receipt_t r;
+        if(dbt_codec_worker_receipt(w,&r)==DBT_OK)return r.result==DBT_SINK_WORK_READY;
+    }
+    return false;
 }
 static bool feed(case_t c,context_t *ctx,dbt_codec_decoder_t *direct,dbt_codec_worker_t *worker,unsigned index,uint32_t *now,bool stop_at_pending){
     const uint8_t *data;uint16_t size;bool marker;original_packet(c,index,&data,&size,&marker);
@@ -137,7 +167,11 @@ static bool feed(case_t c,context_t *ctx,dbt_codec_decoder_t *direct,dbt_codec_w
             unsigned attempts=0;
             while(atomic_load(&worker->media_read)!=atomic_load(&worker->media_written)){
                 if(++attempts>10000 || dbt_codec_worker_step(worker,(*now)++,1)>1 || atomic_load(&worker->faults) || atomic_load(&worker->media_drops))return false;
-                if(stop_at_pending && worker->pending_pcm)return true;
+                if(stop_at_pending && worker->pending_pcm
+#ifdef DBT_TEST_PCM_LOANS
+                    && worker->pcm_ticket
+#endif
+                )return true;
                 if(ctx->pause_request){*now+=150u;ctx->pause_request=false;}
             }
         }
@@ -165,6 +199,10 @@ static int run_case(case_t c){
     ctx.deferred=true;ctx.want_pause=true;ctx.calls=0;ctx.builder_mux=(dbt_aac_mux_t){0};now=0;
     const dbt_codec_ops_t *codecs[]={ops};
     dbt_codec_worker_hooks_t wh={hooks,codecs,1,0,0,0,true,{0},0,{0}};
+#ifdef DBT_TEST_PCM_LOANS
+    wh.async_stream=(dbt_codec_stream_async_t){stream_begin,no_stream_ticket,no_stream_ticket};
+    wh.async_pcm=(dbt_codec_pcm_async_t){loan_begin,loan_poll,loan_cancel};
+#endif
     TRY(dbt_codec_worker_init(&worker,wh,4096,2)==DBT_OK);worker_initialized=true;
     uint8_t configuration[4+DBT_CODEC_CIE_BYTES]={1,0,7,0};configuration[3]=(uint8_t)cie_size(c);
     memcpy(configuration+4,cie_for(c),cie_size(c));
@@ -207,6 +245,12 @@ int main(void){
         case_t c={NULL,&opus_vectors[i],mode,i};if(run_case(c))return 1;++cases;
     }
     case_t maximum={0};if(run_case(maximum))return 1;++cases;
-    printf("{\"probe\":\"deferred_codec_summary\",\"passed\":true,\"cases\":%u,\"maximum_rate_tested\":true,\"rf_test\":false}\n",cases);
+    printf("{\"probe\":\"deferred_codec_summary\",\"passed\":true,\"cases\":%u,\"maximum_rate_tested\":true,\"pcm_loans\":%s,\"rf_test\":false}\n",cases,
+#ifdef DBT_TEST_PCM_LOANS
+        "true"
+#else
+        "false"
+#endif
+    );
     return 0;
 }

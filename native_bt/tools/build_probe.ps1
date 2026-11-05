@@ -1,4 +1,4 @@
-param([switch]$DspInlineCheck,[ValidateSet(0,1)][int]$DecoderCore=1,[switch]$RfProtocolDiagnostic,[switch]$FirCompilerCheck,[switch]$DspStageProfile,[switch]$AudioStageProfile,[switch]$PipelineDiagnostic,[switch]$AsyncAudio,[switch]$DeferredCodecCheck,[switch]$LhdcStageProfile,[switch]$LhdcMaximumCheck,[switch]$CodecDiagnosticOnly,[switch]$WithProductIo,[switch]$WithProductSecurity,[switch]$WithRfcomm,[switch]$WithLhdc,[switch]$WithOpus,[switch]$WithAac,[switch]$WithAptx,[switch]$WithLdac,[switch]$WithSmp,[switch]$WithAvrcp,[switch]$WithSbc,[switch]$WithAudioProbe,[switch]$WithAudioOutput,[switch]$WithGatt,[switch]$WithClassicSecurity,[switch]$TraceIngress,[switch]$WithoutRxFlow,[switch]$KeepOwned=$true,[string]$TestPeer='',[string]$LhdcSourceDir='')
+param([switch]$PcmLoans,[switch]$DspInlineCheck,[ValidateSet(0,1)][int]$DecoderCore=1,[switch]$RfProtocolDiagnostic,[switch]$FirCompilerCheck,[switch]$DspStageProfile,[switch]$AudioStageProfile,[switch]$PipelineDiagnostic,[switch]$AsyncAudio,[switch]$DeferredCodecCheck,[switch]$LhdcStageProfile,[switch]$LhdcMaximumCheck,[switch]$CodecDiagnosticOnly,[switch]$WithProductIo,[switch]$WithProductSecurity,[switch]$WithRfcomm,[switch]$WithLhdc,[switch]$WithOpus,[switch]$WithAac,[switch]$WithAptx,[switch]$WithLdac,[switch]$WithSmp,[switch]$WithAvrcp,[switch]$WithSbc,[switch]$WithAudioProbe,[switch]$WithAudioOutput,[switch]$WithGatt,[switch]$WithClassicSecurity,[switch]$TraceIngress,[switch]$WithoutRxFlow,[switch]$KeepOwned=$true,[string]$TestPeer='',[string]$LhdcSourceDir='')
 $ErrorActionPreference = 'Stop'
 if ($DspInlineCheck -and (-not $AudioStageProfile -or $DspStageProfile -or $FirCompilerCheck)) { throw 'DSP inline comparison requires -AudioStageProfile and excludes other kernel comparisons' }
 if ($RfProtocolDiagnostic) {
@@ -24,6 +24,10 @@ if ($WithProductIo) { $WithProductSecurity=$true; $WithSmp=$true; $WithGatt=$tru
 if ($WithRfcomm) { $WithClassicSecurity=$true }
 if ($WithAudioOutput -and -not $PipelineDiagnostic) { $WithAudioProbe = $true }
 if ($AsyncAudio -and -not $WithAudioOutput) { throw 'Async audio requires -WithAudioOutput or -WithProductIo' }
+if ($PcmLoans) {
+    if (-not $AsyncAudio -or -not $WithAudioOutput -or $RfProtocolDiagnostic) { throw 'PCM loans require async I2S and exclude checksum-only RF mode' }
+    $KeepOwned=$false
+}
 if ($WithAudioProbe -and -not $WithClassicSecurity) { throw 'The SBC diagnostic requires -WithClassicSecurity and the exact test peer' }
 if ($WithAudioProbe) { $WithSbc = $true }
 if ($TraceIngress -and -not $WithClassicSecurity) {
@@ -107,6 +111,7 @@ $idfArguments += "-DDBT_PROBE_PIPELINE_DIAGNOSTIC=$pipelineBuild"
 $idfArguments += "-DDBT_PROBE_CODEC_DIAGNOSTIC_ONLY=$codecDiagnosticBuild"
 $idfArguments += "-DDBT_PROBE_DEFERRED_CODEC_CHECK=$deferredCodecBuild"
 $idfArguments += "-DDBT_PROBE_ASYNC_AUDIO=$asyncAudioBuild"
+$idfArguments += "-DDBT_PROBE_PCM_LOANS=$(if ($PcmLoans) { 'ON' } else { 'OFF' })"
 $idfArguments += "-DDBT_PROBE_RF_PROTOCOL_DIAGNOSTIC=$rfDiagnosticBuild"
 $idfArguments += "-DDBT_PROBE_DECODER_CORE=$DecoderCore"
 $idfArguments += "-DDBT_PROBE_LHDC_MAX_CHECK=$lhdcMaxBuild"
@@ -138,6 +143,7 @@ $buildReceipt.pipeline_diagnostic=[bool]$PipelineDiagnostic
 $buildReceipt.codec_diagnostic_only=[bool]$CodecDiagnosticOnly
 $buildReceipt.deferred_codec_check=[bool]$DeferredCodecCheck
 $buildReceipt.async_audio=[bool]$AsyncAudio
+$buildReceipt.pcm_loans=[bool]$PcmLoans
 $buildReceipt.rf_protocol_diagnostic=[bool]$RfProtocolDiagnostic
 $buildReceipt.decoder_core=$DecoderCore
 $buildReceipt.lhdc_maximum_check=[bool]$LhdcMaximumCheck

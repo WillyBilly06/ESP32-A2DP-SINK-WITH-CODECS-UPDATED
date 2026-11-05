@@ -12,6 +12,23 @@ static bool idle(probe_sound_t *s){
     for(unsigned i=0;i<5000 && probe_sound_busy(s);++i){(void)probe_sound_poll(s,now(NULL),NULL);Sleep(1);}
     return !probe_sound_busy(s);
 }
+/* External test producer: keep the immutable music buffer live while pumping
+ * the sound client. Production codec callbacks use begin/poll without waits. */
+static dbt_result_t feed_music(probe_sound_t *sound,const int16_t *samples){
+#ifdef DBT_PROBE_PCM_LOANS
+    uint32_t ticket=0;dbt_result_t result=DBT_BUSY;
+    for(unsigned i=0;i<5000;++i){
+        if(!ticket)result=probe_output_pcm_begin(samples,128,2,48000,DBT_PCM_S16_LE,&ticket);
+        else result=probe_output_pcm_poll(ticket);
+        if(result!=DBT_PENDING && result!=DBT_BUSY)return result;
+        if(sound)(void)probe_sound_poll(sound,now(NULL),NULL);
+        Sleep(1);
+    }
+    return DBT_PENDING;
+#else
+    (void)sound;return probe_output_try_pcm_format(samples,128,2,48000,DBT_PCM_S16_LE);
+#endif
+}
 int main(void){
     main_id=GetCurrentThreadId();CHECK(probe_output_init(NULL,NULL)==DBT_OK);
     store_t file;prepare(&file);dbt_sound_t provider;
@@ -59,13 +76,13 @@ int main(void){
     /* Preserve overlays and the latest-one queued notification. */
     uint32_t ticket;CHECK(probe_output_stream_begin(true,48000,2,DBT_PCM_S16_LE,&ticket)==DBT_PENDING && await_ticket(ticket)==DBT_OK);
     int16_t music[256];for(unsigned i=0;i<256;++i)music[i]=4000;
-    for(unsigned i=0;i<32;++i){(void)probe_output_try_pcm_format(music,128,2,48000,DBT_PCM_S16_LE);Sleep(1);}
+    for(unsigned i=0;i<32;++i){(void)feed_music(NULL,music);Sleep(1);}
     CHECK(probe_sound_play(&sound,0,44100,true)==DBT_PENDING && start_finished(&sound) && sound.last_result==DBT_OK);
     CHECK(sound.rate==48000 && !sound.exclusive);
     CHECK(probe_sound_play(&sound,2,48000,true)==DBT_OK && probe_sound_play(&sound,3,48000,true)==DBT_OK);
     bool saw_last=false;
     for(unsigned i=0;i<5000 && probe_sound_busy(&sound);++i){
-        (void)probe_sound_poll(&sound,now(NULL),NULL);(void)probe_output_try_pcm_format(music,128,2,48000,DBT_PCM_S16_LE);
+        (void)probe_sound_poll(&sound,now(NULL),NULL);(void)feed_music(&sound,music);
         if(sound.type==3)saw_last=true;Sleep(1);
     }
     CHECK(saw_last && !probe_sound_busy(&sound) && probe_output_active_rate()==48000);
@@ -85,7 +102,7 @@ int main(void){
     CHECK(atomic_load(&blocking_sends)==sends);
     /* A malformed DMA event wakes the render owner without a periodic poll. */
     CHECK(probe_output_stream_begin(true,48000,2,DBT_PCM_S16_LE,&ticket)==DBT_PENDING && await_ticket(ticket)==DBT_OK);
-    for(unsigned i=0;i<100 && !atomic_load(&i2s_enabled);++i){(void)probe_output_try_pcm_format(music,128,2,48000,DBT_PCM_S16_LE);Sleep(1);}
+    for(unsigned i=0;i<100 && !atomic_load(&i2s_enabled);++i){(void)feed_music(NULL,music);Sleep(1);}
     CHECK(atomic_load(&i2s_enabled));unsigned irq_wakes=atomic_load(&isr_wakes);atomic_store(&bad_dma,true);
     probe_output_stats_t stats={0};
     for(unsigned i=0;i<5000 && !stats.failed;++i){probe_output_stats(&stats);Sleep(1);}

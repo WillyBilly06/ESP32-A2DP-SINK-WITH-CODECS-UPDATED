@@ -47,6 +47,15 @@ assert ('DBT_PROBE_CODEC_DIAGNOSTIC_ONLY:BOOL=ON' in cache)==diagnostic
 assert ('DBT_PROBE_DEFERRED_CODEC_CHECK:BOOL=ON' in cache)==bool(build_status.get('deferred_codec_check'))
 assert ('DBT_PROBE_ASYNC_AUDIO:BOOL=ON' in cache)==bool(build_status.get('async_audio'))
 assert bool(re.search(r'(?:^|\s)-DDBT_PROBE_ASYNC_AUDIO=1(?:\s|$)',main_command))==bool(build_status.get('async_audio'))
+pcm_loans=bool(build_status.get('pcm_loans'))
+assert ('DBT_PROBE_PCM_LOANS:BOOL=ON' in cache)==pcm_loans, 'PCM loan receipt/cache mismatch'
+assert bool(re.search(r'(?:^|\s)-DDBT_PROBE_PCM_LOANS=1(?:\s|$)',main_command))==pcm_loans
+if pcm_loans:
+    assert build_status.get('async_audio') and not rf_diagnostic
+    assert 'DBT_PROBE_KEEP_OWNED_ACTIVE:BOOL=ON' not in cache
+    for loan_unit in ('probe_output.c','probe_pipeline_check.c' if pipeline else 'probe_audio.c'):
+        loan_command=next(entry['command'] for entry in commands if Path(entry['file']).name==loan_unit)
+        assert re.search(r'(?:^|\s)-DDBT_PROBE_PCM_LOANS=1(?:\s|$)',loan_command), 'PCM loan provider/client not actually compiled'
 assert bool(re.search(r'(?:^|\s)-DDBT_PROBE_DEFERRED_CODEC_CHECK=1(?:\s|$)',main_command))==bool(build_status.get('deferred_codec_check'))
 assert ('DBT_PROBE_LHDC_MAX_CHECK:BOOL=ON' in cache)==bool(build_status.get('lhdc_maximum_check'))
 assert ('DBT_PROBE_LHDC_STAGE_PROFILE:BOOL=ON' in cache)==bool(build_status.get('lhdc_stage_profile'))

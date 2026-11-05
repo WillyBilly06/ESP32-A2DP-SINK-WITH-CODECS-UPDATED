@@ -5,7 +5,7 @@ typedef int esp_err_t;
 typedef void *i2s_chan_handle_t;
 typedef struct {void *dma_buf;size_t size;} i2s_event_data_t;
 typedef struct {int dma_desc_num,dma_frame_num;bool auto_clear_after_cb,auto_clear_before_cb;int intr_priority;} i2s_chan_config_t;
-typedef struct {int clk_src;} i2s_clk_config_t;
+typedef struct {int clk_src;uint32_t sample_rate_hz;} i2s_clk_config_t;
 typedef struct {int dummy;} i2s_slot_config_t;
 typedef struct {int mclk,bclk,ws,dout,din;} i2s_gpio_config_t;
 typedef struct {i2s_clk_config_t clk_cfg;i2s_slot_config_t slot_cfg;i2s_gpio_config_t gpio_cfg;} i2s_std_config_t;
@@ -18,7 +18,7 @@ typedef struct {bool (*on_sent)(i2s_chan_handle_t,i2s_event_data_t *,void *);} i
 #define I2S_SLOT_MODE_STEREO 2
 #define I2S_CLK_SRC_APLL 1
 #define I2S_CHANNEL_DEFAULT_CONFIG(n,r) ((i2s_chan_config_t){0})
-#define I2S_STD_CLK_DEFAULT_CONFIG(r) ((i2s_clk_config_t){0})
+#define I2S_STD_CLK_DEFAULT_CONFIG(r) ((i2s_clk_config_t){.sample_rate_hz=(r)})
 #define I2S_STD_PHILIPS_SLOT_DEFAULT_CONFIG(w,m) ((i2s_slot_config_t){0})
 esp_err_t i2s_new_channel(const i2s_chan_config_t *,i2s_chan_handle_t *,void *);
 esp_err_t i2s_del_channel(i2s_chan_handle_t);

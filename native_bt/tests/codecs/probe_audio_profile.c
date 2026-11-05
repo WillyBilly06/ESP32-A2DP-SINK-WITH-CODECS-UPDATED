@@ -144,33 +144,67 @@ dbt_result_t probe_output_pcm_format(const void *samples,uint16_t frames,uint8_t
 #ifdef DBT_PROBE_ASYNC_AUDIO
 static uint32_t pending_ticket,next_ticket;static bool pending_start,cancelled;
 static dbt_codec_config_t pending_config;
+#ifdef DBT_PROBE_PCM_LOANS
+static bool pending_pcm_view;static const void *pending_samples;static uint16_t pending_sample_frames;
+#endif
 dbt_result_t probe_output_stream_begin(bool start,uint32_t rate,uint8_t channels,dbt_pcm_format_t format,uint32_t *ticket){
     *ticket=0;if(pending_ticket)return DBT_BUSY;
     pending_ticket=++next_ticket;pending_start=start;cancelled=false;
+#ifdef DBT_PROBE_PCM_LOANS
+    pending_pcm_view=false;pending_samples=0;
+#endif
     pending_config=(dbt_codec_config_t){0};pending_config.rate=rate;pending_config.channels=channels;pending_config.sample_bytes=(uint8_t)format;
     *ticket=pending_ticket;return DBT_PENDING;
 }
 dbt_result_t probe_output_request_poll(uint32_t ticket){
     if(!ticket || ticket!=pending_ticket)return DBT_INVALID;
+#ifdef DBT_PROBE_PCM_LOANS
+    if(pending_pcm_view)return DBT_INVALID;
+#endif
     pending_ticket=0;
     if(cancelled)return DBT_CANCELLED;
     return probe_output_stream_format(pending_start,pending_config.rate,pending_config.channels,(dbt_pcm_format_t)pending_config.sample_bytes);
 }
 dbt_result_t probe_output_request_cancel(uint32_t ticket){if(!ticket || ticket!=pending_ticket)return DBT_INVALID;cancelled=true;return DBT_PENDING;}
 dbt_result_t probe_output_try_pcm_format(const void *samples,uint16_t frames,uint8_t channels,uint32_t rate,dbt_pcm_format_t format){return probe_output_pcm_format(samples,frames,channels,rate,format);}
+#ifdef DBT_PROBE_PCM_LOANS
+/* Delayed-copy provider mock: tests the actual profile/worker hook wiring.
+ * The real borrowed renderer is covered separately by its provider tests. */
+dbt_result_t probe_output_pcm_begin(const void *samples,uint16_t frames,uint8_t channels,uint32_t rate,dbt_pcm_format_t format,uint32_t *ticket){
+    *ticket=0;if(pending_ticket)return DBT_BUSY;
+    if(!samples || !frames || frames>PROBE_PCM_LOAN_FRAMES)return DBT_INVALID;
+    pending_ticket=++next_ticket;pending_pcm_view=true;pending_samples=samples;pending_sample_frames=frames;cancelled=false;
+    pending_config=(dbt_codec_config_t){0};pending_config.rate=rate;pending_config.channels=channels;pending_config.sample_bytes=(uint8_t)format;
+    *ticket=pending_ticket;return DBT_PENDING;
+}
+dbt_result_t probe_output_pcm_poll(uint32_t ticket){
+    if(!ticket || ticket!=pending_ticket || !pending_pcm_view)return DBT_INVALID;
+    dbt_result_t result=cancelled?DBT_CANCELLED:probe_output_pcm_format(pending_samples,pending_sample_frames,pending_config.channels,pending_config.rate,(dbt_pcm_format_t)pending_config.sample_bytes);
+    if(result==DBT_BUSY)return DBT_PENDING;
+    pending_ticket=0;pending_samples=0;pending_pcm_view=false;
+    return result==DBT_OK?DBT_OK:DBT_CANCELLED;
+}
+dbt_result_t probe_output_pcm_cancel(uint32_t ticket){return probe_output_request_cancel(ticket);}
+static dbt_result_t send_format(const void *samples,uint16_t frames,const dbt_codec_config_t *config){
+    uint32_t ticket=0;dbt_result_t result=pcm_begin(NULL,samples,frames,config,0,&ticket);
+    return result==DBT_PENDING?pcm_poll(NULL,ticket):result;
+}
+#else
+static dbt_result_t send_format(const void *samples,uint16_t frames,const dbt_codec_config_t *config){return pcm(NULL,samples,frames,config,0);}
+#endif
 #endif
 EX int probe_audio_formats(void){
     const uint8_t packed24[]={0,0,0x80,0xff,0xff,0x7f,1,2,3,0xfd,0xfe,0xff};
     const int32_t pcm32[]={INT32_MIN,INT32_MAX,123456,-123456};
     dbt_codec_config_t c={0};c.rate=48000;c.channels=2;c.samples=2;c.sample_bytes=3;
     CHECK(probe_output_stream_format(true,48000,2,DBT_PCM_S24_LE)==DBT_OK);
-    CHECK(pcm(0,packed24,2,&c,0)==DBT_OK && output_audio.input.stride==6 && !memcmp(output_audio.input.bytes,packed24,sizeof(packed24)));
+    CHECK(send_format(packed24,2,&c)==DBT_OK && output_audio.input.stride==6 && !memcmp(output_audio.input.bytes,packed24,sizeof(packed24)));
     CHECK(probe_output_pcm_format(packed24,2,2,44100,DBT_PCM_S24_LE)==DBT_INVALID);
     CHECK(probe_output_pcm_format(packed24,2,1,48000,DBT_PCM_S24_LE)==DBT_INVALID);
     CHECK(probe_output_pcm_format(packed24,2,2,48000,DBT_PCM_S32_LE)==DBT_INVALID);
     CHECK(probe_output_stream_format(false,0,0,0)==DBT_OK);
     c.sample_bytes=4;CHECK(probe_output_stream_format(true,48000,2,DBT_PCM_S32_LE)==DBT_OK);
-    CHECK(pcm(0,pcm32,2,&c,0)==DBT_OK && output_audio.input.stride==8 && !memcmp(output_audio.input.bytes,pcm32,sizeof(pcm32)));
+    CHECK(send_format(pcm32,2,&c)==DBT_OK && output_audio.input.stride==8 && !memcmp(output_audio.input.bytes,pcm32,sizeof(pcm32)));
     CHECK(probe_output_stream_format(false,0,0,0)==DBT_OK && !live_allocs);return 0;
 }
 void probe_output_stats(probe_output_stats_t *stats){memset(stats,0,sizeof(*stats));}
@@ -295,6 +329,11 @@ EX int probe_audio_profiles(const uint8_t *sbc,uint16_t n,const uint8_t *sbc_cie
 
     CHECK(probe_audio_init(&runtime,(void *)2)==DBT_OK && initialized && !live_allocs);
     CHECK(created_decoder_core==DBT_PROBE_DECODER_CORE);
+#ifdef DBT_PROBE_PCM_LOANS
+    CHECK(worker.hooks.async_pcm.begin && worker.hooks.async_pcm.poll && worker.hooks.async_pcm.cancel);
+#else
+    CHECK(!worker.hooks.async_pcm.begin);
+#endif
     CHECK(created_logger_core==1-DBT_PROBE_DECODER_CORE);
     dbt_link_t restart_peer={0};stop_result=DBT_BUSY;
     CHECK(probe_audio_restart_hold(true,++now)==DBT_BUSY && !probe_audio_restart_quiescent());

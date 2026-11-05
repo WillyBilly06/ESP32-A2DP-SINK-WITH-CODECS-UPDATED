@@ -8,6 +8,7 @@ typedef struct {
     uint32_t descriptor_expected_index,descriptor_observed_index,descriptor_observed_size;
     uint32_t descriptor_fault_at_us,descriptor_fault_gap_us,descriptor_fault_stopping;
     uint32_t configured_irq_priority,callback_calls,callback_elapsed_us,callback_max_us,callback_core;
+    uint32_t pcm_loan_mode,input_ring_bytes_avoided,pcm_loans_begun,pcm_loans_retired,pcm_loans_cancelled,pcm_loan_active,pcm_loan_max_us;
     uint32_t maximum_render_us,stop_fill_frames;
     uint32_t render_total_us,render_calls,render_stack_low_water_bytes;
     uint32_t allocation_failed_bytes,allocation_failure_free,allocation_failure_largest;
@@ -29,6 +30,14 @@ dbt_result_t probe_output_init(void (*wake_decoder)(void *),void *context);
 dbt_result_t probe_output_stream_begin(bool,uint32_t,uint8_t,dbt_pcm_format_t,uint32_t *);
 dbt_result_t probe_output_request_poll(uint32_t);
 dbt_result_t probe_output_request_cancel(uint32_t);
+#ifdef DBT_PROBE_PCM_LOANS
+#define PROBE_PCM_LOAN_FRAMES 256u
+/* PENDING lends immutable storage until an OK/CANCELLED poll. A stale id does
+ * not prove retirement. Cancel is a request, not an acknowledgement. */
+dbt_result_t probe_output_pcm_begin(const void *,uint16_t,uint8_t,uint32_t,dbt_pcm_format_t,uint32_t *);
+dbt_result_t probe_output_pcm_poll(uint32_t);
+dbt_result_t probe_output_pcm_cancel(uint32_t);
+#endif
 /* Decoder worker only; bounded synchronous handshake with the render task. */
 dbt_result_t probe_output_stream(bool start,uint32_t rate,uint8_t channels);
 dbt_result_t probe_output_pcm(const int16_t *samples,uint16_t frames,uint8_t channels,uint32_t rate);

@@ -13,7 +13,7 @@ SNAPSHOTS = set('owner_wait_reasons vhci_timing media_drop_reasons worker_timing
                 'decoder_execution decoder_reset pcm_delivery codec_configuration '
                 'media_input sbc_pcm native_profile i2s_allocation_failure '
                 'i2s_callback_work render_work i2s_descriptor_faults native_i2s '
-                'audio_clock'.split())
+                'audio_clock i2s_pcm_loans'.split())
 TIMES = ('snapshot_begin_us', 'at_us', 'snapshot_span_us')
 CHECKSUM = re.compile(rb',"record_crc32":"([0-9a-f]{8})"}$')
 

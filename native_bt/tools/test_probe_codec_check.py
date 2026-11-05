@@ -33,12 +33,15 @@ def main():
     parser.add_argument('--lhdc-source',type=Path,help='Sibling LHDC repository or decoder directory')
     parser.add_argument('--deferred',action='store_true',help='Compare real synchronous/deferred PCM with simulated renderer backpressure')
     parser.add_argument('--sanitize',action='store_true',help='AddressSanitizer for deferred adapters and all codec sources including guarded Opus')
+    parser.add_argument('--pcm-loans',action='store_true',help='Use asynchronous immutable PCM loans with a delayed provider mock')
     args=parser.parse_args()
     if args.lhdc_source:
         LHDC=args.lhdc_source.resolve()
         if not (LHDC/'lhdc_dec.c').is_file():LHDC=LHDC/'decoder'
     if args.sanitize and not args.deferred:raise RuntimeError('--sanitize requires --deferred')
+    if args.pcm_loans and not args.deferred:raise RuntimeError('--pcm-loans requires --deferred')
     if args.deferred:OUT=ROOT/('_build/native_codecs/deferred_asan' if args.sanitize else '_build/native_codecs/deferred_host')
+    if args.pcm_loans:OUT=ROOT/('_build/native_codecs/deferred_loans_asan' if args.sanitize else '_build/native_codecs/deferred_loans_host')
     OUT.mkdir(parents=True,exist_ok=True);env=os.environ.copy()
     if os.name=='nt':
         vc=Path(r'C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Auxiliary\Build\vcvars64.bat')
@@ -104,6 +107,7 @@ def main():
         flags+=['-fsanitize=address','-fno-omit-frame-pointer']
         if os.name=='nt':flags+=['-fms-runtime-lib=dll']
     flags+=['-DDBT_PROBE_'+x+'_BUILD=1' for x in ('SBC','OPUS','AAC','APTX','LDAC','LHDC')]
+    if args.pcm_loans:flags+=['-DDBT_TEST_PCM_LOANS=1']
     flags+=['-I'+str(p) for p in inc]
     exe=OUT/('probe_codec_selftest.exe' if os.name=='nt' else 'probe_codec_selftest')
     # Cache individual translation units. Select ESP32's portable arithmetic
@@ -140,10 +144,11 @@ def main():
         cases=[e for e in events if e.get('probe')=='deferred_codec_case']
         summaries=[e for e in events if e.get('probe')=='deferred_codec_summary']
         assert len(summaries)==1 and summaries[0]['passed'] and summaries[0]['cases']==len(cases)
+        assert summaries[0]['pcm_loans']==args.pcm_loans
         assert len([c for c in cases if c['mode']==0])==38
         assert all(c['passed'] and c['live_bytes']==0 and c['busy_attempts'] for c in cases)
         assert all(hashlib.sha256(Path(path).read_bytes()).hexdigest()==sha for path,sha in before.items())
-        report={'passed':True,'scope':'real host codec algorithms and worker, byte/sample-timestamp comparison with simulated output backpressure and 150 ms pause; no target/RF timing',
+        report={'passed':True,'pcm_loans':args.pcm_loans,'scope':'real host codec algorithms and worker, byte/sample-timestamp comparison with simulated output backpressure and 150 ms pause; optional async PCM-loan mock, no target/RF timing',
                 'sanitizers':['address for all source-built codecs','undefined for owned adapters/worker/test harness'] if args.sanitize else [],'guarded_opus_instrumented':args.sanitize,
                 'summary':summaries[0],'cases':cases,'source_sha256':before}
         (OUT/'results.json').write_text(json.dumps(report,indent=2)+'\n')

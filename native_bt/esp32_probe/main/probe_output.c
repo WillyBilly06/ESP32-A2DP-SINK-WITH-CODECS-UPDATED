@@ -24,6 +24,10 @@ extern void dbt_output_test_step(unsigned);
 #define DMA_FRAMES 128u
 #define DMA_DESCRIPTORS 3u
 #define DMA_IRQ_PRIORITY 2
+#if defined(DBT_PROBE_PCM_LOANS) && !defined(DBT_PROBE_ASYNC_AUDIO)
+#error "PCM loans require the asynchronous audio client"
+#endif
+enum {REQ_CODEC=0,REQ_SOUND_RESERVE=1,REQ_SOUND_ATTACH=2,REQ_SOUND_RELEASE=3,REQ_PCM_LOAN=4};
 static TickType_t event_wait_ticks(uint32_t ms) {
   TickType_t ticks = pdMS_TO_TICKS(ms);
   return ticks ? ticks : 1;
@@ -36,6 +40,10 @@ typedef struct {
   uint8_t channels;
   dbt_pcm_format_t format;
   uint32_t id;
+#ifdef DBT_PROBE_PCM_LOANS
+  const void *pcm;
+  uint16_t frames;
+#endif
 #ifdef DBT_PROBE_SOUND_BUILD
   uint32_t sound_token;
   dbt_sound_play_t *sound;
@@ -68,6 +76,9 @@ typedef struct {
   _Atomic uint32_t request_fault,stale_receipts;
   _Atomic bool restart_hold;
   request_t inflight;
+#ifdef DBT_PROBE_PCM_LOANS
+  uint32_t pcm_loan_id,pcm_loan_began;
+#endif
 #ifdef DBT_PROBE_SOUND_BUILD
   _Atomic uint32_t sound_token;
   _Atomic uint32_t sound_retired,active_rate;
@@ -91,6 +102,7 @@ typedef struct {
   _Atomic uint32_t descriptor_expected_index,descriptor_observed_index,descriptor_observed_size;
   _Atomic uint32_t descriptor_fault_at_us,descriptor_fault_gap_us,descriptor_fault_stopping;
   _Atomic uint32_t callback_calls,callback_elapsed_us,callback_max_us,callback_core;
+  _Atomic uint32_t input_ring_bytes_avoided,pcm_loans_begun,pcm_loans_retired,pcm_loans_cancelled,pcm_loan_active,pcm_loan_max_us;
   _Atomic uint32_t maximum_render_us, stop_fill_frames;
   _Atomic uint32_t render_total_us,render_calls;
   _Atomic uint32_t allocation_failed_bytes,allocation_failure_free,allocation_failure_largest;
@@ -149,6 +161,9 @@ static void finish_cancel(uint32_t id,dbt_result_t result){
 static void report_done(uint32_t id, dbt_result_t result) {
   if(dbt_ticket_state(&output.ticket,id)==DBT_TICKET_STALE){atomic_fetch_add(&output.stale_receipts,1);return;}
   if(dbt_ticket_done_begin(&output.ticket,id)){
+#ifdef DBT_PROBE_PCM_LOANS
+    if(output.inflight.kind==REQ_PCM_LOAN)OUTPUT_TEST_STEP(6);
+#endif
 #ifdef DBT_PROBE_SOUND_BUILD
     if(output.inflight.kind==2)OUTPUT_TEST_STEP(4);
 #endif
@@ -159,6 +174,42 @@ static void report_done(uint32_t id, dbt_result_t result) {
 }
 #ifdef DBT_OUTPUT_TEST_HOOKS
 void dbt_output_test_bad_receipt(uint32_t id){report_done(id,DBT_OK);}
+#endif
+#ifdef DBT_PROBE_PCM_LOANS
+static bool retire_pcm_loan(bool cancel){
+  uint32_t id=output.pcm_loan_id;if(!id)return false;
+  if(cancel)(void)dbt_audio_input_cancel(&output.audio);
+  else if(!dbt_audio_input_release(&output.audio))return false;
+  output.pcm_loan_id=0;output.inflight.pcm=NULL;atomic_store(&output.pcm_loan_active,0);
+  uint32_t elapsed=(uint32_t)esp_timer_get_time()-output.pcm_loan_began;
+  if(elapsed>atomic_load(&output.pcm_loan_max_us))atomic_store(&output.pcm_loan_max_us,elapsed);
+  if(cancel)atomic_fetch_add(&output.pcm_loans_cancelled,1);
+  else atomic_fetch_add(&output.pcm_loans_retired,1);
+  report_done(id,cancel?DBT_CANCELLED:DBT_OK);return true;
+}
+static bool reclaim_pcm_loan(const request_t *request,dbt_result_t result){
+  if(request->kind!=REQ_PCM_LOAN)return false;
+  output.inflight.pcm=NULL;
+  if(result==DBT_OK){(void)dbt_audio_input_cancel(&output.audio);output.pcm_loan_id=0;atomic_store(&output.pcm_loan_active,0);}
+  return true;
+}
+static bool handle_pcm_loan(const request_t *request){
+  if(request->kind!=REQ_PCM_LOAN)return false;
+  bool unavailable=!output.active || output.stopping || atomic_load(&output.failed) || output.pcm_loan_id ||
+      atomic_load_explicit(&output.restart_hold,memory_order_acquire);
+#ifdef DBT_PROBE_SOUND_BUILD
+  unavailable=unavailable || output.transition_sound || output.sound_standalone;
+#endif
+  if(unavailable || request->rate!=output.audio.config.rate || request->channels!=output.audio.config.channels ||
+      request->format!=output.audio.config.format || !request->pcm || !request->frames || request->frames>PROBE_PCM_LOAN_FRAMES ||
+      dbt_audio_input_borrow(&output.audio,request->pcm,request->frames)!=DBT_OK){
+    output.inflight.pcm=NULL;
+    report_done(request->id,DBT_CANCELLED);return true;
+  }
+  output.pcm_loan_id=request->id;output.pcm_loan_began=(uint32_t)esp_timer_get_time();
+  atomic_store(&output.pcm_loan_active,1);atomic_fetch_add(&output.pcm_loans_begun,1);
+  atomic_fetch_add(&output.accepted_frames,request->frames);return true;
+}
 #endif
 
 static bool IRAM_ATTR finish_sent(output_t *o,uint32_t began,BaseType_t wake){
@@ -288,6 +339,9 @@ static bool IRAM_ATTR sent(i2s_chan_handle_t channel, i2s_event_data_t *event,
   return finish_sent(o,now,wake);
 }
 static void close_output(void) {
+#ifdef DBT_PROBE_PCM_LOANS
+  (void)retire_pcm_loan(true);
+#endif
 #ifdef DBT_PROBE_SOUND_BUILD
   dbt_audio_set_mix(&output.audio,0,0);
   output.sound=0;
@@ -360,9 +414,14 @@ static dbt_result_t start_output(uint32_t rate, uint8_t channels,
   atomic_store(&output.allocation_failure_sample_bytes,0);atomic_store(&output.allocation_failure_at_us,0);
   output.allocation_request_rate=rate;output.allocation_request_channels=channels;output.allocation_request_sample_bytes=(uint32_t)format;
   uint32_t target = (rate * 64u + 999u) / 1000u;
+  uint32_t input_frames=power2((rate * 32u + 999u) / 1000u),avoided=0;
+  atomic_store(&output.input_ring_bytes_avoided,0);
+#ifdef DBT_PROBE_PCM_LOANS
+  avoided=input_frames*(uint32_t)format*channels;input_frames=PROBE_PCM_LOAN_FRAMES;
+#endif
   dbt_audio_config_t config = {
       rate,
-      power2((rate * 32u + 999u) / 1000u),
+      input_frames,
       /* The renderer never produces beyond target+DMA prefill. Reserve the
        * existing extra 128 frames, then round only to its allocation page. */
       ((target + DMA_DESCRIPTORS * DMA_FRAMES + 128u + DBT_AUDIO_OUTPUT_PAGE_FRAMES-1u)/DBT_AUDIO_OUTPUT_PAGE_FRAMES)*DBT_AUDIO_OUTPUT_PAGE_FRAMES,
@@ -370,7 +429,12 @@ static dbt_result_t start_output(uint32_t rate, uint8_t channels,
       format,
       channels,
       true};
-  dbt_result_t result = dbt_audio_open(&output.audio, config);
+  dbt_result_t result =
+#ifdef DBT_PROBE_PCM_LOANS
+      dbt_audio_open_borrowed(&output.audio,config);
+#else
+      dbt_audio_open(&output.audio, config);
+#endif
   if (result != DBT_OK)
     return result;
   if (create_channel(rate, true) != ESP_OK &&
@@ -410,6 +474,9 @@ static dbt_result_t start_output(uint32_t rate, uint8_t channels,
   atomic_store(&output.maximum_render_us, 0);
   atomic_store(&output.render_total_us,0);
   atomic_store(&output.render_calls,0);
+  atomic_store(&output.input_ring_bytes_avoided,avoided);
+  atomic_store(&output.pcm_loans_begun,0);atomic_store(&output.pcm_loans_retired,0);atomic_store(&output.pcm_loans_cancelled,0);
+  atomic_store(&output.pcm_loan_active,0);atomic_store(&output.pcm_loan_max_us,0);
   atomic_store(&output.stop_fill_frames, 0);
   atomic_store(&output.requested_bytes, output.audio.allocated_bytes +
                                             DMA_DESCRIPTORS * DMA_FRAMES * 8u);
@@ -457,7 +524,6 @@ static void codec_request(request_t request){
   }
 }
 #ifdef DBT_PROBE_SOUND_BUILD
-enum { REQ_CODEC=0, REQ_SOUND_RESERVE=1, REQ_SOUND_ATTACH=2, REQ_SOUND_RELEASE=3 };
 static void mix_sound(void *p,int32_t *pcm,uint32_t frames){dbt_sound_mix(p,pcm,(uint16_t)frames);}
 static void retire_sound(void){
   dbt_audio_set_mix(&output.audio,0,0);output.sound=0;
@@ -466,6 +532,9 @@ static void retire_sound(void){
   if(token)notify_sound();
 }
 static void reclaim_cancelled(const request_t *request,dbt_result_t result){
+#ifdef DBT_PROBE_PCM_LOANS
+  if(reclaim_pcm_loan(request,result))return;
+#endif
   if(result!=DBT_OK)return;
   if(request->kind==REQ_CODEC && request->start){close_output();return;}
   uint32_t token=atomic_load_explicit(&output.sound_token,memory_order_acquire);
@@ -475,6 +544,9 @@ static void reclaim_cancelled(const request_t *request,dbt_result_t result){
   }
 }
 static void handle_request(request_t request){
+#ifdef DBT_PROBE_PCM_LOANS
+  if(handle_pcm_loan(&request))return;
+#endif
   if(atomic_load_explicit(&output.restart_hold,memory_order_acquire) &&
      (request.kind==REQ_SOUND_RESERVE || request.kind==REQ_SOUND_ATTACH || (request.kind==REQ_CODEC && request.start))){report_done(request.id,DBT_BUSY);return;}
   if(output.stopping || output.transition_sound){report_done(request.id,DBT_BUSY);return;}
@@ -531,8 +603,18 @@ static void advance_sound_transition(void){
   else report_done(pending.id,DBT_OK);
 }
 #else
-static void reclaim_cancelled(const request_t *request,dbt_result_t result){if(result==DBT_OK && request->start)close_output();}
-static void handle_request(request_t request){codec_request(request);}
+static void reclaim_cancelled(const request_t *request,dbt_result_t result){
+#ifdef DBT_PROBE_PCM_LOANS
+  if(reclaim_pcm_loan(request,result))return;
+#endif
+  if(result==DBT_OK && request->start)close_output();
+}
+static void handle_request(request_t request){
+#ifdef DBT_PROBE_PCM_LOANS
+  if(handle_pcm_loan(&request))return;
+#endif
+  codec_request(request);
+}
 #endif
 static bool render_step(void) {
 #ifdef DBT_PROBE_SOUND_BUILD
@@ -551,6 +633,12 @@ static bool render_step(void) {
       else if(state==DBT_TICKET_WAITING)handle_request(request);
       else atomic_fetch_add(&output.stale_receipts,1);
     }
+#ifdef DBT_PROBE_PCM_LOANS
+    if(output.pcm_loan_id){
+      unsigned state=dbt_ticket_state(&output.ticket,output.pcm_loan_id);
+      (void)retire_pcm_loan(state==DBT_TICKET_CANCEL || !output.active || atomic_load(&output.failed));
+    }
+#endif
     if (output.active) {
       if (output.stopping &&
           atomic_load_explicit(&output.stop_finished, memory_order_acquire)) {
@@ -641,6 +729,9 @@ static bool render_step(void) {
       atomic_store(&output.ready_frames, available);
       atomic_store(&output.input_ready_frames,
                    dbt_audio_input_frames(&output.audio));
+#ifdef DBT_PROBE_PCM_LOANS
+      (void)retire_pcm_loan(false);
+#endif
       if (!output.enabled && available >= target) {
         if (enable_output() != DBT_OK)
           atomic_store(&output.failed, 1);
@@ -794,6 +885,22 @@ dbt_result_t probe_output_request_cancel(uint32_t ticket){
   if(result==DBT_PENDING && output.task)xTaskNotifyGive(output.task);
   return result;
 }
+#ifdef DBT_PROBE_PCM_LOANS
+dbt_result_t probe_output_pcm_begin(const void *samples,uint16_t frames,uint8_t channels,uint32_t rate,dbt_pcm_format_t format,uint32_t *ticket){
+  if(ticket)*ticket=0;
+  if(!ticket || !samples || !frames || frames>PROBE_PCM_LOAN_FRAMES || channels<1 || channels>2 ||
+      rate<8000 || rate>192000 || format<DBT_PCM_S16_LE || format>DBT_PCM_S32_LE)return DBT_INVALID;
+  request_t request={.kind=REQ_PCM_LOAN,.start=true,.pcm=samples,.frames=frames,.channels=channels,.rate=rate,.format=format};
+  return request_begin(&request,ticket,false);
+}
+dbt_result_t probe_output_pcm_poll(uint32_t ticket){
+  unsigned state=dbt_ticket_state(&output.ticket,ticket);
+  dbt_result_t result=probe_output_request_poll(ticket);
+  if(result!=DBT_PENDING && result!=DBT_OK && (state==DBT_TICKET_DONE || state==DBT_TICKET_CANCELLED))return DBT_CANCELLED;
+  return result;
+}
+dbt_result_t probe_output_pcm_cancel(uint32_t ticket){return probe_output_request_cancel(ticket);}
+#endif
 /* Compatibility for unconverted clients only. New runtime clients use the
  * ticket API; this wrapper retains the old bounded-wait/late-reclaim policy. */
 static dbt_result_t request_output(request_t *request) {
@@ -924,6 +1031,12 @@ void probe_output_stats(probe_output_stats_t *s) {
   LOAD(descriptor_expected_index);LOAD(descriptor_observed_index);LOAD(descriptor_observed_size);
   LOAD(descriptor_fault_at_us);LOAD(descriptor_fault_gap_us);LOAD(descriptor_fault_stopping);
   LOAD(callback_calls);LOAD(callback_elapsed_us);LOAD(callback_max_us);LOAD(callback_core);
+#ifdef DBT_PROBE_PCM_LOANS
+  s->pcm_loan_mode=1;
+#else
+  s->pcm_loan_mode=0;
+#endif
+  LOAD(input_ring_bytes_avoided);LOAD(pcm_loans_begun);LOAD(pcm_loans_retired);LOAD(pcm_loans_cancelled);LOAD(pcm_loan_active);LOAD(pcm_loan_max_us);
   s->configured_irq_priority=DMA_IRQ_PRIORITY;
   LOAD(max_eof_gap_us);
   LOAD(maximum_render_us);

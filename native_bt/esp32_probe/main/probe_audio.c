@@ -312,7 +312,7 @@ static dbt_result_t pcm(void *context,const void *samples,uint16_t count,const d
 #ifndef DBT_PROBE_ASYNC_AUDIO
     timing_event(DBT_CODEC_PCM_BEGIN);
 #endif
-#if defined(DBT_PROBE_AUDIO_OUTPUT) && !defined(DBT_PROBE_RF_PROTOCOL_DIAGNOSTIC)
+#if defined(DBT_PROBE_AUDIO_OUTPUT) && !defined(DBT_PROBE_RF_PROTOCOL_DIAGNOSTIC) && !defined(DBT_PROBE_PCM_LOANS)
 #ifdef DBT_PROBE_ASYNC_AUDIO
     dbt_result_t result=probe_output_try_pcm_format(samples,count,channels,rate,(dbt_pcm_format_t)config->sample_bytes);
 #else
@@ -340,6 +340,17 @@ static dbt_result_t pcm(void *context,const void *samples,uint16_t count,const d
 #endif
     return DBT_OK;
 }
+#ifdef DBT_PROBE_PCM_LOANS
+_Static_assert(PROBE_PCM_LOAN_FRAMES==DBT_CODEC_PCM_CHUNK_FRAMES,"PCM loan chunk contracts must match");
+static dbt_result_t pcm_begin(void *context,const void *samples,uint16_t frames,const dbt_codec_config_t *config,uint32_t timestamp,uint32_t *ticket){
+    if(!config)return DBT_INVALID;
+    dbt_result_t result=probe_output_pcm_begin(samples,frames,config->channels,config->rate,(dbt_pcm_format_t)config->sample_bytes,ticket);
+    if(result==DBT_PENDING)(void)pcm(context,samples,frames,config,timestamp);
+    return result;
+}
+static dbt_result_t pcm_poll(void *context,uint32_t ticket){(void)context;return probe_output_pcm_poll(ticket);}
+static dbt_result_t pcm_cancel(void *context,uint32_t ticket){(void)context;return probe_output_pcm_cancel(ticket);}
+#endif
 static dbt_result_t publish_stream(bool started,const dbt_codec_config_t *config){
     if(!config)return DBT_INVALID;
     if(started){
@@ -562,6 +573,12 @@ static void log_loop(void *unused){
 #ifdef DBT_PROBE_AUDIO_OUTPUT
         uint32_t output_snapshot_began=(uint32_t)esp_timer_get_time();
         probe_output_stats_t stats;probe_output_stats(&stats);
+#ifdef DBT_PROBE_PCM_LOANS
+        snapshot_log(output_snapshot_began,"{\"probe\":\"i2s_pcm_loans\",\"mode\":%" PRIu32 ",\"input_ring_bytes_avoided\":%" PRIu32
+               ",\"renderer_begun\":%" PRIu32 ",\"renderer_retired\":%" PRIu32 ",\"renderer_cancelled\":%" PRIu32
+               ",\"active\":%" PRIu32 ",\"max_hold_us\":%" PRIu32 "}\n",stats.pcm_loan_mode,stats.input_ring_bytes_avoided,
+               stats.pcm_loans_begun,stats.pcm_loans_retired,stats.pcm_loans_cancelled,stats.pcm_loan_active,stats.pcm_loan_max_us);
+#endif
         snapshot_log(output_snapshot_began,"{\"probe\":\"i2s_allocation_failure\",\"failed_bytes\":%" PRIu32
                ",\"free_bytes_at_failure\":%" PRIu32 ",\"largest_block_at_failure\":%" PRIu32
                ",\"requested_rate\":%" PRIu32 ",\"requested_channels\":%" PRIu32 ",\"requested_sample_bytes\":%" PRIu32
@@ -621,6 +638,9 @@ dbt_result_t probe_audio_init(dbt_runtime_t *runtime,TaskHandle_t host_owner){
     hooks.trace=media_trace;
 #ifdef DBT_PROBE_ASYNC_AUDIO
     hooks.deferred_pcm=true;hooks.async_stream=(dbt_codec_stream_async_t){stream_begin,stream_poll,stream_cancel};
+#ifdef DBT_PROBE_PCM_LOANS
+    hooks.async_pcm=(dbt_codec_pcm_async_t){pcm_begin,pcm_poll,pcm_cancel};
+#endif
 #else
     hooks.stream=stream;
 #endif

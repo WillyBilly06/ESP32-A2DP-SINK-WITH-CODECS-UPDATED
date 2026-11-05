@@ -54,7 +54,12 @@ static void release(void *context,uint8_t *bytes){
 static dbt_result_t pcm(void *context,const void *samples,uint16_t frames,const dbt_codec_config_t *config,uint32_t timestamp){
     (void)context;
     if(!config || config->rate!=192000 || config->channels!=2 || config->sample_bytes!=4 || timestamp!=pipeline.frames)return DBT_INVALID;
-    dbt_result_t result=probe_output_try_pcm_format(samples,frames,2,192000,DBT_PCM_S32_LE);
+    dbt_result_t result=
+#ifdef DBT_PROBE_PCM_LOANS
+        DBT_OK; /* Accounting after the asynchronous begin accepted the view. */
+#else
+        probe_output_try_pcm_format(samples,frames,2,192000,DBT_PCM_S32_LE);
+#endif
     if(result==DBT_OK){
         int64_t began=esp_timer_get_time();
         const uint8_t *p=samples;
@@ -73,6 +78,16 @@ static dbt_result_t stream_poll(void *context,uint32_t ticket){
     return result;
 }
 static dbt_result_t stream_cancel(void *context,uint32_t ticket){(void)context;return probe_output_request_cancel(ticket);}
+#ifdef DBT_PROBE_PCM_LOANS
+static dbt_result_t pcm_begin(void *context,const void *samples,uint16_t frames,const dbt_codec_config_t *config,uint32_t timestamp,uint32_t *ticket){
+    if(!config || config->rate!=192000 || config->channels!=2 || config->sample_bytes!=4 || timestamp!=pipeline.frames)return DBT_INVALID;
+    dbt_result_t result=probe_output_pcm_begin(samples,frames,2,192000,DBT_PCM_S32_LE,ticket);
+    if(result==DBT_PENDING)(void)pcm(context,samples,frames,config,timestamp);
+    return result;
+}
+static dbt_result_t pcm_poll(void *context,uint32_t ticket){(void)context;return probe_output_pcm_poll(ticket);}
+static dbt_result_t pcm_cancel(void *context,uint32_t ticket){(void)context;return probe_output_pcm_cancel(ticket);}
+#endif
 /* Only the diagnostic task sleeps. Each iteration executes at most one codec
  * work unit. Renderer/PCM/stream callbacks never wait for another owner. */
 static void sleep_until(int64_t deadline){
@@ -115,6 +130,9 @@ static void run(void *unused){
     /* Producer, receipt owner and worker share this diagnostic task. Only the
      * external timer and renderer need notifications; no self-wake polling. */
     hooks.async_stream=(dbt_codec_stream_async_t){stream_begin,stream_poll,stream_cancel};
+#ifdef DBT_PROBE_PCM_LOANS
+    hooks.async_pcm=(dbt_codec_pcm_async_t){pcm_begin,pcm_poll,pcm_cancel};
+#endif
     bool initialized=dbt_codec_worker_init(&pipeline.worker,hooks,628,2)==DBT_OK;
     bool output_initialized=initialized && probe_output_init(wake,NULL)==DBT_OK;
     bool configured=false,started=false;
@@ -203,6 +221,11 @@ static void run(void *unused){
     printf("{\"probe\":\"pipeline_allocation\",\"failed_bytes\":%u,\"failure_free\":%u,\"failure_largest\":%u,\"page_bytes\":%u}\n",
         (unsigned)active.allocation_failed_bytes,(unsigned)active.allocation_failure_free,(unsigned)active.allocation_failure_largest,
         (unsigned)(DBT_AUDIO_OUTPUT_PAGE_FRAMES*8u));
+#ifdef DBT_PROBE_PCM_LOANS
+    printf("{\"probe\":\"pipeline_pcm_loans\",\"mode\":%u,\"input_ring_bytes_avoided\":%u,\"renderer_begun\":%u,\"renderer_retired\":%u,\"renderer_cancelled\":%u,\"active\":%u,\"max_hold_us\":%u}\n",
+        (unsigned)closed.pcm_loan_mode,(unsigned)closed.input_ring_bytes_avoided,(unsigned)closed.pcm_loans_begun,
+        (unsigned)closed.pcm_loans_retired,(unsigned)closed.pcm_loans_cancelled,(unsigned)closed.pcm_loan_active,(unsigned)closed.pcm_loan_max_us);
+#endif
     printf("{\"probe\":\"pipeline_render_stages\",\"quiescent\":%s,\"includes_stop_drain\":true,\"profile_frames\":%u,\"conversion_resampler_cycles\":%u,\"dsp_cycles\":%u,\"output_tail_cycles\":%u,\"controls_cycles\":%u,\"conversion_block_max_cycles\":%u,\"dsp_block_max_cycles\":%u,\"tail_block_max_cycles\":%u,\"media_drops\":%u,\"worker_faults\":%u,\"pcm_timeouts\":%u,\"cpu_mhz\":240,\"elapsed_core_cycles\":true}\n",
         reclaimed?"true":"false",(unsigned)closed.profile_frames,(unsigned)closed.profile_conversion,(unsigned)closed.profile_dsp,
         (unsigned)closed.profile_tail,(unsigned)closed.profile_controls,(unsigned)closed.profile_conversion_max,

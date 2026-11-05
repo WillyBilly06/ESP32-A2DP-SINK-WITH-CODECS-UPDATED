@@ -6,9 +6,12 @@ CHECK=[sys.executable,str(ROOT/'tools/check_workspace.py')]
 sys.path.insert(0,str(ROOT/'tools'))
 from test_native_codec_target_components import argv_windows,run
 
-def main(sanitize=False,async_client=False):
+def main(sanitize=False,async_client=False,pcm_loans=False):
     global OUT
     if async_client:OUT=ROOT/'_build/sound_output_async'
+    if pcm_loans:
+        if not async_client:raise RuntimeError('PCM loans require the async sound client')
+        OUT=ROOT/'_build/sound_output_async_pcm_loans'
     if os.name!='nt':raise RuntimeError('This driver currently uses Windows mock tasks')
     OUT.mkdir(parents=True,exist_ok=True);env=os.environ.copy()
     vc=Path(r'C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Auxiliary\Build\vcvars64.bat')
@@ -29,19 +32,22 @@ def main(sanitize=False,async_client=False):
            '-DCONFIG_NATIVE_AUDIO_BCLK=27','-DCONFIG_NATIVE_AUDIO_LRCK=25','-DCONFIG_NATIVE_AUDIO_DATA=26']
     if sanitize:flags+=['-fsanitize=undefined','-fno-sanitize-recover=all']
     if async_client:flags+=['-DDBT_PROBE_ASYNC_AUDIO=1']
+    if pcm_loans:flags+=['-DDBT_PROBE_PCM_LOANS=1']
     exe=OUT/'integration.exe';subprocess.run(flags+['-I'+str(x) for x in inc]+[str(x) for x in sources]+['-o',str(exe)],env=env,check=True)
     subprocess.run([str(exe)],env=env,check=True,timeout=60)
     entries=json.loads((ROOT/'_build/esp32/compile_commands.json').read_text());entry=next(x for x in entries if x['file'].endswith('probe_output.c'))
     args=argv_windows(entry['command']);args=args[:args.index('-o')]+['-DDBT_PROBE_SOUND_BUILD=1','-Werror','-I'+str(ROOT/'include')]
+    args=[arg for arg in args if not arg.startswith('-DDBT_PROBE_PCM_LOANS=')]
+    if pcm_loans:args+=['-DDBT_PROBE_PCM_LOANS=1']
     if async_client:args+=['-DDBT_PROBE_ASYNC_AUDIO=1']
     for source in sources[1:4]:run(args+['-o',str(OUT/(source.stem+'.o')),'-c',str(source)],cwd=entry['directory'])
     assert all(hashlib.sha256(Path(p).read_bytes()).hexdigest()==sha for p,sha in before.items())
-    (OUT/('ubsan_results.json' if sanitize else 'results.json')).write_text(json.dumps({'passed':True,'sanitized':sanitize,'async_client':async_client,'scope':'real render/output/sound code with host simulated tasks and I2S; ESP32 objects only',
+    (OUT/('ubsan_results.json' if sanitize else 'results.json')).write_text(json.dumps({'passed':True,'sanitized':sanitize,'async_client':async_client,'pcm_loans':pcm_loans,'scope':'real render/output/sound code with host simulated tasks and I2S; ESP32 objects only',
                                                 'sources':before},indent=2)+'\n')
     print('target sound/output objects compiled; no device execution')
 
 if __name__=='__main__':
-    parser=argparse.ArgumentParser();parser.add_argument('--sanitize',action='store_true');parser.add_argument('--async-client',action='store_true');options=parser.parse_args()
+    parser=argparse.ArgumentParser();parser.add_argument('--sanitize',action='store_true');parser.add_argument('--async-client',action='store_true');parser.add_argument('--pcm-loans',action='store_true');options=parser.parse_args()
     subprocess.run(CHECK,check=True)
-    try:main(options.sanitize,options.async_client)
+    try:main(options.sanitize,options.async_client,options.pcm_loans)
     finally:subprocess.run(CHECK,check=True)
