@@ -12,7 +12,9 @@ if(NOT EXISTS "${aptx}/freeaptx.c" OR NOT EXISTS "${aptx}/freeaptx.h")
 endif()
 idf_component_register(SRCS "${owned}/dbt_aptx.c" "${owned}/dbt_aptx_backend.c"
     INCLUDE_DIRS "${owned}" PRIV_INCLUDE_DIRS "${aptx}" REQUIRES native_bt codec_core)
-target_compile_options(${COMPONENT_LIB} PRIVATE -std=c11 -fwrapv)
+# Match the working Bluedroid decoder optimization profile, independently of
+# the compact host/platform profile. Keep the audited arithmetic guards.
+target_compile_options(${COMPONENT_LIB} PRIVATE -O2 -std=c11 -fwrapv)
 # The existing compact adapter has two GCC indentation warnings; their control
 # flow is explicit and host-tested.
 set_source_files_properties("${owned}/dbt_aptx.c" PROPERTIES COMPILE_OPTIONS "-Wno-error=misleading-indentation")

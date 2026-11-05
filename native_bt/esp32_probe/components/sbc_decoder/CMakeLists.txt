@@ -22,4 +22,6 @@ idf_component_register(
     PRIV_INCLUDE_DIRS "${owned}/port" "${codec}/include"
     REQUIRES native_bt codec_core
 )
-target_compile_options(${COMPONENT_LIB} PRIVATE -std=c11 -fwrapv)
+# Match the working Bluedroid decoder optimization profile, independently of
+# the compact host/platform profile. Keep the audited arithmetic guards.
+target_compile_options(${COMPONENT_LIB} PRIVATE -O2 -std=c11 -fwrapv)

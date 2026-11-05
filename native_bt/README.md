@@ -10,12 +10,16 @@ The [BTstack code audit](docs/BTSTACK_CODE_AUDIT_2026_11_05.md) now tracks
 all 270 owned implementation/build inputs, confirmed layer defects, unwired modules and
 remaining review coverage against a fresh pinned upstream checkout. The
 comparison is in progress; file presence or compilation is not feature parity.
+The [codec build-profile review](docs/CODEC_BUILD_PROFILE_2026_11_05.md) restores
+-O2 for SBC/AAC/LDAC/aptX/Opus, matching the working baseline; LHDC remains -O3.
+The [SBC CRC change](docs/SBC_CRC_COMPARISON_2026_11_05.md) keeps every validation
+pass and reduces checksum arithmetic. Sustained performance remains unqualified.
 
 ## Current development checkpoint — 2026-11-05
 
 The owned Classic+BLE host is selected on the local COM6 board in ota1 at
 0x390000, marked VALID, with automatic Bluedroid restoration disabled. The
-verified image is `4e14f02267381e9fd72e9686751d1b60df5799b20e065e732dd93fbce3b07e03`.
+verified image is `5fa0b45fc2e09d84d385fe9d493945ac7cda0664271fe8b27ee8f1a828fd0e67`.
 This remains development firmware with incomplete feature/runtime qualification.
 
 Recent source corrections cover [codec payload boundaries and shared PCM

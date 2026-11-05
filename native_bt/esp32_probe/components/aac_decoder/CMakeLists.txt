@@ -27,4 +27,6 @@ idf_component_register(SRCS "${owned}/dbt_aac_decoder.c" "${owned}/dbt_aac_trans
     INCLUDE_DIRS "${owned}" PRIV_INCLUDE_DIRS "${helix}"
     REQUIRES native_bt codec_core)
 target_compile_definitions(${COMPONENT_LIB} PRIVATE ESP32=1 USE_DEFAULT_STDLIB AAC_MAX_NCHANS=2)
-target_compile_options(${COMPONENT_LIB} PRIVATE -std=c11 -fwrapv)
+# Match the working Bluedroid decoder optimization profile, independently of
+# the compact host/platform profile. Keep the audited arithmetic guards.
+target_compile_options(${COMPONENT_LIB} PRIVATE -O2 -std=c11 -fwrapv)

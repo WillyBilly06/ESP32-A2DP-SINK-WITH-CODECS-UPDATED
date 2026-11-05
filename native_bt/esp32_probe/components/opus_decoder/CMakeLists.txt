@@ -153,4 +153,6 @@ idf_component_register(SRCS ${opus_units}
     PRIV_INCLUDE_DIRS "config" "${native_root}/include" "${opus_root}/include" "${opus_root}" "${opus_root}/silk" "${opus_root}/silk/fixed" "${opus_root}/celt" "${opus_root}/dnn")
 set_source_files_properties(${opus_units} PROPERTIES COMPILE_OPTIONS "-include;${native_root}/codecs/opus/scratch/dbt_opus_scratch_override.h;-Wno-error")
 target_compile_definitions(${COMPONENT_LIB} PRIVATE HAVE_CONFIG_H DBT_OPUS_GUARDED_API=1)
-target_compile_options(${COMPONENT_LIB} PRIVATE -fwrapv)
+# Match the working Bluedroid decoder optimization profile, independently of
+# the compact host/platform profile. Keep the audited arithmetic guards.
+target_compile_options(${COMPONENT_LIB} PRIVATE -O2 -fwrapv)

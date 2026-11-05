@@ -1,0 +1,9 @@
+# Codec compiler-profile comparison
+
+The released Bluedroid build at D:/bt-idf61/bt_audio_sink/build-idf61 uses -O2 for SBC decoder-sbc.c, Helix dct4.c, LDAC ldaclib.c, freeaptx.c and Opus opus_decoder.c. The owned build used -Os for the corresponding SBC/AAC SDK units and the LDAC/aptX wrappers that include those SDK implementations, and for Opus. Both builds select 240 MHz. The owned LHDC decoder already selects -O3. These differences are confirmed from compile_commands.json and generated sdkconfig, rather than inferred from source presence.
+
+The five standalone SBC/AAC/LDAC/aptX/Opus components now explicitly append -O2. This retains the compact host/platform build and LHDC/FIR/DSP selections. Existing -fwrapv, input/channel guards, fixed-point profile, codec settings, queue geometry and core priorities remain. GCC target defaults were queried: -mtarget-align is disabled in the baseline toolchain, matching the owned explicit -mno-target-align; no alignment override is added. No unsafe-math, reduced precision, lower rate or lower bitrate is selected.
+
+This corrects a build-profile mismatch with the working implementation. Its contribution to the reported underruns is not measured, and this change is not an AAC-crash diagnosis or a maximum-LHDC headroom guarantee. Final compile-command validation, image/RAM/stack evidence and automatic startup checks are saved with the build/deployment. Separate functional, packet-injection, pairing and playback campaigns remain held by the user.
+
+The final linked image keeps .iram0.text at 122231 bytes, .dram0.data at 23893 bytes and .dram0.bss at 50184 bytes, unchanged from the CRC candidate. Total BSS including other sections remains 50212 bytes. Text grows by 20768 bytes and aggregate data by 64 bytes; the latter increase is in flash constants. This is a static section comparison, not a worst-case runtime heap/stack guarantee.

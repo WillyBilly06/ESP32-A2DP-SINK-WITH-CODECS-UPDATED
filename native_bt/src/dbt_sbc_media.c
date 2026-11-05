@@ -27,8 +27,17 @@ static dbt_result_t dimensions(const dbt_sbc_config_t *c,const uint8_t *p,uint16
     if(length>DBT_SBC_MAX_FRAME_BYTES || length*8u*c->rate>(channels==1?320000u:512000u)*blocks*bands)return DBT_INVALID;
     *bytes=(uint16_t)length;return DBT_OK;
 }
-static uint8_t crc_bit(uint8_t crc,unsigned bit){
-    unsigned feedback=((crc>>7)^bit)&1u;crc=(uint8_t)(crc<<1);return (uint8_t)(crc^(feedback?0x1du:0));
+/* Polynomial 0x1d, MSB first. Entry n is the remainder after four zero
+ * bits from n<<4, derived from the bit recurrence. Immutable flash data. */
+static const uint8_t crc_nibble_feedback[16]={
+    0x00, 0x1d, 0x3a, 0x27, 0x74, 0x69, 0x4e, 0x53,
+    0xe8, 0xf5, 0xd2, 0xcf, 0x9c, 0x81, 0xa6, 0xbb
+};
+static inline __attribute__((always_inline)) uint8_t crc_nibble(uint8_t crc,unsigned value){
+    return (uint8_t)((crc<<4)^crc_nibble_feedback[(crc>>4)^value]);
+}
+static inline __attribute__((always_inline)) uint8_t crc_byte(uint8_t crc,uint8_t value){
+    return crc_nibble(crc_nibble(crc,value>>4),value&15u);
 }
 dbt_result_t dbt_sbc_frame_bytes(const dbt_sbc_config_t *config,uint8_t bitpool,uint16_t *size){
     if(!config || !size)return DBT_INVALID;
@@ -38,10 +47,12 @@ dbt_result_t dbt_sbc_frame_decode(const dbt_sbc_config_t *c,const uint8_t *p,uin
     if(!frame)return DBT_INVALID;
     uint16_t bytes=0;if(dimensions(c,p,size,&bytes)!=DBT_OK || bytes>size)return DBT_INVALID;
     unsigned mode=(p[1]>>2)&3u,bands=(p[1]&1u)?8u:4u,channels=mode?2u:1u;
-    uint8_t crc=15;
-    for(unsigned i=0;i<16;++i)crc=crc_bit(crc,(p[1+i/8]>>(7u-i%8))&1u);
+    uint8_t crc=crc_byte(crc_byte(15,p[1]),p[2]);
     unsigned bits=4u*bands*channels+(mode==3?bands:0u);
-    for(unsigned i=0;i<bits;++i)crc=crc_bit(crc,(p[4+i/8]>>(7u-i%8))&1u);
+    for(unsigned i=0;i<bits/8u;++i)crc=crc_byte(crc,p[4+i]);
+    /* Four-subband joint stereo leaves exactly the high nibble protected.
+     * All other supported side-information lengths are whole bytes. */
+    if(bits&4u)crc=crc_nibble(crc,p[4+bits/8u]>>4);
     if(crc!=p[3])return DBT_INVALID;
     *frame=(dbt_sbc_frame_t){p,bytes,c->samples,(uint8_t)channels,p[2]};return DBT_OK;
 }

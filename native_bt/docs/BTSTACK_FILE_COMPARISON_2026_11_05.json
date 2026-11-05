@@ -69,8 +69,9 @@
         "src/btstack_resample.c",
         "src/btstack_sample_rate_compensation.c"
       ],
-      "status": "pending",
-      "mapping": "counterpart_candidates"
+      "status": "reviewed_no_change",
+      "mapping": "counterpart_candidates",
+      "review_scope": "Complete owned body and reference/working-backend boundaries reviewed. Not functional or performance qualification."
     },
     {
       "owned": "native_bt/codecs/aac/dbt_aac_transport.c",
@@ -82,8 +83,9 @@
         "src/btstack_resample.c",
         "src/btstack_sample_rate_compensation.c"
       ],
-      "status": "pending",
-      "mapping": "counterpart_candidates"
+      "status": "reviewed_no_change",
+      "mapping": "counterpart_candidates",
+      "review_scope": "Complete owned body and reference/working-backend boundaries reviewed. Not functional or performance qualification."
     },
     {
       "owned": "native_bt/codecs/aac/dbt_aac.h",
@@ -95,8 +97,9 @@
         "src/btstack_resample.c",
         "src/btstack_sample_rate_compensation.c"
       ],
-      "status": "pending",
-      "mapping": "counterpart_candidates"
+      "status": "reviewed_contract",
+      "mapping": "counterpart_candidates",
+      "review_scope": "Complete public ownership/format declaration read against the implementation."
     },
     {
       "owned": "native_bt/codecs/aac/host_target_math.h",
@@ -111,8 +114,9 @@
       "sha256": "36dffa340624e4652cca44269a02493cc3653ac29523669a81db95f485c70945",
       "lines": 50,
       "reference_files": [],
-      "status": "pending",
-      "mapping": "Added through full filesystem/build-manifest cross-check; source generation/build inputs included"
+      "status": "reviewed_generator",
+      "mapping": "Added through full filesystem/build-manifest cross-check; source generation/build inputs included",
+      "review_scope": "Complete source pin and two generated channel guards reviewed; complete Helix backend audit remains open."
     },
     {
       "owned": "native_bt/codecs/aptx/CMakeLists.txt",
@@ -212,8 +216,9 @@
         "src/btstack_resample.c",
         "src/btstack_sample_rate_compensation.c"
       ],
-      "status": "pending",
-      "mapping": "counterpart_candidates"
+      "status": "partial_review",
+      "mapping": "counterpart_candidates",
+      "review_scope": "Complete wrapper body read. LDAC header/frame mask and LHDC emitted depth checked; full vendor backend/reference/state/performance review remains open."
     },
     {
       "owned": "native_bt/codecs/ldac/dbt_ldac_lib.c",
@@ -251,8 +256,9 @@
         "src/btstack_resample.c",
         "src/btstack_sample_rate_compensation.c"
       ],
-      "status": "pending",
-      "mapping": "counterpart_candidates"
+      "status": "partial_review",
+      "mapping": "counterpart_candidates",
+      "review_scope": "Complete wrapper body read. LDAC header/frame mask and LHDC emitted depth checked; full vendor backend/reference/state/performance review remains open."
     },
     {
       "owned": "native_bt/codecs/ldac/dbt_ldac.h",
@@ -319,8 +325,9 @@
         "src/btstack_resample.c",
         "src/btstack_sample_rate_compensation.c"
       ],
-      "status": "pending",
-      "mapping": "counterpart_candidates"
+      "status": "partial_review",
+      "mapping": "counterpart_candidates",
+      "review_scope": "Complete wrapper body read. LDAC header/frame mask and LHDC emitted depth checked; full vendor backend/reference/state/performance review remains open."
     },
     {
       "owned": "native_bt/codecs/lhdcv5/dbt_lhdcv5_codec.h",
@@ -345,8 +352,9 @@
         "src/btstack_resample.c",
         "src/btstack_sample_rate_compensation.c"
       ],
-      "status": "pending",
-      "mapping": "counterpart_candidates"
+      "status": "partial_review",
+      "mapping": "counterpart_candidates",
+      "review_scope": "Complete wrapper body read. LDAC header/frame mask and LHDC emitted depth checked; full vendor backend/reference/state/performance review remains open."
     },
     {
       "owned": "native_bt/codecs/lhdcv5/dbt_lhdcv5.h",
@@ -455,9 +463,9 @@
         "src/classic/btstack_sbc_decoder_bluedroid.c",
         "example/a2dp_sink_demo.c"
       ],
-      "status": "partial_review",
+      "status": "reviewed_no_change",
       "mapping": "counterpart_candidates",
-      "review_scope": "Complete owned body read; SBC fragment/CRC and OI backend comparison begun. Header, complete reference configure/reset and decoder port review pending."
+      "review_scope": "Complete owned body and reference/working-backend boundaries reviewed. Not functional or performance qualification."
     },
     {
       "owned": "native_bt/codecs/sbc/dbt_sbc_codec.h",
@@ -467,8 +475,9 @@
         "src/classic/btstack_sbc_decoder_bluedroid.c",
         "example/a2dp_sink_demo.c"
       ],
-      "status": "pending",
-      "mapping": "counterpart_candidates"
+      "status": "reviewed_contract",
+      "mapping": "counterpart_candidates",
+      "review_scope": "Complete public ownership/format declaration read against the implementation."
     },
     {
       "owned": "native_bt/codecs/sbc/dbt_sbc_decoder.c",
@@ -478,9 +487,9 @@
         "src/classic/btstack_sbc_decoder_bluedroid.c",
         "example/a2dp_sink_demo.c"
       ],
-      "status": "partial_review",
+      "status": "reviewed_no_change",
       "mapping": "counterpart_candidates",
-      "review_scope": "Complete owned body read; SBC fragment/CRC and OI backend comparison begun. Header, complete reference configure/reset and decoder port review pending."
+      "review_scope": "Complete owned body and reference/working-backend boundaries reviewed. Not functional or performance qualification."
     },
     {
       "owned": "native_bt/codecs/sbc/dbt_sbc_decoder.h",
@@ -490,8 +499,9 @@
         "src/classic/btstack_sbc_decoder_bluedroid.c",
         "example/a2dp_sink_demo.c"
       ],
-      "status": "pending",
-      "mapping": "counterpart_candidates"
+      "status": "reviewed_contract",
+      "mapping": "counterpart_candidates",
+      "review_scope": "Complete public ownership/format declaration read against the implementation."
     },
     {
       "owned": "native_bt/codecs/sbc/dbt_sbc_worker.c",
@@ -549,19 +559,21 @@
     },
     {
       "owned": "native_bt/esp32_probe/components/aac_decoder/CMakeLists.txt",
-      "sha256": "b63118afd32465941f1b667fa6f041b6d5c079bbe0998c29e89d7e5c0c80244b",
-      "lines": 31,
+      "sha256": "f767d83a1d802fc0a4cb767f9043d3d10a6b22a5aa0b3e325c80f2e4a34e0114",
+      "lines": 33,
       "reference_files": [],
-      "status": "pending",
-      "mapping": "Added through full filesystem/build-manifest cross-check; source generation/build inputs included"
+      "status": "reviewed_build",
+      "mapping": "Added through full filesystem/build-manifest cross-check; source generation/build inputs included",
+      "review_scope": "Complete CMake input/dependency/flags reviewed against actual working baseline compile commands. SDK decoder implementation remains separate from host ownership."
     },
     {
       "owned": "native_bt/esp32_probe/components/aptx_decoder/CMakeLists.txt",
-      "sha256": "6b1fb2511baf370c261f5314960392e97cd5ddcc7c34993f9668127931dd2eb9",
-      "lines": 19,
+      "sha256": "f38306c966189c3e6b2aa4b4902428cd1e17a88af13fcf5cb135f86db6338642",
+      "lines": 21,
       "reference_files": [],
-      "status": "pending",
-      "mapping": "Added through full filesystem/build-manifest cross-check; source generation/build inputs included"
+      "status": "reviewed_build",
+      "mapping": "Added through full filesystem/build-manifest cross-check; source generation/build inputs included",
+      "review_scope": "Complete CMake input/dependency/flags reviewed against actual working baseline compile commands. SDK decoder implementation remains separate from host ownership."
     },
     {
       "owned": "native_bt/esp32_probe/components/codec_core/CMakeLists.txt",
@@ -573,11 +585,12 @@
     },
     {
       "owned": "native_bt/esp32_probe/components/ldac_decoder/CMakeLists.txt",
-      "sha256": "4893d48800994bf60d8adf027b51d228817d6495be0dcf69101eac5361b43ad6",
-      "lines": 25,
+      "sha256": "c1aba2088ffd730705e055103a78415af7070253470d4e382a1d897170f7e4e6",
+      "lines": 27,
       "reference_files": [],
-      "status": "pending",
-      "mapping": "Added through full filesystem/build-manifest cross-check; source generation/build inputs included"
+      "status": "reviewed_build",
+      "mapping": "Added through full filesystem/build-manifest cross-check; source generation/build inputs included",
+      "review_scope": "Complete CMake input/dependency/flags reviewed against actual working baseline compile commands. SDK decoder implementation remains separate from host ownership."
     },
     {
       "owned": "native_bt/esp32_probe/components/lhdcv5_decoder/CMakeLists.txt",
@@ -597,11 +610,12 @@
     },
     {
       "owned": "native_bt/esp32_probe/components/opus_decoder/CMakeLists.txt",
-      "sha256": "53928148ecd483647f36b28131034ff14ee8e2b3d3c55653c84cc67ea5cd1b7d",
-      "lines": 157,
+      "sha256": "3c1fac352bdfa988ddd0098e11e11575a8e85302dd95981d1888ca6fe0b2e98f",
+      "lines": 159,
       "reference_files": [],
-      "status": "pending",
-      "mapping": "Added through full filesystem/build-manifest cross-check; source generation/build inputs included"
+      "status": "reviewed_build",
+      "mapping": "Added through full filesystem/build-manifest cross-check; source generation/build inputs included",
+      "review_scope": "Complete CMake input/dependency/flags reviewed against actual working baseline compile commands. SDK decoder implementation remains separate from host ownership."
     },
     {
       "owned": "native_bt/esp32_probe/components/opus_decoder/config/config.h",
@@ -613,11 +627,12 @@
     },
     {
       "owned": "native_bt/esp32_probe/components/sbc_decoder/CMakeLists.txt",
-      "sha256": "3e8f6f56e08b3b2aa59653c06d17b2dd2c0346534ebfc6e98e5c628c56b79ece",
-      "lines": 26,
+      "sha256": "9e2a43758eb7ce2951ff0f9ddeab779c9621f4ae006477490b7d286e1427216e",
+      "lines": 28,
       "reference_files": [],
-      "status": "pending",
-      "mapping": "Added through full filesystem/build-manifest cross-check; source generation/build inputs included"
+      "status": "reviewed_build",
+      "mapping": "Added through full filesystem/build-manifest cross-check; source generation/build inputs included",
+      "review_scope": "Complete CMake input/dependency/flags reviewed against actual working baseline compile commands. SDK decoder implementation remains separate from host ownership."
     },
     {
       "owned": "native_bt/esp32_probe/main/CMakeLists.txt",
@@ -1841,8 +1856,9 @@
         "src/classic/btstack_sbc_decoder_bluedroid.c",
         "example/a2dp_sink_demo.c"
       ],
-      "status": "pending",
-      "mapping": "counterpart_candidates"
+      "status": "reviewed_contract",
+      "mapping": "counterpart_candidates",
+      "review_scope": "Complete public ownership/format declaration read against the implementation."
     },
     {
       "owned": "native_bt/include/dbt_sdp_bearer.h",
@@ -2583,15 +2599,15 @@
     },
     {
       "owned": "native_bt/src/dbt_sbc_media.c",
-      "sha256": "11fac4c1915812d2188f28b98d2427b4b5ca85e27a62c399ff735ee69a23e774",
-      "lines": 126,
+      "sha256": "bbc66a90f05b382e0c69ee2e4bc00c1a7575667b33d12f81d07b985c624f09d3",
+      "lines": 137,
       "reference_files": [
         "src/classic/btstack_sbc_decoder_bluedroid.c",
         "example/a2dp_sink_demo.c"
       ],
-      "status": "partial_review",
+      "status": "reviewed_with_findings",
       "mapping": "counterpart_candidates",
-      "review_scope": "Complete owned body read; SBC fragment/CRC and OI backend comparison begun. Header, complete reference configure/reset and decoder port review pending."
+      "review_scope": "Complete owned body and reference/working-backend boundaries reviewed. Not functional or performance qualification."
     },
     {
       "owned": "native_bt/src/dbt_sdp_bearer.c",
@@ -2972,6 +2988,66 @@
       "fix": "Use the existing discard counter to distinguish wire rejection from API/lifetime/resource failures at the profile boundary. Expire only received reassembly; keep local-command and mandatory-response deadlines intact. Require a nonempty, even-sized Discover Accept body.",
       "ram_tradeoff": "No new persistent fields, buffers, queues, tasks or waits.",
       "limits": "No peer/fragment injection or streaming campaign run. This corrects recovery behavior and does not establish the steady underrun cause."
+    },
+    {
+      "id": "SBC-009",
+      "state": "compiled_static_analysis_passed_peer_unqualified",
+      "owned": [
+        "native_bt/src/dbt_sbc_media.c:dbt_sbc_frame_decode"
+      ],
+      "reference": [
+        "src/classic/btstack_sbc_decoder_bluedroid.c:229-324",
+        "SDK OI framing.c and decoder-sbc.c:299-305"
+      ],
+      "issue": "Owned frame validation repeated per-bit CRC arithmetic around a backend that already uses a nibble algorithm.",
+      "fix": "Independently derived 16-entry CRC-8 feedback table, two inline nibble advances per byte and the exact final high nibble for four-subband joint stereo. All existing validation passes remain.",
+      "ram_tradeoff": "16 constant DROM bytes, no mutable state, heap storage or waits. Final size-optimized host frame-validation text 221 to 290 bytes.",
+      "limits": "Compiler emission and recurrence proof are not measured playback throughput. Separate functional campaigns remain held."
+    },
+    {
+      "id": "BUILD-010",
+      "state": "compiled_commands_verified_peer_unqualified",
+      "owned": [
+        "native_bt/esp32_probe/components/sbc_decoder/CMakeLists.txt",
+        "native_bt/esp32_probe/components/aac_decoder/CMakeLists.txt",
+        "native_bt/esp32_probe/components/ldac_decoder/CMakeLists.txt",
+        "native_bt/esp32_probe/components/aptx_decoder/CMakeLists.txt",
+        "native_bt/esp32_probe/components/opus_decoder/CMakeLists.txt"
+      ],
+      "reference": [
+        "Working baseline 0d85a975ec079d954f1bdd3e94d2fed70848c252 compile_commands.json",
+        "GCC 15.2 target defaults"
+      ],
+      "issue": "SBC/AAC/LDAC/aptX/Opus owned components used -Os while the working Bluedroid implementation built their corresponding decoders at -O2.",
+      "fix": "Append -O2 to those five standalone components. Keep -fwrapv, codec arithmetic profiles, quality settings, all bounds/guards and existing LHDC -O3. Keep the compact host/platform profile. Alignment defaults match and are not overridden.",
+      "limits": "This restores a compiler-profile setting, not proven timing parity or an identified universal underrun cause. Resource/code-size and startup evidence follow compilation.",
+      "compiled_units": [
+        {
+          "component": "sbc_decoder",
+          "units": 16,
+          "effective_optimization": "-O2"
+        },
+        {
+          "component": "aac_decoder",
+          "units": 19,
+          "effective_optimization": "-O2"
+        },
+        {
+          "component": "ldac_decoder",
+          "units": 4,
+          "effective_optimization": "-O2"
+        },
+        {
+          "component": "aptx_decoder",
+          "units": 2,
+          "effective_optimization": "-O2"
+        },
+        {
+          "component": "opus_decoder",
+          "units": 131,
+          "effective_optimization": "-O2"
+        }
+      ]
     }
   ],
   "sections_reviewed": [
@@ -3059,6 +3135,36 @@
       ],
       "outcome": "Fixed the wire-discard/profile-retirement boundary. Checked generation/CID routing, fragment sizing/counts, pinned TX admission, command/response deadlines, worker epochs and bounded PCM retirement. No new steady-packet allocator found in the common handoff. Codec-specific parser/decoder internals, renderer integration, outgoing initiator and broader reference states remain open.",
       "full_layer_complete": false
+    },
+    {
+      "layer": "SBC and AAC adapters, codec build profiles",
+      "owned": [
+        "native_bt/src/dbt_sbc_media.c",
+        "native_bt/codecs/sbc/dbt_sbc_codec.c",
+        "native_bt/codecs/sbc/dbt_sbc_decoder.c",
+        "native_bt/codecs/aac/dbt_aac_transport.c",
+        "native_bt/codecs/aac/dbt_aac_decoder.c",
+        "native_bt/include/dbt_sbc_media.h",
+        "native_bt/codecs/sbc/dbt_sbc_codec.h",
+        "native_bt/codecs/sbc/dbt_sbc_decoder.h",
+        "native_bt/codecs/aac/dbt_aac.h",
+        "native_bt/esp32_probe/components/sbc_decoder/CMakeLists.txt",
+        "native_bt/esp32_probe/components/aac_decoder/CMakeLists.txt",
+        "native_bt/esp32_probe/components/ldac_decoder/CMakeLists.txt",
+        "native_bt/esp32_probe/components/aptx_decoder/CMakeLists.txt",
+        "native_bt/esp32_probe/components/opus_decoder/CMakeLists.txt",
+        "native_bt/codecs/aac/prepare_port.py"
+      ],
+      "reference": [
+        "src/classic/btstack_sbc_decoder_bluedroid.c:166-324",
+        "example/a2dp_sink_demo.c:550-660",
+        "src/classic/avdtp_util.c:1392-1495",
+        "Working baseline a2dp_aac.c:25-53, a2dp_aac_decoder_custom.c:193-352, compile_commands.json",
+        "SDK OI decoder-private.c:45-85, alloc.c:31-78, decoder-sbc.c:239-332",
+        "Generated Helix aacdec_guarded.c:295-465 and decelmnt.c:363-429"
+      ],
+      "outcome": "SBC checksum arithmetic reduced without removing checks; five decoder build settings corrected. AAC source bounds/configuration/borrow/fragment paths reviewed without establishing a new crash source. Broader Helix/vendor internals and peer/performance qualification remain open.",
+      "full_layer_complete": false
     }
   ],
   "integration_gaps": [
@@ -3105,11 +3211,13 @@
   ],
   "coverage": {
     "owned_files": 270,
-    "reviewed_owned_c_bodies": 11,
-    "partial_files": 6,
-    "pending_files": 247,
+    "reviewed_owned_c_bodies": 16,
+    "partial_files": 7,
+    "pending_files": 231,
     "compiled_owned_units_missing": 0,
-    "reviewed_headers": 6
+    "reviewed_headers": 10,
+    "reviewed_build_files": 5,
+    "reviewed_generators": 1
   },
   "inventory_corrections": [
     {
@@ -3156,15 +3264,13 @@
     }
   ],
   "next_review": {
-    "layer": "Codec-specific media framing, decode deadlines/reset and render backpressure",
+    "layer": "Remaining codec backend/generator boundaries and renderer/FIR scheduling",
     "owned": [
-      "native_bt/src/dbt_sbc_media.c",
-      "native_bt/codecs/sbc/dbt_sbc_codec.c",
-      "native_bt/codecs/sbc/dbt_sbc_decoder.c",
-      "native_bt/codecs/aac/dbt_aac_transport.c",
-      "native_bt/codecs/aac/dbt_aac_decoder.c",
-      "native_bt/codecs/ldac/dbt_ldac.c",
-      "native_bt/codecs/lhdcv5/dbt_lhdcv5.c",
+      "native_bt/codecs/ldac/prepare_port.py",
+      "native_bt/codecs/ldac/dbt_ldac_lib.c",
+      "native_bt/codecs/aptx/dbt_aptx_backend.c",
+      "native_bt/codecs/opus/dbt_opus.c",
+      "native_bt/codecs/lhdcv5/prepare_port.py",
       "native_bt/esp32_probe/main/probe_output.c"
     ],
     "reference": [
@@ -3173,7 +3279,7 @@
       "src/btstack_resample.c",
       "src/btstack_sample_rate_compensation.c"
     ],
-    "notes": "Reference SBC example is not an implementation counterpart for other codec internals. Continue cross-checking original project/backend/AOSP as applicable. AVDTP outgoing state/integration and the other pending layers remain open."
+    "notes": "Codec wrapper/build reviews do not finish backend internals or full BTstack audit. Preserve decoder0/radio+render1, 1800x8 input and arithmetic fidelity; no held functional campaigns. Prior measured FIR/render deficit remains an open bottleneck."
   },
-  "latest_build_image": "4e14f02267381e9fd72e9686751d1b60df5799b20e065e732dd93fbce3b07e03"
+  "latest_build_image": "5fa0b45fc2e09d84d385fe9d493945ac7cda0664271fe8b27ee8f1a828fd0e67"
 }
