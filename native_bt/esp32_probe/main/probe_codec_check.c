@@ -58,6 +58,9 @@ static struct {
 #endif
     uint32_t hash,callbacks,sample_frames,word_index,point_index,peak,maximum_error;
     uint32_t timestamp_hash,deferred_calls,deferred_busy;
+#ifdef DBT_PROBE_LHDC_MAX_CHECK
+    uint32_t prefix_hash,prefix_frames;
+#endif
     bool deferred;
     uint32_t live,peak_live,overall_peak,case_max_us,overall_max_us,min_free,overall_min_free;
     uint32_t case_max_cycles,case_deadline_misses,media_bytes;
@@ -101,7 +104,16 @@ static dbt_result_t validate_pcm(void *context,const void *samples,uint16_t fram
     if(!v || config->sample_bytes!=v->width || config->rate!=v->rate || config->channels!=v->channels ||
        (!check.deferred && v->callback_samples && frames!=v->callback_samples) || check.sample_frames>UINT32_MAX-frames)return DBT_INVALID;
     const uint8_t *bytes=samples;unsigned count=(unsigned)frames*v->channels;
+#ifdef DBT_PROBE_LHDC_MAX_CHECK
+    unsigned prefix=check.sample_frames<512u?512u-check.sample_frames:0;
+    if(prefix>frames)prefix=frames;
+    unsigned prefix_bytes=prefix*v->channels*v->width;
+    for(unsigned i=0;i<prefix_bytes;++i)check.hash=(check.hash^bytes[i])*16777619u;
+    if(prefix){check.prefix_hash=check.hash;check.prefix_frames=check.sample_frames+prefix;}
+    for(unsigned i=prefix_bytes;i<count*v->width;++i)check.hash=(check.hash^bytes[i])*16777619u;
+#else
     for(unsigned i=0;i<count*v->width;++i)check.hash=(check.hash^bytes[i])*16777619u;
+#endif
     for(unsigned i=0;i<count;++i){
         int32_t value=v->width==2?((const int16_t *)samples)[i]:((const int32_t *)samples)[i];
         uint32_t power=magnitude(value);if(power>check.peak)check.peak=power;
@@ -141,6 +153,9 @@ static void reset_case(void){
 #endif
     check.hash=2166136261u;check.callbacks=check.sample_frames=check.word_index=check.point_index=0;
     check.timestamp_hash=2166136261u;check.deferred_calls=check.deferred_busy=0;check.deferred=false;
+#ifdef DBT_PROBE_LHDC_MAX_CHECK
+    check.prefix_hash=2166136261u;check.prefix_frames=0;
+#endif
     check.peak=check.maximum_error=check.case_max_us=0;check.peak_live=check.live;
     check.case_max_cycles=check.case_deadline_misses=check.media_bytes=0;
     check.case_cycles=check.case_us=0;
@@ -263,7 +278,8 @@ static bool run_lhdc_maximum(unsigned trial){
         trial,(unsigned)estimate.mean,(unsigned)estimate.p50,(unsigned)estimate.p95,(unsigned)estimate.p99,(unsigned)estimate.maximum,
         (unsigned)estimate.at_or_above_budget,measured_count?(unsigned)(estimated_cycles/measured_count):0,
         measured_count?(unsigned)(callback_sum/measured_count):0,(unsigned)callback_max);
-    printf("{\"probe\":\"lhdc_pcm_hash\",\"trial\":%u,\"sample_frames\":%u,\"fnv1a32\":%u}\n",trial,(unsigned)check.sample_frames,(unsigned)check.hash);
+    printf("{\"probe\":\"lhdc_pcm_hash\",\"trial\":%u,\"sample_frames\":%u,\"fnv1a32\":%u,\"prefix_frames\":%u,\"prefix_fnv1a32\":%u}\n",
+        trial,(unsigned)check.sample_frames,(unsigned)check.hash,(unsigned)check.prefix_frames,(unsigned)check.prefix_hash);
     check.vector=0;return pass && deadline;
 }
 #endif

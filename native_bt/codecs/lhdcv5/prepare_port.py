@@ -63,6 +63,22 @@ def generate(source,output):
             text=once(text,'#define S1920_TBL_FLOATS (2*IMDCT_N2_1920*IMDCT_N2_1920 \\\n                          + 2*IMDCT_N2_1920*IMDCT_N1_1920 + 2*IMDCT_P_1920)',
                       '#define S1920_TBL_FLOATS (2*IMDCT_N2_1920*IMDCT_N1_1920 + 2*IMDCT_P_1920 + 32)')
         if name=="lhdc_dec.c":
+            # Classic ESP32 already compiles out the selector retry that is
+            # the only reader of ov_save. Keep the portable retry/storage and
+            # an explicit retained-buffer reference for paired validation.
+            text=once(text,'    dec->ov_save        = (float   *)LHDC_DEC_MALLOC((size_t)H * sizeof(float));',
+                '''#if CONFIG_IDF_TARGET_ESP32 && !defined(DBT_LHDC_KEEP_UNUSED_OV_SAVE)
+    dec->ov_save = NULL;
+#else
+    dec->ov_save        = (float   *)LHDC_DEC_MALLOC((size_t)H * sizeof(float));
+#endif''')
+            text=once(text,'''        !dec->pcm_r) {
+#else
+        !dec->ov_save) {''','''        !dec->pcm_r) {
+#elif CONFIG_IDF_TARGET_ESP32 && !defined(DBT_LHDC_KEEP_UNUSED_OV_SAVE)
+        0) {
+#else
+        !dec->ov_save) {''')
             # Six timestamps per channel were executed even with the stage
             # profiler disabled. Keep the two frame-latency timestamps, and
             # enable these stage marks only for an explicit diagnostic build.

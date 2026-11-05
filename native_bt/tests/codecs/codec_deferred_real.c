@@ -228,9 +228,11 @@ static int run_case(case_t c){
 finish:
     if(worker_initialized && worker.binding)control(&worker,DBT_SINK_DROP,NULL,0);
     dbt_codec_close(&direct);
-    printf("{\"probe\":\"deferred_codec_case\",\"codec\":\"%s\",\"index\":%u,\"mode\":%u,\"passed\":%s,\"line\":%d,\"consumer_line\":%d,\"sample_frames\":%u,\"busy_attempts\":%u,\"tracked_peak_bytes\":%u,\"live_bytes\":%u}\n",
+    uint32_t prefix_frames=ctx.reference_frames<512u?ctx.reference_frames:512u,prefix_hash=2166136261u;
+    if(ctx.reference)for(unsigned i=0;i<prefix_frames*(uint32_t)ctx.config.channels*ctx.config.sample_bytes;++i)prefix_hash=(prefix_hash^ctx.reference[i])*16777619u;
+    printf("{\"probe\":\"deferred_codec_case\",\"codec\":\"%s\",\"index\":%u,\"mode\":%u,\"passed\":%s,\"line\":%d,\"consumer_line\":%d,\"sample_frames\":%u,\"busy_attempts\":%u,\"tracked_peak_bytes\":%u,\"live_bytes\":%u,\"prefix_frames\":%u,\"prefix_pcm_fnv1a32\":%u}\n",
         c.v?c.v->name:c.opus?"Opus":"LHDC 192k/S24/1000",c.index,c.mode,line?"false":"true",line,ctx.error,
-        (unsigned)ctx.compared_frames,ctx.busy_calls,(unsigned)ctx.peak,(unsigned)ctx.live);
+        (unsigned)ctx.compared_frames,ctx.busy_calls,(unsigned)ctx.peak,(unsigned)ctx.live,prefix_frames,prefix_hash);
     free(ctx.reference);free(ctx.timestamps);return line;
 }
 int main(void){

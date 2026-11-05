@@ -34,14 +34,18 @@ def main():
     parser.add_argument('--deferred',action='store_true',help='Compare real synchronous/deferred PCM with simulated renderer backpressure')
     parser.add_argument('--sanitize',action='store_true',help='AddressSanitizer for deferred adapters and all codec sources including guarded Opus')
     parser.add_argument('--pcm-loans',action='store_true',help='Use asynchronous immutable PCM loans with a delayed provider mock')
+    parser.add_argument('--lhdc-esp32-paths',action='store_true',help='Host-execute the LHDC source conditionals selected on classic ESP32; not Xtensa execution')
+    parser.add_argument('--lhdc-keep-unused-overlap',action='store_true',help='Retain the unused ESP32 overlap snapshot as an allocation reference')
     args=parser.parse_args()
     if args.lhdc_source:
         LHDC=args.lhdc_source.resolve()
         if not (LHDC/'lhdc_dec.c').is_file():LHDC=LHDC/'decoder'
     if args.sanitize and not args.deferred:raise RuntimeError('--sanitize requires --deferred')
     if args.pcm_loans and not args.deferred:raise RuntimeError('--pcm-loans requires --deferred')
+    if args.lhdc_keep_unused_overlap and not args.lhdc_esp32_paths:raise RuntimeError('--lhdc-keep-unused-overlap requires --lhdc-esp32-paths')
     if args.deferred:OUT=ROOT/('_build/native_codecs/deferred_asan' if args.sanitize else '_build/native_codecs/deferred_host')
     if args.pcm_loans:OUT=ROOT/('_build/native_codecs/deferred_loans_asan' if args.sanitize else '_build/native_codecs/deferred_loans_host')
+    if args.lhdc_esp32_paths:OUT=OUT.with_name(OUT.name+('_esp32_keep_ov' if args.lhdc_keep_unused_overlap else '_esp32'))
     OUT.mkdir(parents=True,exist_ok=True);env=os.environ.copy()
     if os.name=='nt':
         vc=Path(r'C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Auxiliary\Build\vcvars64.bat')
@@ -121,6 +125,9 @@ def main():
     for index,unit in enumerate(sources):
         obj=OUT/(str(index)+'_'+unit.stem+('.obj' if os.name=='nt' else '.o'));objects.append(obj)
         extra=['-funsigned-char','-include',str(ROOT/'codecs/aac/host_target_math.h')] if unit in aac_sources else []
+        if args.lhdc_esp32_paths and unit.parent in (lhdcport,LHDC,ROOT/'codecs/lhdcv5'):
+            extra+=['-DCONFIG_IDF_TARGET_ESP32=1']
+            if args.lhdc_keep_unused_overlap:extra+=['-DDBT_LHDC_KEEP_UNUSED_OV_SAVE=1']
         if args.sanitize and unit in undefined_checked:extra+=['-fsanitize=undefined','-fno-sanitize-recover=undefined']
         run([cache]+flags+extra+['-c',str(unit),'-o',str(obj)],env=env,cwd=OUT)
     link_flags=['-fsanitize=address,undefined'] if args.sanitize else []
@@ -148,7 +155,7 @@ def main():
         assert len([c for c in cases if c['mode']==0])==38
         assert all(c['passed'] and c['live_bytes']==0 and c['busy_attempts'] for c in cases)
         assert all(hashlib.sha256(Path(path).read_bytes()).hexdigest()==sha for path,sha in before.items())
-        report={'passed':True,'pcm_loans':args.pcm_loans,'scope':'real host codec algorithms and worker, byte/sample-timestamp comparison with simulated output backpressure and 150 ms pause; optional async PCM-loan mock, no target/RF timing',
+        report={'passed':True,'pcm_loans':args.pcm_loans,'lhdc_esp32_paths':args.lhdc_esp32_paths,'lhdc_keep_unused_overlap':args.lhdc_keep_unused_overlap,'scope':'real host codec algorithms and worker, byte/sample-timestamp comparison with simulated output backpressure and 150 ms pause; optional async PCM-loan mock and classic-ESP32 LHDC conditionals, no target/RF timing',
                 'sanitizers':['address for all source-built codecs','undefined for owned adapters/worker/test harness'] if args.sanitize else [],'guarded_opus_instrumented':args.sanitize,
                 'summary':summaries[0],'cases':cases,'source_sha256':before}
         (OUT/'results.json').write_text(json.dumps(report,indent=2)+'\n')
