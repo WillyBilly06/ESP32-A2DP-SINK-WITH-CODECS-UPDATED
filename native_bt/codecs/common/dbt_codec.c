@@ -101,6 +101,8 @@ dbt_result_t dbt_codec_worker_init(dbt_codec_worker_t *w,dbt_codec_worker_hooks_
     if(hooks.deferred_pcm && (!hooks.decoder.allocate || !hooks.decoder.release || !hooks.decoder.pcm))return DBT_INVALID;
     if((hooks.async_stream.begin || hooks.async_stream.poll || hooks.async_stream.cancel) &&
        (!hooks.async_stream.begin || !hooks.async_stream.poll || !hooks.async_stream.cancel || hooks.stream))return DBT_INVALID;
+    if((hooks.async_pcm.begin || hooks.async_pcm.poll || hooks.async_pcm.cancel) &&
+       (!hooks.async_pcm.begin || !hooks.async_pcm.poll || !hooks.async_pcm.cancel || !hooks.deferred_pcm || !hooks.async_stream.begin))return DBT_INVALID;
     zero(w,sizeof(*w));w->hooks=hooks;w->maximum_payload=payload;w->stride=(uint16_t)stride;w->depth=depth;
     atomic_init(&w->job_written,0);atomic_init(&w->job_read,0);atomic_init(&w->receipt_written,0);atomic_init(&w->receipt_read,0);
     atomic_init(&w->gate_epoch,0);atomic_init(&w->started_epoch,0);atomic_init(&w->media_written,0);atomic_init(&w->media_read,0);
@@ -288,6 +290,55 @@ static void fail_media(dbt_codec_worker_t *w,uint32_t read){
      * Disable admission, retire the lease, and let the owner's DROP reclaim. */
     atomic_fetch_add(&w->media_drops,1);fault(w);retire_media(w,read,DBT_OK);
 }
+/* Service at most one accepted loan before any job can reset/free its codec.
+ * A provider contract failure closes admission but retains the pinned decoder
+ * and packet until a real retirement acknowledgement arrives. */
+static bool pcm_retire(dbt_codec_worker_t *w,uint32_t now,bool cancel){
+    if(!w->pcm_ticket)return true;
+    w->output_blocked=true;w->control_blocked=true;
+    if(!w->pcm_timedout && now-w->last_progress>=DBT_CODEC_PCM_STALL_MS){
+        w->pcm_timedout=true;atomic_fetch_add(&w->pcm_timeouts,1);
+        uint32_t read=atomic_load_explicit(&w->media_read,memory_order_relaxed);
+        const media_t *slot=(const media_t *)(w->packet_storage+(read%w->depth)*w->stride);
+        trace(w,DBT_CODEC_PCM_TIMEOUT,slot,slot->sequence,slot->ssrc,DBT_BUSY);
+        if(!w->pcm_fault_latched){
+            w->pcm_fault_latched=true;atomic_store(&w->started_epoch,0);
+            atomic_fetch_add(&w->media_drops,1);atomic_fetch_add(&w->faults,1);wake_owner(w);
+        }
+    }
+    if((cancel || w->pcm_timedout || w->pcm_fault_latched) && !w->pcm_cancel_requested){
+        dbt_result_t result=w->hooks.async_pcm.cancel(w->hooks.decoder.context,w->pcm_ticket);
+        if(result==DBT_PENDING)w->pcm_cancel_requested=true;
+        else if(result!=DBT_BUSY && !w->pcm_fault_latched){
+            w->pcm_fault_latched=true;atomic_store(&w->started_epoch,0);
+            atomic_fetch_add(&w->pcm_failures,1);atomic_fetch_add(&w->media_drops,1);atomic_fetch_add(&w->faults,1);wake_owner(w);
+        }
+        return false;
+    }
+    dbt_result_t result=w->hooks.async_pcm.poll(w->hooks.decoder.context,w->pcm_ticket);
+    if(result==DBT_PENDING)return false;
+    if(result!=DBT_OK && result!=DBT_CANCELLED){
+        if(!w->pcm_fault_latched){
+            w->pcm_fault_latched=true;atomic_store(&w->started_epoch,0);
+            atomic_fetch_add(&w->pcm_failures,1);atomic_fetch_add(&w->media_drops,1);atomic_fetch_add(&w->faults,1);wake_owner(w);
+        }
+        return false;
+    }
+    bool aborted=w->pcm_cancel_requested || w->pcm_timedout || w->pcm_fault_latched || result==DBT_CANCELLED;
+    uint16_t take=w->pcm_ticket_frames;w->pcm_ticket=0;w->pcm_ticket_frames=0;
+    w->pcm_cancel_requested=w->pcm_timedout=w->pcm_fault_latched=false;
+    w->output_blocked=w->control_blocked=false;
+    if(!cancel && aborted){
+        uint32_t read=atomic_load_explicit(&w->media_read,memory_order_relaxed);
+        atomic_fetch_add(&w->pcm_failures,1);fail_media(w,read);return true;
+    }
+    if(!aborted){
+        w->pending_offset=(uint16_t)(w->pending_offset+take);w->last_progress=now;
+        atomic_fetch_add(&w->pcm_delivered_frames,take);
+        if(w->pending_offset==w->pending_frames)pending_clear(w);
+    }
+    return true;
+}
 static uint16_t deferred_step(dbt_codec_worker_t *w,uint32_t now,uint16_t budget){
     uint16_t done=0;
     while(done<budget && enabled(w)){
@@ -298,10 +349,17 @@ static uint16_t deferred_step(dbt_codec_worker_t *w,uint32_t now,uint16_t budget
             uint32_t stride=(uint32_t)w->decoder.config.channels*w->decoder.config.sample_bytes;
             const media_t *slot=(const media_t *)(w->packet_storage+(read%w->depth)*w->stride);
             trace(w,DBT_CODEC_PCM_BEGIN,slot,slot->sequence,slot->ssrc,DBT_OK);
-            dbt_result_t result=w->hooks.decoder.pcm(w->hooks.decoder.context,
-                w->pending_pcm+(uint32_t)w->pending_offset*stride,take,&w->decoder.config,
-                w->pending_timestamp+w->pending_offset);
+            uint32_t ticket=0;
+            dbt_result_t result=w->hooks.async_pcm.begin?
+                w->hooks.async_pcm.begin(w->hooks.decoder.context,w->pending_pcm+(uint32_t)w->pending_offset*stride,
+                    take,&w->decoder.config,w->pending_timestamp+w->pending_offset,&ticket):
+                w->hooks.decoder.pcm(w->hooks.decoder.context,w->pending_pcm+(uint32_t)w->pending_offset*stride,
+                    take,&w->decoder.config,w->pending_timestamp+w->pending_offset);
             trace(w,DBT_CODEC_PCM_END,slot,slot->sequence,slot->ssrc,result);
+            if(w->hooks.async_pcm.begin && result==DBT_PENDING && ticket){
+                w->pcm_ticket=ticket;w->pcm_ticket_frames=take;w->output_blocked=true;
+                ++done;break;
+            }
             if(result==DBT_BUSY){
                 if(!w->output_blocked){
                     const media_t *slot=(const media_t *)(w->packet_storage+(read%w->depth)*w->stride);
@@ -316,7 +374,7 @@ static uint16_t deferred_step(dbt_codec_worker_t *w,uint32_t now,uint16_t budget
                 break;
             }
             ++done;
-            if(result!=DBT_OK){
+            if(result!=DBT_OK || w->hooks.async_pcm.begin){
                 const media_t *slot=(const media_t *)(w->packet_storage+(read%w->depth)*w->stride);
                 atomic_fetch_add(&w->pcm_failures,1);trace(w,DBT_CODEC_PCM_FAILED,slot,slot->sequence,slot->ssrc,result);
                 fail_media(w,read);break;
@@ -350,6 +408,7 @@ static uint16_t deferred_step(dbt_codec_worker_t *w,uint32_t now,uint16_t budget
 }
 bool dbt_codec_worker_runnable(const dbt_codec_worker_t *w){
     if(!w)return false;
+    if(w->pcm_ticket)return false;
     if(atomic_load(&w->job_read)!=atomic_load_explicit(&w->job_written,memory_order_acquire) &&
        atomic_load(&w->receipt_written)-atomic_load_explicit(&w->receipt_read,memory_order_acquire)<DBT_CODEC_WORKER_JOBS)return !w->control_blocked;
     return enabled(w) && !w->output_blocked && (w->media_active || w->pending_pcm ||
@@ -357,6 +416,10 @@ bool dbt_codec_worker_runnable(const dbt_codec_worker_t *w){
 }
 bool dbt_codec_worker_deadline(const dbt_codec_worker_t *w,uint32_t *when){
     if(!w || !when)return false;
+    if(w->pcm_ticket){
+        if(w->pcm_timedout || w->pcm_fault_latched || w->pcm_cancel_requested)return false;
+        *when=w->last_progress+DBT_CODEC_PCM_STALL_MS;return true;
+    }
     if(w->control_phase){if(w->control_timedout)return false;*when=w->control_since+1500u;return true;}
     if(enabled(w) && w->pending_pcm && w->output_blocked){*when=w->last_progress+DBT_CODEC_PCM_STALL_MS;return true;}
     if(w->configured && !w->media_active && !w->pending_pcm && w->decoder.config.ops->deadline)
@@ -365,6 +428,8 @@ bool dbt_codec_worker_deadline(const dbt_codec_worker_t *w,uint32_t *when){
 }
 uint16_t dbt_codec_worker_step(dbt_codec_worker_t *w,uint32_t now,uint16_t budget){
     if(!w)return 0;
+    bool jobs=atomic_load(&w->job_read)!=atomic_load_explicit(&w->job_written,memory_order_acquire);
+    if(!pcm_retire(w,now,jobs || !enabled(w)))return 0;
     for(unsigned i=0;i<DBT_CODEC_WORKER_JOBS;++i){
         uint32_t read=atomic_load_explicit(&w->job_read,memory_order_relaxed);if(read==atomic_load_explicit(&w->job_written,memory_order_acquire))break;
         uint32_t written=atomic_load_explicit(&w->receipt_written,memory_order_relaxed);

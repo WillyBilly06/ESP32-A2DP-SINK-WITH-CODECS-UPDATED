@@ -1,6 +1,7 @@
 """Actual optional PCM-loan core versus copied-ring reference; host ASan/UBSan."""
 import hashlib,json,os,pathlib,shutil,subprocess
 ROOT=pathlib.Path(__file__).resolve().parents[1];OUT=ROOT/'_build/audio_borrowed';OUT.mkdir(exist_ok=True)
+(OUT/'results.json').write_text(json.dumps({'passed':False,'state':'building','hardware_accessed':False})+'\n')
 env=os.environ.copy()
 if os.name=='nt':
     vc=pathlib.Path(r'C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Auxiliary\Build\vcvars64.bat')

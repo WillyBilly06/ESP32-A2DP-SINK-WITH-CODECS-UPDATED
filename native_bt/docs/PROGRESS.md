@@ -12,19 +12,25 @@ Released main/recovery artifacts remain preserved. Latest measured evidence:
   confirmed the maximum preference; audio startup failed a 4096-byte allocation
   with 11740 bytes free and a 3712-byte largest block. Requested rate/format
   now have their own CRC-validated failure record. No LHDC I2S start follows.
-- [I2S priority2](I2S_IRQ_PRIORITY_2026_11_04.md): 23638 LDAC96 callbacks,
-  maximum callback 46 us and EOF gap 1378 us, with zero descriptor errors.
-  Six core0 watchdog warnings, 1472 queue drops and 1502592 underrun frames
-  still fail continuity. The renderer needs further CPU and SRAM work.
+- [I2S priority2 with live logging](RF_LOGGER_CORE1_2026_11_04.json): 28465
+  LDAC96 callbacks, maximum callback 46 us and EOF gap 1374 us, with zero
+  descriptor errors. Seven core0 watchdog warnings, 1804 queue drops and
+  1837952 underrun frames still fail continuity. CPU and SRAM work remain.
 - [Separate telemetry and capture integrity](LOG_CAPTURE_WINDOWS_2026_11_04.md):
   per-stage timing, same-clock fault/watchdog markers and bounded observation
   windows. COM6 yielded 2747 CRC/time-valid records; five damaged/interleaved/
-  truncated records are excluded. Logger affinity away from decoder0 passes
-  host tests and build admission; its hardware run remains pending.
+  truncated records are excluded. The later core1 logger run has 16 valid
+  I2S-running snapshots and reduces the longest observed reporting gap from
+  32.057 s to 2.492 s. Transport latency remains unqualified.
 - [Page-sized output capacity](OUTPUT_CAPACITY_2026_11_04.md) saves 28 KiB of
   required memory at 192 kHz without changing target/prefill. Its LDAC96 DMA
-  trial has zero descriptor errors; throughput still fails. All 180 host groups,
+  trial has zero descriptor errors; throughput still fails. All 184 host groups,
   ASan/UBSan boundaries/formats and the non-power-of-two concurrent case pass.
+- [Optional PCM input loan](PCM_INPUT_LOAN_2026_11_04.md): 108 copied/borrowed
+  stream comparisons and ten sanitized worker ownership/control groups pass.
+  Eighty real-codec deferred-copy regressions also pass. The renderer bridge,
+  sound/lifecycle integration and product selection remain open; no product
+  input-ring saving or maximum LHDC output pass is claimed yet.
 
 The last hardware trial returned to released 1.0.4-idf6.1 ota0 with System ready;
 phone playback was verified paused. Full profile/product parity and maximum

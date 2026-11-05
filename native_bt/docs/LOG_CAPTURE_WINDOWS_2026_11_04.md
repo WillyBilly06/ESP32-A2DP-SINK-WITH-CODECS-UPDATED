@@ -79,6 +79,18 @@ while decoder/render starve core0's priority1 logger. A follow-up policy places
 the logger on `1 - decoder_core`: current decoder0 uses logger1; the historical
 decoder1 comparison retains logger0. Controller/host priorities, renderer,
 watchdogs, logging cadence and the 4096-byte logger stack are retained. Host
-tests verify both actual task-creation affinities and reported layout; the
-ccache build and image admission pass. This affinity change has not yet run on
-COM6. It targets observation latency, not renderer compute throughput.
+tests verify both actual task-creation affinities and reported layout.
+
+The [core1 hardware follow-up](RF_LOGGER_CORE1_2026_11_04.json) contains 16
+CRC-validated I2S-running records during actual LDAC96 playback. Its longest
+`vhci_timing` observation gap is 2492151 us versus the previous 32057291 us.
+The captured active PCM/DMA payload request is 89088 bytes, excluding driver
+and allocator overhead. Five malformed/interleaved/truncated records are
+excluded. Seven core0 watchdog events, underruns and local queue drops still
+fail audio continuity; controller/host maximum measured wall spans remain tens
+of milliseconds. Different duration/control timing and the linked but unused
+loan core prevent an isolated CPU or transport-regression conclusion.
+An initial attempt failed a serial NVS read before any write; the retry used
+the full existing verification gates. The trial returned to released firmware
+with System ready and the phone paused. This targets reporting latency, not
+renderer compute throughput.

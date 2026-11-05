@@ -1,0 +1,75 @@
+{
+  "date": "2026-11-04",
+  "scope": "Offline optional PCM-loan memory/worker foundations; renderer/provider integration is not selected in the product",
+  "result": "HOST_MATH_AND_OWNERSHIP_CHECKPOINT_PASS; PRODUCT_RAM_AND_PLAYBACK_UNQUALIFIED",
+  "memory": {
+    "passed": true,
+    "case_pairs": 108,
+    "input_frames_per_case": 4096,
+    "adaptive_and_linear_modes": true,
+    "linear_fractional_final_lookahead_matches_legacy": true,
+    "sanitizers": [
+      "address",
+      "undefined"
+    ],
+    "signed_overflow_wrapping": false,
+    "scope": "host optional audio-core loan lifetime/math; no worker/provider integration or device qualification"
+  },
+  "worker": {
+    "passed": true,
+    "groups": [
+      "codec_deferred_pcm_backpressure_and_exact_order",
+      "codec_deferred_cancel_suspend_and_reconfigure",
+      "codec_deferred_deadline_and_failure_retirement",
+      "codec_async_stream_completion_and_media_fence",
+      "codec_async_stream_cancel_before_drop",
+      "codec_async_stream_deadline_and_receipt_reservation",
+      "codec_async_pcm_completion_and_exact_order",
+      "codec_async_pcm_cancel_before_codec_lifecycle",
+      "codec_async_pcm_deadline_and_stale_retirement",
+      "codec_async_pcm_failed_completion_and_busy_begin"
+    ],
+    "sanitizers": [
+      "address",
+      "undefined"
+    ],
+    "signed_overflow_wrapping": false,
+    "scope": "host worker/loan ownership model; no renderer/provider integration or hardware qualification"
+  },
+  "existing_real_codec_regression": {
+    "passed": true,
+    "scope": "real host codec algorithms and worker, byte/sample-timestamp comparison with simulated output backpressure and 150 ms pause; no target/RF timing",
+    "sanitizers": [
+      "address for all source-built codecs",
+      "undefined for owned adapters/worker/test harness"
+    ],
+    "guarded_opus_instrumented": true,
+    "summary": {
+      "probe": "deferred_codec_summary",
+      "passed": true,
+      "cases": 80,
+      "maximum_rate_tested": true,
+      "rf_test": false
+    }
+  },
+  "source_sha256": {
+    "native_bt/src/dbt_audio.c": "4e7c502b197b5dc7bd4a59f857339e9381b0473dd0ea185512feb2c4397a438d",
+    "native_bt/include/dbt_audio.h": "cd95e6b05dfbbfcc48194f5c8ac72ef91391b6ba3a85778622cdec4a84c966dc",
+    "native_bt/codecs/common/dbt_codec.c": "ef9abc3af07289ae10fb90f2c00bbe4900caa2ec310f4227dccaacf9d48b4dc9",
+    "native_bt/codecs/common/dbt_codec.h": "e37b1acc630a9b9170bc08a6ece3750494f4f2054c6c271042f8567249490315",
+    "native_bt/tests/audio/borrowed_input.c": "3ac4bb44fd5399583bf276ef9d3a6ec959d0298589cc21802eef061d8f9184b4",
+    "native_bt/tests/test_codec_deferred.c": "fadd664b71a6f7e33c7784f9fd003244eb3a67d4d9791efaca5ede999c6b3fa0"
+  },
+  "source_receipts_rechecked_against_current_files": true,
+  "portable_groups_passed": 184,
+  "product_image_sha256": "0983cde27b04548d3798e10b8003201c09f01a57709cc0520e450bbbaf23e0bf",
+  "product_input_loan_selected": false,
+  "asynchronous_pcm_provider_hook_selected": false,
+  "hardware_executed_for_new_worker_hook": false,
+  "open_gates": [
+    "Renderer begin/poll/cancel bridge and explicit source retirement before reuse.",
+    "All-codec asynchronous-PCM integration rather than only the existing deferred-copy regression.",
+    "Sound overlays and cancellation/stop/drain/restart/fault ownership with that bridge.",
+    "Maximum LHDC SRAM admission, DSP throughput, full output continuity and measured BLE/control headroom."
+  ]
+}

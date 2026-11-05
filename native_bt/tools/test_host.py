@@ -14,6 +14,9 @@ import time
 
 ROOT = Path(__file__).resolve().parents[1]
 TESTS = [
+    "codec_async_pcm_completion_and_exact_order", "codec_async_pcm_cancel_before_codec_lifecycle",
+    "codec_async_pcm_deadline_and_stale_retirement",
+    "codec_async_pcm_failed_completion_and_busy_begin",
     "audio_paged_ring_capacity_wrap_mix_and_oom", "audio_paged_render_matches_small_ring",
     "hci_framing", "command_bounds", "queue_wrap_and_copy",
     "control_reserve_preserves_order", "bootstrap_separate_pools",

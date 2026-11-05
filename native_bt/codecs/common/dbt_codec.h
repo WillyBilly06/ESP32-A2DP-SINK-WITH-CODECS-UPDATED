@@ -72,6 +72,15 @@ typedef struct {
     dbt_result_t (*poll)(void *,uint32_t);
     dbt_result_t (*cancel)(void *,uint32_t);
 } dbt_codec_stream_async_t;
+typedef struct {
+    /* PENDING with a nonzero ticket accepts an immutable PCM loan. BUSY or a
+     * rejected begin accepts nothing. Only OK/CANCELLED poll proves the view
+     * retired; INVALID/stale is never ownership proof. Cancel requests bounded
+     * retirement, then poll acknowledges it. Wake the worker on completion. */
+    dbt_result_t (*begin)(void *,const void *,uint16_t,const dbt_codec_config_t *,uint32_t,uint32_t *);
+    dbt_result_t (*poll)(void *,uint32_t);
+    dbt_result_t (*cancel)(void *,uint32_t);
+} dbt_codec_pcm_async_t;
 
 typedef enum {
     DBT_CODEC_INPUT_SEQUENCE=1, DBT_CODEC_INPUT_SSRC, DBT_CODEC_QUEUE_FULL,
@@ -93,15 +102,17 @@ typedef struct {
     void (*wake_worker)(void *context);
     void (*wake_owner)(void *context);
     dbt_result_t (*stream)(void *context,bool start,const dbt_codec_config_t *config);
-    /* Requires resumable codecs and nonblocking providers. PCM is copied by
-     * the provider in chunks <=256 frames; BUSY consumes nothing. Stream hooks
-     * must also be nonblocking/transactional before product integration. */
+    /* Requires resumable codecs and nonblocking providers. The default copies
+     * chunks <=256 frames; BUSY consumes nothing. async_pcm instead retains an
+     * immutable loan until acknowledged. Stream hooks must also be
+     * nonblocking/transactional before product integration. */
     bool deferred_pcm;
     dbt_codec_stream_async_t async_stream;
     /* Optional bounded, nonblocking diagnostics. Called by host producer or
      * decoder consumer; the receiver must handle these two writers safely.
      * No payload or security material is exposed. */
     void (*trace)(void *context,const dbt_codec_trace_t *event);
+    dbt_codec_pcm_async_t async_pcm;
 } dbt_codec_worker_hooks_t;
 typedef struct {
     dbt_codec_worker_hooks_t hooks;
@@ -134,6 +145,9 @@ typedef struct {
     uint32_t stream_ticket,control_since;
     uint8_t control_phase;
     bool control_blocked,control_timedout,cancel_requested;
+    uint32_t pcm_ticket;
+    uint16_t pcm_ticket_frames;
+    bool pcm_cancel_requested,pcm_timedout,pcm_fault_latched;
 } dbt_codec_worker_t;
 
 /* One host producer and a separate decode consumer, with copied jobs/receipts
@@ -143,7 +157,9 @@ dbt_result_t dbt_codec_worker_init(dbt_codec_worker_t *worker,dbt_codec_worker_h
 dbt_result_t dbt_codec_worker_submit(void *worker,const dbt_sink_job_t *job);
 dbt_result_t dbt_codec_worker_media(void *worker,const dbt_avdtp_media_t *packet);
 dbt_result_t dbt_codec_worker_receipt(dbt_codec_worker_t *worker,dbt_codec_receipt_t *receipt);
-/* At most four control receipts, then the requested media work budget. Legacy
+/* First service at most one accepted PCM-loan completion/cancellation so codec
+ * teardown cannot overtake it. Then at most four control receipts and the
+ * requested media work budget. Legacy
  * mode counts packets; deferred mode counts one codec emission/resume or one
  * <=256-frame PCM chunk. A BUSY provider is attempted once and then returns. */
 uint16_t dbt_codec_worker_step(dbt_codec_worker_t *worker,uint32_t now_ms,uint16_t media_budget);

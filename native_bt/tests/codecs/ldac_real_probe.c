@@ -42,7 +42,7 @@ EXPORT unsigned worker_pcm_channels(unsigned i){return i<pcm_calls?pcm_channels[
 EXPORT unsigned worker_pcm_width(unsigned i){return i<pcm_calls?pcm_width[i]:0;}
 EXPORT void probe_peak_reset(void){peak=live;}
 EXPORT void probe_fail_in(unsigned n){fail_at=calls+n;}
-EXPORT int worker_init(void){dbt_codec_worker_hooks_t h={{0,allocate,release,pcm},codecs,2,0,0,0,false,{0},0};return dbt_codec_worker_init(&worker,h,2048,2);}
+EXPORT int worker_init(void){dbt_codec_worker_hooks_t h={{0,allocate,release,pcm},codecs,2,0,0,0,false,{0},0,{0}};return dbt_codec_worker_init(&worker,h,2048,2);}
 EXPORT int worker_control(unsigned op,const uint8_t *cie,unsigned size){
     uint8_t caps[DBT_CODEC_CIE_BYTES+4]={1,0,7,0};if(size>DBT_CODEC_CIE_BYTES)return -1;
     caps[3]=(uint8_t)size;for(unsigned i=0;i<size;++i)caps[4+i]=cie[i];

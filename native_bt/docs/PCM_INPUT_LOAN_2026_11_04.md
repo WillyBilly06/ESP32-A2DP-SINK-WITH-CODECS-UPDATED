@@ -43,10 +43,33 @@ python native_bt/tools/test_audio_borrowed.py
 python native_bt/tools/test_host.py
 ```
 
-Worker/provider integration remains open. It needs an explicit bounded PCM
-begin/poll/cancel acknowledgement and must retire the renderer's view before a
-codec reset, close, reconfiguration or buffer reuse. Do not substitute a BUSY
-return for an accepted borrow. Sound overlays, stop/drain/fault transitions,
-deadlines and teardown require integration tests before selecting this path.
-No product SRAM saving, decoder-to-render performance gain or hardware playback
-pass is claimed by this isolated memory-layer checkpoint.
+The optional worker hook now has explicit PCM begin/poll/cancel operations.
+PENDING plus a nonzero ticket accepts a view; BUSY accepts nothing. Only an
+OK/CANCELLED completion acknowledges retirement. A stale/invalid response
+closes admission and reports a fault while retaining the decoder and pinned
+packet. Timeout similarly requests cancellation without freeing a live loan.
+One accepted-loan receipt is serviced before control jobs, so reset, close,
+abort, suspend, drop and reconfiguration cannot overtake renderer ownership.
+The worker sleeps on notifications/deadlines while completion is pending;
+requesting cancellation is not an acknowledgement and does not trigger a spin.
+
+Ten worker groups pass ASan/UBSan, including accepted-output failure, a busy
+begin, stale acknowledgement, wrap-safe timeout and each codec lifecycle fence.
+All 184 portable groups pass. Eighty existing real-codec deferred-copy cases
+retain every PCM byte and timestamp across 37 configurations and the maximum
+LHDC fixture, with codec ASan and owned-adapter/worker UBSan coverage. This is a
+regression check of the existing codec path, not real-codec async-loan coverage.
+All three test receipts were rechecked against current source hashes. The
+ccache full-product build/source/image/layout admission passes.
+
+```powershell
+python native_bt/tools/test_codec_pcm_loan.py
+python native_bt/tools/test_probe_codec_check.py --deferred --sanitize --lhdc-source '<LHDC checkout>'
+```
+
+The [source-bound foundation results](PCM_LOAN_FOUNDATIONS_RESULTS_2026_11_04.json)
+keep these scopes separate. Renderer/provider integration remains open and
+neither loan mode nor the PCM provider hook is selected by the current product.
+Sound overlays, stop/drain/restart/fault transitions, deadlines and teardown
+require integration tests before selection. No product SRAM saving,
+decoder-to-render speedup or hardware playback pass is claimed by this checkpoint.

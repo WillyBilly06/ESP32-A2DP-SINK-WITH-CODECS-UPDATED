@@ -21,6 +21,10 @@ typedef struct {
     uint32_t ticket,next_ticket,begins,polls,cancels;
     bool begin_busy,async_done,async_cancel,async_start,output_active;
     dbt_result_t async_result;
+    const void *loan_samples;
+    uint32_t loan_ticket,loan_begins,loan_polls,loan_cancels,loan_timestamp;
+    uint16_t loan_frames;
+    bool loan_done,loan_cancelled,loan_stale;
 } fixture_t;
 static fixture_t f;
 static uint8_t *allocate(void *context,uint32_t bytes){
@@ -31,6 +35,7 @@ static uint8_t *allocate(void *context,uint32_t bytes){
 }
 static void release(void *context,uint8_t *bytes){
     fixture_t *p=context;
+    if(p->loan_samples)++p->errors;
     for(unsigned i=0;i<4;++i)if(bytes==p->pool[i]){
         if(!p->used[i]){++p->errors;return;}
         p->used[i]=false;p->live-=p->sizes[i];++p->releases;return;
@@ -59,6 +64,7 @@ static dbt_result_t open_model(dbt_codec_decoder_t *d){
 }
 static void close_model(dbt_codec_decoder_t *d){if(d->state){dbt_codec_release(d,d->state);d->state=0;}}
 static dbt_result_t reset_model(dbt_codec_decoder_t *d){
+    if(f.loan_samples)++f.errors;
     ++f.resets;if(f.reset_failure)return DBT_INVALID;
     if(!d->state)return DBT_INVALID;
     ((model_t *)d->state)->batch=0;return DBT_OK;
@@ -85,7 +91,7 @@ static dbt_result_t stream(void *context,bool start,const dbt_codec_config_t *co
 static const dbt_codec_ops_t codec={"deferred ownership model",configure,open_model,close_model,reset_model,media_model,0,resume_model,0};
 static const dbt_codec_ops_t *const codecs[]={&codec};
 static bool setup(void){
-    zero(&f,sizeof(f));dbt_codec_worker_hooks_t hooks={{&f,allocate,release,output},codecs,1,0,0,stream,true,{0},0};
+    zero(&f,sizeof(f));dbt_codec_worker_hooks_t hooks={{&f,allocate,release,output},codecs,1,0,0,stream,true,{0},0,{0}};
     return dbt_codec_worker_init(&f.worker,hooks,64,2)==DBT_OK;
 }
 static dbt_result_t submit(dbt_sink_operation_t op){
@@ -157,7 +163,7 @@ EXPORT int test_codec_deferred_deadline_and_failure_retirement(void){
 }
 static dbt_result_t async_begin(void *context,bool start,const dbt_codec_config_t *config,uint32_t *ticket){
     fixture_t *p=context;(void)config;*ticket=0;
-    if(p->begin_busy || p->ticket)return DBT_BUSY;
+    if(p->begin_busy || p->ticket || p->loan_ticket)return DBT_BUSY;
     ++p->begins;p->ticket=++p->next_ticket;p->async_start=start;p->async_done=p->async_cancel=false;
     *ticket=p->ticket;return DBT_PENDING;
 }
@@ -175,7 +181,7 @@ static dbt_result_t async_cancel(void *context,uint32_t ticket){
     ++p->cancels;p->async_cancel=true;return DBT_PENDING;
 }
 static bool setup_async(void){
-    zero(&f,sizeof(f));dbt_codec_worker_hooks_t hooks={{&f,allocate,release,output},codecs,1,0,0,0,true,{async_begin,async_poll,async_cancel},0};
+    zero(&f,sizeof(f));dbt_codec_worker_hooks_t hooks={{&f,allocate,release,output},codecs,1,0,0,0,true,{async_begin,async_poll,async_cancel},0,{0}};
     return dbt_codec_worker_init(&f.worker,hooks,64,2)==DBT_OK && control(DBT_SINK_CONFIGURE);
 }
 static bool complete_async(dbt_sink_operation_t op,uint32_t now){
@@ -238,5 +244,112 @@ EXPORT int test_codec_async_stream_deadline_and_receipt_reservation(void){
     f.async_result=DBT_OK;f.async_done=true;dbt_codec_worker_step(&f.worker,3,0);
     CHECK(dbt_codec_worker_receipt(&f.worker,&receipt)==DBT_OK && receipt.result==DBT_SINK_WORK_READY);
     CHECK(complete_async(DBT_SINK_DROP,4) && !f.live && !f.errors);
+    return 0;
+}
+static dbt_result_t loan_begin(void *context,const void *samples,uint16_t frames,const dbt_codec_config_t *config,uint32_t timestamp,uint32_t *ticket){
+    fixture_t *p=context;(void)config;*ticket=0;
+    if(p->begin_busy || p->ticket || p->loan_ticket)return DBT_BUSY;
+    if(!samples || !frames || frames>256)return DBT_INVALID;
+    ++p->loan_begins;p->loan_ticket=++p->next_ticket;p->loan_samples=samples;
+    p->loan_frames=frames;p->loan_timestamp=timestamp;p->loan_done=p->loan_cancelled=false;
+    *ticket=p->loan_ticket;return DBT_PENDING;
+}
+static dbt_result_t loan_poll(void *context,uint32_t ticket){
+    fixture_t *p=context;++p->loan_polls;
+    if(!ticket || ticket!=p->loan_ticket || p->loan_stale)return DBT_INVALID;
+    if(!p->loan_done)return DBT_PENDING;
+    dbt_result_t result=p->loan_cancelled?DBT_CANCELLED:output(context,p->loan_samples,p->loan_frames,&p->worker.decoder.config,p->loan_timestamp);
+    p->loan_samples=0;p->loan_ticket=0;
+    return result==DBT_OK?DBT_OK:DBT_CANCELLED;
+}
+static dbt_result_t loan_cancel(void *context,uint32_t ticket){
+    fixture_t *p=context;if(!ticket || ticket!=p->loan_ticket)return DBT_INVALID;
+    ++p->loan_cancels;p->loan_cancelled=true;return DBT_PENDING;
+}
+static bool setup_loan(void){
+    zero(&f,sizeof(f));dbt_codec_worker_hooks_t hooks={{&f,allocate,release,output},codecs,1,0,0,0,true,
+        {async_begin,async_poll,async_cancel},0,{loan_begin,loan_poll,loan_cancel}};
+    return dbt_codec_worker_init(&f.worker,hooks,64,2)==DBT_OK && control(DBT_SINK_CONFIGURE) && complete_async(DBT_SINK_START,0);
+}
+EXPORT int test_codec_async_pcm_completion_and_exact_order(void){
+    CHECK(setup_loan());dbt_codec_worker_t invalid;dbt_codec_worker_hooks_t bad=f.worker.hooks;
+    bad.async_pcm.cancel=0;CHECK(dbt_codec_worker_init(&invalid,bad,64,2)==DBT_INVALID);
+    bad=f.worker.hooks;bad.deferred_pcm=false;CHECK(dbt_codec_worker_init(&invalid,bad,64,2)==DBT_INVALID);
+    uint8_t bytes[]={5,2};uint32_t timestamp=0xfffffff0u;
+    CHECK(packet(bytes,1,timestamp)==DBT_OK && dbt_codec_worker_step(&f.worker,1,2)==2);
+    CHECK(f.loan_ticket && f.loan_samples && !f.pcm_frames && !dbt_codec_worker_runnable(&f.worker));
+    uint32_t when;CHECK(dbt_codec_worker_deadline(&f.worker,&when) && when==201);
+    for(unsigned i=0;i<20 && atomic_load(&f.worker.media_read)!=atomic_load(&f.worker.media_written);++i){
+        unsigned decodes=f.decodes,resumes=f.resumes;const void *samples=f.loan_samples;
+        CHECK(!dbt_codec_worker_step(&f.worker,2+i*2u,2) && f.loan_samples==samples && f.decodes==decodes && f.resumes==resumes);
+        f.loan_done=true;CHECK(dbt_codec_worker_step(&f.worker,3+i*2u,2)<=2);
+    }
+    CHECK(!f.loan_samples && !f.worker.pcm_ticket && f.pcm_frames==1200 && f.loan_begins==6 && f.decodes==2);
+    for(unsigned i=0;i<1200;++i)CHECK(f.output[2*i]==(int16_t)(500+i) && f.output[2*i+1]==(int16_t)(501+i) && f.timestamps[i]==timestamp+i);
+    CHECK(atomic_load(&f.worker.pcm_delivered_frames)==1200 && !f.errors);
+    CHECK(complete_async(DBT_SINK_DROP,50) && !f.live && !f.errors);return 0;
+}
+EXPORT int test_codec_async_pcm_cancel_before_codec_lifecycle(void){
+    const dbt_sink_operation_t ops[]={DBT_SINK_SUSPEND,DBT_SINK_CLOSE,DBT_SINK_ABORT,DBT_SINK_DROP,DBT_SINK_RECONFIGURE};
+    for(unsigned i=0;i<sizeof(ops)/sizeof(ops[0]);++i){
+        CHECK(setup_loan());uint8_t bytes[]={3,2};
+        CHECK(packet(bytes,1,0)==DBT_OK && dbt_codec_worker_step(&f.worker,1,2)==2 && f.loan_samples);
+        unsigned releases=f.releases,resets=f.resets,begins=f.begins;uint32_t live=f.live;
+        CHECK(submit(ops[i])==DBT_OK && !dbt_codec_worker_step(&f.worker,2,4));
+        dbt_codec_receipt_t receipt;CHECK(dbt_codec_worker_receipt(&f.worker,&receipt)==DBT_EMPTY);
+        CHECK(f.loan_cancels==1 && f.loan_samples && f.live==live && f.releases==releases && f.resets==resets && f.begins==begins);
+        CHECK(!dbt_codec_worker_step(&f.worker,3,4) && f.loan_samples && !f.errors);
+        f.loan_done=true;dbt_codec_worker_step(&f.worker,4,0);
+        CHECK(!f.loan_samples && !f.worker.pcm_ticket);
+        if(ops[i]!=DBT_SINK_RECONFIGURE){
+            CHECK(f.ticket && f.live==live);f.async_done=true;f.async_result=DBT_OK;dbt_codec_worker_step(&f.worker,5,0);
+        }
+        CHECK(dbt_codec_worker_receipt(&f.worker,&receipt)==DBT_OK && receipt.result==DBT_SINK_WORK_READY && !f.errors);
+        if(f.live)CHECK(complete_async(DBT_SINK_DROP,6));
+        CHECK(!f.live && !f.errors && f.allocations==f.releases);
+    }
+    return 0;
+}
+EXPORT int test_codec_async_pcm_deadline_and_stale_retirement(void){
+    for(unsigned stale=0;stale<2;++stale){
+        CHECK(setup_loan());uint8_t bytes[]={8,1};uint32_t began=0xfffffff0u;
+        CHECK(packet(bytes,1,0)==DBT_OK && dbt_codec_worker_step(&f.worker,began,2)==2 && f.loan_samples);
+        unsigned releases=f.releases;uint32_t live=f.live;
+        if(stale){f.loan_stale=true;CHECK(!dbt_codec_worker_step(&f.worker,began+1u,2));}
+        else {
+            CHECK(!dbt_codec_worker_step(&f.worker,began+199u,2) && !atomic_load(&f.worker.faults));
+            CHECK(!dbt_codec_worker_step(&f.worker,began+200u,2));
+        }
+        CHECK(atomic_load(&f.worker.faults)==1 && f.loan_samples && f.live==live && f.releases==releases);
+        uint32_t when;CHECK(!dbt_codec_worker_runnable(&f.worker) && !dbt_codec_worker_deadline(&f.worker,&when));
+        CHECK(packet(bytes,2,600)==DBT_BUSY && atomic_load(&f.worker.pcm_timeouts)==(stale?0u:1u));
+        f.loan_stale=false;CHECK(submit(DBT_SINK_DROP)==DBT_OK);
+        CHECK(!dbt_codec_worker_step(&f.worker,began+201u,0) && f.loan_samples && f.loan_cancels==1 && !f.errors);
+        f.loan_done=true;dbt_codec_worker_step(&f.worker,began+202u,0);
+        CHECK(!f.loan_samples && f.ticket && f.live==live);
+        f.async_done=true;f.async_result=DBT_OK;dbt_codec_worker_step(&f.worker,began+203u,0);
+        dbt_codec_receipt_t receipt;CHECK(dbt_codec_worker_receipt(&f.worker,&receipt)==DBT_OK && receipt.result==DBT_SINK_WORK_READY);
+        CHECK(!f.live && !f.errors && atomic_load(&f.worker.faults)==1);
+    }
+    return 0;
+}
+EXPORT int test_codec_async_pcm_failed_completion_and_busy_begin(void){
+    for(unsigned busy=0;busy<2;++busy){
+        CHECK(setup_loan());uint8_t bytes[]={4,1};f.begin_busy=busy!=0;
+        CHECK(packet(bytes,1,0)==DBT_OK && dbt_codec_worker_step(&f.worker,1,2)==(busy?1u:2u));
+        unsigned resets=f.resets;uint32_t live=f.live;
+        if(busy){
+            CHECK(!f.loan_samples && !f.worker.pcm_ticket && !f.loan_begins);
+            CHECK(!dbt_codec_worker_step(&f.worker,201,2));
+            CHECK(atomic_load(&f.worker.pcm_timeouts)==1 && !atomic_load(&f.worker.pcm_failures));
+        }else{
+            CHECK(f.loan_samples && f.worker.pcm_ticket);f.pcm_failure=true;f.loan_done=true;
+            CHECK(!dbt_codec_worker_step(&f.worker,2,0));
+            CHECK(atomic_load(&f.worker.pcm_failures)==1 && !atomic_load(&f.worker.pcm_timeouts));
+        }
+        CHECK(!f.loan_samples && !f.worker.pcm_ticket && !f.worker.pending_pcm && f.live==live && f.resets==resets);
+        CHECK(atomic_load(&f.worker.faults)==1 && atomic_load(&f.worker.media_drops)==1 && !f.errors);
+        f.begin_busy=false;CHECK(complete_async(DBT_SINK_DROP,202) && !f.live && !f.errors);
+    }
     return 0;
 }

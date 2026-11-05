@@ -32,6 +32,13 @@ watchdog warnings remain. Maximum LHDC still fails memory admission. Separate
 [CRC-validated records](docs/CAPTURE_CRC_2026_11_04.json) now identify its exact
 requested format and allocation failure; damaged records are excluded.
 
+The [core1 logger follow-up](docs/RF_LOGGER_CORE1_2026_11_04.json) retains live
+snapshots during overloaded LDAC96 playback; the longest observed reporting
+gap fell from 32.057 s to 2.492 s. Audio still underruns. The
+[optional PCM-loan foundations](docs/PCM_INPUT_LOAN_2026_11_04.md) pass numerical
+and ownership tests; renderer/sound integration remains open and the product
+continues using its copied-input path. No maximum-LHDC output pass is claimed.
+
 The [resumable PCM worker checkpoint](docs/IDF61_ASYNC_PCM_2026_11_04.md) adds
 80 real-codec host comparisons with sanitizer coverage and 38 passing ESP32
 deferred-worker checks. The render provider, stream/sound transactions and full

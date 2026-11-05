@@ -164,7 +164,7 @@ static int run_case(case_t c){
     dbt_codec_close(&direct);TRY(!ctx.live && ctx.allocs==ctx.frees);
     ctx.deferred=true;ctx.want_pause=true;ctx.calls=0;ctx.builder_mux=(dbt_aac_mux_t){0};now=0;
     const dbt_codec_ops_t *codecs[]={ops};
-    dbt_codec_worker_hooks_t wh={hooks,codecs,1,0,0,0,true,{0}};
+    dbt_codec_worker_hooks_t wh={hooks,codecs,1,0,0,0,true,{0},0,{0}};
     TRY(dbt_codec_worker_init(&worker,wh,4096,2)==DBT_OK);worker_initialized=true;
     uint8_t configuration[4+DBT_CODEC_CIE_BYTES]={1,0,7,0};configuration[3]=(uint8_t)cie_size(c);
     memcpy(configuration+4,cie_for(c),cie_size(c));

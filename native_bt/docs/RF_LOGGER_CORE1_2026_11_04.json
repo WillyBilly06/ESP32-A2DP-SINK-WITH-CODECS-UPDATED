@@ -1,0 +1,252 @@
+{
+  "date": "2026-11-04",
+  "source_commit": "b4193fe9d41197f88d25d90a62c75392924285da",
+  "image_sha256": "a08adf67b1c691d28a12aa6eb06f3311747a4aaadb51fd2129a04594a3595468",
+  "scope": "Finite LDAC96/S32 + BDK BLE EQ with decoder/render0 and logger1; optional input-loan core is linked but not selected; asynchronous PCM worker changes were made later off-board",
+  "result": "LIVE_REPORTING_OBSERVED_AUDIO_THROUGHPUT_STILL_FAILS",
+  "scheduler_layout_unchecksummed": [
+    {
+      "probe": "scheduler_layout",
+      "decoder_core": 0,
+      "decoder_priority": 5,
+      "renderer_core": 0,
+      "renderer_priority": 6,
+      "logger_core": 1,
+      "logger_priority": 1
+    }
+  ],
+  "capture_audit": {
+    "scope": "offline record integrity only; no runtime/audio qualification",
+    "passed": false,
+    "snapshot_records": 1040,
+    "crc32_verified": 1040,
+    "legacy_timestamp_only": 0,
+    "other_records_unchecked": 725,
+    "all_snapshot_records_checksummed": false,
+    "rejected": [
+      {
+        "line": 1215,
+        "reason": "malformed/interleaved JSON"
+      },
+      {
+        "line": 1459,
+        "reason": "malformed/interleaved JSON"
+      },
+      {
+        "line": 1709,
+        "reason": "malformed/interleaved JSON"
+      },
+      {
+        "line": 1955,
+        "reason": "malformed/interleaved JSON"
+      },
+      {
+        "line": 2705,
+        "reason": "malformed/interleaved JSON"
+      }
+    ]
+  },
+  "crc_valid_i2s_running_records": 16,
+  "active_pcm_dma_payload_bytes": [
+    89088
+  ],
+  "nominal_payload_bytes_excludes_driver_and_allocator_overhead": true,
+  "maximum_vhci_observation_gap_us": 2492151,
+  "previous_decoder0_logger0_maximum_gap_us": 32057291,
+  "comparison_limits": [
+    "Different play duration/control timing and a newly linked but unselected input-loan core; no isolated CPU speedup or transport-latency regression conclusion.",
+    "Snapshot intervals and elapsed work include preemption; the five malformed/interleaved/truncated records are excluded.",
+    "Controller/host maximum measured wall spans remain tens of milliseconds; their complete latency qualification is open.",
+    "No DSP/I2S continuity, acoustic fidelity or long-duration pass."
+  ],
+  "runtime_health": {
+    "task_watchdog_triggers": 7,
+    "idle_starvation_warnings_by_core": {
+      "0": 7,
+      "1": 0
+    },
+    "watchdog_running_task_samples_by_core": {
+      "0": {
+        "native_render": 4,
+        "native_decoder": 3
+      },
+      "1": {
+        "native_pcm_log": 1,
+        "btController": 1,
+        "main": 5
+      }
+    },
+    "interrupt_watchdog_timeouts": 0,
+    "backtrace_records": 7,
+    "runtime_health_passed": false
+  },
+  "last_crc_time_valid_records": {
+    "vhci_timing": {
+      "probe": "vhci_timing",
+      "collection_cycle_us": 118684626,
+      "packets": 5085,
+      "acl": 3930,
+      "events": 1155,
+      "bytes": 2439773,
+      "isr_callbacks": 0,
+      "rejected": 0,
+      "callback_max_us": 181,
+      "first_rx_to_poll_max_us": 25888,
+      "host_poll_max_us": 28868,
+      "ingress_high_water_bytes": 2050,
+      "ingress_rejected": 0,
+      "logger_stack_low_water_bytes": 1544,
+      "watchdog_events": 7,
+      "watchdog_hook_at_us": 73237419,
+      "watchdog_isr_core": 1,
+      "snapshot_begin_us": 118703505,
+      "at_us": 118703600,
+      "snapshot_span_us": 95,
+      "record_crc32": "6e12ca71"
+    },
+    "media_drop_reasons": {
+      "probe": "media_drop_reasons",
+      "collection_cycle_us": 118684626,
+      "queue_full": 1804,
+      "decode_reject": 0,
+      "reset_failed": 0,
+      "pcm_failed": 0,
+      "pcm_timeout": 0,
+      "pcm_busy": 0,
+      "input_sequence_breaks": 0,
+      "input_ssrc_changes": 0,
+      "queue_high_water": 8,
+      "host_trace_lost": 1471,
+      "worker_trace_lost": 1197,
+      "snapshot_records_lost": 0,
+      "snapshot_begin_us": 118745262,
+      "at_us": 118745273,
+      "snapshot_span_us": 11,
+      "record_crc32": "d2ead98a"
+    },
+    "decoder_execution": {
+      "probe": "decoder_execution",
+      "collection_cycle_us": 118684626,
+      "calls": 8816,
+      "elapsed_us": 7702395,
+      "maximum_us": 23691,
+      "wall_time_includes_preemption": true,
+      "includes_inline_pcm": false,
+      "histogram_us_le": [
+        125,
+        250,
+        500,
+        1000,
+        2000,
+        4000,
+        8000
+      ],
+      "histogram_counts": [
+        1771,
+        0,
+        0,
+        1290,
+        5749,
+        2,
+        0,
+        4
+      ],
+      "snapshot_begin_us": 118811230,
+      "at_us": 118811233,
+      "snapshot_span_us": 3,
+      "record_crc32": "22e2ce24"
+    },
+    "render_work": {
+      "probe": "render_work",
+      "collection_cycle_us": 118684626,
+      "calls": 14089,
+      "elapsed_us": 26915536,
+      "maximum_us": 15075,
+      "wall_time_includes_preemption": true,
+      "input_ready_frames": 0,
+      "render_stack_low_water_bytes": 4324,
+      "allocation_failed_bytes": 0,
+      "allocation_failure_free": 0,
+      "allocation_failure_largest": 0,
+      "request_fault": 0,
+      "stale_receipts": 0,
+      "snapshot_begin_us": 118969673,
+      "at_us": 119019652,
+      "snapshot_span_us": 49979,
+      "record_crc32": "a8578ed0"
+    },
+    "i2s_callback_work": {
+      "probe": "i2s_callback_work",
+      "configured_irq_priority": 2,
+      "calls": 28465,
+      "elapsed_us": 250552,
+      "maximum_us": 46,
+      "core": 0,
+      "application_callback_only": true,
+      "elapsed_includes_preemption": true,
+      "snapshot_begin_us": 118969673,
+      "at_us": 118994911,
+      "snapshot_span_us": 25238,
+      "record_crc32": "0a564361"
+    },
+    "native_i2s": {
+      "probe": "native_i2s",
+      "running": 0,
+      "failed": 0,
+      "rate": 96000,
+      "requested_bytes": 0,
+      "accepted_frames": 1803264,
+      "rendered_frames": 1803287,
+      "ready_frames": 0,
+      "dma_eofs": 28465,
+      "dma_source_frames": 1803287,
+      "underrun_frames": 1837952,
+      "descriptor_errors": 0,
+      "max_eof_gap_us": 1374,
+      "maximum_render_us": 15075,
+      "first_underrun_accepted_frames": 13568,
+      "first_underrun_dma_frames": 13056,
+      "snapshot_begin_us": 118969673,
+      "at_us": 119083398,
+      "snapshot_span_us": 113725,
+      "record_crc32": "8727a77f"
+    },
+    "i2s_descriptor_faults": {
+      "probe": "i2s_descriptor_faults",
+      "collection_cycle_us": 118684626,
+      "shape": 0,
+      "pool": 0,
+      "order": 0,
+      "expected_index": 0,
+      "observed_index": 0,
+      "observed_size": 0,
+      "fault_at_us": 0,
+      "fault_gap_us": 0,
+      "fault_stopping": 0,
+      "snapshot_begin_us": 118969673,
+      "at_us": 119057143,
+      "snapshot_span_us": 87470,
+      "record_crc32": "ff125a34"
+    }
+  },
+  "render_mean_us_per_bounded_unit": 1910.3936404287033,
+  "ble_controls_readback": {
+    "deep_bass": [
+      8,
+      -1,
+      -2
+    ],
+    "balanced_restored_while_playing": [
+      0,
+      0,
+      0
+    ]
+  },
+  "finite_rf_return": {
+    "baseline_boot_observed": true,
+    "baseline_fatal_marker": false,
+    "prime_capture_bytes": 0
+  },
+  "phone_paused_verified": true,
+  "hardware_evidence_archive": "native_bt/_build/hardware/runs/1793839341844702200-a08adf67b1c6"
+}
