@@ -218,6 +218,8 @@ static void control_execute_job(control_job_t *job) {
 static void control_task(void *unused) {
     bool eq=(uintptr_t)unused!=0,retire=false;QueueHandle_t queue=eq?eq_work:control_work;
     SemaphoreHandle_t signal=eq?eq_signal:control_signal;
+    TickType_t maintenance_wait=pdMS_TO_TICKS(20);
+    if(!maintenance_wait)maintenance_wait=1;
     for (;;) {
         if(retire){
             if(!eq && (uxQueueMessagesWaiting(queue) || atomic_load_explicit(&external_worker_required,memory_order_acquire))){
@@ -226,13 +228,16 @@ static void control_task(void *unused) {
                 retire=false;continue;
             }
             if(!eq && control_hooks.worker_poll && !control_hooks.worker_poll(control_hooks.context,true)){
-                vTaskDelay(pdMS_TO_TICKS(20));continue;
+                /* A command or provider completion wakes retirement early.
+                 * The persistent binary semaphore also retains a wake that
+                 * arrives between the level checks and this wait. */
+                (void)xSemaphoreTake(signal,maintenance_wait);continue;
             }
             control_job_t *done=(control_job_t *)(uintptr_t)(eq?1u:2u);
             (void)xQueueSend(control_done,&done,portMAX_DELAY);xTaskNotifyGive(control_owner);vTaskDelete(NULL);return;
         }
         control_job_t *job=0;
-        TickType_t wait=(!eq && control_hooks.worker_poll)?pdMS_TO_TICKS(20):portMAX_DELAY;
+        TickType_t wait=(!eq && control_hooks.worker_poll)?maintenance_wait:portMAX_DELAY;
         if(xQueueReceive(queue,&job,0)!=pdTRUE){
             if(!eq && control_hooks.worker_poll)(void)control_hooks.worker_poll(control_hooks.context,false);
             (void)xSemaphoreTake(signal,wait);continue;

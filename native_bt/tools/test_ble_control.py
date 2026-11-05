@@ -47,17 +47,20 @@ def hashes(paths):
 
 
 def main():
+    global OUT
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--list-inputs', action='store_true', help='Print workspace-root-relative inputs as JSON and exit.')
     parser.add_argument('--sanitize', action='store_true', help='Use Linux AddressSanitizer and UndefinedBehaviorSanitizer.')
+    parser.add_argument('--tick-hz', type=int, choices=(10,100,1000), default=1000)
     args = parser.parse_args()
+    if args.tick_hz!=1000:OUT=OUT/('tick'+str(args.tick_hz))
     if args.list_inputs:
         paths = inputs()
         print(json.dumps({'workspace_relative_inputs': [p.relative_to(WORKSPACE).as_posix() for p in paths]}, indent=2))
         return 0
 
     OUT.mkdir(parents=True, exist_ok=True)
-    result = {'schema': 1, 'passed': False, 'sanitize': args.sanitize,
+    result = {'schema': 1, 'passed': False, 'sanitize': args.sanitize, 'tick_hz':args.tick_hz,
               'scope': 'offline ATT/product parser and fake NVS/task queues; no target, RF, device or real NVS evidence',
               'source_sha256': {}, 'stage': 'preflight'}
     status = 1
@@ -76,7 +79,13 @@ def main():
         cc = (shutil.which('clang') or (r'C:\Program Files\LLVM\bin\clang.exe' if os.name == 'nt' else shutil.which('gcc')))
         if not cc:
             raise RuntimeError('C compiler not found')
-        flags = ['-std=c11', '-O1', '-Wall', '-Wextra', '-Werror']
+        cache=shutil.which('ccache')
+        if not cache:
+            matches=sorted((Path.home()/'.espressif/tools/ccache').glob('*/ccache-*/ccache.exe'))
+            if matches:cache=str(matches[-1])
+        if not cache:raise RuntimeError('ccache required')
+        env.pop('CCACHE_DISABLE',None)
+        flags = ['-std=c11', '-O1', '-Wall', '-Wextra', '-Werror','-DDBT_BLE_TEST_TICK_HZ='+str(args.tick_hz)]
         if args.sanitize:
             flags += ['-g', '-fno-omit-frame-pointer', '-fsanitize=address,undefined', '-fno-sanitize-recover=all']
             env['ASAN_OPTIONS'] = 'detect_leaks=1:halt_on_error=1:abort_on_error=1'
@@ -84,7 +93,7 @@ def main():
         for name, sources, include_dirs in (('schema', SCHEMA_SOURCES, INCLUDES), ('protocol', PROTOCOL_SOURCES, [ROOT / 'include'])):
             exe = OUT / (name + ('.exe' if os.name == 'nt' else ''))
             result['stage'] = name + '_compile'
-            subprocess.run([cc, *flags, *['-I' + str(x) for x in include_dirs], *map(str, sources), '-o', str(exe)], env=env, check=True)
+            subprocess.run([cache, cc, *flags, *['-I' + str(x) for x in include_dirs], *map(str, sources), '-o', str(exe)], env=env, check=True)
             result['stage'] = name + '_run'
             subprocess.run([str(exe)], env=env, check=True)
         result['stage'] = 'source_stability'

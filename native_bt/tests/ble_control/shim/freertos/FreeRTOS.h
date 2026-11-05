@@ -11,4 +11,7 @@ typedef uint32_t TickType_t;
 #define portMAX_DELAY UINT32_MAX
 #endif
 
-#define pdMS_TO_TICKS(n) ((TickType_t)(n))
+#ifndef DBT_BLE_TEST_TICK_HZ
+#define DBT_BLE_TEST_TICK_HZ 1000u
+#endif
+#define pdMS_TO_TICKS(n) ((TickType_t)((uint64_t)(n)*DBT_BLE_TEST_TICK_HZ/1000u))

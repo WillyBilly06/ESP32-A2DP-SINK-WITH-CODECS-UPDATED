@@ -17,7 +17,7 @@ static unsigned allocations, commits, published, publish_failures,
 static jmp_buf worker_exit;
 static bool running_worker,fail_spawn,resume_test,resume_injected;
 static unsigned spawn_calls;
-static unsigned normal_polls,retire_polls,retire_delays,peer_losses;
+static unsigned normal_polls,retire_polls,retire_delays,retire_waits,peer_losses;
 static bool worker_context, fail_commit, load_fixture, load_error,
     bad_eq_fixture;
 static bool committed_bond;
@@ -98,7 +98,16 @@ BaseType_t xQueueSend(QueueHandle_t v, const void *p, TickType_t timeout) {
   return pdTRUE;
 }
 BaseType_t xQueueReceive(QueueHandle_t v, void *p, TickType_t timeout) {
-  (void)timeout;
+  if(worker_context && v==control_signal)assert(timeout);
+  if(worker_context && v==control_signal && timeout && timeout!=portMAX_DELAY && retire_polls){
+    assert(timeout==(pdMS_TO_TICKS(20)?pdMS_TO_TICKS(20):1));retire_waits++;
+    if(resume_test && !resume_injected){
+      resume_injected=true;worker_context=false;
+      const dbt_link_t remote={.handle=7,.generation=1,.kind=DBT_LINK_LE};
+      const uint8_t ping[]={0xff};const dbt_att_write_t w={.data=ping,.size=1};
+      assert(control_submit(&remote,&w,true,0)==0);worker_context=true;
+    }
+  }
   queue_t *q = v;
   if (!q->count)
     return 0;
@@ -136,12 +145,6 @@ void vTaskDelete(TaskHandle_t h) {
 void taskYIELD(void) { assert(worker_context); }
 void vTaskDelay(TickType_t t) {
   assert(worker_context && t);retire_delays++;
-  if(resume_test && !resume_injected){
-    resume_injected=true;worker_context=false;
-    const dbt_link_t remote={.handle=7,.generation=1,.kind=DBT_LINK_LE};
-    const uint8_t ping[]={0xff};const dbt_att_write_t w={.data=ping,.size=1};
-    assert(control_submit(&remote,&w,true,0)==0);worker_context=true;
-  }
 }
 void *heap_caps_malloc(size_t n, uint32_t flags) {
   (void)flags;
@@ -714,14 +717,15 @@ int main(void) {
   pump_control();assert(control_worker && !control_retiring);
   assert(probe_gatt_control_worker_required(false)==DBT_OK);
   run_general_worker();
-  assert(normal_polls==1 && retire_polls==3 && retire_delays==2);
+  assert(normal_polls==1 && retire_polls==3 && !retire_delays && retire_waits==2);
   assert(probe_gatt_control_worker_required(false)==DBT_OK);
   pump_control();assert(!control_worker && !control_jobs);
-  normal_polls=retire_polls=retire_delays=0;resume_test=true;
+  normal_polls=retire_polls=retire_delays=retire_waits=0;resume_test=true;
   control_worker=control_retiring=true;control_job_t *retire_item=0;
   assert(xQueueSend(control_work,&retire_item,0)==pdTRUE);
   run_general_worker();
   assert(resume_injected && normal_polls==1 && retire_polls==3 && control_jobs==1);
+  assert(!retire_delays && retire_waits==2);
   pump_control();assert(!control_worker && !control_retiring && !control_jobs && !allocations);
   resume_test=false;
   /* Wakes remain safe after the task deleted itself; no task handle is kept. */
