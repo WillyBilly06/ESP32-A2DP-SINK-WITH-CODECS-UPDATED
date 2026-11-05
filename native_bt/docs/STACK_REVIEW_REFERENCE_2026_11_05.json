@@ -1,0 +1,43 @@
+{
+  "reference": "bluekitchen/btstack",
+  "commit": "9edb5d82ea6ec4466a393415d65030929330acdf",
+  "scope": "Comparison only. No BTstack implementation is integrated into the owned host.",
+  "files": [
+    {
+      "path": "src/hci.c",
+      "sha256": "591fc31100de2d7da131a061f35e530bf1dea31191cca658d66379906f222cd5"
+    },
+    {
+      "path": "src/classic/avdtp.c",
+      "sha256": "db9814486a97f3e1717ff9db38703ab0b3e64be5093cf282f895926090cd318d"
+    },
+    {
+      "path": "src/classic/sdp_server.c",
+      "sha256": "70fb5a5cda5aa69b02cce756b46e8c85c0b8d148fc2fdbd3232531d377a2e1e5"
+    },
+    {
+      "path": "src/ble/att_server.c",
+      "sha256": "0e55caf82c14102173c75bebae0857e7090224af2c669d5b94a5ebb7efdc0671"
+    },
+    {
+      "path": "src/classic/a2dp_sink.c",
+      "sha256": "a31b3c3e457e890b8302653fe7dc918fc7dec68789e6e9cf412316db4df1eaef"
+    },
+    {
+      "path": "src/ble/gatt_client.c",
+      "sha256": "cc42aecd7193e82e2b37f8687a2dd758dc3acba25318ffc460fb0a5b0c9fb3d8"
+    },
+    {
+      "path": "src/classic/avrcp.c",
+      "sha256": "5f35b86c83b2a8ba777c3a55f5992ae46fbccf5a8a175d8c724ba1f5fa801fe8"
+    },
+    {
+      "path": "src/l2cap.c",
+      "sha256": "6524a1de9c96120f458926b440cacdeb52a1d2140c9c549b5a35799c041d1093"
+    },
+    {
+      "path": "src/ble/sm.c",
+      "sha256": "9b2b79bcbad078db73752d1cc3240521a5231c7b0fb5e9b3c968dc4558cc18d3"
+    }
+  ]
+}

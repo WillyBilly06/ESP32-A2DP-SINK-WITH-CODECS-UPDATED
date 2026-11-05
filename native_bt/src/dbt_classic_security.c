@@ -610,10 +610,15 @@ dbt_result_t dbt_classic_security_require(dbt_classic_security_t *security, cons
     }
     bool previous_requirement=peer->locally_required;
     peer->locally_required=true;
-    if(!peer->force_pair && ((peer->accepted_pairing && peer->io_replied &&
-        (!peer->pairing_complete || !peer->key_known)) ||
-       (peer->key_known && link->encrypted && peer->encryption_mode &&
-        peer->encryption_key_epoch==peer->key_epoch)))return DBT_BUSY;
+    /* A remote IO Capability Response already means SSP is in flight, even
+     * before our IO Capability Request arrives. L2CAP service demand must not
+     * start a competing authentication procedure in that interval. The same
+     * deferral applies when replacing an unusable cached key. */
+    bool pairing_in_progress=(peer->accepted_pairing && peer->io_replied) ||
+                             peer->remote_io!=0xff;
+    if((pairing_in_progress && (!peer->pairing_complete || !peer->key_known)) ||
+       (!peer->force_pair && peer->key_known && link->encrypted && peer->encryption_mode &&
+        peer->encryption_key_epoch==peer->key_epoch))return DBT_BUSY;
     if (!peer->auth_requested) {
         uint8_t parameters[2];
         put16(parameters, link->handle);

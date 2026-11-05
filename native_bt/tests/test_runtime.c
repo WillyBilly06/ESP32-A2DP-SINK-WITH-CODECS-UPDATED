@@ -693,6 +693,8 @@ EXPORT int test_runtime_control_cross_link_scheduling(void){
 static int gap_fixture(void){
     clock_ms=0;int r=fixture(0);if(r)return r;
     dbt_gap_config_t config={0};config.name[0]='N';config.name[1]='B';
+    config.class_of_device[0]=0x14;config.class_of_device[1]=4;config.class_of_device[2]=0x24;
+    config.classic_services[0]=0x110b;config.classic_services[1]=0x110e;config.classic_service_count=2;
     config.advertising_minimum=0x80;config.advertising_maximum=0x100;
     config.advertising[0]=2;config.advertising[1]=1;config.advertising[2]=2;config.advertising_size=3;
     dbt_gap_hooks_t hooks={0};CHECK(dbt_gap_init(&gap,&peers[0].runtime.host,config,hooks)==DBT_OK);
@@ -700,13 +702,20 @@ static int gap_fixture(void){
 }
 static int gap_ready(void){
     int r=gap_fixture();if(r)return r;
-    static const uint16_t expected[]={0x0c01,0x2001,0x0c6d,0x0c13,0x0c24,0x0c56,0x2006,0x2008,0x2009};
-    for(unsigned i=0;i<9;++i){
+    static const uint16_t expected[]={0x0c01,0x2001,0x0c6d,0x0c13,0x0c24,0x0c56,0x2006,0x2008,0x2009,0x0c52};
+    for(unsigned i=0;i<sizeof(expected)/sizeof(expected[0]);++i){
         dbt_gap_poll(&gap,++clock_ms);dbt_runtime_poll(&peers[0].runtime,clock_ms,8,0);
         CHECK(dbt_read_le16(peers[0].wire+1)==expected[i] && !peers[0].ready);
         if(i==0)CHECK(peers[0].wire[11]&0x20);
         if(i==3)CHECK(peers[0].wire_size==252 && peers[0].wire[4]=='N' && peers[0].wire[6]==0 && peers[0].wire[251]==0);
+        if(i==4)CHECK(peers[0].wire[4]==0x14 && peers[0].wire[5]==4 && peers[0].wire[6]==0x24);
         if(i==6)CHECK(peers[0].wire[17]==7 && peers[0].wire[18]==0);
+        if(i==9){
+            CHECK(gap.state==DBT_GAP_CONFIGURING && peers[0].wire_size==245);
+            CHECK(peers[0].wire[4]==0 && peers[0].wire[5]==3 && peers[0].wire[6]==9 && peers[0].wire[7]=='N' && peers[0].wire[8]=='B');
+            CHECK(peers[0].wire[9]==5 && peers[0].wire[10]==3 && dbt_read_le16(peers[0].wire+11)==0x110b && dbt_read_le16(peers[0].wire+13)==0x110e);
+            for(unsigned j=15;j<245;++j)CHECK(peers[0].wire[j]==0);
+        }
         controller(&peers[0]);dbt_runtime_poll(&peers[0].runtime,++clock_ms,8,0);
     }
     CHECK(gap.state==DBT_GAP_READY && !gap.advertising && gap.classic_scan==0);return 0;
@@ -1009,13 +1018,18 @@ EXPORT int test_gap_rename_transaction(void){
     dbt_gap_poll(&gap,++clock_ms);dbt_runtime_poll(&p->runtime,clock_ms,8,0);
     CHECK(dbt_read_le16(p->wire+1)==0x2009 && p->wire[4]==31 && p->wire[5]==30 && p->wire[6]==8);
     controller(p);dbt_runtime_poll(&p->runtime,++clock_ms,8,0);
+    CHECK(dbt_gap_rename_result(&gap,token,&applied,&status)==DBT_BUSY && gap.config.name[0]=='N');
+    dbt_gap_poll(&gap,++clock_ms);dbt_runtime_poll(&p->runtime,clock_ms,8,0);
+    CHECK(dbt_read_le16(p->wire+1)==0x0c52 && p->wire_size==245 && p->wire[4]==0 && p->wire[5]==33 && p->wire[6]==9 && p->wire[7]=='a');
+    CHECK(p->wire[39]==5 && p->wire[40]==3 && dbt_read_le16(p->wire+41)==0x110b && dbt_read_le16(p->wire+43)==0x110e);
+    controller(p);dbt_runtime_poll(&p->runtime,++clock_ms,8,0);
     CHECK(dbt_gap_rename_result(&gap,token,&applied,&status)==DBT_OK && applied && status==0 && !gap.rename_partial);
     CHECK(gap.config.name[0]=='a' && gap.config.name[31]==(char)('a'+31%26) && !gap.config.name[32]);
     uint8_t utf[32];for(unsigned i=0;i<28;++i)utf[i]='x';utf[28]=0xe2;utf[29]=0x82;utf[30]=0xac;utf[31]='b';
     uint32_t next;CHECK(dbt_gap_rename(&gap,utf,32,&next)==DBT_OK && next!=token);
     CHECK(gap.rename_scan_size==30 && gap.rename_scan[0]==29 && gap.rename_scan[1]==8);
     CHECK(dbt_gap_rename_result(&gap,token,&applied,&status)==DBT_EMPTY);
-    for(unsigned i=0;i<2;++i){dbt_gap_poll(&gap,++clock_ms);dbt_runtime_poll(&p->runtime,clock_ms,8,0);controller(p);dbt_runtime_poll(&p->runtime,++clock_ms,8,0);}
+    for(unsigned i=0;i<3;++i){dbt_gap_poll(&gap,++clock_ms);dbt_runtime_poll(&p->runtime,clock_ms,8,0);controller(p);dbt_runtime_poll(&p->runtime,++clock_ms,8,0);}
     CHECK(dbt_gap_rename_result(&gap,next,&applied,&status)==DBT_OK && applied);return 0;
 }
 EXPORT int test_gap_rename_failure_and_bounds(void){
@@ -1031,8 +1045,15 @@ EXPORT int test_gap_rename_failure_and_bounds(void){
     CHECK(dbt_gap_rename_result(&gap,token,&applied,&status)==DBT_OK && !applied && status==0x0c);
     CHECK(gap.state==DBT_GAP_READY && gap.config.name[0]=='N' && gap.rename_partial);
     uint32_t retry;CHECK(dbt_gap_rename(&gap,good,1,&retry)==DBT_OK);
-    for(unsigned i=0;i<2;++i){dbt_gap_poll(&gap,++clock_ms);dbt_runtime_poll(&p->runtime,clock_ms,8,0);controller(p);dbt_runtime_poll(&p->runtime,++clock_ms,8,0);}
+    for(unsigned i=0;i<3;++i){dbt_gap_poll(&gap,++clock_ms);dbt_runtime_poll(&p->runtime,clock_ms,8,0);controller(p);dbt_runtime_poll(&p->runtime,++clock_ms,8,0);}
     CHECK(dbt_gap_rename_result(&gap,retry,&applied,&status)==DBT_OK && applied && !gap.rename_partial);
+    static const uint8_t eir_name[]={'R'};CHECK(dbt_gap_rename(&gap,eir_name,1,&retry)==DBT_OK);
+    for(unsigned i=0;i<2;++i){dbt_gap_poll(&gap,++clock_ms);dbt_runtime_poll(&p->runtime,clock_ms,8,0);controller(p);dbt_runtime_poll(&p->runtime,++clock_ms,8,0);}
+    dbt_gap_poll(&gap,++clock_ms);dbt_runtime_poll(&p->runtime,clock_ms,8,0);p->ready=true;
+    CHECK(complete(p,0x0c52,1,0x0c)==DBT_OK);dbt_runtime_poll(&p->runtime,++clock_ms,8,0);
+    CHECK(dbt_gap_rename_result(&gap,retry,&applied,&status)==DBT_OK && !applied && status==0x0c && gap.config.name[0]=='Q' && gap.rename_partial);
+    dbt_gap_config_t invalid=gap.config;invalid.classic_service_count=DBT_GAP_CLASSIC_SERVICES+1;
+    CHECK(dbt_gap_init(&gap,&p->runtime.host,invalid,(dbt_gap_hooks_t){0})==DBT_INVALID);
     gap.rename_serial=UINT32_MAX;CHECK(dbt_gap_rename(&gap,good,1,&retry)==DBT_NO_SPACE);
     return 0;
 }

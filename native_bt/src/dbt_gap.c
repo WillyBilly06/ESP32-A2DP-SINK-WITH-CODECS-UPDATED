@@ -5,6 +5,19 @@ static void copy(uint8_t *out, const uint8_t *in, unsigned size) {
     for (unsigned i = 0; i < size; ++i) out[i] = in[i];
 }
 static void put16(uint8_t *out, uint16_t value) { out[0] = (uint8_t)value; out[1] = (uint8_t)(value >> 8); }
+/* HCI Write Extended Inquiry Response: FEC octet followed by 240 octets of
+ * length/type/value data. Keep the advertised name and installed 16-bit
+ * service classes together; controller command storage owns its copied bytes. */
+static void inquiry_response(uint8_t data[248],const char name[33],const dbt_gap_config_t *config){
+    unsigned length=0;while(length<32u && name[length])++length;
+    data[0]=0;data[1]=(uint8_t)(length+1u);data[2]=9;
+    copy(data+3,(const uint8_t *)name,length);
+    if(config->classic_service_count){
+        unsigned next=length+3u;
+        data[next]=(uint8_t)(2u*config->classic_service_count+1u);data[next+1u]=3;
+        for(unsigned i=0;i<config->classic_service_count;++i)put16(data+next+2u+2u*i,config->classic_services[i]);
+    }
+}
 static void mask_event(uint8_t mask[8], uint8_t event) {
     mask[(event - 1u) / 8u] |= (uint8_t)(1u << ((event - 1u) % 8u));
 }
@@ -14,7 +27,7 @@ static void configured(void *context, uint16_t opcode, dbt_command_outcome_t out
     (void)opcode; (void)returns;
     gap->command_pending = false; gap->last_status = status;
     if (outcome != DBT_COMMAND_SUCCESS || size != 1) { gap->state = DBT_GAP_FAILED; return; }
-    if (++gap->step == 9) gap->state = DBT_GAP_READY;
+    if (++gap->step == 10) gap->state = DBT_GAP_READY;
 }
 static void replied(void *context, uint16_t opcode, dbt_command_outcome_t outcome,
                       uint8_t status, const uint8_t *returns, uint8_t size) {
@@ -41,6 +54,7 @@ static void visibility(void *context, uint16_t opcode, dbt_command_outcome_t out
 }
 dbt_result_t dbt_gap_init(dbt_gap_t *gap, dbt_host_t *host, dbt_gap_config_t config, dbt_gap_hooks_t hooks) {
     if (!gap || !host || config.advertising_size > 31 || config.scan_response_size > 31 ||
+        config.classic_service_count>DBT_GAP_CLASSIC_SERVICES ||
         config.advertising_minimum < 0x20 || config.advertising_maximum > 0x4000 ||
         config.advertising_minimum > config.advertising_maximum) return DBT_INVALID;
     bool terminated = false;
@@ -84,6 +98,8 @@ static dbt_result_t configure_next(dbt_gap_t *gap) {
     case 8:
         opcode = 0x2009; size = 32; data[0] = gap->config.scan_response_size;
         copy(data + 1, gap->config.scan_response, data[0]); break;
+    case 9:
+        opcode=0x0c52;size=241;inquiry_response(data,gap->config.name,&gap->config);break;
     default: return DBT_INVALID;
     }
     return dbt_host_command(gap->host, opcode, data, size, DBT_COMMAND_COMPLETE, configured, gap, gap->now_ms);
@@ -91,13 +107,13 @@ static dbt_result_t configure_next(dbt_gap_t *gap) {
 static void renamed(void *context,uint16_t opcode,dbt_command_outcome_t outcome,uint8_t status,const uint8_t *returns,uint8_t size){
     dbt_gap_t *g=context;(void)returns;
     g->rename_pending=false;g->rename_status=status;
-    uint16_t expected=g->rename_step?0x2009:0x0c13;
+    uint16_t expected=g->rename_step==0?0x0c13:g->rename_step==1?0x2009:0x0c52;
     if(!g->rename_active || opcode!=expected || outcome!=DBT_COMMAND_SUCCESS || size!=1){
         g->rename_done=g->rename_serial;g->rename_applied=false;g->rename_active=false;
         if(outcome==DBT_COMMAND_ABORTED || outcome==DBT_COMMAND_TIMEOUT)g->state=DBT_GAP_FAILED;
         return;
     }
-    if(!g->rename_step){g->rename_step=1;g->rename_partial=true;return;}
+    if(g->rename_step<2){++g->rename_step;g->rename_partial=true;return;}
     copy((uint8_t *)g->config.name,(const uint8_t *)g->rename_name,sizeof(g->config.name));
     copy(g->config.scan_response,g->rename_scan,g->rename_scan_size);g->config.scan_response_size=g->rename_scan_size;
     g->rename_done=g->rename_serial;g->rename_applied=true;g->rename_partial=false;g->rename_active=false;
@@ -105,7 +121,8 @@ static void renamed(void *context,uint16_t opcode,dbt_command_outcome_t outcome,
 static dbt_result_t rename_next(dbt_gap_t *g){
     uint8_t data[248]={0};uint16_t opcode;uint8_t size;
     if(!g->rename_step){opcode=0x0c13;size=248;copy(data,(const uint8_t *)g->rename_name,sizeof(g->rename_name));}
-    else{opcode=0x2009;size=32;data[0]=g->rename_scan_size;copy(data+1,g->rename_scan,data[0]);}
+    else if(g->rename_step==1){opcode=0x2009;size=32;data[0]=g->rename_scan_size;copy(data+1,g->rename_scan,data[0]);}
+    else{opcode=0x0c52;size=241;inquiry_response(data,g->rename_name,&g->config);}
     return dbt_host_command(g->host,opcode,data,size,DBT_COMMAND_COMPLETE,renamed,g,g->now_ms);
 }
 dbt_result_t dbt_gap_rename(dbt_gap_t *g,const uint8_t *name,uint8_t size,uint32_t *token){

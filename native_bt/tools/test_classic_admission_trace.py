@@ -15,7 +15,7 @@ static struct {uint32_t now_ms;} storage;static void *runtime_unused;
 #ifdef DBT_PROBE_PRODUCT_SECURITY
 #define runtime (&storage)
 static bool probe_admission_frozen(void){return frozen;}
-static bool probe_admission_window(uint32_t n){(void)n;return window;}
+static bool probe_admission_classic_window(uint32_t n){(void)n;return window;}
 #else
 static bool same(const uint8_t *a,const uint8_t *b){return !memcmp(a,b,6);}
 #endif
@@ -29,7 +29,7 @@ int main(void){
  for(unsigned f=0;f<2;++f)for(unsigned k=0;k<2;++k)for(unsigned w=0;w<2;++w)for(unsigned q=0;q<2;++q){
   frozen=f;known=k;window=w;full=q;uint8_t peer[6]={1,2,3,4,5,6},cod[3]={0};if(!w)peer[0]=7;
 #ifdef DBT_PROBE_PRODUCT_SECURITY
-  bool expected=!frozen && (known || window);
+  bool expected=!frozen;
 #else
   bool expected=w;
 #endif

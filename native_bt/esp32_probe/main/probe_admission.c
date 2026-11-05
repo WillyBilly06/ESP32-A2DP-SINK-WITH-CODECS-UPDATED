@@ -9,7 +9,7 @@
 #define WINDOW_MS 120000u
 typedef struct { bool used;uint8_t type,id[6],tag[32]; } trust_t;
 typedef struct { uint8_t type,id[6],tag[32];bool committed; } job_t;
-typedef struct { bool used,bound;uint16_t handle;uint32_t generation,window;uint8_t address[6],type,id[6],tag[32]; } lease_t;
+typedef struct { bool used,bound;uint16_t handle;uint32_t generation,window,expires;uint8_t address[6],type,id[6],tag[32]; } lease_t;
 static dbt_runtime_t *runtime;
 static TaskHandle_t owner;
 static nvs_handle_t storage;
@@ -92,7 +92,10 @@ dbt_result_t probe_admission_startup_worker(dbt_runtime_t *r,TaskHandle_t task){
     if(!namespace_empty("native_bonds",&classic_empty) || !namespace_empty("native_le_bonds",&le_empty)){
         nvs_close(storage);storage_open=false;wipe(trust,sizeof(trust));return DBT_INVALID;
     }
-    first_boot_empty=classic_empty && le_empty;
+    /* A Classic audio bond does not provision the independent BLE control
+     * identity. Otherwise pairing audio first permanently closes first-app
+     * onboarding even though no LE controller has ever been enrolled. */
+    first_boot_empty=le_empty;
     for(unsigned i=0;i<LIMIT;i++)if(trust[i].used)first_boot_empty=false;
     jobs=xQueueCreate(1,sizeof(job_t));results=xQueueCreate(1,sizeof(job_t));
     if(!jobs || !results){if(jobs)vQueueDelete(jobs);if(results)vQueueDelete(results);jobs=results=NULL;nvs_close(storage);storage_open=false;wipe(trust,sizeof(trust));return DBT_NO_SPACE;}
@@ -103,6 +106,18 @@ dbt_result_t probe_admission_startup_worker(dbt_runtime_t *r,TaskHandle_t task){
 }
 static bool lease_window(uint32_t now){return runtime && opened && !poisoned && (int32_t)(now-deadline)<0;}
 bool probe_admission_window(uint32_t now){return !frozen && lease_window(now);}
+static bool other_secure_classic(const dbt_link_t *current){
+    if(!runtime)return true;
+    for(unsigned i=0;i<DBT_MAX_LINKS;++i){const dbt_link_t *l=&runtime->acl.links[i];
+        if(l->used && l->kind==DBT_LINK_CLASSIC && l->encrypted &&
+           (!current || l->handle!=current->handle || l->generation!=current->generation))return true;
+    }
+    return false;
+}
+bool probe_admission_classic_window(uint32_t now){
+    return runtime && !frozen && !poisoned &&
+           ((lease_window(now) && window_origin==1) || !other_secure_classic(NULL));
+}
 uint8_t probe_admission_origin(uint32_t now){return probe_admission_window(now)?window_origin:0;}
 uint32_t probe_admission_prompt_epoch(uint32_t now){return !prompt_exhausted && probe_admission_window(now)?prompt_serial:0;}
 void probe_admission_freeze(bool value){frozen=value;}
@@ -116,7 +131,9 @@ void probe_admission_open(uint32_t now){
     if(frozen)return;
     if(!probe_admission_window(now)){
         if(!runtime || poisoned || serial==UINT32_MAX){opened=false;return;}
-        serial++;opened=true;memset(classic,0,sizeof(classic));memset(&le,0,sizeof(le));
+        serial++;opened=true;
+        for(unsigned i=0;i<DBT_MAX_LINKS;++i)if(classic[i].used && classic[i].window)classic[i].used=false;
+        memset(&le,0,sizeof(le));
     }
     if(prompt_serial!=UINT32_MAX)++prompt_serial;else prompt_exhausted=true;
     deadline=now+WINDOW_MS;window_origin=1;
@@ -137,9 +154,10 @@ void probe_admission_open(uint32_t now){
     }
 }
 void probe_admission_first_boot(uint32_t now,unsigned classic_bonds){
-    if(!first_boot_empty || classic_bonds || !runtime || poisoned || serial==UINT32_MAX)return;
+    (void)classic_bonds;
+    if(!first_boot_empty || !runtime || frozen || poisoned || serial==UINT32_MAX || probe_admission_window(now))return;
     if(prompt_serial!=UINT32_MAX)++prompt_serial;else prompt_exhausted=true;
-    serial++;deadline=now+WINDOW_MS;opened=true;window_origin=2;first_boot_empty=false;
+    serial++;deadline=now+WINDOW_MS;opened=true;window_origin=2;
 }
 static bool valid_link(const dbt_link_t *l,dbt_link_kind_t kind){
     if(!runtime || !l || !l->used || l->kind!=kind || !l->generation)return false;
@@ -147,17 +165,22 @@ static bool valid_link(const dbt_link_t *l,dbt_link_kind_t kind){
     return current && current->generation==l->generation && current->kind==kind && same(current->peer,l->peer,6);
 }
 bool probe_admission_classic_pair(const dbt_link_t *l,uint32_t now){
-    if(!lease_window(now) || !valid_link(l,DBT_LINK_CLASSIC))return false;
-    for(unsigned i=0;i<DBT_MAX_LINKS;i++)if(classic[i].used && classic[i].handle==l->handle && classic[i].generation==l->generation)return true;
-    if(frozen)return false;
-    for(unsigned i=0;i<DBT_MAX_LINKS;i++)if(!classic[i].used){classic[i]=(lease_t){.used=true,.handle=l->handle,.generation=l->generation,.window=serial};memcpy(classic[i].address,l->peer,6);return true;}
+    if(frozen || poisoned || !valid_link(l,DBT_LINK_CLASSIC))return false;
+    for(unsigned i=0;i<DBT_MAX_LINKS;i++)if(classic[i].used && classic[i].handle==l->handle && classic[i].generation==l->generation)
+        return (int32_t)(now-classic[i].expires)<0 &&
+               (classic[i].window?(classic[i].window==serial && lease_window(now)):!other_secure_classic(l));
+    bool privileged=lease_window(now) && window_origin==1;
+    if(!privileged && (l->encrypted || other_secure_classic(l)))return false;
+    for(unsigned i=0;i<DBT_MAX_LINKS;i++)if(!classic[i].used){classic[i]=(lease_t){.used=true,.handle=l->handle,.generation=l->generation,
+        .window=privileged?serial:0,.expires=now+30000u};memcpy(classic[i].address,l->peer,6);return true;}
     return false;
 }
 bool probe_admission_classic_store(const uint8_t address[6],uint32_t now){
-    if(!address || !lease_window(now))return false;
-    for(unsigned i=0;i<DBT_MAX_LINKS;i++)if(classic[i].used && classic[i].window==serial && same(classic[i].address,address,6)){
+    if(!address || !runtime || frozen || poisoned)return false;
+    for(unsigned i=0;i<DBT_MAX_LINKS;i++)if(classic[i].used && (int32_t)(now-classic[i].expires)<0 && same(classic[i].address,address,6)){
         const dbt_link_t *l=dbt_acl_find(&runtime->acl,classic[i].handle);
-        return l && l->generation==classic[i].generation && valid_link(l,DBT_LINK_CLASSIC);
+        return l && l->generation==classic[i].generation && valid_link(l,DBT_LINK_CLASSIC) &&
+            (classic[i].window?(classic[i].window==serial && lease_window(now)):!other_secure_classic(l));
     }
     return false;
 }
@@ -167,7 +190,15 @@ bool probe_admission_le_begin(const dbt_link_t *l,uint32_t now){
     le=(lease_t){.used=true,.handle=l->handle,.generation=l->generation,.window=serial};memcpy(le.address,l->peer,6);return true;
 }
 void probe_admission_link(const dbt_link_change_t *c){
-    if(!c || c->kind!=DBT_LINK_REMOVED)return;
+    if(!c)return;
+    if(c->kind==DBT_LINK_ADDED && runtime && first_boot_empty && !probe_admission_window(runtime->now_ms)){
+        const dbt_link_t *l=dbt_acl_find(&runtime->acl,c->handle);
+        if(l && l->generation==c->generation && l->kind==DBT_LINK_LE){
+            probe_admission_first_boot(runtime->now_ms,0);
+            if(probe_admission_window(runtime->now_ms))window_origin=4;
+        }
+    }
+    if(c->kind!=DBT_LINK_REMOVED)return;
     if(cookie_binding.handle==c->handle && cookie_binding.generation==c->generation)revoke_cookie();
     for(unsigned i=0;i<DBT_MAX_LINKS;i++)if(classic[i].used && classic[i].handle==c->handle && classic[i].generation==c->generation)classic[i].used=false;
     if(le.used && le.handle==c->handle && le.generation==c->generation)le.used=false;
@@ -186,12 +217,17 @@ void probe_admission_poll(uint32_t now){
     if(xQueueReceive(results,&done,0)==pdTRUE){
         write_pending=false;
         if(!done.committed)poisoned=true;
-        else {int i=find(done.type,done.id);if(i<0)i=available();
+        else {first_boot_empty=false;int i=find(done.type,done.id);if(i<0)i=available();
             if(i<0)poisoned=true;else {trust[i].used=true;trust[i].type=done.type;memcpy(trust[i].id,done.id,6);memcpy(trust[i].tag,done.tag,32);}}
         wipe(&done,sizeof(done));
     }
     probe_admission_revalidate();
-    if(opened && !lease_window(now)){opened=false;memset(classic,0,sizeof(classic));le.used=false;}
+    for(unsigned i=0;i<DBT_MAX_LINKS;++i)if(classic[i].used && (int32_t)(now-classic[i].expires)>=0)classic[i].used=false;
+    if(opened && !lease_window(now)){
+        opened=false;
+        for(unsigned i=0;i<DBT_MAX_LINKS;++i)if(classic[i].used && classic[i].window)classic[i].used=false;
+        le.used=false;
+    }
     if(!le.used || write_pending || !lease_window(now) || le.window!=serial)return;
     const dbt_link_t *l=dbt_acl_find(&runtime->acl,le.handle);
     if(!l || l->generation!=le.generation || !valid_link(l,DBT_LINK_LE)){le.used=false;return;}
@@ -209,9 +245,14 @@ void probe_admission_poll(uint32_t now){
 uint32_t probe_admission_wait_ms(uint32_t now){
     if(!runtime)return UINT32_MAX;
     if(uxQueueMessagesWaiting(results))return 0;
-    if(le.used || write_pending)return 20;
-    if(opened)return (int32_t)(now-deadline)>=0?0:deadline-now;
-    return UINT32_MAX;
+    /* Security and storage completions notify the owner. Only actual consent
+     * and pairing-lease deadlines require a timer; no 20 ms polling wakeup. */
+    uint32_t wait=opened?((int32_t)(now-deadline)>=0?0:deadline-now):UINT32_MAX;
+    for(unsigned i=0;i<DBT_MAX_LINKS;++i)if(classic[i].used){
+        uint32_t next=(int32_t)(now-classic[i].expires)>=0?0:classic[i].expires-now;
+        if(next<wait)wait=next;
+    }
+    return wait;
 }
 dbt_result_t probe_admission_trusted_le(uint16_t handle,uint32_t generation,uint8_t *type,uint8_t id[6],uint8_t tag[32]){
     if(!runtime || poisoned || !type || !id || !tag || !generation)return DBT_INVALID;

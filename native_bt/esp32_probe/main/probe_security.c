@@ -2,6 +2,7 @@
 #include "freertos/queue.h"
 #include "nvs.h"
 #include <stdio.h>
+#include <string.h>
 #ifdef DBT_PROBE_PRODUCT_SECURITY
 #include "probe_admission.h"
 #endif
@@ -22,6 +23,7 @@ static bool storage_open;
 static bool initialized;
 static unsigned store_inflight;
 static QueueHandle_t work_queue, completion_queue, log_queue;
+static uint32_t protocol_log_lost;
 typedef struct {
     uint8_t address[6];
     dbt_classic_key_t key;
@@ -30,9 +32,10 @@ typedef struct {
 static cached_bond_t bonds[BOND_LIMIT];
 typedef struct {
     uint32_t token;
+    esp_err_t error;
     uint8_t address[6];
     dbt_classic_key_t key;
-    bool deleting, committed;
+    bool deleting, committed, verified;
 } store_job_t;
 typedef struct {
     union {
@@ -49,6 +52,8 @@ typedef struct {
         dbt_channel_oversize_t oversized;
         struct {uint32_t generation,window;int result;uint16_t handle,size;uint8_t stage,code;} smp_trace;
         struct {uint32_t generation;uint16_t handle;uint8_t opcode,io,oob,auth,key_size,initiator_keys,responder_keys;} pairing_features;
+        struct {uint32_t lost;int result;uint16_t bytes,handle;uint8_t peer[6],event,status,key_type;bool known,window;} classic_hci;
+        struct {uint32_t token;int error;uint8_t peer[6];bool deleting,verified,committed;} bond_store;
     };
     uint8_t event, reason, status,local_record;
 } log_item_t;
@@ -205,6 +210,15 @@ static void worker(void *context) {
         }
         if (error == ESP_OK)
             error = nvs_commit(storage);
+        if(error==ESP_OK){
+            uint8_t actual[28],expected[28];size_t bytes=sizeof(actual);
+            esp_err_t read=nvs_get_blob(storage,key,job.deleting?NULL:actual,&bytes);
+            if(job.deleting)job.verified=read==ESP_ERR_NVS_NOT_FOUND;
+            else {encode(expected,&job);job.verified=read==ESP_OK && bytes==sizeof(actual) && !memcmp(actual,expected,sizeof(actual));}
+            wipe(actual,sizeof(actual));wipe(expected,sizeof(expected));
+            if(!job.verified)error=read==ESP_OK?ESP_ERR_INVALID_STATE:read;
+        }
+        job.error=error;
         job.committed = error == ESP_OK;
         (void)xQueueSend(completion_queue, &job, portMAX_DELAY);
         wipe(&job, sizeof(job));
@@ -217,6 +231,21 @@ static void logger(void *context) {
         log_item_t item;
         if (xQueueReceive(log_queue, &item, portMAX_DELAY) != pdTRUE)
             continue;
+        if(item.local_record==11){
+            printf("{\"probe\":\"classic_bond_store\",\"token\":%lu,\"peer\":\"%02X:%02X:%02X:%02X:%02X:%02X\","
+                   "\"deleting\":%s,\"committed\":%s,\"readback_verified\":%s,\"error\":%d}\n",
+                (unsigned long)item.bond_store.token,item.bond_store.peer[5],item.bond_store.peer[4],item.bond_store.peer[3],item.bond_store.peer[2],item.bond_store.peer[1],item.bond_store.peer[0],
+                item.bond_store.deleting?"true":"false",item.bond_store.committed?"true":"false",item.bond_store.verified?"true":"false",item.bond_store.error);
+            continue;
+        }
+        if(item.local_record==10){
+            printf("{\"probe\":\"classic_hci_event\",\"event\":%u,\"bytes\":%u,\"handle\":%u,\"status\":%u,\"result\":%d,"
+                   "\"peer\":\"%02X:%02X:%02X:%02X:%02X:%02X\",\"cached_bond\":%s,\"cached_key_type\":%u,\"pairing_open\":%s,\"trace_records_lost\":%lu}\n",
+                item.classic_hci.event,item.classic_hci.bytes,item.classic_hci.handle,item.classic_hci.status,item.classic_hci.result,
+                item.classic_hci.peer[5],item.classic_hci.peer[4],item.classic_hci.peer[3],item.classic_hci.peer[2],item.classic_hci.peer[1],item.classic_hci.peer[0],
+                item.classic_hci.known?"true":"false",item.classic_hci.key_type,item.classic_hci.window?"true":"false",(unsigned long)item.classic_hci.lost);
+            continue;
+        }
         if(item.event==0x8b) {
             printf("{\"probe\":\"ingress_hash\",\"ordinal\":%lu,\"size\":%u,\"offset\":%u,"
                    "\"controller_before\":%lu,\"controller_after\":%lu,\"host_owner\":%lu,\"after_ready\":%s}\n",
@@ -344,8 +373,10 @@ bool probe_security_accept(void *context, const uint8_t address[6], const uint8_
     (void)context;
     (void)device_class;
 #ifdef DBT_PROBE_PRODUCT_SECURITY
-    bool known=cache_index(address)>=0,window=probe_admission_window(runtime->now_ms);
-    bool accepted=!probe_admission_frozen() && (known || window);
+    bool known=cache_index(address)>=0,window=probe_admission_classic_window(runtime->now_ms);
+    /* ACL admission also serves public SDP. Pairing and encrypted A2DP/AVRCP
+     * authorization are enforced independently at their actual boundaries. */
+    bool accepted=!probe_admission_frozen();
 #else
     bool known=cache_index(address)>=0,window=same(address,allowed_peer),accepted=window;
 #endif
@@ -515,12 +546,54 @@ dbt_result_t probe_security_receive(const dbt_hci_packet_t *packet, uint32_t now
         item.info.handle=(uint16_t)((uint16_t)packet->payload[1]|((uint16_t)packet->payload[2]<<8));
         (void)xQueueSend(log_queue,&item,0);
     }
-    return runtime->ready ? dbt_classic_security_receive(&security, packet, now_ms)
-                          : DBT_UNSUPPORTED;
+    log_item_t trace;bool traced=false;
+    if(log_queue && packet && packet->type==DBT_H4_EVENT && packet->payload){
+        const uint8_t *address=NULL;uint16_t handle=0xffff;uint8_t status=0;
+        switch(packet->event){
+        case 0x03:
+            if(packet->size==11){status=packet->payload[0];handle=dbt_read_le16(packet->payload+1);address=packet->payload+3;}
+            break;
+        case 0x04:
+            if(packet->size==10)address=packet->payload;
+            break;
+        case 0x06:case 0x08:case 0x30:
+            if(packet->size==(packet->event==0x08?4u:3u)){
+                status=packet->payload[0];handle=dbt_read_le16(packet->payload+1);
+                const dbt_link_t *link=dbt_acl_find(&runtime->acl,handle);
+                if(link && link->kind==DBT_LINK_CLASSIC)address=link->peer;
+            }break;
+        case 0x16:case 0x17:case 0x31:case 0x34:case 0x35:
+            if(packet->size==6)address=packet->payload;
+            break;
+        case 0x18:if(packet->size==23)address=packet->payload;break;
+        case 0x32:if(packet->size==9)address=packet->payload;break;
+        case 0x33:case 0x3b:if(packet->size==10)address=packet->payload;break;
+        case 0x36:if(packet->size==7){address=packet->payload+1;status=packet->payload[0];}break;
+        default:break;
+        }
+        if(address){
+            wipe(&trace,sizeof(trace));trace.local_record=10;trace.classic_hci.event=packet->event;
+            trace.classic_hci.bytes=packet->size;trace.classic_hci.handle=handle;trace.classic_hci.status=status;
+            copy(trace.classic_hci.peer,address,6);int i=cache_index(address);
+            trace.classic_hci.known=i>=0;trace.classic_hci.key_type=i>=0?bonds[i].key.type:0xff;
+#ifdef DBT_PROBE_PRODUCT_SECURITY
+            trace.classic_hci.window=probe_admission_classic_window(now_ms);
+#endif
+            traced=true;
+        }
+    }
+    dbt_result_t result=runtime->ready ? dbt_classic_security_receive(&security, packet, now_ms):DBT_UNSUPPORTED;
+    if(traced){trace.classic_hci.result=(int)result;trace.classic_hci.lost=protocol_log_lost;
+        if(xQueueSend(log_queue,&trace,0)!=pdTRUE && protocol_log_lost!=UINT32_MAX)++protocol_log_lost;}
+    return result;
 }
 void probe_security_poll(uint32_t now_ms) {
     store_job_t job;
     while (xQueueReceive(completion_queue, &job, 0) == pdTRUE) {
+        log_item_t record;wipe(&record,sizeof(record));record.local_record=11;
+        record.bond_store.token=job.token;record.bond_store.error=(int)job.error;copy(record.bond_store.peer,job.address,6);
+        record.bond_store.deleting=job.deleting;record.bond_store.verified=job.verified;record.bond_store.committed=job.committed;
+        if(xQueueSend(log_queue,&record,0)!=pdTRUE && protocol_log_lost!=UINT32_MAX)++protocol_log_lost;
         if(store_inflight) --store_inflight;
         else {wipe(&job,sizeof(job));dbt_runtime_abort(runtime,DBT_FAULT_BAD_RESPONSE);return;}
         if (job.committed) {

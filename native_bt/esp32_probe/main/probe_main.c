@@ -608,6 +608,9 @@ void app_main(void) {
     if(!product_startup())owner_fault_park("product settings load");
 #endif
     dbt_gap_config_t gap_config = { .name = "NATIVE_BT_PROBE",
+        /* Bluetooth SIG CoD 0x240414: Audio + Rendering, Audio/Video, Loudspeaker.
+         * HCI Write Class of Device takes the three octets least-significant first. */
+        .class_of_device = {0x14, 0x04, 0x24},
         .advertising = {2, 1, 2}, .advertising_size = 3,
         .advertising_minimum = 0x80, .advertising_maximum = 0x100 };
 #if defined(DBT_PROBE_GATT_TEST) && defined(DBT_PROBE_AUDIO_OUTPUT)
@@ -619,6 +622,17 @@ void app_main(void) {
 #endif
 #ifdef DBT_PROBE_GATT_TEST
     probe_gatt_advertisement(&gap_config);
+#endif
+#ifdef DBT_PROBE_AUDIO_OUTPUT
+    gap_config.classic_services[gap_config.classic_service_count++]=0x110b; /* Audio Sink */
+#endif
+#ifdef DBT_PROBE_AVRCP
+    gap_config.classic_services[gap_config.classic_service_count++]=0x110e; /* A/V Remote Control */
+    gap_config.classic_services[gap_config.classic_service_count++]=0x110f; /* A/V Remote Control Controller */
+    gap_config.classic_services[gap_config.classic_service_count++]=0x110c; /* A/V Remote Control Target */
+#endif
+#ifdef DBT_PROBE_RFCOMM
+    gap_config.classic_services[gap_config.classic_service_count++]=0x1101; /* Serial Port */
 #endif
     if (dbt_gap_init(&gap, &runtime.host, gap_config, gap_hooks) != DBT_OK) {
         ESP_LOGE(tag, "GAP initialization failed");
@@ -666,6 +680,10 @@ void app_main(void) {
     dbt_host_t *host = &runtime.host;
     dbt_host_state_t previous = DBT_HOST_IDLE;
     dbt_gap_state_t previous_gap = DBT_GAP_IDLE;
+#ifdef DBT_PROBE_PRODUCT_SECURITY
+    uint8_t reported_scan=0xff,reported_wanted_scan=0xff;
+    bool reported_pairing_open=false,reported_scan_pending=false;
+#endif
     bool receive_flow_started=false,receive_flow_reported=false;
     bool memory_services_reported=false;
 #ifdef DBT_PROBE_KEEP_OWNED_ACTIVE
@@ -883,10 +901,18 @@ void app_main(void) {
 #endif
 #ifdef DBT_PROBE_CLASSIC_SECURITY_TEST
 #ifdef DBT_PROBE_PRODUCT_SECURITY
-        bool discoverable=probe_admission_window(now),connectable=!probe_admission_frozen();
+        bool discoverable=probe_admission_classic_window(now),connectable=!probe_admission_frozen();
+        unsigned classic_origin=discoverable?(probe_admission_origin(now)==1?1u:3u):0u;
         uint8_t wanted_scan=(uint8_t)((discoverable?1u:0u)|(connectable?2u:0u));
         if(gap.state==DBT_GAP_READY && !gap.classic_pending && gap.classic_scan!=wanted_scan)
             (void)dbt_gap_set_classic_scan(&gap,discoverable,connectable);
+        if(gap.state==DBT_GAP_READY && (reported_scan!=gap.classic_scan || reported_wanted_scan!=wanted_scan ||
+           reported_pairing_open!=discoverable || reported_scan_pending!=gap.classic_pending)){
+            reported_scan=gap.classic_scan;reported_wanted_scan=wanted_scan;
+            reported_pairing_open=discoverable;reported_scan_pending=gap.classic_pending;
+            HOST_PRINTF("{\"probe\":\"classic_visibility\",\"completed_scan\":%u,\"requested_scan\":%u,\"command_pending\":%s,\"pairing_open\":%s,\"pairing_origin\":%u}\n",
+                gap.classic_scan,wanted_scan,gap.classic_pending?"true":"false",discoverable?"true":"false",classic_origin);
+        }
 #else
         if(gap.state==DBT_GAP_READY && !gap.classic_pending && gap.classic_scan!=3)
             (void)dbt_gap_set_classic_scan(&gap,true,true);
@@ -899,7 +925,7 @@ void app_main(void) {
         if(classic_ready && !security_reported) {
             security_reported=true;
 #ifdef DBT_PROBE_PRODUCT_SECURITY
-            bool pairing_open=probe_admission_window(now);unsigned pairing_origin=probe_admission_origin(now);
+            bool pairing_open=probe_admission_classic_window(now);unsigned pairing_origin=pairing_open?(probe_admission_origin(now)==1?1u:3u):0u;
 #else
             bool pairing_open=true;unsigned pairing_origin=3; /* explicitly selected test peer */
 #endif
@@ -907,6 +933,8 @@ void app_main(void) {
                    "\"metadata_bytes\":%u,\"loaded_bonds\":%u,\"worker_stack_bytes\":3072,"
                    "\"logger_stack_bytes\":2048,\"classic_scan\":%u,\"pairing_open\":%s,\"pairing_origin\":%u,\"audio_ready\":false}\n",
                    probe_security_bytes(),probe_security_loaded_bonds(),gap.classic_scan,pairing_open?"true":"false",pairing_origin);
+            HOST_PRINTF("{\"probe\":\"classic_identity\",\"class_of_device\":\"%02X%02X%02X\",\"eir_configured\":true,\"eir_service_count\":%u,\"ssp_just_works\":true,\"legacy_pin\":false}\n",
+                gap.config.class_of_device[2],gap.config.class_of_device[1],gap.config.class_of_device[0],gap.config.classic_service_count);
         }
 #endif
 #ifdef DBT_PROBE_GATT_TEST

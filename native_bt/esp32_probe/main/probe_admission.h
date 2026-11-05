@@ -10,11 +10,15 @@ dbt_result_t probe_admission_startup_worker(dbt_runtime_t *,TaskHandle_t);
 /* The physical gesture grants new pairing for 120 seconds. Existing bonds
  * remain valid outside this window. All following calls run on the owner. */
 void probe_admission_open(uint32_t now_ms);
-/* Call after both stores were successfully enumerated and the Classic cache
- * is loaded. Opens only when neither namespace contains any entry. */
+/* Call after stores were successfully enumerated. An unprovisioned LE control
+ * store may bootstrap independently of existing Classic audio bonds. */
 void probe_admission_first_boot(uint32_t now_ms,unsigned classic_bonds);
 bool probe_admission_window(uint32_t now_ms);
-/* 0 closed, 1 physical gesture, 2 empty-store power-on. */
+/* Normal speaker pairing is available while no Classic peer is encrypted.
+ * This public audio policy never grants a BLE control/OTA trust cookie. */
+bool probe_admission_classic_window(uint32_t now_ms);
+/* 0 closed, 1 physical gesture, 2 unprovisioned LE power-on,
+ * 4 unprovisioned LE connection. Idle public Classic pairing is separate. */
 uint8_t probe_admission_origin(uint32_t now_ms);
 /* Non-repeating physical/power-on prompt epoch, zero outside the window. */
 uint32_t probe_admission_prompt_epoch(uint32_t now_ms);

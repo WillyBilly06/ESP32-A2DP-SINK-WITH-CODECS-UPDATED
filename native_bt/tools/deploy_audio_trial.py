@@ -111,10 +111,11 @@ def native_bond_entries(data):
     return {'scope':'read-only live flash SDK NVS parse; counts only',
             'namespace_present':bool(ids),'written_entries':len(owned)}
 
-def write_region(controller,offset,data,limit):
+def write_region(controller,offset,data,limit,write_baud=None,verify_baud=None):
     block=1024
     if offset%4096 or offset+((len(data)+4095)//4096)*4096>limit:
         raise RuntimeError('Write/erase extent is outside the verified partition')
+    if write_baud is not None:controller.change_baud(write_baud)
     controller.FLASH_WRITE_SIZE=block
     count=controller.flash_begin(len(data),offset)
     for number in range(count):
@@ -123,9 +124,11 @@ def write_region(controller,offset,data,limit):
         controller.flash_block(chunk,number)
         if number%256==0:print(f'Writing offset 0x{offset:x}: {number*block}/{len(data)} bytes',flush=True)
     controller.flash_finish(reboot=False)
+    if verify_baud is not None:controller.change_baud(verify_baud)
     actual=controller.read_flash(offset,len(data))
     if actual!=data:raise RuntimeError('Full written-region readback mismatch')
-    return {'offset':offset,'bytes':len(data),'readback_sha256':hashlib.sha256(actual).hexdigest(),'readback_matches':True}
+    return {'offset':offset,'bytes':len(data),'readback_sha256':hashlib.sha256(actual).hexdigest(),'readback_matches':True,
+            'write_baud':write_baud,'verify_baud':verify_baud}
 
 def main():
     sys.stdout.reconfigure(encoding='utf-8',errors='backslashreplace')
@@ -139,7 +142,8 @@ def main():
     parser.add_argument('--rf-protocol-diagnostic',action='store_true',help='Explicit finite radio/decoder test with A2DP PCM checksum sink; no DAC/render qualification')
     parser.add_argument('--press-pairing-button',action='store_true',help='Explicit COM6 fixture: after native readiness hold DTR/BOOT for 3.5 seconds without toggling RTS/EN; finite RF only')
     parser.add_argument('--rf-seconds',type=int,choices=(15,60,120,180,300,600),default=15,help='Bounded finite-RF interaction window, at most ten minutes; baseline return follows')
-    parser.add_argument('--baud',type=int,choices=(115200,230400,460800),default=230400,help='Verified flash transport rate; use a lower rate after a readback error')
+    parser.add_argument('--baud',type=int,choices=(115200,230400,460800,921600),default=921600,help='Flash transport rate; 921600 requested by user. Readback errors abort; console baud is independent.')
+    parser.add_argument('--verify-baud',type=int,choices=(115200,230400,460800,921600),default=230400,help='Full flash readback rate; independent of the 921600 upload rate.')
     args=parser.parse_args()
     if args.pipeline_only:args.codec_only=True
     if args.finite_rf and (args.kind!='probe' or args.keep_owned or args.codec_only):
@@ -209,7 +213,7 @@ def main():
         'Independent host probe; optional diagnostic ATT/GATT; no product/audio profiles')
     report={'scope':scope,'console_baud':console_baud,
             'port':'COM6','backup_sha256':receipt['sha256'],'candidate_sha256':hashlib.sha256(candidate).hexdigest(),
-            'candidate_elf_sha256':candidate[176:208].hex(),'transport_baud':args.baud,'writes':[],'write_attempts':[]}
+            'candidate_elf_sha256':candidate[176:208].hex(),'transport_baud':args.baud,'verify_baud':args.verify_baud,'writes':[],'write_attempts':[]}
     if args.finite_rf:
         report['scope']='Finite owned controller/HCI/GAP and optional diagnostic GATT startup; no pairing/profile/audio qualification'
     if args.rf_protocol_diagnostic:
@@ -236,7 +240,7 @@ def main():
         mac=':'.join(f'{v:02X}' for v in controller.read_mac())
         if controller.CHIP_NAME!='ESP32' or mac!=receipt['mac']:raise RuntimeError('Chip/MAC identity mismatch')
         if controller.get_secure_boot_enabled() or controller.get_flash_encryption_enabled():raise RuntimeError('Unexpected protection state')
-        controller=controller.run_stub();controller.change_baud(args.baud)
+        controller=controller.run_stub();controller.change_baud(args.verify_baud)
         if f'{controller.flash_id():06x}'!=receipt['flash_id']:raise RuntimeError('Flash chip changed')
         if controller.read_flash(0,0x9000)!=original[:0x9000]:raise RuntimeError('Bootloader/partition table differs from the preserved original')
         preserved=controller.read_flash(active['offset'],active['size'])
@@ -264,7 +268,7 @@ def main():
         while (sequence-1)%len(ota_apps)!=target_index:sequence+=1
         if sequence>=0xffffffff:raise RuntimeError('OTA sequence exhausted')
         report['write_attempts'].append({'offset':trial['offset'],'bytes':len(candidate)})
-        report['writes'].append(write_region(controller,trial['offset'],candidate,trial['offset']+trial['size']))
+        report['writes'].append(write_region(controller,trial['offset'],candidate,trial['offset']+trial['size'],args.baud,args.verify_baud))
         record=bytearray(b'\xff'*4096)
         struct.pack_into('<I',record,0,sequence);struct.pack_into('<I',record,24,2 if args.keep_owned else 0)
         struct.pack_into('<I',record,28,binascii.crc32(record[:4],0xffffffff)&0xffffffff)
@@ -273,7 +277,7 @@ def main():
         # selector for bootloader rollback if the trial resets before completion.
         selector_position=4096-max(valid_sectors)[1] if valid_sectors else 4096
         report['write_attempts'].append({'offset':selector['offset']+selector_position,'bytes':len(record)})
-        report['writes'].append(write_region(controller,selector['offset']+selector_position,record,selector['offset']+selector['size']))
+        report['writes'].append(write_region(controller,selector['offset']+selector_position,record,selector['offset']+selector['size'],args.baud,args.verify_baud))
         report['ota_sequence']=sequence;report['trial_offset']=trial['offset']
         report['selector_state_written']='VALID development selection' if args.keep_owned else 'NEW trial'
         report['production_qualification']=False

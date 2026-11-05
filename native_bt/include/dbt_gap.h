@@ -4,10 +4,13 @@
 #include "dbt_runtime.h"
 
 #define DBT_GAP_REPLY_SLOTS 4u
+#define DBT_GAP_CLASSIC_SERVICES 6u
 typedef enum { DBT_GAP_IDLE, DBT_GAP_CONFIGURING, DBT_GAP_READY, DBT_GAP_FAILED } dbt_gap_state_t;
 typedef struct {
     char name[33];
     uint8_t class_of_device[3];
+    uint16_t classic_services[DBT_GAP_CLASSIC_SERVICES];
+    uint8_t classic_service_count;
     uint8_t advertising[31], advertising_size;
     uint8_t scan_response[31], scan_response_size;
     uint16_t advertising_minimum, advertising_maximum;
@@ -54,7 +57,7 @@ uint32_t dbt_gap_wait_ms(const dbt_gap_t *gap);
  * command completion; on LE connection complete advertising becomes false. */
 dbt_result_t dbt_gap_set_classic_scan(dbt_gap_t *gap, bool discoverable, bool connectable);
 dbt_result_t dbt_gap_set_advertising(dbt_gap_t *gap, bool enabled);
-/* Owner-only copied UTF-8 rename. Completion covers HCI name and LE scan data;
+/* Owner-only copied UTF-8 rename. Completion covers HCI name, LE scan data and Classic EIR;
  * failed partial controller updates require retry, never a success ACK. */
 dbt_result_t dbt_gap_rename(dbt_gap_t *,const uint8_t *,uint8_t,uint32_t *);
 dbt_result_t dbt_gap_rename_result(const dbt_gap_t *,uint32_t,bool *,uint8_t *);
