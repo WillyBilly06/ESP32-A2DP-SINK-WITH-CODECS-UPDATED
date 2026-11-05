@@ -25,3 +25,34 @@ including saturation edges and both int64 rails. The ordinary block path is
 also rerun unchanged. The actual four-variant comparison passes all 27 groups /
 108 rows, and actual CMake/image-unit guards pass. Host timings are not used
 as ESP32 performance evidence. Target timing remains the next gate.
+
+## Target measurement and optional renderer connection
+
+[The exact target receipt](DSP_WORD_TARGET_RESULTS_2026_11_05.json) records 108
+matching PCM/state rows and a clean baseline return. At 192 kHz, median steady
+full-EQ time falls from 6.022 to 5.413 us per PCM sample frame for flags9 and
+6.095 to 5.485 for flags13, reductions of 10.1% and 10.0%. Flat-EQ time falls
+from 3.168 to 2.981 us, or 5.9%. Median ramp-containing costs range from 0.30%
+lower to 0.04% higher across the measured groups. The new helper is 274 bytes /
+112 static instructions versus 306 bytes / 124 instructions, with the same
+native multiply forms. Static counts are not dynamic execution counts.
+
+The separate preliminary pipeline in that diagnostic still uses the scalar
+default64ms path. It completes only13 of96 required packets, so the combined
+harness exits with a failing pipeline gate even though the kernel comparison
+passes. That failure cannot be attributed to a word kernel it did not select.
+No continuous-playback claim follows from the isolated improvement.
+
+`-WordDsp -BlockDsp` now optionally selects the exact kernel for a finite
+copied/loaned renderer experiment. The original block kernel remains selectable
+by omitting `-WordDsp`; the scalar/default and released Bluedroid paths remain
+available. Receipt/cache/actual compilation flags bind both core units, and
+`native_i2s.word_dsp` plus the pipeline I2S record expose the selected mode.
+
+Actual block-render tests pass all108 stream pairs against the scalar copied
+reference under ASan/UBSan, including formats, +/-500ppm, wrap, rapid controls,
+OOM/cancellation and poisoned retired loans. Production output-provider tests
+pass at100/1000Hz with the word mode and priority-order mode together. Eight
+CMake configurations, sixteen image-admission cases and one early CLI rejection
+pass, as do the existing block/finite guards. Renderer/pipeline target timing
+and maximum-rate RF continuity remain separate, incomplete gates.

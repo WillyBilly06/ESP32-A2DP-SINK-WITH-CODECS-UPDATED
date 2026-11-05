@@ -1,6 +1,7 @@
 """Compare block-render loans to the unchanged scalar copied-ring renderer."""
-import hashlib,json,os,pathlib,re,shutil,subprocess
-ROOT=pathlib.Path(__file__).resolve().parents[1];DSP=ROOT.parent/'bt_audio_sink/main/dsp';OUT=ROOT/'_build/audio_block';OUT.mkdir(exist_ok=True)
+import argparse,hashlib,json,os,pathlib,re,shutil,subprocess
+parser=argparse.ArgumentParser();parser.add_argument('--word-quant',action='store_true');options=parser.parse_args()
+ROOT=pathlib.Path(__file__).resolve().parents[1];DSP=ROOT.parent/'bt_audio_sink/main/dsp';OUT=ROOT/('_build/audio_block_word' if options.word_quant else '_build/audio_block');OUT.mkdir(exist_ok=True)
 env=os.environ.copy()
 if os.name=='nt':
     vc=pathlib.Path(r'C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Auxiliary\Build\vcvars64.bat')
@@ -18,6 +19,7 @@ sources=[ROOT/'tests/audio/borrowed_input.c',ROOT/'src/dbt_audio.c',wrapper,ROOT
 tracked=sources+list((ROOT/'include').glob('*.h'))+list(DSP.glob('fixed_dsp*'))+[ROOT/'src/dbt_resampler_coeffs.inc',pathlib.Path(__file__).resolve()]
 before={str(p):hashlib.sha256(p.read_bytes()).hexdigest() for p in tracked}
 base=[cache,cc,'-std=c11','-O3','-g','-Wall','-Wextra','-Werror','-fsanitize=address,undefined','-fno-sanitize-recover=all','-fno-omit-frame-pointer','-DFIXED_DSP_BLOCK_API=1','-DDBT_TEST_BLOCK_RENDER=1','-I'+str(ROOT/'include'),'-I'+str(DSP)]
+if options.word_quant:base+=['-DFIXED_DSP_WORD_QUANT=1']
 if os.name=='nt':base+=['-fms-runtime-lib=dll','-D_DLL']
 commands=[];objects=[]
 for i,source in enumerate(sources):
@@ -31,4 +33,4 @@ if os.name=='nt':
 run=subprocess.run([str(exe)],check=True,env=env,timeout=60,capture_output=True,text=True);print(run.stdout.strip())
 assert 'PASS 108 borrowed/copied stream pairs' in run.stdout
 assert all(hashlib.sha256(pathlib.Path(p).read_bytes()).hexdigest()==digest for p,digest in before.items())
-(OUT/'results.json').write_text(json.dumps({'passed':True,'case_pairs':108,'input_frames_per_case':4096,'block_borrowed_vs_original_scalar_copied':True,'sanitizers':['address','undefined'],'sources':before,'commands':commands,'hardware_accessed':False,'scope':'actual block-render conversion/resampler/DSP path and loan lifetime versus original scalar copied path; no target performance'},indent=2)+'\n')
+(OUT/'results.json').write_text(json.dumps({'passed':True,'word_quant':options.word_quant,'case_pairs':108,'input_frames_per_case':4096,'block_borrowed_vs_original_scalar_copied':True,'sanitizers':['address','undefined'],'sources':before,'commands':commands,'hardware_accessed':False,'scope':'actual block-render conversion/resampler/DSP path and loan lifetime versus original scalar copied path; no target performance'},indent=2)+'\n')

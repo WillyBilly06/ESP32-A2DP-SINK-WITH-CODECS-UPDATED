@@ -106,6 +106,11 @@ EX int probe_output_formats(void){
     fail_at_allocation=allocation_attempt+3u;test_clock_us=424242;
     CHECK(probe_output_stream_format(true,192000,2,DBT_PCM_S32_LE)==DBT_NO_SPACE && !live && !output.active);
     probe_output_stats_t stats;probe_output_stats(&stats);
+#ifdef DBT_PROBE_WORD_DSP
+        CHECK(stats.block_dsp && stats.word_dsp);
+#else
+        CHECK(!stats.word_dsp);
+#endif
     CHECK(stats.allocation_failed_bytes==4096 && stats.allocation_failure_rate==192000);
     CHECK(stats.allocation_failure_audio_requested==167936 && stats.allocation_failure_audio_allocated==69632 && stats.allocation_failure_pages==1);
     CHECK(stats.allocation_failure_channels==2 && stats.allocation_failure_sample_bytes==4 && stats.allocation_failure_at_us==424242);

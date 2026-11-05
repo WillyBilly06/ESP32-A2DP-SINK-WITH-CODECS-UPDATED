@@ -1064,6 +1064,11 @@ void probe_output_stats(probe_output_stats_t *s) {
 #else
   s->block_dsp=0;
 #endif
+#ifdef DBT_PROBE_WORD_DSP
+  s->word_dsp=1;
+#else
+  s->word_dsp=0;
+#endif
 #define LOAD(field) s->field = atomic_load(&output.field)
   LOAD(running);
   LOAD(failed);

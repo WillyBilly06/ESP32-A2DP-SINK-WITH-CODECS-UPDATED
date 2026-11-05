@@ -214,10 +214,10 @@ static void run(void *unused){
         (unsigned)arrival.p99,(unsigned)arrival.maximum,(unsigned)completion.p99,(unsigned)completion.maximum,
         (unsigned)completion.at_or_above_budget,(unsigned)pipeline.queue_peak,
         (unsigned)active.render_total_us,(unsigned)active.render_calls,(unsigned)active.maximum_render_us);
-    printf("{\"probe\":\"pipeline_i2s\",\"running\":%u,\"failed\":%u,\"accepted_frames\":%u,\"rendered_frames\":%u,\"dma_frames\":%u,\"dma_eofs\":%u,\"underrun_frames\":%u,\"descriptor_errors\":%u,\"max_eof_gap_us\":%u,\"ready_frames\":%u,\"input_ready_frames\":%u,\"stop_tail_excluded\":true}\n",
+    printf("{\"probe\":\"pipeline_i2s\",\"running\":%u,\"failed\":%u,\"accepted_frames\":%u,\"rendered_frames\":%u,\"dma_frames\":%u,\"dma_eofs\":%u,\"underrun_frames\":%u,\"descriptor_errors\":%u,\"max_eof_gap_us\":%u,\"ready_frames\":%u,\"input_ready_frames\":%u,\"block_dsp\":%u,\"word_dsp\":%u,\"stop_tail_excluded\":true}\n",
         (unsigned)active.running,(unsigned)active.failed,(unsigned)active.accepted_frames,(unsigned)active.rendered_frames,
         (unsigned)active.dma_source_frames,(unsigned)active.dma_eofs,(unsigned)active.underrun_frames,
-        (unsigned)active.descriptor_errors,(unsigned)active.max_eof_gap_us,(unsigned)active.ready_frames,(unsigned)active.input_ready_frames);
+        (unsigned)active.descriptor_errors,(unsigned)active.max_eof_gap_us,(unsigned)active.ready_frames,(unsigned)active.input_ready_frames,(unsigned)active.block_dsp,(unsigned)active.word_dsp);
     printf("{\"probe\":\"pipeline_allocation\",\"failed_bytes\":%u,\"failure_free\":%u,\"failure_largest\":%u,\"page_bytes\":%u}\n",
         (unsigned)active.allocation_failed_bytes,(unsigned)active.allocation_failure_free,(unsigned)active.allocation_failure_largest,
         (unsigned)(DBT_AUDIO_OUTPUT_PAGE_FRAMES*8u));

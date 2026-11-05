@@ -14,9 +14,12 @@
 #error "Compact copied PCM requires async output and excludes loans"
 #endif
 #define PROBE_PCM_TRANSFER_FRAMES 256u
+#if defined(DBT_PROBE_WORD_DSP) && !defined(DBT_PROBE_BLOCK_DSP)
+#error Word DSP requires the block renderer
+#endif
 typedef struct {
     uint32_t running,failed,rate,requested_bytes,accepted_frames,rendered_frames,ready_frames,input_ready_frames;
-    uint32_t pcm_target_ms,block_dsp,pcm_input_mode,input_capacity_frames,input_ring_bytes;
+    uint32_t pcm_target_ms,block_dsp,word_dsp,pcm_input_mode,input_capacity_frames,input_ring_bytes;
     uint32_t dma_eofs,dma_source_frames,underrun_frames,descriptor_errors,max_eof_gap_us;
     uint32_t descriptor_shape_errors,descriptor_pool_errors,descriptor_order_errors;
     uint32_t descriptor_expected_index,descriptor_observed_index,descriptor_observed_size;

@@ -662,11 +662,11 @@ static void log_loop(void *unused){
                ",\"requested_bytes\":%" PRIu32 ",\"accepted_frames\":%" PRIu32 ",\"rendered_frames\":%" PRIu32 ",\"ready_frames\":%" PRIu32
                ",\"dma_eofs\":%" PRIu32 ",\"dma_source_frames\":%" PRIu32 ",\"underrun_frames\":%" PRIu32
                ",\"descriptor_errors\":%" PRIu32 ",\"max_eof_gap_us\":%" PRIu32 ",\"maximum_render_us\":%" PRIu32
-               ",\"first_underrun_accepted_frames\":%" PRIu32 ",\"first_underrun_dma_frames\":%" PRIu32 ",\"pcm_target_ms\":%" PRIu32 ",\"block_dsp\":%" PRIu32
+               ",\"first_underrun_accepted_frames\":%" PRIu32 ",\"first_underrun_dma_frames\":%" PRIu32 ",\"pcm_target_ms\":%" PRIu32 ",\"block_dsp\":%" PRIu32 ",\"word_dsp\":%" PRIu32
                ",\"pcm_input_mode\":%" PRIu32 ",\"input_capacity_frames\":%" PRIu32 ",\"input_ring_bytes\":%" PRIu32 "}\n",
                stats.running,stats.failed,stats.rate,stats.requested_bytes,stats.accepted_frames,stats.rendered_frames,stats.ready_frames,
                stats.dma_eofs,stats.dma_source_frames,stats.underrun_frames,stats.descriptor_errors,stats.max_eof_gap_us,stats.maximum_render_us,
-               stats.first_underrun_accepted_frames,stats.first_underrun_dma_frames,stats.pcm_target_ms,stats.block_dsp,
+               stats.first_underrun_accepted_frames,stats.first_underrun_dma_frames,stats.pcm_target_ms,stats.block_dsp,stats.word_dsp,
                stats.pcm_input_mode,stats.input_capacity_frames,stats.input_ring_bytes);
         snapshot_log(output_snapshot_began,"{\"probe\":\"audio_clock\",\"ppm\":%" PRId32 ",\"observed_ppm\":%" PRId32 ",\"error_frames\":%" PRId32
                ",\"state\":%" PRIu32 ",\"target_frames\":%" PRIu32 ",\"updates\":%" PRIu32 ",\"disturbances\":%" PRIu32
