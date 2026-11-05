@@ -23,7 +23,7 @@ typedef struct {
     unsigned calls,busy_calls;int error;
 #ifdef DBT_TEST_PCM_LOANS
     const void *loan_samples;
-    uint32_t loan_id,next_loan_id,loan_timestamp;
+    uint32_t loan_id,next_loan_id,loan_timestamp,loan_hash;
     uint16_t loan_frames;bool loan_cancelled;
 #endif
 } context_t;
@@ -82,16 +82,23 @@ static dbt_result_t pcm(void *context,const void *samples,uint16_t frames,const 
 #ifdef DBT_TEST_PCM_LOANS
 /* No I2S resources exist in this codec harness, so stream control completes
  * immediately. The PCM view remains live across delayed/busy completion. */
+static uint32_t loan_hash(const context_t *c){
+    const uint8_t *p=c->loan_samples;uint32_t hash=2166136261u;
+    for(uint32_t i=0;i<(uint32_t)c->loan_frames*c->config.channels*c->config.sample_bytes;++i)hash=(hash^p[i])*16777619u;
+    return hash;
+}
 static dbt_result_t stream_begin(void *context,bool start,const dbt_codec_config_t *cfg,uint32_t *id){(void)context;(void)start;(void)cfg;*id=0;return DBT_OK;}
 static dbt_result_t no_stream_ticket(void *context,uint32_t id){(void)context;(void)id;return DBT_INVALID;}
 static dbt_result_t loan_begin(void *context,const void *samples,uint16_t frames,const dbt_codec_config_t *cfg,uint32_t timestamp,uint32_t *id){
     context_t *c=context;*id=0;if(c->loan_id)return DBT_BUSY;
     if(!cfg || !frames || frames>DBT_CODEC_PCM_CHUNK_FRAMES || !live_span(c,samples,(uint32_t)frames*cfg->channels*cfg->sample_bytes))return DBT_INVALID;
     c->loan_samples=samples;c->loan_frames=frames;c->loan_timestamp=timestamp;c->loan_cancelled=false;
+    c->loan_hash=loan_hash(c);
     c->loan_id=++c->next_loan_id;*id=c->loan_id;return DBT_PENDING;
 }
 static dbt_result_t loan_poll(void *context,uint32_t id){
     context_t *c=context;if(!id || id!=c->loan_id)return DBT_INVALID;
+    if(loan_hash(c)!=c->loan_hash){c->error=__LINE__;return DBT_INVALID;}
     dbt_result_t result=c->loan_cancelled?DBT_CANCELLED:pcm(context,c->loan_samples,c->loan_frames,&c->config,c->loan_timestamp);
     if(result==DBT_BUSY)return DBT_PENDING;
     c->loan_id=0;c->loan_samples=NULL;return result==DBT_OK?DBT_OK:DBT_CANCELLED;
@@ -228,11 +235,12 @@ static int run_case(case_t c){
 finish:
     if(worker_initialized && worker.binding)control(&worker,DBT_SINK_DROP,NULL,0);
     dbt_codec_close(&direct);
-    uint32_t prefix_frames=ctx.reference_frames<512u?ctx.reference_frames:512u,prefix_hash=2166136261u;
+    uint32_t prefix_frames=ctx.reference_frames<512u?ctx.reference_frames:512u,prefix_hash=2166136261u,full_hash=2166136261u;
     if(ctx.reference)for(unsigned i=0;i<prefix_frames*(uint32_t)ctx.config.channels*ctx.config.sample_bytes;++i)prefix_hash=(prefix_hash^ctx.reference[i])*16777619u;
-    printf("{\"probe\":\"deferred_codec_case\",\"codec\":\"%s\",\"index\":%u,\"mode\":%u,\"passed\":%s,\"line\":%d,\"consumer_line\":%d,\"sample_frames\":%u,\"busy_attempts\":%u,\"tracked_peak_bytes\":%u,\"live_bytes\":%u,\"prefix_frames\":%u,\"prefix_pcm_fnv1a32\":%u}\n",
+    if(ctx.reference)for(unsigned i=0;i<ctx.reference_frames*(uint32_t)ctx.config.channels*ctx.config.sample_bytes;++i)full_hash=(full_hash^ctx.reference[i])*16777619u;
+    printf("{\"probe\":\"deferred_codec_case\",\"codec\":\"%s\",\"index\":%u,\"mode\":%u,\"passed\":%s,\"line\":%d,\"consumer_line\":%d,\"sample_frames\":%u,\"busy_attempts\":%u,\"tracked_peak_bytes\":%u,\"live_bytes\":%u,\"prefix_frames\":%u,\"prefix_pcm_fnv1a32\":%u,\"full_pcm_fnv1a32\":%u}\n",
         c.v?c.v->name:c.opus?"Opus":"LHDC 192k/S24/1000",c.index,c.mode,line?"false":"true",line,ctx.error,
-        (unsigned)ctx.compared_frames,ctx.busy_calls,(unsigned)ctx.peak,(unsigned)ctx.live,prefix_frames,prefix_hash);
+        (unsigned)ctx.compared_frames,ctx.busy_calls,(unsigned)ctx.peak,(unsigned)ctx.live,prefix_frames,prefix_hash,full_hash);
     free(ctx.reference);free(ctx.timestamps);return line;
 }
 int main(void){

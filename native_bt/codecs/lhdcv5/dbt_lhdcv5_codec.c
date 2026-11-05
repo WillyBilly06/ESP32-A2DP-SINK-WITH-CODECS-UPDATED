@@ -58,7 +58,18 @@ uint8_t dbt_a2dp_lhdcv5_validate(const dbt_avdtp_endpoint_t *endpoint,const dbt_
     return minimum[(p[9]>>6)&3u]<minimum[(cap[9]>>6)&3u] || maximum[(p[9]>>4)&3u]>maximum[(cap[9]>>4)&3u]?0x29:0;
 }
 static uint8_t *workspace(lhdc_state_t *s){return (uint8_t *)s+align8(sizeof(*s));}
-static uint8_t *pcm(lhdc_state_t *s){return workspace(s)+s->workspace_bytes;}
+static uint8_t *pcm(lhdc_state_t *s){
+#ifdef DBT_LHDC_KEEP_DEDICATED_PCM
+    return workspace(s)+s->workspace_bytes;
+#else
+    /* The single-slot decoder finishes both transforms and overlap-adds
+     * before emitting interleaved PCM. Its float sources are pcm_mid and
+     * ch_pcm (mdct_in), so mdct_out is dead during that final conversion.
+     * The worker fences every PCM loan before decoding/reset/close/reconfigure;
+     * the next transform may reuse this storage only after retirement. */
+    return (uint8_t *)s->codec->slot[0].mdct_out;
+#endif
+}
 static void clear_fragment(dbt_codec_decoder_t *d){
     lhdc_state_t *s=d->state;if(!s)return;if(s->fragment)dbt_codec_release(d,s->fragment);
     s->fragment=0;s->fragment_size=s->fragment_capacity=s->remaining=0;
@@ -81,14 +92,26 @@ static dbt_result_t open_decoder(dbt_codec_decoder_t *d){
        checked.channels!=d->config.channels || checked.samples!=d->config.samples || checked.sample_bytes!=d->config.sample_bytes)return DBT_INVALID;
     if(active)return DBT_BUSY;
     size_t needed=lhdc_dec_get_workspace_size(checked.rate,5);if(!needed || needed>UINT32_MAX-8192u)return DBT_INVALID;
-    uint32_t work=align8((uint32_t)needed),bytes=align8(sizeof(lhdc_state_t))+work+(uint32_t)checked.samples*checked.channels*checked.sample_bytes;
+    uint32_t work=align8((uint32_t)needed),bytes=align8(sizeof(lhdc_state_t))+work;
+#ifdef DBT_LHDC_KEEP_DEDICATED_PCM
+    bytes+=(uint32_t)checked.samples*checked.channels*checked.sample_bytes;
+#endif
     lhdc_state_t *s=(lhdc_state_t *)dbt_codec_allocate(d,bytes);if(!s)return DBT_NO_SPACE;
     zero(s,bytes);s->workspace_bytes=work;d->state=s;active=d;allocation_failed=false;
     lhdc_dec_config_t c={(lhdc_dec_sample_rate_t)checked.rate,
         (lhdc_dec_bitdepth_t)((checked.cie[9]&7u)==4?16:(checked.cie[9]&7u)==2?24:32),
         LHDC_DEC_FRAME_5MS,2,LHDC_FRAME_MAX,0};
     s->codec=lhdc_dec_init(workspace(s),&c);
-    return s->codec && dbt_lhdc_entropy_ready() && !allocation_failed?DBT_OK:DBT_NO_SPACE;
+    if(!s->codec || !dbt_lhdc_entropy_ready() || allocation_failed)return DBT_NO_SPACE;
+#ifndef DBT_LHDC_KEEP_DEDICATED_PCM
+    /* Parameters come from the configured CIE, never packet-controlled rate
+     * changes. Allocation is fixed until a worker-fenced reconfiguration.
+     * Both S16 and S32 stereo containers fit the M-float transform buffer. */
+    if(!pcm(s) || s->codec->alloc_mdct_size!=2*(int)checked.samples ||
+       (uint32_t)checked.samples*checked.channels*checked.sample_bytes>
+       (uint32_t)s->codec->alloc_mdct_size*sizeof(float))return DBT_INVALID;
+#endif
+    return DBT_OK;
 }
 static dbt_result_t batch_finish(dbt_codec_decoder_t *d,dbt_result_t result){
     lhdc_state_t *s=d->state;bool fragmented=s->batch_fragment;

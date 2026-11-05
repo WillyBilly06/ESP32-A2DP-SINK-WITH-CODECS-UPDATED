@@ -36,6 +36,7 @@ def main():
     parser.add_argument('--pcm-loans',action='store_true',help='Use asynchronous immutable PCM loans with a delayed provider mock')
     parser.add_argument('--lhdc-esp32-paths',action='store_true',help='Host-execute the LHDC source conditionals selected on classic ESP32; not Xtensa execution')
     parser.add_argument('--lhdc-keep-unused-overlap',action='store_true',help='Retain the unused ESP32 overlap snapshot as an allocation reference')
+    parser.add_argument('--lhdc-keep-dedicated-pcm',action='store_true',help='Retain the separate LHDC PCM output allocation for paired comparison')
     args=parser.parse_args()
     if args.lhdc_source:
         LHDC=args.lhdc_source.resolve()
@@ -46,6 +47,7 @@ def main():
     if args.deferred:OUT=ROOT/('_build/native_codecs/deferred_asan' if args.sanitize else '_build/native_codecs/deferred_host')
     if args.pcm_loans:OUT=ROOT/('_build/native_codecs/deferred_loans_asan' if args.sanitize else '_build/native_codecs/deferred_loans_host')
     if args.lhdc_esp32_paths:OUT=OUT.with_name(OUT.name+('_esp32_keep_ov' if args.lhdc_keep_unused_overlap else '_esp32'))
+    if args.lhdc_keep_dedicated_pcm:OUT=OUT.with_name(OUT.name+'_dedicated_pcm')
     OUT.mkdir(parents=True,exist_ok=True);env=os.environ.copy()
     if os.name=='nt':
         vc=Path(r'C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Auxiliary\Build\vcvars64.bat')
@@ -112,6 +114,7 @@ def main():
         if os.name=='nt':flags+=['-fms-runtime-lib=dll']
     flags+=['-DDBT_PROBE_'+x+'_BUILD=1' for x in ('SBC','OPUS','AAC','APTX','LDAC','LHDC')]
     if args.pcm_loans:flags+=['-DDBT_TEST_PCM_LOANS=1']
+    if args.lhdc_keep_dedicated_pcm:flags+=['-DDBT_LHDC_KEEP_DEDICATED_PCM=1']
     flags+=['-I'+str(p) for p in inc]
     exe=OUT/('probe_codec_selftest.exe' if os.name=='nt' else 'probe_codec_selftest')
     # Cache individual translation units. Select ESP32's portable arithmetic
@@ -155,7 +158,7 @@ def main():
         assert len([c for c in cases if c['mode']==0])==38
         assert all(c['passed'] and c['live_bytes']==0 and c['busy_attempts'] for c in cases)
         assert all(hashlib.sha256(Path(path).read_bytes()).hexdigest()==sha for path,sha in before.items())
-        report={'passed':True,'pcm_loans':args.pcm_loans,'lhdc_esp32_paths':args.lhdc_esp32_paths,'lhdc_keep_unused_overlap':args.lhdc_keep_unused_overlap,'scope':'real host codec algorithms and worker, byte/sample-timestamp comparison with simulated output backpressure and 150 ms pause; optional async PCM-loan mock and classic-ESP32 LHDC conditionals, no target/RF timing',
+        report={'passed':True,'pcm_loans':args.pcm_loans,'lhdc_esp32_paths':args.lhdc_esp32_paths,'lhdc_keep_unused_overlap':args.lhdc_keep_unused_overlap,'lhdc_keep_dedicated_pcm':args.lhdc_keep_dedicated_pcm,'scope':'real host codec algorithms and worker, byte/sample-timestamp comparison with simulated output backpressure and 150 ms pause; optional async PCM-loan mock and classic-ESP32 LHDC conditionals, no target/RF timing',
                 'sanitizers':['address for all source-built codecs','undefined for owned adapters/worker/test harness'] if args.sanitize else [],'guarded_opus_instrumented':args.sanitize,
                 'summary':summaries[0],'cases':cases,'source_sha256':before}
         (OUT/'results.json').write_text(json.dumps(report,indent=2)+'\n')

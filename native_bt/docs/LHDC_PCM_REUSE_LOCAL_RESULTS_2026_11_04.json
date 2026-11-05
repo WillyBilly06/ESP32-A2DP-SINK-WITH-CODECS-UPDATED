@@ -1,0 +1,821 @@
+{
+  "scope": "paired real host codec/worker paths, retained vs reused storage plus copied worker; no ESP32/RF timing",
+  "passed": true,
+  "host_cases_per_mode": 80,
+  "full_pcm_hash_and_sample_counts_match": true,
+  "immutable_loan_hash_checked_each_poll": true,
+  "sanitizers": [
+    "address for all source-built codecs",
+    "undefined for owned adapters/worker/test harness"
+  ],
+  "raw_receipts_directory": "native_bt/_build/experiments/lhdc-pcm-reuse-1793848319978796700",
+  "raw_receipt_sha256": {
+    "copied.json": "e5dbf9f33e6f913eecdf087e52f65c80b5af118b70a3fc60b67041f2fcc79961",
+    "retained.json": "ce0944145445459cd18828dc2b4cd261c6e9c67c84ba4c1c067906a467fdf674",
+    "reused.json": "d0d2b6827d95f074da340c59e429569b849264e03b1f1e459d5080d9b66d18ae"
+  },
+  "cases": [
+    {
+      "codec": "sbc_48_stereo",
+      "index": 0,
+      "mode": 0,
+      "sample_frames": 512,
+      "full_pcm_fnv1a32": 2930930555,
+      "retained_peak_bytes": 11090,
+      "reused_peak_bytes": 11090,
+      "saved_bytes": 0
+    },
+    {
+      "codec": "sbc_48_stereo",
+      "index": 0,
+      "mode": 1,
+      "sample_frames": 512,
+      "full_pcm_fnv1a32": 2930930555,
+      "retained_peak_bytes": 11208,
+      "reused_peak_bytes": 11208,
+      "saved_bytes": 0
+    },
+    {
+      "codec": "sbc_48_stereo",
+      "index": 0,
+      "mode": 2,
+      "sample_frames": 1024,
+      "full_pcm_fnv1a32": 3724506166,
+      "retained_peak_bytes": 11090,
+      "reused_peak_bytes": 11090,
+      "saved_bytes": 0
+    },
+    {
+      "codec": "aac_44100_1",
+      "index": 1,
+      "mode": 0,
+      "sample_frames": 4096,
+      "full_pcm_fnv1a32": 1909601576,
+      "retained_peak_bytes": 34388,
+      "reused_peak_bytes": 34388,
+      "saved_bytes": 0
+    },
+    {
+      "codec": "aac_44100_1",
+      "index": 1,
+      "mode": 1,
+      "sample_frames": 4096,
+      "full_pcm_fnv1a32": 1909601576,
+      "retained_peak_bytes": 35940,
+      "reused_peak_bytes": 35940,
+      "saved_bytes": 0
+    },
+    {
+      "codec": "aac_44100_1",
+      "index": 1,
+      "mode": 2,
+      "sample_frames": 8192,
+      "full_pcm_fnv1a32": 23039680,
+      "retained_peak_bytes": 34388,
+      "reused_peak_bytes": 34388,
+      "saved_bytes": 0
+    },
+    {
+      "codec": "aac_44100_2",
+      "index": 2,
+      "mode": 0,
+      "sample_frames": 4096,
+      "full_pcm_fnv1a32": 1752059489,
+      "retained_peak_bytes": 35156,
+      "reused_peak_bytes": 35156,
+      "saved_bytes": 0
+    },
+    {
+      "codec": "aac_44100_2",
+      "index": 2,
+      "mode": 1,
+      "sample_frames": 4096,
+      "full_pcm_fnv1a32": 1752059489,
+      "retained_peak_bytes": 35940,
+      "reused_peak_bytes": 35940,
+      "saved_bytes": 0
+    },
+    {
+      "codec": "aac_44100_2",
+      "index": 2,
+      "mode": 2,
+      "sample_frames": 8192,
+      "full_pcm_fnv1a32": 1962353265,
+      "retained_peak_bytes": 35156,
+      "reused_peak_bytes": 35156,
+      "saved_bytes": 0
+    },
+    {
+      "codec": "aac_48000_1",
+      "index": 3,
+      "mode": 0,
+      "sample_frames": 4096,
+      "full_pcm_fnv1a32": 2312093271,
+      "retained_peak_bytes": 34388,
+      "reused_peak_bytes": 34388,
+      "saved_bytes": 0
+    },
+    {
+      "codec": "aac_48000_1",
+      "index": 3,
+      "mode": 1,
+      "sample_frames": 4096,
+      "full_pcm_fnv1a32": 2312093271,
+      "retained_peak_bytes": 35172,
+      "reused_peak_bytes": 35172,
+      "saved_bytes": 0
+    },
+    {
+      "codec": "aac_48000_1",
+      "index": 3,
+      "mode": 2,
+      "sample_frames": 8192,
+      "full_pcm_fnv1a32": 3437026565,
+      "retained_peak_bytes": 34388,
+      "reused_peak_bytes": 34388,
+      "saved_bytes": 0
+    },
+    {
+      "codec": "aac_48000_2",
+      "index": 4,
+      "mode": 0,
+      "sample_frames": 4096,
+      "full_pcm_fnv1a32": 1348465205,
+      "retained_peak_bytes": 35156,
+      "reused_peak_bytes": 35156,
+      "saved_bytes": 0
+    },
+    {
+      "codec": "aac_48000_2",
+      "index": 4,
+      "mode": 1,
+      "sample_frames": 4096,
+      "full_pcm_fnv1a32": 1348465205,
+      "retained_peak_bytes": 35940,
+      "reused_peak_bytes": 35940,
+      "saved_bytes": 0
+    },
+    {
+      "codec": "aac_48000_2",
+      "index": 4,
+      "mode": 2,
+      "sample_frames": 8192,
+      "full_pcm_fnv1a32": 490671837,
+      "retained_peak_bytes": 35156,
+      "reused_peak_bytes": 35156,
+      "saved_bytes": 0
+    },
+    {
+      "codec": "aptx_standard_44100",
+      "index": 5,
+      "mode": 0,
+      "sample_frames": 678,
+      "full_pcm_fnv1a32": 366508666,
+      "retained_peak_bytes": 13720,
+      "reused_peak_bytes": 13720,
+      "saved_bytes": 0
+    },
+    {
+      "codec": "aptx_standard_44100",
+      "index": 5,
+      "mode": 2,
+      "sample_frames": 2214,
+      "full_pcm_fnv1a32": 177998618,
+      "retained_peak_bytes": 13720,
+      "reused_peak_bytes": 13720,
+      "saved_bytes": 0
+    },
+    {
+      "codec": "aptx_standard_48000",
+      "index": 6,
+      "mode": 0,
+      "sample_frames": 678,
+      "full_pcm_fnv1a32": 3912556234,
+      "retained_peak_bytes": 13720,
+      "reused_peak_bytes": 13720,
+      "saved_bytes": 0
+    },
+    {
+      "codec": "aptx_standard_48000",
+      "index": 6,
+      "mode": 2,
+      "sample_frames": 2214,
+      "full_pcm_fnv1a32": 2078581603,
+      "retained_peak_bytes": 13720,
+      "reused_peak_bytes": 13720,
+      "saved_bytes": 0
+    },
+    {
+      "codec": "aptx_hd_44100",
+      "index": 7,
+      "mode": 0,
+      "sample_frames": 422,
+      "full_pcm_fnv1a32": 1120062235,
+      "retained_peak_bytes": 13720,
+      "reused_peak_bytes": 13720,
+      "saved_bytes": 0
+    },
+    {
+      "codec": "aptx_hd_44100",
+      "index": 7,
+      "mode": 2,
+      "sample_frames": 1446,
+      "full_pcm_fnv1a32": 3315984377,
+      "retained_peak_bytes": 13720,
+      "reused_peak_bytes": 13720,
+      "saved_bytes": 0
+    },
+    {
+      "codec": "aptx_hd_48000",
+      "index": 8,
+      "mode": 0,
+      "sample_frames": 422,
+      "full_pcm_fnv1a32": 1043908464,
+      "retained_peak_bytes": 13720,
+      "reused_peak_bytes": 13720,
+      "saved_bytes": 0
+    },
+    {
+      "codec": "aptx_hd_48000",
+      "index": 8,
+      "mode": 2,
+      "sample_frames": 1446,
+      "full_pcm_fnv1a32": 3028861852,
+      "retained_peak_bytes": 13720,
+      "reused_peak_bytes": 13720,
+      "saved_bytes": 0
+    },
+    {
+      "codec": "aptx_ll_44100",
+      "index": 9,
+      "mode": 0,
+      "sample_frames": 678,
+      "full_pcm_fnv1a32": 366508666,
+      "retained_peak_bytes": 13720,
+      "reused_peak_bytes": 13720,
+      "saved_bytes": 0
+    },
+    {
+      "codec": "aptx_ll_44100",
+      "index": 9,
+      "mode": 2,
+      "sample_frames": 2214,
+      "full_pcm_fnv1a32": 177998618,
+      "retained_peak_bytes": 13720,
+      "reused_peak_bytes": 13720,
+      "saved_bytes": 0
+    },
+    {
+      "codec": "aptx_ll_48000",
+      "index": 10,
+      "mode": 0,
+      "sample_frames": 678,
+      "full_pcm_fnv1a32": 3912556234,
+      "retained_peak_bytes": 13720,
+      "reused_peak_bytes": 13720,
+      "saved_bytes": 0
+    },
+    {
+      "codec": "aptx_ll_48000",
+      "index": 10,
+      "mode": 2,
+      "sample_frames": 2214,
+      "full_pcm_fnv1a32": 2078581603,
+      "retained_peak_bytes": 13720,
+      "reused_peak_bytes": 13720,
+      "saved_bytes": 0
+    },
+    {
+      "codec": "ldac_44100_1",
+      "index": 11,
+      "mode": 0,
+      "sample_frames": 512,
+      "full_pcm_fnv1a32": 1025151182,
+      "retained_peak_bytes": 15901,
+      "reused_peak_bytes": 15901,
+      "saved_bytes": 0
+    },
+    {
+      "codec": "ldac_44100_1",
+      "index": 11,
+      "mode": 2,
+      "sample_frames": 1024,
+      "full_pcm_fnv1a32": 3626236263,
+      "retained_peak_bytes": 15901,
+      "reused_peak_bytes": 15901,
+      "saved_bytes": 0
+    },
+    {
+      "codec": "ldac_48000_4",
+      "index": 12,
+      "mode": 0,
+      "sample_frames": 512,
+      "full_pcm_fnv1a32": 1242964829,
+      "retained_peak_bytes": 12581,
+      "reused_peak_bytes": 12581,
+      "saved_bytes": 0
+    },
+    {
+      "codec": "ldac_48000_4",
+      "index": 12,
+      "mode": 2,
+      "sample_frames": 1024,
+      "full_pcm_fnv1a32": 1383564391,
+      "retained_peak_bytes": 12581,
+      "reused_peak_bytes": 12581,
+      "saved_bytes": 0
+    },
+    {
+      "codec": "ldac_48000_2",
+      "index": 13,
+      "mode": 0,
+      "sample_frames": 512,
+      "full_pcm_fnv1a32": 3964453417,
+      "retained_peak_bytes": 16029,
+      "reused_peak_bytes": 16029,
+      "saved_bytes": 0
+    },
+    {
+      "codec": "ldac_48000_2",
+      "index": 13,
+      "mode": 2,
+      "sample_frames": 1024,
+      "full_pcm_fnv1a32": 3586931125,
+      "retained_peak_bytes": 16029,
+      "reused_peak_bytes": 16029,
+      "saved_bytes": 0
+    },
+    {
+      "codec": "ldac_48000_1",
+      "index": 14,
+      "mode": 0,
+      "sample_frames": 512,
+      "full_pcm_fnv1a32": 1025151182,
+      "retained_peak_bytes": 15901,
+      "reused_peak_bytes": 15901,
+      "saved_bytes": 0
+    },
+    {
+      "codec": "ldac_48000_1",
+      "index": 14,
+      "mode": 2,
+      "sample_frames": 1024,
+      "full_pcm_fnv1a32": 3626236263,
+      "retained_peak_bytes": 15901,
+      "reused_peak_bytes": 15901,
+      "saved_bytes": 0
+    },
+    {
+      "codec": "ldac_88200_1",
+      "index": 15,
+      "mode": 0,
+      "sample_frames": 1024,
+      "full_pcm_fnv1a32": 1769590198,
+      "retained_peak_bytes": 22045,
+      "reused_peak_bytes": 22045,
+      "saved_bytes": 0
+    },
+    {
+      "codec": "ldac_88200_1",
+      "index": 15,
+      "mode": 2,
+      "sample_frames": 2048,
+      "full_pcm_fnv1a32": 1291822867,
+      "retained_peak_bytes": 22045,
+      "reused_peak_bytes": 22045,
+      "saved_bytes": 0
+    },
+    {
+      "codec": "ldac_96000_1",
+      "index": 16,
+      "mode": 0,
+      "sample_frames": 1024,
+      "full_pcm_fnv1a32": 1769590198,
+      "retained_peak_bytes": 22045,
+      "reused_peak_bytes": 22045,
+      "saved_bytes": 0
+    },
+    {
+      "codec": "ldac_96000_1",
+      "index": 16,
+      "mode": 2,
+      "sample_frames": 2048,
+      "full_pcm_fnv1a32": 1291822867,
+      "retained_peak_bytes": 22045,
+      "reused_peak_bytes": 22045,
+      "saved_bytes": 0
+    },
+    {
+      "codec": "lhdcv5_44100_16",
+      "index": 17,
+      "mode": 0,
+      "sample_frames": 2160,
+      "full_pcm_fnv1a32": 2524121912,
+      "retained_peak_bytes": 28544,
+      "reused_peak_bytes": 27584,
+      "saved_bytes": 960
+    },
+    {
+      "codec": "lhdcv5_44100_16",
+      "index": 17,
+      "mode": 1,
+      "sample_frames": 2160,
+      "full_pcm_fnv1a32": 2524121912,
+      "retained_peak_bytes": 30096,
+      "reused_peak_bytes": 29136,
+      "saved_bytes": 960
+    },
+    {
+      "codec": "lhdcv5_48000_16",
+      "index": 18,
+      "mode": 0,
+      "sample_frames": 2880,
+      "full_pcm_fnv1a32": 2218257031,
+      "retained_peak_bytes": 28544,
+      "reused_peak_bytes": 27584,
+      "saved_bytes": 960
+    },
+    {
+      "codec": "lhdcv5_48000_16",
+      "index": 18,
+      "mode": 1,
+      "sample_frames": 2880,
+      "full_pcm_fnv1a32": 2218257031,
+      "retained_peak_bytes": 30096,
+      "reused_peak_bytes": 29136,
+      "saved_bytes": 960
+    },
+    {
+      "codec": "lhdcv5_96000_24",
+      "index": 19,
+      "mode": 0,
+      "sample_frames": 5760,
+      "full_pcm_fnv1a32": 3522679927,
+      "retained_peak_bytes": 38320,
+      "reused_peak_bytes": 34480,
+      "saved_bytes": 3840
+    },
+    {
+      "codec": "lhdcv5_96000_24",
+      "index": 19,
+      "mode": 1,
+      "sample_frames": 5760,
+      "full_pcm_fnv1a32": 3522679927,
+      "retained_peak_bytes": 39872,
+      "reused_peak_bytes": 36032,
+      "saved_bytes": 3840
+    },
+    {
+      "codec": "lhdcv5_192000_24",
+      "index": 20,
+      "mode": 0,
+      "sample_frames": 11520,
+      "full_pcm_fnv1a32": 1798366155,
+      "retained_peak_bytes": 61648,
+      "reused_peak_bytes": 53968,
+      "saved_bytes": 7680
+    },
+    {
+      "codec": "lhdcv5_192000_24",
+      "index": 20,
+      "mode": 1,
+      "sample_frames": 11520,
+      "full_pcm_fnv1a32": 1798366155,
+      "retained_peak_bytes": 63200,
+      "reused_peak_bytes": 55520,
+      "saved_bytes": 7680
+    },
+    {
+      "codec": "Opus",
+      "index": 0,
+      "mode": 0,
+      "sample_frames": 360,
+      "full_pcm_fnv1a32": 917634464,
+      "retained_peak_bytes": 39015,
+      "reused_peak_bytes": 39015,
+      "saved_bytes": 0
+    },
+    {
+      "codec": "Opus",
+      "index": 0,
+      "mode": 1,
+      "sample_frames": 360,
+      "full_pcm_fnv1a32": 917634464,
+      "retained_peak_bytes": 39279,
+      "reused_peak_bytes": 39279,
+      "saved_bytes": 0
+    },
+    {
+      "codec": "Opus",
+      "index": 1,
+      "mode": 0,
+      "sample_frames": 720,
+      "full_pcm_fnv1a32": 4005864161,
+      "retained_peak_bytes": 39255,
+      "reused_peak_bytes": 39255,
+      "saved_bytes": 0
+    },
+    {
+      "codec": "Opus",
+      "index": 1,
+      "mode": 1,
+      "sample_frames": 720,
+      "full_pcm_fnv1a32": 4005864161,
+      "retained_peak_bytes": 39519,
+      "reused_peak_bytes": 39519,
+      "saved_bytes": 0
+    },
+    {
+      "codec": "Opus",
+      "index": 2,
+      "mode": 0,
+      "sample_frames": 1440,
+      "full_pcm_fnv1a32": 2688041326,
+      "retained_peak_bytes": 39735,
+      "reused_peak_bytes": 39735,
+      "saved_bytes": 0
+    },
+    {
+      "codec": "Opus",
+      "index": 2,
+      "mode": 1,
+      "sample_frames": 1440,
+      "full_pcm_fnv1a32": 2688041326,
+      "retained_peak_bytes": 39999,
+      "reused_peak_bytes": 39999,
+      "saved_bytes": 0
+    },
+    {
+      "codec": "Opus",
+      "index": 3,
+      "mode": 0,
+      "sample_frames": 2880,
+      "full_pcm_fnv1a32": 806544857,
+      "retained_peak_bytes": 40695,
+      "reused_peak_bytes": 40695,
+      "saved_bytes": 0
+    },
+    {
+      "codec": "Opus",
+      "index": 3,
+      "mode": 1,
+      "sample_frames": 2880,
+      "full_pcm_fnv1a32": 806544857,
+      "retained_peak_bytes": 40959,
+      "reused_peak_bytes": 40959,
+      "saved_bytes": 0
+    },
+    {
+      "codec": "Opus",
+      "index": 4,
+      "mode": 0,
+      "sample_frames": 5760,
+      "full_pcm_fnv1a32": 3912214095,
+      "retained_peak_bytes": 42615,
+      "reused_peak_bytes": 42615,
+      "saved_bytes": 0
+    },
+    {
+      "codec": "Opus",
+      "index": 4,
+      "mode": 1,
+      "sample_frames": 5760,
+      "full_pcm_fnv1a32": 3912214095,
+      "retained_peak_bytes": 42879,
+      "reused_peak_bytes": 42879,
+      "saved_bytes": 0
+    },
+    {
+      "codec": "Opus",
+      "index": 5,
+      "mode": 0,
+      "sample_frames": 360,
+      "full_pcm_fnv1a32": 2043659919,
+      "retained_peak_bytes": 52071,
+      "reused_peak_bytes": 52071,
+      "saved_bytes": 0
+    },
+    {
+      "codec": "Opus",
+      "index": 5,
+      "mode": 1,
+      "sample_frames": 360,
+      "full_pcm_fnv1a32": 2043659919,
+      "retained_peak_bytes": 52335,
+      "reused_peak_bytes": 52335,
+      "saved_bytes": 0
+    },
+    {
+      "codec": "Opus",
+      "index": 6,
+      "mode": 0,
+      "sample_frames": 720,
+      "full_pcm_fnv1a32": 2784743693,
+      "retained_peak_bytes": 52551,
+      "reused_peak_bytes": 52551,
+      "saved_bytes": 0
+    },
+    {
+      "codec": "Opus",
+      "index": 6,
+      "mode": 1,
+      "sample_frames": 720,
+      "full_pcm_fnv1a32": 2784743693,
+      "retained_peak_bytes": 52815,
+      "reused_peak_bytes": 52815,
+      "saved_bytes": 0
+    },
+    {
+      "codec": "Opus",
+      "index": 7,
+      "mode": 0,
+      "sample_frames": 1440,
+      "full_pcm_fnv1a32": 2909219290,
+      "retained_peak_bytes": 53511,
+      "reused_peak_bytes": 53511,
+      "saved_bytes": 0
+    },
+    {
+      "codec": "Opus",
+      "index": 7,
+      "mode": 1,
+      "sample_frames": 1440,
+      "full_pcm_fnv1a32": 2909219290,
+      "retained_peak_bytes": 53775,
+      "reused_peak_bytes": 53775,
+      "saved_bytes": 0
+    },
+    {
+      "codec": "Opus",
+      "index": 8,
+      "mode": 0,
+      "sample_frames": 2880,
+      "full_pcm_fnv1a32": 2356900406,
+      "retained_peak_bytes": 55431,
+      "reused_peak_bytes": 55431,
+      "saved_bytes": 0
+    },
+    {
+      "codec": "Opus",
+      "index": 8,
+      "mode": 1,
+      "sample_frames": 2880,
+      "full_pcm_fnv1a32": 2356900406,
+      "retained_peak_bytes": 56215,
+      "reused_peak_bytes": 56215,
+      "saved_bytes": 0
+    },
+    {
+      "codec": "Opus",
+      "index": 9,
+      "mode": 0,
+      "sample_frames": 5760,
+      "full_pcm_fnv1a32": 1787105252,
+      "retained_peak_bytes": 59271,
+      "reused_peak_bytes": 59271,
+      "saved_bytes": 0
+    },
+    {
+      "codec": "Opus",
+      "index": 9,
+      "mode": 1,
+      "sample_frames": 5760,
+      "full_pcm_fnv1a32": 1787105252,
+      "retained_peak_bytes": 60055,
+      "reused_peak_bytes": 60055,
+      "saved_bytes": 0
+    },
+    {
+      "codec": "Opus",
+      "index": 10,
+      "mode": 0,
+      "sample_frames": 1440,
+      "full_pcm_fnv1a32": 4076339567,
+      "retained_peak_bytes": 39735,
+      "reused_peak_bytes": 39735,
+      "saved_bytes": 0
+    },
+    {
+      "codec": "Opus",
+      "index": 10,
+      "mode": 1,
+      "sample_frames": 1440,
+      "full_pcm_fnv1a32": 4076339567,
+      "retained_peak_bytes": 39999,
+      "reused_peak_bytes": 39999,
+      "saved_bytes": 0
+    },
+    {
+      "codec": "Opus",
+      "index": 11,
+      "mode": 0,
+      "sample_frames": 2880,
+      "full_pcm_fnv1a32": 260848244,
+      "retained_peak_bytes": 40695,
+      "reused_peak_bytes": 40695,
+      "saved_bytes": 0
+    },
+    {
+      "codec": "Opus",
+      "index": 11,
+      "mode": 1,
+      "sample_frames": 2880,
+      "full_pcm_fnv1a32": 260848244,
+      "retained_peak_bytes": 40959,
+      "reused_peak_bytes": 40959,
+      "saved_bytes": 0
+    },
+    {
+      "codec": "Opus",
+      "index": 12,
+      "mode": 0,
+      "sample_frames": 5760,
+      "full_pcm_fnv1a32": 1971641471,
+      "retained_peak_bytes": 42615,
+      "reused_peak_bytes": 42615,
+      "saved_bytes": 0
+    },
+    {
+      "codec": "Opus",
+      "index": 12,
+      "mode": 1,
+      "sample_frames": 5760,
+      "full_pcm_fnv1a32": 1971641471,
+      "retained_peak_bytes": 42879,
+      "reused_peak_bytes": 42879,
+      "saved_bytes": 0
+    },
+    {
+      "codec": "Opus",
+      "index": 13,
+      "mode": 0,
+      "sample_frames": 1440,
+      "full_pcm_fnv1a32": 4143252013,
+      "retained_peak_bytes": 53511,
+      "reused_peak_bytes": 53511,
+      "saved_bytes": 0
+    },
+    {
+      "codec": "Opus",
+      "index": 13,
+      "mode": 1,
+      "sample_frames": 1440,
+      "full_pcm_fnv1a32": 4143252013,
+      "retained_peak_bytes": 53775,
+      "reused_peak_bytes": 53775,
+      "saved_bytes": 0
+    },
+    {
+      "codec": "Opus",
+      "index": 14,
+      "mode": 0,
+      "sample_frames": 2880,
+      "full_pcm_fnv1a32": 508990621,
+      "retained_peak_bytes": 55431,
+      "reused_peak_bytes": 55431,
+      "saved_bytes": 0
+    },
+    {
+      "codec": "Opus",
+      "index": 14,
+      "mode": 1,
+      "sample_frames": 2880,
+      "full_pcm_fnv1a32": 508990621,
+      "retained_peak_bytes": 56215,
+      "reused_peak_bytes": 56215,
+      "saved_bytes": 0
+    },
+    {
+      "codec": "Opus",
+      "index": 15,
+      "mode": 0,
+      "sample_frames": 5760,
+      "full_pcm_fnv1a32": 2337704413,
+      "retained_peak_bytes": 59271,
+      "reused_peak_bytes": 59271,
+      "saved_bytes": 0
+    },
+    {
+      "codec": "Opus",
+      "index": 15,
+      "mode": 1,
+      "sample_frames": 5760,
+      "full_pcm_fnv1a32": 2337704413,
+      "retained_peak_bytes": 60055,
+      "reused_peak_bytes": 60055,
+      "saved_bytes": 0
+    },
+    {
+      "codec": "LHDC 192k/S24/1000",
+      "index": 0,
+      "mode": 0,
+      "sample_frames": 92160,
+      "full_pcm_fnv1a32": 2238681348,
+      "retained_peak_bytes": 61648,
+      "reused_peak_bytes": 53968,
+      "saved_bytes": 7680
+    }
+  ],
+  "target_test_pending": true,
+  "production_qualified": false
+}
