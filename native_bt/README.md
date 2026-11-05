@@ -74,6 +74,13 @@ sample precision remain selected. Continuous playback still fails: render
 wall time exceeds its frame budget, queues drop packets and core0 starves.
 The 64 ms default remains unchanged, and jitter equivalence is unqualified.
 
+The later [exact block-DSP renderer](docs/BLOCK_DSP_2026_11_04.md) is available
+only with `-BlockDsp`. Controlled target kernels improve 12–13% with full EQ
+and 33–36% with flat EQ. The full product confirms 192 kHz DMA and roughly
+8.460 us/frame render wall time, still above the 5.208 us budget. Queue drops,
+underruns and core0 starvation remain. EQ persistence and Balanced restoration
+are hardware-verified; complete audio/jitter/product qualification remains open.
+
 The [resumable PCM worker checkpoint](docs/IDF61_ASYNC_PCM_2026_11_04.md) adds
 80 real-codec host comparisons with sanitizer coverage and 38 passing ESP32
 deferred-worker checks. The render provider, stream/sound transactions and full

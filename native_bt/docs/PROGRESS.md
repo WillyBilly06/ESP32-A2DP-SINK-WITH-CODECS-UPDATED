@@ -4,6 +4,16 @@ Updated 2026-11-04 for ESP-IDF 6.1. The goal is **active and incomplete**.
 The user has released COM6 for flashing/testing; other boards remain excluded.
 Released main/recovery artifacts remain preserved. Latest measured evidence:
 
+- [Exact block DSP](BLOCK_DSP_2026_11_04.md) passes 3.38 million host frames,
+  108 full-render stream pairs and both 27-group target comparisons. The
+  retained hybrid measures 12–13% steady full-EQ and 33–36% flat-EQ kernel gains.
+  The opt-in full product runs 192 kHz I2S with `block_dsp: 1`, 31744 PCM/DMA
+  bytes and 3388 bytes of renderer stack remaining. Live render wall time is
+  approximately 8.460 us/frame, still above 5.208; queue drops, underruns and
+  39 core0 watchdog warnings fail continuity. Deep Bass survives restart;
+  Balanced is then restored through the app and verified in native/legacy NVS.
+  Released baseline return and phone pause are verified. Default modes and
+  full feature-parity requirements remain unchanged.
 - [First-drop traceback](DROP_ROOT_CAUSE_2026_11_04.md): sequence 13 arrives
   correctly but is rejected by the full eight-slot decoder queue at ESP timer
   89.086152 s. The worker then sees 14/expected 13 and resets. The first

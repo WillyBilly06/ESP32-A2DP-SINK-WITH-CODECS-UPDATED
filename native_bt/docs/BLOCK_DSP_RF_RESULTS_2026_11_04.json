@@ -1,0 +1,646 @@
+{
+  "scope": "COM6 full product with exact block DSP, 16 ms PCM target and decoder core0; max-rate memory/DMA pass, continuity failure",
+  "archive": "native_bt/_build/hardware/runs/1793855334660939100-22fbe99c1208",
+  "source_commit": "182f0d84991dd99c58c1da51b57f48a72955e562",
+  "image_sha256": "22fbe99c1208930383cab24324d251ea9bcb4717ff7261e6e6637222ea054cc6",
+  "elf_sha256": "fcef944845d99e89f527aa30cb11f6a47c3338aece53fb6dbdc67265cf742056",
+  "source_manifest_sha256": "d16c9176669fd340f95f89f468768e00679da66f117493880516e1368f95640a",
+  "all_codec_target_check": {
+    "probe": "target_codec_selftest",
+    "passed": true,
+    "configurations": 37,
+    "selected": 37,
+    "callbacks": 173,
+    "stack_bytes": 8192,
+    "stack_low_water_bytes": 3624,
+    "tracked_peak_bytes": 52152,
+    "min_free_after_alloc_bytes": 131572,
+    "maximum_decode_us": 13780,
+    "rf_test": false
+  },
+  "phone": {
+    "codec": "LHDC V5",
+    "rate": 192000,
+    "sample_depth": 24,
+    "channels": 2,
+    "nominal_target_kbps": 1000,
+    "android_measured_bitrate_reported": false,
+    "fresh_query_confirmed": true,
+    "ui_archive": "phone-max.xml"
+  },
+  "last_crc_valid_stage_snapshots": {
+    "codec_configuration": {
+      "probe": "codec_configuration",
+      "collection_cycle_us": 103358847,
+      "revision": 1,
+      "codec": 9,
+      "rate": 192000,
+      "channels": 2,
+      "pcm_container_bytes": 4,
+      "cie_size": 13,
+      "cie_hex": "00ff3a050000354c0102110000",
+      "snapshot_begin_us": 104138688,
+      "at_us": 104138728,
+      "snapshot_span_us": 40,
+      "record_crc32": "243965ce"
+    },
+    "native_i2s": {
+      "probe": "native_i2s",
+      "running": 1,
+      "failed": 0,
+      "rate": 192000,
+      "requested_bytes": 31744,
+      "accepted_frames": 15793920,
+      "rendered_frames": 15793920,
+      "ready_frames": 0,
+      "dma_eofs": 296331,
+      "dma_source_frames": 15793856,
+      "underrun_frames": 22136832,
+      "descriptor_errors": 0,
+      "max_eof_gap_us": 699,
+      "maximum_render_us": 14472,
+      "first_underrun_accepted_frames": 5312,
+      "first_underrun_dma_frames": 4864,
+      "pcm_target_ms": 16,
+      "block_dsp": 1,
+      "snapshot_begin_us": 297202612,
+      "at_us": 297456012,
+      "snapshot_span_us": 253400,
+      "record_crc32": "ebea73ec"
+    },
+    "render_work": {
+      "probe": "render_work",
+      "collection_cycle_us": 296715361,
+      "calls": 131617,
+      "elapsed_us": 133622959,
+      "maximum_us": 14472,
+      "wall_time_includes_preemption": true,
+      "input_ready_frames": 0,
+      "render_stack_low_water_bytes": 3388,
+      "allocation_failed_bytes": 0,
+      "allocation_failure_free": 0,
+      "allocation_failure_largest": 0,
+      "request_fault": 0,
+      "stale_receipts": 0,
+      "snapshot_begin_us": 297202612,
+      "at_us": 297359396,
+      "snapshot_span_us": 156784,
+      "record_crc32": "c93e8607"
+    },
+    "i2s_pcm_loans": {
+      "probe": "i2s_pcm_loans",
+      "mode": 1,
+      "input_ring_bytes_avoided": 65536,
+      "renderer_begun": 65808,
+      "renderer_retired": 65808,
+      "renderer_cancelled": 0,
+      "active": 0,
+      "max_hold_us": 15804,
+      "snapshot_begin_us": 297202612,
+      "at_us": 297202967,
+      "snapshot_span_us": 355,
+      "record_crc32": "268bc061"
+    },
+    "media_drop_reasons": {
+      "probe": "media_drop_reasons",
+      "collection_cycle_us": 296715361,
+      "queue_full": 21863,
+      "decode_reject": 0,
+      "reset_failed": 0,
+      "pcm_failed": 0,
+      "pcm_timeout": 0,
+      "pcm_busy": 0,
+      "input_sequence_breaks": 0,
+      "input_ssrc_changes": 0,
+      "queue_high_water": 8,
+      "host_trace_lost": 21007,
+      "worker_trace_lost": 12581,
+      "snapshot_records_lost": 0,
+      "snapshot_begin_us": 296811690,
+      "at_us": 296811716,
+      "snapshot_span_us": 26,
+      "record_crc32": "f7d2aa44"
+    },
+    "decoder_execution": {
+      "probe": "decoder_execution",
+      "collection_cycle_us": 296715361,
+      "calls": 32863,
+      "elapsed_us": 51561811,
+      "maximum_us": 29750,
+      "wall_time_includes_preemption": true,
+      "includes_inline_pcm": false,
+      "histogram_us_le": [
+        125,
+        250,
+        500,
+        1000,
+        2000,
+        4000,
+        8000
+      ],
+      "histogram_counts": [
+        16431,
+        0,
+        0,
+        0,
+        3,
+        16257,
+        165,
+        7
+      ],
+      "snapshot_begin_us": 296920513,
+      "at_us": 296920534,
+      "snapshot_span_us": 21,
+      "record_crc32": "c7aaef80"
+    },
+    "decoder_reset": {
+      "probe": "decoder_reset",
+      "collection_cycle_us": 296715361,
+      "calls": 13448,
+      "elapsed_us": 192794,
+      "maximum_us": 67,
+      "wall_time_includes_preemption": true,
+      "includes_inline_pcm": false,
+      "histogram_us_le": [
+        125,
+        250,
+        500,
+        1000,
+        2000,
+        4000,
+        8000
+      ],
+      "histogram_counts": [
+        13448,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "snapshot_begin_us": 296975448,
+      "at_us": 296975467,
+      "snapshot_span_us": 19,
+      "record_crc32": "5dd0800d"
+    },
+    "worker_timing": {
+      "probe": "worker_timing",
+      "collection_cycle_us": 296715361,
+      "steps": 82154,
+      "elapsed_us": 196722139,
+      "max_step_us": 29793,
+      "wall_time_includes_preemption": true,
+      "step_budget": 2,
+      "histogram_us_le": [
+        125,
+        250,
+        500,
+        1000,
+        2000,
+        4000,
+        8000
+      ],
+      "histogram_counts": [
+        8,
+        1,
+        0,
+        0,
+        15190,
+        66747,
+        170,
+        38
+      ],
+      "snapshot_begin_us": 296879830,
+      "at_us": 296879856,
+      "snapshot_span_us": 26,
+      "record_crc32": "eb1be259"
+    },
+    "pcm_delivery": {
+      "probe": "pcm_delivery",
+      "collection_cycle_us": 296715361,
+      "calls": 65760,
+      "elapsed_us": 143639476,
+      "maximum_us": 15946,
+      "wall_time_includes_preemption": true,
+      "includes_inline_pcm": false,
+      "histogram_us_le": [
+        125,
+        250,
+        500,
+        1000,
+        2000,
+        4000,
+        8000
+      ],
+      "histogram_counts": [
+        0,
+        0,
+        0,
+        0,
+        15187,
+        50542,
+        0,
+        31
+      ],
+      "snapshot_begin_us": 297038324,
+      "at_us": 297038385,
+      "snapshot_span_us": 61,
+      "record_crc32": "f2579194"
+    },
+    "i2s_callback_work": {
+      "probe": "i2s_callback_work",
+      "configured_irq_priority": 2,
+      "calls": 296331,
+      "elapsed_us": 2433424,
+      "maximum_us": 47,
+      "core": 0,
+      "application_callback_only": true,
+      "elapsed_includes_preemption": true,
+      "snapshot_begin_us": 297202612,
+      "at_us": 297307576,
+      "snapshot_span_us": 104964,
+      "record_crc32": "89c8377c"
+    },
+    "i2s_allocation_failure": {
+      "probe": "i2s_allocation_failure",
+      "failed_bytes": 0,
+      "free_bytes_at_failure": 0,
+      "largest_block_at_failure": 0,
+      "requested_rate": 0,
+      "requested_channels": 0,
+      "requested_sample_bytes": 0,
+      "failure_at_us": 0,
+      "audio_bytes_requested": 0,
+      "audio_bytes_allocated": 0,
+      "output_pages_allocated": 0,
+      "free_before_audio": 92756,
+      "free_after_audio_cleanup": 0,
+      "free_32bit_at_failure": 0,
+      "largest_32bit_at_failure": 0,
+      "snapshot_begin_us": 297202612,
+      "at_us": 297240316,
+      "snapshot_span_us": 37704,
+      "record_crc32": "08a26da2"
+    },
+    "sbc_pcm": {
+      "probe": "sbc_pcm",
+      "frames": 65777,
+      "bytes": 126291968,
+      "fnv1a32": 2593862380,
+      "rate": 192000,
+      "channels": 2,
+      "media_packets": 16447,
+      "drops": 21905,
+      "resets": 13460,
+      "resident": 53856,
+      "codec": 9,
+      "sample_bytes": 4,
+      "faults": 0,
+      "decoder_stack_low_water_bytes": 5948,
+      "internal_heap_free": 63568,
+      "internal_heap_min_free": 53684,
+      "internal_heap_largest": 53248,
+      "i2s_output": true,
+      "snapshot_begin_us": 297096439,
+      "at_us": 297140269,
+      "snapshot_span_us": 43830,
+      "record_crc32": "e4096b0c"
+    },
+    "media_input": {
+      "probe": "media_input",
+      "collection_cycle_us": 296715361,
+      "stream_epoch": 4,
+      "packets": 38352,
+      "payload_bytes": 24085056,
+      "rtp_first_timestamp": 0,
+      "rtp_last_timestamp": 37919040,
+      "rate": 192000,
+      "snapshot_begin_us": 297096439,
+      "at_us": 297096557,
+      "snapshot_span_us": 118,
+      "record_crc32": "871dc11e"
+    },
+    "vhci_timing": {
+      "probe": "vhci_timing",
+      "collection_cycle_us": 296715361,
+      "packets": 48307,
+      "acl": 42779,
+      "events": 5528,
+      "bytes": 24913361,
+      "isr_callbacks": 0,
+      "rejected": 0,
+      "callback_max_us": 166,
+      "first_rx_to_poll_max_us": 28843,
+      "host_poll_max_us": 29591,
+      "ingress_high_water_bytes": 1963,
+      "ingress_rejected": 0,
+      "logger_stack_low_water_bytes": 1472,
+      "watchdog_events": 39,
+      "watchdog_hook_at_us": 295253357,
+      "watchdog_isr_core": 1,
+      "snapshot_begin_us": 296752929,
+      "at_us": 296753042,
+      "snapshot_span_us": 113,
+      "record_crc32": "44dcded3"
+    },
+    "audio_clock": {
+      "probe": "audio_clock",
+      "ppm": 0,
+      "observed_ppm": 0,
+      "error_frames": 256,
+      "state": 3,
+      "target_frames": 0,
+      "updates": 395,
+      "disturbances": 395,
+      "observed_valid": 0,
+      "snapshot_valid": 1,
+      "snapshot_begin_us": 297202612,
+      "at_us": 297498120,
+      "snapshot_span_us": 295508,
+      "record_crc32": "7b7427c3"
+    }
+  },
+  "independent_snapshot_windows_not_one_atomic_tuple": true,
+  "approximate_render_wall_us_per_frame": 8.460404953298484,
+  "frame_budget_us": 5.208333333333333,
+  "wall_time_includes_preemption": true,
+  "live_comparison_to_prior_scalar_is_not_controlled": true,
+  "prior_scalar_render_wall_us_per_frame": 10.574812747975306,
+  "runtime_health": {
+    "task_watchdog_triggers": 39,
+    "idle_starvation_warnings_by_core": {
+      "0": 39,
+      "1": 0
+    },
+    "watchdog_running_task_samples_by_core": {
+      "0": {
+        "native_render": 30,
+        "native_decoder": 9
+      },
+      "1": {
+        "main": 31,
+        "dbt_led": 1,
+        "btController": 7
+      }
+    },
+    "interrupt_watchdog_timeouts": 0,
+    "backtrace_records": 39,
+    "runtime_health_passed": false
+  },
+  "integrity_audit": {
+    "scope": "offline record integrity only; no runtime/audio qualification",
+    "passed": false,
+    "snapshot_records": 1691,
+    "crc32_verified": 1691,
+    "legacy_timestamp_only": 0,
+    "other_records_unchecked": 1762,
+    "all_snapshot_records_checksummed": false,
+    "rejected": [
+      {
+        "line": 2613,
+        "reason": "malformed/interleaved JSON"
+      },
+      {
+        "line": 2755,
+        "reason": "malformed/interleaved JSON"
+      },
+      {
+        "line": 2889,
+        "reason": "malformed/interleaved JSON"
+      },
+      {
+        "line": 3041,
+        "reason": "malformed/interleaved JSON"
+      },
+      {
+        "line": 3325,
+        "reason": "malformed/interleaved JSON"
+      },
+      {
+        "line": 3469,
+        "reason": "malformed/interleaved JSON"
+      },
+      {
+        "line": 3607,
+        "reason": "malformed/interleaved JSON"
+      },
+      {
+        "line": 3627,
+        "reason": "malformed/interleaved JSON"
+      },
+      {
+        "line": 3743,
+        "reason": "malformed/interleaved JSON"
+      },
+      {
+        "line": 3763,
+        "reason": "malformed/interleaved JSON"
+      },
+      {
+        "line": 3881,
+        "reason": "malformed/interleaved JSON"
+      },
+      {
+        "line": 3901,
+        "reason": "malformed/interleaved JSON"
+      },
+      {
+        "line": 4019,
+        "reason": "malformed/interleaved JSON"
+      },
+      {
+        "line": 4039,
+        "reason": "malformed/interleaved JSON"
+      },
+      {
+        "line": 4153,
+        "reason": "malformed/interleaved JSON"
+      },
+      {
+        "line": 4173,
+        "reason": "malformed/interleaved JSON"
+      },
+      {
+        "line": 4273,
+        "reason": "malformed/interleaved JSON"
+      },
+      {
+        "line": 4293,
+        "reason": "malformed/interleaved JSON"
+      },
+      {
+        "line": 4409,
+        "reason": "malformed/interleaved JSON"
+      },
+      {
+        "line": 4429,
+        "reason": "malformed/interleaved JSON"
+      },
+      {
+        "line": 4541,
+        "reason": "malformed/interleaved JSON"
+      },
+      {
+        "line": 4561,
+        "reason": "malformed/interleaved JSON"
+      },
+      {
+        "line": 4799,
+        "reason": "malformed/interleaved JSON"
+      },
+      {
+        "line": 4819,
+        "reason": "malformed/interleaved JSON"
+      },
+      {
+        "line": 4929,
+        "reason": "malformed/interleaved JSON"
+      },
+      {
+        "line": 4949,
+        "reason": "malformed/interleaved JSON"
+      },
+      {
+        "line": 5057,
+        "reason": "malformed/interleaved JSON"
+      },
+      {
+        "line": 5077,
+        "reason": "malformed/interleaved JSON"
+      },
+      {
+        "line": 5187,
+        "reason": "malformed/interleaved JSON"
+      },
+      {
+        "line": 5457,
+        "reason": "malformed/interleaved JSON"
+      },
+      {
+        "line": 5477,
+        "reason": "malformed/interleaved JSON"
+      },
+      {
+        "line": 5599,
+        "reason": "malformed/interleaved JSON"
+      },
+      {
+        "line": 5619,
+        "reason": "malformed/interleaved JSON"
+      },
+      {
+        "line": 5871,
+        "reason": "malformed/interleaved JSON"
+      },
+      {
+        "line": 5891,
+        "reason": "malformed/interleaved JSON"
+      },
+      {
+        "line": 6293,
+        "reason": "malformed/interleaved JSON"
+      },
+      {
+        "line": 6561,
+        "reason": "malformed/interleaved JSON"
+      },
+      {
+        "line": 7049,
+        "reason": "malformed/interleaved JSON"
+      },
+      {
+        "line": 7179,
+        "reason": "malformed/interleaved JSON"
+      },
+      {
+        "line": 7199,
+        "reason": "malformed/interleaved JSON"
+      },
+      {
+        "line": 7325,
+        "reason": "malformed/interleaved JSON"
+      },
+      {
+        "line": 7883,
+        "reason": "malformed/interleaved JSON"
+      }
+    ]
+  },
+  "capture_bytes": 1007624,
+  "capture_limit_bytes": 1048576,
+  "original_application_preserved": true,
+  "finite_rf_return": {
+    "baseline_boot_observed": true,
+    "baseline_fatal_marker": false,
+    "prime_capture_bytes": 0
+  },
+  "eq_test": {
+    "deep_bass_requested_during_maximum_streaming": [
+      8,
+      -1,
+      -2
+    ],
+    "native_eq_v1_after_reboot": 33488648,
+    "native_eq_after_reboot": [
+      8,
+      -1,
+      -2
+    ],
+    "legacy_eq_keys_during_native_test": [
+      0,
+      0,
+      0
+    ],
+    "legacy_keys_are_separate_and_not_native_restoration_proof": true,
+    "fresh_native_ui_readback_after_reboot": true,
+    "restore_archive": "native_bt/_build/hardware/runs/1793856443968097800-22fbe99c1208",
+    "balanced_speaker_ack_captured": true,
+    "native_and_legacy_restored_to": [
+      0,
+      0,
+      0
+    ],
+    "read_only_nvs_restore_verification": {
+      "scope": "COM6 read-only NVS EQ subset and fresh baseline boot; no flash/data write by this check",
+      "private_snapshot": "COM6-nvs-eq-restored-1793857046976049400.bin",
+      "snapshot_sha256": "ae1e0d16b65e7fe12a159e4419b3d47392e7abb31ed54d73457b501a80d2446f",
+      "eq_fields_only": {
+        "eq_v1": [
+          16777216
+        ],
+        "eq_treb": [
+          0
+        ],
+        "eq_bass": [
+          0
+        ],
+        "eq_mid": [
+          0
+        ]
+      },
+      "native_eq_restored": [
+        0,
+        0,
+        0
+      ],
+      "legacy_eq_unchanged": [
+        0,
+        0,
+        0
+      ],
+      "baseline_boot_observed": true,
+      "baseline_fatal_marker": false
+    },
+    "per_update_commit_latency_measured": false,
+    "rapid_update_stress_qualified": false
+  },
+  "memory_admission_passed": true,
+  "i2s_192k_running": true,
+  "continuous_playback_passed": false,
+  "jitter_equivalence_qualified": false,
+  "acoustic_output_qualified": false,
+  "production_qualified": false,
+  "phone_pause_verified": true
+}
