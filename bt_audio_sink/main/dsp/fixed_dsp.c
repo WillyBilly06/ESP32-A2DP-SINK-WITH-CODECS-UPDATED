@@ -302,6 +302,91 @@ void DSP_HOT fixed_dsp_process(fixed_dsp_t *dsp, int32_t *left, int32_t *right) 
     FIXED_DSP_STAGE_MARK(5);
 }
 
+#ifdef FIXED_DSP_BLOCK_API
+#if defined(__GNUC__) && !defined(__clang__)
+#define BLOCK_KERNEL __attribute__((optimize("O3"),noinline))
+#else
+#define BLOCK_KERNEL
+#endif
+/* One channel at a time keeps coefficient/history reuse within LX6's register
+ * budget. It changes neither arithmetic nor the carried Q28 fraction. */
+static BLOCK_KERNEL void filter_steady_block(const int32_t c[5],fdsp_history_t *h,
+                                             int32_t *pcm,unsigned frames) {
+    if(!frames)return;
+    if(c[0]==COEFF_ONE && !c[1] && !c[2] && !c[3] && !c[4]){
+        /* Identity still advances all history, including a one-frame block
+         * immediately following a nonidentity filter. */
+        int32_t last=pcm[2u*(frames-1u)];
+        h->x2=frames>1u?pcm[2u*(frames-2u)]:h->x1;
+        h->y2=frames>1u?pcm[2u*(frames-2u)]:h->y1;
+        h->x1=h->y1=last;h->fraction=0;return;
+    }
+#if FDSP_PROVEN_SUM_ENABLED
+    int32_t c0=c[0],c1=c[1],c2=c[2],c3=c[3],c4=c[4];
+    int32_t x1=h->x1,x2=h->x2,y1=h->y1,y2=h->y2;uint32_t fraction=h->fraction;
+    for(unsigned i=0;i<frames;++i){
+        int32_t input=pcm[2u*i];int64_t sum=fraction;
+        sum+=(int64_t)c0*input;sum+=(int64_t)c1*x1;sum+=(int64_t)c2*x2;
+        sum-=(int64_t)c3*y1;sum-=(int64_t)c4*y2;
+        int64_t integer=sum>>28;int32_t output=clamp32(integer);
+        fraction=(int64_t)output==integer?(uint32_t)((uint64_t)sum&0x0fffffffu):0;
+        x2=x1;x1=input;y2=y1;y1=output;pcm[2u*i]=output;
+    }
+    h->x1=x1;h->x2=x2;h->y1=y1;h->y2=y2;h->fraction=fraction;
+#else
+    /* Custom/unproven tables retain the original overflow-safe split sum. */
+    for(unsigned i=0;i<frames;++i)pcm[2u*i]=filter(c,h,pcm[2u*i]);
+#endif
+}
+static void filter_channel_block(fdsp_coefficients_t *c,fdsp_history_t *h,
+                                  int32_t *pcm,unsigned frames){
+    unsigned ramp=c->remaining<frames?c->remaining:frames;
+    for(unsigned i=0;i<ramp;++i){coefficients_advance(c);pcm[2u*i]=filter(c->value,h,pcm[2u*i]);}
+    if(ramp<frames)filter_steady_block(c->value,h,pcm+2u*ramp,frames-ramp);
+}
+bool fixed_dsp_process_block(fixed_dsp_t *dsp,int32_t *pcm,uint16_t frames){
+    if(!dsp || frames>FIXED_DSP_BLOCK_FRAMES || (frames && (!pcm || (uintptr_t)pcm%4u)))return false;
+    if(!frames)return true;
+    int32_t split[FIXED_DSP_BLOCK_FRAMES*2u];
+    for(unsigned i=0;i<frames;++i){
+        analysis(dsp,(int32_t)(((int64_t)pcm[2u*i]+pcm[2u*i+1u])/2));
+        pcm[2u*i]>>=4;pcm[2u*i+1u]>>=4;
+    }
+    for(unsigned f=0;f<4;++f){
+        if(dsp->filters[f].remaining){
+            fdsp_coefficients_t left=dsp->filters[f];
+            filter_channel_block(&left,&dsp->channel_history[f][0],pcm,frames);
+        }else filter_steady_block(dsp->filters[f].value,&dsp->channel_history[f][0],pcm,frames);
+        filter_channel_block(&dsp->filters[f],&dsp->channel_history[f][1],pcm+1,frames);
+    }
+    for(unsigned i=0;i<2u*frames;++i)split[i]=pcm[i];
+    filter_steady_block(dsp->cross_coefficients[0],&dsp->cross_history[0],split,frames);
+    filter_steady_block(dsp->cross_coefficients[1],&dsp->cross_history[1],split+1,frames);
+    if(dsp->filters[4].remaining){
+        fdsp_coefficients_t copy=dsp->filters[4];
+        filter_channel_block(&copy,&dsp->boost_history[2],split,frames);
+        copy=dsp->filters[4];filter_channel_block(&copy,&dsp->boost_history[0],pcm,frames);
+    }else{
+        filter_steady_block(dsp->filters[4].value,&dsp->boost_history[2],split,frames);
+        filter_steady_block(dsp->filters[4].value,&dsp->boost_history[0],pcm,frames);
+    }
+    filter_channel_block(&dsp->filters[4],&dsp->boost_history[1],pcm+1,frames);
+    for(unsigned i=0;i<frames;++i){
+        ramp_advance(&dsp->volume);ramp_advance(&dsp->bypass);ramp_advance(&dsp->flip);
+        int32_t lp=clamp32(((int64_t)split[2u*i]*189246996)>>27);
+        int32_t hp=clamp32(((int64_t)split[2u*i+1u]*189246996)>>27);
+        int32_t split_l=blend(lp,hp,dsp->flip.value),split_r=blend(hp,lp,dsp->flip.value);
+        int32_t l=blend(split_l,pcm[2u*i],dsp->bypass.value);
+        int32_t r=blend(split_r,pcm[2u*i+1u],dsp->bypass.value);
+        if(dsp->volume.value!=UNITY_GAIN){l=clamp32(((int64_t)l*dsp->volume.value)>>31);r=clamp32(((int64_t)r*dsp->volume.value)>>31);}
+        pcm[2u*i]=clamp32((int64_t)limit(dsp,l)*16);
+        pcm[2u*i+1u]=clamp32((int64_t)limit(dsp,r)*16);
+    }
+    return true;
+}
+#undef BLOCK_KERNEL
+#endif
+
 int32_t fixed_dsp_level_db_q8(uint32_t level) {
     if (level == 0) return -120 * 256;
     unsigned msb = 31u - (unsigned)__builtin_clz(level);

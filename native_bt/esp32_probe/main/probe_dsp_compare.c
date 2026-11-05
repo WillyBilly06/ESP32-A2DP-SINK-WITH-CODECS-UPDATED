@@ -31,6 +31,9 @@ DECLARE_VARIANT(inline);
 #define REFERENCE_NAME "Os_current"
 #else
 DECLARE_VARIANT(o3);
+DECLARE_VARIANT(block);
+bool probe_dsp_block_process_block(fixed_dsp_t *,int32_t *,uint16_t);
+#define HAVE_BLOCK_VARIANT 1
 #define SECOND_INIT probe_dsp_o3_init
 #define SECOND_CONTROLS probe_dsp_o3_controls
 #define SECOND_PROCESS probe_dsp_o3_process
@@ -38,11 +41,18 @@ DECLARE_VARIANT(o3);
 #define REFERENCE_NAME "Os"
 #endif
 #undef DECLARE_VARIANT
-enum {BLOCK_FRAMES=128,BLOCKS=40};
+enum {BLOCK_FRAMES=128,BLOCKS=40,
+#ifdef HAVE_BLOCK_VARIANT
+    VARIANTS=3,POLICIES=3
+#else
+    VARIANTS=2,POLICIES=2
+#endif
+};
 typedef struct {
-    fixed_dsp_t state[2];
-    int32_t pcm[2][BLOCK_FRAMES*2];
-    uint32_t elapsed[2][BLOCKS];
+    fixed_dsp_t state[VARIANTS];
+    int32_t pcm[VARIANTS][BLOCK_FRAMES*2];
+    uint32_t elapsed[VARIANTS][BLOCKS];
+    bool block_valid;
 #ifdef DBT_DSP_STAGE_PROFILE
     uint32_t stages[5][BLOCKS];
     bool stages_valid;
@@ -62,6 +72,10 @@ static uint32_t process(context_t *c,unsigned variant,unsigned block){
     if(variant)probe_dsp_profile_reset();
 #endif
     uint32_t began=esp_cpu_get_cycle_count();
+#ifdef HAVE_BLOCK_VARIANT
+    if(variant==2){if(!probe_dsp_block_process_block(&c->state[variant],c->pcm[variant],BLOCK_FRAMES))c->block_valid=false;}
+    else
+#endif
     for(unsigned i=0;i<BLOCK_FRAMES;++i)fn(&c->state[variant],&c->pcm[variant][2*i],&c->pcm[variant][2*i+1u]);
     uint32_t elapsed=esp_cpu_get_cycle_count()-began;
 #ifdef DBT_DSP_STAGE_PROFILE
@@ -73,18 +87,26 @@ static uint32_t process(context_t *c,unsigned variant,unsigned block){
 #endif
     return elapsed;
 }
-static bool one_case(context_t *c,unsigned trial,uint32_t rate,uint8_t flags,int64_t deadline){
+static bool one_case(context_t *c,unsigned trial,uint32_t rate,uint8_t flags,bool flat,int64_t deadline){
     bool passed=probe_dsp_os_init(&c->state[0],rate,90,500,512) &&
                 SECOND_INIT(&c->state[1],rate,90,500,512);
     if(!passed)return false;
+    c->block_valid=true;
+#ifdef HAVE_BLOCK_VARIANT
+    if(!probe_dsp_block_init(&c->state[2],rate,90,500,512))return false;
+#endif
 #ifdef DBT_DSP_STAGE_PROFILE
     /* Match the real audio-open muted baseline before applying its snapshot. */
     probe_dsp_os_controls(&c->state[0],0,0,0,0,0,true);
     SECOND_CONTROLS(&c->state[1],0,0,0,0,0,true);
     c->stages_valid=true;
 #endif
-    probe_dsp_os_controls(&c->state[0],3,-2,2,50,flags,false);
-    SECOND_CONTROLS(&c->state[1],3,-2,2,50,flags,false);
+    int8_t bass=flat?0:3,mid=flat?0:-2,treble=flat?0:2;
+    probe_dsp_os_controls(&c->state[0],bass,mid,treble,50,flags,false);
+    SECOND_CONTROLS(&c->state[1],bass,mid,treble,50,flags,false);
+#ifdef HAVE_BLOCK_VARIANT
+    probe_dsp_block_controls(&c->state[2],bass,mid,treble,50,flags,false);
+#endif
     uint32_t seed=0x718392abu;uint32_t hash=2166136261u;
     unsigned completed=0;
     for(unsigned block=0;passed && block<BLOCKS;++block){
@@ -95,14 +117,14 @@ static bool one_case(context_t *c,unsigned trial,uint32_t rate,uint8_t flags,int
             uint32_t value=random32(&seed);
             if(block%3u==0)value&=0xffffff00u;
             if(block%3u==1)value=i&1u?0x7fffffffu:0x80000000u;
-            c->pcm[0][i]=c->pcm[1][i]=(int32_t)value;
+            for(unsigned v=0;v<VARIANTS;++v)c->pcm[v][i]=(int32_t)value;
         }
         /* Alternate execution order to reduce systematic cache/order bias. */
-        unsigned first=(block+trial)&1u,second=first^1u;
-        c->elapsed[first][block]=process(c,first,block);
-        c->elapsed[second][block]=process(c,second,block);
-        passed=!memcmp(c->pcm[0],c->pcm[1],sizeof(c->pcm[0])) &&
-               !memcmp(&c->state[0],&c->state[1],sizeof(c->state[0]));
+        unsigned first=(block+trial)%VARIANTS;
+        for(unsigned i=0;i<VARIANTS;++i){unsigned v=(first+i)%VARIANTS;c->elapsed[v][block]=process(c,v,block);}
+        passed=c->block_valid;
+        for(unsigned v=1;v<VARIANTS;++v)passed=passed && !memcmp(c->pcm[0],c->pcm[v],sizeof(c->pcm[0])) &&
+               !memcmp(&c->state[0],&c->state[v],sizeof(c->state[0]));
         hash=hash_bytes(hash,c->pcm[0],sizeof(c->pcm[0]));++completed;
         /* No waiting callback or queue polling. Let idle/timers run between
          * finite CPU-only work units; the sleep is outside measured spans. */
@@ -111,13 +133,17 @@ static bool one_case(context_t *c,unsigned trial,uint32_t rate,uint8_t flags,int
     unsigned warm_blocks=(rate/50u+BLOCK_FRAMES-1u)/BLOCK_FRAMES;
     if(warm_blocks>=BLOCKS)return false;
     if(completed==BLOCKS){
-        for(unsigned variant=0;variant<2;++variant){
+        for(unsigned variant=0;variant<VARIANTS;++variant){
             probe_diagnostic_stats_t warm={0},steady={0};
             bool stats=probe_diagnostic_stats(c->elapsed[variant],warm_blocks,160000,&warm) &&
                 probe_diagnostic_stats(c->elapsed[variant]+warm_blocks,BLOCKS-warm_blocks,160000,&steady);
             passed=passed && stats;
-            printf("{\"probe\":\"dsp_variant_case\",\"trial\":%u,\"rate\":%u,\"flags\":%u,\"variant\":\"%s\",\"equivalent\":%s,\"frames\":5120,\"block_frames\":128,\"ramp_containing_blocks\":%u,\"ramp_mean_cycles\":%u,\"ramp_max_cycles\":%u,\"steady_blocks\":%u,\"steady_mean_cycles\":%u,\"steady_p95_cycles\":%u,\"steady_max_cycles\":%u,\"pcm_hash\":%u,\"elapsed_core_cycles\":true,\"cpu_mhz\":240}\n",
-                trial,(unsigned)rate,flags,variant?SECOND_NAME:REFERENCE_NAME,passed?"true":"false",warm_blocks,
+            const char *name=variant?SECOND_NAME:REFERENCE_NAME;
+#ifdef HAVE_BLOCK_VARIANT
+            if(variant==2)name="Os_block";
+#endif
+            printf("{\"probe\":\"dsp_variant_case\",\"trial\":%u,\"rate\":%u,\"flags\":%u,\"gains\":[%d,%d,%d],\"variant\":\"%s\",\"equivalent\":%s,\"frames\":5120,\"block_frames\":128,\"ramp_containing_blocks\":%u,\"ramp_mean_cycles\":%u,\"ramp_max_cycles\":%u,\"steady_blocks\":%u,\"steady_mean_cycles\":%u,\"steady_p95_cycles\":%u,\"steady_max_cycles\":%u,\"pcm_hash\":%u,\"elapsed_core_cycles\":true,\"cpu_mhz\":240}\n",
+                trial,(unsigned)rate,flags,bass,mid,treble,name,passed?"true":"false",warm_blocks,
                 (unsigned)warm.mean,(unsigned)warm.maximum,BLOCKS-warm_blocks,(unsigned)steady.mean,
                 (unsigned)steady.p95,(unsigned)steady.maximum,(unsigned)hash);
         }
@@ -145,14 +171,14 @@ bool probe_dsp_compare(void){
     context_t *c=heap_caps_aligned_alloc(8,sizeof(*c),MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT);
     if(!c){printf("{\"probe\":\"dsp_variant_summary\",\"passed\":false,\"allocation_failed\":true}\n");return false;}
     const uint32_t rates[]={48000,96000,192000};unsigned completed=0;bool passed=true;
-    int64_t deadline=esp_timer_get_time()+6000000;
+    int64_t deadline=esp_timer_get_time()+(POLICIES==3?10000000:6000000);
     for(unsigned trial=0;passed && trial<3;++trial)
         for(unsigned i=0;passed && i<3;++i)
-            for(unsigned policy=0;passed && policy<2;++policy){
-                passed=one_case(c,trial,rates[i],policy?13:9,deadline);if(passed)++completed;
+            for(unsigned policy=0;passed && policy<POLICIES;++policy){
+                passed=one_case(c,trial,rates[i],policy==2?8:policy?13:9,policy==2,deadline);if(passed)++completed;
             }
     heap_caps_free(c);
-    printf("{\"probe\":\"dsp_variant_summary\",\"passed\":%s,\"cases\":%u,\"expected_cases\":18,\"workspace_bytes\":%u,\"stack_low_water_bytes\":%u,\"controller_enabled\":false,\"i2s_test\":false,\"speed_is_not_a_pass_gate\":true}\n",
-        passed?"true":"false",completed,(unsigned)sizeof(*c),(unsigned)uxTaskGetStackHighWaterMark(NULL));
-    return passed && completed==18;
+    printf("{\"probe\":\"dsp_variant_summary\",\"passed\":%s,\"cases\":%u,\"expected_cases\":%u,\"variants\":%u,\"workspace_bytes\":%u,\"stack_low_water_bytes\":%u,\"controller_enabled\":false,\"i2s_test\":false,\"speed_is_not_a_pass_gate\":true}\n",
+        passed?"true":"false",completed,9u*POLICIES,VARIANTS,(unsigned)sizeof(*c),(unsigned)uxTaskGetStackHighWaterMark(NULL));
+    return passed && completed==9u*POLICIES;
 }

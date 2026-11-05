@@ -37,6 +37,14 @@ bool fixed_dsp_init(fixed_dsp_t *dsp, uint32_t sample_rate, uint32_t low_pass_hz
 void fixed_dsp_controls(fixed_dsp_t *dsp, int8_t bass, int8_t mid, int8_t treble,
                          uint8_t volume, uint8_t flags, bool immediate);
 void fixed_dsp_process(fixed_dsp_t *dsp, int32_t *left_q31, int32_t *right_q31);
+#define FIXED_DSP_BLOCK_FRAMES 128u
+#ifdef FIXED_DSP_BLOCK_API
+/* Experimental owner-only block API. Controls cannot change during the call.
+ * Accepts 0..128 interleaved, word-aligned stereo frames; false rejects the
+ * whole call. Caller storage must not overlap dsp. No heap/persistent scratch.
+ * The canonical per-frame path remains available for exact comparisons. */
+bool fixed_dsp_process_block(fixed_dsp_t *dsp,int32_t *pcm,uint16_t frames);
+#endif
 void fixed_dsp_zero_analysis(fixed_dsp_t *dsp);
 int32_t fixed_dsp_level_db_q8(uint32_t level_q31);
 
