@@ -19,7 +19,7 @@ dsp_os=('probe_dsp_os.c','-Os');inline_os=('probe_dsp_inline.c','-Os')
 check_variants(False,False,True,[dsp_os,inline_os],True)
 check_variants(False,False,False,[dsp_os,('probe_dsp_o3.c','-O3')],True)
 check_variants(False,True,False,[dsp_os,('probe_dsp_profile.c','-Os')],True)
-fir_files=[('probe_fir_'+name+'.c',opt) for name,opt in (('wide','-O3'),('os','-Os'),('o2','-O2'),('o3','-O3'),('fold','-O3'))]
+fir_files=[('probe_fir_'+name+'.c',opt) for name,opt in (('wide','-O3'),('os','-Os'),('o2','-O2'),('o3','-O3'),('fold','-O3'),('pair','-O3'))]
 check_variants(True,False,False,fir_files,True)
 check_variants(False,False,True,[dsp_os,('probe_dsp_inline.c','-O3')],False)
 check_variants(False,False,True,[dsp_os,('probe_dsp_o3.c','-O3')],False)

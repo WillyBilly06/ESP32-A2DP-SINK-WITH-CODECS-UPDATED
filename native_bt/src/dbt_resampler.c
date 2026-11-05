@@ -2,6 +2,34 @@
 #include <limits.h>
 
 #include "dbt_resampler_coeffs.inc"
+#ifdef DBT_RESAMPLER_PAIRED_PRODUCTS
+#ifdef __XTENSA__
+#include <xtensa/config/core-isa.h>
+#if !XCHAL_HAVE_MUL32_HIGH
+#error "Paired FIR experiment requires Xtensa MULSH"
+#endif
+#endif
+static inline __attribute__((always_inline)) void paired_products(int32_t x,int32_t y,int32_t coefficient,int64_t *left,int64_t *right){
+#ifdef __XTENSA__
+    int32_t low_l,high_l,low_r,high_r;
+    /* General-register instructions only. Keep both low products ahead of
+     * high products; accumulations remain in C with their original precision. */
+    __asm__ volatile("mull %0, %4, %6\n\tmull %2, %5, %6\n\tmulsh %1, %4, %6\n\tmulsh %3, %5, %6"
+        : "=&a"(low_l),"=&a"(high_l),"=&a"(low_r),"=&a"(high_r)
+        : "a"(x),"a"(y),"a"(coefficient));
+    *left=(int64_t)high_l*4294967296ll+(uint32_t)low_l;
+    *right=(int64_t)high_r*4294967296ll+(uint32_t)low_r;
+#else
+    *left=(int64_t)x*coefficient;*right=(int64_t)y*coefficient;
+#endif
+}
+static inline __attribute__((always_inline)) void accumulate_products(int64_t *left,int64_t *right,int32_t x,int32_t y,int32_t coefficient){
+    int64_t a,b;paired_products(x,y,coefficient,&a,&b);*left+=a;*right+=b;
+}
+#define FIR_ACCUMULATE(x,y,c) accumulate_products(&l,&r,x,y,c)
+#else
+#define FIR_ACCUMULATE(x,y,c) do{l+=(int64_t)(x)*(c);r+=(int64_t)(y)*(c);}while(0)
+#endif
 
 static uint8_t tap_count(uint32_t rate){return rate<=48000u?96u:rate<=96000u?48u:24u;}
 uint8_t dbt_resampler_delay_frames(uint32_t rate){return (uint8_t)(tap_count(rate)/2u-1u);}
@@ -79,18 +107,18 @@ void dbt_resampler_filter(dbt_resampler_t *s,int32_t left,int32_t right,uint32_t
     if(s->count>=s->taps){
         int32_t coefficient=first[0];
         if(remainder)coefficient=coefficient_at(coefficient,next[0],remainder);
-        l=(int64_t)left*coefficient;r=(int64_t)right*coefficient;
+        FIR_ACCUMULATE(left,right,coefficient);
         unsigned index=(s->next-1u)&(DBT_RESAMPLER_HISTORY-1u);
         if(!remainder){
             for(unsigned k=1;k<s->taps;++k){
                 int32_t c=first[k];
-                l+=(int64_t)s->history[0][index]*c;r+=(int64_t)s->history[1][index]*c;
+                FIR_ACCUMULATE(s->history[0][index],s->history[1][index],c);
                 index=(index-1u)&(DBT_RESAMPLER_HISTORY-1u);
             }
         }else{
             for(unsigned k=1;k<s->taps;++k){
                 int32_t c=coefficient_at(first[k],next[k],remainder);
-                l+=(int64_t)s->history[0][index]*c;r+=(int64_t)s->history[1][index]*c;
+                FIR_ACCUMULATE(s->history[0][index],s->history[1][index],c);
                 index=(index-1u)&(DBT_RESAMPLER_HISTORY-1u);
             }
         }
@@ -100,7 +128,7 @@ void dbt_resampler_filter(dbt_resampler_t *s,int32_t left,int32_t right,uint32_t
         unsigned index=(s->next-k)&(DBT_RESAMPLER_HISTORY-1u);
         int32_t x=k==0?left:k<=s->count?s->history[0][index]:s->first[0];
         int32_t y=k==0?right:k<=s->count?s->history[1][index]:s->first[1];
-        l+=(int64_t)x*coefficient;r+=(int64_t)y*coefficient;
+        FIR_ACCUMULATE(x,y,coefficient);
     }
     *out_left=saturated(l);*out_right=saturated(r);
 }

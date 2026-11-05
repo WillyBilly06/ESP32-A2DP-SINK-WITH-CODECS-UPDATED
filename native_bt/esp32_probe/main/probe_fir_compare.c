@@ -12,9 +12,9 @@
 void probe_fir_##name##_init(dbt_resampler_t *,uint32_t); \
 void probe_fir_##name##_push(dbt_resampler_t *,int32_t,int32_t); \
 void probe_fir_##name##_filter(dbt_resampler_t *,int32_t,int32_t,uint32_t,int32_t *,int32_t *)
-DECLARE(wide);DECLARE(os);DECLARE(o2);DECLARE(o3);DECLARE(fold);
+DECLARE(wide);DECLARE(os);DECLARE(o2);DECLARE(o3);DECLARE(fold);DECLARE(pair);
 #undef DECLARE
-enum {VARIANTS=5,BLOCK_FRAMES=128,BLOCKS=20,RAW_FRAMES=257};
+enum {VARIANTS=6,BLOCK_FRAMES=128,BLOCKS=20,RAW_FRAMES=257};
 typedef struct {
     void (*init)(dbt_resampler_t *,uint32_t);
     void (*push)(dbt_resampler_t *,int32_t,int32_t);
@@ -26,7 +26,8 @@ static const variant_t variants[]={
     {probe_fir_os_init,probe_fir_os_push,probe_fir_os_filter,"Os"},
     {probe_fir_o2_init,probe_fir_o2_push,probe_fir_o2_filter,"O2"},
     {probe_fir_o3_init,probe_fir_o3_push,probe_fir_o3_filter,"O3"},
-    {probe_fir_fold_init,probe_fir_fold_push,probe_fir_fold_filter,"O3_folded_zero"}};
+    {probe_fir_fold_init,probe_fir_fold_push,probe_fir_fold_filter,"O3_folded_zero"},
+    {probe_fir_pair_init,probe_fir_pair_push,probe_fir_pair_filter,"O3_paired_products"}};
 typedef struct {
     uint64_t alignment;
     dbt_resampler_t state[VARIANTS];

@@ -73,11 +73,11 @@ if os.name=='nt':
     resource=pathlib.Path(subprocess.check_output([cc,'-print-resource-dir'],text=True).strip())
     runtime=resource/'lib/windows/clang_rt.asan_dynamic-x86_64.dll';shutil.copy2(runtime,OUT/runtime.name)
 commands=[]
-for mode,flags in (('folded_zero',['-DDBT_RESAMPLER_ENABLE_FOLDED_ZERO=1']),('checked_unfolded',['-DDBT_RESAMPLER_FORCE_UNFOLDED_ZERO=1']),('wide_reference',['-DDBT_RESAMPLER_FORCE_WIDE_DELTA=1'])):
+for mode,flags in (('folded_zero',['-DDBT_RESAMPLER_ENABLE_FOLDED_ZERO=1']),('checked_unfolded',['-DDBT_RESAMPLER_FORCE_UNFOLDED_ZERO=1']),('wide_reference',['-DDBT_RESAMPLER_FORCE_WIDE_DELTA=1']),('paired_products',['-DDBT_RESAMPLER_PAIRED_PRODUCTS=1'])):
     exe=OUT/(mode+('.exe' if os.name=='nt' else ''))
     args=[cc,'-std=c11','-O3','-g','-Wall','-Wextra','-Werror','-fsanitize=address,undefined','-fno-sanitize-recover=all','-fno-omit-frame-pointer',*flags,'-I'+str(ROOT/'include'),str(ROOT/'src/dbt_resampler.c'),str(main),'-o',str(exe)]
     if os.name=='nt':args+=['-fms-runtime-lib=dll','-D_DLL','-Wl,/NODEFAULTLIB:libcmt']
     subprocess.run(args,check=True,env=env);commands.append(args)
     subprocess.run([str(exe)],check=True,env=env,timeout=60)
 assert all(hashlib.sha256(pathlib.Path(p).read_bytes()).hexdigest()==digest for p,digest in before.items())
-report_path.write_text(json.dumps({'passed':True,'cases_per_mode':150000,'modes':['folded_zero','checked_unfolded','wide_reference'],'adjacent_delta_bound':claimed_delta,'zero_phase_symmetry_verified':actual_fold,'coefficient_checks':interpolation_checks,'oracle':'128-bit integer convolution/interpolation','optimization':'O3','sanitizers':['address','undefined'],'scope':'full output/state and table-domain arithmetic proof, all tap lengths across zero/bank-aligned/max/random phases and priming/history states; host only','sources':before,'commands':commands,'hardware_accessed':False},indent=2)+'\n')
+report_path.write_text(json.dumps({'passed':True,'cases_per_mode':150000,'modes':['folded_zero','checked_unfolded','wide_reference','paired_products'],'adjacent_delta_bound':claimed_delta,'zero_phase_symmetry_verified':actual_fold,'coefficient_checks':interpolation_checks,'oracle':'128-bit integer convolution/interpolation','optimization':'O3','sanitizers':['address','undefined'],'scope':'full output/state and table-domain arithmetic proof; paired-products is the portable fallback, no Xtensa assembly execution','sources':before,'commands':commands,'hardware_accessed':False},indent=2)+'\n')

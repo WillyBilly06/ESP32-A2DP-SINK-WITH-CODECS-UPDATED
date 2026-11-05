@@ -74,7 +74,7 @@ assert ('DBT_PROBE_FIR_COMPILER_CHECK:BOOL=ON' in cache)==fir_check
 assert bool(re.search(r'(?:^|\s)-DDBT_PROBE_FIR_COMPILER_CHECK=1(?:\s|$)',main_command))==fir_check
 if fir_check:assert audio_profile and not dsp_profile
 if fir_check:
-    for variant,optimization in (('wide','-O3'),('os','-Os'),('o2','-O2'),('o3','-O3'),('fold','-O3')):
+    for variant,optimization in (('wide','-O3'),('os','-Os'),('o2','-O2'),('o3','-O3'),('fold','-O3'),('pair','-O3')):
         variant_command=next(e['command'] for e in commands if Path(e['file']).name==f'probe_fir_{variant}.c')
         assert re.findall(r'(?:^|\s)(-O\S+)',variant_command)[-1]==optimization
 elif audio_profile:
