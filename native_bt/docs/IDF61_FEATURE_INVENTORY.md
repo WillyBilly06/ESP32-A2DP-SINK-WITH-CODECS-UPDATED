@@ -34,3 +34,12 @@ The exact source files and lexical review leads are in `IDF61_AUDIT.json`.
 The full requirements and acceptance scenarios are in `MASTER_GOAL_2026_11_04.md`.
 Nothing in this inventory authorizes retiring the baseline or declaring a
 profile complete from compilation or a finite simulated exchange.
+
+## Released reconnect policy clarification
+
+Baseline `0d85a975ec079d954f1bdd3e94d2fed70848c252` explicitly uses
+`set_auto_reconnect(false)` in `bt_audio_sink/main/main.cpp:2296`; the native
+sink still persists `a2dp/last_bda`. The owning files were verified clean.
+Phone-initiated reconnect and rapid codec-switch handling are active baseline
+behaviors. Speaker-initiated automatic reconnect remains an explicit new
+master-goal requirement and still needs complete owned-stack integration.

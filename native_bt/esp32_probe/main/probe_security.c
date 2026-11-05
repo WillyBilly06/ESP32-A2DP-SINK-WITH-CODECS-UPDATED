@@ -1,6 +1,7 @@
 #include "probe_security.h"
 #include "freertos/queue.h"
 #include "nvs.h"
+#include "esp_timer.h"
 #include <stdio.h>
 #include <string.h>
 #ifdef DBT_PROBE_PRODUCT_SECURITY
@@ -54,6 +55,7 @@ typedef struct {
         struct {uint32_t generation;uint16_t handle;uint8_t opcode,io,oob,auth,key_size,initiator_keys,responder_keys;} pairing_features;
         struct {uint32_t lost;int result;uint16_t bytes,handle;uint8_t peer[6],event,status,key_type;bool known,window;} classic_hci;
         struct {uint32_t token;int error;uint8_t peer[6];bool deleting,verified,committed;} bond_store;
+        struct {uint32_t token,at_us,lost;uint16_t opcode;uint8_t peer[6],phase,flags,status,outcome;} incoming;
     };
     uint8_t event, reason, status,local_record;
 } log_item_t;
@@ -231,6 +233,20 @@ static void logger(void *context) {
         log_item_t item;
         if (xQueueReceive(log_queue, &item, portMAX_DELAY) != pdTRUE)
             continue;
+        if(item.local_record==12){
+            static const char *const phases[]={"none","queued","submitted","acknowledged","completed","retired","expired"};
+            unsigned phase=item.incoming.phase;bool ack=phase==DBT_GAP_INCOMING_ACK;
+            bool status_valid=phase==DBT_GAP_INCOMING_FINAL ||
+                (ack && (item.incoming.outcome==DBT_COMMAND_SUCCESS || item.incoming.outcome==DBT_COMMAND_REJECTED));
+            printf("{\"probe\":\"classic_connection_stage\",\"phase\":\"%s\",\"at_us\":%lu,\"token\":%lu,\"opcode\":%u,"
+                   "\"peer\":\"%02X:%02X:%02X:%02X:%02X:%02X\",\"flags\":%u,\"status\":%u,\"status_valid\":%s,"
+                   "\"command_outcome\":%u,\"command_outcome_valid\":%s,\"trace_records_lost\":%lu}\n",
+                phase<sizeof(phases)/sizeof(phases[0])?phases[phase]:"invalid",(unsigned long)item.incoming.at_us,
+                (unsigned long)item.incoming.token,item.incoming.opcode,item.incoming.peer[5],item.incoming.peer[4],
+                item.incoming.peer[3],item.incoming.peer[2],item.incoming.peer[1],item.incoming.peer[0],item.incoming.flags,
+                item.incoming.status,status_valid?"true":"false",item.incoming.outcome,ack?"true":"false",(unsigned long)item.incoming.lost);
+            continue;
+        }
         if(item.local_record==11){
             printf("{\"probe\":\"classic_bond_store\",\"token\":%lu,\"peer\":\"%02X:%02X:%02X:%02X:%02X:%02X\","
                    "\"deleting\":%s,\"committed\":%s,\"readback_verified\":%s,\"error\":%d}\n",
@@ -417,6 +433,16 @@ dbt_result_t probe_security_request(void *context, const dbt_link_t *link, uint1
     }
     return DBT_UNSUPPORTED;
 }
+static void incoming_log(void *context,dbt_gap_incoming_phase_t phase,const dbt_gap_incoming_t *entry,
+                          uint16_t opcode,dbt_command_outcome_t outcome){
+    (void)context;if(!log_queue)return;
+    log_item_t item;wipe(&item,sizeof(item));item.local_record=12;
+    item.incoming.token=entry->token;item.incoming.at_us=(uint32_t)esp_timer_get_time();item.incoming.lost=protocol_log_lost;
+    item.incoming.opcode=opcode;copy(item.incoming.peer,entry->address_le,6);
+    item.incoming.phase=(uint8_t)phase;item.incoming.flags=entry->flags;item.incoming.status=entry->status;
+    item.incoming.outcome=(uint8_t)outcome;
+    if(xQueueSend(log_queue,&item,0)!=pdTRUE && protocol_log_lost!=UINT32_MAX)++protocol_log_lost;
+}
 dbt_result_t probe_security_init(dbt_runtime_t *host_runtime, dbt_gap_t *host_gap,
                                  TaskHandle_t host_owner) {
     TaskHandle_t worker_handle = 0, logger_handle = 0;
@@ -462,9 +488,11 @@ dbt_result_t probe_security_init(dbt_runtime_t *host_runtime, dbt_gap_t *host_ga
         pdPASS)
         goto failed;
     initialized=true;
+    dbt_gap_set_incoming_observer(gap,incoming_log,0);
     return DBT_OK;
 failed:
     initialized=false;
+    dbt_gap_set_incoming_observer(gap,0,0);
     if (logger_handle)
         vTaskDelete(logger_handle);
     if (worker_handle)

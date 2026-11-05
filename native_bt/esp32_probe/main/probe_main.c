@@ -482,7 +482,7 @@ static void observe(void *context, const dbt_hci_packet_t *packet) {
 #ifdef DBT_PROBE_SMP
     if(smp_initialized && probe_smp_event(packet))return;
 #endif
-    dbt_result_t result = dbt_gap_event(&gap, packet);
+    dbt_result_t result = dbt_gap_event_at(&gap, packet,now_ms());
     if (result == DBT_INVALID || result == DBT_NO_SPACE)
         dbt_host_abort(&runtime.host, result == DBT_NO_SPACE ? DBT_FAULT_RX_OVERRUN : DBT_FAULT_BAD_PACKET);
 }

@@ -10,7 +10,7 @@ the viewer remains open and follows the test capture while the port is free.
 
 The owned Classic+BLE host is selected on the local COM6 board in ota1 at
 0x390000, marked VALID, with automatic Bluedroid restoration disabled. The
-verified image is `1814f791e74a2a2461f6b53956d151c13b7f8afd3fa7cf7eb37c259299679ada`.
+verified image is `beb4a94a281b5ccff2e59246cc3657450947457732ef99e4ac45961b0335e361`.
 This remains development firmware with incomplete feature/runtime qualification.
 
 Recent source corrections cover [codec payload boundaries and shared PCM
@@ -18,15 +18,17 @@ liveness](docs/CROSS_CODEC_PAYLOAD_AUDIT_2026_11_05.md), [exact FIR
 interpolation](docs/FIR_INTERPOLATION_2026_11_05.md), [worker-fault session
 recovery](docs/A2DP_WORKER_RECOVERY_2026_11_05.md), [AVDTP report
 deadlines](docs/AVDTP_DELAY_SCHEDULING_2026_11_05.md), and [Classic
-identity admission](docs/CLASSIC_PAGING_REVIEW_2026_11_05.md). The encoded
+identity admission](docs/CLASSIC_PAGING_REVIEW_2026_11_05.md).
+[Incoming setup ownership](docs/INCOMING_CLASSIC_OWNERSHIP_2026_11_05.md) now
+retains decision/callback/final-event lifetimes and logs each stage separately,
+using 88 additional static bytes and the unchanged log queue. The encoded
 decoder queue remains 1800 bytes × 8 slots; every codec retains its own framing.
 
 The new [Classic HCI paging procedure](docs/CLASSIC_PAGE_PROCEDURE_2026_11_05.md)
 compiles for ESP32 and portable C11. It has a 48-byte caller context, no heap or
 new task, separate admission/completion/cancel results and bounded deadlines.
 Product GAP, admission/collision handling, outgoing SDP and A2DP initiation are
-still pending. The current product instantiates none, and its firmware binary
-is byte-for-byte unchanged by this module.
+still pending. The product currently instantiates no paging context.
 
 Builds use ccache. Recent checks establish compilation, source integrity,
 flash readback and ordinary startup; functional test campaigns are currently
