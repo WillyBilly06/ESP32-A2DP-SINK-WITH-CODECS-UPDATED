@@ -32,7 +32,9 @@ DECLARE_VARIANT(inline);
 #else
 DECLARE_VARIANT(o3);
 DECLARE_VARIANT(block);
+DECLARE_VARIANT(transposed);
 bool probe_dsp_block_process_block(fixed_dsp_t *,int32_t *,uint16_t);
+bool probe_dsp_transposed_process_block(fixed_dsp_t *,int32_t *,uint16_t);
 #define HAVE_BLOCK_VARIANT 1
 #define SECOND_INIT probe_dsp_o3_init
 #define SECOND_CONTROLS probe_dsp_o3_controls
@@ -43,7 +45,7 @@ bool probe_dsp_block_process_block(fixed_dsp_t *,int32_t *,uint16_t);
 #undef DECLARE_VARIANT
 enum {BLOCK_FRAMES=128,BLOCKS=40,
 #ifdef HAVE_BLOCK_VARIANT
-    VARIANTS=3,POLICIES=3
+    VARIANTS=4,POLICIES=3
 #else
     VARIANTS=2,POLICIES=2
 #endif
@@ -74,6 +76,7 @@ static uint32_t process(context_t *c,unsigned variant,unsigned block){
     uint32_t began=esp_cpu_get_cycle_count();
 #ifdef HAVE_BLOCK_VARIANT
     if(variant==2){if(!probe_dsp_block_process_block(&c->state[variant],c->pcm[variant],BLOCK_FRAMES))c->block_valid=false;}
+    else if(variant==3){if(!probe_dsp_transposed_process_block(&c->state[variant],c->pcm[variant],BLOCK_FRAMES))c->block_valid=false;}
     else
 #endif
     for(unsigned i=0;i<BLOCK_FRAMES;++i)fn(&c->state[variant],&c->pcm[variant][2*i],&c->pcm[variant][2*i+1u]);
@@ -94,6 +97,7 @@ static bool one_case(context_t *c,unsigned trial,uint32_t rate,uint8_t flags,boo
     c->block_valid=true;
 #ifdef HAVE_BLOCK_VARIANT
     if(!probe_dsp_block_init(&c->state[2],rate,90,500,512))return false;
+    if(!probe_dsp_transposed_init(&c->state[3],rate,90,500,512))return false;
 #endif
 #ifdef DBT_DSP_STAGE_PROFILE
     /* Match the real audio-open muted baseline before applying its snapshot. */
@@ -106,6 +110,7 @@ static bool one_case(context_t *c,unsigned trial,uint32_t rate,uint8_t flags,boo
     SECOND_CONTROLS(&c->state[1],bass,mid,treble,50,flags,false);
 #ifdef HAVE_BLOCK_VARIANT
     probe_dsp_block_controls(&c->state[2],bass,mid,treble,50,flags,false);
+    probe_dsp_transposed_controls(&c->state[3],bass,mid,treble,50,flags,false);
 #endif
     uint32_t seed=0x718392abu;uint32_t hash=2166136261u;
     unsigned completed=0;
@@ -141,6 +146,7 @@ static bool one_case(context_t *c,unsigned trial,uint32_t rate,uint8_t flags,boo
             const char *name=variant?SECOND_NAME:REFERENCE_NAME;
 #ifdef HAVE_BLOCK_VARIANT
             if(variant==2)name="Os_block";
+            if(variant==3)name="Os_transposed_block";
 #endif
             printf("{\"probe\":\"dsp_variant_case\",\"trial\":%u,\"rate\":%u,\"flags\":%u,\"gains\":[%d,%d,%d],\"variant\":\"%s\",\"equivalent\":%s,\"frames\":5120,\"block_frames\":128,\"ramp_containing_blocks\":%u,\"ramp_mean_cycles\":%u,\"ramp_max_cycles\":%u,\"steady_blocks\":%u,\"steady_mean_cycles\":%u,\"steady_p95_cycles\":%u,\"steady_max_cycles\":%u,\"pcm_hash\":%u,\"elapsed_core_cycles\":true,\"cpu_mhz\":240}\n",
                 trial,(unsigned)rate,flags,bass,mid,treble,name,passed?"true":"false",warm_blocks,
@@ -171,7 +177,7 @@ bool probe_dsp_compare(void){
     context_t *c=heap_caps_aligned_alloc(8,sizeof(*c),MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT);
     if(!c){printf("{\"probe\":\"dsp_variant_summary\",\"passed\":false,\"allocation_failed\":true}\n");return false;}
     const uint32_t rates[]={48000,96000,192000};unsigned completed=0;bool passed=true;
-    int64_t deadline=esp_timer_get_time()+(POLICIES==3?10000000:6000000);
+    int64_t deadline=esp_timer_get_time()+(POLICIES==3?14000000:6000000);
     for(unsigned trial=0;passed && trial<3;++trial)
         for(unsigned i=0;passed && i<3;++i)
             for(unsigned policy=0;passed && policy<POLICIES;++policy){

@@ -250,7 +250,7 @@ bool probe_pipeline_check(void){
     if(xTaskCreatePinnedToCore(run,"pipeline_check",8192,NULL,5,NULL,1)!=pdPASS)return false;
     int64_t deadline=esp_timer_get_time()+
 #if defined(DBT_PROBE_FIR_COMPILER_CHECK) || (defined(DBT_AUDIO_STAGE_PROFILE) && !defined(DBT_DSP_STAGE_PROFILE) && !defined(DBT_PROBE_DSP_INLINE_CHECK))
-        23000000;
+        27000000;
 #else
         10000000;
 #endif

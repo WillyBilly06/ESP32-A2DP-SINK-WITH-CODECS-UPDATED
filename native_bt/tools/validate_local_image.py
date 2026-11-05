@@ -170,8 +170,9 @@ elif audio_profile:
         variant_command=next(entry['command'] for entry in commands if Path(entry['file']).name==f'probe_dsp_{variant}.c')
         assert re.findall(r'(?:^|\s)(-O\S+)',variant_command)[-1]==optimization
     if not dsp_profile and not dsp_inline:
-        block_command=next(e['command'] for e in commands if Path(e['file']).name=='probe_dsp_block.c')
-        assert re.findall(r'(?:^|\s)(-O\S+)',block_command)[-1]=='-Os'
+        for block_variant in ('block','transposed'):
+            block_command=next(e['command'] for e in commands if Path(e['file']).name==f'probe_dsp_{block_variant}.c')
+            assert re.findall(r'(?:^|\s)(-O\S+)',block_command)[-1]=='-Os'
 assert bool(re.search(r'(?:^|\s)-DDBT_PROBE_PIPELINE_DIAGNOSTIC=1(?:\s|$)',main_command))==pipeline
 if pipeline:
     assert diagnostic and build_status.get('async_audio')

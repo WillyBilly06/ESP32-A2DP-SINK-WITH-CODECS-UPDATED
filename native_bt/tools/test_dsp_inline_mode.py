@@ -17,7 +17,7 @@ def check_variants(fir,profile,inline,files,valid):
     else:assert valid
 dsp_os=('probe_dsp_os.c','-Os');inline_os=('probe_dsp_inline.c','-Os')
 check_variants(False,False,True,[dsp_os,inline_os],True)
-check_variants(False,False,False,[dsp_os,('probe_dsp_o3.c','-O3'),('probe_dsp_block.c','-Os')],True)
+check_variants(False,False,False,[dsp_os,('probe_dsp_o3.c','-O3'),('probe_dsp_block.c','-Os'),('probe_dsp_transposed.c','-Os')],True)
 check_variants(False,True,False,[dsp_os,('probe_dsp_profile.c','-Os')],True)
 fir_files=[('probe_fir_'+name+'.c',opt) for name,opt in (('wide','-O3'),('os','-Os'),('o2','-O2'),('o3','-O3'),('fold','-O3'),('pair','-O3'))]
 check_variants(True,False,False,fir_files,True)
@@ -25,11 +25,13 @@ check_variants(False,False,True,[dsp_os,('probe_dsp_inline.c','-O3')],False)
 check_variants(False,False,True,[dsp_os,('probe_dsp_o3.c','-O3')],False)
 check_variants(True,False,False,fir_files[:-1],False)
 check_variants(False,False,False,[dsp_os,('probe_dsp_o3.c','-O3')],False)
+check_variants(False,False,False,[dsp_os,('probe_dsp_o3.c','-O3'),('probe_dsp_block.c','-Os')],False)
+check_variants(False,False,False,[dsp_os,('probe_dsp_o3.c','-O3'),('probe_dsp_block.c','-Os'),('probe_dsp_transposed.c','-O3')],False)
 cli_cases=0
 if sys.platform=='win32':
     for arguments in (['-DspInlineCheck'],['-DspInlineCheck','-AudioStageProfile','-DspStageProfile']):
         result=subprocess.run(['powershell','-NoProfile','-ExecutionPolicy','Bypass','-File',str(ROOT/'tools/build_probe.ps1'),*arguments],capture_output=True,text=True)
         assert result.returncode and 'DSP inline comparison requires' in result.stderr
         cli_cases+=1
-(OUT/'results.json').write_text(json.dumps({'passed':True,'cmake_cases':6,'actual_variant_checks':8,'cli_rejections':cli_cases,'scope':'actual CMake prefix, actual image-validator variant checks and early CLI guards; no build/device execution'},indent=2)+'\n')
-print('PASS DSP isolation: six CMake configurations, eight actual image-variant checks and '+str(cli_cases)+' early CLI rejections; no hardware')
+(OUT/'results.json').write_text(json.dumps({'passed':True,'cmake_cases':6,'actual_variant_checks':10,'cli_rejections':cli_cases,'scope':'actual CMake prefix, actual image-validator variant checks and early CLI guards; no build/device execution'},indent=2)+'\n')
+print('PASS DSP isolation: six CMake configurations, ten actual image-variant checks and '+str(cli_cases)+' early CLI rejections; no hardware')
