@@ -363,7 +363,9 @@ static dbt_result_t start_output(uint32_t rate, uint8_t channels,
   dbt_audio_config_t config = {
       rate,
       power2((rate * 32u + 999u) / 1000u),
-      power2(target + DMA_DESCRIPTORS * DMA_FRAMES + 128u),
+      /* The renderer never produces beyond target+DMA prefill. Reserve the
+       * existing extra 128 frames, then round only to its allocation page. */
+      ((target + DMA_DESCRIPTORS * DMA_FRAMES + 128u + DBT_AUDIO_OUTPUT_PAGE_FRAMES-1u)/DBT_AUDIO_OUTPUT_PAGE_FRAMES)*DBT_AUDIO_OUTPUT_PAGE_FRAMES,
       target,
       format,
       channels,

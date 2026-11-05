@@ -36,8 +36,11 @@ typedef struct {
     dbt_audio_config_t config;
     dbt_audio_ring_t input,output;
     /* One logical SPSC ring; <=4 KiB allocations span ESP32 SRAM regions.
-     * output.bytes aliases page zero. Capacity, order and precision are unchanged. */
+     * output.bytes aliases page zero. Physical cursors have distinct owners:
+     * render writes write_slot; DMA writes read_slot. They are independent of
+     * wrapping uint32 publication counters, including non-power-of-two rings. */
     uint8_t *output_pages[DBT_AUDIO_OUTPUT_PAGES];
+    uint32_t output_write_slot,output_read_slot;
     /* Diagnostic work spans; render owner publishes once per bounded block.
      * Disabled builds retain zero counters. Units are elapsed core cycles. */
     _Atomic uint32_t profile_conversion,profile_dsp,profile_tail,profile_controls,profile_frames;

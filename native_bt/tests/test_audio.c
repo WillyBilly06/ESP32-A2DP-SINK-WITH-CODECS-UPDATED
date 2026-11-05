@@ -89,19 +89,26 @@ EXPORT int test_audio_paged_ring_capacity_wrap_mix_and_oom(void){
         for(unsigned i=0;i<DBT_AUDIO_OUTPUT_PAGES+1u;++i)CHECK(!page_used[i]);
         for(unsigned i=0;i<DBT_AUDIO_OUTPUT_PAGES;++i)CHECK(!a.output_pages[i]);
     }
-    for(uint32_t size=4096;size<=32768;size*=2){
+    const uint32_t sizes[]={2,7,511,512,513,3584,4096,6656,8192,12800,16384,32767,32768};
+    for(unsigned shape=0;shape<sizeof(sizes)/sizeof(sizes[0]);++shape){
+        uint32_t size=sizes[shape];
         page_reset(0);config.output_frames=size;config.target_frames=size/2;
         CHECK(dbt_audio_init(&a,memory)==DBT_OK && dbt_audio_open(&a,config)==DBT_OK);
         CHECK(a.allocated_bytes==32768u+size*8u);
         /* Near a page boundary and uint32 counter wrap, then a whole ring. */
         uint32_t position=0,start=UINT32_MAX-5u;
         atomic_store(&a.output.written,start);atomic_store(&a.output.read,start);
+        /* Physical wrap and counter wrap deliberately occur at different
+         * samples. A non-power-of-two ring cannot derive one from the other. */
+        a.output_write_slot=a.output_read_slot=size>129u?size-129u:0;
         dbt_audio_set_mix(&a,page_mix,&position);
         CHECK(dbt_audio_render_silence(&a,size)==size && position==size);
         CHECK(dbt_audio_render_silence(&a,1)==0);
-        for(uint32_t consumed=0;consumed<size;consumed+=128){
-            int32_t pcm[256];CHECK(dbt_audio_take(&a,pcm,128)==128);
-            for(unsigned i=0;i<128;++i){int32_t n=(int32_t)(consumed+i+1u);CHECK(pcm[2*i]==n*17 && pcm[2*i+1u]==-n*31);}
+        for(uint32_t consumed=0;consumed<size;){
+            uint32_t count=size-consumed;if(count>128u)count=128u;
+            int32_t pcm[256];CHECK(dbt_audio_take(&a,pcm,count)==count);
+            for(unsigned i=0;i<count;++i){int32_t n=(int32_t)(consumed+i+1u);CHECK(pcm[2*i]==n*17 && pcm[2*i+1u]==-n*31);}
+            consumed+=count;
         }
         int32_t silence[4]={1,1,1,1};CHECK(dbt_audio_take(&a,silence,2)==0);
         CHECK(!silence[0] && !silence[1] && !silence[2] && !silence[3] && atomic_load(&a.zero_frames)==2);
@@ -113,13 +120,17 @@ EXPORT int test_audio_paged_ring_capacity_wrap_mix_and_oom(void){
 EXPORT int test_audio_paged_render_matches_small_ring(void){
     static dbt_audio_t large,small;static uint8_t pcm[256*8];static int32_t actual[512],expected[512];
     dbt_audio_memory_t memory={0,page_allocate,page_release};
+    const uint32_t capacities[]={513,3584,6656,12800,16384};
+    for(unsigned shape=0;shape<sizeof(capacities)/sizeof(capacities[0]);++shape)
     for(unsigned width=2;width<=4;++width)for(unsigned channels=1;channels<=2;++channels){
-        page_reset(0);dbt_audio_config_t config={192000,256,16384,8192,(dbt_pcm_format_t)width,(uint8_t)channels,true};
+        uint32_t capacity=capacities[shape];
+        page_reset(0);dbt_audio_config_t config={192000,256,capacity,capacity/2u,(dbt_pcm_format_t)width,(uint8_t)channels,true};
         CHECK(dbt_audio_init(&large,memory)==DBT_OK && dbt_audio_init(&small,memory)==DBT_OK);
         CHECK(dbt_audio_open(&large,config)==DBT_OK);config.output_frames=512;config.target_frames=256;
         CHECK(dbt_audio_open(&small,config)==DBT_OK);
         CHECK(dbt_audio_controls(&large,3,-2,2,80,9)==DBT_OK && dbt_audio_controls(&small,3,-2,2,80,9)==DBT_OK);
         atomic_store(&large.output.written,4090u);atomic_store(&large.output.read,4090u);
+        large.output_write_slot=large.output_read_slot=capacity-6u;
         for(unsigned block=0;block<160;++block){
             for(unsigned i=0;i<256*channels;++i){int32_t value=((int32_t)((block*256u+i)%65536u)-32768)*3;put(pcm+i*width,value,width);}
             CHECK(dbt_audio_submit(&large,pcm,256)==DBT_OK && dbt_audio_submit(&small,pcm,256)==DBT_OK);

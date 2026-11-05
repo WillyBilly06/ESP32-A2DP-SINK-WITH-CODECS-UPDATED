@@ -60,6 +60,7 @@ EX int probe_output_formats(void){
         atomic_store(&output.descriptor_expected_index,6);atomic_store(&output.descriptor_observed_index,5);atomic_store(&output.descriptor_observed_size,4);
         atomic_store(&output.descriptor_fault_at_us,3);atomic_store(&output.descriptor_fault_gap_us,2);atomic_store(&output.descriptor_fault_stopping,1);
         CHECK(probe_output_stream_format(true,48000,2,format)==DBT_OK && output.audio.config.format==format && output.audio.input.stride==(i+2)*2u);
+        CHECK(output.audio.config.output_frames==3584 && output.audio.config.target_frames==3072);
         CHECK(configured_irq_priority==2 && !atomic_load(&output.callback_calls) && !atomic_load(&output.callback_elapsed_us) && !atomic_load(&output.callback_max_us));
         CHECK(!atomic_load(&output.descriptor_shape_errors) && !atomic_load(&output.descriptor_pool_errors) && !atomic_load(&output.descriptor_order_errors));
         CHECK(!atomic_load(&output.descriptor_expected_index) && !atomic_load(&output.descriptor_observed_index) && !atomic_load(&output.descriptor_observed_size));
@@ -79,6 +80,13 @@ EX int probe_output_formats(void){
     CHECK(probe_output_stream_format(true,0,2,DBT_PCM_S16_LE)==DBT_INVALID);
     CHECK(probe_output_stream_format(true,48000,3,DBT_PCM_S16_LE)==DBT_INVALID);
     CHECK(probe_output_stream_format(true,UINT32_MAX,2,DBT_PCM_S16_LE)==DBT_INVALID);
+    const uint32_t rates[]={96000,192000},capacities[]={6656,12800},bytes[]={86016,167936};
+    for(unsigned i=0;i<2;++i){
+        CHECK(probe_output_stream_format(true,rates[i],2,DBT_PCM_S32_LE)==DBT_OK);
+        CHECK(output.audio.config.output_frames==capacities[i] && output.audio.allocated_bytes==bytes[i]);
+        CHECK(output.audio.config.target_frames==rates[i]*64u/1000u);
+        CHECK(probe_output_stream(false,0,0)==DBT_OK && !live);
+    }
     /* A rejected 192 kHz request must not inherit the previous 48 kHz format
      * in failure telemetry, and partially allocated pages must be reclaimed. */
     fail_at_allocation=allocation_attempt+3u;test_clock_us=424242;
