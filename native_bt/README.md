@@ -68,6 +68,12 @@ before DMA, against 10744 free 8-bit bytes. Word-only eligibility alone is also
 insufficient. The processed-PCM queue needs a broader memory change; reducing
 fragmentation alone cannot qualify the maximum-rate path.
 
+An explicit, finite [16 ms PCM-target experiment](docs/PCM_TARGET_EXPERIMENT_2026_11_04.md)
+then admits 192 kHz LHDC/I2S with a 31744-byte PCM/DMA payload. All codecs and
+sample precision remain selected. Continuous playback still fails: render
+wall time exceeds its frame budget, queues drop packets and core0 starves.
+The 64 ms default remains unchanged, and jitter equivalence is unqualified.
+
 The [resumable PCM worker checkpoint](docs/IDF61_ASYNC_PCM_2026_11_04.md) adds
 80 real-codec host comparisons with sanitizer coverage and 38 passing ESP32
 deferred-worker checks. The render provider, stream/sound transactions and full

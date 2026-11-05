@@ -4,6 +4,13 @@ Updated 2026-11-04 for ESP-IDF 6.1. The goal is **active and incomplete**.
 The user has released COM6 for flashing/testing; other boards remain excluded.
 Released main/recovery artifacts remain preserved. Latest measured evidence:
 
+- [Finite PCM-target experiment](PCM_TARGET_EXPERIMENT_2026_11_04.md) admits
+  maximum LHDC output for the first time in this lineage: COM6 runs 192 kHz
+  I2S using 31744 PCM/DMA bytes at an explicit 16 ms target. Codec settings and
+  sample precision remain unchanged; the default remains 64 ms. Continuity
+  still fails with underruns, encoded-queue drops and 42 core0 watchdog
+  warnings. Render wall time is approximately 10.575 us/frame against 5.208 us.
+  Allocation success is not jitter equivalence, acoustic proof or feature parity.
 - [Allocation progress](OUTPUT_ALLOCATION_PROGRESS_2026_11_04.md) now identifies
   a total-capacity shortfall: maximum LHDC allocates 20/25 PCM pages, leaving
   20480 bytes with 10744 bytes of 8-bit heap free; 3072 bytes of DMA payload is
