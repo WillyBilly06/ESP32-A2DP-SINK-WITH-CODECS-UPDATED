@@ -64,7 +64,14 @@ static inline __attribute__((always_inline)) int32_t coefficient_at(int32_t firs
      * The result lies between first and next, so their final sum is safe. */
     int32_t delta=next-first;
     uint32_t magnitude=(uint32_t)(delta<0?-delta:delta);
+#if DBT_RESAMPLER_ADJACENT_DELTA_MAX <= 33554431u
+    /* M<<7 fits uint32 under the generated bound. The high word of
+     * (M<<7)*R is exactly floor(M*R/2^25), avoiding a low-word product
+     * and a two-word shift on LX6. No rounding or coefficient bit changes. */
+    int32_t step=(int32_t)(((uint64_t)(magnitude<<7)*remainder)>>32);
+#else
     int32_t step=(int32_t)(((uint64_t)magnitude*remainder)>>25);
+#endif
     return first+(delta<0?-step:step);
 #else
     return (int32_t)((int64_t)first+(((int64_t)next-first)*remainder)/33554432ll);

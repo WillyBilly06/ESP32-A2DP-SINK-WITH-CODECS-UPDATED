@@ -203,8 +203,9 @@
         "src/btstack_resample.c",
         "src/btstack_sample_rate_compensation.c"
       ],
-      "status": "pending",
-      "mapping": "counterpart_candidates"
+      "status": "reviewed_no_change",
+      "mapping": "counterpart_candidates",
+      "review_scope": "Complete owned body read and mapped source boundaries checked; included SDK backend internals remain a separate incomplete review."
     },
     {
       "owned": "native_bt/codecs/ldac/dbt_ldac_decoder.c",
@@ -230,8 +231,9 @@
         "src/btstack_resample.c",
         "src/btstack_sample_rate_compensation.c"
       ],
-      "status": "pending",
-      "mapping": "counterpart_candidates"
+      "status": "reviewed_no_change",
+      "mapping": "counterpart_candidates",
+      "review_scope": "Complete owned body read and mapped source boundaries checked; included SDK backend internals remain a separate incomplete review."
     },
     {
       "owned": "native_bt/codecs/ldac/dbt_ldac_port.h",
@@ -243,8 +245,9 @@
         "src/btstack_resample.c",
         "src/btstack_sample_rate_compensation.c"
       ],
-      "status": "pending",
-      "mapping": "counterpart_candidates"
+      "status": "reviewed_contract",
+      "mapping": "counterpart_candidates",
+      "review_scope": "Complete declaration and lifetime contract reviewed against its owning implementation."
     },
     {
       "owned": "native_bt/codecs/ldac/dbt_ldac.c",
@@ -278,8 +281,9 @@
       "sha256": "fb9b77712a2e3aa22d219e79431278cd867dd404928c8f1eb1b7db691014b0fa",
       "lines": 130,
       "reference_files": [],
-      "status": "pending",
-      "mapping": "Added through full filesystem/build-manifest cross-check; source generation/build inputs included"
+      "status": "reviewed_generator",
+      "mapping": "Added through full filesystem/build-manifest cross-check; source generation/build inputs included",
+      "review_scope": "Complete generation body read. FIR bounds/data checked; LDAC tail replacement and ownership/bit-reader patches inspected. Broader SDK internals remain open."
     },
     {
       "owned": "native_bt/codecs/lhdcv5/CMakeLists.txt",
@@ -1765,8 +1769,9 @@
         "src/btstack_resample.c",
         "src/btstack_sample_rate_compensation.c"
       ],
-      "status": "pending",
-      "mapping": "counterpart_candidates"
+      "status": "reviewed_contract",
+      "mapping": "counterpart_candidates",
+      "review_scope": "Complete declaration and lifetime contract reviewed against its owning implementation."
     },
     {
       "owned": "native_bt/include/dbt_rfcomm_bearer.h",
@@ -2500,21 +2505,23 @@
         "src/btstack_resample.c",
         "src/btstack_sample_rate_compensation.c"
       ],
-      "status": "pending",
-      "mapping": "Added through full filesystem/build-manifest cross-check; source generation/build inputs included"
+      "status": "reviewed_static_data",
+      "mapping": "Added through full filesystem/build-manifest cross-check; source generation/build inputs included",
+      "review_scope": "All bank dimensions, DC sums, adjacent differences and absolute-sum bounds inspected; no playback response qualification."
     },
     {
       "owned": "native_bt/src/dbt_resampler.c",
-      "sha256": "cb24b6fc3a07d04fcb2406bd05468548f4989062bb21da435cd8298083f4ecc3",
-      "lines": 139,
+      "sha256": "e79869d707bf9edce0953be180d3935f4d00eb324852d6759fbaea4815dc98b3",
+      "lines": 146,
       "reference_files": [
         "src/classic/avdtp.c",
         "example/a2dp_sink_demo.c",
         "src/btstack_resample.c",
         "src/btstack_sample_rate_compensation.c"
       ],
-      "status": "pending",
-      "mapping": "counterpart_candidates"
+      "status": "reviewed_with_findings",
+      "mapping": "counterpart_candidates",
+      "review_scope": "Complete owned body read and mapped source boundaries checked; included SDK backend internals remain a separate incomplete review."
     },
     {
       "owned": "native_bt/src/dbt_rfcomm_bearer.c",
@@ -2860,6 +2867,77 @@
       "reference_files": [],
       "status": "pending",
       "mapping": "product/support code; no direct protocol counterpart assigned"
+    },
+    {
+      "owned": "native_bt/tools/gen_resampler_coeffs.py",
+      "sha256": "260bacaadf0bd3e38fb49cd16ab9dc0c8ace6aa9dc386072b0f73e559a1c456b",
+      "lines": 63,
+      "reference_files": [
+        "src/btstack_resample.c"
+      ],
+      "status": "reviewed_generator",
+      "mapping": "project_specific_offline_generator_no_direct_reference_implementation",
+      "review_scope": "Complete generation body read. FIR bounds/data checked; LDAC tail replacement and ownership/bit-reader patches inspected. Broader SDK internals remain open."
+    },
+    {
+      "owned": "native_bt/tools/generate_fixed_dsp_tables.py",
+      "sha256": "4c223b8c2ebb7ec26d8c9110592bf69a1344da63fac0b1c9cfd01581380bf334",
+      "lines": 114,
+      "reference_files": [
+        "example/a2dp_sink_demo.c"
+      ],
+      "status": "pending",
+      "mapping": "project_specific_offline_generator_no_direct_reference_implementation"
+    },
+    {
+      "owned": "native_bt/tools/generate_opus_profile_oracle.py",
+      "sha256": "6618d320d61f230c6f0bb364479cb96bc7419ce311ba6be7c4a4e47522ce22d5",
+      "lines": 51,
+      "reference_files": [
+        "example/a2dp_sink_demo.c"
+      ],
+      "status": "pending",
+      "mapping": "project_specific_offline_generator_no_direct_reference_implementation"
+    },
+    {
+      "owned": "native_bt/tools/generate_probe_codec_vectors.py",
+      "sha256": "e842e8bbee8a5a1ae92fdac5d25bf47adf3a8c8c0459a39d07becc2963d7d73d",
+      "lines": 192,
+      "reference_files": [
+        "example/a2dp_sink_demo.c"
+      ],
+      "status": "pending",
+      "mapping": "project_specific_offline_generator_no_direct_reference_implementation"
+    },
+    {
+      "owned": "native_bt/tools/prepare_ldac_fixture_encoder.py",
+      "sha256": "a1b541ef4204927846018ca2706955e4d7726148eaf25805aff3bb36e74904df",
+      "lines": 60,
+      "reference_files": [
+        "example/a2dp_sink_demo.c"
+      ],
+      "status": "pending",
+      "mapping": "project_specific_offline_generator_no_direct_reference_implementation"
+    },
+    {
+      "owned": "native_bt/tools/prepare_lhdc_max_fixture.py",
+      "sha256": "0ce7a802b4facfb6a652fad31071aae81b65c3e85f8c52d3264b474f19789073",
+      "lines": 105,
+      "reference_files": [
+        "example/a2dp_sink_demo.c"
+      ],
+      "status": "pending",
+      "mapping": "project_specific_offline_generator_no_direct_reference_implementation"
+    },
+    {
+      "owned": "native_bt/tools/prepare_lhdcv5_fixture_encoder.py",
+      "sha256": "0454bff90a52a863767a4dc0b85fd18f1a0e566c357a2cff038fc3c1e927d82c",
+      "lines": 58,
+      "reference_files": [
+        "example/a2dp_sink_demo.c"
+      ],
+      "status": "pending",
+      "mapping": "project_specific_offline_generator_no_direct_reference_implementation"
     }
   ],
   "findings": [
@@ -3048,6 +3126,20 @@
           "effective_optimization": "-O2"
         }
       ]
+    },
+    {
+      "id": "FIR-011",
+      "state": "compiled_static_analysis_passed_peer_unqualified",
+      "owned": [
+        "native_bt/src/dbt_resampler.c:coefficient_at"
+      ],
+      "reference": [
+        "src/btstack_resample.c:69-114"
+      ],
+      "issue": "Fractional FIR interpolation formed both product words then shifted by 25, although the generated magnitude bound permits a high-word-only product.",
+      "fix": "For generated adjacent delta <=2^25-1, compute high32((abs(delta)<<7)*remainder), then restore sign. All Q30 coefficients, full 64-bit stereo products, rounding, tap counts, history and source phase remain exact.",
+      "limits": "BTstack linear interpolation is not substituted for FIR. No measured cycle/underrun improvement is claimed. Product selects the high-word expression; wider existing arithmetic remains for larger compile-time bounds.",
+      "resource_change": "No new storage/tasks/allocations. Filter text 957 to 946 bytes; whole image text -12 bytes, aggregate data/BSS unchanged."
     }
   ],
   "sections_reviewed": [
@@ -3165,6 +3257,27 @@
       ],
       "outcome": "SBC checksum arithmetic reduced without removing checks; five decoder build settings corrected. AAC source bounds/configuration/borrow/fragment paths reviewed without establishing a new crash source. Broader Helix/vendor internals and peer/performance qualification remain open.",
       "full_layer_complete": false
+    },
+    {
+      "layer": "FIR source/data/generator and LDAC generated-unit boundaries",
+      "owned": [
+        "native_bt/src/dbt_resampler.c",
+        "native_bt/src/dbt_resampler_coeffs.inc",
+        "native_bt/include/dbt_resampler.h",
+        "native_bt/tools/gen_resampler_coeffs.py",
+        "native_bt/codecs/ldac/prepare_port.py",
+        "native_bt/codecs/ldac/dbt_ldac_lib.c",
+        "native_bt/codecs/ldac/dbt_ldac_bt.c",
+        "native_bt/codecs/ldac/dbt_ldac_port.h"
+      ],
+      "reference": [
+        "src/btstack_resample.c:44-114",
+        "SDK tables_sigproc_ldac.o.c:492-511",
+        "SDK ldacBT_api.o.c:129-284",
+        "SDK ldaclib_api.o.c:305-359"
+      ],
+      "outcome": "Implemented exact high-word FIR interpolation. Verified LDAC generator tail is solely the replaced setter, so no following function is removed. Traced normal header stability and confirmed allocation-bearing sequence-gap reset as separate unfinished work.",
+      "full_layer_complete": false
     }
   ],
   "integration_gaps": [
@@ -3210,14 +3323,15 @@
     }
   ],
   "coverage": {
-    "owned_files": 270,
-    "reviewed_owned_c_bodies": 16,
+    "owned_files": 277,
+    "reviewed_owned_c_bodies": 19,
     "partial_files": 7,
-    "pending_files": 231,
+    "pending_files": 230,
     "compiled_owned_units_missing": 0,
-    "reviewed_headers": 10,
+    "reviewed_headers": 12,
     "reviewed_build_files": 5,
-    "reviewed_generators": 1
+    "reviewed_generators": 3,
+    "reviewed_static_data": 1
   },
   "inventory_corrections": [
     {
@@ -3252,6 +3366,19 @@
         "native_bt/CMakeLists.txt",
         "bt_audio_sink/main/dsp/fixed_dsp_tables.inc"
       ]
+    },
+    {
+      "reason": "Following immutable FIR/DSP/codec fixtures exposed manual generators outside the original codec prepare_port filter.",
+      "added": [
+        "native_bt/tools/generate_fixed_dsp_tables.py",
+        "native_bt/tools/generate_opus_profile_oracle.py",
+        "native_bt/tools/generate_probe_codec_vectors.py",
+        "native_bt/tools/gen_resampler_coeffs.py",
+        "native_bt/tools/prepare_ldac_fixture_encoder.py",
+        "native_bt/tools/prepare_lhdcv5_fixture_encoder.py",
+        "native_bt/tools/prepare_lhdc_max_fixture.py"
+      ],
+      "limits": "Checkpoint-packaging helpers are not target generators. This addition does not claim that pending tool/SDK/reference coverage is complete."
     }
   ],
   "follow_up_checks": [
@@ -3281,5 +3408,5 @@
     ],
     "notes": "Codec wrapper/build reviews do not finish backend internals or full BTstack audit. Preserve decoder0/radio+render1, 1800x8 input and arithmetic fidelity; no held functional campaigns. Prior measured FIR/render deficit remains an open bottleneck."
   },
-  "latest_build_image": "5fa0b45fc2e09d84d385fe9d493945ac7cda0664271fe8b27ee8f1a828fd0e67"
+  "latest_build_image": "7d4b58613694061dec7d8b9b4acfe008d943707257ff85e7977b3bb8d7fcc4be"
 }
