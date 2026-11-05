@@ -6,6 +6,7 @@ idf_component_register(
          "../../../src/dbt_a2dp_sbc.c"
          "../../../src/dbt_a2dp_acceptor.c" "../../../src/dbt_sbc_media.c"
          "../../../src/dbt_credit.c"
+         "../../../src/dbt_page.c"
          "../../../src/dbt_ertm.c"
          "../../../src/dbt_ertm_engine.c"
          "../../../src/dbt_avctp.c"
