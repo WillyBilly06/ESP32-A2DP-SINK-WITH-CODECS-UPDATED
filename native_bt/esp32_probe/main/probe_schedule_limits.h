@@ -1,17 +1,24 @@
 #ifndef PROBE_SCHEDULE_LIMITS_H
 #define PROBE_SCHEDULE_LIMITS_H
+#include "dbt_esp32_affinity.h"
 
 #ifndef DBT_PROBE_DECODER_PRIORITY
 #define DBT_PROBE_DECODER_PRIORITY 5
 #endif
-#if DBT_PROBE_DECODER_PRIORITY != 5 && DBT_PROBE_DECODER_PRIORITY != 6
+#if DBT_PROBE_DECODER_PRIORITY != 5 && DBT_PROBE_DECODER_PRIORITY != 6 && DBT_PROBE_DECODER_PRIORITY != 21
 #error Unsupported decoder priority
 #endif
 #if defined(DBT_PROBE_HOST_PRIORITY) || defined(DBT_PROBE_RENDER_PRIORITY)
 #error Task priorities are derived from the admitted scheduling mode
 #endif
 
-#ifdef DBT_PROBE_PRIORITY_ORDER
+#ifdef DBT_PROBE_STAY_NATIVE
+#if DBT_PROBE_DECODER_PRIORITY != 21
+#error Product decoder requires isolated CPU0 priority 21
+#endif
+#define DBT_PROBE_HOST_PRIORITY 22
+#define DBT_PROBE_RENDER_PRIORITY 20
+#elif defined(DBT_PROBE_PRIORITY_ORDER)
 #if DBT_PROBE_PRIORITY_ORDER != 1 || DBT_PROBE_DECODER_PRIORITY != 6
 #error Ordered priorities require the finite priority6 decoder mode
 #endif

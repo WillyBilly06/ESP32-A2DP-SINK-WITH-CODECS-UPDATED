@@ -1,3 +1,4 @@
+#include "dbt_esp32_affinity.h"
 #include "probe_security.h"
 #include "freertos/queue.h"
 #include "nvs.h"
@@ -498,10 +499,10 @@ dbt_result_t probe_security_init(dbt_runtime_t *host_runtime, dbt_gap_t *host_ga
         goto failed;
     dbt_classic_security_pairable(&security, true);
     result = DBT_NO_SPACE;
-    if (xTaskCreatePinnedToCore(worker, "native_bond_store", 3072, 0, 1, &worker_handle, 0) !=
+    if (xTaskCreatePinnedToCore(worker, "native_bond_store", 3072, 0, 1, &worker_handle, DBT_ESP32_BACKGROUND_CORE) !=
         pdPASS)
         goto failed;
-    if (xTaskCreatePinnedToCore(logger, "native_security_log", 2048, 0, 0, &logger_handle, 0) !=
+    if (xTaskCreatePinnedToCore(logger, "native_security_log", 2048, 0, 0, &logger_handle, DBT_ESP32_BACKGROUND_CORE) !=
         pdPASS)
         goto failed;
     initialized=true;

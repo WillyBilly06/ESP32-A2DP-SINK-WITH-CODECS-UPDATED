@@ -1,4 +1,4 @@
-param([switch]$StayNative,[switch]$WordDsp,[switch]$PriorityOrder,[ValidateSet(5,6)][int]$DecoderPriority=5,[switch]$SchedulerTrace,[switch]$PcmCopied,[switch]$PcmHash,[ValidateSet(-1,0,1)][int]$LoggerCore=-1,[switch]$BlockDsp,[ValidateSet(16,32,64)][int]$PcmTargetMs=64,[switch]$PcmLoans,[switch]$DspInlineCheck,[ValidateSet(0,1)][int]$DecoderCore=1,[switch]$RfProtocolDiagnostic,[switch]$FirCompilerCheck,[switch]$DspStageProfile,[switch]$AudioStageProfile,[switch]$PipelineDiagnostic,[switch]$AsyncAudio,[switch]$DeferredCodecCheck,[switch]$LhdcStageProfile,[switch]$LhdcMaximumCheck,[switch]$CodecDiagnosticOnly,[switch]$WithProductIo,[switch]$WithProductSecurity,[switch]$WithRfcomm,[switch]$WithLhdc,[switch]$WithOpus,[switch]$WithAac,[switch]$WithAptx,[switch]$WithLdac,[switch]$WithSmp,[switch]$WithAvrcp,[switch]$WithSbc,[switch]$WithAudioProbe,[switch]$WithAudioOutput,[switch]$WithGatt,[switch]$WithClassicSecurity,[switch]$TraceIngress,[switch]$WithoutRxFlow,[switch]$KeepOwned=$true,[string]$TestPeer='',[string]$LhdcSourceDir='')
+param([switch]$StayNative,[switch]$WordDsp,[switch]$PriorityOrder,[ValidateSet(5,6,21)][int]$DecoderPriority=5,[switch]$SchedulerTrace,[switch]$PcmCopied,[switch]$PcmHash,[ValidateSet(-1,0,1)][int]$LoggerCore=-1,[switch]$BlockDsp,[ValidateSet(16,32,64)][int]$PcmTargetMs=64,[switch]$PcmLoans,[switch]$DspInlineCheck,[ValidateSet(0,1)][int]$DecoderCore=0,[switch]$RfProtocolDiagnostic,[switch]$FirCompilerCheck,[switch]$DspStageProfile,[switch]$AudioStageProfile,[switch]$PipelineDiagnostic,[switch]$AsyncAudio,[switch]$DeferredCodecCheck,[switch]$LhdcStageProfile,[switch]$LhdcMaximumCheck,[switch]$CodecDiagnosticOnly,[switch]$WithProductIo,[switch]$WithProductSecurity,[switch]$WithRfcomm,[switch]$WithLhdc,[switch]$WithOpus,[switch]$WithAac,[switch]$WithAptx,[switch]$WithLdac,[switch]$WithSmp,[switch]$WithAvrcp,[switch]$WithSbc,[switch]$WithAudioProbe,[switch]$WithAudioOutput,[switch]$WithGatt,[switch]$WithClassicSecurity,[switch]$TraceIngress,[switch]$WithoutRxFlow,[switch]$KeepOwned=$true,[string]$TestPeer='',[string]$LhdcSourceDir='')
 $ErrorActionPreference = 'Stop'
 if ($PriorityOrder) { $DecoderPriority=6; $KeepOwned=$false }
 if ($WordDsp -and -not $BlockDsp) { throw 'Word DSP requires -BlockDsp' }
@@ -56,6 +56,8 @@ if (($TestPeer -and $TestPeer -notmatch '^[0-9a-fA-F]{2}(:[0-9a-fA-F]{2}){5}$') 
 }
 if ($StayNative) {
     if (-not $WithProductIo -or -not $AsyncAudio -or $CodecDiagnosticOnly -or $PipelineDiagnostic -or $RfProtocolDiagnostic -or $SchedulerTrace) { throw 'Stay-native requires the complete asynchronous product entry' }
+    if ($DecoderCore -ne 0 -or $LoggerCore -ne 1) { throw 'Stay-native product reserves CPU0 for decoding; use -DecoderCore 0 -LoggerCore 1' }
+    $DecoderPriority=21
     $KeepOwned=$true
 }
 $nativeRoot = Split-Path -Parent $PSScriptRoot
@@ -73,6 +75,16 @@ if ($WithAudioOutput) {
         if ($nativeSdk -match '(?m)^(# )?CONFIG_I2S_ISR_IRAM_SAFE.*$') {
             $nativeSdk=[regex]::Replace($nativeSdk,'(?m)^(# )?CONFIG_I2S_ISR_IRAM_SAFE.*$','CONFIG_I2S_ISR_IRAM_SAFE=y')
         } else { $nativeSdk += "`nCONFIG_I2S_ISR_IRAM_SAFE=y`n" }
+        [IO.File]::WriteAllText($nativeSdkPath,$nativeSdk,[Text.UTF8Encoding]::new($false))
+    }
+}
+if ($StayNative) {
+    $nativeSdkPath=Join-Path $probeRoot 'sdkconfig'
+    if (Test-Path -LiteralPath $nativeSdkPath) {
+        $nativeSdk=[IO.File]::ReadAllText($nativeSdkPath)
+        $coreChoicePattern='(?m)^(?:# )?(?:CONFIG_BTDM_CTRL_PINNED_TO_CORE_0|CONFIG_BTDM_CTRL_PINNED_TO_CORE_1|CONFIG_ESP_MAIN_TASK_AFFINITY_CPU0|CONFIG_ESP_MAIN_TASK_AFFINITY_CPU1|CONFIG_ESP_MAIN_TASK_AFFINITY_NO_AFFINITY|CONFIG_ESP_TIMER_SHOW_EXPERIMENTAL|CONFIG_ESP_TIMER_TASK_AFFINITY_CPU0|CONFIG_ESP_TIMER_TASK_AFFINITY_CPU1|CONFIG_ESP_TIMER_TASK_AFFINITY_NO_AFFINITY|CONFIG_FREERTOS_TIMER_TASK_AFFINITY_CPU0|CONFIG_FREERTOS_TIMER_TASK_AFFINITY_CPU1|CONFIG_FREERTOS_TIMER_TASK_NO_AFFINITY|CONFIG_ESP_WIFI_TASK_PINNED_TO_CORE_0|CONFIG_ESP_WIFI_TASK_PINNED_TO_CORE_1|CONFIG_LWIP_TCPIP_TASK_AFFINITY_CPU0|CONFIG_LWIP_TCPIP_TASK_AFFINITY_CPU1|CONFIG_LWIP_TCPIP_TASK_AFFINITY_NO_AFFINITY)(?:=.*| is not set)\r?$'
+        $nativeSdk=[regex]::Replace($nativeSdk,$coreChoicePattern,'')
+        $nativeSdk += "`nCONFIG_BTDM_CTRL_PINNED_TO_CORE_1=y`nCONFIG_ESP_MAIN_TASK_AFFINITY_CPU1=y`nCONFIG_ESP_TIMER_TASK_AFFINITY_CPU0=y`nCONFIG_FREERTOS_TIMER_TASK_AFFINITY_CPU1=y`nCONFIG_ESP_WIFI_TASK_PINNED_TO_CORE_1=y`nCONFIG_LWIP_TCPIP_TASK_AFFINITY_CPU1=y`n"
         [IO.File]::WriteAllText($nativeSdkPath,$nativeSdk,[Text.UTF8Encoding]::new($false))
     }
 }
@@ -184,10 +196,13 @@ $buildReceipt.word_dsp=[bool]$WordDsp
 $buildReceipt.stay_native=[bool]$StayNative
 $buildReceipt.rf_protocol_diagnostic=[bool]$RfProtocolDiagnostic
 $buildReceipt.decoder_core=$DecoderCore
+$buildReceipt.bluetooth_core=1
+$buildReceipt.renderer_core=1
+$buildReceipt.background_core=1
 $buildReceipt.decoder_priority=$DecoderPriority
 $buildReceipt.priority_order=[bool]$PriorityOrder
-$buildReceipt.host_priority=$(if ($PriorityOrder) { 7 } else { 6 })
-$buildReceipt.renderer_priority=$(if ($PriorityOrder) { 5 } else { 6 })
+$buildReceipt.host_priority=$(if ($StayNative) { 22 } elseif ($PriorityOrder) { 7 } else { 6 })
+$buildReceipt.renderer_priority=$(if ($StayNative) { 20 } elseif ($PriorityOrder) { 5 } else { 6 })
 $buildReceipt.owner_ready_yield=($DecoderPriority -eq $buildReceipt.host_priority)
 $buildReceipt.logger_core=$LoggerCore
 $buildReceipt.scheduler_trace=[bool]$SchedulerTrace

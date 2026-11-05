@@ -1,3 +1,4 @@
+#include "dbt_esp32_affinity.h"
 #include "dbt_codec.h"
 #include "probe_codec_check.h"
 #ifdef DBT_PROBE_SBC_BUILD
@@ -443,7 +444,7 @@ bool probe_codec_check_start(probe_codec_complete_fn complete,void *context){
     if(atomic_exchange_explicit(&check.running,true,memory_order_acq_rel))return false;
     atomic_store_explicit(&check.done,false,memory_order_release);
     check.complete=complete;check.complete_context=context;
-    if(xTaskCreatePinnedToCore(run,"codec_check",CHECK_STACK_BYTES,NULL,5,NULL,1)!=pdPASS){
+    if(xTaskCreatePinnedToCore(run,"codec_check",CHECK_STACK_BYTES,NULL,5,NULL,DBT_ESP32_DECODER_CORE)!=pdPASS){
         atomic_store_explicit(&check.running,false,memory_order_release);return false;
     }
     return true;

@@ -56,7 +56,7 @@ if core_option:
 else:
     assert decoder_core==1, 'Missing explicit decoder affinity'
 decoder_priority=build_status.get('decoder_priority',5)
-assert type(decoder_priority) is int and decoder_priority in (5,6), 'Invalid decoder priority receipt'
+assert type(decoder_priority) is int and decoder_priority in ((21,) if stay_native else (5,6)), 'Invalid decoder priority receipt'
 priority_option=re.search(r'^DBT_PROBE_DECODER_PRIORITY:STRING=(\S+)$',cache,re.M)
 if priority_option:
     assert priority_option.group(1)==str(decoder_priority), 'Decoder priority receipt/cache mismatch'
@@ -78,14 +78,14 @@ priority_order=build_status.get('priority_order',False)
 assert type(priority_order) is bool and ('DBT_PROBE_PRIORITY_ORDER:BOOL=ON' in cache)==priority_order, 'Priority order receipt/cache mismatch'
 host_priority=build_status.get('host_priority',6)
 renderer_priority=build_status.get('renderer_priority',6)
-assert type(host_priority) is int and host_priority==(7 if priority_order else 6), 'Invalid host priority receipt'
-assert type(renderer_priority) is int and renderer_priority==(5 if priority_order else 6), 'Invalid renderer priority receipt'
+assert type(host_priority) is int and host_priority==(22 if stay_native else 7 if priority_order else 6), 'Invalid host priority receipt'
+assert type(renderer_priority) is int and renderer_priority==(20 if stay_native else 5 if priority_order else 6), 'Invalid renderer priority receipt'
 schedule_units=[e for e in commands if Path(e['file']).name in (entry_name,'probe_audio.c','probe_output.c')]
 for entry in schedule_units:
     assert re.findall(r'(?:^|\s)-DDBT_PROBE_PRIORITY_ORDER=(\S+)',entry['command'])==(['1'] if priority_order else []), 'Scheduling mode not actually compiled'
     assert not re.search(r'(?:^|\s)-UDBT_PROBE_PRIORITY_ORDER(?:\s|$)',entry['command'])
 if priority_order:
-    assert decoder_priority==6 and not diagnostic and not pipeline and build_status.get('async_audio')
+    assert decoder_priority==(21 if stay_native else 6) and not diagnostic and not pipeline and build_status.get('async_audio')
     assert not build_status.get('rf_protocol_diagnostic') and ('DBT_PROBE_KEEP_OWNED_ACTIVE:BOOL=ON' not in cache or (build_status.get('stay_native') is True and 'DBT_PROBE_STAY_NATIVE:BOOL=ON' in cache))
     assert {Path(e['file']).name for e in schedule_units}=={entry_name,'probe_audio.c','probe_output.c'}, 'Missing ordered task unit'
 owner_ready_yield=build_status.get('owner_ready_yield',False)
@@ -104,6 +104,15 @@ if logger_option:
             assert not re.search(r'(?:^|\s)-UDBT_PROBE_LOGGER_CORE(?:\s|$)',entry['command'])
 else:
     assert logger_core==1-decoder_core, 'Missing explicit logger affinity'
+if stay_native:
+    assert decoder_core==0 and logger_core==1, 'Product decoder must be isolated on CPU0'
+    assert [build_status.get(k) for k in ('bluetooth_core','renderer_core','background_core')]==[1,1,1], 'Product core-layout receipt mismatch'
+    compiled_config=(a.image.parent/'config/sdkconfig.h').read_text()
+    for key,value in {'CONFIG_BTDM_CTRL_PINNED_TO_CORE':1,'CONFIG_ESP_MAIN_TASK_AFFINITY':1,
+                      'CONFIG_ESP_TIMER_TASK_AFFINITY':0,'CONFIG_FREERTOS_TIMER_SERVICE_TASK_CORE_AFFINITY':1,
+                      'CONFIG_LWIP_TCPIP_TASK_AFFINITY':1,'CONFIG_ESP_WIFI_TASK_PINNED_TO_CORE_1':1}.items():
+        match=re.search(r'^#define '+key+r' (0x[0-9a-fA-F]+|[0-9]+)$',compiled_config,re.M)
+        assert match and int(match.group(1),0)==value, 'Compiled SDK affinity mismatch: '+key
 rf_diagnostic=bool(build_status.get('rf_protocol_diagnostic'))
 assert ('DBT_PROBE_RF_PROTOCOL_DIAGNOSTIC:BOOL=ON' in cache)==rf_diagnostic
 assert bool(re.search(r'(?:^|\s)-DDBT_PROBE_RF_PROTOCOL_DIAGNOSTIC=1(?:\s|$)',main_command))==rf_diagnostic

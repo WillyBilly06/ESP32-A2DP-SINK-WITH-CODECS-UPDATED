@@ -24,7 +24,7 @@ typedef struct {
     uint32_t descriptor_shape_errors,descriptor_pool_errors,descriptor_order_errors;
     uint32_t descriptor_expected_index,descriptor_observed_index,descriptor_observed_size;
     uint32_t descriptor_fault_at_us,descriptor_fault_gap_us,descriptor_fault_stopping;
-    uint32_t configured_irq_priority,callback_calls,callback_elapsed_us,callback_max_us,callback_core;
+    uint32_t configured_irq_priority,callback_calls,callback_elapsed_us,callback_max_us,callback_core,render_core;
     uint32_t pcm_loan_mode,input_ring_bytes_avoided,pcm_loans_begun,pcm_loans_retired,pcm_loans_cancelled,pcm_loan_active,pcm_loan_max_us;
     uint32_t maximum_render_us,stop_fill_frames;
     uint32_t render_total_us,render_calls,render_stack_low_water_bytes;

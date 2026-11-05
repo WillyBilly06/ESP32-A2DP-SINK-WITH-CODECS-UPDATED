@@ -1,3 +1,4 @@
+#include "dbt_esp32_affinity.h"
 #include "dbt_led_esp32.h"
 #include "esp_heap_caps.h"
 #include "esp_timer.h"
@@ -361,7 +362,7 @@ bool dbt_led_esp32_start(dbt_led_esp32_t *p, spi_host_device_t host, int gpio,
   if(!dbt_led_set_allocator(&p->led,effect_allocate,effect_release,NULL)) {
     release(p);return false;
   }
-  if (xTaskCreate(worker, "dbt_led", 3072, p, 2, &p->task) != pdPASS) {
+  if (xTaskCreatePinnedToCore(worker, "dbt_led", 3072, p, 2, &p->task, DBT_ESP32_BACKGROUND_CORE) != pdPASS) {
     release(p);
     return false;
   }

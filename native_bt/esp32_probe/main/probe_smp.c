@@ -1,3 +1,4 @@
+#include "dbt_esp32_affinity.h"
 #include "probe_smp.h"
 #include "dbt_smp_nvs.h"
 #include "dbt_smp_worker_mbedtls.h"
@@ -774,7 +775,7 @@ void probe_smp_poll(uint32_t now) {
     }
     if (maintenance.active) {
         if (!maintenance.issued) {
-            if (!worker_live && xTaskCreate(worker,"native_smp_worker",WORKER_STACK_BYTES,NULL,1,NULL)!=pdPASS) {
+            if (!worker_live && xTaskCreatePinnedToCore(worker,"native_smp_worker",WORKER_STACK_BYTES,NULL,1,NULL,DBT_ESP32_BACKGROUND_CORE)!=pdPASS) {
                 maintenance.result=DBT_NO_SPACE; maintenance.issued=true;
                 maintenance.done=true; maintenance.retired=true;
             } else {
@@ -840,7 +841,7 @@ void probe_smp_poll(uint32_t now) {
     }
     if (!slot.prepare_queued) {
         if (!worker_live) {
-            if (xTaskCreate(worker,"native_smp_worker",WORKER_STACK_BYTES,NULL,1,NULL)!=pdPASS) {
+            if (xTaskCreatePinnedToCore(worker,"native_smp_worker",WORKER_STACK_BYTES,NULL,1,NULL,DBT_ESP32_BACKGROUND_CORE)!=pdPASS) {
                 if (slot.reconnect && !slot.reconnect_central) slot.negative_needed=true; else slot.failed=true;
                 return;
             }

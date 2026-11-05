@@ -1,3 +1,4 @@
+#include "dbt_esp32_affinity.h"
 #include "probe_product_io.h"
 #include "dbt_input_esp32.h"
 #include "dbt_led_esp32.h"
@@ -266,8 +267,8 @@ bool probe_product_io_startup_worker(dbt_ble_control_state_t *initial,
     }
     if(input==DBT_INPUT_START_READY) {
       io.input_started = true;io.input_status=PROBE_PRODUCT_INPUT_AVAILABLE;
-      if (xTaskCreate(input_worker, "dbt_inputs", 3072, NULL, 2,
-                      &io.input_task) != pdPASS) {
+      if (xTaskCreatePinnedToCore(input_worker, "dbt_inputs", 3072, NULL, 2,
+                      &io.input_task, DBT_ESP32_BACKGROUND_CORE) != pdPASS) {
         close_startup();publish_capabilities();
         return false;
       }

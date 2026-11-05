@@ -74,7 +74,7 @@
 #include <stdio.h>
 #include <stdarg.h>
 #ifndef DBT_PROBE_DECODER_CORE
-#define DBT_PROBE_DECODER_CORE 1
+#define DBT_PROBE_DECODER_CORE DBT_ESP32_DECODER_CORE
 #endif
 #if DBT_PROBE_DECODER_CORE != 0 && DBT_PROBE_DECODER_CORE != 1
 #error "Decoder core must be exactly 0 or 1"
@@ -86,12 +86,10 @@
 #error "Logger core must be 0 or 1"
 #endif
 #define AUDIO_LOGGER_CORE DBT_PROBE_LOGGER_CORE
-#ifndef DBT_PROBE_DECODER_PRIORITY
-#define DBT_PROBE_DECODER_PRIORITY 5
+#if defined(DBT_PROBE_STAY_NATIVE) && (DBT_PROBE_DECODER_CORE != DBT_ESP32_DECODER_CORE || DBT_PROBE_LOGGER_CORE != DBT_ESP32_BACKGROUND_CORE)
+#error Stay-native product requires decoder CPU0 and logger CPU1
 #endif
-#if DBT_PROBE_DECODER_PRIORITY != 5 && DBT_PROBE_DECODER_PRIORITY != 6
-#error "Decoder priority must be exactly 5 or 6"
-#endif
+/* Priority policy is centralized in probe_schedule_limits.h. */
 
 /* Test-only isolation, never an alternative product audio path. Decoder/RTP,
  * endpoints and product security are unchanged. Product IO/sounds remain;
@@ -103,6 +101,9 @@
 static dbt_a2dp_acceptor_t profile;
 static dbt_codec_worker_t worker;
 static TaskHandle_t owner,decoder_task,logger_task;
+static _Atomic uint32_t decoder_run_core;
+static _Atomic uint32_t decoder_wait_calls[4],decoder_wait_elapsed[4],decoder_wait_maximum[4];
+static _Atomic uint32_t decoder_wait_kind,decoder_wait_began;
 static bool initialized,failed,restart_hold,restart_drained;
 /* Owner-only cursor; cumulative worker faults are diagnostics, not a permanent
  * service-disable flag. Session retirement still fences all borrowed PCM. */
@@ -474,6 +475,8 @@ static TickType_t decoder_wait_ticks(uint32_t now){
 static void decode_loop(void *unused){
     (void)unused;
     uint32_t seen_faults=0;
+    atomic_store(&decoder_run_core,(uint32_t)xPortGetCoreID());
+    atomic_store(&decoder_wait_kind,UINT32_MAX);
     for(;;){
         uint32_t began=(uint32_t)esp_timer_get_time();
         (void)dbt_codec_worker_step(&worker,now_ms(),2);
@@ -488,7 +491,18 @@ static void decode_loop(void *unused){
         TickType_t wait=decoder_wait_ticks(now_ms());
         /* Notifications queued before this call remain pending. No fixed
          * media polling period and no wait while useful work is runnable. */
-        ulTaskNotifyTake(pdTRUE,wait);
+        if(!wait){(void)ulTaskNotifyTake(pdTRUE,0);continue;}
+        unsigned reason=worker.pcm_ticket?1u:worker.pending_pcm&&worker.output_blocked?0u:
+            worker.control_phase||atomic_load(&worker.job_read)!=atomic_load(&worker.job_written)?2u:3u;
+        uint32_t before=(uint32_t)esp_timer_get_time();
+        atomic_store_explicit(&decoder_wait_began,before,memory_order_relaxed);
+        atomic_store_explicit(&decoder_wait_kind,reason,memory_order_release);
+        (void)ulTaskNotifyTake(pdTRUE,wait);
+        uint32_t waited=(uint32_t)esp_timer_get_time()-before;
+        atomic_store_explicit(&decoder_wait_kind,UINT32_MAX,memory_order_release);
+        atomic_fetch_add(&decoder_wait_calls[reason],1);
+        atomic_fetch_add(&decoder_wait_elapsed[reason],waited);
+        maximum(&decoder_wait_maximum[reason],waited);
     }
 }
 #ifdef DBT_PROBE_AVRCP
@@ -595,6 +609,18 @@ static void log_loop(void *unused){
                at,atomic_load(&worker_steps),atomic_load(&worker_elapsed_us),atomic_load(&worker_step_max_us),
                atomic_load(&worker_hist[0]),atomic_load(&worker_hist[1]),atomic_load(&worker_hist[2]),atomic_load(&worker_hist[3]),
                atomic_load(&worker_hist[4]),atomic_load(&worker_hist[5]),atomic_load(&worker_hist[6]),atomic_load(&worker_hist[7]));
+        static const char *const wait_names[]={"pcm_space","pcm_loan_retirement","control","encoded_input"};
+        uint32_t waiting=atomic_load_explicit(&decoder_wait_kind,memory_order_acquire);
+        uint32_t wait_began=atomic_load_explicit(&decoder_wait_began,memory_order_relaxed);
+        for(unsigned reason=0;reason<4;++reason){
+            uint32_t stamp=(uint32_t)esp_timer_get_time();
+            snapshot_log(stamp,"{\"probe\":\"decoder_wait\",\"reason\":\"%s\",\"core\":%" PRIu32
+                ",\"calls\":%" PRIu32 ",\"elapsed_us\":%" PRIu32 ",\"maximum_us\":%" PRIu32
+                ",\"currently_waiting\":%s,\"current_wait_us\":%" PRIu32 ",\"wall_time_includes_preemption\":true}\n",
+                wait_names[reason],atomic_load(&decoder_run_core),atomic_load(&decoder_wait_calls[reason]),
+                atomic_load(&decoder_wait_elapsed[reason]),atomic_load(&decoder_wait_maximum[reason]),
+                waiting==reason?"true":"false",waiting==reason?stamp-wait_began:0u);
+        }
         static const char *const phases[]={"decoder_execution","decoder_reset","pcm_delivery"};
         for(unsigned i=0;i<3;++i){
             phase_timing_t *p=&phase_timing[i];
@@ -675,10 +701,10 @@ static void log_loop(void *unused){
                ",\"calls\":%" PRIu32 ",\"elapsed_us\":%" PRIu32 ",\"maximum_us\":%" PRIu32 ",\"core\":%" PRIu32
                ",\"application_callback_only\":true,\"elapsed_includes_preemption\":true}\n",
                stats.configured_irq_priority,stats.callback_calls,stats.callback_elapsed_us,stats.callback_max_us,stats.callback_core);
-        snapshot_log(output_snapshot_began,"{\"probe\":\"render_work\",\"collection_cycle_us\":%" PRIu32 ",\"calls\":%" PRIu32 ",\"elapsed_us\":%" PRIu32
+        snapshot_log(output_snapshot_began,"{\"probe\":\"render_work\",\"core\":%" PRIu32 ",\"collection_cycle_us\":%" PRIu32 ",\"calls\":%" PRIu32 ",\"elapsed_us\":%" PRIu32
                ",\"maximum_us\":%" PRIu32 ",\"wall_time_includes_preemption\":true,\"input_ready_frames\":%" PRIu32 ",\"render_stack_low_water_bytes\":%" PRIu32
                ",\"allocation_failed_bytes\":%" PRIu32 ",\"allocation_failure_free\":%" PRIu32 ",\"allocation_failure_largest\":%" PRIu32
-               ",\"request_fault\":%" PRIu32 ",\"stale_receipts\":%" PRIu32 "}\n",at,stats.render_calls,stats.render_total_us,
+               ",\"request_fault\":%" PRIu32 ",\"stale_receipts\":%" PRIu32 "}\n",stats.render_core,at,stats.render_calls,stats.render_total_us,
                stats.maximum_render_us,stats.input_ready_frames,stats.render_stack_low_water_bytes,stats.allocation_failed_bytes,
                stats.allocation_failure_free,stats.allocation_failure_largest,stats.request_fault,stats.stale_receipts);
         snapshot_log(output_snapshot_began,"{\"probe\":\"i2s_descriptor_faults\",\"collection_cycle_us\":%" PRIu32 ",\"shape\":%" PRIu32 ",\"pool\":%" PRIu32
@@ -755,7 +781,7 @@ dbt_result_t probe_audio_init(dbt_runtime_t *runtime,TaskHandle_t host_owner){
         sampled==ESP_OK?"true":"false",(unsigned)sampled,(unsigned)configTICK_RATE_HZ);
 #endif
     initialized=true;
-    printf("{\"probe\":\"scheduler_layout\",\"host_priority\":%u,\"decoder_core\":%u,\"decoder_priority\":%u,\"owner_ready_yield\":%u,\"renderer_core\":0,\"renderer_priority\":%u,\"logger_core\":%u,\"logger_priority\":1}\n",(unsigned)DBT_PROBE_HOST_PRIORITY,(unsigned)DBT_PROBE_DECODER_CORE,(unsigned)DBT_PROBE_DECODER_PRIORITY,(unsigned)DBT_PROBE_OWNER_READY_YIELD,(unsigned)DBT_PROBE_RENDER_PRIORITY,(unsigned)AUDIO_LOGGER_CORE);
+    printf("{\"probe\":\"scheduler_layout\",\"host_core\":%u,\"controller_core\":%u,\"host_priority\":%u,\"decoder_core\":%u,\"decoder_priority\":%u,\"owner_ready_yield\":%u,\"renderer_core\":%u,\"renderer_priority\":%u,\"logger_core\":%u,\"background_core\":%u,\"logger_priority\":1}\n",(unsigned)xPortGetCoreID(),(unsigned)DBT_ESP32_BLUETOOTH_CORE,(unsigned)DBT_PROBE_HOST_PRIORITY,(unsigned)DBT_PROBE_DECODER_CORE,(unsigned)DBT_PROBE_DECODER_PRIORITY,(unsigned)DBT_PROBE_OWNER_READY_YIELD,(unsigned)DBT_ESP32_RENDER_CORE,(unsigned)DBT_PROBE_RENDER_PRIORITY,(unsigned)AUDIO_LOGGER_CORE,(unsigned)DBT_ESP32_BACKGROUND_CORE);
     printf("{\"probe\":\"sbc_probe_ready\",\"psm\":25,\"mtu\":%u,\"worker_bytes\":%u,\"profile_bytes\":%u,\"decoder_stack\":8192,"
            "\"logger_stack\":4096,\"codecs\":" AUDIO_CODECS_JSON ",\"diagnostic_only\":true,\"audio_sink_sdp_advertised\":" AUDIO_SDP_JSON ",\"i2s_output\":" AUDIO_OUTPUT_JSON ",\"rf_protocol_diagnostic\":" AUDIO_RF_DIAG_JSON "}\n",
            (unsigned)PROBE_A2DP_RX_MTU,(unsigned)sizeof(worker),(unsigned)sizeof(profile));

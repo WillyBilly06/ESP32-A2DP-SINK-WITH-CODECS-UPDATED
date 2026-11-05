@@ -1,3 +1,4 @@
+#include "dbt_esp32_affinity.h"
 #include "probe_admission.h"
 #include "probe_smp.h"
 #include "freertos/queue.h"
@@ -100,7 +101,7 @@ dbt_result_t probe_admission_startup_worker(dbt_runtime_t *r,TaskHandle_t task){
     jobs=xQueueCreate(1,sizeof(job_t));results=xQueueCreate(1,sizeof(job_t));
     if(!jobs || !results){if(jobs)vQueueDelete(jobs);if(results)vQueueDelete(results);jobs=results=NULL;nvs_close(storage);storage_open=false;wipe(trust,sizeof(trust));return DBT_NO_SPACE;}
     runtime=r;owner=task;
-    if(xTaskCreatePinnedToCore(worker,"native_trust",3072,NULL,1,NULL,0)!=pdPASS){
+    if(xTaskCreatePinnedToCore(worker,"native_trust",3072,NULL,1,NULL,DBT_ESP32_BACKGROUND_CORE)!=pdPASS){
         runtime=NULL;owner=NULL;vQueueDelete(jobs);vQueueDelete(results);jobs=results=NULL;nvs_close(storage);storage_open=false;wipe(trust,sizeof(trust));return DBT_NO_SPACE;}
     return DBT_OK;
 }

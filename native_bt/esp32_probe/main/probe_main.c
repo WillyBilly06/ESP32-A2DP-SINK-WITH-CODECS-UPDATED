@@ -1,5 +1,15 @@
 #include "probe_schedule_limits.h"
 #include "esp_task.h"
+#ifdef DBT_PROBE_STAY_NATIVE
+#include "sdkconfig.h"
+_Static_assert(CONFIG_BTDM_CTRL_PINNED_TO_CORE==DBT_ESP32_BLUETOOTH_CORE,"Bluetooth controller affinity mismatch");
+_Static_assert(CONFIG_ESP_MAIN_TASK_AFFINITY==DBT_ESP32_BLUETOOTH_CORE,"Bluetooth host affinity mismatch");
+/* Preserve the SDK's core-0 timer/restart contract. Normal callbacks are short;
+ * the only product blocking callback restarts after audio quiescence. */
+_Static_assert(CONFIG_ESP_TIMER_TASK_AFFINITY==0,"Restart timer affinity mismatch");
+_Static_assert(CONFIG_FREERTOS_TIMER_SERVICE_TASK_CORE_AFFINITY==DBT_ESP32_BACKGROUND_CORE,"Timer service affinity mismatch");
+_Static_assert(CONFIG_LWIP_TCPIP_TASK_AFFINITY==DBT_ESP32_BACKGROUND_CORE,"TCP/IP task affinity mismatch");
+#endif
 #include <inttypes.h>
 #include <stdio.h>
 #ifdef DBT_PROBE_SCHEDULER_TRACE
@@ -175,7 +185,7 @@ static void startup_sound_worker(void *unused){
 static bool product_boot_io(void){
     if(!product_runtime_ready || probe_audio_output_bootstrap()!=DBT_OK)return false;
     product_io_started=true;
-    if(xTaskCreatePinnedToCore(load_product_io,"native_product_io",4096,NULL,1,NULL,0)!=pdPASS)return false;
+    if(xTaskCreatePinnedToCore(load_product_io,"native_product_io",4096,NULL,1,NULL,DBT_ESP32_BACKGROUND_CORE)!=pdPASS)return false;
     int64_t deadline=esp_timer_get_time()+5000000;
     if(!probe_wait_flag(&product_io_done,deadline))return false;
     if(!product_io_ready)return false;
@@ -183,7 +193,7 @@ static bool product_boot_io(void){
     uint8_t sound=product_io_sound?probe_product_io_sound_status():0;
     if(!probe_product_io_owner_startup_needed(product_io_sound,sound))return true;
     if(probe_product_io_play(0,48000,true)!=DBT_OK ||
-       xTaskCreatePinnedToCore(startup_sound_worker,"native_boot_sound",4096,NULL,1,NULL,0)!=pdPASS)return false;
+       xTaskCreatePinnedToCore(startup_sound_worker,"native_boot_sound",4096,NULL,1,NULL,DBT_ESP32_BACKGROUND_CORE)!=pdPASS)return false;
     bool received=false,good=false,cancelled=false;
     deadline=esp_timer_get_time()+30000000;
     for(;;){
@@ -338,7 +348,7 @@ static bool product_startup(void){
 #ifdef DBT_PROBE_PRODUCT_RUNTIME
     product_starting=true;
 #endif
-    if(xTaskCreatePinnedToCore(load_product,"native_cfg_load",4096,NULL,1,NULL,0)!=pdPASS)return false;
+    if(xTaskCreatePinnedToCore(load_product,"native_cfg_load",4096,NULL,1,NULL,DBT_ESP32_BACKGROUND_CORE)!=pdPASS)return false;
     int64_t deadline=esp_timer_get_time()+2000000;
     if(!probe_wait_flag(&product_loaded,deadline))return false;
     if(product_load_ok){for(unsigned i=0;i<product_state.name_size;++i)product_name[i]=(char)product_state.name[i];product_name[product_state.name_size]=0;}
@@ -822,7 +832,7 @@ void app_main(void) {
 #ifdef DBT_PROBE_PRODUCT_IO
         if(runtime.ready && echo_initialized && !product_io_started){
             product_io_started=true;
-            if(!product_runtime_ready || xTaskCreatePinnedToCore(load_product_io,"native_product_io",4096,NULL,1,NULL,0)!=pdPASS)
+            if(!product_runtime_ready || xTaskCreatePinnedToCore(load_product_io,"native_product_io",4096,NULL,1,NULL,DBT_ESP32_BACKGROUND_CORE)!=pdPASS)
                 atomic_store_explicit(&product_io_done,true,memory_order_release);
         }
         product_io_settled=atomic_load_explicit(&product_io_done,memory_order_acquire);
@@ -956,7 +966,7 @@ void app_main(void) {
 #endif
         if(qualified && !owned_boot_started){
             owned_boot_started=true;
-            if(xTaskCreatePinnedToCore(confirm_owned_boot,"owned_boot",4096,0,1,0,0)!=pdPASS)
+            if(xTaskCreatePinnedToCore(confirm_owned_boot,"owned_boot",4096,0,1,0,DBT_ESP32_BACKGROUND_CORE)!=pdPASS)
                 HOST_PRINTF("{\"probe\":\"boot_selection\",\"kept_active\":false,\"result\":\"task_oom\"}\n");
         }
 #endif

@@ -102,7 +102,7 @@ typedef struct {
   _Atomic uint32_t descriptor_shape_errors,descriptor_pool_errors,descriptor_order_errors;
   _Atomic uint32_t descriptor_expected_index,descriptor_observed_index,descriptor_observed_size;
   _Atomic uint32_t descriptor_fault_at_us,descriptor_fault_gap_us,descriptor_fault_stopping;
-  _Atomic uint32_t callback_calls,callback_elapsed_us,callback_max_us,callback_core;
+  _Atomic uint32_t callback_calls,callback_elapsed_us,callback_max_us,callback_core,render_core;
   _Atomic uint32_t input_ring_bytes_avoided,pcm_loans_begun,pcm_loans_retired,pcm_loans_cancelled,pcm_loan_active,pcm_loan_max_us;
   _Atomic uint32_t input_capacity_frames,input_ring_bytes;
   _Atomic uint32_t maximum_render_us, stop_fill_frames;
@@ -850,6 +850,11 @@ static TickType_t render_wait_ticks(void){
 }
 static void render_loop(void *unused) {
   (void)unused;
+#ifdef ESP_PLATFORM
+  atomic_store(&output.render_core,(uint32_t)xPortGetCoreID());
+#else
+  atomic_store(&output.render_core,DBT_ESP32_RENDER_CORE);
+#endif
   for (;;) {
     if(!render_step())ulTaskNotifyTake(pdTRUE,render_wait_ticks());
   }
@@ -867,7 +872,7 @@ dbt_result_t probe_output_init(void (*wake_decoder)(void *), void *context) {
   if (!output.requests)
     return DBT_NO_SPACE;
   return xTaskCreatePinnedToCore(render_loop, "native_render", 6144, 0, DBT_PROBE_RENDER_PRIORITY,
-                                 &output.task, 0) == pdPASS
+                                 &output.task, DBT_ESP32_RENDER_CORE) == pdPASS
              ? DBT_OK
              : DBT_NO_SPACE;
 }
@@ -1089,7 +1094,7 @@ void probe_output_stats(probe_output_stats_t *s) {
   LOAD(descriptor_shape_errors);LOAD(descriptor_pool_errors);LOAD(descriptor_order_errors);
   LOAD(descriptor_expected_index);LOAD(descriptor_observed_index);LOAD(descriptor_observed_size);
   LOAD(descriptor_fault_at_us);LOAD(descriptor_fault_gap_us);LOAD(descriptor_fault_stopping);
-  LOAD(callback_calls);LOAD(callback_elapsed_us);LOAD(callback_max_us);LOAD(callback_core);
+  LOAD(callback_calls);LOAD(callback_elapsed_us);LOAD(callback_max_us);LOAD(callback_core);LOAD(render_core);
 #ifdef DBT_PROBE_PCM_LOANS
   s->pcm_loan_mode=1;
 #else

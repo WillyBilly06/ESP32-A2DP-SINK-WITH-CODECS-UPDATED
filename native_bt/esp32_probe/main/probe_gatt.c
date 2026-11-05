@@ -1,3 +1,4 @@
+#include "dbt_esp32_affinity.h"
 #include "probe_gatt.h"
 #include "probe_cccd_store.h"
 #include "dbt_att_bearer.h"
@@ -807,7 +808,7 @@ static void pump_control(void) {
     pump_ota();
     if(control_retry_pending && (int32_t)(control_now_ms-control_retry_at)>=0)control_retry_pending=false;
     if(!control_worker && !control_retiring && !control_retry_pending && (uxQueueMessagesWaiting(control_work) || external_worker_required)) {
-        if(xTaskCreate(control_task,"ble_control_worker",CONTROL_STACK_BYTES,NULL,4,NULL)==pdPASS)control_worker=true;
+        if(xTaskCreatePinnedToCore(control_task,"ble_control_worker",CONTROL_STACK_BYTES,NULL,4,NULL,DBT_ESP32_BACKGROUND_CORE)==pdPASS)control_worker=true;
         else {
           control_retry_pending=true;control_retry_at=control_now_ms+100u;
           while(xQueueReceive(control_work,&job,0)==pdTRUE) if(job) {
@@ -820,7 +821,7 @@ static void pump_control(void) {
     }
     if(eq_retry_pending && (int32_t)(control_now_ms-eq_retry_at)>=0)eq_retry_pending=false;
     if(!eq_worker && !eq_retiring && !eq_retry_pending && uxQueueMessagesWaiting(eq_work)) {
-        if(xTaskCreate(control_task,"ble_eq_worker",CONTROL_STACK_BYTES,(void *)(uintptr_t)1,4,NULL)==pdPASS)eq_worker=true;
+        if(xTaskCreatePinnedToCore(control_task,"ble_eq_worker",CONTROL_STACK_BYTES,(void *)(uintptr_t)1,4,NULL,DBT_ESP32_BACKGROUND_CORE)==pdPASS)eq_worker=true;
         else {eq_retry_pending=true;eq_retry_at=control_now_ms+100u;}
         /* Retain every admitted persistence obligation; capacity supplies
          * backpressure until a worker can be allocated. Never ACK success here. */
