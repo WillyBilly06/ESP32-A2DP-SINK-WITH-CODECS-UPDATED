@@ -338,11 +338,18 @@ static BLOCK_KERNEL void filter_steady_block(const int32_t c[5],fdsp_history_t *
     for(unsigned i=0;i<frames;++i)pcm[2u*i]=filter(c,h,pcm[2u*i]);
 #endif
 }
-static void filter_channel_block(fdsp_coefficients_t *c,fdsp_history_t *h,
-                                  int32_t *pcm,unsigned frames){
+static void filter_stereo_block(fdsp_coefficients_t *c,fdsp_history_t h[2],
+                                 int32_t *pcm,unsigned frames){
     unsigned ramp=c->remaining<frames?c->remaining:frames;
-    for(unsigned i=0;i<ramp;++i){coefficients_advance(c);pcm[2u*i]=filter(c->value,h,pcm[2u*i]);}
-    if(ramp<frames)filter_steady_block(c->value,h,pcm+2u*ramp,frames-ramp);
+    for(unsigned i=0;i<ramp;++i){
+        coefficients_advance(c);
+        pcm[2u*i]=filter(c->value,&h[0],pcm[2u*i]);
+        pcm[2u*i+1u]=filter(c->value,&h[1],pcm[2u*i+1u]);
+    }
+    if(ramp<frames){
+        filter_steady_block(c->value,&h[0],pcm+2u*ramp,frames-ramp);
+        filter_steady_block(c->value,&h[1],pcm+2u*ramp+1u,frames-ramp);
+    }
 }
 bool fixed_dsp_process_block(fixed_dsp_t *dsp,int32_t *pcm,uint16_t frames){
     if(!dsp || frames>FIXED_DSP_BLOCK_FRAMES || (frames && (!pcm || (uintptr_t)pcm%4u)))return false;
@@ -352,25 +359,22 @@ bool fixed_dsp_process_block(fixed_dsp_t *dsp,int32_t *pcm,uint16_t frames){
         analysis(dsp,(int32_t)(((int64_t)pcm[2u*i]+pcm[2u*i+1u])/2));
         pcm[2u*i]>>=4;pcm[2u*i+1u]>>=4;
     }
-    for(unsigned f=0;f<4;++f){
-        if(dsp->filters[f].remaining){
-            fdsp_coefficients_t left=dsp->filters[f];
-            filter_channel_block(&left,&dsp->channel_history[f][0],pcm,frames);
-        }else filter_steady_block(dsp->filters[f].value,&dsp->channel_history[f][0],pcm,frames);
-        filter_channel_block(&dsp->filters[f],&dsp->channel_history[f][1],pcm+1,frames);
-    }
+    for(unsigned f=0;f<4;++f)filter_stereo_block(&dsp->filters[f],dsp->channel_history[f],pcm,frames);
     for(unsigned i=0;i<2u*frames;++i)split[i]=pcm[i];
     filter_steady_block(dsp->cross_coefficients[0],&dsp->cross_history[0],split,frames);
     filter_steady_block(dsp->cross_coefficients[1],&dsp->cross_history[1],split+1,frames);
-    if(dsp->filters[4].remaining){
-        fdsp_coefficients_t copy=dsp->filters[4];
-        filter_channel_block(&copy,&dsp->boost_history[2],split,frames);
-        copy=dsp->filters[4];filter_channel_block(&copy,&dsp->boost_history[0],pcm,frames);
-    }else{
-        filter_steady_block(dsp->filters[4].value,&dsp->boost_history[2],split,frames);
-        filter_steady_block(dsp->filters[4].value,&dsp->boost_history[0],pcm,frames);
+    unsigned ramp=dsp->filters[4].remaining<frames?dsp->filters[4].remaining:frames;
+    for(unsigned i=0;i<ramp;++i){
+        coefficients_advance(&dsp->filters[4]);
+        split[2u*i]=filter(dsp->filters[4].value,&dsp->boost_history[2],split[2u*i]);
+        pcm[2u*i]=filter(dsp->filters[4].value,&dsp->boost_history[0],pcm[2u*i]);
+        pcm[2u*i+1u]=filter(dsp->filters[4].value,&dsp->boost_history[1],pcm[2u*i+1u]);
     }
-    filter_channel_block(&dsp->filters[4],&dsp->boost_history[1],pcm+1,frames);
+    if(ramp<frames){
+        filter_steady_block(dsp->filters[4].value,&dsp->boost_history[2],split+2u*ramp,frames-ramp);
+        filter_steady_block(dsp->filters[4].value,&dsp->boost_history[0],pcm+2u*ramp,frames-ramp);
+        filter_steady_block(dsp->filters[4].value,&dsp->boost_history[1],pcm+2u*ramp+1u,frames-ramp);
+    }
     for(unsigned i=0;i<frames;++i){
         ramp_advance(&dsp->volume);ramp_advance(&dsp->bypass);ramp_advance(&dsp->flip);
         int32_t lp=clamp32(((int64_t)split[2u*i]*189246996)>>27);
