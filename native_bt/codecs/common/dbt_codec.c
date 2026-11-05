@@ -174,7 +174,7 @@ dbt_result_t dbt_codec_worker_media(void *context,const dbt_avdtp_media_t *packe
         trace(w,DBT_CODEC_QUEUE_FULL,&input,packet->sequence,packet->ssrc,DBT_NO_SPACE);return DBT_NO_SPACE;
     }
     if(queued+1u>atomic_load(&w->queue_high_water))atomic_store(&w->queue_high_water,queued+1u);
-    media_t *slot=(media_t *)(w->packet_storage+(written%w->depth)*w->stride);
+    media_t *slot=(media_t *)(w->packet_storage+(written&(w->depth-1u))*w->stride);
     slot->timestamp=packet->timestamp;slot->ssrc=packet->ssrc;slot->sequence=packet->sequence;slot->size=packet->size;
     slot->payload_type=packet->payload_type;slot->marker=packet->marker;copy(slot->bytes,packet->payload,packet->size);
     atomic_store_explicit(&w->media_written,written+1u,memory_order_release);wake_worker(w);return DBT_OK;
@@ -285,7 +285,7 @@ static bool control_async(dbt_codec_worker_t *w,const dbt_codec_job_t *job,uint3
 }
 static void retire_media(dbt_codec_worker_t *w,uint32_t read,dbt_result_t result){
     if(result!=DBT_OK){
-        const media_t *slot=(const media_t *)(w->packet_storage+(read%w->depth)*w->stride);
+        const media_t *slot=(const media_t *)(w->packet_storage+(read&(w->depth-1u))*w->stride);
         atomic_fetch_add(&w->decode_rejects,1);trace(w,DBT_CODEC_DECODE_REJECT,slot,slot->sequence,slot->ssrc,result);
         pending_clear(w);atomic_fetch_add(&w->media_drops,1);
         if(!reset(w,slot))fault(w);
@@ -307,7 +307,7 @@ static bool pcm_retire(dbt_codec_worker_t *w,uint32_t now,bool cancel){
     if(!w->pcm_timedout && now-w->last_progress>=DBT_CODEC_PCM_STALL_MS){
         w->pcm_timedout=true;atomic_fetch_add(&w->pcm_timeouts,1);
         uint32_t read=atomic_load_explicit(&w->media_read,memory_order_relaxed);
-        const media_t *slot=(const media_t *)(w->packet_storage+(read%w->depth)*w->stride);
+        const media_t *slot=(const media_t *)(w->packet_storage+(read&(w->depth-1u))*w->stride);
         trace(w,DBT_CODEC_PCM_TIMEOUT,slot,slot->sequence,slot->ssrc,DBT_BUSY);
         if(!w->pcm_fault_latched){
             w->pcm_fault_latched=true;atomic_store(&w->started_epoch,0);
@@ -355,7 +355,7 @@ static uint16_t deferred_step(dbt_codec_worker_t *w,uint32_t now,uint16_t budget
             uint16_t remaining=(uint16_t)(w->pending_frames-w->pending_offset);
             uint16_t take=remaining>DBT_CODEC_PCM_CHUNK_FRAMES?DBT_CODEC_PCM_CHUNK_FRAMES:remaining;
             uint32_t stride=(uint32_t)w->decoder.config.channels*w->decoder.config.sample_bytes;
-            const media_t *slot=(const media_t *)(w->packet_storage+(read%w->depth)*w->stride);
+            const media_t *slot=(const media_t *)(w->packet_storage+(read&(w->depth-1u))*w->stride);
             trace(w,DBT_CODEC_PCM_BEGIN,slot,slot->sequence,slot->ssrc,DBT_OK);
             uint32_t ticket=0;
             dbt_result_t result=w->hooks.async_pcm.begin?
@@ -370,12 +370,12 @@ static uint16_t deferred_step(dbt_codec_worker_t *w,uint32_t now,uint16_t budget
             }
             if(result==DBT_BUSY){
                 if(!w->output_blocked){
-                    const media_t *slot=(const media_t *)(w->packet_storage+(read%w->depth)*w->stride);
+                    const media_t *slot=(const media_t *)(w->packet_storage+(read&(w->depth-1u))*w->stride);
                     trace(w,DBT_CODEC_PCM_BUSY,slot,slot->sequence,slot->ssrc,result);
                 }
                 w->output_blocked=true;atomic_fetch_add(&w->pcm_backpressure,1);
                 if(now-w->last_progress>=DBT_CODEC_PCM_STALL_MS){
-                    const media_t *slot=(const media_t *)(w->packet_storage+(read%w->depth)*w->stride);
+                    const media_t *slot=(const media_t *)(w->packet_storage+(read&(w->depth-1u))*w->stride);
                     trace(w,DBT_CODEC_PCM_TIMEOUT,slot,slot->sequence,slot->ssrc,DBT_BUSY);
                     atomic_fetch_add(&w->pcm_timeouts,1);fail_media(w,read);
                 }
@@ -383,7 +383,7 @@ static uint16_t deferred_step(dbt_codec_worker_t *w,uint32_t now,uint16_t budget
             }
             ++done;
             if(result!=DBT_OK || w->hooks.async_pcm.begin){
-                const media_t *slot=(const media_t *)(w->packet_storage+(read%w->depth)*w->stride);
+                const media_t *slot=(const media_t *)(w->packet_storage+(read&(w->depth-1u))*w->stride);
                 atomic_fetch_add(&w->pcm_failures,1);trace(w,DBT_CODEC_PCM_FAILED,slot,slot->sequence,slot->ssrc,result);
                 fail_media(w,read);break;
             }
@@ -393,10 +393,10 @@ static uint16_t deferred_step(dbt_codec_worker_t *w,uint32_t now,uint16_t budget
             continue;
         }
         dbt_result_t result;
-        if(w->media_active)result=decode(w,(const media_t *)(w->packet_storage+(read%w->depth)*w->stride),now,true);
+        if(w->media_active)result=decode(w,(const media_t *)(w->packet_storage+(read&(w->depth-1u))*w->stride),now,true);
         else {
             if(read==atomic_load_explicit(&w->media_written,memory_order_acquire))break;
-            media_t *slot=(media_t *)(w->packet_storage+(read%w->depth)*w->stride);
+            media_t *slot=(media_t *)(w->packet_storage+(read&(w->depth-1u))*w->stride);
             if(w->sequence_valid && (slot->sequence!=(uint16_t)(w->last_sequence+1u) || slot->ssrc!=w->last_ssrc)){
                 atomic_fetch_add(&w->resets,1);
                 worker_sequence(w,slot);
@@ -452,7 +452,7 @@ uint16_t dbt_codec_worker_step(dbt_codec_worker_t *w,uint32_t now,uint16_t budge
     if(w->hooks.deferred_pcm)count=deferred_step(w,now,budget);
     while(!w->hooks.deferred_pcm && count<budget && enabled(w)){
         uint32_t read=atomic_load_explicit(&w->media_read,memory_order_relaxed);if(read==atomic_load_explicit(&w->media_written,memory_order_acquire))break;
-        media_t *slot=(media_t *)(w->packet_storage+(read%w->depth)*w->stride);
+        media_t *slot=(media_t *)(w->packet_storage+(read&(w->depth-1u))*w->stride);
         if(w->sequence_valid && (slot->sequence!=(uint16_t)(w->last_sequence+1u) || slot->ssrc!=w->last_ssrc)){
             atomic_fetch_add(&w->resets,1);
             worker_sequence(w,slot);

@@ -1,4 +1,5 @@
 #include "dbt_lhdcv5.h"
+#include "lhdc_dec_internal.h"
 #include "dbt_lhdc_alloc.h"
 #include "lhdc_entropy_dec.h"
 #include "lhdc_imdct.h"
@@ -41,7 +42,8 @@ static bool valid(const lhdc_dec_config_t *config) {
         (config->bit_depth == 16 || config->bit_depth == 24 || config->bit_depth == 32) &&
         (config->channels == 1 || config->channels == 2) &&
         config->frame_duration == LHDC_DEC_FRAME_5MS &&
-        config->max_frame_bytes != 0 && config->max_frame_bytes <= 1536;
+        config->max_frame_bytes != 0 && config->max_frame_bytes <= LHDC_DEC_MAX_FRAME_BYTES &&
+        config->max_frame_bytes <= 1023u * 2u;
 }
 
 static bool same_config(const lhdc_dec_config_t *left, const lhdc_dec_config_t *right) {

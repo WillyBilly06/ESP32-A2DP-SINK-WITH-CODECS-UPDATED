@@ -7,7 +7,7 @@ try:
     if os.name!='nt':raise SystemExit('requires existing Windows Xtensa toolchain')
     subprocess.run([sys.executable,str(root/'codecs/lhdcv5/prepare_port.py'),'--source',str(dec),'--output',str(port)],check=True,stdout=subprocess.DEVNULL)
     data=json.loads((build/'compile_commands.json').read_text());row=next(x for x in data if x['file'].replace('\\','/').endswith('/probe_audio.c'));base=argv_windows(row['command']);base=base[:base.index('-o')];cc=pathlib.Path(base[0]);tools=cc.parent
-    incs=[root/'include',root/'codecs/common',root/'codecs/lhdcv5',root/'tests/codecs',dec]
+    incs=[port,root/'include',root/'codecs/common',root/'codecs/lhdcv5',root/'tests/codecs',dec]
     flags=['-I'+str(p) for p in incs]+['-DDBT_LHDC_STAGE_PROFILE=1','-fstack-usage','-O3']
     objects=[]
     for src in (root/'tests/codecs/lhdcv5_perf_helper.c',port/'lhdc_dec.c',root/'src/dbt_resampler.c'):

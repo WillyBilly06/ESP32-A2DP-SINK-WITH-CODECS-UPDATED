@@ -33,7 +33,7 @@ def build():
         vc=Path(r"C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Auxiliary\Build\vcvars64.bat")
         data=subprocess.check_output(f'call "{vc}" >nul && set',shell=True,text=True)
         env.update(dict(line.split('=',1) for line in data.splitlines() if '=' in line and not line.startswith('=')))
-    includes=[ROOT/"codecs/sbc/port",SBC/"include",ROOT/"include",ROOT/"codecs/common",ROOT/"codecs/lhdcv5",ROOT/"codecs/sbc",LHDC]
+    includes=[OUT/"lhdc_port",ROOT/"codecs/sbc/port",SBC/"include",ROOT/"include",ROOT/"codecs/common",ROOT/"codecs/lhdcv5",ROOT/"codecs/sbc",LHDC]
     sources=[ROOT/"tests/codecs/lhdcv5_probe.c",ROOT/"codecs/lhdcv5/dbt_lhdcv5_codec.c",ROOT/"codecs/common/dbt_codec.c",
              ROOT/"codecs/sbc/dbt_sbc_codec.c",ROOT/"codecs/sbc/dbt_sbc_decoder.c",ROOT/"src/dbt_sbc_media.c",ROOT/"src/dbt_avdtp_caps.c"]
     sources += [OUT/"lhdc_port"/name for name in PORT_NAMES]

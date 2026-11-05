@@ -13,6 +13,18 @@ PINNED={
  "lhdc_sns_synth.c":"b6afd0bde63a78c0a10fac06dd27f26f567f11ef88e343ff4057dad29cf97715",
 }
 
+PINNED_HEADERS={
+ "lhdc_bit_reader.h":"9148efdbb01b6767cadbf1f3ed5b5b7592b931db05937539ecfa54ea4aa2a21d",
+ "lhdc_dec.h":"cd59bb9ba2a099a3d26cf526676b4513493fc68edd84609a3c4cd0d3128efaa6",
+ "lhdc_dec_internal.h":"dece279c95755c35e3f31fce1cbc6164183830db7e1c7d95aedf34bec0c66941",
+ "lhdc_dec_slot.h":"0dfa37032f39f3cb48ba2fb4eb0c479c58ba2680410def7eb0af15a40140e042",
+ "lhdc_diag_config.h":"ae2224a4dd86bed16ecd4b08f8ca05b3344cec42298d44114e818ebc7605cfcd",
+ "lhdc_entropy_dec.h":"b84717ce9a6f91446f349eac9809ccebac064745d67198c78e704555f19ef982",
+ "lhdc_imdct.h":"6bb2d9f77ebfb8c30109423bc0d90dc1f9078fc9b36335ca9a817ad645b5c724",
+ "lhdc_sns_synth.h":"848094a1254ae48313403db555d6e4e7e11125fe0f419281a2cf0afd8b8681fa",
+ "lhdc_tables.h":"980d7442c3466ec44545a0be2bead28e74c4d584688dbb0129d7e980cf60ef62",
+}
+
 
 def once(text,old,new):
     if text.count(old)!=1:raise RuntimeError("LHDC port site changed: "+old[:80])
@@ -20,8 +32,8 @@ def once(text,old,new):
 
 
 def generate(source,output):
-    output.mkdir(parents=True,exist_ok=True);receipt={}
-    for name,expected in PINNED.items():
+    output.mkdir(parents=True,exist_ok=True);receipt={};header_receipt={}
+    for name,expected in {**PINNED,**PINNED_HEADERS}.items():
         raw=(source/name).read_bytes().replace(b'\r\n',b'\n')
         if hashlib.sha256(raw).hexdigest()!=expected:raise RuntimeError("Unreviewed sibling source: "+name)
         text=raw.decode("utf-8")
@@ -261,11 +273,16 @@ DBT_LHDC_TEST_EXPORT float dbt_lhdc_test_norm(int length) {
 }
 #endif
 """
+        if name=="lhdc_dec_internal.h":
+            text=once(text,'#define LHDC_DEC_MAX_FRAME_BYTES     1536   /* 48k/5ms HR payload <=~660B */',
+                      '#define LHDC_DEC_MAX_FRAME_BYTES     2048   /* Up to 2046 payload bytes from the 10-bit word count. */')
         data=text.encode("utf-8")
         if len(data)>262144:raise RuntimeError("Unexpected generated LHDC unit size")
         (output/name).write_bytes(data)
-        receipt[name]={"source_sha256":expected,"generated_sha256":hashlib.sha256(data).hexdigest()}
+        records=header_receipt if name.endswith(".h") else receipt
+        records[name]={"source_sha256":expected,"generated_sha256":hashlib.sha256(data).hexdigest()}
     (output/"lhdc_port.json").write_text(json.dumps(receipt,indent=2)+'\n')
+    (output/"lhdc_port_headers.json").write_text(json.dumps(header_receipt,indent=2)+'\n')
     return receipt
 
 

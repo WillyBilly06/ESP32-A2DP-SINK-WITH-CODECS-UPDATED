@@ -19,9 +19,20 @@ if(NOT EXISTS "${decoder}/lhdc_dec.c")
 endif()
 # Regenerate the source-pinned port whenever its transformer or audited
 # inputs change; incremental builds must not silently link an older port.
+set(decoder_headers
+    "${decoder}/lhdc_bit_reader.h"
+    "${decoder}/lhdc_dec.h"
+    "${decoder}/lhdc_dec_internal.h"
+    "${decoder}/lhdc_dec_slot.h"
+    "${decoder}/lhdc_diag_config.h"
+    "${decoder}/lhdc_entropy_dec.h"
+    "${decoder}/lhdc_imdct.h"
+    "${decoder}/lhdc_sns_synth.h"
+    "${decoder}/lhdc_tables.h"
+)
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
     "${owned}/prepare_port.py" "${decoder}/lhdc_dec.c" "${decoder}/lhdc_imdct.c"
-    "${decoder}/lhdc_entropy_dec.c" "${decoder}/lhdc_sns_synth.c")
+    "${decoder}/lhdc_entropy_dec.c" "${decoder}/lhdc_sns_synth.c" ${decoder_headers})
 idf_build_get_property(python PYTHON)
 execute_process(COMMAND "${python}" "${owned}/prepare_port.py" --source "${decoder}" --output "${port}"
     RESULT_VARIABLE port_result OUTPUT_QUIET)
@@ -31,7 +42,7 @@ endif()
 idf_component_register(SRCS "${owned}/dbt_lhdcv5_codec.c"
     "${port}/lhdc_dec.c" "${port}/lhdc_imdct.c" "${port}/lhdc_entropy_dec.c" "${port}/lhdc_sns_synth.c"
     "${decoder}/lhdc_bit_reader.c" "${decoder}/lhdc_diag_config.c" "${decoder}/lhdc_tables.c"
-    INCLUDE_DIRS "${owned}" PRIV_INCLUDE_DIRS "${decoder}"
+    INCLUDE_DIRS "${owned}" PRIV_INCLUDE_DIRS "${port}" "${decoder}"
     REQUIRES native_bt codec_core PRIV_REQUIRES log esp_common esp_timer esp_hw_support heap freertos)
 target_compile_options(${COMPONENT_LIB} PRIVATE -std=gnu11 -fwrapv -O3)
 if(DBT_PROBE_LHDC_STAGE_PROFILE)

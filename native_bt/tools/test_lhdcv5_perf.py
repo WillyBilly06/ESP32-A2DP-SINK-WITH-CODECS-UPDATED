@@ -16,7 +16,7 @@ try:
     source=[root/'tests/codecs/lhdcv5_perf_fixture.c',root/'tests/codecs/lhdcv5_perf_helper.c',root/'codecs/lhdcv5/dbt_lhdcv5_codec.c',root/'codecs/common/dbt_codec.c',root/'src/dbt_avdtp_caps.c',root/'src/dbt_resampler.c']
     source += [port/n for n in ('lhdc_dec.c','lhdc_imdct.c','lhdc_entropy_dec.c','lhdc_sns_synth.c')]
     source += [dec/n for n in ('lhdc_bit_reader.c','lhdc_diag_config.c','lhdc_tables.c')]
-    incs=[root/'include',root/'codecs/common',root/'codecs/lhdcv5',root/'tests/codecs',dec]
+    incs=[port,root/'include',root/'codecs/common',root/'codecs/lhdcv5',root/'tests/codecs',dec]
     inputs=[root/'codecs/lhdcv5/prepare_port.py',root/'codecs/lhdcv5/dbt_lhdcv5_codec.c',root/'tests/codecs/lhdcv5_perf_fixture.c',root/'tests/codecs/lhdcv5_perf_helper.c',root/'tests/codecs/lhdcv5_perf_helper.h',root/'src/dbt_resampler.c',root/'src/dbt_resampler_coeffs.inc',root/'esp32_probe/main/probe_codec_vectors.h']+source+[dec/n for n in ('lhdc_dec.c','lhdc_imdct.c','lhdc_entropy_dec.c','lhdc_sns_synth.c')]+list(dec.glob('*.h'))
     before={str(p):hashlib.sha256(p.read_bytes()).hexdigest() for p in inputs}
     path=out/('lhdc-perf.dll' if os.name=='nt' else 'lhdc-perf.so')

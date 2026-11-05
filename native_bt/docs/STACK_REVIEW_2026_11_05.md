@@ -16,6 +16,8 @@ The custom stack remains development firmware. The user requested source fixes a
 
 - Make A2DP/AVRCP/SPP shutdown wait for actual L2CAP close-queue capacity. A full signaling queue previously kept these adapters immediately runnable, including already-disconnecting SPP failures. Remove the AVRCP fixed 20 ms shutdown retry and prevent repeated SPP echo-buffer allocation after an allocation failure. Stop periodic SMP wakeups after a secure session has completed and its worker has retired.
 
+- Correct the LHDC decoder's separate 1536-byte single-frame cap using a pinned 2048-byte private payload buffer and a 2046-byte wire-payload guard, without resizing the eight 1800-byte transport slots. The packet/frame distinction and AOSP/C99 maximums are recorded in [the buffer audit](LHDC_BUFFER_LIMITS_2026_11_05.md). This cap was not the source of the previously recorded 628-byte queue-full drops.
+
 ## Layer-by-layer review status
 
 | Layer | Owning implementation | Current review result / remaining work |

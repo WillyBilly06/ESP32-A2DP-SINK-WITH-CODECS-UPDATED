@@ -1,6 +1,7 @@
 #include "dbt_lhdcv5_codec.h"
 #include "dbt_lhdc_alloc.h"
 #include "lhdc_dec.h"
+#include "lhdc_dec_internal.h"
 #include "lhdc_entropy_dec.h"
 #include "lhdc_imdct.h"
 #include "lhdc_dec_slot.h"
@@ -8,7 +9,10 @@
 _Static_assert(LHDC_NSLOTS==1,"The native LHDC worker requires the single-slot sibling decoder");
 
 #define LHDC_FRAGMENT_MAX 3072u
-#define LHDC_FRAME_MAX 1536u
+/* The encoded header carries a ten-bit count of 16-bit payload words.
+ * Packet MTU and fragment assembly are separate limits from one frame. */
+#define LHDC_FRAME_MAX (1023u * 2u)
+_Static_assert(LHDC_DEC_MAX_FRAME_BYTES>=LHDC_FRAME_MAX,"LHDC decoder payload buffer is smaller than a valid encoded frame");
 typedef struct {
     lhdc_decoder_t *codec;
     uint8_t *fragment;

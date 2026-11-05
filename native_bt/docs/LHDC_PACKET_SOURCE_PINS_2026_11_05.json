@@ -1,0 +1,59 @@
+{
+  "aosp_commit": "c77db469de80f86660bc053bec4dee0c5d4b947c",
+  "sources": [
+    {
+      "path": "src/lhdcv5BT_enc.c",
+      "sha256": "9b4fa20e0023d9d7ebb435a13e64749c758411716506fa94efa9d2cbdbd5680d"
+    },
+    {
+      "path": "include/lhdcv5BT.h",
+      "sha256": "84557039fb9fdb410d3d93766b5f98ba3cc95350bc12bfa71b9cd7f4ca59a7e7"
+    },
+    {
+      "path": "src/lhdc_enc/lhdc_enc_header.rs",
+      "sha256": "67180f4ae5c0d24175c752e908d75d1372f0b6fe68ce1f0b2fb4eda8a17e04a9"
+    },
+    {
+      "path": "src/lhdc_api/lhdc_api_internal.rs",
+      "sha256": "fec0d0b37a3d18514e7d2208647c379f4e0672e9b1bdbca8659ab772e93e6f9b"
+    },
+    {
+      "path": "src/enc/process.rs",
+      "sha256": "e4420519b2f724e4153b7b59ad633a025689bfbab237afcc925872261d836e2b"
+    },
+    {
+      "path": "system/stack/a2dp/a2dp_vendor_lhdcv5_encoder.cc",
+      "sha256": "c4d0201d893856036829f7a138087e719f365cdfab1c2e3d3f3befc0b19da493"
+    },
+    {
+      "path": "system/stack/include/a2dp_vendor_lhdcv5_constants.h",
+      "sha256": "06e018c9ef42416148468f97cf06874168b8446c21c4f288012afece72fd24e6"
+    }
+  ],
+  "c99_sources": [
+    {
+      "path": "D:/LHDCV5-Encoder/include/lhdcv5_enc.h",
+      "sha256": "fe96354071d62c6313fffd034b72681a5ff18dd8d85ae399db5d655cf83828d4"
+    },
+    {
+      "path": "D:/LHDCV5-Encoder/src/lhdcv5_api.c",
+      "sha256": "f2fd76a8de4e47868fec0ab4e4b99adc7e77f8f27e6463e14041f5968d6729de"
+    },
+    {
+      "path": "D:/LHDCV5-Encoder/src/lhdcv5_process.c",
+      "sha256": "055c1fd53563293cfbb8dcc7393c7b5c7fb6bf04e6ce5655a25c06489047be71"
+    },
+    {
+      "path": "D:/LHDCV5-Encoder/src/lhdcv5_header.c",
+      "sha256": "b531b1b53e84628e4119405ed30be98da130f15396785b795e8871f47d71b5ad"
+    },
+    {
+      "path": "D:/LHDCV5-Encoder/src/lhdcv5_cirbuf.c",
+      "sha256": "8dac2e51d7733d968c84638a3b309789f8c4a399488529b5c5d28f78e2f39149"
+    },
+    {
+      "path": "D:/LHDCV5-Encoder/src/lhdcv5_int.h",
+      "sha256": "99d2753a046880222841facffee27432588f1db651bde9a4b25e417297796600"
+    }
+  ]
+}

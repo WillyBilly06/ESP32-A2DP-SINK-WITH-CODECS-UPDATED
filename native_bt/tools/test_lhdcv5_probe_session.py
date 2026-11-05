@@ -36,7 +36,7 @@ def main():
             "-DDBT_LHDC_NO_HOST_WINFILE", "-DDBT_LHDC_ALLOC_TEST"]
     if os.name != "nt":
         args += ["-fPIC"]
-    for directory in (SOURCE, ROOT / "include", ROOT / "codecs/lhdcv5"):
+    for directory in (OUT, SOURCE, ROOT / "include", ROOT / "codecs/lhdcv5"):
         args += ["-I", str(directory)]
     run(args + [str(p) for p in sources] + ([] if os.name == "nt" else ["-lm"]) + ["-o", str(binary)], env=env)
     lib = ctypes.CDLL(str(binary))

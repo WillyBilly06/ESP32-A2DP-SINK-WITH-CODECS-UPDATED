@@ -15,7 +15,7 @@ try:
     before={str(p):hashlib.sha256(p.read_bytes()).hexdigest() for p in inputs}
     base=[cc,'-std=c11','-O3','-fwrapv','-shared','-DLHDC_HOST_BUILD','-DCONFIG_IDF_TARGET_ESP32=1','-D_CRT_SECURE_NO_WARNINGS']
     if os.name!='nt':base+=['-fPIC']
-    incs=[root/'include',root/'codecs/common',root/'codecs/lhdcv5',dec];base+=sum((['-I',str(x)] for x in incs),[])
+    incs=[port,root/'include',root/'codecs/common',root/'codecs/lhdcv5',dec];base+=sum((['-I',str(x)] for x in incs),[])
     generated=[port/n for n in names[:4]]+[dec/n for n in names[4:]]
     suffix='.dll' if os.name=='nt' else '.so';native=out/('math-native'+suffix);uncached=out/('math-uncached'+suffix);reference=out/('math-reference'+suffix)
     extra=[] if os.name=='nt' else ['-lm']
