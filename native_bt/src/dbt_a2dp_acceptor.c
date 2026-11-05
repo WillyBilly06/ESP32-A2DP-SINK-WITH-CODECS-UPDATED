@@ -121,7 +121,7 @@ static void close_channel(dbt_a2dp_acceptor_t *p,dbt_a2dp_channel_t *key,uint32_
     if(!key->serial)return;
     const dbt_channel_t *channel=live(p,key);
     if(!channel){zero(key,sizeof(*key));return;}
-    if(channel->state==DBT_CH_OPEN)(void)dbt_channels_close(&p->runtime->channels,key->handle,key->cid,now);
+    if(channel->state!=DBT_CH_DISCONNECTING)(void)dbt_channels_close(&p->runtime->channels,key->handle,key->cid,now);
 }
 static bool staged(const dbt_a2dp_acceptor_t *p){
     for(unsigned i=0;i<DBT_CHANNEL_LIMIT;++i)
@@ -164,18 +164,19 @@ uint32_t dbt_a2dp_acceptor_wait_ms(const dbt_a2dp_acceptor_t *p,uint32_t now){
     if(!p->active){
         if(!p->enabled || p->draining)for(unsigned i=0;i<DBT_CHANNEL_LIMIT;++i){
             const dbt_channel_t *channel=&p->runtime->channels.channels[i];
-            if(channel->psm==0x19 && channel->state!=DBT_CH_FREE && channel->state!=DBT_CH_DISCONNECTING)return 0;
+            if(channel->psm==0x19 && dbt_channels_close_ready(&p->runtime->channels,channel->handle,channel->local_cid))return 0;
         }
         return UINT32_MAX;
     }
     if(p->draining){
         const dbt_channel_t *signal=live(p,&p->signaling),*media_channel=live(p,&p->media);
         if((p->signaling.serial && !signal) || (p->media.serial && !media_channel) ||
-            (signal && signal->state==DBT_CH_OPEN) || (media_channel && media_channel->state==DBT_CH_OPEN))return 0;
+            (signal && dbt_channels_close_ready(&p->runtime->channels,signal->handle,signal->local_cid)) ||
+            (media_channel && dbt_channels_close_ready(&p->runtime->channels,media_channel->handle,media_channel->local_cid)))return 0;
         if(!p->signaling.serial && !p->media.serial && !p->sink.retiring && !staged(p))return 0;
         return p->sink.retiring?dbt_avdtp_sink_wait_ms(&p->sink,now):UINT32_MAX;
     }
-    if(p->close_media){const dbt_channel_t *channel=live(p,&p->media);if(channel && channel->state==DBT_CH_OPEN)return 0;}
+    if(p->close_media){const dbt_channel_t *channel=live(p,&p->media);if(channel && dbt_channels_close_ready(&p->runtime->channels,channel->handle,channel->local_cid))return 0;}
     uint32_t wait=dbt_avdtp_sink_wait_ms(&p->sink,now),signal=dbt_avdtp_bearer_wait_ms(&p->bearer,now);
     return signal<wait?signal:wait;
 }

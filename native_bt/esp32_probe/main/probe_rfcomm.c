@@ -73,7 +73,7 @@ void probe_rfcomm_poll(uint32_t now){
         state.spp.bearer.faulted=true; /* abort a copied, unsubmitted echo */
     if(state.failed && state.spp.bound)state.spp.bearer.faulted=true;
     dbt_rfcomm_spp_poll(&state.spp,now);
-    if(state.spp.bound && !state.echo && !state.hold){
+    if(state.spp.bound && !state.echo && !state.hold && !state.failed && !state.spp.failed && !state.spp.bearer.faulted){
         state.echo=state.runtime->hooks.allocate(state.runtime->hooks.context,ECHO_FRAME);
         if(!state.echo){state.failed=true;state.spp.bearer.faulted=true;}
     }
@@ -93,16 +93,24 @@ void probe_rfcomm_poll(uint32_t now){
 }
 uint32_t probe_rfcomm_wait_ms(uint32_t now){
     if(!state.initialized || !state.runtime)return UINT32_MAX;
-    if(state.spp.pending)return 0;
+    if(state.spp.pending){
+        const dbt_channel_t *c=dbt_channels_find(&state.runtime->channels,state.spp.pending_handle,state.spp.pending_cid);
+        if(!c || c->serial!=state.spp.pending_serial || c->link_generation!=state.spp.pending_generation || c->state==DBT_CH_DISCONNECTING)return 0;
+        if(state.spp.failed || state.hold)return dbt_channels_close_ready(&state.runtime->channels,c->handle,c->local_cid)?0:UINT32_MAX;
+        return 0;
+    }
     if(!state.spp.bound){
         if(state.hold)for(unsigned i=0;i<DBT_CHANNEL_LIMIT;++i){
             const dbt_channel_t *c=&state.runtime->channels.channels[i];
-            if(c->psm==3 && c->state!=DBT_CH_FREE && c->state!=DBT_CH_DISCONNECTING)return 0;
+            if(c->psm==3 && dbt_channels_close_ready(&state.runtime->channels,c->handle,c->local_cid))return 0;
         }
         return UINT32_MAX;
     }
     const dbt_rfcomm_bearer_t *b=&state.spp.bearer;
-    if(state.failed && !b->tx_active)return 0;
+    if(state.failed || state.spp.failed || b->faulted){
+        if(b->tx_active)return UINT32_MAX;
+        return dbt_channels_close_ready(&state.runtime->channels,b->mux.handle,b->mux.local_cid)?0:UINT32_MAX;
+    }
     if(!state.echo && !state.hold)return 0;
     bool runtime_busy=false;
     for(unsigned i=0;i<DBT_MAX_LINKS;++i)if(state.runtime->tx[i].active &&
@@ -110,7 +118,8 @@ uint32_t probe_rfcomm_wait_ms(uint32_t now){
     if(!b->tx_active && !runtime_busy && (b->mux.tx_ready || b->dlc.tx_ready))return 0;
     if(b->dlc.state==DBT_RFCOMM_DLC_MSC && !b->dlc.msc_sent && !b->dlc.tx_ready)return 0;
     if(state.hold && !b->tx_active && !b->app_pending && !b->dlc.tx_ready &&
-       b->dlc.state!=DBT_RFCOMM_DLC_WAIT_DISC && b->dlc.state!=DBT_RFCOMM_DLC_CLOSE_REPLY)return 0;
+       b->dlc.state!=DBT_RFCOMM_DLC_WAIT_DISC && b->dlc.state!=DBT_RFCOMM_DLC_CLOSE_REPLY &&
+       (b->dlc.state==DBT_RFCOMM_DLC_OPEN || dbt_channels_close_ready(&state.runtime->channels,b->mux.handle,b->mux.local_cid)))return 0;
     bool data_ready=!b->dlc.remote_flow_off && !b->dlc.aggregate_flow_off &&
         (!b->dlc.credit_mode || b->dlc.credits.tx_available);
     if(b->dlc.state==DBT_RFCOMM_DLC_OPEN && (state.grant_pending || (state.pending && data_ready)) &&

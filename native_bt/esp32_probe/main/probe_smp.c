@@ -925,7 +925,9 @@ uint32_t probe_smp_wait_ms(uint32_t now) {
     }
     if(slot.active || maintenance.active){
         if(uxQueueMessagesWaiting(done_queue) || (pending_valid && !work_inflight))return 0;
-        if(WAIT_MS<wait)wait=WAIT_MS;
+        /* A completed, retired secure session has no periodic work. New HCI
+         * packets, worker results and security requests already wake the owner. */
+        if(!probe_smp_quiescent() && WAIT_MS<wait)wait=WAIT_MS;
     }
     return wait;
 }

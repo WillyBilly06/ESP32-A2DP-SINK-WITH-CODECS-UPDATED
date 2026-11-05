@@ -26,7 +26,7 @@ typedef struct {
     uint8_t work_head,work_count,reg_wanted,reg_sent,reg_label[2];
     bool initialized,closing,hold,resume_pending,cap_need,cap_sent,meta_need,meta_sent,status_need,status_sent;
     uint16_t close_handle,close_cid;
-    uint32_t close_serial, close_generation, next_work, connect_generation, next_connect,hold_retry;
+    uint32_t close_serial, close_generation, next_work, connect_generation, next_connect;
     uint8_t connect_attempts, metadata_retries;
     bool collision;
     probe_avrcp_snapshot_t view;
@@ -318,13 +318,10 @@ static void connect_if_ready(uint32_t now) {
 void probe_avrcp_poll(uint32_t now) {
     if (!s.initialized) return;
     if(s.hold){
-        if(due(now,s.hold_retry)){
-            for(unsigned i=0;i<DBT_CHANNEL_LIMIT;i++){
-                const dbt_channel_t *ch=&s.runtime->channels.channels[i];
-                if(ch->psm==CONTROL_PSM && ch->state!=DBT_CH_FREE && ch->state!=DBT_CH_DISCONNECTING)
-                    (void)dbt_channels_close(&s.runtime->channels,ch->handle,ch->local_cid,now);
-            }
-            s.hold_retry=now+20u;
+        for(unsigned i=0;i<DBT_CHANNEL_LIMIT;i++){
+            const dbt_channel_t *ch=&s.runtime->channels.channels[i];
+            if(ch->psm==CONTROL_PSM && ch->state!=DBT_CH_FREE && ch->state!=DBT_CH_DISCONNECTING)
+                (void)dbt_channels_close(&s.runtime->channels,ch->handle,ch->local_cid,now);
         }
         if(!s.bearer.active){
             clear_session();
@@ -353,7 +350,7 @@ void probe_avrcp_poll(uint32_t now) {
             s.close_handle=s.bearer.handle; s.close_cid=s.bearer.cid; s.close_serial=s.bearer.serial; s.close_generation=s.bearer.generation;
         }
         const dbt_channel_t *ch=dbt_channels_find(&s.runtime->channels,s.close_handle,s.close_cid);
-        if (ch && ch->serial==s.close_serial && ch->link_generation==s.close_generation && ch->state==DBT_CH_OPEN)
+        if (ch && ch->serial==s.close_serial && ch->link_generation==s.close_generation && ch->state!=DBT_CH_DISCONNECTING)
             (void)dbt_channels_close(&s.runtime->channels,ch->handle,ch->local_cid,now);
         else if (!ch && (!s.storage || !s.bearer.active)) {clear_session(); s.closing=false; s.close_serial=0;}
     }
@@ -373,8 +370,7 @@ uint32_t probe_avrcp_wait_ms(uint32_t now) {
     if(s.hold){
         for(unsigned i=0;i<DBT_CHANNEL_LIMIT;i++){
             const dbt_channel_t *ch=&s.runtime->channels.channels[i];
-            if(ch->psm==CONTROL_PSM && ch->state!=DBT_CH_FREE && ch->state!=DBT_CH_DISCONNECTING)
-                return due(now,s.hold_retry)?0:s.hold_retry-now;
+            if(ch->psm==CONTROL_PSM && dbt_channels_close_ready(&s.runtime->channels,ch->handle,ch->local_cid))return 0;
         }
         if(!s.bearer.active && (s.bearer.attached || s.storage || (!has_channel() && (s.closing || s.collision))))return 0;
         return UINT32_MAX;
@@ -383,13 +379,14 @@ uint32_t probe_avrcp_wait_ms(uint32_t now) {
     if (s.collision) {
         for (unsigned i=0;i<DBT_CHANNEL_LIMIT;i++) {
             const dbt_channel_t *ch=&s.runtime->channels.channels[i];
-            if (ch->psm==CONTROL_PSM && ch->state!=DBT_CH_FREE && ch->state!=DBT_CH_DISCONNECTING) return 0;
+            if (ch->psm==CONTROL_PSM && dbt_channels_close_ready(&s.runtime->channels,ch->handle,ch->local_cid)) return 0;
         }
         return has_channel()?UINT32_MAX:0;
     }
     if (s.closing) {
         const dbt_channel_t *ch=dbt_channels_find(&s.runtime->channels,s.close_handle,s.close_cid);
-        return ch && ch->state==DBT_CH_DISCONNECTING ? UINT32_MAX : (!ch && s.bearer.active ? UINT32_MAX : 0);
+        if(ch)return dbt_channels_close_ready(&s.runtime->channels,ch->handle,ch->local_cid)?0:UINT32_MAX;
+        return s.bearer.active?UINT32_MAX:0;
     }
     /* Target replies do not consume local transaction labels. Vendor replies
      * wait for an active continuation to finish/expire; pass-through does not.
@@ -416,7 +413,7 @@ dbt_result_t probe_avrcp_restart_hold(bool hold,uint32_t now){
     if(hold){
         s.resume_pending=false;
         if(!s.hold){
-            s.hold=true;s.hold_retry=now;
+            s.hold=true;
             if(s.bearer.attached){s.closing=true;s.close_handle=s.bearer.handle;s.close_cid=s.bearer.cid;
                 s.close_serial=s.bearer.serial;s.close_generation=s.bearer.generation;}
         }

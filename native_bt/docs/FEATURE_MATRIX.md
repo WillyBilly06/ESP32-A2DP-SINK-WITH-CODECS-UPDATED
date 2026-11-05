@@ -1,9 +1,9 @@
 # Independent host and product feature matrix
 
-Updated 2026-11-04. **The goal remains active and incomplete.** COM6 was
+Updated 2026-11-05. **The goal remains active and incomplete.** COM6 was
 explicitly released for flashing, serial and Bluetooth testing in this chat;
 COM7 and other boards are not authorized. Only the DAC is attached. The released
-1.0.4-idf6.1 Bluedroid image remains the preserved fallback in ota0. Recent
+1.0.4-idf6.1 Bluedroid image remains a manual recovery copy in ota0. The owned development image is explicitly selected VALID in ota1; automatic return to Bluedroid is disabled as requested. The current correction pass is recorded in [the whole-stack review](STACK_REVIEW_2026_11_05.md). Recent
 6.1 codec/kernel diagnostics are controller-off observations, not qualification
 of the complete custom host. See [current integration](IDF61_RESTART.md),
 [released-feature inventory](IDF61_FEATURE_INVENTORY.md) and the dated target
@@ -42,7 +42,7 @@ profiles below are not automatically excluded merely because they are absent.
 | Feature / role | Implemented and host-tested | Target-linked / observed | Remaining gap |
 | --- | --- | --- | --- |
 | Controller HCI, owner loop, bounded ingress, commands, ACL credits and RX flow | I/H: queues, command lifetime/cancellation, generations, HCI and ACL/runtime tests; [host receipt](../_build/host/results.json), [cancel receipt](../_build/host_cancel/results.json) | L06; earlier controller setup and separate ACL pools observed | Recovery, loss/credit stress and current-image RF qualification; callback/command admission is not peer receipt |
-| GAP Classic and LE | I/H: scan/advertise controls, link policy and selected connection procedures | Earlier Classic and LE diagnostic links observed | Full discovery/initiator procedures, local privacy/address rotation and all supported controller features still need implementation or qualification |
+| GAP Classic and LE | I/H: scan/advertise controls and incoming Classic connection admission | Earlier Classic and LE diagnostic links observed | Full discovery/initiator procedures, local privacy/address rotation and all supported controller features still need implementation or qualification |
 | Classic security, keys, NVS | I/H: SSP/PIN policy, encrypted-channel admission and async key store | L06; earlier Just Works, local commit/reload and 16-byte key on an encrypted channel observed | LC adds product admission/known-bond reconnect independent of the exact-MAC diagnostic mode. Other pairing methods and physical reconnects; previously observed Linux bond disappearance remains unresolved |
 | LE SMP, encryption, bonds and peer privacy | I/H: optional session/bearer, crypto/NVS worker, reconnect and limited peer-RPA logic; [SMP scope](SMP.md) | L06 (`probe_smp_init` symbol); failed self-test stopped before controller enable, so no SMP execution or radio observation in that image | LC adds bounded peripheral Security Request and unsent fixed-SDU cancellation. No physical LE pairing/reconnect proof; OOB/UI and local privacy incomplete; distribution requiring final peer acknowledgment lacks a documented controller provider; zero-distribution SC does not prove IRK/CSRK or peer persistence |
 | L2CAP Basic | I/H: Classic setup/configuration, security, reassembly and teardown | L06; earlier encrypted Basic exchanges observed | External interoperability and sustained stress; prior concurrent payload corruption remains unresolved |

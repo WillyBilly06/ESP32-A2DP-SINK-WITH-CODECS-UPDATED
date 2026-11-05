@@ -30,7 +30,7 @@ cleared after their ownership ends.
 The diagnostic ESP32 adapter preloads its separate `native_bonds` namespace, then
 uses a bounded queue and low-priority NVS worker. Each accepted key update/delete
 performs its own NVS commit. It preserves the original application's namespace.
-Only the explicitly selected test peer can pair or request encrypted administration.
+The legacy restricted diagnostic build admits only its selected test peer. The product build separately admits public SDP ACLs and normal idle-speaker SSP Just Works pairing with generation-bound, 30-second key-store leases. A physical gesture can open pairing while a Classic peer is present. A Classic audio bond does not grant BLE control/OTA trust. LE bootstrap is independent of the Classic bond store, and established control remains bound to the committed SMP identity and incarnation. Legacy PIN entry is disabled.
 Security logs contain metadata; keys, PINs, passkeys and OOB values are not logged.
 
 ## Evidence and remaining qualification

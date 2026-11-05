@@ -14,6 +14,8 @@ The custom stack remains development firmware. The user requested source fixes a
 - Verify every Classic bond NVS commit by readback before reporting durable success. Separate HCI security events, connection request/completion, key-store results, visibility state and identity configuration have bounded asynchronous metadata logs. Keys/PINs/passkeys are excluded.
 - Upload at 921600; perform full readback at 230400. A first 921600 readback failed its digest check before any write. The split-rate deployment retains full byte comparisons and preserves bootloader/table/recovery/original app.
 
+- Make A2DP/AVRCP/SPP shutdown wait for actual L2CAP close-queue capacity. A full signaling queue previously kept these adapters immediately runnable, including already-disconnecting SPP failures. Remove the AVRCP fixed 20 ms shutdown retry and prevent repeated SPP echo-buffer allocation after an allocation failure. Stop periodic SMP wakeups after a secure session has completed and its worker has retired.
+
 ## Layer-by-layer review status
 
 | Layer | Owning implementation | Current review result / remaining work |

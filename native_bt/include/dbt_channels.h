@@ -187,6 +187,9 @@ dbt_result_t dbt_channels_open_ertm(dbt_channels_t *manager,uint16_t handle,uint
     uint16_t minimum_mtu,dbt_security_t security,dbt_ertm_parameters_t receive,uint32_t now_ms,uint16_t *local_cid);
 dbt_result_t dbt_channels_close(dbt_channels_t *manager, uint16_t handle,
                                 uint16_t local_cid, uint32_t now_ms);
+/* Owner-only readiness query. A full signaling queue must wait for runtime
+ * progress rather than keeping a profile's owner loop immediately runnable. */
+bool dbt_channels_close_ready(const dbt_channels_t *manager,uint16_t handle,uint16_t local_cid);
 const dbt_channel_t *dbt_channels_find(const dbt_channels_t *manager, uint16_t handle, uint16_t local_cid);
 /* Signaling is copied into a bounded inbox. NO_SPACE means not accepted; the
  * caller must apply RX flow control or terminate the affected link. Dynamic

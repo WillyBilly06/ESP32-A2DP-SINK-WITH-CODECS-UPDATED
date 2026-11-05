@@ -554,6 +554,13 @@ dbt_result_t dbt_channels_close(dbt_channels_t *manager, uint16_t handle, uint16
     return result;
 }
 
+bool dbt_channels_close_ready(const dbt_channels_t *manager,uint16_t handle,uint16_t cid){
+    if(!manager || manager->in_callback)return false;
+    const dbt_channel_t *channel=dbt_channels_find(manager,handle,cid);
+    if(!channel || channel->state==DBT_CH_FREE || channel->state==DBT_CH_DISCONNECTING)return false;
+    return !channel->connection_ready || manager->tx_count<DBT_SIGNAL_TX_SLOTS;
+}
+
 static bool command_shape(const uint8_t *command, uint16_t size) {
     switch (command[0]) {
     case 1: {
