@@ -56,6 +56,7 @@ typedef struct {
         struct {uint32_t lost;int result;uint16_t bytes,handle;uint8_t peer[6],event,status,key_type;bool known,window;} classic_hci;
         struct {uint32_t token;int error;uint8_t peer[6];bool deleting,verified,committed;} bond_store;
         struct {uint32_t token,at_us,lost;uint16_t opcode;uint8_t peer[6],phase,flags,status,outcome;} incoming;
+        struct {uint32_t generation,serial,lost;int result;uint16_t handle,cid,bytes;uint8_t pdu,client;} sdp_error;
     };
     uint8_t event, reason, status,local_record;
 } log_item_t;
@@ -233,6 +234,14 @@ static void logger(void *context) {
         log_item_t item;
         if (xQueueReceive(log_queue, &item, portMAX_DELAY) != pdTRUE)
             continue;
+        if(item.local_record==13){
+            printf("{\"probe\":\"sdp_channel_error\",\"role\":\"%s\",\"handle\":%u,\"generation\":%lu,\"cid\":%u,\"serial\":%lu,"
+                   "\"bytes\":%u,\"pdu\":%u,\"result\":%d,\"action\":\"deferred_channel_close\",\"trace_records_lost\":%lu}\n",
+                item.sdp_error.client?"client":"server",item.sdp_error.handle,(unsigned long)item.sdp_error.generation,
+                item.sdp_error.cid,(unsigned long)item.sdp_error.serial,item.sdp_error.bytes,item.sdp_error.pdu,
+                item.sdp_error.result,(unsigned long)item.sdp_error.lost);
+            continue;
+        }
         if(item.local_record==12){
             static const char *const phases[]={"none","queued","submitted","acknowledged","completed","retired","expired","resolved"};
             unsigned phase=item.incoming.phase;bool ack=phase==DBT_GAP_INCOMING_ACK;
@@ -432,6 +441,14 @@ dbt_result_t probe_security_request(void *context, const dbt_link_t *link, uint1
             return peer->failed ? DBT_INVALID : DBT_BUSY;
     }
     return DBT_UNSUPPORTED;
+}
+void probe_security_sdp_error(const dbt_channel_t *channel,uint16_t bytes,uint8_t pdu,dbt_result_t result,bool client){
+    if(!log_queue || !channel)return;
+    log_item_t item;wipe(&item,sizeof(item));item.local_record=13;
+    item.sdp_error.generation=channel->link_generation;item.sdp_error.serial=channel->serial;
+    item.sdp_error.lost=protocol_log_lost;item.sdp_error.result=(int)result;item.sdp_error.handle=channel->handle;
+    item.sdp_error.cid=channel->local_cid;item.sdp_error.bytes=bytes;item.sdp_error.pdu=pdu;item.sdp_error.client=client?1u:0u;
+    if(xQueueSend(log_queue,&item,0)!=pdTRUE && protocol_log_lost!=UINT32_MAX)++protocol_log_lost;
 }
 static void incoming_log(void *context,dbt_gap_incoming_phase_t phase,const dbt_gap_incoming_t *entry,
                           uint16_t opcode,dbt_command_outcome_t outcome){

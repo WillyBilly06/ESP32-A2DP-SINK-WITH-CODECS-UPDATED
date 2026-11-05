@@ -492,7 +492,7 @@ static void profile_channel(void *context, dbt_channel_event_t event, const dbt_
                             dbt_channel_reason_t reason, uint16_t result) {
     probe_security_channel(event,channel,reason,result);
     probe_echo_event(context, event, channel, reason, result);
-    probe_sdp_event(event, channel);
+    probe_sdp_event_ex(event,channel,reason,result);
 #ifdef DBT_PROBE_RFCOMM
     probe_rfcomm_event(event,channel);
 #endif
@@ -531,11 +531,8 @@ static void profile_data(void *context, const dbt_channel_t *channel, const uint
 #endif
     if (channel->psm != 1) { probe_echo_data(context, channel, data, size); return; }
     if (probe_sdp_receive(channel, data, size) != DBT_OK) {
-        /* Invalid/pipelined SDP is terminated explicitly, never silently lost. */
-        if (dbt_channels_close(&runtime.channels, channel->handle, channel->local_cid, runtime.now_ms) != DBT_OK) {
-            const dbt_link_t *link = dbt_acl_find(&runtime.acl, channel->handle);
-            if (link) (void)dbt_gap_disconnect(&gap, link, 0x13);
-        }
+        /* Preserve other channels; mutation is deferred until owner poll. */
+        (void)dbt_channels_request_close(&runtime.channels,channel);
     }
 }
 #endif

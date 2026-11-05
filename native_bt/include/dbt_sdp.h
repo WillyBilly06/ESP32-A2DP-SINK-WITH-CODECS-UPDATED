@@ -56,5 +56,20 @@ dbt_result_t dbt_sdp_respond(const dbt_sdp_t *server, uint32_t binding, const ui
  * for SearchAttribute. These validate syntax, not service-specific semantics. */
 bool dbt_sdp_query_prefix_valid(uint8_t kind,const uint8_t *prefix,uint16_t size,uint16_t *maximum);
 bool dbt_sdp_attribute_lists_valid(const uint8_t *data,uint16_t size,bool multiple);
+typedef struct {uint16_t record,stack;} dbt_sdp_service_cursor_t;
+enum { DBT_SDP_SERVICE_HANDLE=1,DBT_SDP_SERVICE_PROFILE=2,DBT_SDP_SERVICE_FEATURES=4 };
+typedef struct {
+    uint32_t record_handle;
+    uint16_t psm,protocol_version,profile_version,features;
+    uint8_t present;
+} dbt_sdp_av_service_t;
+/* Iterate direct L2CAP -> versioned AV protocol stacks in already validated
+ * Attribute/SearchAttribute data. Start cursor at zero; preserve it with the
+ * immutable data. Alternatives and separate records remain separate results.
+ * UUID16, UUID32 and Bluetooth-base UUID128 forms compare equivalently. This
+ * returns numeric metadata only and grants no security/profile authority. */
+dbt_result_t dbt_sdp_av_service_next(const uint8_t *,uint16_t,bool multiple,
+    uint16_t service_uuid,uint16_t protocol_uuid,uint16_t profile_uuid,
+    dbt_sdp_service_cursor_t *,dbt_sdp_av_service_t *);
 
 #endif

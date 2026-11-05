@@ -248,6 +248,100 @@ bool dbt_sdp_attribute_lists_valid(const uint8_t *data,uint16_t size,bool multip
     }
     return true;
 }
+static bool uuid16_equal(const element_t *item,uint16_t value){
+    uint8_t bytes[2]={(uint8_t)(value>>8),(uint8_t)value};
+    element_t wanted={bytes,2,3,3};return item->type==3 && uuid_equal(item,&wanted);
+}
+static bool attribute_value(const element_t *record,uint16_t wanted,element_t *value){
+    uint16_t at=0;
+    while(at<record->size){
+        element_t id,item;
+        if(!element(record->value+at,(uint16_t)(record->size-at),&id) || id.type!=1 || id.size!=2)return false;
+        at=(uint16_t)(at+id.total);
+        if(!element(record->value+at,(uint16_t)(record->size-at),&item))return false;
+        uint16_t found=be16(id.value);
+        if(found==wanted){*value=item;return true;}
+        if(found>wanted)return false;
+        at=(uint16_t)(at+item.total);
+    }
+    return false;
+}
+static bool class_matches(const element_t *list,uint16_t service){
+    if(!uuid_list(list,false))return false;
+    uint16_t at=0;
+    while(at<list->size){
+        element_t item;if(!element(list->value+at,(uint16_t)(list->size-at),&item))return false;
+        if(uuid16_equal(&item,service))return true;
+        at=(uint16_t)(at+item.total);
+    }
+    return false;
+}
+static bool versioned_descriptor(const element_t *descriptor,uint16_t protocol,uint16_t *parameter){
+    element_t uuid,value;
+    if(descriptor->type!=6 || !element(descriptor->value,descriptor->size,&uuid) || !uuid16_equal(&uuid,protocol) ||
+       !element(descriptor->value+uuid.total,(uint16_t)(descriptor->size-uuid.total),&value) ||
+       value.type!=1 || value.size!=2 || uuid.total+value.total!=descriptor->size)return false;
+    *parameter=be16(value.value);return true;
+}
+static bool av_stack(const element_t *stack,uint16_t protocol,uint16_t *psm,uint16_t *version){
+    element_t lower,upper;
+    if(stack->type!=6 || !element(stack->value,stack->size,&lower) ||
+       !versioned_descriptor(&lower,0x0100,psm) || (*psm&0x0101u)!=1u ||
+       !element(stack->value+lower.total,(uint16_t)(stack->size-lower.total),&upper) ||
+       lower.total+upper.total!=stack->size || !versioned_descriptor(&upper,protocol,version))return false;
+    return true;
+}
+static bool profile_version(const element_t *list,uint16_t profile,uint16_t *version){
+    if(list->type!=6 || !profile)return false;
+    uint16_t at=0;bool found=false;
+    while(at<list->size){
+        element_t descriptor;uint16_t value;
+        if(!element(list->value+at,(uint16_t)(list->size-at),&descriptor))return false;
+        if(versioned_descriptor(&descriptor,profile,&value) && (!found || value>*version)){*version=value;found=true;}
+        at=(uint16_t)(at+descriptor.total);
+    }
+    return found;
+}
+static void next_record(dbt_sdp_service_cursor_t *cursor,bool multiple,const element_t *record){
+    cursor->record=multiple?(uint16_t)(cursor->record+record->total):UINT16_MAX;cursor->stack=0;
+}
+dbt_result_t dbt_sdp_av_service_next(const uint8_t *data,uint16_t size,bool multiple,
+    uint16_t service,uint16_t protocol,uint16_t profile,dbt_sdp_service_cursor_t *cursor,dbt_sdp_av_service_t *out){
+    if(!data || !cursor || !out || !service || !protocol || size>DBT_SDP_RECORD_BYTES)return DBT_INVALID;
+    element_t root;
+    if(!element(data,size,&root) || root.total!=size || root.type!=6)return DBT_INVALID;
+    while(cursor->record!=UINT16_MAX){
+        element_t record=root,classes,protocols,stack;
+        if(multiple){
+            if(cursor->record==root.size){cursor->record=UINT16_MAX;return DBT_EMPTY;}
+            if(cursor->record>root.size || !element(root.value+cursor->record,(uint16_t)(root.size-cursor->record),&record))return DBT_INVALID;
+        }else if(cursor->record)return DBT_INVALID;
+        if(record.type!=6)return DBT_INVALID;
+        if(cursor->stack==UINT16_MAX || !attribute_value(&record,1,&classes) || !class_matches(&classes,service) ||
+           !attribute_value(&record,4,&protocols)){next_record(cursor,multiple,&record);continue;}
+        if(protocols.type==6){
+            if(cursor->stack)return DBT_INVALID;
+            stack=protocols;cursor->stack=UINT16_MAX;
+        }else if(protocols.type==7){
+            if(cursor->stack==protocols.size){next_record(cursor,multiple,&record);continue;}
+            if(cursor->stack>protocols.size || !element(protocols.value+cursor->stack,(uint16_t)(protocols.size-cursor->stack),&stack))return DBT_INVALID;
+            cursor->stack=(uint16_t)(cursor->stack+stack.total);
+        }else{next_record(cursor,multiple,&record);continue;}
+        dbt_sdp_av_service_t result={0};element_t value;
+        if(!av_stack(&stack,protocol,&result.psm,&result.protocol_version))continue;
+        if(attribute_value(&record,0,&value)){
+            if(value.type!=1 || value.size!=4)return DBT_INVALID;
+            result.record_handle=be32(value.value);result.present|=DBT_SDP_SERVICE_HANDLE;
+        }
+        if(attribute_value(&record,9,&value) && profile_version(&value,profile,&result.profile_version))result.present|=DBT_SDP_SERVICE_PROFILE;
+        if(attribute_value(&record,0x0311,&value)){
+            if(value.type!=1 || value.size!=2)return DBT_INVALID;
+            result.features=be16(value.value);result.present|=DBT_SDP_SERVICE_FEATURES;
+        }
+        *out=result;return DBT_OK;
+    }
+    return DBT_EMPTY;
+}
 
 static bool selected(const element_t *ranges, uint16_t id) {
     uint16_t at = 0;

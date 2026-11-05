@@ -9,6 +9,7 @@ idf_component_register(
          "../../../src/dbt_page.c"
          "../../../src/dbt_sdp_client.c"
          "../../../src/dbt_sdp_client_bearer.c"
+         "../../../src/dbt_sdp_discovery.c"
          "../../../src/dbt_ertm.c"
          "../../../src/dbt_ertm_engine.c"
          "../../../src/dbt_avctp.c"

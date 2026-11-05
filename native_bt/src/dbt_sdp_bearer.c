@@ -128,7 +128,7 @@ dbt_result_t dbt_sdp_bearer_poll(dbt_sdp_bearer_t *bearer) {
         }
         const dbt_channel_t *channel =
             dbt_channels_find(&bearer->runtime->channels, reply->handle, reply->cid);
-        if (!channel || channel->serial != reply->serial ||
+        if (!channel || channel->state==DBT_CH_DISCONNECTING || channel->serial != reply->serial ||
             channel->link_generation != reply->generation) {
             release_reply(bearer, reply);
             continue;

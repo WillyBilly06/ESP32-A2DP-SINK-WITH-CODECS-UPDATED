@@ -554,6 +554,13 @@ dbt_result_t dbt_channels_close(dbt_channels_t *manager, uint16_t handle, uint16
     return result;
 }
 
+dbt_result_t dbt_channels_request_close(dbt_channels_t *manager,const dbt_channel_t *snapshot){
+    if(!manager || !snapshot || !snapshot->serial)return DBT_INVALID;
+    dbt_channel_t *channel=find(manager,snapshot->handle,snapshot->local_cid);
+    if(!channel || channel->serial!=snapshot->serial || channel->link_generation!=snapshot->link_generation)return DBT_EMPTY;
+    if(channel->state!=DBT_CH_DISCONNECTING)channel->app_close_requested=true;
+    return DBT_OK;
+}
 bool dbt_channels_close_ready(const dbt_channels_t *manager,uint16_t handle,uint16_t cid){
     if(!manager || manager->in_callback)return false;
     const dbt_channel_t *channel=dbt_channels_find(manager,handle,cid);
@@ -1206,6 +1213,13 @@ uint16_t dbt_channels_poll(dbt_channels_t *manager, uint32_t now, uint16_t budge
         if (channel->state == DBT_CH_FREE) continue;
         const dbt_link_t *link = dbt_acl_find(manager->acl, channel->handle);
         if (!link || link->generation != channel->link_generation) { finish(manager, channel, DBT_CH_REASON_LINK_LOST, 0); continue; }
+        if(channel->app_close_requested){
+            if(channel->state==DBT_CH_DISCONNECTING)channel->app_close_requested=false;
+            else if(dbt_channels_close_ready(manager,channel->handle,channel->local_cid) &&
+                    dbt_channels_close(manager,channel->handle,channel->local_cid,now)==DBT_OK){
+                channel->app_close_requested=false;continue;
+            }
+        }
         if(channel->le && channel->state==DBT_CH_OPEN && !le_data_allowed(manager,channel,link))le_fault(manager,channel);
         if(channel->ertm && channel->ertm->initialized && channel->state==DBT_CH_OPEN){
             if(!authorized(manager,link,channel->psm,channel->security))ertm_fault(manager,channel);
@@ -1473,6 +1487,7 @@ uint32_t dbt_channels_wait_ms(const dbt_channels_t *manager, uint32_t now) {
     }
     for (unsigned i = 0; i < DBT_CHANNEL_LIMIT; ++i) {
         const dbt_channel_t *channel = &manager->channels[i];
+        if(channel->app_close_requested && dbt_channels_close_ready(manager,channel->handle,channel->local_cid))return 0;
         if(channel->ertm && channel->ertm->initialized && channel->state==DBT_CH_OPEN){
             const dbt_ertm_engine_t *e=&channel->ertm->engine;
             if(e->retrans_timer){if(due(now,e->retrans_at))return 0;uint32_t n=e->retrans_at-now;if(n<wait)wait=n;}

@@ -10,7 +10,7 @@ the viewer remains open and follows the test capture while the port is free.
 
 The owned Classic+BLE host is selected on the local COM6 board in ota1 at
 0x390000, marked VALID, with automatic Bluedroid restoration disabled. The
-verified image is `1eddf49b453410b3a873ff2d8c27478bf786124dcefeeabd357c5418dbb54883`.
+verified image is `4c4043e3e17446aaabd7f34ef7d6a18237b568d1ecf3412447f95e1bb6bc7ebc`.
 This remains development firmware with incomplete feature/runtime qualification.
 
 Recent source corrections cover [codec payload boundaries and shared PCM
@@ -29,15 +29,21 @@ compiles for ESP32 and portable C11. It has a 48-byte caller context, no heap or
 new task, separate admission/completion/cancel results and bounded deadlines.
 [GAP routing and handover](docs/GAP_PAGING_INTEGRATION_2026_11_05.md) now retain
 controller fences, reserve capacity and separate incoming/outgoing outcomes.
-This adds 20 static bytes. Product peer selection, outgoing SDP and A2DP
-initiation remain pending; no automatic paging context is instantiated.
+This adds 20 static bytes. Product peer selection and A2DP initiation remain
+pending; no automatic paging context is instantiated.
 The [SDP client and channel adapter](docs/SDP_CLIENT_2026_11_05.md) now compile
 with bounded caller storage and continuation/transport retirement handling.
-Their 108-byte/28-byte contexts have no product instance yet. Client channel
-creation/dispatch, A2DP service extraction and automatic policy remain pending.
+Their 108-byte/28-byte contexts are now included in a caller-owned
+[Audio Source discovery operation](docs/SDP_DISCOVERY_2026_11_05.md), which
+opens/routes the exact client channel, extracts a supported service and retires
+transport ownership before returning a terminal result. Its context is 220 bytes;
+default static storage grows by a four-byte routing pointer. SDP errors now close
+only the affected channel through the owner task. Automatic policy and outgoing
+AVDTP setup remain pending; no discovery instance is automatically started.
 
 Builds use ccache. Recent checks establish compilation, source integrity,
-flash readback and ordinary startup; functional test campaigns are currently
+flash readback and ordinary startup, including the firmware's built-in codec
+self-checks; functional test campaigns are currently
 stopped at the user's request. Sustained maximum-rate LHDC headroom, the
 reported codec crashes, full feature parity and production readiness remain
 unproven. See [the whole-stack review](docs/STACK_REVIEW_2026_11_05.md).

@@ -6,6 +6,7 @@ target_sources(native_bt PRIVATE src/dbt_avdtp_caps.c src/dbt_avdtp_sink.c src/d
 target_sources(native_bt PRIVATE src/dbt_a2dp_acceptor.c src/dbt_sbc_media.c)
 target_sources(native_bt PRIVATE src/dbt_credit.c src/dbt_page.c)
 target_sources(native_bt PRIVATE src/dbt_sdp_client.c src/dbt_sdp_client_bearer.c)
+target_sources(native_bt PRIVATE src/dbt_sdp_discovery.c)
 
 target_sources(native_bt PRIVATE
     src/dbt_ertm.c

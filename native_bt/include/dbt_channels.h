@@ -44,7 +44,7 @@ typedef struct {
     uint8_t cached_request_size, cached_reply_size;
     bool request_sent, pending_extended, connection_ready, local_configured, peer_configured;
     bool incoming_more, incoming_failed, response_more, response_failed, reconfiguring, opened_once;
-    bool security_incoming, security_pending_sent;
+    bool security_incoming, security_pending_sent, app_close_requested;
     uint8_t cached_request[DBT_SIGNAL_BYTES], cached_reply[DBT_SIGNAL_BYTES];
     struct dbt_le_channel *le; /* Lazy active-channel state; NULL for Basic. */
     struct dbt_ertm_channel *ertm; /* Allocated only for an explicitly required ERTM channel. */
@@ -187,6 +187,10 @@ dbt_result_t dbt_channels_open_ertm(dbt_channels_t *manager,uint16_t handle,uint
     uint16_t minimum_mtu,dbt_security_t security,dbt_ertm_parameters_t receive,uint32_t now_ms,uint16_t *local_cid);
 dbt_result_t dbt_channels_close(dbt_channels_t *manager, uint16_t handle,
                                 uint16_t local_cid, uint32_t now_ms);
+/* Callback-safe intent only. Exact serial/generation matching prevents an old
+ * snapshot closing a reused slot. Owner poll performs the protocol mutation;
+ * full signaling capacity waits for normal runtime progress/deadlines. */
+dbt_result_t dbt_channels_request_close(dbt_channels_t *,const dbt_channel_t *);
 /* Owner-only readiness query. A full signaling queue must wait for runtime
  * progress rather than keeping a profile's owner loop immediately runnable. */
 bool dbt_channels_close_ready(const dbt_channels_t *manager,uint16_t handle,uint16_t local_cid);

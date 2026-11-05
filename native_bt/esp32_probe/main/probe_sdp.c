@@ -1,7 +1,11 @@
 #include "probe_sdp.h"
+#ifdef DBT_PROBE_CLASSIC_SECURITY_TEST
+#include "probe_security.h"
+#endif
 
 static dbt_sdp_t server;
 static dbt_sdp_bearer_t bearer;
+static dbt_sdp_discovery_t *discovery;
 static const uint8_t server_class[] = {0x35, 3, 0x19, 0x10, 0};
 static const uint8_t versions[] = {0x35, 3, 9, 1, 0};
 #ifdef DBT_PROBE_AUDIO_OUTPUT
@@ -83,14 +87,60 @@ dbt_result_t probe_sdp_init(dbt_runtime_t *runtime) {
     initialized=result==DBT_OK; return result;
 }
 dbt_result_t probe_sdp_receive(const dbt_channel_t *channel, const uint8_t *data, uint16_t size) {
-    return dbt_sdp_bearer_receive(&bearer, channel, data, size);
+    if(discovery && dbt_sdp_discovery_matches(discovery,channel)){
+        /* This exact client channel retains local error/closure ownership. */
+        dbt_result_t result=dbt_sdp_discovery_receive(discovery,channel,data,size,bearer.runtime->now_ms);
+#ifdef DBT_PROBE_CLASSIC_SECURITY_TEST
+        if(result!=DBT_OK && result!=DBT_EMPTY)probe_security_sdp_error(channel,size,size&&data?data[0]:0,result,true);
+#else
+        (void)result;
+#endif
+        return DBT_OK;
+    }
+    dbt_result_t result=dbt_sdp_bearer_receive(&bearer, channel, data, size);
+    if(result!=DBT_OK && channel && channel->psm==1 && bearer.runtime){
+        /* Channel mutation belongs to owner poll, after this data callback. */
+        dbt_result_t close=dbt_channels_request_close(&bearer.runtime->channels,channel);
+        if(close==DBT_OK || close==DBT_EMPTY){
+#ifdef DBT_PROBE_CLASSIC_SECURITY_TEST
+            probe_security_sdp_error(channel,size,size&&data?data[0]:0,result,false);
+#endif
+            return DBT_OK;
+        }
+    }
+    return result;
 }
 void probe_sdp_event(dbt_channel_event_t event, const dbt_channel_t *channel) {
-    dbt_sdp_bearer_event(&bearer, event, channel);
+    probe_sdp_event_ex(event,channel,DBT_CH_REASON_NORMAL,0);
 }
-dbt_result_t probe_sdp_poll(void) { return dbt_sdp_bearer_poll(&bearer); }
-uint32_t probe_sdp_wait_ms(void) { return dbt_sdp_bearer_wait_ms(&bearer); }
-unsigned probe_sdp_bytes(void) { return sizeof(server)+sizeof(bearer)+sizeof(records)+sizeof(extra_record)+sizeof(record_count)+sizeof(initialized)+sizeof(controller_enabled)+sizeof(target_enabled)+sizeof(state); }
+void probe_sdp_event_ex(dbt_channel_event_t event,const dbt_channel_t *channel,dbt_channel_reason_t reason,uint16_t result){
+    if(discovery)dbt_sdp_discovery_event(discovery,event,channel,reason,result,bearer.runtime->now_ms);
+    dbt_sdp_bearer_event(&bearer,event,channel);
+}
+dbt_result_t probe_sdp_poll(void) {
+    if(discovery)dbt_sdp_discovery_poll(discovery,bearer.runtime->now_ms);
+    return dbt_sdp_bearer_poll(&bearer);
+}
+uint32_t probe_sdp_wait_ms(void) {
+    uint32_t wait=dbt_sdp_bearer_wait_ms(&bearer);
+    if(discovery){uint32_t next=dbt_sdp_discovery_wait_ms(discovery,bearer.runtime->now_ms);if(next<wait)wait=next;}
+    return wait;
+}
+dbt_result_t probe_sdp_discover_audio_source(dbt_sdp_discovery_t *context,const dbt_link_t *link,
+    dbt_sdp_discovery_config_t config,uint32_t now,uint32_t *token){
+    if(!initialized || discovery)return DBT_BUSY;
+    dbt_result_t result=dbt_sdp_discovery_begin(context,bearer.runtime,link,config,now,token);
+    if(result==DBT_OK)discovery=context;
+    return result;
+}
+dbt_result_t probe_sdp_discover_cancel(uint32_t token){return discovery?dbt_sdp_discovery_cancel(discovery,token):DBT_EMPTY;}
+dbt_result_t probe_sdp_discover_result(uint32_t token,dbt_sdp_discovery_result_t *result){
+    if(!discovery)return DBT_EMPTY;
+    dbt_result_t status=dbt_sdp_discovery_result(discovery,token,result);
+    if(status==DBT_OK)discovery=0; /* Detach routing before caller storage retires. */
+    return status;
+}
+unsigned probe_sdp_bytes(void) { return sizeof(server)+sizeof(bearer)+sizeof(records)+sizeof(extra_record)+sizeof(record_count)+sizeof(initialized)+sizeof(controller_enabled)+sizeof(target_enabled)+sizeof(state)+sizeof(discovery); }
 unsigned probe_sdp_records(void){return record_count;}
 bool probe_sdp_audio_sink(void){
 #ifdef DBT_PROBE_AUDIO_OUTPUT
