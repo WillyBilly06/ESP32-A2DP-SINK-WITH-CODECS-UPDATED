@@ -102,6 +102,18 @@ static bool initialized,failed,restart_hold,restart_drained;
 static uint32_t worker_faults_seen;
 #ifdef DBT_PROBE_AUDIO_OUTPUT
 static bool output_initialized;
+/* The existing one-second report cadence is an owner deadline, not a poll. */
+static uint32_t delay_binding,delay_at;
+static uint32_t delay_report_wait_ms(uint32_t now){
+    const dbt_avdtp_sink_t *sink=&profile.sink;
+    if(failed || restart_hold || !profile.enabled || !profile.active || profile.draining ||
+       sink->failed || sink->retiring || sink->signal.failed || !sink->delay_enabled ||
+       sink->state<DBT_STREAM_CONFIGURED || sink->state>DBT_STREAM_STREAMING ||
+       sink->pending.used || sink->signal.tx[0].used)return UINT32_MAX;
+    if(delay_binding!=sink->binding)return 0;
+    uint32_t elapsed=now-delay_at;
+    return elapsed>=1000u?0:1000u-elapsed;
+}
 #endif
 static probe_audio_product_event_fn product_observer;
 static void *product_context;
@@ -685,8 +697,14 @@ static void log_loop(void *unused){
 void probe_audio_product_observer(probe_audio_product_event_fn fn,void *context){product_observer=fn;product_context=context;}
 static void sink_event(void *context,dbt_sink_event_t event,dbt_stream_state_t state){
     (void)context;
-    if(!product_observer || event!=DBT_SINK_STATE || !profile.signaling.serial)return;
     dbt_sink_operation_t operation=profile.sink.pending.operation;
+#ifdef DBT_PROBE_AUDIO_OUTPUT
+    /* Reconfiguration keeps the signaling binding but may change the rate and
+     * output latency. Its first report must not wait for the prior cadence. */
+    if(event==DBT_SINK_STATE && profile.sink.pending.used &&
+       (operation==DBT_SINK_CONFIGURE || operation==DBT_SINK_RECONFIGURE))delay_binding=0;
+#endif
+    if(!product_observer || event!=DBT_SINK_STATE || !profile.signaling.serial)return;
     if(profile.sink.pending.used && (operation==DBT_SINK_CONFIGURE || operation==DBT_SINK_RECONFIGURE)){
         uint32_t rate=48000;dbt_avdtp_caps_t caps;dbt_avdtp_cap_error_t error;dbt_codec_config_t config;
         if(dbt_avdtp_caps_validate(profile.sink.configuration,profile.sink.configuration_size,DBT_AVDTP_CONFIGURATION,&caps,&error)==DBT_OK)
@@ -808,21 +826,30 @@ void probe_audio_poll(uint32_t now){
 #ifndef DBT_PROBE_RF_PROTOCOL_DIAGNOSTIC
     if(probe_output_failed())failed=true;
 #endif
-    static uint32_t delay_binding,delay_at;
-    if(profile.active && !profile.draining && profile.sink.delay_enabled &&
-       profile.sink.state>=DBT_STREAM_CONFIGURED && profile.sink.state<=DBT_STREAM_STREAMING &&
-       !profile.sink.pending.used && !profile.sink.signal.tx[0].used &&
-       (delay_binding!=profile.sink.binding || now-delay_at>=1000)){
+    if(delay_report_wait_ms(now)==0){
+        /* Rate-limit attempts as well as successes: an unavailable/invalid
+         * provider must not create an immediately runnable owner loop. */
+        delay_binding=profile.sink.binding;delay_at=now;
         dbt_avdtp_caps_t caps;dbt_avdtp_cap_error_t error;dbt_codec_config_t config;bool selected=false;
         if(dbt_avdtp_caps_validate(profile.sink.configuration,profile.sink.configuration_size,DBT_AVDTP_CONFIGURATION,&caps,&error)==DBT_OK){
             for(unsigned i=0;i<sizeof(codecs)/sizeof(codecs[0]);++i)
                 if(codecs[i]->configure(caps.codec.data,caps.codec.size,&config)==DBT_OK){selected=true;break;}
         }
-        if(selected && dbt_avdtp_sink_delay(&profile.sink,probe_output_delay_100us(config.rate),now)==DBT_OK){delay_binding=profile.sink.binding;delay_at=now;}
+        if(selected)(void)dbt_avdtp_sink_delay(&profile.sink,probe_output_delay_100us(config.rate),now);
+        /* A request can observe a signaling expiry after acceptor_poll. Do not
+         * go idle with a failed signal and no remaining owner deadline. */
+        if(profile.sink.failed || profile.sink.signal.failed)(void)dbt_a2dp_acceptor_retire(&profile,now);
     }
 #endif
 }
-uint32_t probe_audio_wait_ms(uint32_t now){return initialized?dbt_a2dp_acceptor_wait_ms(&profile,now):UINT32_MAX;}
+uint32_t probe_audio_wait_ms(uint32_t now){
+    if(!initialized)return UINT32_MAX;
+    uint32_t wait=dbt_a2dp_acceptor_wait_ms(&profile,now);
+#ifdef DBT_PROBE_AUDIO_OUTPUT
+    uint32_t report=delay_report_wait_ms(now);if(report<wait)wait=report;
+#endif
+    return wait;
+}
 const dbt_link_t *probe_audio_peer_link(uint16_t handle,uint32_t generation){
     if(!initialized || !profile.runtime || !generation)return 0;
     const dbt_link_t *link=dbt_acl_find(&profile.runtime->acl,handle);
