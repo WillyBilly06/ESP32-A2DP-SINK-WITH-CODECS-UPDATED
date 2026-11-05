@@ -34,6 +34,17 @@ if core_option:
             assert re.search(r'(?:^|\s)-DDBT_PROBE_DECODER_CORE='+str(decoder_core)+r'(?:\s|$)',entry['command']), 'Decoder affinity was not actually compiled'
 else:
     assert decoder_core==1, 'Missing explicit decoder affinity'
+logger_core=build_status.get('logger_core',1-decoder_core)
+assert type(logger_core) is int and logger_core in (0,1)
+logger_option=re.search(r'^DBT_PROBE_LOGGER_CORE:STRING=([01])$',cache,re.M)
+if logger_option:
+    assert int(logger_option.group(1))==logger_core, 'Logger affinity receipt/cache mismatch'
+    for entry in commands:
+        if Path(entry['file']).name=='probe_audio.c':
+            assert re.findall(r'(?:^|\s)-DDBT_PROBE_LOGGER_CORE=(\S+)',entry['command'])==[str(logger_core)], 'Logger affinity not actually compiled'
+            assert not re.search(r'(?:^|\s)-UDBT_PROBE_LOGGER_CORE(?:\s|$)',entry['command'])
+else:
+    assert logger_core==1-decoder_core, 'Missing explicit logger affinity'
 rf_diagnostic=bool(build_status.get('rf_protocol_diagnostic'))
 assert ('DBT_PROBE_RF_PROTOCOL_DIAGNOSTIC:BOOL=ON' in cache)==rf_diagnostic
 assert bool(re.search(r'(?:^|\s)-DDBT_PROBE_RF_PROTOCOL_DIAGNOSTIC=1(?:\s|$)',main_command))==rf_diagnostic
@@ -56,6 +67,17 @@ if pcm_loans:
     for loan_unit in ('probe_output.c','probe_pipeline_check.c' if pipeline else 'probe_audio.c'):
         loan_command=next(entry['command'] for entry in commands if Path(entry['file']).name==loan_unit)
         assert re.search(r'(?:^|\s)-DDBT_PROBE_PCM_LOANS=1(?:\s|$)',loan_command), 'PCM loan provider/client not actually compiled'
+pcm_copied=bool(build_status.get('pcm_copied'))
+assert ('DBT_PROBE_PCM_COPIED:BOOL=ON' in cache)==pcm_copied, 'Compact PCM receipt/cache mismatch'
+assert re.findall(r'(?:^|\s)-DDBT_PROBE_PCM_COPIED=(\S+)',main_command)==(['1'] if pcm_copied else [])
+for entry in commands:
+    if Path(entry['file']).name in ('probe_output.c','probe_audio.c','probe_pipeline_check.c'):
+        assert re.findall(r'(?:^|\s)-DDBT_PROBE_PCM_COPIED=(\S+)',entry['command'])==(['1'] if pcm_copied else [])
+        assert not re.search(r'(?:^|\s)-UDBT_PROBE_PCM_COPIED(?:\s|$)',entry['command'])
+if pcm_copied:
+    assert not pcm_loans and build_status.get('async_audio') and not rf_diagnostic and 'DBT_PROBE_KEEP_OWNED_ACTIVE:BOOL=ON' not in cache
+    for unit in ('probe_output.c','probe_pipeline_check.c' if pipeline else 'probe_audio.c'):
+        assert any(Path(e['file']).name==unit for e in commands), 'Missing compact PCM provider/client'
 pcm_target_ms=build_status.get('pcm_target_ms',64)
 assert type(pcm_target_ms) is int and pcm_target_ms in (16,32,64), 'Invalid PCM target receipt'
 pcm_target_option=re.search(r'^DBT_PROBE_PCM_TARGET_MS:STRING=(16|32|64)$',cache,re.M)
@@ -71,7 +93,7 @@ else:
         if Path(entry['file']).name in (entry_name,'probe_output.c','probe_audio.c','probe_pipeline_check.c'):
             assert re.findall(r'(?:^|\s)-DDBT_PROBE_PCM_TARGET_MS=(\S+)',entry['command']) in ([],['64']), 'Unreceipted short PCM target'
 if pcm_target_ms!=64:
-    assert pcm_loans and build_status.get('async_audio') and not rf_diagnostic
+    assert (pcm_loans or pcm_copied) and build_status.get('async_audio') and not rf_diagnostic
     assert 'DBT_PROBE_KEEP_OWNED_ACTIVE:BOOL=ON' not in cache and pcm_target_option
 block_dsp=bool(build_status.get('block_dsp'))
 assert ('DBT_PROBE_BLOCK_DSP:BOOL=ON' in cache)==block_dsp, 'Block DSP receipt/cache mismatch'
@@ -82,7 +104,7 @@ for entry in block_core_commands:
         assert re.findall(r'(?:^|\s)-D'+definition+r'=(\S+)',entry['command'])==(['1'] if block_dsp else []), 'Block core mode missing, overridden or unreceipted'
         assert not re.search(r'(?:^|\s)-U'+definition+r'(?:\s|$)',entry['command'])
 if block_dsp:
-    assert pcm_loans and build_status.get('async_audio') and not rf_diagnostic and 'DBT_PROBE_KEEP_OWNED_ACTIVE:BOOL=ON' not in cache
+    assert (pcm_loans or pcm_copied) and build_status.get('async_audio') and not rf_diagnostic and 'DBT_PROBE_KEEP_OWNED_ACTIVE:BOOL=ON' not in cache
     assert {Path(e['file']).name for e in block_core_commands}=={'dbt_audio.c','fixed_dsp.c'}, 'Missing compiled block core'
 assert bool(re.search(r'(?:^|\s)-DDBT_PROBE_DEFERRED_CODEC_CHECK=1(?:\s|$)',main_command))==bool(build_status.get('deferred_codec_check'))
 assert ('DBT_PROBE_LHDC_MAX_CHECK:BOOL=ON' in cache)==bool(build_status.get('lhdc_maximum_check'))
@@ -162,7 +184,7 @@ assert image.flash_mode==2 and image.flash_size_freq==0x3f
 assert image.min_rev_full<=301<=image.max_rev_full
 report={'passed':True,'scope':'offline image checksum/digest, ESP32 revision and admitted OTA capacity; no device access or runtime qualification',
  'image_sha256':hashlib.sha256(blob).hexdigest(),'image_bytes':len(blob),'project':project,'chip_id':image.chip_id,'codec_diagnostic_only':diagnostic,'pipeline_diagnostic':pipeline,
- 'rf_protocol_diagnostic':rf_diagnostic,'pcm_target_ms':pcm_target_ms,'block_dsp':block_dsp,'experimental_short_pcm_target':pcm_target_ms!=64,'revision_range':[image.min_rev_full,image.max_rev_full],'checksum_verified':True,'digest_verified':bool(image.append_digest),
+ 'rf_protocol_diagnostic':rf_diagnostic,'pcm_target_ms':pcm_target_ms,'pcm_copied':pcm_copied,'logger_core':logger_core,'block_dsp':block_dsp,'experimental_short_pcm_target':pcm_target_ms!=64,'revision_range':[image.min_rev_full,image.max_rev_full],'checksum_verified':True,'digest_verified':bool(image.append_digest),
  'latest_local_build_completed':True,'build_sources_match':True,'build_source_units':source_count,'product_io':bool(build_status.get('product_io')),'product_security':product_security,'rfcomm_profile':rfcomm,'controller_only_dual_mode':True,'anti_rollback_fuse_updates':False,'partition_offset':slot['offset'],'partition_bytes':slot['size'],
  'partition_remaining_bytes':slot['size']-len(blob),'compiled_table_matches_preserved_layout':True,'compiled_table_sha256':hashlib.sha256(table).hexdigest(),'flash_mode':'DIO','flash_mib':8,'flash_mhz':80,'hardware_accessed':False,'runtime_qualified':False}
 output=ROOT/'_build/host/local-image-validation.json';output.write_text(json.dumps(report,indent=2)+'\n');print(json.dumps(report,indent=2))

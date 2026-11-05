@@ -12,7 +12,7 @@ actual=compile(ast.Module(body=nodes,type_ignores=[]),'<actual block mode>','exe
 flags=' -DDBT_AUDIO_BLOCK_DSP=1 -DFIXED_DSP_BLOCK_API=1'
 def check(change,valid):
     global count
-    state={'build_status':{'block_dsp':True,'async_audio':True},'cache':'DBT_PROBE_BLOCK_DSP:BOOL=ON\nDBT_PROBE_KEEP_OWNED_ACTIVE:BOOL=OFF','main_command':'cc -DDBT_PROBE_BLOCK_DSP=1','pcm_loans':True,'rf_diagnostic':False,'commands':[{'file':p,'command':'cc'+flags} for p in ('dbt_audio.c','fixed_dsp.c')],'Path':pathlib.Path,'re':re}
+    state={'build_status':{'block_dsp':True,'async_audio':True},'cache':'DBT_PROBE_BLOCK_DSP:BOOL=ON\nDBT_PROBE_KEEP_OWNED_ACTIVE:BOOL=OFF','main_command':'cc -DDBT_PROBE_BLOCK_DSP=1','pcm_loans':True,'pcm_copied':False,'rf_diagnostic':False,'commands':[{'file':p,'command':'cc'+flags} for p in ('dbt_audio.c','fixed_dsp.c')],'Path':pathlib.Path,'re':re}
     state.update(change)
     try:exec(actual,state)
     except (AssertionError,StopIteration):assert not valid

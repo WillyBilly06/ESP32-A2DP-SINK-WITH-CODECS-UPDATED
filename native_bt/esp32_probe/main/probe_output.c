@@ -103,6 +103,7 @@ typedef struct {
   _Atomic uint32_t descriptor_fault_at_us,descriptor_fault_gap_us,descriptor_fault_stopping;
   _Atomic uint32_t callback_calls,callback_elapsed_us,callback_max_us,callback_core;
   _Atomic uint32_t input_ring_bytes_avoided,pcm_loans_begun,pcm_loans_retired,pcm_loans_cancelled,pcm_loan_active,pcm_loan_max_us;
+  _Atomic uint32_t input_capacity_frames,input_ring_bytes;
   _Atomic uint32_t maximum_render_us, stop_fill_frames;
   _Atomic uint32_t render_total_us,render_calls;
   _Atomic uint32_t allocation_failed_bytes,allocation_failure_free,allocation_failure_largest;
@@ -380,6 +381,7 @@ static void close_output(void) {
     output.meter_db[i] = -60 * 256;
   atomic_store(&output.running, 0);
   atomic_store(&output.requested_bytes, 0);
+  atomic_store(&output.input_capacity_frames,0);atomic_store(&output.input_ring_bytes,0);
   atomic_store(&output.ready_frames, 0);
   atomic_store(&output.input_ready_frames, 0);
 }
@@ -435,6 +437,10 @@ static dbt_result_t start_output(uint32_t rate, uint8_t channels,
   output.allocation_request_rate=rate;output.allocation_request_channels=channels;output.allocation_request_sample_bytes=(uint32_t)format;
   uint32_t target = (rate * DBT_PROBE_PCM_TARGET_MS + 999u) / 1000u;
   uint32_t input_frames=power2((rate * 32u + 999u) / 1000u),avoided=0;
+#ifdef DBT_PROBE_PCM_COPIED
+  input_frames=power2((rate*4u+999u)/1000u);
+  if(input_frames<PROBE_PCM_TRANSFER_FRAMES)input_frames=PROBE_PCM_TRANSFER_FRAMES;
+#endif
   atomic_store(&output.input_ring_bytes_avoided,0);
 #ifdef DBT_PROBE_PCM_LOANS
   avoided=input_frames*(uint32_t)format*channels;input_frames=PROBE_PCM_LOAN_FRAMES;
@@ -502,6 +508,8 @@ static dbt_result_t start_output(uint32_t rate, uint8_t channels,
   atomic_store(&output.render_total_us,0);
   atomic_store(&output.render_calls,0);
   atomic_store(&output.input_ring_bytes_avoided,avoided);
+  atomic_store(&output.input_capacity_frames,config.input_frames);
+  atomic_store(&output.input_ring_bytes,output.audio.borrowed_input?0:config.input_frames*(uint32_t)format*channels);
   atomic_store(&output.pcm_loans_begun,0);atomic_store(&output.pcm_loans_retired,0);atomic_store(&output.pcm_loans_cancelled,0);
   atomic_store(&output.pcm_loan_active,0);atomic_store(&output.pcm_loan_max_us,0);
   atomic_store(&output.stop_fill_frames, 0);
@@ -1042,6 +1050,13 @@ void probe_output_stats(probe_output_stats_t *s) {
   if (!s)
     return;
   s->pcm_target_ms=DBT_PROBE_PCM_TARGET_MS;
+#if defined(DBT_PROBE_PCM_COPIED)
+  s->pcm_input_mode=2;
+#elif defined(DBT_PROBE_PCM_LOANS)
+  s->pcm_input_mode=1;
+#else
+  s->pcm_input_mode=0;
+#endif
 #ifdef DBT_PROBE_BLOCK_DSP
   s->block_dsp=1;
 #else
@@ -1070,6 +1085,7 @@ void probe_output_stats(probe_output_stats_t *s) {
   s->pcm_loan_mode=0;
 #endif
   LOAD(input_ring_bytes_avoided);LOAD(pcm_loans_begun);LOAD(pcm_loans_retired);LOAD(pcm_loans_cancelled);LOAD(pcm_loan_active);LOAD(pcm_loan_max_us);
+  LOAD(input_capacity_frames);LOAD(input_ring_bytes);
   s->configured_irq_priority=DMA_IRQ_PRIORITY;
   LOAD(max_eof_gap_us);
   LOAD(maximum_render_us);

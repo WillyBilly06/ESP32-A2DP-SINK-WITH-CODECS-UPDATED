@@ -15,6 +15,8 @@ static int64_t test_clock_us;
 static int64_t test_clock_step;
 static unsigned configured_irq_priority;
 static unsigned allocation_attempt,fail_at_allocation;
+static unsigned decoder_wakes;
+static void wake_compact(void *unused){(void)unused;++decoder_wakes;}
 void *heap_caps_malloc(size_t n,unsigned flags){(void)flags;if(++allocation_attempt==fail_at_allocation)return 0;void *p=malloc(n);if(p)live++;return p;}
 void heap_caps_free(void *p){if(p){live--;free(p);}}
 int64_t esp_timer_get_time(void){int64_t value=test_clock_us;test_clock_us+=test_clock_step;return value;}
@@ -126,3 +128,33 @@ EX int probe_output_descriptor_diagnostics(void){
     CHECK(atomic_load(&output.callback_calls)==4 && atomic_load(&output.callback_elapsed_us)==10 && atomic_load(&output.callback_max_us)==10);
     test_clock_step=0;test_clock_us=0;return 0;
 }
+#ifdef DBT_PROBE_PCM_COPIED
+EX int probe_output_compact_copy(void){
+    CHECK(probe_output_init(wake_compact,0)==DBT_OK);
+    const uint32_t rates[]={8000,48000,96000,192000},capacities[]={256,256,512,1024};
+    const uint32_t payloads[]={13312,17408,23552,39936};
+    for(unsigned i=0;i<4;++i)for(unsigned width=2;width<=4;++width)for(unsigned channels=1;channels<=2;++channels){
+        CHECK(probe_output_stream_format(true,rates[i],(uint8_t)channels,(dbt_pcm_format_t)width)==DBT_OK);
+        probe_output_stats_t stats;probe_output_stats(&stats);
+        CHECK(stats.pcm_input_mode==2 && stats.input_capacity_frames==capacities[i]);
+        CHECK(stats.input_ring_bytes==capacities[i]*width*channels && stats.requested_bytes==payloads[i]-capacities[i]*8u+capacities[i]*width*channels);
+        CHECK(probe_output_stream_format(false,0,0,0)==DBT_OK && !live);
+        probe_output_stats(&stats);CHECK(!stats.input_capacity_frames && !stats.input_ring_bytes);
+    }
+    CHECK(probe_output_stream_format(true,192000,2,DBT_PCM_S32_LE)==DBT_OK);
+    uint8_t raw[960*8],expected[960*8];
+    for(unsigned i=0;i<sizeof raw;++i)raw[i]=(uint8_t)(i*37u+11u);
+    memcpy(expected,raw,sizeof raw);
+    for(unsigned i=0;i<3;++i)CHECK(probe_output_try_pcm_format(raw+256u*8u*i,256,2,192000,DBT_PCM_S32_LE)==DBT_OK);
+    CHECK(probe_output_try_pcm_format(raw+768u*8u,192,2,192000,DBT_PCM_S32_LE)==DBT_OK);
+    CHECK(dbt_audio_input_frames(&output.audio)==960 && !memcmp(output.audio.input.bytes,expected,sizeof expected));
+    memset(raw,0x5a,sizeof raw); /* Decoder may immediately reuse its buffer. */
+    CHECK(!memcmp(output.audio.input.bytes,expected,sizeof expected));
+    uint32_t written=atomic_load(&output.audio.input.written);
+    CHECK(probe_output_try_pcm_format(raw,256,2,192000,DBT_PCM_S32_LE)==DBT_BUSY && atomic_load(&output.audio.input.written)==written);
+    unsigned wakes=decoder_wakes;(void)render_step();CHECK(decoder_wakes>wakes);
+    CHECK(probe_output_try_pcm_format(raw,256,2,192000,DBT_PCM_S32_LE)==DBT_BUSY);
+    (void)render_step();CHECK(probe_output_try_pcm_format(raw,256,2,192000,DBT_PCM_S32_LE)==DBT_OK);
+    CHECK(probe_output_stream_format(false,0,0,0)==DBT_OK && !live);return 0;
+}
+#endif

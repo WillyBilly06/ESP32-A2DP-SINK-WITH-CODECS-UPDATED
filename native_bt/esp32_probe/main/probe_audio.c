@@ -68,9 +68,13 @@
 #if DBT_PROBE_DECODER_CORE != 0 && DBT_PROBE_DECODER_CORE != 1
 #error "Decoder core must be exactly 0 or 1"
 #endif
-/* Keep low-priority reporting off the selected decoder core. In the current
- * core0 decoder/render policy, core1's controller/host preempt the logger. */
-#define AUDIO_LOGGER_CORE (1-DBT_PROBE_DECODER_CORE)
+#ifndef DBT_PROBE_LOGGER_CORE
+#define DBT_PROBE_LOGGER_CORE (1-DBT_PROBE_DECODER_CORE)
+#endif
+#if DBT_PROBE_LOGGER_CORE != 0 && DBT_PROBE_LOGGER_CORE != 1
+#error "Logger core must be 0 or 1"
+#endif
+#define AUDIO_LOGGER_CORE DBT_PROBE_LOGGER_CORE
 
 /* Test-only isolation, never an alternative product audio path. Decoder/RTP,
  * endpoints and product security are unchanged. Product IO/sounds remain;
@@ -305,6 +309,9 @@ dbt_result_t probe_audio_output_bootstrap(void){
 #endif
 }
 static dbt_result_t pcm(void *context,const void *samples,uint16_t count,const dbt_codec_config_t *config,uint32_t timestamp){
+#ifdef DBT_PROBE_PCM_COPIED
+    _Static_assert(PROBE_PCM_TRANSFER_FRAMES>=DBT_CODEC_PCM_CHUNK_FRAMES,"Compact ring must accept one codec PCM quantum");
+#endif
     (void)context;(void)timestamp;
     if(!config || !samples || !count || config->sample_bytes<2 || config->sample_bytes>4 ||
        config->channels<1 || config->channels>2 || !config->rate)return DBT_INVALID;
@@ -609,10 +616,12 @@ static void log_loop(void *unused){
                ",\"requested_bytes\":%" PRIu32 ",\"accepted_frames\":%" PRIu32 ",\"rendered_frames\":%" PRIu32 ",\"ready_frames\":%" PRIu32
                ",\"dma_eofs\":%" PRIu32 ",\"dma_source_frames\":%" PRIu32 ",\"underrun_frames\":%" PRIu32
                ",\"descriptor_errors\":%" PRIu32 ",\"max_eof_gap_us\":%" PRIu32 ",\"maximum_render_us\":%" PRIu32
-               ",\"first_underrun_accepted_frames\":%" PRIu32 ",\"first_underrun_dma_frames\":%" PRIu32 ",\"pcm_target_ms\":%" PRIu32 ",\"block_dsp\":%" PRIu32 "}\n",
+               ",\"first_underrun_accepted_frames\":%" PRIu32 ",\"first_underrun_dma_frames\":%" PRIu32 ",\"pcm_target_ms\":%" PRIu32 ",\"block_dsp\":%" PRIu32
+               ",\"pcm_input_mode\":%" PRIu32 ",\"input_capacity_frames\":%" PRIu32 ",\"input_ring_bytes\":%" PRIu32 "}\n",
                stats.running,stats.failed,stats.rate,stats.requested_bytes,stats.accepted_frames,stats.rendered_frames,stats.ready_frames,
                stats.dma_eofs,stats.dma_source_frames,stats.underrun_frames,stats.descriptor_errors,stats.max_eof_gap_us,stats.maximum_render_us,
-               stats.first_underrun_accepted_frames,stats.first_underrun_dma_frames,stats.pcm_target_ms,stats.block_dsp);
+               stats.first_underrun_accepted_frames,stats.first_underrun_dma_frames,stats.pcm_target_ms,stats.block_dsp,
+               stats.pcm_input_mode,stats.input_capacity_frames,stats.input_ring_bytes);
         snapshot_log(output_snapshot_began,"{\"probe\":\"audio_clock\",\"ppm\":%" PRId32 ",\"observed_ppm\":%" PRId32 ",\"error_frames\":%" PRId32
                ",\"state\":%" PRIu32 ",\"target_frames\":%" PRIu32 ",\"updates\":%" PRIu32 ",\"disturbances\":%" PRIu32
                ",\"observed_valid\":%" PRIu32 ",\"snapshot_valid\":%" PRIu32 "}\n",stats.clock_ppm,stats.clock_observed_ppm,stats.clock_error_frames,

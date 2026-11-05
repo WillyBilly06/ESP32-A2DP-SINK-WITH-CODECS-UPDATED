@@ -15,7 +15,7 @@ actual=compile(ast.Module(body=nodes,type_ignores=[]),'<actual PCM target checks
 def check(change,valid):
     global count
     files=('probe_main.c','probe_output.c','probe_audio.c')
-    state={'build_status':{'pcm_target_ms':16,'async_audio':True},'pcm_loans':True,'rf_diagnostic':False,
+    state={'build_status':{'pcm_target_ms':16,'async_audio':True},'pcm_loans':True,'pcm_copied':False,'rf_diagnostic':False,
            'cache':'DBT_PROBE_PCM_TARGET_MS:STRING=16\nDBT_PROBE_KEEP_OWNED_ACTIVE:BOOL=OFF\n',
            'commands':[{'file':p,'command':'cc -DDBT_PROBE_PCM_TARGET_MS=16 -c '+p} for p in files],
            'entry_name':'probe_main.c','Path':pathlib.Path,'re':re}

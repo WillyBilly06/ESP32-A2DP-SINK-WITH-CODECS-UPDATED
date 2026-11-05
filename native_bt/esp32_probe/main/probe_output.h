@@ -7,12 +7,16 @@
 #if DBT_PROBE_PCM_TARGET_MS != 16 && DBT_PROBE_PCM_TARGET_MS != 32 && DBT_PROBE_PCM_TARGET_MS != 64
 #error "PCM target must be 16, 32 or 64 ms"
 #endif
-#if DBT_PROBE_PCM_TARGET_MS != 64 && (!defined(DBT_PROBE_PCM_LOANS) || !defined(DBT_PROBE_ASYNC_AUDIO))
-#error "Short PCM target requires the finite async PCM-loan experiment"
+#if DBT_PROBE_PCM_TARGET_MS != 64 && ((!defined(DBT_PROBE_PCM_LOANS) && !defined(DBT_PROBE_PCM_COPIED)) || !defined(DBT_PROBE_ASYNC_AUDIO))
+#error "Short PCM target requires a finite async PCM input experiment"
 #endif
+#if defined(DBT_PROBE_PCM_COPIED) && (defined(DBT_PROBE_PCM_LOANS) || !defined(DBT_PROBE_ASYNC_AUDIO))
+#error "Compact copied PCM requires async output and excludes loans"
+#endif
+#define PROBE_PCM_TRANSFER_FRAMES 256u
 typedef struct {
     uint32_t running,failed,rate,requested_bytes,accepted_frames,rendered_frames,ready_frames,input_ready_frames;
-    uint32_t pcm_target_ms,block_dsp;
+    uint32_t pcm_target_ms,block_dsp,pcm_input_mode,input_capacity_frames,input_ring_bytes;
     uint32_t dma_eofs,dma_source_frames,underrun_frames,descriptor_errors,max_eof_gap_us;
     uint32_t descriptor_shape_errors,descriptor_pool_errors,descriptor_order_errors;
     uint32_t descriptor_expected_index,descriptor_observed_index,descriptor_observed_size;
@@ -44,7 +48,7 @@ dbt_result_t probe_output_stream_begin(bool,uint32_t,uint8_t,dbt_pcm_format_t,ui
 dbt_result_t probe_output_request_poll(uint32_t);
 dbt_result_t probe_output_request_cancel(uint32_t);
 #ifdef DBT_PROBE_PCM_LOANS
-#define PROBE_PCM_LOAN_FRAMES 256u
+#define PROBE_PCM_LOAN_FRAMES PROBE_PCM_TRANSFER_FRAMES
 /* PENDING lends immutable storage until an OK/CANCELLED poll. A stale id does
  * not prove retirement. Cancel is a request, not an acknowledgement. */
 dbt_result_t probe_output_pcm_begin(const void *,uint16_t,uint8_t,uint32_t,dbt_pcm_format_t,uint32_t *);
