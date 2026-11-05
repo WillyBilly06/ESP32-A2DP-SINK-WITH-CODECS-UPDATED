@@ -4,6 +4,12 @@ Updated 2026-11-04 for ESP-IDF 6.1. The goal is **active and incomplete**.
 The user has released COM6 for flashing/testing; other boards remain excluded.
 Released main/recovery artifacts remain preserved. Latest measured evidence:
 
+- [First-drop traceback](DROP_ROOT_CAUSE_2026_11_04.md): sequence 13 arrives
+  correctly but is rejected by the full eight-slot decoder queue at ESP timer
+  89.086152 s. The worker then sees 14/expected 13 and resets. The first
+  watchdog hook follows 4.995105 s later. Exact-ELF stacks locate DSP/FIR and
+  decoder work on core0; cross-core ISR frames are backtrace sampling. PCM
+  lifetime fencing and same-core placement serialize the current frame path.
 - [Finite PCM-target experiment](PCM_TARGET_EXPERIMENT_2026_11_04.md) admits
   maximum LHDC output for the first time in this lineage: COM6 runs 192 kHz
   I2S using 31744 PCM/DMA bytes at an explicit 16 ms target. Codec settings and

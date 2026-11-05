@@ -1,0 +1,368 @@
+{
+  "scope": "Trace first recorded software media rejection and decode exact archived watchdog PCs; no new device access",
+  "archive": "native_bt/_build/hardware/runs/1793851239846868100-b8b5c1ed52c8",
+  "source_commit": "ab197e37d80be8467fb64d552483a97f418bc257",
+  "image_sha256": "b8b5c1ed52c879ef61a7ee400baf6ad8c1519d8d4468a17eaf2cf98a21a57dce",
+  "elf_sha256": "0b1d52058be478a375e9b8ab104bd90e57f0b5238dd55dd191c3640adc12d8a7",
+  "current_owning_sources_match_tested_manifest": {
+    "native_bt/codecs/common/dbt_codec.c": true,
+    "native_bt/esp32_probe/main/probe_output.c": true,
+    "native_bt/esp32_probe/main/probe_audio.c": true,
+    "native_bt/src/dbt_audio.c": true,
+    "bt_audio_sink/main/dsp/fixed_dsp.c": true,
+    "esp-idf/components/esp_system/crosscore_int.c": true
+  },
+  "first_drop": {
+    "probe": "media_trace",
+    "at_us": 89086152,
+    "stage": "queue_full",
+    "ordinal": 1,
+    "sequence": 13,
+    "expected": 13,
+    "rtp_timestamp": 11520,
+    "ssrc": 255,
+    "previous_ssrc": 255,
+    "bytes": 628,
+    "queued": 8,
+    "result": 3,
+    "capture_line": 2097
+  },
+  "first_worker_gap": {
+    "probe": "media_trace",
+    "at_us": 89184884,
+    "stage": "worker_sequence",
+    "ordinal": 1,
+    "sequence": 14,
+    "expected": 13,
+    "rtp_timestamp": 12480,
+    "ssrc": 255,
+    "previous_ssrc": 255,
+    "bytes": 628,
+    "queued": 7,
+    "result": 0,
+    "capture_line": 2101
+  },
+  "first_crc_valid_nonzero_drop_counters": {
+    "probe": "media_drop_reasons",
+    "collection_cycle_us": 89428629,
+    "queue_full": 73,
+    "decode_reject": 0,
+    "reset_failed": 0,
+    "pcm_failed": 0,
+    "pcm_timeout": 0,
+    "pcm_busy": 0,
+    "input_sequence_breaks": 0,
+    "input_ssrc_changes": 0,
+    "queue_high_water": 8,
+    "host_trace_lost": 55,
+    "worker_trace_lost": 13,
+    "snapshot_records_lost": 0,
+    "snapshot_begin_us": 89669505,
+    "at_us": 89669534,
+    "snapshot_span_us": 29,
+    "record_crc32": "766df660",
+    "capture_line": 2109
+  },
+  "trace_records_have_no_crc": true,
+  "periodic_records_used_are_crc_time_valid": true,
+  "first_watchdog_hook": {
+    "probe": "vhci_timing",
+    "collection_cycle_us": 94664339,
+    "packets": 2430,
+    "acl": 1316,
+    "events": 1114,
+    "bytes": 730710,
+    "isr_callbacks": 0,
+    "rejected": 0,
+    "callback_max_us": 132,
+    "first_rx_to_poll_max_us": 16398,
+    "host_poll_max_us": 2896,
+    "ingress_high_water_bytes": 1963,
+    "ingress_rejected": 0,
+    "logger_stack_low_water_bytes": 1476,
+    "watchdog_events": 1,
+    "watchdog_hook_at_us": 94081257,
+    "watchdog_isr_core": 1,
+    "snapshot_begin_us": 94685103,
+    "at_us": 94685213,
+    "snapshot_span_us": 110,
+    "record_crc32": "436731be",
+    "capture_line": 2243
+  },
+  "drop_to_first_watchdog_hook_us": 4995105,
+  "sdk_log_timestamp_not_mixed_with_esp_timer": true,
+  "last_vhci_counters": {
+    "probe": "vhci_timing",
+    "collection_cycle_us": 297895926,
+    "packets": 51989,
+    "acl": 46016,
+    "events": 5973,
+    "bytes": 26709714,
+    "isr_callbacks": 0,
+    "rejected": 0,
+    "callback_max_us": 28394,
+    "first_rx_to_poll_max_us": 29123,
+    "host_poll_max_us": 30308,
+    "ingress_high_water_bytes": 1963,
+    "ingress_rejected": 0,
+    "logger_stack_low_water_bytes": 1476,
+    "watchdog_events": 41,
+    "watchdog_hook_at_us": 294081253,
+    "watchdog_isr_core": 1,
+    "snapshot_begin_us": 298043876,
+    "at_us": 298043985,
+    "snapshot_span_us": 109,
+    "record_crc32": "26bf1b67",
+    "capture_line": 7041
+  },
+  "stack_categories": {
+    "render DSP/FIR": 28,
+    "codec worker/decode/PCM instrumentation": 13,
+    "render scheduling/critical section": 1
+  },
+  "representative_symbolized_stacks": {
+    "render DSP/FIR": {
+      "index": 0,
+      "pcs": [
+        "0x4008A56A",
+        "0x40089730",
+        "0x40173A3E",
+        "0x40089100",
+        "0x4012D706",
+        "0x400E6C9A"
+      ],
+      "frames": [
+        {
+          "pc": "0x4008A56A",
+          "symbols": [
+            "esp_crosscore_isr",
+            "D:/bt-owned61/esp-idf/components/esp_system/crosscore_int.c:74"
+          ]
+        },
+        {
+          "pc": "0x40089730",
+          "symbols": [
+            "_xt_lowint1",
+            "D:/bt-owned61/esp-idf/components/xtensa/xtensa_vectors.S:1264"
+          ]
+        },
+        {
+          "pc": "0x40173A3E",
+          "symbols": [
+            "filter",
+            "D:/bt-owned61/bt_audio_sink/main/dsp/fixed_dsp.c:112"
+          ]
+        },
+        {
+          "pc": "0x40089100",
+          "symbols": [
+            "fixed_dsp_process",
+            "D:/bt-owned61/bt_audio_sink/main/dsp/fixed_dsp.c:280"
+          ]
+        },
+        {
+          "pc": "0x4012D706",
+          "symbols": [
+            "dbt_audio_render",
+            "D:/bt-owned61/native_bt/src/dbt_audio.c:327"
+          ]
+        },
+        {
+          "pc": "0x400E6C9A",
+          "symbols": [
+            "render_step",
+            "D:/bt-owned61/native_bt/esp32_probe/main/probe_output.c:721 (discriminator 1)",
+            "render_loop",
+            "D:/bt-owned61/native_bt/esp32_probe/main/probe_output.c:841 (discriminator 1)"
+          ]
+        }
+      ],
+      "task_list_sample": "native_render",
+      "stack_category": "render DSP/FIR"
+    },
+    "codec worker/decode/PCM instrumentation": {
+      "index": 1,
+      "pcs": [
+        "0x4008A56A",
+        "0x40089730",
+        "0x40084003",
+        "0x400FC0B9",
+        "0x400FAF1B",
+        "0x400FB0A9",
+        "0x400FB1C0",
+        "0x400F261F",
+        "0x400F3784",
+        "0x400E4640"
+      ],
+      "frames": [
+        {
+          "pc": "0x4008A56A",
+          "symbols": [
+            "esp_crosscore_isr",
+            "D:/bt-owned61/esp-idf/components/esp_system/crosscore_int.c:74"
+          ]
+        },
+        {
+          "pc": "0x40089730",
+          "symbols": [
+            "_xt_lowint1",
+            "D:/bt-owned61/esp-idf/components/xtensa/xtensa_vectors.S:1264"
+          ]
+        },
+        {
+          "pc": "0x40084003",
+          "symbols": [
+            "lhdc_dec_decode_channel",
+            "D:/bt-owned61/native_bt/_build/esp32/esp-idf/lhdcv5_decoder/port/lhdc_dec.c:1061 (discriminator 6)"
+          ]
+        },
+        {
+          "pc": "0x400FC0B9",
+          "symbols": [
+            "lhdc_dec_decode_channel_autosel",
+            "D:/bt-owned61/native_bt/_build/esp32/esp-idf/lhdcv5_decoder/port/lhdc_dec.c:1297",
+            "lhdc_dec_decode_frame",
+            "D:/bt-owned61/native_bt/_build/esp32/esp-idf/lhdcv5_decoder/port/lhdc_dec.c:1827"
+          ]
+        },
+        {
+          "pc": "0x400FAF1B",
+          "symbols": [
+            "resume",
+            "D:/bt-owned61/native_bt/codecs/lhdcv5/dbt_lhdcv5_codec.c:129 (discriminator 1)"
+          ]
+        },
+        {
+          "pc": "0x400FB0A9",
+          "symbols": [
+            "decode_payload",
+            "D:/bt-owned61/native_bt/codecs/lhdcv5/dbt_lhdcv5_codec.c:153"
+          ]
+        },
+        {
+          "pc": "0x400FB1C0",
+          "symbols": [
+            "media",
+            "D:/bt-owned61/native_bt/codecs/lhdcv5/dbt_lhdcv5_codec.c:168 (discriminator 6)"
+          ]
+        },
+        {
+          "pc": "0x400F261F",
+          "symbols": [
+            "decode",
+            "D:/bt-owned61/native_bt/codecs/common/dbt_codec.c:72 (discriminator 2)"
+          ]
+        },
+        {
+          "pc": "0x400F3784",
+          "symbols": [
+            "deferred_step",
+            "D:/bt-owned61/native_bt/codecs/common/dbt_codec.c:398",
+            "dbt_codec_worker_step",
+            "D:/bt-owned61/native_bt/codecs/common/dbt_codec.c:444"
+          ]
+        },
+        {
+          "pc": "0x400E4640",
+          "symbols": [
+            "decode_loop",
+            "D:/bt-owned61/native_bt/esp32_probe/main/probe_audio.c:431 (discriminator 1)"
+          ]
+        }
+      ],
+      "task_list_sample": "native_render",
+      "stack_category": "codec worker/decode/PCM instrumentation"
+    },
+    "render scheduling/critical section": {
+      "index": 11,
+      "pcs": [
+        "0x4008A56A",
+        "0x40089730",
+        "0x4000BFED",
+        "0x400991EB",
+        "0x4017961C",
+        "0x400E6A2B"
+      ],
+      "frames": [
+        {
+          "pc": "0x4008A56A",
+          "symbols": [
+            "esp_crosscore_isr",
+            "D:/bt-owned61/esp-idf/components/esp_system/crosscore_int.c:74"
+          ]
+        },
+        {
+          "pc": "0x40089730",
+          "symbols": [
+            "_xt_lowint1",
+            "D:/bt-owned61/esp-idf/components/xtensa/xtensa_vectors.S:1264"
+          ]
+        },
+        {
+          "pc": "0x4000BFED",
+          "symbols": [
+            "??",
+            "??:0"
+          ]
+        },
+        {
+          "pc": "0x400991EB",
+          "symbols": [
+            "vPortClearInterruptMaskFromISR",
+            "D:/bt-owned61/esp-idf/components/freertos/FreeRTOS-Kernel/portable/xtensa/include/freertos/portmacro.h:547",
+            "vPortExitCritical",
+            "D:/bt-owned61/esp-idf/components/freertos/FreeRTOS-Kernel/portable/xtensa/port.c:528"
+          ]
+        },
+        {
+          "pc": "0x4017961C",
+          "symbols": [
+            "ulTaskGenericNotifyTake",
+            "D:/bt-owned61/esp-idf/components/freertos/FreeRTOS-Kernel/tasks.c:5768"
+          ]
+        },
+        {
+          "pc": "0x400E6A2B",
+          "symbols": [
+            "render_loop",
+            "D:/bt-owned61/native_bt/esp32_probe/main/probe_output.c:841 (discriminator 3)"
+          ]
+        }
+      ],
+      "task_list_sample": "native_decoder",
+      "stack_category": "render scheduling/critical section"
+    }
+  },
+  "first_interrupted_pc_symbols": {
+    "filter": 12,
+    "lhdc_dec_decode_channel": 2,
+    "pcm": 2,
+    "fixed_dsp_process": 3,
+    "dbt_resampler_filter": 9,
+    "fac_model_update": 1,
+    "??": 2,
+    "fac_decode": 2,
+    "esp_timer_impl_get_counter_reg": 1,
+    "lhdc_dec_decode_frame": 2,
+    "dbt_audio_render": 1,
+    "saturated": 1,
+    "input_frame": 1,
+    "lhdc_fft480": 1,
+    "analysis": 1,
+    "dbt_lhdc_read_fac_bytes": 1
+  },
+  "task_list_name_and_backtrace_not_atomic": true,
+  "watchdog_samples_are_not_cpu_utilization": true,
+  "first_underrun_event_timestamp_available": false,
+  "exact_order_of_first_pcm_underrun_and_first_queue_drop_proven": false,
+  "finding": "First recorded loss is decoder input queue rejection after correct host ingress; queued packet gap triggers decoder reset. Render/decoder throughput and serialized PCM loan ownership back up the queue. Later watchdog sampling/printing may amplify stalls but is not the first rejection.",
+  "known_cpu0_placement": {
+    "renderer_priority": 6,
+    "decoder_priority": 5,
+    "both_core": 0,
+    "controller_host_core": 1
+  },
+  "fix_complete": false,
+  "queue_full_expected_field_is_independent_order_check": false,
+  "upstream_order_evidence": "Separate CRC-valid input_sequence_breaks counter, not the queue_full expected member"
+}
