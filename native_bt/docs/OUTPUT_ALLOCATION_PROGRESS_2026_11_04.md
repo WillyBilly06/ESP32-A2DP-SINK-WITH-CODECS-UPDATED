@@ -37,4 +37,47 @@ ccache-enabled full product build and source/image/layout admission pass.
 Compared with the exact preceding full-product ELF, linked DRAM data increases
 by 48 bytes (23861 to 23909); BSS 33264 and IRAM text 122891 are unchanged.
 This diagnostic has a measured memory cost, not a claimed saving. Exact
-hardware evidence is pending.
+hardware evidence is recorded below.
+
+## COM6 maximum-rate admission
+
+[The source-bound result](OUTPUT_ALLOCATION_PROGRESS_RESULTS_2026_11_04.json)
+uses the full codec/product/security/RFCOMM build. Android freshly confirms
+LHDC V5, 192 kHz, 24-bit stereo and the 1000 kbps target; measured bitrate is
+not reported. Playback remains paused during preference application, then the
+existing media session is started. No preceding 48 kHz DMA stream is included
+in these allocation measurements.
+
+The request needs 102400 bytes of processed PCM. Twenty of 25 output pages
+succeed (81920 bytes), leaving 20480 bytes when a 4096-byte page fails. At that
+point 8-bit internal heap has 10744 free bytes and largest block 3328; internal
+32-bit-capable heap has 17168 free bytes and largest block 6144. These are
+overlapping capability views, not two additive pools. The current path still
+allocates 8-bit pages.
+
+Channel creation follows successful audio allocation, so its three 128-frame
+stereo/S32 DMA buffers (3072 bytes) have not yet been allocated. Remaining PCM
+plus DMA payload therefore exceeds the measured 8-bit free count by at least
+12808 bytes. Even hypothetical word-only eligibility leaves a 6384-byte
+payload deficit. Both lower bounds exclude future allocation and driver
+overhead. Fragmentation also exists, but changing only allocation capabilities
+cannot satisfy this measured total-capacity requirement.
+
+Free 8-bit heap is 92744 both before the attempt and after partial cleanup.
+Stable repeated failure records agree on timestamp, requested/allocated bytes
+and page count. This failed attempt reclaims its payload; it is not a repeated-
+lifecycle leak qualification. No PCM or DMA processing starts. Zero watchdog
+warnings in this idle/failed-start trial do not fix the previously measured
+streaming starvation.
+
+The 180-second capture has 1892 CRC/time-valid periodic records and one rejected
+truncated record. Released 1.0.4 firmware returns with System ready and no fatal
+marker; phone playback is verified paused. This remains a maximum-output
+admission failure, not a feature-parity or playback pass.
+
+The main memory target is now the 102400-byte processed-PCM queue. A replacement
+must preserve full sample precision, bounded ownership, jitter handling and
+all product functions. Merely adding more small pages or selecting word-only
+memory cannot close the measured capacity gap. Any latency/buffering experiment
+must remain explicit until end-to-end timing and stress behavior are verified;
+the current default 64 ms target remains unchanged at this checkpoint.

@@ -62,6 +62,12 @@ still fails maximum-rate output allocation (4096 requested, 6656 free,
 largest block 1984). LHDC48 uses DMA but still underruns and triggers core0
 watchdog warnings. Full-rate playback/headroom and feature parity remain open.
 
+The later [allocation-progress test](docs/OUTPUT_ALLOCATION_PROGRESS_2026_11_04.md)
+shows a real capacity deficit: 20 of 25 PCM pages allocate, leaving 20480 bytes
+before DMA, against 10744 free 8-bit bytes. Word-only eligibility alone is also
+insufficient. The processed-PCM queue needs a broader memory change; reducing
+fragmentation alone cannot qualify the maximum-rate path.
+
 The [resumable PCM worker checkpoint](docs/IDF61_ASYNC_PCM_2026_11_04.md) adds
 80 real-codec host comparisons with sanitizer coverage and 38 passing ESP32
 deferred-worker checks. The render provider, stream/sound transactions and full

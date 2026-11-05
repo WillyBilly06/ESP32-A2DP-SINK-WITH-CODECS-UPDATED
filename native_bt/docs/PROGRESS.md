@@ -4,6 +4,12 @@ Updated 2026-11-04 for ESP-IDF 6.1. The goal is **active and incomplete**.
 The user has released COM6 for flashing/testing; other boards remain excluded.
 Released main/recovery artifacts remain preserved. Latest measured evidence:
 
+- [Allocation progress](OUTPUT_ALLOCATION_PROGRESS_2026_11_04.md) now identifies
+  a total-capacity shortfall: maximum LHDC allocates 20/25 PCM pages, leaving
+  20480 bytes with 10744 bytes of 8-bit heap free; 3072 bytes of DMA payload is
+  still unallocated. Even the overlapping 32-bit heap view is insufficient.
+  Partial cleanup restores the pre-attempt free count. This is a failed start,
+  with no PCM/DMA processing, and cannot qualify streaming scheduler health.
 - [LHDC PCM buffer reuse](LHDC_PCM_REUSE_2026_11_04.md): emitting into retired
   single-slot transform storage removes a further 7680 bytes at 192 kHz.
   Three sets of 80 real-codec host cases pass with matching full PCM hashes,

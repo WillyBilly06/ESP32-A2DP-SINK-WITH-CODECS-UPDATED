@@ -1,0 +1,107 @@
+{
+  "scope": "COM6 full product, maximum LHDC startup while preceding playback paused; allocation-capacity measurement, not streaming qualification",
+  "archive": "native_bt/_build/hardware/runs/1793849840177042400-dbd754ba94c9",
+  "source_commit": "0af4591c53d4ef8a774dfca2d353f684f4f39f17",
+  "image_sha256": "dbd754ba94c9415e9204415f3a0149f32b94497e110bf9a265ffd262abbf6663",
+  "elf_sha256": "e795cd2279c4e587124d7f8d5073913e2e5856eacf327bfd3bea0d91eebc7077",
+  "source_manifest_sha256": "50d323da1d1bae7f8721eafeb0297448193dfce2ff76ddcf4ffc1b722848457c",
+  "failure": {
+    "probe": "i2s_allocation_failure",
+    "failed_bytes": 4096,
+    "free_bytes_at_failure": 10744,
+    "largest_block_at_failure": 3328,
+    "requested_rate": 192000,
+    "requested_channels": 2,
+    "requested_sample_bytes": 4,
+    "failure_at_us": 127161852,
+    "audio_bytes_requested": 102400,
+    "audio_bytes_allocated": 81920,
+    "output_pages_allocated": 20,
+    "free_before_audio": 92744,
+    "free_after_audio_cleanup": 92744,
+    "free_32bit_at_failure": 17168,
+    "largest_32bit_at_failure": 6144,
+    "snapshot_begin_us": 178235832,
+    "at_us": 178257685,
+    "snapshot_span_us": 21853,
+    "record_crc32": "9ab57df3"
+  },
+  "matching_stable_failure_snapshots": 35,
+  "remaining_pcm_payload_bytes": 20480,
+  "dma_payload_not_yet_allocated": 3072,
+  "lower_bound_extra_8bit_bytes_at_failure": 12808,
+  "lower_bound_extra_32bit_bytes_if_eligible_at_failure": 6384,
+  "lower_bounds_exclude_future_allocator_and_driver_overheads": true,
+  "heap_reclaimed_to_pre_attempt_free_count": true,
+  "overlapping_capability_pools_not_added": true,
+  "phone_requested": {
+    "codec": "LHDC V5",
+    "rate": 192000,
+    "sample_depth": 24,
+    "channels": 2,
+    "nominal_target_kbps": 1000,
+    "android_bitrate_measured": false,
+    "fresh_query_confirmed": true,
+    "ui_archive": "phone-max.xml"
+  },
+  "native_i2s_snapshot_last": {
+    "probe": "native_i2s",
+    "running": 0,
+    "failed": 0,
+    "rate": 0,
+    "requested_bytes": 0,
+    "accepted_frames": 0,
+    "rendered_frames": 0,
+    "ready_frames": 0,
+    "dma_eofs": 0,
+    "dma_source_frames": 0,
+    "underrun_frames": 0,
+    "descriptor_errors": 0,
+    "max_eof_gap_us": 0,
+    "maximum_render_us": 0,
+    "first_underrun_accepted_frames": 0,
+    "first_underrun_dma_frames": 0,
+    "snapshot_begin_us": 178235832,
+    "at_us": 178390655,
+    "snapshot_span_us": 154823,
+    "record_crc32": "355c5230"
+  },
+  "decoder_output_never_started": true,
+  "runtime_health": {
+    "task_watchdog_triggers": 0,
+    "idle_starvation_warnings_by_core": {
+      "0": 0,
+      "1": 0
+    },
+    "watchdog_running_task_samples_by_core": {
+      "0": {},
+      "1": {}
+    },
+    "interrupt_watchdog_timeouts": 0,
+    "backtrace_records": 0,
+    "runtime_health_passed": true
+  },
+  "integrity_audit": {
+    "scope": "offline record integrity only; no runtime/audio qualification",
+    "passed": false,
+    "snapshot_records": 1892,
+    "crc32_verified": 1892,
+    "legacy_timestamp_only": 0,
+    "other_records_unchecked": 69,
+    "all_snapshot_records_checksummed": false,
+    "rejected": [
+      {
+        "line": 4069,
+        "reason": "malformed/interleaved JSON"
+      }
+    ]
+  },
+  "original_application_preserved": true,
+  "finite_rf_return": {
+    "baseline_boot_observed": true,
+    "baseline_fatal_marker": false,
+    "prime_capture_bytes": 0
+  },
+  "phone_pause_verified": true,
+  "production_qualified": false
+}
