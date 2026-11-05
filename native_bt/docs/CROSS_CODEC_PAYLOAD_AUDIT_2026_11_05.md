@@ -36,3 +36,5 @@ The 108 bundled LHDC packet headers are corrected from zero placeholders to the 
 Existing capture counters show queue saturation and PCM backpressure with zero size-overflow rejects. A watchdog record in retained replay data must not be attributed to the current live image. The retained live capture did not supply a fresh panic backtrace for the user's latest crash report. Maximum-rate sustained throughput remains unresolved; these corrections do not prove sufficient DSP/resampler headroom.
 
 The flasher now verifies the entire preserved original app using the SDK stub's whole-region MD5 before and after programming, avoiding two multi-megabyte UART copies. Bootloader/table checks and every newly written region's full byte readback remain. This is a deployment speed correction, not Bluetooth functional qualification.
+
+The first deployment attempt stopped on a UART readback digest mismatch before any write. The Windows flasher now requests a 1 MiB PC receive buffer, larger than the SDK stub's 64 x 4096-byte in-flight read window. Full-region/write readback checks remain enabled. This changes PC buffering, not the ESP32 decoder queue.

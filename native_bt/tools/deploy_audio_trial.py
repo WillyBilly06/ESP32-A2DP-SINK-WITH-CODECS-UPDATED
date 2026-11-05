@@ -240,7 +240,14 @@ def main():
         mac=':'.join(f'{v:02X}' for v in controller.read_mac())
         if controller.CHIP_NAME!='ESP32' or mac!=receipt['mac']:raise RuntimeError('Chip/MAC identity mismatch')
         if controller.get_secure_boot_enabled() or controller.get_flash_encryption_enabled():raise RuntimeError('Unexpected protection state')
-        controller=controller.run_stub();controller.change_baud(args.verify_baud)
+        controller=controller.run_stub()
+        if sys.platform=='win32':
+            # The SDK stub can have 64 x 4096-byte read frames in flight.
+            # Request host buffers larger than that window; this is PC RAM,
+            # independent of firmware UART speed and ESP32 audio buffers.
+            controller._port.set_buffer_size(rx_size=1048576,tx_size=65536)
+            report['serial_host_buffers']={'receive_requested':1048576,'transmit_requested':65536}
+        controller.change_baud(args.verify_baud)
         if f'{controller.flash_id():06x}'!=receipt['flash_id']:raise RuntimeError('Flash chip changed')
         if controller.read_flash(0,0x9000)!=original[:0x9000]:raise RuntimeError('Bootloader/partition table differs from the preserved original')
         # The SDK stub hashes the entire protected app region locally. This
