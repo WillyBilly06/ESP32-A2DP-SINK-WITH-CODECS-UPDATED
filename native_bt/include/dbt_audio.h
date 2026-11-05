@@ -54,6 +54,8 @@ typedef struct {
     fixed_dsp_t dsp;
     dbt_resampler_t resampler;
     _Atomic uint32_t controls_generation,controls_gains,controls_options,controls_lock;
+    /* Each counter has one writer per open stream; open/reset require
+     * quiescence. Diagnostic/clock readers never update another owner's counter. */
     _Atomic uint32_t submitted_frames,rendered_frames,taken_frames,zero_frames;
     uint32_t applied_generation,fraction;
     int32_t step_adjust,filtered_error_q8,integral_ppm;
@@ -91,7 +93,8 @@ bool dbt_audio_input_release(dbt_audio_t *);
 /* Explicit abort only: retire the view and discard unrendered input. */
 uint32_t dbt_audio_input_cancel(dbt_audio_t *);
 void dbt_audio_close(dbt_audio_t *audio);
-/* Producer only; whole block or BUSY, with no partial publication. */
+/* Producer only; whole block or BUSY, with no partial publication. Input is
+ * an immutable external view and must not overlap the owned input ring. */
 dbt_result_t dbt_audio_submit(dbt_audio_t *audio,const void *pcm,uint32_t frames);
 /* Settings/control writers publish a complete snapshot. BUSY never spins.
  * On ESP these writers run in task context using an internal-RAM audio object

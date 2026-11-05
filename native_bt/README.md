@@ -22,13 +22,15 @@ now drain excess data without payload allocation and retain required signaling
 MTU replies. [Fixed ATT/SMP length policy](docs/FIXED_PROTOCOL_LENGTH_2026_11_05.md)
 now uses explicit owner errors and deferred teardown without fabricated short PDUs.
 Wire qualification remains incomplete.
+[PCM span copies](docs/AUDIO_SPAN_COPY_2026_11_05.md) now replace nested byte/frame
+copy loops and single-writer counter retries while preserving publication order.
 Sustained performance remains unqualified.
 
 ## Current development checkpoint — 2026-11-05
 
 The owned Classic+BLE host is selected on the local COM6 board in ota1 at
 0x390000, marked VALID, with automatic Bluedroid restoration disabled. The
-verified image is `1e60552044fa930a9a0c0915f2173098727d6dd61d4ed36df65c3ac50a39d596`.
+verified image is `7291d06f31c4bd27a29772f0329617a51d2c24d33911e80cf59eff0ec7b4ba36`.
 This remains development firmware with incomplete feature/runtime qualification.
 
 Recent source corrections cover [codec payload boundaries and shared PCM

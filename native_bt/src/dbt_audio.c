@@ -1,4 +1,5 @@
 #include "dbt_audio.h"
+#include <string.h>
 #if defined(DBT_AUDIO_BLOCK_DSP) && !defined(FIXED_DSP_BLOCK_API)
 #error "Block rendering requires the exact bounded DSP block API"
 #endif
@@ -53,6 +54,13 @@ static AUDIO_CONTROL void controls_exit(dbt_audio_t *a,uint32_t mask){
     CONTROL_MASK_EXIT(mask);
 }
 
+/* Each counter below has one writer while open. Reset/open require all
+ * owners quiescent; readers are atomic but never modify these counters.
+ * Keep publication atomic without a read/modify/write CAS retry loop. */
+static inline void owned_add(_Atomic uint32_t *counter,uint32_t value){
+    uint32_t previous=atomic_load_explicit(counter,memory_order_relaxed);
+    atomic_store_explicit(counter,previous+value,memory_order_relaxed);
+}
 static bool power2(uint32_t n){return n>=2 && !(n&(n-1u));}
 static void zero(void *object,unsigned n){uint8_t *p=object;for(unsigned i=0;i<n;++i)p[i]=0;}
 static void ring_init(dbt_audio_ring_t *ring,uint8_t *bytes,uint32_t frames,uint32_t stride){
@@ -140,7 +148,7 @@ dbt_result_t dbt_audio_input_borrow(dbt_audio_t *a,const void *pcm,uint32_t fram
     if(remaining>1u || (remaining && !a->input_carry_valid))return DBT_BUSY;
     a->input_view=pcm;a->input_view_begin=written;
     atomic_store_explicit(&a->input.written,written+frames,memory_order_release);
-    atomic_fetch_add_explicit(&a->submitted_frames,frames,memory_order_relaxed);return DBT_OK;
+    owned_add(&a->submitted_frames,frames);return DBT_OK;
 }
 static inline const uint8_t *input_frame(const dbt_audio_t *a,uint32_t index){
     if(!a->borrowed_input)return a->input.bytes+(index&a->input.mask)*a->input.stride;
@@ -172,15 +180,19 @@ dbt_result_t dbt_audio_submit(dbt_audio_t *a,const void *pcm,uint32_t frames){
     uint32_t written=atomic_load_explicit(&a->input.written,memory_order_relaxed);
     uint32_t read=atomic_load_explicit(&a->input.read,memory_order_acquire);
     if(frames>a->input.frames-(written-read)){
-        atomic_fetch_add_explicit(&a->producer_backpressure,1,memory_order_relaxed);return DBT_BUSY;
+        owned_add(&a->producer_backpressure,1);return DBT_BUSY;
     }
-    const uint8_t *source=pcm;
-    for(uint32_t i=0;i<frames;++i){
-        uint8_t *to=a->input.bytes+((written+i)&a->input.mask)*a->input.stride;
-        for(unsigned j=0;j<a->input.stride;++j)to[j]=source[i*a->input.stride+j];
+    if(frames){
+        /* A whole submission spans at most one power-of-two ring wrap. The
+         * immutable decoder view is separate from this owned ring. */
+        const uint8_t *source=pcm;uint32_t slot=written&a->input.mask;
+        uint32_t first=a->input.frames-slot;if(first>frames)first=frames;
+        uint32_t bytes=first*a->input.stride;
+        memcpy(a->input.bytes+slot*a->input.stride,source,bytes);
+        if(first<frames)memcpy(a->input.bytes,source+bytes,(frames-first)*a->input.stride);
     }
     atomic_store_explicit(&a->input.written,written+frames,memory_order_release);
-    atomic_fetch_add_explicit(&a->submitted_frames,frames,memory_order_relaxed);return DBT_OK;
+    owned_add(&a->submitted_frames,frames);return DBT_OK;
 }
 dbt_result_t AUDIO_CONTROL dbt_audio_controls(dbt_audio_t *a,int8_t bass,int8_t mid,int8_t treble,uint8_t volume,uint8_t flags){
     if(!a || bass < -12 || bass>12 || mid < -12 || mid>12 || treble < -12 || treble>12 || volume>127 || (flags&~15u))return DBT_INVALID;
@@ -262,15 +274,21 @@ static inline __attribute__((always_inline)) int32_t *output_frame(const dbt_aud
 static inline __attribute__((always_inline)) uint32_t output_advance(const dbt_audio_t *a,uint32_t slot,uint32_t count){
     slot+=count;return slot>=a->output.frames?slot-a->output.frames:slot;
 }
+/* Bound a contiguous page/ring span before copying. No shared cursor or
+ * counter is advanced until the complete original block is ready. */
+static inline __attribute__((always_inline)) uint32_t output_span(const dbt_audio_t *a,uint32_t slot,uint32_t count){
+    uint32_t span=DBT_AUDIO_OUTPUT_PAGE_FRAMES-(slot&(DBT_AUDIO_OUTPUT_PAGE_FRAMES-1u));
+    uint32_t ring_left=a->output.frames-slot;if(span>ring_left)span=ring_left;
+    return span<count?span:count;
+}
 static void apply_mix(dbt_audio_t *a,uint32_t out,uint32_t count){
     if(!a->mix || !count)return;
     /* At most 65 spans for the maximum legal ring, including one wrap. Normal
-     * render units are <=128 frames and therefore cross at most one boundary. */
+     * <=128-frame units need at most three spans when a partial final page
+     * places a distinct page edge immediately before the ring wrap. */
     while(count){
         uint32_t slot=out;
-        uint32_t first=DBT_AUDIO_OUTPUT_PAGE_FRAMES-(slot&(DBT_AUDIO_OUTPUT_PAGE_FRAMES-1u));
-        uint32_t ring_left=a->output.frames-slot;if(first>ring_left)first=ring_left;
-        if(first>count)first=count;
+        uint32_t first=output_span(a,slot,count);
         a->mix(a->mix_context,output_frame(a,out),first);out=output_advance(a,out,first);count-=first;
     }
 }
@@ -289,9 +307,11 @@ static uint32_t render_dsp_block(dbt_audio_t *a,int32_t *pcm,unsigned frames,uin
 #ifdef DBT_AUDIO_STAGE_PROFILE
     uint32_t at=esp_cpu_get_cycle_count();*dsp_cycles+=at-began;
 #endif
-    for(unsigned i=0;i<frames;++i){
-        int32_t *destination=output_frame(a,slot);
-        destination[0]=pcm[2u*i];destination[1]=pcm[2u*i+1u];slot=output_advance(a,slot,1);
+    unsigned copied=0;
+    while(copied<frames){
+        uint32_t span=output_span(a,slot,frames-copied);
+        memcpy(output_frame(a,slot),pcm+2u*copied,span*8u);
+        slot=output_advance(a,slot,span);copied+=span;
     }
 #ifdef DBT_AUDIO_STAGE_PROFILE
     *tail_cycles+=esp_cpu_get_cycle_count()-at;
@@ -397,7 +417,7 @@ uint32_t dbt_audio_render(dbt_audio_t *a,uint32_t budget){
     if(a->borrowed_input && a->input_carry_valid && in!=a->input_carry_index)a->input_carry_valid=false;
     atomic_store_explicit(&a->input.read,in,memory_order_release);
     atomic_store_explicit(&a->output.written,out+produced,memory_order_release);
-    atomic_fetch_add_explicit(&a->rendered_frames,produced,memory_order_relaxed);return produced;
+    owned_add(&a->rendered_frames,produced);return produced;
 }
 uint32_t dbt_audio_render_silence(dbt_audio_t *a,uint32_t budget){
     if(!a || !a->opened || !a->mix)return 0;
@@ -409,7 +429,7 @@ uint32_t dbt_audio_render_silence(dbt_audio_t *a,uint32_t budget){
     apply_mix(a,a->output_write_slot,count);
     a->output_write_slot=slot;
     atomic_store_explicit(&a->output.written,out+count,memory_order_release);
-    atomic_fetch_add_explicit(&a->rendered_frames,count,memory_order_relaxed);return count;
+    owned_add(&a->rendered_frames,count);return count;
 }
 void dbt_audio_begin_drain(dbt_audio_t *a){
     if(!a || !a->opened || a->draining_input)return;
@@ -547,9 +567,14 @@ uint32_t AUDIO_ISR dbt_audio_take(dbt_audio_t *a,int32_t *destination,uint32_t f
     uint32_t count=atomic_load_explicit(&a->output.written,memory_order_acquire)-read;
     if(count>frames)count=frames;
     uint32_t slot=a->output_read_slot;
-    for(uint32_t i=0;i<count;++i){const int32_t *source=output_frame(a,slot);destination[2*i]=source[0];destination[2*i+1u]=source[1];slot=output_advance(a,slot,1);}
+    uint32_t copied=0;
+    while(copied<count){
+        uint32_t span=output_span(a,slot,count-copied);
+        memcpy(destination+2u*copied,output_frame(a,slot),span*8u);
+        slot=output_advance(a,slot,span);copied+=span;
+    }
     a->output_read_slot=slot;
-    for(uint32_t i=count;i<frames;++i){destination[2*i]=0;destination[2*i+1u]=0;}
+    if(count<frames)memset(destination+2u*count,0,(frames-count)*8u);
     atomic_store_explicit(&a->output.read,read+count,memory_order_release);
     atomic_store_explicit(&a->taken_frames,atomic_load_explicit(&a->taken_frames,memory_order_relaxed)+count,memory_order_relaxed);
     atomic_store_explicit(&a->zero_frames,atomic_load_explicit(&a->zero_frames,memory_order_relaxed)+frames-count,memory_order_relaxed);return count;

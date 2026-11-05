@@ -1051,7 +1051,7 @@
       "sha256": "303490c46911cddd2e4367c848daad7ddd5d84eab4b46bd58a98634187ad6aa2",
       "lines": 1193,
       "reference_files": [],
-      "status": "pending",
+      "status": "partial_review",
       "mapping": "product/support code; no direct protocol counterpart assigned"
     },
     {
@@ -1382,16 +1382,17 @@
     },
     {
       "owned": "native_bt/include/dbt_audio.h",
-      "sha256": "cd95e6b05dfbbfcc48194f5c8ac72ef91391b6ba3a85778622cdec4a84c966dc",
-      "lines": 146,
+      "sha256": "e7029ae2af6dfa182b9c815d98f6e58160b17c03b84135df558bf025393feadd",
+      "lines": 149,
       "reference_files": [
         "src/classic/avdtp.c",
         "example/a2dp_sink_demo.c",
         "src/btstack_resample.c",
         "src/btstack_sample_rate_compensation.c"
       ],
-      "status": "pending",
-      "mapping": "counterpart_candidates"
+      "status": "reviewed_contract",
+      "mapping": "counterpart_candidates",
+      "review_scope": "Complete ownership, configuration and lifetime contract read against implementation."
     },
     {
       "owned": "native_bt/include/dbt_avctp_bearer.h",
@@ -2168,16 +2169,17 @@
     },
     {
       "owned": "native_bt/src/dbt_audio.c",
-      "sha256": "6ed8a6996fdd03d0bc1e2afecad392953af64de4a0128bae5a8064cd054c4724",
-      "lines": 578,
+      "sha256": "ec4d2b7091a53d1409e20564daa7afad68ca142f4f7699eff1eba172388f0d11",
+      "lines": 603,
       "reference_files": [
         "src/classic/avdtp.c",
         "example/a2dp_sink_demo.c",
         "src/btstack_resample.c",
         "src/btstack_sample_rate_compensation.c"
       ],
-      "status": "pending",
-      "mapping": "counterpart_candidates"
+      "status": "reviewed_with_findings",
+      "mapping": "counterpart_candidates",
+      "review_scope": "Complete owned body and single-owner publication/copy/clock/fade boundaries read against reference resampling/rate-estimation and baseline render sections; lifecycle/concurrency/runtime qualification remains open."
     },
     {
       "owned": "native_bt/src/dbt_avctp_bearer.c",
@@ -3208,6 +3210,24 @@
       "fix": "Explicit four-byte-prefix/declared-size hook; preallocated ATT error response under existing request ownership; SMP exact-size preflight and per-link owned failure reply following asynchronous prior-loan/crypto/storage cleanup. Per-peer disconnect intents are drained outside callbacks.",
       "resource_change": "Whole-image BSS +8 bytes; existing SMP slots remain 128 bytes total; text +1692 and aggregate data +16 bytes. No payload buffer, task, queue, MTU, codec or affinity change.",
       "limits": "No wire/peer qualification or measured speed/underrun improvement. Full layer source comparison remains incomplete."
+    },
+    {
+      "id": "AUDIO-015",
+      "state": "source_and_compiler_checked_runtime_unqualified",
+      "owned": [
+        "native_bt/src/dbt_audio.c",
+        "native_bt/include/dbt_audio.h",
+        "native_bt/esp32_probe/main/probe_output.c:659-860"
+      ],
+      "reference": [
+        "src/btstack_resample.c:44-114",
+        "src/btstack_sample_rate_compensation.c:45-114",
+        "released 0d85a975 bt_audio_sink/main/audio/audio_pipeline.h:245-328"
+      ],
+      "issue": "Actual PCM submit object retained nested byte loops and unnecessary CAS retries for single-writer counters; page/ring copy work was repeated per output frame. Baseline render omitted the continuous FIR now selected.",
+      "fix": "Bounded ring/page-span copies with unchanged full-block publication; single-writer relaxed atomic load/store counter increments. Preserve complete FIR/DSP arithmetic and sample format.",
+      "resource_change": "No BSS/data/task/queue change; text +100 bytes, including +24 instruction-SRAM and +76 flash. Submit and DMA-take compiler function frames each +16 bytes excluding callees; render frame unchanged. ISR copy calls use verified ROM code and IRAM literals.",
+      "limits": "No measured speed gain, wrap/concurrency/ISR stress or sustained playback qualification; FIR workload remains unresolved."
     }
   ],
   "sections_reviewed": [
@@ -3385,6 +3405,23 @@
       ],
       "outcome": "Exact length check before pairing preparation; owned deferred protocol errors preserve loans and asynchronous cleanup. Only sections/lifetimes reviewed; no complete ATT/SMP/product-body review claimed.",
       "full_layer_complete": false
+    },
+    {
+      "layer": "Audio SPSC rings, block publication and clock control",
+      "owned": [
+        "native_bt/src/dbt_audio.c",
+        "native_bt/include/dbt_audio.h",
+        "native_bt/src/dbt_resampler.c",
+        "native_bt/esp32_probe/main/probe_output.c:659-860"
+      ],
+      "reference": [
+        "src/btstack_resample.c:44-114",
+        "src/btstack_sample_rate_compensation.c:45-114",
+        "baseline audio_pipeline.h:245-328",
+        "IDF i2s_common.h:281-297 and i2s_common.c:1707-1777"
+      ],
+      "outcome": "Complete owned audio body read. Removed byte-copy loops and unnecessary single-writer CAS retries; verified ROM/IRAM call placement. Identified continuous FIR as workload absent from baseline; documented stopped-only/blocking SDK tuning contract rather than changing clocks live.",
+      "full_layer_complete": false
     }
   ],
   "integration_gaps": [
@@ -3431,11 +3468,11 @@
   ],
   "coverage": {
     "owned_files": 277,
-    "reviewed_owned_c_bodies": 20,
-    "partial_files": 13,
-    "pending_files": 222,
+    "reviewed_owned_c_bodies": 21,
+    "partial_files": 14,
+    "pending_files": 219,
     "compiled_owned_units_missing": 0,
-    "reviewed_headers": 13,
+    "reviewed_headers": 14,
     "reviewed_build_files": 5,
     "reviewed_generators": 3,
     "reviewed_static_data": 1
@@ -3542,14 +3579,23 @@
         "ATT request ownership and SMP prior-loan/failed-slot retirement precede replacement errors; per-peer teardown on unavailable obligations. Malformed short SMP is checked before expensive pairing preparation.",
         "Wire, malformed-fragment, deadline, backpressure and lifecycle/security qualification remain pending under test hold. Existing ERTM receive.mps+6 guard remains."
       ]
+    },
+    {
+      "id": "AUDIO-SPAN-COPY",
+      "status": "implemented_compiler_checked_runtime_qualification_pending",
+      "notes": [
+        "Input whole-block copy uses at most two spans; page/ring output copies progress to explicit edges and preserve full-block publication.",
+        "Single-writer counter sites verified across all owned implementation files; no relaxed non-atomic cross-owner accesses introduced.",
+        "FIR/DSP workload remains; no performance or underrun gain is claimed without timing evidence."
+      ]
     }
   ],
   "next_review": [
-    "Continue full ATT/SMP/security source coverage and remaining L2CAP lifecycle states; new invalid-length behavior is not wire-qualified.",
-    "Continue all remaining BTstack/backend/generator rows and product outgoing reconnect/A2DP integration.",
-    "Profile remaining FIR/DSP render pressure and LHDC192k/24-bit/1M headroom only within authorized evidence scope."
+    "Inspect linked FIR/DSP instructions and exact coefficient-generation alternatives; full high-rate render headroom remains unqualified.",
+    "Continue remaining protocol/backend/product file comparisons and outgoing reconnect/A2DP integration.",
+    "Span wrap/counter-wrap/concurrency/ISR and full audio/BLE lifecycle qualification remain held."
   ],
-  "latest_build_image": "1e60552044fa930a9a0c0915f2173098727d6dd61d4ed36df65c3ac50a39d596",
+  "latest_build_image": "7291d06f31c4bd27a29772f0329617a51d2c24d33911e80cf59eff0ec7b4ba36",
   "verification_source_contracts": [
     {
       "file": "native_bt/tools/test_ldac_target_component.py",
