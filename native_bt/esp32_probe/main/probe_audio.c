@@ -78,6 +78,12 @@
 #error "Logger core must be 0 or 1"
 #endif
 #define AUDIO_LOGGER_CORE DBT_PROBE_LOGGER_CORE
+#ifndef DBT_PROBE_DECODER_PRIORITY
+#define DBT_PROBE_DECODER_PRIORITY 5
+#endif
+#if DBT_PROBE_DECODER_PRIORITY != 5 && DBT_PROBE_DECODER_PRIORITY != 6
+#error "Decoder priority must be exactly 5 or 6"
+#endif
 
 /* Test-only isolation, never an alternative product audio path. Decoder/RTP,
  * endpoints and product security are unchanged. Product IO/sounds remain;
@@ -699,7 +705,7 @@ dbt_result_t probe_audio_init(dbt_runtime_t *runtime,TaskHandle_t host_owner){
     dbt_avdtp_sink_hooks_t client={&worker,allocate,release,dbt_codec_worker_submit,sink_event,dbt_codec_worker_media};
     result=dbt_a2dp_acceptor_init(&profile,runtime,client,endpoints,(uint8_t)(sizeof(endpoints)/sizeof(endpoints[0])),PROBE_A2DP_RX_MTU,64,5000,2000,5000);
     if(result!=DBT_OK)return result;
-    if(xTaskCreatePinnedToCore(decode_loop,"native_decoder",8192,0,5,&decoder_task,DBT_PROBE_DECODER_CORE)!=pdPASS)return DBT_NO_SPACE;
+    if(xTaskCreatePinnedToCore(decode_loop,"native_decoder",8192,0,DBT_PROBE_DECODER_PRIORITY,&decoder_task,DBT_PROBE_DECODER_CORE)!=pdPASS)return DBT_NO_SPACE;
 #ifdef DBT_PROBE_AUDIO_OUTPUT
     result=probe_audio_output_bootstrap();
     if(result!=DBT_OK){vTaskDelete(decoder_task);decoder_task=0;return result;}
@@ -711,7 +717,7 @@ dbt_result_t probe_audio_init(dbt_runtime_t *runtime,TaskHandle_t host_owner){
         sampled==ESP_OK?"true":"false",(unsigned)sampled,(unsigned)configTICK_RATE_HZ);
 #endif
     initialized=true;
-    printf("{\"probe\":\"scheduler_layout\",\"decoder_core\":%u,\"decoder_priority\":5,\"renderer_core\":0,\"renderer_priority\":6,\"logger_core\":%u,\"logger_priority\":1}\n",(unsigned)DBT_PROBE_DECODER_CORE,(unsigned)AUDIO_LOGGER_CORE);
+    printf("{\"probe\":\"scheduler_layout\",\"decoder_core\":%u,\"decoder_priority\":%u,\"renderer_core\":0,\"renderer_priority\":6,\"logger_core\":%u,\"logger_priority\":1}\n",(unsigned)DBT_PROBE_DECODER_CORE,(unsigned)DBT_PROBE_DECODER_PRIORITY,(unsigned)AUDIO_LOGGER_CORE);
     printf("{\"probe\":\"sbc_probe_ready\",\"psm\":25,\"mtu\":%u,\"worker_bytes\":%u,\"profile_bytes\":%u,\"decoder_stack\":8192,"
            "\"logger_stack\":4096,\"codecs\":" AUDIO_CODECS_JSON ",\"diagnostic_only\":true,\"audio_sink_sdp_advertised\":" AUDIO_SDP_JSON ",\"i2s_output\":" AUDIO_OUTPUT_JSON ",\"rf_protocol_diagnostic\":" AUDIO_RF_DIAG_JSON "}\n",
            (unsigned)PROBE_A2DP_RX_MTU,(unsigned)sizeof(worker),(unsigned)sizeof(profile));

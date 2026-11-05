@@ -2,7 +2,7 @@
 No ESP32, Bluetooth radio, connections or network are used."""
 import argparse,ctypes,os,pathlib,shutil,subprocess,sys
 from audit_audio_capture import audit_capture
-parser=argparse.ArgumentParser();parser.add_argument('--eight-mod-16',action='store_true',help='exercise an alternate 8-byte-aligned allocator base');parser.add_argument('--async-output',action='store_true');parser.add_argument('--pcm-loans',action='store_true');parser.add_argument('--decoder-core',type=int,choices=(0,1),default=1);args=parser.parse_args()
+parser=argparse.ArgumentParser();parser.add_argument('--eight-mod-16',action='store_true',help='exercise an alternate 8-byte-aligned allocator base');parser.add_argument('--async-output',action='store_true');parser.add_argument('--pcm-loans',action='store_true');parser.add_argument('--decoder-core',type=int,choices=(0,1),default=1);parser.add_argument('--decoder-priority',type=int,choices=(5,6),default=5);args=parser.parse_args()
 if args.pcm_loans and not args.async_output:raise SystemExit('--pcm-loans requires --async-output')
 root=pathlib.Path(__file__).resolve().parents[1];ws=root.parent;out=root/'_build/avrcp';out.mkdir(parents=True,exist_ok=True)
 opus=ws/'esp-idf/components/bt/host/bluedroid/external/opus';sbc=ws/'esp-idf/components/bt/host/bluedroid/external/sbc/decoder'
@@ -74,7 +74,7 @@ try:
         if args.async_output:variant+='-async'
         if args.pcm_loans:variant+='-pcm-loans'
         artifact=out/('probe-audio-'+variant+('.dll' if os.name=='nt' else '.so'))
-        define=['-DDBT_PROBE_AVRCP=1',f'-DDBT_PROBE_DECODER_CORE={args.decoder_core}']+(['-DDBT_PROBE_AUDIO_OUTPUT=1'] if output else [])+(['-DDBT_PROBE_OPUS_BUILD=1'] if opus_enabled else [])+(['-DDBT_PROBE_AAC_BUILD=1','-DDBT_PROBE_APTX_BUILD=1'] if extra_codecs else [])
+        define=['-DDBT_PROBE_AVRCP=1',f'-DDBT_PROBE_DECODER_CORE={args.decoder_core}',f'-DDBT_PROBE_DECODER_PRIORITY={args.decoder_priority}']+(['-DDBT_PROBE_AUDIO_OUTPUT=1'] if output else [])+(['-DDBT_PROBE_OPUS_BUILD=1'] if opus_enabled else [])+(['-DDBT_PROBE_AAC_BUILD=1','-DDBT_PROBE_APTX_BUILD=1'] if extra_codecs else [])
         if args.async_output:define+=['-DDBT_PROBE_ASYNC_AUDIO=1']
         if args.pcm_loans:define+=['-DDBT_PROBE_PCM_LOANS=1']
         if args.eight_mod_16:define+=['-DTEST_EIGHT_MOD16=1']
