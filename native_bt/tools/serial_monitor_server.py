@@ -1,10 +1,11 @@
 """Loopback serial dashboard: bounded RAM history, no UART writes, explicit port lease."""
-import argparse,collections,http.server,json,os,re,secrets,threading,time,uuid
+import argparse,collections,hmac,http.server,json,os,re,secrets,threading,time,uuid
 from pathlib import Path
 from urllib.parse import urlsplit,parse_qs
 import serial
 from serial.tools import list_ports
 from audit_audio_capture import audit_capture
+from serial_phone_gateway import remote_asset
 ROOT=Path(__file__).resolve().parents[1]
 ASSETS=Path(__file__).with_name('serial_dashboard')
 HARDWARE=ROOT/'_build/hardware'
@@ -14,6 +15,13 @@ class Monitor:
         self.args=args;self.stop=threading.Event();self.wake=threading.Event();self.lock=threading.RLock();self.control=('', 'release' if args.released else 'resume');self.seen='';self.clock_text='Clock waiting';self.i2s_text='I2S waiting'
         self.state=Path(args.state).resolve();self.state.relative_to((ROOT/'_build').resolve());self.state.parent.mkdir(parents=True,exist_ok=True);self.command=self.state.with_suffix('.command.json')
         self.logs=collections.deque(maxlen=10000);self.latest={};self.token=secrets.token_urlsafe(32);self.source_epoch=0;self.capture_override='';self.clear_epoch=0;self.capture_generation=0
+        self.phone_hostname=getattr(args,'phone_hostname','');self.phone_token=''
+        if self.phone_hostname:
+            if not re.fullmatch(r'[a-z0-9-]+\.[a-z0-9-]+\.ts\.net',self.phone_hostname):raise ValueError('Exact private Tailscale hostname required')
+            phone_path=self.state.with_name('phone-access.json');previous=json.loads(phone_path.read_text()) if phone_path.exists() else {}
+            self.phone_token=previous.get('token') or secrets.token_urlsafe(32)
+            if not re.fullmatch(r'[A-Za-z0-9_-]{43}',self.phone_token):raise ValueError('Invalid private URL token')
+            phone_path.write_text(json.dumps({'pid':os.getpid(),'token':self.phone_token,'hostname':self.phone_hostname,'url':'http://'+self.phone_hostname+'/'+self.phone_token+'/','read_only':True},indent=2)+'\n',encoding='utf-8')
         self.metrics={'audio':'Waiting for firmware counters','heap':'Waiting for a heap snapshot','counters':'Waiting'}
         self.data={'running':True,'pid':os.getpid(),'port':args.port,'baud':args.baud,'connected':False,'identity_verified':False,'received_lines':0,'received_bytes':0,'reader_mode':'starting','requested_mode':'listening','command_id':'','applied_command_id':'','note_command_id':'','firmware':'unknown','uart_writes':0,'deliberate_resets':0,'last_line_unix':0,'updated_unix':0,'revision':0,'status':'Checking USB identity'}
     def log(self,text,level='info',fields=None,integrity='Unverified',stage='System'):
@@ -145,13 +153,21 @@ class Monitor:
                 try:self.wfile.write(body)
                 except (BrokenPipeError,ConnectionResetError):pass
             def do_GET(self):
-                if self.headers.get('Host') not in (f'127.0.0.1:{self.server.server_port}',f'localhost:{self.server.server_port}'):
-                    self.reply(403,b'Rejected host','text/plain');return
+                host=self.headers.get('Host');remote=False
                 parts=urlsplit(self.path);path=parts.path
+                if host not in (f'127.0.0.1:{self.server.server_port}',f'localhost:{self.server.server_port}'):
+                    if not monitor.phone_hostname or host not in (monitor.phone_hostname,monitor.phone_hostname+':80'):
+                        self.reply(403,b'Rejected host','text/plain');return
+                    segment,separator,suffix=path.lstrip('/').partition('/')
+                    if not separator or not hmac.compare_digest(segment,monitor.phone_token):
+                        self.reply(404,b'Private log link required','text/plain');return
+                    remote=True;path='/'+suffix
                 if path in ('/','/dashboard.js','/dashboard.css'):
                     name={'/':'index.html','/dashboard.js':'dashboard.js','/dashboard.css':'dashboard.css'}[path]
                     kind={'index.html':'text/html; charset=utf-8','dashboard.js':'text/javascript','dashboard.css':'text/css'}[name]
-                    self.reply(200,(ASSETS/name).read_bytes().replace(b'__CONTROL_TOKEN__',monitor.token.encode()),kind)
+                    body=(ASSETS/name).read_bytes().replace(b'__CONTROL_TOKEN__',monitor.token.encode())
+                    if remote:body=remote_asset(path,body,'/'+monitor.phone_token)
+                    self.reply(200,body,kind)
                 elif path=='/state':self.reply(200,json.dumps(monitor.snapshot(False)).encode(),'application/json')
                 elif path=='/captures':self.reply(200,json.dumps(monitor.captures()).encode(),'application/json')
                 elif path=='/events':
@@ -168,7 +184,7 @@ class Monitor:
                 else:self.reply(404,b'Not found','text/plain')
             def do_POST(self):
                 origin=self.headers.get('Origin');expected=f'http://127.0.0.1:{self.server.server_port}'
-                if urlsplit(self.path).path!='/command' or (origin and origin!=expected) or self.headers.get('Content-Type')!='application/json' or self.headers.get('X-Monitor-Token')!=monitor.token:self.reply(403,b'Rejected','text/plain');return
+                if self.headers.get('Host') not in (f'127.0.0.1:{self.server.server_port}',f'localhost:{self.server.server_port}') or urlsplit(self.path).path!='/command' or (origin and origin!=expected) or self.headers.get('Content-Type')!='application/json' or self.headers.get('X-Monitor-Token')!=monitor.token:self.reply(403,b'Rejected','text/plain');return
                 try:
                     n=int(self.headers.get('Content-Length','0'));assert 0<n<=4096;value=json.loads(self.rfile.read(n));action=value['action'];assert action in ('release','resume','replay','clear')
                     cid=uuid.uuid4().hex;monitor.request(cid,action,str(value.get('path','')));self.reply(200,json.dumps({'id':cid}).encode(),'application/json')
@@ -197,7 +213,7 @@ class Monitor:
             with self.lock:self.data.update(running=False,connected=False)
             self.state.write_text(json.dumps(self.snapshot(False),indent=2)+'\n')
 def main():
-    p=argparse.ArgumentParser();p.add_argument('--port',required=True);p.add_argument('--usb-serial',required=True);p.add_argument('--baud',type=int,default=115200);p.add_argument('--state',required=True);p.add_argument('--http-port',type=int,default=8765);p.add_argument('--released',action='store_true');p.add_argument('--restore-buffer',type=Path);args=p.parse_args()
+    p=argparse.ArgumentParser();p.add_argument('--port',required=True);p.add_argument('--usb-serial',required=True);p.add_argument('--baud',type=int,default=115200);p.add_argument('--state',required=True);p.add_argument('--http-port',type=int,default=8765);p.add_argument('--released',action='store_true');p.add_argument('--restore-buffer',type=Path);p.add_argument('--phone-hostname',default='');args=p.parse_args()
     if args.port.upper()!='COM6' or args.usb_serial!='CA0ACAD67933EF1180C36117A04C7D1C':p.error('Only the released COM6 speaker is admitted')
     args.port='COM6';monitor=Monitor(args)
     if args.restore_buffer:

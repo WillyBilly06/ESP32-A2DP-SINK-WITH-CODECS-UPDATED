@@ -1,5 +1,20 @@
 # BDK diagnostics viewer
 
+The default browser view is now a continuous raw UART console. It retains line
+order and shows firmware JSON as ordinary UART text, with search, pause,
+follow-tail and plain-text download. Structured stage views are optional.
+The display and export cover the bounded retained history, not an unlimited
+record of every byte since power-on. Current direct UART and recorded captures
+remain explicitly labelled; connecting the reader does not reset a quiet board.
+
+An optional private phone path is implemented and locally tested, with the
+local command token removed and remote commands rejected. It is **not active**
+in the running service: automatic approval review rejected both changing the
+Tailscale proxy and restarting the viewer, reporting only `blocked by policy`.
+The existing portable Tailscale daemon and read-only IPN watcher were restarted
+successfully using the saved identity. Do not confuse an online Tailscale node
+with a verified usable phone-viewer link.
+
 Run `native_bt/tools/start_serial_dashboard.ps1` to reuse or start the background
 service. It prints the local URL (normally `http://127.0.0.1:8765/`). Opening or
 closing its browser tab does not open or close the serial port. A reopened tab

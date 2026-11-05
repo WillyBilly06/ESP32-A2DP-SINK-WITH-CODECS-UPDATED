@@ -274,6 +274,17 @@ class Trial:
             while time.monotonic() < end and not self.fault.wait(.1):
                 pass
             self.pause()
+            # Watchdog text can arrive before the next complete I2S snapshot.
+            # Keep the independent reader alive for a bounded diagnostic drain;
+            # otherwise an immediate stop can incorrectly report no workload.
+            if self.fault.is_set():
+                settle_end = time.monotonic() + 4
+                while time.monotonic() < settle_end:
+                    with self.lock:
+                        settled = self.latest.get('native_i2s', {}).get('failed', 0)
+                    if settled:
+                        break
+                    time.sleep(.1)
             with self.lock:
                 snapshots = {k: v for k, v in self.latest.items() if k in (
                     'native_i2s', 'media_input', 'codec_configuration', 'media_drop_reasons',
