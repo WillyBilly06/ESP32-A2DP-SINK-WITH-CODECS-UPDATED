@@ -93,11 +93,13 @@ EX int probe_output_formats(void){
     CHECK(probe_output_stream_format(true,192000,2,DBT_PCM_S32_LE)==DBT_NO_SPACE && !live && !output.active);
     probe_output_stats_t stats;probe_output_stats(&stats);
     CHECK(stats.allocation_failed_bytes==4096 && stats.allocation_failure_rate==192000);
+    CHECK(stats.allocation_failure_audio_requested==167936 && stats.allocation_failure_audio_allocated==69632 && stats.allocation_failure_pages==1);
     CHECK(stats.allocation_failure_channels==2 && stats.allocation_failure_sample_bytes==4 && stats.allocation_failure_at_us==424242);
     fail_at_allocation=0;
     CHECK(probe_output_stream(true,48000,2)==DBT_OK);
     probe_output_stats(&stats);
     CHECK(!stats.allocation_failed_bytes && !stats.allocation_failure_rate && !stats.allocation_failure_channels && !stats.allocation_failure_sample_bytes && !stats.allocation_failure_at_us);
+    CHECK(!stats.allocation_failure_audio_requested && !stats.allocation_failure_audio_allocated && !stats.allocation_failure_pages);
     CHECK(probe_output_stream(false,0,0)==DBT_OK && !live);test_clock_us=0;
     return 0;
 }

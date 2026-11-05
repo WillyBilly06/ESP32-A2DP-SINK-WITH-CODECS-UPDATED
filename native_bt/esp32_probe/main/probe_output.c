@@ -107,8 +107,12 @@ typedef struct {
   _Atomic uint32_t render_total_us,render_calls;
   _Atomic uint32_t allocation_failed_bytes,allocation_failure_free,allocation_failure_largest;
   _Atomic uint32_t allocation_failure_rate,allocation_failure_channels,allocation_failure_sample_bytes,allocation_failure_at_us;
+  _Atomic uint32_t allocation_failure_audio_requested,allocation_failure_audio_allocated,allocation_failure_pages;
+  _Atomic uint32_t allocation_failure_free_before,allocation_failure_free_after_cleanup;
+  _Atomic uint32_t allocation_failure_free_32bit,allocation_failure_largest_32bit;
   /* Render-owner startup context, read only by its allocator callback. */
   uint32_t allocation_request_rate,allocation_request_channels,allocation_request_sample_bytes;
+  uint32_t allocation_audio_requested,allocation_input_requested,allocation_success_bytes,allocation_success_calls;
   _Atomic uint32_t first_underrun_accepted_frames, first_underrun_dma_frames;
 } output_t;
 static DRAM_ATTR output_t output;
@@ -126,11 +130,21 @@ static uint8_t *allocate(void *context, uint32_t bytes) {
     atomic_store(&output.allocation_failure_rate,output.allocation_request_rate);
     atomic_store(&output.allocation_failure_channels,output.allocation_request_channels);
     atomic_store(&output.allocation_failure_sample_bytes,output.allocation_request_sample_bytes);
+    atomic_store(&output.allocation_failure_audio_requested,output.allocation_audio_requested);
+    atomic_store(&output.allocation_failure_audio_allocated,output.allocation_success_bytes);
+    atomic_store(&output.allocation_failure_pages,output.allocation_success_calls-
+      (output.allocation_input_requested && output.allocation_success_calls?1u:0u));
     atomic_store(&output.allocation_failure_at_us,(uint32_t)esp_timer_get_time());
 #ifdef ESP_PLATFORM
     atomic_store(&output.allocation_failure_free,heap_caps_get_free_size(MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT));
     atomic_store(&output.allocation_failure_largest,heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT));
+    /* These capability sets overlap; never add 8-bit and 32-bit totals.
+     * Audio pages still require 8-bit memory. This only measures the pool. */
+    atomic_store(&output.allocation_failure_free_32bit,heap_caps_get_free_size(MALLOC_CAP_INTERNAL|MALLOC_CAP_32BIT));
+    atomic_store(&output.allocation_failure_largest_32bit,heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL|MALLOC_CAP_32BIT));
 #endif
+  }else{
+    output.allocation_success_bytes+=bytes;++output.allocation_success_calls;
   }
   return p;
 }
@@ -412,6 +426,12 @@ static dbt_result_t start_output(uint32_t rate, uint8_t channels,
   atomic_store(&output.allocation_failure_largest,0);
   atomic_store(&output.allocation_failure_rate,0);atomic_store(&output.allocation_failure_channels,0);
   atomic_store(&output.allocation_failure_sample_bytes,0);atomic_store(&output.allocation_failure_at_us,0);
+  atomic_store(&output.allocation_failure_audio_requested,0);atomic_store(&output.allocation_failure_audio_allocated,0);atomic_store(&output.allocation_failure_pages,0);
+  atomic_store(&output.allocation_failure_free_after_cleanup,0);atomic_store(&output.allocation_failure_free_32bit,0);atomic_store(&output.allocation_failure_largest_32bit,0);
+#ifdef ESP_PLATFORM
+  atomic_store(&output.allocation_failure_free_before,heap_caps_get_free_size(MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT));
+#endif
+  output.allocation_success_bytes=output.allocation_success_calls=0;
   output.allocation_request_rate=rate;output.allocation_request_channels=channels;output.allocation_request_sample_bytes=(uint32_t)format;
   uint32_t target = (rate * 64u + 999u) / 1000u;
   uint32_t input_frames=power2((rate * 32u + 999u) / 1000u),avoided=0;
@@ -429,14 +449,21 @@ static dbt_result_t start_output(uint32_t rate, uint8_t channels,
       format,
       channels,
       true};
+  output.allocation_input_requested=avoided?0:input_frames*(uint32_t)format*channels;
+  output.allocation_audio_requested=output.allocation_input_requested+config.output_frames*8u;
   dbt_result_t result =
 #ifdef DBT_PROBE_PCM_LOANS
       dbt_audio_open_borrowed(&output.audio,config);
 #else
       dbt_audio_open(&output.audio, config);
 #endif
-  if (result != DBT_OK)
+  if (result != DBT_OK){
+#ifdef ESP_PLATFORM
+    if(atomic_load(&output.allocation_failed_bytes))
+      atomic_store(&output.allocation_failure_free_after_cleanup,heap_caps_get_free_size(MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT));
+#endif
     return result;
+  }
   if (create_channel(rate, true) != ESP_OK &&
       create_channel(rate, false) != ESP_OK) {
     close_output();
@@ -1046,6 +1073,9 @@ void probe_output_stats(probe_output_stats_t *s) {
   LOAD(allocation_failure_free);
   LOAD(allocation_failure_largest);
   LOAD(allocation_failure_rate);LOAD(allocation_failure_channels);LOAD(allocation_failure_sample_bytes);LOAD(allocation_failure_at_us);
+  LOAD(allocation_failure_audio_requested);LOAD(allocation_failure_audio_allocated);LOAD(allocation_failure_pages);
+  LOAD(allocation_failure_free_before);LOAD(allocation_failure_free_after_cleanup);
+  LOAD(allocation_failure_free_32bit);LOAD(allocation_failure_largest_32bit);
   LOAD(stop_fill_frames);
   LOAD(first_underrun_accepted_frames);
   LOAD(first_underrun_dma_frames);

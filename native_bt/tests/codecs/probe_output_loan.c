@@ -84,6 +84,14 @@ static int formats_and_allocations(void){
     unsigned before=releases;fail_allocation=allocations+2u;
     uint32_t id=0;CHECK(probe_output_stream_begin(true,192000,2,DBT_PCM_S32_LE,&id)==DBT_PENDING);
     (void)render_step();CHECK(probe_output_request_poll(id)==DBT_NO_SPACE && !live && releases==before+1u && !output.audio.input_view);
+    probe_output_stats_t failed;probe_output_stats(&failed);
+    CHECK(failed.allocation_failed_bytes==4096 && failed.allocation_failure_audio_requested==102400);
+    CHECK(failed.allocation_failure_audio_allocated==4096 && failed.allocation_failure_pages==1);
+    fail_allocation=allocations+1u;
+    CHECK(probe_output_stream_begin(true,192000,2,DBT_PCM_S32_LE,&id)==DBT_PENDING);
+    (void)render_step();CHECK(probe_output_request_poll(id)==DBT_NO_SPACE && !live);
+    probe_output_stats(&failed);CHECK(failed.allocation_failure_audio_allocated==0 && failed.allocation_failure_pages==0);
+    CHECK(failed.allocation_failure_audio_requested==102400 && failed.allocation_failure_rate==192000);
     fail_allocation=0;return 0;
 }
 static int cancellation_and_identity(void){

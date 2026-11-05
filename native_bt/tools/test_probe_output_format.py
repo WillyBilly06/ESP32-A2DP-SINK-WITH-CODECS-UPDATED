@@ -9,9 +9,15 @@ try:
         data=subprocess.check_output(f'call "{vc}" >nul && set',shell=True,text=True)
         env.update(dict(x.split('=',1) for x in data.splitlines() if '=' in x and not x.startswith('=')))
     cc=shutil.which('clang',path=env.get('PATH')) or (r'C:\Program Files\LLVM\bin\clang.exe' if os.name=='nt' else 'cc')
+    cache=shutil.which('ccache',path=env.get('PATH'))
+    if not cache:
+        matches=sorted((pathlib.Path.home()/'.espressif/tools/ccache').glob('*/ccache-*/ccache.exe'))
+        if matches:cache=str(matches[-1])
+    if not cache:raise RuntimeError('ccache required')
+    env.pop('CCACHE_DISABLE',None)
     incs=[root/'tests/codecs/probe_audio_stubs',root/'include',root/'esp32_probe/main',ws/'bt_audio_sink/main/dsp']
     src=[root/'tests/codecs/probe_output_format.c',root/'src/dbt_audio.c',root/'src/dbt_resampler.c',ws/'bt_audio_sink/main/dsp/fixed_dsp.c']
-    cmd=[cc,'-std=c11','-O1','-g','-fwrapv','-shared','-DCONFIG_I2S_ISR_IRAM_SAFE=1','-DCONFIG_NATIVE_AUDIO_BCLK=26','-DCONFIG_NATIVE_AUDIO_LRCK=25','-DCONFIG_NATIVE_AUDIO_DATA=27']
+    cmd=[cache,cc,'-std=c11','-O1','-g','-fwrapv','-shared','-DCONFIG_I2S_ISR_IRAM_SAFE=1','-DCONFIG_NATIVE_AUDIO_BCLK=26','-DCONFIG_NATIVE_AUDIO_LRCK=25','-DCONFIG_NATIVE_AUDIO_DATA=27']
     if os.name!='nt':cmd+=['-fPIC']
     cmd+=sum((['-I',str(i)] for i in incs),[])+[str(s) for s in src]
     for hz in (100,1000):

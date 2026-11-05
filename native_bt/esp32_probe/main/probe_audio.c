@@ -582,9 +582,13 @@ static void log_loop(void *unused){
         snapshot_log(output_snapshot_began,"{\"probe\":\"i2s_allocation_failure\",\"failed_bytes\":%" PRIu32
                ",\"free_bytes_at_failure\":%" PRIu32 ",\"largest_block_at_failure\":%" PRIu32
                ",\"requested_rate\":%" PRIu32 ",\"requested_channels\":%" PRIu32 ",\"requested_sample_bytes\":%" PRIu32
-               ",\"failure_at_us\":%" PRIu32 "}\n",stats.allocation_failed_bytes,stats.allocation_failure_free,
+               ",\"failure_at_us\":%" PRIu32 ",\"audio_bytes_requested\":%" PRIu32 ",\"audio_bytes_allocated\":%" PRIu32
+               ",\"output_pages_allocated\":%" PRIu32 ",\"free_before_audio\":%" PRIu32 ",\"free_after_audio_cleanup\":%" PRIu32
+               ",\"free_32bit_at_failure\":%" PRIu32 ",\"largest_32bit_at_failure\":%" PRIu32 "}\n",stats.allocation_failed_bytes,stats.allocation_failure_free,
                stats.allocation_failure_largest,stats.allocation_failure_rate,stats.allocation_failure_channels,
-               stats.allocation_failure_sample_bytes,stats.allocation_failure_at_us);
+               stats.allocation_failure_sample_bytes,stats.allocation_failure_at_us,stats.allocation_failure_audio_requested,
+               stats.allocation_failure_audio_allocated,stats.allocation_failure_pages,stats.allocation_failure_free_before,
+               stats.allocation_failure_free_after_cleanup,stats.allocation_failure_free_32bit,stats.allocation_failure_largest_32bit);
         snapshot_log(output_snapshot_began,"{\"probe\":\"i2s_callback_work\",\"configured_irq_priority\":%" PRIu32
                ",\"calls\":%" PRIu32 ",\"elapsed_us\":%" PRIu32 ",\"maximum_us\":%" PRIu32 ",\"core\":%" PRIu32
                ",\"application_callback_only\":true,\"elapsed_includes_preemption\":true}\n",
