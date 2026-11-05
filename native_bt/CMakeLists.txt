@@ -5,6 +5,7 @@ add_library(native_bt STATIC src/dbt_boot_policy.c
 target_sources(native_bt PRIVATE src/dbt_avdtp_caps.c src/dbt_avdtp_sink.c src/dbt_a2dp_sbc.c)
 target_sources(native_bt PRIVATE src/dbt_a2dp_acceptor.c src/dbt_sbc_media.c)
 target_sources(native_bt PRIVATE src/dbt_credit.c src/dbt_page.c)
+target_sources(native_bt PRIVATE src/dbt_sdp_client.c src/dbt_sdp_client_bearer.c)
 
 target_sources(native_bt PRIVATE
     src/dbt_ertm.c

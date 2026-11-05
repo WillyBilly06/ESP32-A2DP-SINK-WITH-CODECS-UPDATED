@@ -204,6 +204,50 @@ static bool ranges_valid(const element_t *ranges) {
     }
     return true;
 }
+bool dbt_sdp_query_prefix_valid(uint8_t kind,const uint8_t *prefix,uint16_t size,uint16_t *maximum){
+    if(!prefix || !maximum || size>DBT_SDP_RECORD_BYTES || (kind!=2 && kind!=4 && kind!=6))return false;
+    uint16_t at=0;element_t item;
+    if(kind==4){if(size<4)return false;at=4;}
+    else{
+        if(!element(prefix,size,&item) || !uuid_list(&item,true))return false;
+        at=item.total;
+    }
+    if(size-at<2)return false;
+    uint16_t count=be16(prefix+at);at=(uint16_t)(at+2u);
+    if(count<(kind==2?1u:7u))return false;
+    if(kind!=2){
+        if(!element(prefix+at,(uint16_t)(size-at),&item) || !ranges_valid(&item))return false;
+        at=(uint16_t)(at+item.total);
+    }
+    if(at!=size)return false;
+    *maximum=count;return true;
+}
+static bool attribute_pairs(const element_t *list){
+    if(list->type!=6)return false;
+    uint16_t at=0,previous=0;bool first=true;
+    while(at<list->size){
+        element_t id,value;
+        if(!element(list->value+at,(uint16_t)(list->size-at),&id) || id.type!=1 || id.size!=2)return false;
+        uint16_t current=be16(id.value);if(!first && current<=previous)return false;
+        previous=current;first=false;at=(uint16_t)(at+id.total);
+        if(!element(list->value+at,(uint16_t)(list->size-at),&value))return false;
+        at=(uint16_t)(at+value.total);
+    }
+    return true;
+}
+bool dbt_sdp_attribute_lists_valid(const uint8_t *data,uint16_t size,bool multiple){
+    element_t list;
+    if(!data || size>DBT_SDP_RECORD_BYTES || !valid_tree(data,size,0) ||
+       !element(data,size,&list) || list.type!=6)return false;
+    if(!multiple)return attribute_pairs(&list);
+    uint16_t at=0;
+    while(at<list.size){
+        element_t record;
+        if(!element(list.value+at,(uint16_t)(list.size-at),&record) || !attribute_pairs(&record))return false;
+        at=(uint16_t)(at+record.total);
+    }
+    return true;
+}
 
 static bool selected(const element_t *ranges, uint16_t id) {
     uint16_t at = 0;

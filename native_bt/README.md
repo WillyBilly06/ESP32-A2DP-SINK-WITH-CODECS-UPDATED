@@ -10,7 +10,7 @@ the viewer remains open and follows the test capture while the port is free.
 
 The owned Classic+BLE host is selected on the local COM6 board in ota1 at
 0x390000, marked VALID, with automatic Bluedroid restoration disabled. The
-verified image is `dec6dd70daec3f5fbdbe0a164f6a68a297cb089a0ea5326f06300aae7613a66c`.
+verified image is `1eddf49b453410b3a873ff2d8c27478bf786124dcefeeabd357c5418dbb54883`.
 This remains development firmware with incomplete feature/runtime qualification.
 
 Recent source corrections cover [codec payload boundaries and shared PCM
@@ -31,6 +31,10 @@ new task, separate admission/completion/cancel results and bounded deadlines.
 controller fences, reserve capacity and separate incoming/outgoing outcomes.
 This adds 20 static bytes. Product peer selection, outgoing SDP and A2DP
 initiation remain pending; no automatic paging context is instantiated.
+The [SDP client and channel adapter](docs/SDP_CLIENT_2026_11_05.md) now compile
+with bounded caller storage and continuation/transport retirement handling.
+Their 108-byte/28-byte contexts have no product instance yet. Client channel
+creation/dispatch, A2DP service extraction and automatic policy remain pending.
 
 Builds use ccache. Recent checks establish compilation, source integrity,
 flash readback and ordinary startup; functional test campaigns are currently

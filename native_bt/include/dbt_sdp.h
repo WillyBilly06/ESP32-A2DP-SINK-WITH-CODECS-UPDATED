@@ -50,4 +50,11 @@ dbt_result_t dbt_sdp_respond(const dbt_sdp_t *server, uint32_t binding, const ui
                              uint16_t request_size, uint8_t *output, uint16_t capacity,
                              uint16_t *written);
 
+/* Pure bounded client-side validation, sharing the server's data-element
+ * grammar. Prefix excludes the five-byte PDU header and continuation field.
+ * Attribute data must be one complete assembled list, or a sequence of lists
+ * for SearchAttribute. These validate syntax, not service-specific semantics. */
+bool dbt_sdp_query_prefix_valid(uint8_t kind,const uint8_t *prefix,uint16_t size,uint16_t *maximum);
+bool dbt_sdp_attribute_lists_valid(const uint8_t *data,uint16_t size,bool multiple);
+
 #endif
