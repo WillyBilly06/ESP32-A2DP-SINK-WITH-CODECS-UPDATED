@@ -1,66 +1,105 @@
 """Loopback serial dashboard: bounded RAM history, no UART writes, explicit port lease."""
-import argparse,collections,http.server,json,os,re,threading,time,uuid
+import argparse,collections,http.server,json,os,re,secrets,threading,time,uuid
 from pathlib import Path
-from urllib.parse import urlsplit
+from urllib.parse import urlsplit,parse_qs
 import serial
 from serial.tools import list_ports
+from audit_audio_capture import audit_capture
 ROOT=Path(__file__).resolve().parents[1]
+ASSETS=Path(__file__).with_name('serial_dashboard')
+HARDWARE=ROOT/'_build/hardware'
 ANSI=re.compile(r'\x1b\[[0-?]*[ -/]*[@-~]')
-HTML=r'''<!doctype html><meta charset="utf-8"><title>ESP32 serial monitor</title><style>
-body{margin:0;background:#0e1726;color:#e4edf9;font:14px system-ui}main{padding:18px;max-width:1400px;margin:auto}h1{font-size:22px;margin:0 0 5px}.muted{color:#aab8cc}.bar,.cards{display:flex;gap:10px;flex-wrap:wrap;margin:15px 0}.card{background:#1c2a40;padding:12px;border-radius:8px;flex:1;min-width:190px}.card b{display:block;color:#aebfd7;font-size:12px;margin-bottom:6px}button{padding:9px 13px;background:#23446d;color:white;border:1px solid #5478a5;border-radius:6px;cursor:pointer}button:disabled{opacity:.5}#status{padding:10px;background:#203653;border-radius:6px}#log{background:#080f1b;border:1px solid #30435e;height:53vh;overflow:auto;padding:10px;font:12px Consolas,monospace;white-space:pre-wrap;overflow-wrap:anywhere}.line{padding:3px 0}.error{color:#ffb3b3}.warn{color:#ffd580}footer{font-size:12px;color:#aab8cc;margin-top:10px}label{align-self:center}</style>
-<main><h1>ESP32 serial monitor</h1><div class="muted">COM6 · 115,200 baud · read only</div><div id="status">Connecting to monitor service…</div>
-<div class="cards"><div class="card"><b>AUDIO</b><span id="audio">Waiting</span></div><div class="card"><b>HEAP</b><span id="heap">Waiting</span></div><div class="card"><b>COUNTERS</b><span id="counters">Waiting</span></div></div>
-<div class="bar"><button onclick="command('release')">Release COM6 for flash</button><button onclick="command('resume')">Resume logging</button><button onclick="paused=!paused;this.textContent=paused?'Resume display':'Pause display'">Pause display</button><label><input id="follow" type="checkbox" checked> Auto-scroll</label></div>
-<div id="log"></div><footer id="footer">200 events retained in RAM. No raw log files. Digital counters do not establish audible quality.</footer></main>
-<script>let paused=false,last=-1;async function command(action){await fetch('/command',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action})})}async function refresh(){try{const s=await(await fetch('/state',{cache:'no-store'})).json();document.querySelector('#status').textContent=s.status+' | Host: '+s.firmware;for(const k of ['audio','heap','counters'])document.getElementById(k).textContent=s.metrics[k];document.querySelector('#footer').textContent=`${s.received_lines.toLocaleString()} lines / ${s.received_bytes.toLocaleString()} bytes · UART ${s.reader_mode} · 200 events in RAM, no raw log files`;if(!paused&&last!==s.revision){last=s.revision;const box=document.querySelector('#log');box.replaceChildren(...s.logs.map(x=>{const d=document.createElement('div');d.className='line '+x.level;d.textContent=new Date(x.time*1000).toLocaleTimeString()+'  '+x.text;return d}));if(document.querySelector('#follow').checked)box.scrollTop=box.scrollHeight}}catch(e){document.querySelector('#status').textContent='Monitor service unavailable: '+e.message}setTimeout(refresh,500)}refresh()</script>'''
 class Monitor:
     def __init__(self,args):
         self.args=args;self.stop=threading.Event();self.wake=threading.Event();self.lock=threading.RLock();self.control=('', 'release' if args.released else 'resume');self.seen='';self.clock_text='Clock waiting';self.i2s_text='I2S waiting'
         self.state=Path(args.state).resolve();self.state.relative_to((ROOT/'_build').resolve());self.state.parent.mkdir(parents=True,exist_ok=True);self.command=self.state.with_suffix('.command.json')
-        self.logs=collections.deque(maxlen=200);self.metrics={'audio':'Waiting for firmware counters','heap':'Waiting for a heap snapshot','counters':'Waiting'}
+        self.logs=collections.deque(maxlen=10000);self.latest={};self.token=secrets.token_urlsafe(32);self.source_epoch=0;self.capture_override='';self.clear_epoch=0;self.capture_generation=0
+        self.metrics={'audio':'Waiting for firmware counters','heap':'Waiting for a heap snapshot','counters':'Waiting'}
         self.data={'running':True,'pid':os.getpid(),'port':args.port,'baud':args.baud,'connected':False,'identity_verified':False,'received_lines':0,'received_bytes':0,'reader_mode':'starting','requested_mode':'listening','command_id':'','applied_command_id':'','note_command_id':'','firmware':'unknown','uart_writes':0,'deliberate_resets':0,'last_line_unix':0,'updated_unix':0,'revision':0,'status':'Checking USB identity'}
-    def log(self,text,level='info'):
-        with self.lock:self.logs.append({'time':time.time(),'text':text[:1200],'level':level});self.data['revision']+=1
+    def log(self,text,level='info',fields=None,integrity='Unverified',stage='System'):
+        with self.lock:
+            self.data['revision']+=1
+            if len(self.logs)==self.logs.maxlen:self.data['history_dropped']=self.data.get('history_dropped',0)+1
+            self.logs.append({'id':self.data['revision'],'time':time.time(),'text':text[:4096],'level':level,'fields':fields,
+                'integrity':integrity,'stage':stage,'probe':str((fields or {}).get('probe','uart'))[:120],
+                'source':self.data.get('source','Waiting'),'source_id':self.source_epoch})
     def request(self,cid,action,text=''):
         with self.lock:
             if action=='note':self.log('MONITOR: '+text[:1000]);self.data['note_command_id']=cid;return
+            if action=='clear':self.logs.clear();self.clear_epoch+=1;self.data['revision']+=1;return
+            if action=='replay':
+                if text not in {x['path'] for x in self.captures()}:raise ValueError('Capture not admitted')
+                self.capture_override=text;self.capture_generation+=1;action='release'
+            elif action=='release':self.capture_override=''
             if action not in ('release','resume'):return
             self.control=(cid,action);self.data['command_id']=cid;self.data['requested_mode']='released' if action=='release' else 'listening';self.wake.set()
+    def new_source(self,label,kind):
+        with self.lock:
+            self.source_epoch+=1;self.latest.clear();self.data.update(source=label,source_kind=kind,last_line_unix=0)
+            self.data['revision']+=1
+    def captures(self):
+        paths=list((HARDWARE/'runs').glob('*/COM6-probe-trial.txt'))
+        paths+=list((HARDWARE/'runs').glob('*/COM6-pipeline-trial.txt'))
+        return [{'path':p.relative_to(HARDWARE).as_posix(),'label':p.parent.name+' · '+p.name,'modified':p.stat().st_mtime}
+            for p in sorted(paths,key=lambda p:p.stat().st_mtime,reverse=True)[:60]]
     def line(self,text):
+        text=text[:4096]
+        fields=None;integrity='Unverified';stage='System'
+        try:
+            candidate=json.loads(text)
+            if isinstance(candidate,dict):fields=candidate
+        except (ValueError,TypeError):pass
+        if text.startswith('LIVE1 '):
+            fields={k:int(v) for k,v in re.findall(r'(\w+)=(-?\d+)',text)};fields['probe']='LIVE1';fields['format']='legacy_text'
+        if 'LIVE_DEVICE host=' in text:
+            host=re.search(r'host=(\w+)',text)
+            if host:
+                with self.lock:self.data['firmware']=host[1]
+        if fields and ('record_crc32' in fields or 'snapshot_begin_us' in fields):
+            integrity='Verified' if audit_capture(text.encode('utf-8'))['passed'] else 'Invalid'
+        elif text.startswith('{') and fields is None:integrity='Malformed'
+        name=str((fields or {}).get('probe','uart'))
+        groups=[('OTA / storage',('ota','upload','recovery')),('BLE / controls',('gatt','smp','cccd','le_security','control','eq_','bond')),
+            ('I2S / DMA',('i2s_','native_i2s')),('DSP / render',('render_','audio_clock','dsp_','fir_')),
+            ('Decoder / queue',('codec_','sbc_pcm','worker_','decoder_','pcm_','media_')),
+            ('Memory / scheduler',('scheduler_','host_phase','owner_wait','owned_heap','heap')),
+            ('HCI / transport',('vhci','hci_','rx_flow','controller_','parser_failure')),
+            ('Profiles',('avrcp','sdp','rfcomm','native_profile','gap_')),
+            ('Product I/O',('product_','startup_sound','sound_','input_','led_'))]
+        for label,prefixes in groups:
+            if name.startswith(prefixes):stage=label;break
+        if name=='LIVE1':stage='Decoder / queue'
+        if 'task_wdt:' in text or 'Backtrace:' in text:stage='Memory / scheduler'
+        lower=text.lower();level='info'
+        if text.startswith('E (') or any(k in lower for k in ('watchdog got triggered','guru meditation','backtrace:','stack overflow')):level='error'
+        if fields and (fields.get('failed') or fields.get('faults') or fields.get('descriptor_errors') or name=='parser_failure'):level='error'
+        if level=='info' and (integrity in ('Invalid','Malformed') or text.startswith('W (') or (fields and any(fields.get(k,0) for k in ('queue_full','underrun_frames','decode_reject')))):level='warn'
         with self.lock:
             self.data['received_lines']+=1;self.data['last_line_unix']=time.time()
-            if text.startswith('LIVE1 '):
-                f={k:int(v) for k,v in re.findall(r'(\w+)=(-?\d+)',text)};mode='PLAYING' if f.get('started') and f.get('active') else 'IDLE'
-                self.metrics['audio']=f"{mode} · {f.get('rate',0)/1000:g} kHz · {f.get('bits',0)} bit · {f.get('ch',0)} channels"
-                self.metrics['heap']=f"Live: {f.get('heap',0)/1024:.1f} KiB free · largest {f.get('largest',0)/1024:.1f} KiB"
-                self.metrics['counters']=f"PCM callbacks {f.get('pcm_cb',0)} · under {f.get('under',0)} · drops {f.get('drops',0)} · I2S errors {f.get('i2s_err',0)}";return
-            if 'LIVE_DEVICE host=' in text:
-                value=re.search(r'host=(\w+)',text)
-                if value:self.data['firmware']=value[1]
-            if text.startswith('{'):
-                try:
-                    f=json.loads(text);name=f.get('probe','event')
-                    if name=='controller_identified':
-                        self.data['firmware']='owned development host';self.metrics['heap']=f"At controller init: {f.get('internal_free',0)/1024:.1f} KiB · largest {f.get('internal_largest',0)/1024:.1f} KiB"
-                    if name=='owned_heap':self.metrics['heap']=f"Live: {f.get('free_kib',0)} KiB free · largest {f.get('largest_kib',0)} KiB";return
-                    if name=='sbc_pcm':
-                        self.data['firmware']='owned development host'
-                        codec={0:'Waiting for codec',1:'SBC',2:'Opus Android',3:'Opus05',4:'AAC-LC',5:'aptX',6:'aptX HD',7:'aptX LL',8:'LDAC',9:'LHDC V5'}.get(f.get('codec',0),'Unknown codec')
-                        self.metrics['audio']=f"{codec} · {f.get('rate',0)/1000:g} kHz · {f.get('sample_bytes',0)*8} bit · {f.get('channels',0)} channels · frames {f.get('frames',0)}"
-                        if 'internal_heap_free' in f:self.metrics['heap']=f"Live: {f['internal_heap_free']/1024:.1f} KiB free · largest {f['internal_heap_largest']/1024:.1f} KiB · decoder stack low {f.get('decoder_stack_low_water_bytes','?')} bytes"
-                        self.metrics['counters']=f"Media drops {f.get('drops','?')} · decoder faults {f.get('faults','?')}"
-                        return
-                    if name=='native_i2s':
-                        self.i2s_text=f"I2S {f.get('running','?')} · underrun frames {f.get('underrun_frames','?')} · descriptor errors {f.get('descriptor_errors','?')}"
-                        self.metrics['counters']=self.i2s_text+' | '+self.clock_text;return
-                    if name=='audio_clock':
-                        phase={0:'off',1:'calibrating',2:'tracking',3:'recovering'}.get(f.get('state'),'unknown')
-                        self.clock_text=f"Clock {phase}: correction {f.get('ppm',0):+d} ppm"
-                        if f.get('observed_valid') and f.get('snapshot_valid'):self.clock_text+=f" · estimate {f['observed_ppm']:+d} ppm"
-                        self.metrics['counters']=self.i2s_text+' | '+self.clock_text;return
-                    text=name+': '+', '.join(f'{k}={v}' for k,v in f.items() if k!='probe')
-                except (ValueError,TypeError):pass
-        level='error' if text.startswith('E (') or any(x in text.lower() for x in ('panic','guru meditation','parser_failure','stack overflow','***error***','backtrace')) else 'warn' if text.startswith('W (') else 'info';self.log(text,level)
+            if fields and integrity not in ('Invalid','Malformed') and (name in self.latest or len(self.latest)<128):self.latest[name]=fields
+        self.log(text,level,fields,integrity,stage)
+    def file_reader(self):
+        key=None;offset=0;pending=b''
+        while not self.stop.wait(.2):
+            with self.lock:released=self.control[1]=='release' and self.data['reader_mode']=='released' and not self.data['connected'];override=self.capture_override;generation=self.capture_generation
+            if not released:key=None;continue
+            path=HARDWARE/override if override else HARDWARE/'COM6-probe-trial-live.txt'
+            try:
+                stat=path.stat();current=(str(path),generation)
+                if key!=current or stat.st_size<offset:
+                    key=current;offset=max(0,stat.st_size-2*1024*1024);pending=b''
+                    self.new_source(('Recorded capture · '+path.parent.name if override else 'Trial capture · COM6 latest run'),'archive' if override else 'capture')
+                with path.open('rb') as handle:handle.seek(offset);raw=handle.read(2*1024*1024);offset+=len(raw)
+                if raw:
+                    with self.lock:self.data['received_bytes']+=len(raw)
+                    pending+=raw;lines=pending.split(b'\n');pending=lines.pop()
+                    for line in lines:
+                        with self.lock:
+                            if self.control[1]!='release' or self.capture_override!=override or self.capture_generation!=generation:break
+                            self.line(ANSI.sub('',line[:4096].decode('utf-8',errors='replace')).rstrip('\r'))
+                    if len(pending)>4096:pending=b''
+                with self.lock:self.data['source_updated_unix']=stat.st_mtime
+            except OSError:pass
     def reader(self):
         while not self.stop.is_set():
             with self.lock:cid,action=self.control
@@ -72,6 +111,7 @@ class Monitor:
                 found=next((p for p in list_ports.comports() if p.device.upper()==self.args.port.upper()),None)
                 if not found or found.vid!=0x10c4 or found.pid!=0xea60 or found.serial_number!=self.args.usb_serial:raise RuntimeError('Admitted speaker USB identity is absent; other ports remain untouched')
                 stream=serial.Serial(port=None,baudrate=self.args.baud,timeout=.15,write_timeout=0);stream.dtr=False;stream.rts=False;stream.port=self.args.port;stream.open()
+                self.new_source('Live UART · COM6','uart')
                 with self.lock:self.data.update(connected=True,identity_verified=True,reader_mode='listening',applied_command_id=cid,status='Connected to the verified speaker; listening without UART commands')
                 self.log('Serial reader connected');pending=bytearray()
                 while not self.stop.is_set():
@@ -93,28 +133,50 @@ class Monitor:
             with self.lock:released=self.control[1]=='release'
             if not released:self.wake.wait(2);self.wake.clear()
     def snapshot(self,logs=True):
-        with self.lock:return {**self.data,'metrics':dict(self.metrics),**({'logs':list(self.logs)} if logs else {})}
+        with self.lock:return {**self.data,'metrics':dict(self.metrics),'latest':dict(self.latest),'source_id':self.source_epoch,'clear_epoch':self.clear_epoch,
+            'retained':len(self.logs),'history_limit':self.logs.maxlen,'oldest_id':self.logs[0]['id'] if self.logs else self.data['revision']+1,
+            **({'logs':list(self.logs)} if logs else {})}
     def run(self):
         monitor=self
         class Handler(http.server.BaseHTTPRequestHandler):
             def log_message(self,*args):pass
             def reply(self,status,body,kind):
-                self.send_response(status);self.send_header('Content-Type',kind);self.send_header('Cache-Control','no-store');self.send_header('Content-Length',str(len(body)));self.end_headers();self.wfile.write(body)
+                self.send_response(status);self.send_header('Content-Type',kind);self.send_header('Cache-Control','no-store');self.send_header('X-Content-Type-Options','nosniff');self.send_header('Content-Length',str(len(body)));self.end_headers()
+                try:self.wfile.write(body)
+                except (BrokenPipeError,ConnectionResetError):pass
             def do_GET(self):
-                path=urlsplit(self.path).path
-                if path=='/':self.reply(200,HTML.encode(),'text/html; charset=utf-8')
-                elif path=='/state':self.reply(200,json.dumps(monitor.snapshot()).encode(),'application/json')
+                if self.headers.get('Host') not in (f'127.0.0.1:{self.server.server_port}',f'localhost:{self.server.server_port}'):
+                    self.reply(403,b'Rejected host','text/plain');return
+                parts=urlsplit(self.path);path=parts.path
+                if path in ('/','/dashboard.js','/dashboard.css'):
+                    name={'/':'index.html','/dashboard.js':'dashboard.js','/dashboard.css':'dashboard.css'}[path]
+                    kind={'index.html':'text/html; charset=utf-8','dashboard.js':'text/javascript','dashboard.css':'text/css'}[name]
+                    self.reply(200,(ASSETS/name).read_bytes().replace(b'__CONTROL_TOKEN__',monitor.token.encode()),kind)
+                elif path=='/state':self.reply(200,json.dumps(monitor.snapshot(False)).encode(),'application/json')
+                elif path=='/captures':self.reply(200,json.dumps(monitor.captures()).encode(),'application/json')
+                elif path=='/events':
+                    try:after=max(0,int(parse_qs(parts.query).get('after',['0'])[0]))
+                    except ValueError:self.reply(400,b'Invalid cursor','text/plain');return
+                    with monitor.lock:
+                        events=[x for x in monitor.logs if x['id']>after][:400]
+                        packet={'state':monitor.snapshot(False),'events':events,'cursor':events[-1]['id'] if events else monitor.data['revision']}
+                    self.reply(200,json.dumps(packet).encode(),'application/json')
+                elif path=='/export':
+                    with monitor.lock:retained=list(monitor.logs)
+                    body=b'\n'.join(json.dumps(x).encode() for x in retained)
+                    self.reply(200,body,'application/x-ndjson')
                 else:self.reply(404,b'Not found','text/plain')
             def do_POST(self):
                 origin=self.headers.get('Origin');expected=f'http://127.0.0.1:{self.server.server_port}'
-                if urlsplit(self.path).path!='/command' or (origin and origin!=expected) or self.headers.get('Content-Type')!='application/json':self.reply(403,b'Rejected','text/plain');return
+                if urlsplit(self.path).path!='/command' or (origin and origin!=expected) or self.headers.get('Content-Type')!='application/json' or self.headers.get('X-Monitor-Token')!=monitor.token:self.reply(403,b'Rejected','text/plain');return
                 try:
-                    n=int(self.headers.get('Content-Length','0'));assert 0<n<=4096;value=json.loads(self.rfile.read(n));action=value['action'];assert action in ('release','resume')
-                    cid=uuid.uuid4().hex;monitor.request(cid,action);self.reply(200,json.dumps({'id':cid}).encode(),'application/json')
+                    n=int(self.headers.get('Content-Length','0'));assert 0<n<=4096;value=json.loads(self.rfile.read(n));action=value['action'];assert action in ('release','resume','replay','clear')
+                    cid=uuid.uuid4().hex;monitor.request(cid,action,str(value.get('path','')));self.reply(200,json.dumps({'id':cid}).encode(),'application/json')
                 except (ValueError,KeyError,AssertionError):self.reply(400,b'Invalid command','text/plain')
         server=http.server.ThreadingHTTPServer(('127.0.0.1',self.args.http_port),Handler);server.daemon_threads=True
         with self.lock:self.data['url']=f'http://127.0.0.1:{server.server_port}/'
-        worker=threading.Thread(target=self.reader,daemon=False);http_thread=threading.Thread(target=server.serve_forever,daemon=True);worker.start();http_thread.start();last=0
+        worker=threading.Thread(target=self.reader,daemon=False);tail=threading.Thread(target=self.file_reader,daemon=False)
+        http_thread=threading.Thread(target=server.serve_forever,daemon=True);worker.start();tail.start();http_thread.start();last=0
         try:
             while not self.stop.wait(.1):
                 try:
@@ -126,11 +188,26 @@ class Monitor:
                 now=time.time()
                 if now-last>=.5:
                     with self.lock:self.data['updated_unix']=now
-                    temp=self.state.with_suffix('.tmp');temp.write_text(json.dumps(self.snapshot(False),indent=2)+'\n');temp.replace(self.state);last=now
+                    try:
+                        temp=self.state.with_suffix('.tmp');temp.write_text(json.dumps(self.snapshot(False),indent=2)+'\n',encoding='utf-8');temp.replace(self.state)
+                    except OSError:pass
+                    last=now
         finally:
-            self.stop.set();self.wake.set();worker.join(1);server.shutdown()
+            self.stop.set();self.wake.set();worker.join(2);tail.join(2);server.shutdown();server.server_close()
             with self.lock:self.data.update(running=False,connected=False)
             self.state.write_text(json.dumps(self.snapshot(False),indent=2)+'\n')
 def main():
-    p=argparse.ArgumentParser();p.add_argument('--port',required=True);p.add_argument('--usb-serial',required=True);p.add_argument('--baud',type=int,default=115200);p.add_argument('--state',required=True);p.add_argument('--http-port',type=int,default=0);p.add_argument('--released',action='store_true');Monitor(p.parse_args()).run()
+    p=argparse.ArgumentParser();p.add_argument('--port',required=True);p.add_argument('--usb-serial',required=True);p.add_argument('--baud',type=int,default=115200);p.add_argument('--state',required=True);p.add_argument('--http-port',type=int,default=8765);p.add_argument('--released',action='store_true');p.add_argument('--restore-buffer',type=Path);args=p.parse_args()
+    if args.port.upper()!='COM6' or args.usb_serial!='CA0ACAD67933EF1180C36117A04C7D1C':p.error('Only the released COM6 speaker is admitted')
+    args.port='COM6';monitor=Monitor(args)
+    if args.restore_buffer:
+        path=args.restore_buffer.resolve();path.relative_to((ROOT/'_build').resolve())
+        if path.stat().st_size>64*1024*1024:raise ValueError('History checkpoint exceeds 64 MiB')
+        checkpoint=json.loads(path.read_text(encoding='utf-8'));records=checkpoint['logs'][-10000:]
+        for item in records:
+            if not isinstance(item.get('id'),int) or not isinstance(item.get('source_id'),int) or not isinstance(item.get('text'),str) or len(item['text'])>4096:raise ValueError('Invalid history record')
+        monitor.logs.extend(records);monitor.source_epoch=max((x['source_id'] for x in records),default=0)
+        monitor.data['revision']=max((x['id'] for x in records),default=0)
+        for key in ('received_lines','received_bytes','history_dropped'):monitor.data[key]=int(checkpoint['state'].get(key,0))
+    monitor.run()
 if __name__=='__main__':main()

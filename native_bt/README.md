@@ -1,5 +1,11 @@
 # Independent ESP32 Bluetooth host
 
+The local [diagnostics dashboard](docs/SERIAL_DASHBOARD_2026_11_05.md) provides
+background collection, separate pipeline-stage views, raw/JSON inspection,
+capture replay and export. `tools/start_serial_dashboard.ps1` prints its URL.
+Release COM6 in the viewer or through `serial_monitor_ctl.py` before flashing;
+the viewer remains open and follows the test capture while the port is free.
+
 ## Active ESP-IDF 6.1 integration
 
 The current work is on `codex/owned-bt-idf61`, based on the released Bluedroid
