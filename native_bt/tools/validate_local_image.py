@@ -14,6 +14,18 @@ pipeline=bool(build_status.get('pipeline_diagnostic'))
 entry_name='probe_codec_diagnostic.c' if diagnostic else 'probe_main.c'
 main_command=next(entry['command'] for entry in commands if Path(entry['file']).name==entry_name)
 cache=(a.image.parent/'CMakeCache.txt').read_text()
+scheduler_trace=bool(build_status.get('scheduler_trace'))
+assert ('DBT_PROBE_SCHEDULER_TRACE:BOOL=ON' in cache)==scheduler_trace, 'Scheduler sampler receipt/cache mismatch'
+assert re.findall(r'(?:^|\s)-DDBT_PROBE_SCHEDULER_TRACE=(\S+)',main_command)==(['1'] if scheduler_trace else [])
+sampler_units=[e for e in commands if Path(e['file']).name=='probe_scheduler.c']
+assert bool(sampler_units)==scheduler_trace, 'Unexpected or missing sampler unit'
+if scheduler_trace:
+    assert not diagnostic and not pipeline and 'DBT_PROBE_KEEP_OWNED_ACTIVE:BOOL=ON' not in cache
+    assert not re.search(r'(?:^|\s)-UDBT_PROBE_SCHEDULER_TRACE(?:\s|$)',main_command)
+    for unit in ('probe_audio.c','probe_scheduler.c'):
+        command=next(e['command'] for e in commands if Path(e['file']).name==unit)
+        assert re.findall(r'(?:^|\s)-DDBT_PROBE_SCHEDULER_TRACE=(\S+)',command)==['1']
+        assert not re.search(r'(?:^|\s)-UDBT_PROBE_SCHEDULER_TRACE(?:\s|$)',command)
 dsp_inline=bool(build_status.get('dsp_inline_check'))
 assert ('DBT_PROBE_DSP_INLINE_CHECK:BOOL=ON' in cache)==dsp_inline, 'DSP inline receipt/cache mismatch'
 assert bool(re.search(r'(?:^|\s)-DDBT_PROBE_DSP_INLINE_CHECK=1(?:\s|$)',main_command))==dsp_inline
@@ -182,7 +194,7 @@ assert hashlib.sha256(original).hexdigest()==receipt['sha256']
 assert table==original[0x8000:0x8000+len(table)]
 assert image.flash_mode==2 and image.flash_size_freq==0x3f
 assert image.min_rev_full<=301<=image.max_rev_full
-report={'passed':True,'scope':'offline image checksum/digest, ESP32 revision and admitted OTA capacity; no device access or runtime qualification',
+report={'passed':True,'scheduler_trace':scheduler_trace,'scope':'offline image checksum/digest, ESP32 revision and admitted OTA capacity; no device access or runtime qualification',
  'image_sha256':hashlib.sha256(blob).hexdigest(),'image_bytes':len(blob),'project':project,'chip_id':image.chip_id,'codec_diagnostic_only':diagnostic,'pipeline_diagnostic':pipeline,
  'rf_protocol_diagnostic':rf_diagnostic,'pcm_target_ms':pcm_target_ms,'pcm_copied':pcm_copied,'logger_core':logger_core,'block_dsp':block_dsp,'experimental_short_pcm_target':pcm_target_ms!=64,'revision_range':[image.min_rev_full,image.max_rev_full],'checksum_verified':True,'digest_verified':bool(image.append_digest),
  'latest_local_build_completed':True,'build_sources_match':True,'build_source_units':source_count,'product_io':bool(build_status.get('product_io')),'product_security':product_security,'rfcomm_profile':rfcomm,'controller_only_dual_mode':True,'anti_rollback_fuse_updates':False,'partition_offset':slot['offset'],'partition_bytes':slot['size'],

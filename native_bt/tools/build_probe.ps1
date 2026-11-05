@@ -1,4 +1,4 @@
-param([switch]$PcmCopied,[ValidateSet(-1,0,1)][int]$LoggerCore=-1,[switch]$BlockDsp,[ValidateSet(16,32,64)][int]$PcmTargetMs=64,[switch]$PcmLoans,[switch]$DspInlineCheck,[ValidateSet(0,1)][int]$DecoderCore=1,[switch]$RfProtocolDiagnostic,[switch]$FirCompilerCheck,[switch]$DspStageProfile,[switch]$AudioStageProfile,[switch]$PipelineDiagnostic,[switch]$AsyncAudio,[switch]$DeferredCodecCheck,[switch]$LhdcStageProfile,[switch]$LhdcMaximumCheck,[switch]$CodecDiagnosticOnly,[switch]$WithProductIo,[switch]$WithProductSecurity,[switch]$WithRfcomm,[switch]$WithLhdc,[switch]$WithOpus,[switch]$WithAac,[switch]$WithAptx,[switch]$WithLdac,[switch]$WithSmp,[switch]$WithAvrcp,[switch]$WithSbc,[switch]$WithAudioProbe,[switch]$WithAudioOutput,[switch]$WithGatt,[switch]$WithClassicSecurity,[switch]$TraceIngress,[switch]$WithoutRxFlow,[switch]$KeepOwned=$true,[string]$TestPeer='',[string]$LhdcSourceDir='')
+param([switch]$SchedulerTrace,[switch]$PcmCopied,[ValidateSet(-1,0,1)][int]$LoggerCore=-1,[switch]$BlockDsp,[ValidateSet(16,32,64)][int]$PcmTargetMs=64,[switch]$PcmLoans,[switch]$DspInlineCheck,[ValidateSet(0,1)][int]$DecoderCore=1,[switch]$RfProtocolDiagnostic,[switch]$FirCompilerCheck,[switch]$DspStageProfile,[switch]$AudioStageProfile,[switch]$PipelineDiagnostic,[switch]$AsyncAudio,[switch]$DeferredCodecCheck,[switch]$LhdcStageProfile,[switch]$LhdcMaximumCheck,[switch]$CodecDiagnosticOnly,[switch]$WithProductIo,[switch]$WithProductSecurity,[switch]$WithRfcomm,[switch]$WithLhdc,[switch]$WithOpus,[switch]$WithAac,[switch]$WithAptx,[switch]$WithLdac,[switch]$WithSmp,[switch]$WithAvrcp,[switch]$WithSbc,[switch]$WithAudioProbe,[switch]$WithAudioOutput,[switch]$WithGatt,[switch]$WithClassicSecurity,[switch]$TraceIngress,[switch]$WithoutRxFlow,[switch]$KeepOwned=$true,[string]$TestPeer='',[string]$LhdcSourceDir='')
 $ErrorActionPreference = 'Stop'
 if ($LoggerCore -lt 0) { $LoggerCore=1-$DecoderCore }
 if ($PcmCopied -and $PcmLoans) { throw 'PCM input modes are mutually exclusive' }
@@ -26,6 +26,10 @@ if ($WithProductIo) { $WithProductSecurity=$true; $WithSmp=$true; $WithGatt=$tru
 if ($WithRfcomm) { $WithClassicSecurity=$true }
 if ($WithAudioOutput -and -not $PipelineDiagnostic) { $WithAudioProbe = $true }
 if ($AsyncAudio -and -not $WithAudioOutput) { throw 'Async audio requires -WithAudioOutput or -WithProductIo' }
+if ($SchedulerTrace) {
+    if (-not $WithAudioProbe -or $CodecDiagnosticOnly -or $PipelineDiagnostic) { throw 'Scheduler trace requires a finite live audio probe' }
+    $KeepOwned=$false
+}
 if ($PcmLoans) {
     if (-not $AsyncAudio -or -not $WithAudioOutput -or $RfProtocolDiagnostic) { throw 'PCM loans require async I2S and exclude checksum-only RF mode' }
     $KeepOwned=$false
@@ -126,6 +130,7 @@ $idfArguments += "-DDBT_PROBE_BLOCK_DSP=$(if ($BlockDsp) { 'ON' } else { 'OFF' }
 $idfArguments += "-DDBT_PROBE_RF_PROTOCOL_DIAGNOSTIC=$rfDiagnosticBuild"
 $idfArguments += "-DDBT_PROBE_DECODER_CORE=$DecoderCore"
 $idfArguments += "-DDBT_PROBE_LOGGER_CORE=$LoggerCore"
+$idfArguments += "-DDBT_PROBE_SCHEDULER_TRACE=$(if ($SchedulerTrace) { 'ON' } else { 'OFF' })"
 $idfArguments += "-DDBT_PROBE_LHDC_MAX_CHECK=$lhdcMaxBuild"
 $idfArguments += "-DDBT_PROBE_LHDC_STAGE_PROFILE=$lhdcStageBuild"
 $sourceManifestPath=Join-Path $buildRoot 'local-build-sources.json'
@@ -162,6 +167,7 @@ $buildReceipt.block_dsp=[bool]$BlockDsp
 $buildReceipt.rf_protocol_diagnostic=[bool]$RfProtocolDiagnostic
 $buildReceipt.decoder_core=$DecoderCore
 $buildReceipt.logger_core=$LoggerCore
+$buildReceipt.scheduler_trace=[bool]$SchedulerTrace
 $buildReceipt.lhdc_maximum_check=[bool]$LhdcMaximumCheck
 $buildReceipt.lhdc_stage_profile=[bool]$LhdcStageProfile
 if ($buildReceipt.passed) {

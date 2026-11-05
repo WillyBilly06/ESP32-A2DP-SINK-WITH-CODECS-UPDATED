@@ -1,5 +1,8 @@
 #include "probe_audio.h"
 #include "probe_audio_limits.h"
+#ifdef DBT_PROBE_SCHEDULER_TRACE
+#include "probe_scheduler.h"
+#endif
 #include "probe_security.h"
 #include "dbt_codec.h"
 #include "dbt_sbc_codec.h"
@@ -490,6 +493,19 @@ static void log_loop(void *unused){
         if(++ticks<10)continue;
         ticks=0;
         uint32_t at=(uint32_t)esp_timer_get_time();
+#ifdef DBT_PROBE_SCHEDULER_TRACE
+        for(unsigned core=0;core<2;++core){
+            probe_scheduler_snapshot_t sample;uint32_t began=(uint32_t)esp_timer_get_time();
+            probe_scheduler_snapshot(core,&sample);
+            snapshot_log(began,"{\"probe\":\"scheduler_samples\",\"core\":%u,\"sample_hz\":%u,\"coherent\":%s,\"known_task_mask\":%" PRIu32
+                ",\"host\":%" PRIu32 ",\"decoder\":%" PRIu32 ",\"renderer\":%" PRIu32 ",\"logger\":%" PRIu32 ",\"controller\":%" PRIu32
+                ",\"idle\":%" PRIu32 ",\"other\":%" PRIu32 ",\"last_tick_us\":%" PRIu32 ",\"max_tick_gap_us\":%" PRIu32
+                ",\"max_gap_begin_us\":%" PRIu32 ",\"max_gap_end_us\":%" PRIu32 ",\"max_gap_previous_role\":%" PRIu32 ",\"max_gap_current_role\":%" PRIu32
+                ",\"max_callback_body_cycles\":%" PRIu32 "}\n",core,(unsigned)configTICK_RATE_HZ,sample.coherent?"true":"false",sample.known_task_mask,
+                sample.counts[0],sample.counts[1],sample.counts[2],sample.counts[3],sample.counts[4],sample.counts[5],sample.counts[6],
+                sample.at_us,sample.max_gap_us,sample.max_gap_begin_us,sample.max_gap_end_us,sample.max_gap_previous_role,sample.max_gap_current_role,sample.max_callback_cycles);
+        }
+#endif
         PROBE_SNAPSHOT_LOG("{\"probe\":\"l2cap_media_sizes\",\"collection_cycle_us\":%" PRIu32
                ",\"advertised_media_mtu\":%u,\"max_delivered_media_sdu_bytes\":%" PRIu32
                ",\"oversize_count_all_dynamic_channels\":%" PRIu32 ",\"last_oversize_bytes\":%" PRIu32
@@ -682,6 +698,11 @@ dbt_result_t probe_audio_init(dbt_runtime_t *runtime,TaskHandle_t host_owner){
     if(result!=DBT_OK){vTaskDelete(decoder_task);decoder_task=0;return result;}
 #endif
     if(xTaskCreatePinnedToCore(log_loop,"native_pcm_log",4096,0,1,&logger_task,AUDIO_LOGGER_CORE)!=pdPASS){vTaskDelete(decoder_task);decoder_task=0;return DBT_NO_SPACE;}
+#ifdef DBT_PROBE_SCHEDULER_TRACE
+    esp_err_t sampled=probe_scheduler_start(owner,decoder_task,logger_task);
+    printf("{\"probe\":\"scheduler_sampler\",\"active\":%s,\"result\":%u,\"sample_hz\":%u,\"task_count_added\":0,\"cpu_runtime_exact\":false}\n",
+        sampled==ESP_OK?"true":"false",(unsigned)sampled,(unsigned)configTICK_RATE_HZ);
+#endif
     initialized=true;
     printf("{\"probe\":\"scheduler_layout\",\"decoder_core\":%u,\"decoder_priority\":5,\"renderer_core\":0,\"renderer_priority\":6,\"logger_core\":%u,\"logger_priority\":1}\n",(unsigned)DBT_PROBE_DECODER_CORE,(unsigned)AUDIO_LOGGER_CORE);
     printf("{\"probe\":\"sbc_probe_ready\",\"psm\":25,\"mtu\":%u,\"worker_bytes\":%u,\"profile_bytes\":%u,\"decoder_stack\":8192,"

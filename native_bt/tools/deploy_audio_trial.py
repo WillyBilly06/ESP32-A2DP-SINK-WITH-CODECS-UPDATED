@@ -23,7 +23,7 @@ def admit_pcm_target_deployment(cache,kind,finite_rf,pipeline_only,keep_owned):
     option=re.search(r'^DBT_PROBE_PCM_TARGET_MS:STRING=(\S+)$',cache,re.M)
     target=int(option.group(1)) if option else 64
     if target not in (16,32,64):raise RuntimeError('Invalid compiled PCM target')
-    experiment=target!=64 or 'DBT_PROBE_BLOCK_DSP:BOOL=ON' in cache or 'DBT_PROBE_PCM_COPIED:BOOL=ON' in cache
+    experiment=target!=64 or 'DBT_PROBE_BLOCK_DSP:BOOL=ON' in cache or 'DBT_PROBE_PCM_COPIED:BOOL=ON' in cache or 'DBT_PROBE_SCHEDULER_TRACE:BOOL=ON' in cache
     if kind=='probe' and experiment and (keep_owned or not (finite_rf or pipeline_only)):
         raise RuntimeError('Experimental PCM output requires explicit finite RF or pipeline deployment with baseline return')
 

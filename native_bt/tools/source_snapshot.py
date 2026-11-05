@@ -7,7 +7,7 @@ def snapshot():
     paths=set()
     for folder in ('include','src','codecs','esp32_probe','tools'):
         for f in (ROOT/folder).rglob('*'):
-            if f.is_file() and '_build' not in f.parts and (f.suffix in ('.c','.cpp','.h','.inc','.py','.ps1') or f.name in ('CMakeLists.txt','sdkconfig','sdkconfig.defaults')):paths.add(f.resolve())
+            if f.is_file() and '_build' not in f.parts and (f.suffix in ('.c','.cpp','.h','.inc','.py','.ps1','.lf') or f.name in ('CMakeLists.txt','sdkconfig','sdkconfig.defaults')):paths.add(f.resolve())
     paths.add((ROOT/'CMakeLists.txt').resolve())
     # Pin public/private SDK headers and build configuration too. A source-only
     # manifest must not certify an image after a dependency header changed.

@@ -43,12 +43,21 @@ def main():
         protected.extend(found)
     roots=[s for s in symbols if ram(s['address']) and s['name'] in ('sent','i2s_dma_tx_callback')]
     assert any(s['name']=='sent' for s in roots) and any(s['name']=='i2s_dma_tx_callback' for s in roots)
+    cache=(build/'CMakeCache.txt').read_text(encoding='utf-8')
+    scheduler_trace='DBT_PROBE_SCHEDULER_TRACE:BOOL=ON' in cache
+    if scheduler_trace:
+        sampled=[s for s in symbols if s['name'].startswith('sample_tick')]
+        assert sampled and all(ram(s['address']) for s in sampled), 'Sampler callbacks must be in IRAM'
+        for name in ('xTaskGetCurrentTaskHandle','esp_timer_get_time'):
+            getter=by_name.get(name,[])
+            assert getter and all(ram(s['address']) for s in getter), 'ISR sampler dependency left in flash: '+name
+            protected.extend(getter)
+        roots.extend(sampled)
     task_symbols=[]
     for name in TASK_ONLY:
         found=by_name.get(name,[]);assert found,name
         if args.expect_task_flash:assert all(x['address']>=0x400d0000 for x in found),name
         task_symbols.extend(found)
-    cache=(build/'CMakeCache.txt').read_text(encoding='utf-8')
     archiver=re.search(r'^CMAKE_C_COMPILER_AR:FILEPATH=(.+)$',cache,re.M)
     assert archiver, 'Compiler toolchain archiver not recorded'
     compiler=Path(archiver.group(1));objdump=compiler.with_name(compiler.name.replace('gcc-ar','objdump'))
@@ -68,10 +77,10 @@ def main():
             if m:
                 target=int(m[1],16);callee=by_address.get(target);edges.append({'caller':caller['name'],'target':hex(target),'callee':callee['name'] if callee else None})
                 if not(ram(target) or rom(target)):unsafe.append(edges[-1])
-                if ram(target) and callee and (callee['name'].startswith('dbt_audio_') or callee['name'] in ('i2s_dma_tx_callback','finish_sent')):queue.append(callee)
+                if ram(target) and callee and (callee['name'].startswith(('dbt_audio_','sample_tick')) or callee['name'] in ('i2s_dma_tx_callback','finish_sent','xTaskGetCurrentTaskHandle')):queue.append(callee)
             if re.match(r'callx(?:0|4|8|12)\s',insn):indirect.append({'caller':caller['name'],'address':hex(address),'instruction':insn})
     report={'passed':not unsafe,'scope':'offline protected-symbol placement and direct-call scan of I2S/owned audio callback functions; SDK calls are terminal nodes; vendor internals, indirect calls, ROM internals, real cache stalls and timing unproven',
-        'elf_sha256':hashlib.sha256(path.read_bytes()).hexdigest(),'task_functions_in_flash':args.expect_task_flash,
+        'elf_sha256':hashlib.sha256(path.read_bytes()).hexdigest(),'task_functions_in_flash':args.expect_task_flash,'scheduler_trace':scheduler_trace,
         'protected_symbols':protected,'task_only_symbols':task_symbols,'i2s_roots':roots,'direct_functions_walked':len(seen),
         'direct_edges':edges,'unresolved_indirect_calls':indirect,'unsafe_direct_calls':unsafe,'hardware_accessed':False}
     args.output.parent.mkdir(parents=True,exist_ok=True);args.output.write_text(json.dumps(report,indent=2)+'\n',encoding='utf-8')
