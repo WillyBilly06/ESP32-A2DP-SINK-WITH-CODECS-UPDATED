@@ -1,0 +1,86 @@
+{
+  "scope": "Source/host validation and complete target build only; no RF or audio performance qualification",
+  "source_commit": "a49ce7b9a56f2e228a29934c4660705c4ec840d9",
+  "image_sha256": "3217c213d3ff2e496b0704f8f410c43ee4aa8eafe6941f46d7211db185349ba3",
+  "elf_sha256": "0c2092da7be17ba84d0bac7e88690406ad54379ff357bce96ca33b93219b4288",
+  "image_bytes": 1221792,
+  "priority_order": {
+    "controller_sdk_default": 23,
+    "host": 7,
+    "decoder": 6,
+    "renderer": 5
+  },
+  "avrcp_groups": [
+    {
+      "group": "exchange",
+      "audio_output": false,
+      "passed": true
+    },
+    {
+      "group": "sdp",
+      "audio_output": false,
+      "passed": true
+    },
+    {
+      "group": "wait_backpressure",
+      "audio_output": false,
+      "passed": true
+    },
+    {
+      "group": "exchange",
+      "audio_output": true,
+      "passed": true
+    },
+    {
+      "group": "sdp",
+      "audio_output": true,
+      "passed": true
+    },
+    {
+      "group": "wait_backpressure",
+      "audio_output": true,
+      "passed": true
+    }
+  ],
+  "avrcp_source_sha256": "ec4ef32f97f64f04cf5e2fc2c26491cb78aa4fc5afbbc8ee1495947b546d56ed",
+  "avrcp_pre_fix_reproduction": {
+    "reference_commit": "84590659",
+    "reference_source_sha256": "410617d55083d2b7469863421995ebae377a515cb9a0eadbfe81236b7084c9ef",
+    "same_current_regression_harness": true,
+    "normal_exchange_result": 0,
+    "sdp_result": 0,
+    "wait_backpressure_failure_line": 153,
+    "failure_assertion": "probe_avrcp_wait_ms(116)==remaining",
+    "hardware_accessed": false
+  },
+  "ble_receipts": [
+    {
+      "path": "native_bt/_build/ble_control/receipt.json",
+      "tick_hz": 1000,
+      "passed": true,
+      "receipt_sha256": "79acce560027cbad40fb415a30c57dbfb3ff5db9a701645c4d8f5791315a84a7"
+    },
+    {
+      "path": "native_bt/_build/ble_control/tick10/receipt.json",
+      "tick_hz": 10,
+      "passed": true,
+      "receipt_sha256": "66f3813320c133ec7f0977e07d9e0b37a837e850dc651bf9455cbb96dd15fe9a"
+    },
+    {
+      "path": "native_bt/_build/ble_control/tick100/receipt.json",
+      "tick_hz": 100,
+      "passed": true,
+      "receipt_sha256": "3c395edb15b5beac2e4d49f541ab62d3a24d5b49d091eca173936f68ac20d39f"
+    }
+  ],
+  "gatt_source_sha256": "f368f0234d5e2d8dbb0d15eeccf2542f4b06eb7bc0006b3d4c39be2b467913a9",
+  "image_admission_passed": true,
+  "limited_iram_audit": {
+    "passed": true,
+    "protected_symbols": 6,
+    "direct_functions_walked": 5,
+    "indirect_calls_unproven": 4
+  },
+  "target_flashed": false,
+  "maximum_lhdc_audio_passed": false
+}
