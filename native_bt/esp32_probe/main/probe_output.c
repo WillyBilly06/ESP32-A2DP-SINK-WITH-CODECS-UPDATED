@@ -373,8 +373,8 @@ static void close_output(void) {
     (void)i2s_del_channel(output.channel);
     output.channel = 0;
   }
-  /* All I2S operations and its ISR live on core 0. No callback can still be
-   * running on another core when this task frees the internal-SRAM rings. */
+  /* I2S operations and its ISR belong to this pinned render core. After
+   * disable/delete no callback can run while its owner frees the SRAM rings. */
   dbt_audio_close(&output.audio);
   output.active = output.enabled = output.stopping = false;
   atomic_store(&output.meter_value, 0);
@@ -860,6 +860,7 @@ static void render_loop(void *unused) {
   }
 }
 dbt_result_t probe_output_init(void (*wake_decoder)(void *), void *context) {
+  if(output.task || output.requests)return DBT_BUSY;
   output.wake_decoder = wake_decoder;
   output.wake_context = context;
   dbt_ticket_init(&output.ticket);
@@ -871,10 +872,12 @@ dbt_result_t probe_output_init(void (*wake_decoder)(void *), void *context) {
   output.requests = xQueueCreate(2, sizeof(request_t));
   if (!output.requests)
     return DBT_NO_SPACE;
-  return xTaskCreatePinnedToCore(render_loop, "native_render", 6144, 0, DBT_PROBE_RENDER_PRIORITY,
-                                 &output.task, DBT_ESP32_RENDER_CORE) == pdPASS
-             ? DBT_OK
-             : DBT_NO_SPACE;
+  if(xTaskCreatePinnedToCore(render_loop, "native_render", 6144, 0, DBT_PROBE_RENDER_PRIORITY,
+                             &output.task, DBT_ESP32_RENDER_CORE)!=pdPASS){
+    vQueueDelete(output.requests);output.requests=NULL;output.task=NULL;
+    return DBT_NO_SPACE;
+  }
+  return DBT_OK;
 }
 /* One accepted request retains the gate until its own receipt arrives. This
  * prevents competing workers consuming each other's completion or a timed-out

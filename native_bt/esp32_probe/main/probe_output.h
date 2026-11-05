@@ -41,6 +41,8 @@ typedef struct {
     uint32_t clock_observed_valid,clock_snapshot_valid;
     uint32_t request_fault,stale_receipts;
 } probe_output_stats_t;
+/* Startup owner only, before clients. BUSY preserves an existing instance.
+ * Failed task creation retires the new queue so initialization may be retried. */
 dbt_result_t probe_output_init(void (*wake_decoder)(void *),void *context);
 /* Accepted begin returns PENDING and one opaque ticket; BUSY accepts nothing.
  * Poll consumes exactly one terminal result. Cancel remains pending until the

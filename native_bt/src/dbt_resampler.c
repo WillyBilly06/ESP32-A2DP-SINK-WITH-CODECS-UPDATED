@@ -114,6 +114,15 @@ void dbt_resampler_filter(dbt_resampler_t *s,int32_t left,int32_t right,uint32_t
     }
 #endif
     const int32_t *next=s->taps==96?coefficients_96[p+1u]:s->taps==48?coefficients_48[p+1u]:coefficients_24[p+1u];
+    /* Every omitted endpoint coefficient is zero in every generated phase,
+     * including row 128. Its interpolation and product are therefore exactly
+     * zero. Keep the original span, group delay, history and priming boundary.
+     * Unknown/wider banks retain the complete loop unless metadata proves it. */
+    unsigned active_taps=s->taps;
+#if defined(DBT_RESAMPLER_TRAILING_ZERO_TAPS) && DBT_RESAMPLER_TRAILING_ZERO_TAPS < 24u && !defined(DBT_RESAMPLER_FORCE_FULL_TAPS)
+    if(active_taps==24u || active_taps==48u || active_taps==96u)
+        active_taps-=DBT_RESAMPLER_TRAILING_ZERO_TAPS;
+#endif
     int64_t l=0,r=0;
     if(s->count>=s->taps){
         int32_t coefficient=first[0];
@@ -121,19 +130,19 @@ void dbt_resampler_filter(dbt_resampler_t *s,int32_t left,int32_t right,uint32_t
         FIR_ACCUMULATE(left,right,coefficient);
         unsigned index=(s->next-1u)&(DBT_RESAMPLER_HISTORY-1u);
         if(!remainder){
-            for(unsigned k=1;k<s->taps;++k){
+            for(unsigned k=1;k<active_taps;++k){
                 int32_t c=first[k];
                 FIR_ACCUMULATE(s->history[0][index],s->history[1][index],c);
                 index=(index-1u)&(DBT_RESAMPLER_HISTORY-1u);
             }
         }else{
-            for(unsigned k=1;k<s->taps;++k){
+            for(unsigned k=1;k<active_taps;++k){
                 int32_t c=coefficient_at(first[k],next[k],remainder);
                 FIR_ACCUMULATE(s->history[0][index],s->history[1][index],c);
                 index=(index-1u)&(DBT_RESAMPLER_HISTORY-1u);
             }
         }
-    }else for(unsigned k=0;k<s->taps;++k){
+    }else for(unsigned k=0;k<active_taps;++k){
         int32_t coefficient=first[k];
         if(remainder)coefficient=coefficient_at(coefficient,next[k],remainder);
         unsigned index=(s->next-k)&(DBT_RESAMPLER_HISTORY-1u);

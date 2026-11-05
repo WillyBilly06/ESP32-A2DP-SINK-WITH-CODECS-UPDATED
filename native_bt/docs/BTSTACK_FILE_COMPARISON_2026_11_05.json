@@ -1048,19 +1048,23 @@
     },
     {
       "owned": "native_bt/esp32_probe/main/probe_output.c",
-      "sha256": "303490c46911cddd2e4367c848daad7ddd5d84eab4b46bd58a98634187ad6aa2",
-      "lines": 1193,
-      "reference_files": [],
-      "status": "partial_review",
-      "mapping": "product/support code; no direct protocol counterpart assigned"
+      "sha256": "d843fe97d1455d729b3d4833c27136b2f1495e11d19ae95087b5bd845f96db64",
+      "lines": 1196,
+      "reference_files": [
+        "port/esp32/components/btstack/btstack_audio_esp32_v5.c"
+      ],
+      "status": "reviewed_with_findings",
+      "mapping": "reviewed_port_audio_boundaries",
+      "review_scope": "Complete owned body read; compared reference ESP32 v5 refill/format/cache-safety sections and current async client/link reachability. Runtime lifecycle, faults, concurrency and ISR load remain unqualified."
     },
     {
       "owned": "native_bt/esp32_probe/main/probe_output.h",
-      "sha256": "b1184710d0eb3295e4adc2509affba503162e93abe582f9d7cb136a876ffa59a",
-      "lines": 106,
+      "sha256": "cd0eb7d2a5f0c674c0004112ee128709ccbf8e9d8f89cf9b3afc76e34c4eb4d0",
+      "lines": 108,
       "reference_files": [],
-      "status": "pending",
-      "mapping": "product/support code; no direct protocol counterpart assigned"
+      "status": "reviewed_contract",
+      "mapping": "product/support code; no direct protocol counterpart assigned",
+      "review_scope": "Complete initialization, ticket/loan/legacy and producer-quiescence API contract read against implementation."
     },
     {
       "owned": "native_bt/esp32_probe/main/probe_pair_button.c",
@@ -2500,8 +2504,8 @@
     },
     {
       "owned": "native_bt/src/dbt_resampler_coeffs.inc",
-      "sha256": "370d8ec4dcce5bfe9a5d14e1d678dcb9ceca4a1d62b2d4624a432239ea173c56",
-      "lines": 403,
+      "sha256": "0216dd6537669a1fe295d5dce0d7eebba38f3f488247e78cea952cdc884d2b5b",
+      "lines": 404,
       "reference_files": [
         "src/classic/avdtp.c",
         "example/a2dp_sink_demo.c",
@@ -2514,8 +2518,8 @@
     },
     {
       "owned": "native_bt/src/dbt_resampler.c",
-      "sha256": "e79869d707bf9edce0953be180d3935f4d00eb324852d6759fbaea4815dc98b3",
-      "lines": 146,
+      "sha256": "2ad457bb78e65fd8ddebeb46ad89ff4f44ef81c6b7f2bdecdb72e353c95f7097",
+      "lines": 155,
       "reference_files": [
         "src/classic/avdtp.c",
         "example/a2dp_sink_demo.c",
@@ -2873,8 +2877,8 @@
     },
     {
       "owned": "native_bt/tools/gen_resampler_coeffs.py",
-      "sha256": "260bacaadf0bd3e38fb49cd16ab9dc0c8ace6aa9dc386072b0f73e559a1c456b",
-      "lines": 63,
+      "sha256": "7a8d26364c131d6bb7a168efffc59e4c62aa344ac437f99d60fa75c4a6c79f8a",
+      "lines": 67,
       "reference_files": [
         "src/btstack_resample.c"
       ],
@@ -3228,6 +3232,38 @@
       "fix": "Bounded ring/page-span copies with unchanged full-block publication; single-writer relaxed atomic load/store counter increments. Preserve complete FIR/DSP arithmetic and sample format.",
       "resource_change": "No BSS/data/task/queue change; text +100 bytes, including +24 instruction-SRAM and +76 flash. Submit and DMA-take compiler function frames each +16 bytes excluding callees; render frame unchanged. ISR copy calls use verified ROM code and IRAM literals.",
       "limits": "No measured speed gain, wrap/concurrency/ISR stress or sustained playback qualification; FIR workload remains unresolved."
+    },
+    {
+      "id": "FIR-016",
+      "state": "compiled_static_data_and_analysis_checked_timing_unqualified",
+      "owned": [
+        "native_bt/src/dbt_resampler.c",
+        "native_bt/src/dbt_resampler_coeffs.inc",
+        "native_bt/tools/gen_resampler_coeffs.py"
+      ],
+      "reference": [
+        "src/btstack_resample.c:44-114",
+        "All 129 generated rows in each owned Q30 bank"
+      ],
+      "issue": "Two universally zero trailing coefficients still underwent interpolation/history loads/stereo accumulation each output frame.",
+      "fix": "Derive common zero-tail invariant in generator; under guard omit exactly those products in steady/priming loops, preserving complete span/delay/history/phase/rounding and full-loop fallback.",
+      "resource_change": "Coefficient words unchanged. FIR text +51 bytes, compiler frame unchanged64, no new RAM/data.",
+      "limits": "No elapsed-time or continuous-audio performance gain measured."
+    },
+    {
+      "id": "OUTPUT-017",
+      "state": "compiled_source_checked_failure_path_unqualified",
+      "owned": [
+        "native_bt/esp32_probe/main/probe_output.c",
+        "native_bt/esp32_probe/main/probe_output.h"
+      ],
+      "reference": [
+        "port/esp32/components/btstack/btstack_audio_esp32_v5.c:41-386",
+        "Current linked async API inventory"
+      ],
+      "issue": "Renderer task-creation failure did not free the newly allocated queue; repeated initialization could overwrite it.",
+      "fix": "Delete queue and clear handles on task-creation failure; duplicate initialization is BUSY before mutating state. Document startup owner and correct render-core invariant.",
+      "limits": "No allocation-fault injection/lifecycle/concurrency qualification. Blocking compatibility wrappers remain source-only for other builds; absent from the selected linked image."
     }
   ],
   "sections_reviewed": [
@@ -3422,6 +3458,23 @@
       ],
       "outcome": "Complete owned audio body read. Removed byte-copy loops and unnecessary single-writer CAS retries; verified ROM/IRAM call placement. Identified continuous FIR as workload absent from baseline; documented stopped-only/blocking SDK tuning contract rather than changing clocks live.",
       "full_layer_complete": false
+    },
+    {
+      "layer": "Full output owner body, ESP32 reference refill and exact zero-tail FIR",
+      "owned": [
+        "native_bt/src/dbt_resampler.c",
+        "native_bt/src/dbt_resampler_coeffs.inc",
+        "native_bt/tools/gen_resampler_coeffs.py",
+        "native_bt/esp32_probe/main/probe_output.c",
+        "native_bt/esp32_probe/main/probe_output.h"
+      ],
+      "reference": [
+        "port/esp32/components/btstack/btstack_audio_esp32_v5.c:41-386",
+        "src/btstack_resample.c:44-114",
+        "probe_audio.c:353-369,443-468 and probe_sound.c async selection"
+      ],
+      "outcome": "Derived zero-product omission without signal changes, checked active async API reachability and fixed failed-init queue retirement. Complete owned output body/contract read; complete upstream adapter and layer/runtime qualification not claimed.",
+      "full_layer_complete": false
     }
   ],
   "integration_gaps": [
@@ -3468,11 +3521,11 @@
   ],
   "coverage": {
     "owned_files": 277,
-    "reviewed_owned_c_bodies": 21,
-    "partial_files": 14,
-    "pending_files": 219,
+    "reviewed_owned_c_bodies": 22,
+    "partial_files": 13,
+    "pending_files": 218,
     "compiled_owned_units_missing": 0,
-    "reviewed_headers": 14,
+    "reviewed_headers": 15,
     "reviewed_build_files": 5,
     "reviewed_generators": 3,
     "reviewed_static_data": 1
@@ -3588,14 +3641,30 @@
         "Single-writer counter sites verified across all owned implementation files; no relaxed non-atomic cross-owner accesses introduced.",
         "FIR/DSP workload remains; no performance or underrun gain is claimed without timing evidence."
       ]
+    },
+    {
+      "id": "FIR-ZERO-TAIL",
+      "status": "implemented_static_data_compiler_checked_timing_pending",
+      "notes": [
+        "All 387 endpoint rows preserve exact zeros; all coefficient words unchanged.",
+        "Source/target loop limits reduce only zero products; delay/history/phase and quality remain. No cycle gain measured."
+      ]
+    },
+    {
+      "id": "OUTPUT-INIT",
+      "status": "implemented_failure_qualification_pending",
+      "notes": [
+        "Task-creation failure releases queue; repeated startup preserves existing instance.",
+        "Current image omits compatibility blocking API symbols; full lifecycle, fault and concurrency qualification remain."
+      ]
     }
   ],
   "next_review": [
-    "Inspect linked FIR/DSP instructions and exact coefficient-generation alternatives; full high-rate render headroom remains unqualified.",
-    "Continue remaining protocol/backend/product file comparisons and outgoing reconnect/A2DP integration.",
-    "Span wrap/counter-wrap/concurrency/ISR and full audio/BLE lifecycle qualification remain held."
+    "Continue linked FIR/DSP instruction review and real renderer compute bottleneck; zero-tail omission does not prove deadline headroom.",
+    "Continue remaining protocol/backend/product source rows and outgoing reconnect/A2DP integration.",
+    "Full output lifecycle/ISR/stack/concurrency and sustained maximum-LHDC/audio/BLE qualification remain held."
   ],
-  "latest_build_image": "7291d06f31c4bd27a29772f0329617a51d2c24d33911e80cf59eff0ec7b4ba36",
+  "latest_build_image": "b29dcbb31e470761777ceedf8b069524e407cd34cafdc920667958536de5c3cc",
   "verification_source_contracts": [
     {
       "file": "native_bt/tools/test_ldac_target_component.py",

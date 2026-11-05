@@ -46,6 +46,10 @@ def main():
     delta=max(abs(rows[p+1][k]-rows[p][k]) for taps,rows,_ in banks for p in range(PHASES) for k in range(taps))
     if delta>=(1<<31):raise RuntimeError('adjacent coefficient delta exceeds int32')
     lines.append(f'#define DBT_RESAMPLER_ADJACENT_DELTA_MAX {delta}u')
+    # Include the exact phase-wrap row as well as every interpolated endpoint.
+    zero_tail=min(next((n for n,value in enumerate(reversed(row)) if value),len(row))
+                  for _,rows,_ in banks for row in rows)
+    lines.append(f'#define DBT_RESAMPLER_TRAILING_ZERO_TAPS {zero_tail}u')
     folded=all(rows[0][0]==0 and rows[0][-2:]==[0,0] and
                all(rows[0][k]==rows[0][taps-2-k] for k in range(1,taps//2-1))
                for taps,rows,_ in banks)
