@@ -10,7 +10,7 @@ the viewer remains open and follows the test capture while the port is free.
 
 The owned Classic+BLE host is selected on the local COM6 board in ota1 at
 0x390000, marked VALID, with automatic Bluedroid restoration disabled. The
-verified image is `0253143be712ef8024776b36094913407854f850fc8ca4cd52fbedf19388397c`.
+verified image is `444c690ecdccfddcad72271f6458d106ec1e0cb3d5b5c1bc9a6d354f5b1a1579`.
 This remains development firmware with incomplete feature/runtime qualification.
 
 Recent source corrections cover [codec payload boundaries and shared PCM
@@ -29,6 +29,11 @@ PCM hashing from normal stay-native playback. Use `-PcmHash` for explicit
 fingerprint collection; finite legacy diagnostics retain it by default. The
 legacy UART viewer also uses the actual codec name instead of labeling every
 shared PCM record as SBC. Runtime performance improvement remains unmeasured.
+
+The [DSP branch update](docs/DSP_ACTIVE_BRANCHES_2026_11_05.md) stops running
+fully inaudible full-range/crossover paths after bypass transitions. Both
+branches remain active during the existing fade. This removes unnecessary
+filter work; playback headroom and acoustic transitions remain unqualified.
 
 The [core layout and baseline comparison](docs/DECODER_CORE0_2026_11_05.md)
 now reserve CPU0 for the shared codec worker at priority 21. Bluetooth host

@@ -31,6 +31,8 @@ typedef struct {
 } fixed_dsp_t;
 
 /* Owner-only APIs. Controls must be delivered as one complete block snapshot.
+ * Fully inaudible full/split branches pause at stable bypass endpoints and
+ * clear on reactivation under the existing crossfade. Both run during a fade.
  * No heap allocation and no floating-point operations in this implementation. */
 bool fixed_dsp_init(fixed_dsp_t *dsp, uint32_t sample_rate, uint32_t low_pass_hz,
                      uint32_t high_pass_hz, uint32_t goertzel_reference_frames);

@@ -226,6 +226,20 @@ void fixed_dsp_controls(fixed_dsp_t *dsp, int8_t bass, int8_t mid, int8_t treble
     coefficient_target(&dsp->filters[3], fdsp_comp[dsp->rate_index][volume], dsp->fade_frames, immediate);
     coefficient_target(&dsp->filters[4], flags & FDSP_BASS_BOOST ? fdsp_boost[dsp->rate_index] : identity,
                         dsp->fade_frames, immediate);
+    /* A fully inaudible branch is not processed. Clear only the branch being
+     * reactivated; the audible path and common EQ history stay intact. Its
+     * contribution is introduced through the existing 20 ms bypass crossfade.
+     * A reversal during a fade keeps both already-running histories. */
+    if (!dsp->bypass.remaining) {
+        if ((flags & FDSP_BYPASS) && dsp->bypass.value == 0) {
+            dsp->boost_history[0] = (fdsp_history_t){0};
+            dsp->boost_history[1] = (fdsp_history_t){0};
+        } else if (!(flags & FDSP_BYPASS) && dsp->bypass.value == UNITY_GAIN) {
+            dsp->cross_history[0] = (fdsp_history_t){0};
+            dsp->cross_history[1] = (fdsp_history_t){0};
+            dsp->boost_history[2] = (fdsp_history_t){0};
+        }
+    }
     int32_t gain = (int32_t)((int64_t)volume * UNITY_GAIN / 127);
     ramp_target(&dsp->volume, gain, dsp->fade_frames, immediate);
     ramp_target(&dsp->bypass, flags & FDSP_BYPASS ? UNITY_GAIN : 0, dsp->fade_frames, immediate);
@@ -295,6 +309,8 @@ static inline int32_t limit(fixed_dsp_t *dsp, int32_t value) {
 }
 
 void DSP_HOT fixed_dsp_process(fixed_dsp_t *dsp, int32_t *left, int32_t *right) {
+    bool full = dsp->bypass.value != 0 || dsp->bypass.remaining != 0;
+    bool split = dsp->bypass.value != UNITY_GAIN || dsp->bypass.remaining != 0;
     FIXED_DSP_STAGE_MARK(0);
     analysis(dsp, (int32_t)(((int64_t)*left + *right) / 2));
     FIXED_DSP_STAGE_MARK(1);
@@ -307,18 +323,25 @@ void DSP_HOT fixed_dsp_process(fixed_dsp_t *dsp, int32_t *left, int32_t *right) 
         r = filter(dsp->filters[i].value, &dsp->channel_history[i][1], r);
     }
     FIXED_DSP_STAGE_MARK(3);
-    int32_t lp = filter(dsp->cross_coefficients[0], &dsp->cross_history[0], l);
-    int32_t hp = filter(dsp->cross_coefficients[1], &dsp->cross_history[1], r);
-    lp = filter(dsp->filters[4].value, &dsp->boost_history[2], lp);
-    l = filter(dsp->filters[4].value, &dsp->boost_history[0], l);
-    r = filter(dsp->filters[4].value, &dsp->boost_history[1], r);
-    lp = clamp32(((int64_t)lp * 189246996) >> 27); /* 1.41 crossover makeup */
-    hp = clamp32(((int64_t)hp * 189246996) >> 27);
+    int32_t lp = 0, hp = 0;
+    if (split) {
+        lp = filter(dsp->cross_coefficients[0], &dsp->cross_history[0], l);
+        hp = filter(dsp->cross_coefficients[1], &dsp->cross_history[1], r);
+        lp = filter(dsp->filters[4].value, &dsp->boost_history[2], lp);
+        lp = clamp32(((int64_t)lp * 189246996) >> 27); /* 1.41 crossover makeup */
+        hp = clamp32(((int64_t)hp * 189246996) >> 27);
+    }
+    if (full) {
+        l = filter(dsp->filters[4].value, &dsp->boost_history[0], l);
+        r = filter(dsp->filters[4].value, &dsp->boost_history[1], r);
+    }
     FIXED_DSP_STAGE_MARK(4);
-    int32_t split_l = blend(lp, hp, dsp->flip.value);
-    int32_t split_r = blend(hp, lp, dsp->flip.value);
-    l = blend(split_l, l, dsp->bypass.value);
-    r = blend(split_r, r, dsp->bypass.value);
+    if (split) {
+        int32_t split_l = blend(lp, hp, dsp->flip.value);
+        int32_t split_r = blend(hp, lp, dsp->flip.value);
+        l = full ? blend(split_l, l, dsp->bypass.value) : split_l;
+        r = full ? blend(split_r, r, dsp->bypass.value) : split_r;
+    }
     if (dsp->volume.value != UNITY_GAIN) {
         l = clamp32(((int64_t)l * dsp->volume.value) >> 31);
         r = clamp32(((int64_t)r * dsp->volume.value) >> 31);
@@ -403,30 +426,49 @@ bool fixed_dsp_process_block(fixed_dsp_t *dsp,int32_t *pcm,uint16_t frames){
     pcm+=2u*prefix;frames=(uint16_t)(frames-prefix);
     if(!frames)return true;
     int32_t split[FIXED_DSP_BLOCK_FRAMES*2u];
-    for(unsigned i=0;i<frames;++i){
-        analysis(dsp,(int32_t)(((int64_t)pcm[2u*i]+pcm[2u*i+1u])/2));
-        pcm[2u*i]>>=4;pcm[2u*i+1u]>>=4;
-    }
-    for(unsigned f=0;f<4;++f){
-        filter_steady_block(dsp->filters[f].value,&dsp->channel_history[f][0],pcm,frames);
-        filter_steady_block(dsp->filters[f].value,&dsp->channel_history[f][1],pcm+1,frames);
-    }
-    for(unsigned i=0;i<2u*frames;++i)split[i]=pcm[i];
-    filter_steady_block(dsp->cross_coefficients[0],&dsp->cross_history[0],split,frames);
-    filter_steady_block(dsp->cross_coefficients[1],&dsp->cross_history[1],split+1,frames);
-    filter_steady_block(dsp->filters[4].value,&dsp->boost_history[2],split,frames);
-    filter_steady_block(dsp->filters[4].value,&dsp->boost_history[0],pcm,frames);
-    filter_steady_block(dsp->filters[4].value,&dsp->boost_history[1],pcm+1,frames);
-    for(unsigned i=0;i<frames;++i){
-        ramp_advance(&dsp->volume);ramp_advance(&dsp->bypass);ramp_advance(&dsp->flip);
-        int32_t lp=clamp32(((int64_t)split[2u*i]*189246996)>>27);
-        int32_t hp=clamp32(((int64_t)split[2u*i+1u]*189246996)>>27);
-        int32_t split_l=blend(lp,hp,dsp->flip.value),split_r=blend(hp,lp,dsp->flip.value);
-        int32_t l=blend(split_l,pcm[2u*i],dsp->bypass.value);
-        int32_t r=blend(split_r,pcm[2u*i+1u],dsp->bypass.value);
-        if(dsp->volume.value!=UNITY_GAIN){l=clamp32(((int64_t)l*dsp->volume.value)>>31);r=clamp32(((int64_t)r*dsp->volume.value)>>31);}
-        pcm[2u*i]=clamp32((int64_t)limit(dsp,l)*16);
-        pcm[2u*i+1u]=clamp32((int64_t)limit(dsp,r)*16);
+    /* At most two stable-coefficient segments: a bypass fade can finish once
+     * inside this <=128-frame block. Retire the inaudible branch on the exact
+     * same sample as the scalar path, including its final ramp sample. */
+    for(unsigned segment=0;segment<2u && frames;++segment){
+        unsigned count=frames;
+        if(dsp->bypass.remaining && count>dsp->bypass.remaining)count=dsp->bypass.remaining;
+        bool full=dsp->bypass.value!=0 || dsp->bypass.remaining!=0;
+        bool divided=dsp->bypass.value!=UNITY_GAIN || dsp->bypass.remaining!=0;
+        for(unsigned i=0;i<count;++i){
+            analysis(dsp,(int32_t)(((int64_t)pcm[2u*i]+pcm[2u*i+1u])/2));
+            pcm[2u*i]>>=4;pcm[2u*i+1u]>>=4;
+        }
+        for(unsigned f=0;f<4;++f){
+            filter_steady_block(dsp->filters[f].value,&dsp->channel_history[f][0],pcm,count);
+            filter_steady_block(dsp->filters[f].value,&dsp->channel_history[f][1],pcm+1,count);
+        }
+        int32_t *split_pcm=split;
+        if(divided){
+            if(full)for(unsigned i=0;i<2u*count;++i)split[i]=pcm[i];
+            else split_pcm=pcm; /* No full-range view is needed at bypass=0. */
+            filter_steady_block(dsp->cross_coefficients[0],&dsp->cross_history[0],split_pcm,count);
+            filter_steady_block(dsp->cross_coefficients[1],&dsp->cross_history[1],split_pcm+1,count);
+            filter_steady_block(dsp->filters[4].value,&dsp->boost_history[2],split_pcm,count);
+        }
+        if(full){
+            filter_steady_block(dsp->filters[4].value,&dsp->boost_history[0],pcm,count);
+            filter_steady_block(dsp->filters[4].value,&dsp->boost_history[1],pcm+1,count);
+        }
+        for(unsigned i=0;i<count;++i){
+            ramp_advance(&dsp->volume);ramp_advance(&dsp->bypass);ramp_advance(&dsp->flip);
+            int32_t l=pcm[2u*i],r=pcm[2u*i+1u];
+            if(divided){
+                int32_t lp=clamp32(((int64_t)split_pcm[2u*i]*189246996)>>27);
+                int32_t hp=clamp32(((int64_t)split_pcm[2u*i+1u]*189246996)>>27);
+                int32_t split_l=blend(lp,hp,dsp->flip.value),split_r=blend(hp,lp,dsp->flip.value);
+                l=full?blend(split_l,l,dsp->bypass.value):split_l;
+                r=full?blend(split_r,r,dsp->bypass.value):split_r;
+            }
+            if(dsp->volume.value!=UNITY_GAIN){l=clamp32(((int64_t)l*dsp->volume.value)>>31);r=clamp32(((int64_t)r*dsp->volume.value)>>31);}
+            pcm[2u*i]=clamp32((int64_t)limit(dsp,l)*16);
+            pcm[2u*i+1u]=clamp32((int64_t)limit(dsp,r)*16);
+        }
+        pcm+=2u*count;frames=(uint16_t)(frames-count);
     }
     return true;
 }
