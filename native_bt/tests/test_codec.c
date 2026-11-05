@@ -62,14 +62,14 @@ EXPORT int test_aac_latm_boundaries_and_transaction(void){
  * standalone Helix harness. Neither fake is advertised by the ESP32 probe. */
 typedef struct {
     dbt_codec_worker_t worker;
-    _Alignas(8) uint8_t storage[8][2048];
+    _Alignas(8) uint8_t storage[8][16384];
     uint32_t sizes[8],live,peak,allocations,releases,fail_at,opens,closes,resets,media,errors;
-    bool used[8],reset_bad,stream_bad,media_bad;uint8_t received;uint32_t timestamp;
+    bool used[8],reset_bad,stream_bad,media_bad;uint8_t received,received_last;uint16_t received_size;uint32_t timestamp;
     dbt_codec_trace_t traces[32];unsigned trace_count;
 } fixture_t;
 static fixture_t f;
 static uint8_t *allocate(void *context,uint32_t size){
-    fixture_t *p=context;++p->allocations;if(p->fail_at==p->allocations || size>2048)return 0;
+    fixture_t *p=context;++p->allocations;if(p->fail_at==p->allocations || size>sizeof(p->storage[0]))return 0;
     for(unsigned i=0;i<8;++i)if(!p->used[i]){p->used[i]=true;p->sizes[i]=size;p->live+=size;if(p->live>p->peak)p->peak=p->live;return p->storage[i];}
     return 0;
 }
@@ -93,7 +93,7 @@ static dbt_result_t fake_open(dbt_codec_decoder_t *d){fixture_t *p=d->hooks.cont
 static void fake_close(dbt_codec_decoder_t *d){fixture_t *p=d->hooks.context;if(d->state){++p->closes;dbt_codec_release(d,d->state);d->state=0;}}
 static dbt_result_t fake_reset(dbt_codec_decoder_t *d){fixture_t *p=d->hooks.context;++p->resets;return p->reset_bad?DBT_INVALID:DBT_OK;}
 static dbt_result_t fake_media(dbt_codec_decoder_t *d,const dbt_avdtp_media_t *packet,uint32_t now){
-    (void)now;fixture_t *p=d->hooks.context;++p->media;p->received=packet->payload[0];p->timestamp=packet->timestamp;return p->media_bad?DBT_INVALID:DBT_OK;}
+    (void)now;fixture_t *p=d->hooks.context;++p->media;p->received=packet->payload[0];p->received_last=packet->payload[packet->size-1u];p->received_size=packet->size;p->timestamp=packet->timestamp;return p->media_bad?DBT_INVALID:DBT_OK;}
 static void trace_event(void *context,const dbt_codec_trace_t *e){fixture_t *p=context;if(e->kind<DBT_CODEC_DECODE_BEGIN && p->trace_count<32)p->traces[p->trace_count++]=*e;}
 static dbt_result_t stream(void *context,bool start,const dbt_codec_config_t *config){(void)start;(void)config;return ((fixture_t *)context)->stream_bad?DBT_BUSY:DBT_OK;}
 static const dbt_codec_ops_t fake_sbc={"ownership SBC",fake_configure,fake_open,fake_close,fake_reset,fake_media,0,0,0};
@@ -179,5 +179,39 @@ EXPORT int test_codec_diagnostics_classify_local_and_upstream_loss(void){
     p.sequence=200;CHECK(dbt_codec_worker_media(&f.worker,&p)==DBT_OK && dbt_codec_worker_step(&f.worker,5,1)==1);
     CHECK(atomic_load(&f.worker.input_sequence_breaks)==1 && f.trace_count==7);
     CHECK(atomic_load(&f.worker.input_packets)==1 && atomic_load(&f.worker.input_payload_bytes)==1);
+    CHECK(complete(DBT_SINK_DROP,1,false)==DBT_SINK_WORK_READY && !f.live && !f.errors);return 0;
+}
+EXPORT int test_codec_1800_packet_boundaries_and_queue_wrap(void){
+    CHECK(setup());
+    dbt_codec_worker_hooks_t hooks=f.worker.hooks;
+    CHECK(dbt_codec_worker_init(&f.worker,hooks,1800,8)==DBT_OK);
+    CHECK(complete(DBT_SINK_CONFIGURE,1,false)==DBT_SINK_WORK_READY && complete(DBT_SINK_START,1,false)==DBT_SINK_WORK_READY);
+    CHECK(f.worker.maximum_payload==1800 && f.worker.depth==8 && f.worker.stride==1816);
+    CHECK(f.live==14536u+136u); /* eight padded slots + allocation header + model */
+    atomic_store(&f.worker.media_written,UINT32_MAX-3u);atomic_store(&f.worker.media_read,UINT32_MAX-3u);
+    uint8_t bytes[1801];zero(bytes,sizeof(bytes));
+    dbt_avdtp_media_t p={bytes,0,9,1800,0,96,false};
+    for(unsigned i=0;i<8;++i){
+        p.sequence=(uint16_t)i;p.timestamp=i*960u;bytes[0]=(uint8_t)i;bytes[1799]=(uint8_t)(i+20u);
+        CHECK(dbt_codec_worker_media(&f.worker,&p)==DBT_OK);
+    }
+    bytes[0]=bytes[1799]=255;p.sequence=8;
+    CHECK(dbt_codec_worker_media(&f.worker,&p)==DBT_NO_SPACE && atomic_load(&f.worker.queue_full_drops)==1);
+    CHECK(atomic_load(&f.worker.input_max_payload)==1800 && !atomic_load(&f.worker.input_oversize_rejects));
+    p.size=1801;CHECK(dbt_codec_worker_media(&f.worker,&p)==DBT_INVALID);
+    CHECK(atomic_load(&f.worker.input_max_payload)==1801 && atomic_load(&f.worker.input_oversize_rejects)==1 && atomic_load(&f.worker.input_last_oversize)==1801);
+    CHECK(atomic_load(&f.worker.queue_full_drops)==1 && atomic_load(&f.worker.input_packets)==9);
+    for(unsigned i=0;i<8;++i){
+        CHECK(dbt_codec_worker_step(&f.worker,2,1)==1 && f.received==i && f.received_last==i+20u);
+        CHECK(f.received_size==1800 && f.timestamp==i*960u);
+    }
+    CHECK(atomic_load(&f.worker.media_written)==4u && atomic_load(&f.worker.media_read)==4u && !atomic_load(&f.worker.decode_rejects));
+    const uint16_t sizes[]={1001,1008,1009,1799,1800};
+    for(unsigned i=0;i<5;++i){
+        p.sequence=(uint16_t)(9+i);p.size=sizes[i];bytes[0]=(uint8_t)(40+i);bytes[p.size-1u]=(uint8_t)(80+i);
+        CHECK(dbt_codec_worker_media(&f.worker,&p)==DBT_OK);bytes[0]=bytes[p.size-1u]=0;
+        CHECK(dbt_codec_worker_step(&f.worker,3,1)==1 && f.received==40u+i && f.received_last==80u+i && f.received_size==sizes[i]);
+    }
+    CHECK(atomic_load(&f.worker.queue_high_water)==8 && atomic_load(&f.worker.input_oversize_rejects)==1);
     CHECK(complete(DBT_SINK_DROP,1,false)==DBT_SINK_WORK_READY && !f.live && !f.errors);return 0;
 }

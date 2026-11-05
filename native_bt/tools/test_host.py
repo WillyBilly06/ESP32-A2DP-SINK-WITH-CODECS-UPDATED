@@ -113,6 +113,7 @@ TESTS = [
     "aac_selection_and_endpoint_subset", "aac_latm_boundaries_and_transaction",
     "codec_lazy_lifecycle_and_rollback", "codec_queue_gates_and_copy", "codec_reset_failure_stops_stream",
     "codec_diagnostics_classify_local_and_upstream_loss",
+    "codec_1800_packet_boundaries_and_queue_wrap",
     "codec_deferred_pcm_backpressure_and_exact_order", "codec_deferred_cancel_suspend_and_reconfigure",
     "codec_deferred_deadline_and_failure_retirement",
     "async_ticket_identity_and_completion", "async_ticket_cancel_phase_and_retirement",
@@ -127,7 +128,11 @@ def build(output):
                 for name in re.findall(r"EXPORT\s+int\s+test_(\w+)\s*\(\s*void\s*\)", path.read_text())}
     if exported != set(TESTS):
         raise RuntimeError(f"Test inventory mismatch: omitted={sorted(exported - set(TESTS))}, stale={sorted(set(TESTS) - exported)}")
-    sources = sorted((ROOT / "src").glob("*.c")) + sorted((ROOT / "tests").glob("test_*.c"))
+    # Standalone sanitizer/benchmark executables also live in tests/. Their
+    # main() and separately renamed reference implementations are not DLL tests.
+    tests = [path for path in sorted((ROOT / "tests").glob("test_*.c"))
+             if not re.search(r"\bint\s+main\s*\(", path.read_text())]
+    sources = sorted((ROOT / "src").glob("*.c")) + tests
     sources += [ROOT.parent / "bt_audio_sink/main/dsp/fixed_dsp.c"]
     sources += [ROOT / "codecs/common/dbt_codec.c", ROOT / "codecs/aac/dbt_aac_transport.c"]
     compiler = os.environ.get("CC") or shutil.which("clang") or shutil.which("cc")
@@ -137,6 +142,11 @@ def build(output):
             compiler = str(candidate)
     if not compiler:
         raise RuntimeError("Install a C11 compiler or set CC to its executable path")
+    cache = shutil.which("ccache")
+    if not cache and os.name == "nt":
+        choices = sorted((Path.home() / ".espressif/tools/ccache").glob("*/ccache-*/ccache.exe"))
+        if choices: cache = str(choices[-1])
+    if not cache: raise RuntimeError("ccache is required for host compilation")
     args = [compiler, "-std=c11", "-O2", "-Wall", "-Wextra", "-Werror", "-I", str(ROOT / "include"),
             "-I", str(ROOT.parent / "bt_audio_sink/main/dsp"),
             "-I", str(ROOT / "codecs/common"), "-I", str(ROOT / "codecs/aac")]
@@ -146,10 +156,18 @@ def build(output):
                  "-fuse-ld=lld", "-nostdlib", "-shared", "-Wl,/noentry"]
     else:
         args += ["-shared", "-fPIC"]
-    args += [str(path) for path in sources] + ["-o", str(output)]
     dependencies = sources + sorted((ROOT / "include").glob("*.h")) + list((ROOT / "codecs/common").glob("*.h")) + list((ROOT / "codecs/aac").glob("*.h")) + list((ROOT.parent / "bt_audio_sink/main/dsp").glob("fixed_dsp.*")) + [ROOT.parent / "bt_audio_sink/main/dsp/fixed_dsp_tables.inc"]
     snapshot = {path: (hashlib.sha256(path.read_bytes()).hexdigest(), path.stat().st_mtime_ns) for path in dependencies}
-    subprocess.run(args, check=True, cwd=ROOT)
+    environment = os.environ.copy(); environment.pop("CCACHE_DISABLE", None)
+    compile_args = [arg for arg in args if arg not in ("-fuse-ld=lld", "-nostdlib", "-shared", "-Wl,/noentry")]
+    objects = []
+    for index, source in enumerate(sources):
+        target = output.parent / (str(index) + "_" + source.stem + ".o")
+        subprocess.run([cache, *compile_args, "-c", str(source), "-o", str(target)], check=True, cwd=ROOT, env=environment)
+        objects.append(str(target))
+    link = [compiler, "-shared"]
+    if os.name == "nt": link += ["-fuse-ld=lld", "-nostdlib", "-Wl,/noentry"]
+    subprocess.run([*link, *objects, "-o", str(output)], check=True, cwd=ROOT, env=environment)
     return sources, snapshot
 
 

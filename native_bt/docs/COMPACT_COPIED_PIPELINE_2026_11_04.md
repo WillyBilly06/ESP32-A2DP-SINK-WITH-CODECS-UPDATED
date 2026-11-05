@@ -70,3 +70,25 @@ This adds a copy and 8 KiB at maximum rate to permit overlap. Its throughput,
 CPU balance, actual stacks, BLE/control behavior and long-run jitter effects
 need physical measurement. It does not make the over-budget renderer faster
 by itself. No full-rate continuity or feature-parity pass is claimed.
+
+## First RF result: 48 kHz only
+
+[Exact results](COMPACT_COPIED_RF_RESULTS_2026_11_04.json) bind the archived
+37237ead image/ELF and capture. COM6 uses decoder1/render0/logger1 and the
+compact copied input. Only LHDC V5 48 kHz, stereo, S24 in S32 containers is
+negotiated (`00ff3a050000354c1002110000`). The 1 MiB capture cap ends the run
+before the maximum-codec change; this run does not qualify 192 kHz.
+
+There are zero task/interrupt watchdog warnings and descriptor errors, but
+8,739 queue-full drops and 4,206,544 underrun frames in the last valid records.
+Controller ingress rejection, upstream sequence-break and oversized-channel
+counters stay zero. Decoder call wall time reaches 52,533 us and PCM delivery
+37,143 us. These include preemption and cannot yet identify CPU execution cost
+separately from scheduling. Renderer wall work averages 18.436 us/frame against
+a 20.833 us/frame rate budget, yet it often waits for input. Production timing
+therefore needs measurement before another affinity/priority change.
+
+All 1,286 complete periodic snapshots used here pass individual CRC/time checks;
+the final truncated record is excluded. The helper observes the released
+baseline return. Zero watchdog warnings are a scheduling result, not proof of
+continuous audio.

@@ -131,6 +131,14 @@ EXPORT int test_channels_outgoing_and_asymmetric_mtu(void) {
     CHECK(data_calls==1 && data_size==673);
     CHECK(dbt_channels_receive(&manager,1,channel->link_generation,local,ldac_sdu,1009)==DBT_OK);
     CHECK(data_calls==1 && manager.oversized_dynamic_pdus==1 && manager.last_oversized.size==1009 && manager.last_oversized.rx_mtu==1008);
+    /* New media capacity is negotiated independently of the peer TX MTU. */
+    fixture();result=open_channel(1,1800,0x80,1024,&local);if(result)return result;
+    channel=dbt_channels_find(&manager,1,local);uint8_t larger_sdu[1801]={0x80};
+    CHECK(channel && channel->rx_mtu==1800 && channel->tx_mtu==1024);
+    CHECK(dbt_channels_receive(&manager,1,channel->link_generation,local,larger_sdu,1009)==DBT_OK && data_calls==1 && data_size==1009);
+    CHECK(dbt_channels_receive(&manager,1,channel->link_generation,local,larger_sdu,1800)==DBT_OK && data_calls==2 && data_size==1800);
+    CHECK(dbt_channels_receive(&manager,1,channel->link_generation,local,larger_sdu,1801)==DBT_OK && data_calls==2);
+    CHECK(manager.oversized_dynamic_pdus==1 && manager.last_oversized.size==1801 && manager.last_oversized.rx_mtu==1800);
     return 0;
 }
 

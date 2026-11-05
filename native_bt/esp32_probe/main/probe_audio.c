@@ -96,6 +96,7 @@ static _Atomic uint32_t pcm_generation,pcm_frames,pcm_bytes,pcm_hash,pcm_rate,pc
 static _Atomic uint32_t codec_revision,codec_cie_size,codec_cie_words[(DBT_CODEC_CIE_BYTES+3u)/4u];
 static _Atomic uint32_t profile_snapshot,event_errors,last_channel_event,last_channel_result;
 static _Atomic uint32_t ignored_dynamic,oversized_dynamic;
+static _Atomic uint32_t media_sdu_max,last_oversized_size,last_oversized_mtu,last_oversized_psm;
 /* Separate single-writer rings for host admission and decoder events. Logging
  * never waits on the producer; record loss is itself exposed every second. */
 #define TRACE_SLOTS 16u
@@ -489,6 +490,19 @@ static void log_loop(void *unused){
         if(++ticks<10)continue;
         ticks=0;
         uint32_t at=(uint32_t)esp_timer_get_time();
+        PROBE_SNAPSHOT_LOG("{\"probe\":\"l2cap_media_sizes\",\"collection_cycle_us\":%" PRIu32
+               ",\"advertised_media_mtu\":%u,\"max_delivered_media_sdu_bytes\":%" PRIu32
+               ",\"oversize_count_all_dynamic_channels\":%" PRIu32 ",\"last_oversize_bytes\":%" PRIu32
+               ",\"last_oversize_channel_mtu\":%" PRIu32 ",\"last_oversize_psm\":%" PRIu32 "}\n",
+               at,(unsigned)PROBE_A2DP_RX_MTU,atomic_load(&media_sdu_max),atomic_load(&oversized_dynamic),
+               atomic_load(&last_oversized_size),atomic_load(&last_oversized_mtu),atomic_load(&last_oversized_psm));
+        PROBE_SNAPSHOT_LOG("{\"probe\":\"decoder_input_queue\",\"collection_cycle_us\":%" PRIu32
+               ",\"packet_capacity_bytes\":%u,\"packet_slots\":%u,\"slot_stride_bytes\":%u"
+               ",\"reserved_packet_bytes\":%u,\"max_seen_payload_bytes\":%" PRIu32
+               ",\"oversize_rejects\":%" PRIu32 ",\"last_oversize_bytes\":%" PRIu32 "}\n",
+               at,(unsigned)worker.maximum_payload,(unsigned)worker.depth,(unsigned)worker.stride,
+               (unsigned)worker.stride*worker.depth,atomic_load(&worker.input_max_payload),
+               atomic_load(&worker.input_oversize_rejects),atomic_load(&worker.input_last_oversize));
         PROBE_SNAPSHOT_LOG("{\"probe\":\"owner_wait_reasons\",\"collection_cycle_us\":%" PRIu32 ",\"iterations\":%" PRIu32
                ",\"runtime\":%" PRIu32 ",\"admission\":%" PRIu32 ",\"smp\":%" PRIu32 ",\"avrcp\":%" PRIu32
                ",\"restart\":%" PRIu32 ",\"pair_button\":%" PRIu32 ",\"rfcomm\":%" PRIu32 ",\"gap\":%" PRIu32
@@ -696,7 +710,10 @@ void probe_audio_event(dbt_channel_event_t event,const dbt_channel_t *channel){
     }
 }
 void probe_audio_receive(const dbt_channel_t *channel,const uint8_t *data,uint16_t size){
-    if(initialized)(void)dbt_a2dp_acceptor_receive(&profile,channel,data,size);
+    if(initialized){
+        if(channel && profile.media.serial && channel->serial==profile.media.serial)maximum(&media_sdu_max,size);
+        (void)dbt_a2dp_acceptor_receive(&profile,channel,data,size);
+    }
 }
 void probe_audio_poll(uint32_t now){
     if(!initialized)return;
@@ -708,6 +725,8 @@ void probe_audio_poll(uint32_t now){
     (void)dbt_a2dp_acceptor_poll(&profile,now);
     atomic_store(&ignored_dynamic,profile.runtime->channels.ignored_dynamic_pdus);
     atomic_store(&oversized_dynamic,profile.runtime->channels.oversized_dynamic_pdus);
+    const dbt_channel_oversize_t *oversize=&profile.runtime->channels.last_oversized;
+    atomic_store(&last_oversized_size,oversize->size);atomic_store(&last_oversized_mtu,oversize->rx_mtu);atomic_store(&last_oversized_psm,oversize->psm);
 #ifdef DBT_PROBE_RF_PROTOCOL_DIAGNOSTIC
     static uint32_t oversize_seen;static unsigned oversize_logged;
     uint32_t oversized=profile.runtime->channels.oversized_dynamic_pdus;
