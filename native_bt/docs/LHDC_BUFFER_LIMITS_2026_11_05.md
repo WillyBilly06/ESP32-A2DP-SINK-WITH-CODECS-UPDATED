@@ -29,7 +29,7 @@ The codec frame header has a ten-bit per-channel byte count. Its representable s
 | L2CAP media | Negotiated maximum SDU 1800 bytes. Reassembly is independent of codec frame boundaries. |
 | Encoded decoder input | Eight 1800-byte slots: 14400 payload bytes, 14528 bytes including slot metadata, 14536 bytes including the tracked allocation header. The active slot stays immutable until decoder/PCM continuation retires. |
 | LHDC coded-frame payload | Previous port and adapter cap: 1536 bytes. The corrected port reserves 2048 payload bytes and the adapter accepts the 2046-byte wire payload bound. Matching pinned private-header overlays keep workspace and adapter structure layout consistent. Active-LHDC storage increases by approximately 512 bytes; the sibling decoder is untouched. |
-| LHDC codec fragment assembly | Existing bounded 3072-byte allocation ceiling retained. This is distinct from standard HCI/L2CAP fragmentation and is not proof of all vendor-specific fragment formats. |
+| LHDC codec transport | Correct two-byte count/sequence header; the unsupported SBC-style 3072-byte fragment assembler is removed. ACL/L2CAP fragmentation remains independent. |
 | Decoded LHDC PCM at 192 kHz | 960 stereo frames per coded 5 ms frame; 7680 bytes in S32 containers for 24-bit audio. Retained decoder workspace is borrowed until PCM retirement. |
 | Copied PCM input at 192 kHz | 1024 stereo frames, 8192 bytes. The 4 ms sizing request rounds up to the next power of two, so actual capacity is 5.33 ms. |
 | Processed PCM output at 192 kHz | 3072-frame / 16 ms target; 3584-frame / 28672-byte allocated output capacity in seven 512-frame pages. |
@@ -44,3 +44,5 @@ The 5 ms coded-frame interval at 192 kHz contains 960 stereo sample frames. The 
 - Replace ten variable-modulus packet-ring indexes with bit masks. Initialization already requires a nonzero power-of-two depth. No speedup percentage is claimed.
 - The original 1008-byte input cap could reject valid aggregated packets above 1 KB. The 1536-byte single-frame cap was not the cause of the earlier recorded 628-byte packets being dropped: those contained one 626-byte frame and a two-byte LHDC media header.
 - A full queue and an oversized packet are different failures. Previous RF captures recorded queue-full/PCM/DMA scheduling problems with 628-byte input and zero oversize rejects. Correct buffer lengths do not establish sustainable maximum-LHDC processing headroom.
+
+The later cross-codec correction raises the minimum copied PCM capacity to 512 frames at 44.1/48 kHz so a retained source frame cannot block a whole 256-frame producer chunk. See CROSS_CODEC_PAYLOAD_AUDIT_2026_11_05.md. The 192 kHz capacities above are unchanged.

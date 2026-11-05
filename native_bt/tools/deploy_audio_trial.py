@@ -243,8 +243,16 @@ def main():
         controller=controller.run_stub();controller.change_baud(args.verify_baud)
         if f'{controller.flash_id():06x}'!=receipt['flash_id']:raise RuntimeError('Flash chip changed')
         if controller.read_flash(0,0x9000)!=original[:0x9000]:raise RuntimeError('Bootloader/partition table differs from the preserved original')
-        preserved=controller.read_flash(active['offset'],active['size'])
-        if preserved!=original[active['offset']:active['offset']+active['size']]:
+        # The SDK stub hashes the entire protected app region locally. This
+        # avoids transferring that unchanged multi-megabyte slot twice over
+        # UART; every newly written region still gets full byte readback.
+        preserved=original[active['offset']:active['offset']+active['size']]
+        preserved_md5=hashlib.md5(preserved).hexdigest()
+        before_md5=controller.flash_md5sum(active['offset'],active['size']).lower()
+        report['original_application_verification']={'method':'SDK stub full-region MD5 before and after writes',
+            'offset':active['offset'],'bytes':active['size'],'backup_region_sha256':hashlib.sha256(preserved).hexdigest(),
+            'expected_md5':preserved_md5,'before_md5':before_md5}
+        if before_md5!=preserved_md5:
             raise RuntimeError('Original application slot changed; inspect before deployment')
         current=controller.read_flash(selector['offset'],selector['size'])
         nvs=next(p for p in partitions if p['name']=='nvs')
@@ -281,7 +289,9 @@ def main():
         report['ota_sequence']=sequence;report['trial_offset']=trial['offset']
         report['selector_state_written']='VALID development selection' if args.keep_owned else 'NEW trial'
         report['production_qualification']=False
-        report['original_application_preserved']=controller.read_flash(active['offset'],active['size'])==preserved
+        after_md5=controller.flash_md5sum(active['offset'],active['size']).lower()
+        report['original_application_verification']['after_md5']=after_md5
+        report['original_application_preserved']=after_md5==preserved_md5
         if not report['original_application_preserved']:raise RuntimeError('Original application verification failed')
         controller._port.baudrate=console_baud
         controller.hard_reset();rebooted=True

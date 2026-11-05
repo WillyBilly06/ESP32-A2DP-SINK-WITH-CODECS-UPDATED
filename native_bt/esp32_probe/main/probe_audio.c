@@ -110,7 +110,7 @@ static _Atomic uint32_t media_sdu_max,last_oversized_size,last_oversized_mtu,las
 /* Separate single-writer rings for host admission and decoder events. Logging
  * never waits on the producer; record loss is itself exposed every second. */
 #define TRACE_SLOTS 16u
-typedef struct {dbt_codec_trace_t event;uint32_t at_us,ordinal;} media_trace_t;
+typedef struct {dbt_codec_trace_t event;uint32_t at_us,ordinal,codec;} media_trace_t;
 typedef struct {
     media_trace_t items[TRACE_SLOTS];
     _Atomic uint32_t written,read,lost;
@@ -141,6 +141,10 @@ typedef struct {
 static phase_timing_t phase_timing[3];
 static const char *const trace_names[]={"invalid","input_sequence","input_ssrc","queue_full",
     "worker_sequence","worker_ssrc","decode_reject","reset_failed","pcm_failed","pcm_timeout","pcm_busy"};
+static const char *codec_name(uint32_t codec){
+    static const char *const names[]={"none","SBC","Android Opus","Opus05","AAC-LC","aptX","aptX HD","aptX LL","LDAC","LHDC V5"};
+    return codec<sizeof(names)/sizeof(names[0])?names[codec]:"unknown";
+}
 static void maximum(_Atomic uint32_t *value,uint32_t candidate){
     /* Each maximum has one writer; the logger only reads it. */
     if(candidate>atomic_load_explicit(value,memory_order_relaxed))atomic_store_explicit(value,candidate,memory_order_relaxed);
@@ -202,7 +206,7 @@ static void media_trace(void *context,const dbt_codec_trace_t *event){
     uint32_t ordinal=++ring->ordinal;
     uint32_t written=atomic_load_explicit(&ring->written,memory_order_relaxed);
     if(written-atomic_load_explicit(&ring->read,memory_order_acquire)>=TRACE_SLOTS){atomic_fetch_add(&ring->lost,1);return;}
-    ring->items[written%TRACE_SLOTS]=(media_trace_t){*event,(uint32_t)esp_timer_get_time(),ordinal};
+    ring->items[written%TRACE_SLOTS]=(media_trace_t){*event,(uint32_t)esp_timer_get_time(),ordinal,atomic_load_explicit(&pcm_codec,memory_order_relaxed)};
     atomic_store_explicit(&ring->written,written+1u,memory_order_release);
 }
 static void log_media_trace(void){
@@ -214,9 +218,9 @@ static void log_media_trace(void){
         const dbt_codec_trace_t *e=&record.event;
         printf("{\"probe\":\"media_trace\",\"at_us\":%" PRIu32 ",\"stage\":\"%s\",\"ordinal\":%" PRIu32
                ",\"sequence\":%u,\"expected\":%u,\"rtp_timestamp\":%" PRIu32 ",\"ssrc\":%" PRIu32
-               ",\"previous_ssrc\":%" PRIu32 ",\"bytes\":%u,\"queued\":%u,\"result\":%u}\n",
-               record.at_us,trace_names[e->kind],record.ordinal,e->sequence,e->expected_sequence,e->timestamp,
-               e->ssrc,e->previous_ssrc,e->bytes,e->queued,(unsigned)e->result);
+               ",\"previous_ssrc\":%" PRIu32 ",\"bytes\":%u,\"queued\":%u,\"result\":%u,\"codec\":%" PRIu32 ",\"codec_name\":\"%s\",\"rtp_marker\":%s,\"payload_prefix\":[%u,%u]}\n",
+               record.at_us,(unsigned)e->kind<sizeof(trace_names)/sizeof(trace_names[0])?trace_names[e->kind]:"invalid",record.ordinal,e->sequence,e->expected_sequence,e->timestamp,
+               e->ssrc,e->previous_ssrc,e->bytes,e->queued,(unsigned)e->result,record.codec,codec_name(record.codec),e->marker?"true":"false",e->prefix[0],e->prefix[1]);
     }
 }
 void probe_audio_transport_received(uint32_t began_us,uint16_t bytes,uint8_t type,dbt_result_t result,bool isr){
@@ -601,9 +605,9 @@ static void log_loop(void *unused){
                atomic_load(&worker.input_first_timestamp),atomic_load(&worker.input_last_timestamp),rate);
         snapshot_log(pcm_snapshot_began,"{\"probe\":\"sbc_pcm\",\"frames\":%" PRIu32 ",\"bytes\":%" PRIu32 ",\"fnv1a32\":%" PRIu32
                ",\"rate\":%" PRIu32 ",\"channels\":%" PRIu32 ",\"media_packets\":%" PRIu32 ",\"drops\":%" PRIu32
-               ",\"resets\":%" PRIu32 ",\"resident\":%" PRIu32 ",\"codec\":%" PRIu32 ",\"sample_bytes\":%" PRIu32
+               ",\"resets\":%" PRIu32 ",\"resident\":%" PRIu32 ",\"codec\":%" PRIu32 ",\"codec_name\":\"%s\",\"diagnostic_scope\":\"all_codecs\",\"sample_bytes\":%" PRIu32
                ",\"faults\":%" PRIu32 ",\"decoder_stack_low_water_bytes\":%u,\"internal_heap_free\":%u,\"internal_heap_min_free\":%u,\"internal_heap_largest\":%u,\"i2s_output\":" AUDIO_OUTPUT_JSON "}\n",frames,bytes,hash,rate,channels,
-               atomic_load(&worker.packets),atomic_load(&worker.media_drops),atomic_load(&worker.resets),atomic_load(&worker.resident_bytes),codec,sample_bytes,
+               atomic_load(&worker.packets),atomic_load(&worker.media_drops),atomic_load(&worker.resets),atomic_load(&worker.resident_bytes),codec,codec_name(codec),sample_bytes,
                atomic_load(&worker.faults),(unsigned)uxTaskGetStackHighWaterMark(decoder_task),
                (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT),
                (unsigned)heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT),

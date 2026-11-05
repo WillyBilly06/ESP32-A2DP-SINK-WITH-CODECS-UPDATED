@@ -98,12 +98,12 @@ static dbt_result_t resume(dbt_codec_decoder_t *d,uint32_t now){
     }
     return batch_finish(d,DBT_OK);
 }
-static dbt_result_t decode_mux(dbt_codec_decoder_t *d,const uint8_t *data,uint16_t size,uint32_t timestamp){
+static dbt_result_t prepare_mux(dbt_codec_decoder_t *d,const uint8_t *data,uint16_t size,uint32_t timestamp){
     aac_state_t *s=d->state;uint8_t count=0;
     dbt_result_t result=dbt_aac_latm_parse(&s->mux,&d->config,data,size,s->units,DBT_AAC_MAX_SUBFRAMES,&count);
     if(result!=DBT_OK)return result;
     s->batch=data;s->batch_size=size;s->batch_timestamp=timestamp;s->batch_count=count;s->batch_index=0;s->batch_fragment=data==s->fragment;
-    return resume(d,0);
+    return DBT_OK;
 }
 static void expire(dbt_codec_decoder_t *d,uint32_t now){
     aac_state_t *s=d->state;if(s && !s->batch && s->fragment && now-s->fragment_at>=100u)abandon_fragment(d);
@@ -129,7 +129,13 @@ static dbt_result_t media(dbt_codec_decoder_t *d,const dbt_avdtp_media_t *p,uint
         }
         s->discard_active=false;
     }
-    if(!s->fragment && p->marker)return decode_mux(d,p->payload,p->size,p->timestamp);
+    if(!s->fragment){
+        /* LATM delimits its own complete AudioMuxElement. Do not strand an
+         * otherwise complete unit solely because a peer clears RTP marker. */
+        dbt_result_t result=prepare_mux(d,p->payload,p->size,p->timestamp);
+        if(result==DBT_OK)return resume(d,now);
+        if(p->marker || result!=DBT_INVALID)return result;
+    }
     uint32_t needed=(uint32_t)s->fragment_size+p->size;
     if(needed>DBT_AAC_MAX_MUX_BYTES){abandon_fragment(d);s->discard_active=true;s->discard_timestamp=p->timestamp;s->discard_ssrc=p->ssrc;return DBT_INVALID;}
     if(needed>s->fragment_capacity){
@@ -142,8 +148,9 @@ static dbt_result_t media(dbt_codec_decoder_t *d,const dbt_avdtp_media_t *p,uint
     if(!s->fragment_size){s->fragment_at=now;s->fragment_timestamp=p->timestamp;s->fragment_ssrc=p->ssrc;}
     for(unsigned i=0;i<p->size;++i)s->fragment[s->fragment_size+i]=p->payload[i];
     s->fragment_size=(uint16_t)needed;
-    if(!p->marker)return DBT_OK;
-    dbt_result_t result=decode_mux(d,s->fragment,s->fragment_size,s->fragment_timestamp);
+    dbt_result_t result=prepare_mux(d,s->fragment,s->fragment_size,s->fragment_timestamp);
+    if(result==DBT_OK)result=resume(d,now);
+    else if(!p->marker && result==DBT_INVALID)return DBT_OK;
     if(result!=DBT_PENDING)fragment_clear(d);
     return result;
 }

@@ -1,4 +1,5 @@
 #include "dbt_codec.h"
+#include <stddef.h>
 
 typedef struct {uint32_t bytes,pad;} allocation_t;
 typedef struct {
@@ -6,8 +7,10 @@ typedef struct {
     uint16_t sequence,size;
     uint8_t payload_type;
     bool marker;
+    uint8_t prefix[2];
     uint8_t bytes[];
 } media_t;
+_Static_assert(offsetof(media_t,bytes)%8u==0,"Encoded media payload must begin on an eight-byte boundary");
 static void zero(void *p,unsigned n){uint8_t *v=p;for(unsigned i=0;i<n;++i)v[i]=0;}
 static void copy(void *to,const void *from,unsigned n){uint8_t *d=to;const uint8_t *s=from;for(unsigned i=0;i<n;++i)d[i]=s[i];}
 
@@ -55,7 +58,8 @@ static void trace(dbt_codec_worker_t *w,dbt_codec_trace_kind_t kind,const media_
                   uint16_t expected,uint32_t previous_ssrc,dbt_result_t result){
     if(!w->hooks.trace)return;
     dbt_codec_trace_t event={slot->timestamp,slot->ssrc,previous_ssrc,slot->sequence,
-        expected,slot->size,(uint16_t)(atomic_load(&w->media_written)-atomic_load(&w->media_read)),kind,result};
+        expected,slot->size,(uint16_t)(atomic_load(&w->media_written)-atomic_load(&w->media_read)),kind,result,
+        slot->marker,{slot->prefix[0],slot->prefix[1]}};
     w->hooks.trace(w->hooks.decoder.context,&event);
 }
 static bool reset(dbt_codec_worker_t *w,const media_t *slot){
@@ -94,7 +98,7 @@ static dbt_result_t deferred_pcm(void *context,const void *samples,uint16_t fram
     w->pending_timestamp=timestamp;w->output_blocked=false;return DBT_PENDING;
 }
 dbt_result_t dbt_codec_worker_init(dbt_codec_worker_t *w,dbt_codec_worker_hooks_t hooks,uint16_t payload,uint8_t depth){
-    uint32_t stride=(sizeof(media_t)+payload+3u)&~3u;
+    uint32_t stride=(sizeof(media_t)+payload+7u)&~7u;
     if(!w || !hooks.codecs || !hooks.codec_count || hooks.codec_count>8 || payload<5 || payload>4096 ||
        !depth || depth>16 || (depth&(depth-1u)) || stride*depth>UINT16_MAX)return DBT_INVALID;
     for(unsigned i=0;i<hooks.codec_count;++i){const dbt_codec_ops_t *o=hooks.codecs[i];if(!o || !o->configure || !o->open || !o->close || !o->reset || !o->media || (hooks.deferred_pcm && !o->resume))return DBT_INVALID;}
@@ -155,7 +159,8 @@ dbt_result_t dbt_codec_worker_media(void *context,const dbt_avdtp_media_t *packe
     }
     atomic_fetch_add(&w->input_packets,1);atomic_fetch_add(&w->input_payload_bytes,packet->size);
     atomic_store(&w->input_last_timestamp,packet->timestamp);
-    media_t input={packet->timestamp,packet->ssrc,packet->sequence,packet->size,packet->payload_type,packet->marker};
+    media_t input={packet->timestamp,packet->ssrc,packet->sequence,packet->size,packet->payload_type,packet->marker,
+        {packet->payload[0],packet->size>1u?packet->payload[1]:0}};
     if(w->input_epoch==epoch){
         if(packet->sequence!=(uint16_t)(w->input_sequence+1u)){
             atomic_fetch_add(&w->input_sequence_breaks,1);
@@ -176,7 +181,8 @@ dbt_result_t dbt_codec_worker_media(void *context,const dbt_avdtp_media_t *packe
     if(queued+1u>atomic_load(&w->queue_high_water))atomic_store(&w->queue_high_water,queued+1u);
     media_t *slot=(media_t *)(w->packet_storage+(written&(w->depth-1u))*w->stride);
     slot->timestamp=packet->timestamp;slot->ssrc=packet->ssrc;slot->sequence=packet->sequence;slot->size=packet->size;
-    slot->payload_type=packet->payload_type;slot->marker=packet->marker;copy(slot->bytes,packet->payload,packet->size);
+    slot->payload_type=packet->payload_type;slot->marker=packet->marker;
+    slot->prefix[0]=input.prefix[0];slot->prefix[1]=input.prefix[1];copy(slot->bytes,packet->payload,packet->size);
     atomic_store_explicit(&w->media_written,written+1u,memory_order_release);wake_worker(w);return DBT_OK;
 }
 dbt_result_t dbt_codec_worker_receipt(dbt_codec_worker_t *w,dbt_codec_receipt_t *receipt){

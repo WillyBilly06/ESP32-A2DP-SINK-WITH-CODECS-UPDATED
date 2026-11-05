@@ -88,8 +88,8 @@ def main():
             while pos<len(data):
                 if len(data)-pos<4:raise RuntimeError('Truncated packet record')
                 n=int.from_bytes(data[pos:pos+2],'little');frames=int.from_bytes(data[pos+2:pos+4],'little');pos+=4
-                if not n or n>2046 or not frames or frames>15 or n>len(data)-pos:raise RuntimeError('Invalid encoder packet record')
-                payload=data[pos:pos+n];pos+=n;packet=bytes([0,0])+payload
+                if not n or n>2046 or not frames or frames>63 or n>len(data)-pos:raise RuntimeError('Invalid encoder packet record')
+                payload=data[pos:pos+n];pos+=n;packet=bytes([frames<<2,seq&255])+payload
                 out=(u8*65536)();written=u();drops=native.worker_drops();timestamp=(0xfffff000+frames_total*samples)&0xffffffff
                 assert native.worker_packet_pcm(buf(packet),len(packet),seq,1+seq,timestamp,out,len(out),ctypes.byref(written))==0
                 if native.worker_drops()!=drops:raise AssertionError(('worker dropped actual encoded packet',rate,depth,seq,frames,n))
@@ -109,36 +109,17 @@ def main():
             peak=max(abs(x[0]) for x in struct.iter_unpack('<h' if depth==16 else '<i',actual));assert peak>0
             correlations=[tone_correlation(actual,rate,depth,samples,ch) for ch in range(2)]
             assert all(correlation>0.98 for correlation,_ in correlations),(rate,depth,correlations)
-            # Replay one valid encoded packet split across two RTP fragments.
-            # The marker byte belongs to the reassembled payload and is copied
-            # only in the first fragment; allocation growth is measured.
-            cut=len(payload)//2;first=bytes([0xc2,0])+payload[:cut];last=bytes([0xa1])+payload[cut:]
-            baseline=native.probe_live();native.probe_peak_reset();out=(u8*65536)();written=u();drops=native.worker_drops()
-            fragment_ts=(0xfffff000+frames_total*samples)&0xffffffff
-            assert native.worker_packet_pcm(buf(first),len(first),seq,1+seq,fragment_ts,out,len(out),ctypes.byref(written))==0
-            assert written.value==0 and native.worker_pcm_calls()==0
-            assert native.worker_packet_pcm(buf(last),len(last),seq+1,2+seq,fragment_ts,out,len(out),ctypes.byref(written))==0
-            assert native.worker_drops()==drops and native.worker_pcm_calls()==frames
-            fragment_pcm=bytes(out[:written.value]);fragment_reference=bytearray();off=0
-            for i in range(frames):
-                assert native.worker_pcm_timestamp(i)==((fragment_ts+i*samples)&0xffffffff)
-                size=2+2*(int.from_bytes(payload[off:off+2],'little')&1023);raw=payload[off:off+size]
-                pcm=(u8*8192)();used=u();generated=u()
-                result=ref.reference_frame(buf(raw),len(raw),pcm,samples,ctypes.byref(used),ctypes.byref(generated))
-                assert result==0 and used.value==len(raw) and generated.value==samples
-                fragment_reference.extend(bytes(pcm[:samples*2*(2 if depth==16 else 4)]));off+=size
-            assert off==len(payload) and fragment_pcm==fragment_reference and native.probe_live()==baseline
-            fragment_peak=native.probe_peak()
+            # V5 media packets carry complete self-delimiting codec frames.
+            # ACL/L2CAP fragmentation belongs to the transport layer, not SBC F/S/L flags.
             ref.reference_close();assert control(5)==0 and native.probe_live()==0
             rows.append({'rate':rate,'depth':depth,'frames':frames_total,'packets':seq,'pcm_bytes':len(actual),
                          'pcm_peak':peak,'tone_correlation':[round(c,6) for c,_ in correlations],
                          'tone_alignment_samples':[delay for _,delay in correlations],
-                         'fragment_reassembly_peak_bytes':fragment_peak,
                          'encoded_sha256':hashlib.sha256(data).hexdigest(),'pcm_sha256':hashlib.sha256(actual).hexdigest()})
     assert all(hashlib.sha256(Path(path).read_bytes()).hexdigest()==sha for path,sha in before.items()),'Source changed during test'
     report={'passed':True,'scope':'test encoder frames compared with native worker and original sibling decoder; no RF or target execution',
             'encoder_source':'https://github.com/WillyBilly06/LHDC-V5-Encoder','encoder_commit':COMMIT,'encoder_tree_sha256':TREE_SHA,
-            'per_frame_timestamps_checked':True,'encoded_fragment_reassembly_checked':True,
+            'per_frame_timestamps_checked':True,'media_header_format':'LHDC V5 count<<2, sequence',
             'tone_correlation_minimum':0.98,'configurations':rows,'source_sha256':before}
     (OUT/'lhdcv5_encoded_results.json').write_text(json.dumps(report,indent=2)+'\n')
     print(json.dumps({k:v for k,v in report.items() if k!='source_sha256'},indent=2))

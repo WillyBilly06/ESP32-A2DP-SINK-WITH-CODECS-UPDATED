@@ -440,7 +440,11 @@ static dbt_result_t start_output(uint32_t rate, uint8_t channels,
   uint32_t input_frames=power2((rate * 32u + 999u) / 1000u),avoided=0;
 #ifdef DBT_PROBE_PCM_COPIED
   input_frames=power2((rate*4u+999u)/1000u);
-  if(input_frames<PROBE_PCM_TRANSFER_FRAMES)input_frames=PROBE_PCM_TRANSFER_FRAMES;
+  /* Positive clock correction can retain one source frame while waiting for
+   * a two-source-frame advance. A complete decoder chunk must still fit:
+   * capacity==chunk would leave 255 free for a 256-frame submission forever. */
+  if(input_frames<=PROBE_PCM_TRANSFER_FRAMES)
+    input_frames=power2(PROBE_PCM_TRANSFER_FRAMES+1u);
 #endif
   atomic_store(&output.input_ring_bytes_avoided,0);
 #ifdef DBT_PROBE_PCM_LOANS

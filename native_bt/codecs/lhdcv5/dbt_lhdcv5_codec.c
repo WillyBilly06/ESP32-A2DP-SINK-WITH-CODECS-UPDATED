@@ -8,22 +8,18 @@
 
 _Static_assert(LHDC_NSLOTS==1,"The native LHDC worker requires the single-slot sibling decoder");
 
-#define LHDC_FRAGMENT_MAX 3072u
 /* The encoded header carries a ten-bit count of 16-bit payload words.
  * Packet MTU and fragment assembly are separate limits from one frame. */
 #define LHDC_FRAME_MAX (1023u * 2u)
 _Static_assert(LHDC_DEC_MAX_FRAME_BYTES>=LHDC_FRAME_MAX,"LHDC decoder payload buffer is smaller than a valid encoded frame");
 typedef struct {
     lhdc_decoder_t *codec;
-    uint8_t *fragment;
-    uint32_t workspace_bytes,fragment_at,timestamp,ssrc,last_ssrc;
-    uint16_t fragment_size,fragment_capacity,next_sequence,last_sequence;
-    uint8_t remaining;
+    uint32_t workspace_bytes,last_ssrc;
+    uint16_t last_sequence;
     bool sequence_valid;
     const uint8_t *batch;
     uint32_t batch_timestamp;
     uint16_t batch_size,batch_pos,batch_index;
-    bool batch_fragment;
 } lhdc_state_t;
 /* Decoder caches are process-global. The audio product has one worker and
  * this binding prohibits two active owners. All cache allocations are charged
@@ -74,21 +70,17 @@ static uint8_t *pcm(lhdc_state_t *s){
     return (uint8_t *)s->codec->slot[0].mdct_out;
 #endif
 }
-static void clear_fragment(dbt_codec_decoder_t *d){
-    lhdc_state_t *s=d->state;if(!s)return;if(s->fragment)dbt_codec_release(d,s->fragment);
-    s->fragment=0;s->fragment_size=s->fragment_capacity=s->remaining=0;
-}
 static void close_decoder(dbt_codec_decoder_t *d){
     lhdc_state_t *s=d->state;if(!s)return;
-    clear_fragment(d);lhdc_dec_deinit((lhdc_decoder_t *)workspace(s));
+    lhdc_dec_deinit((lhdc_decoder_t *)workspace(s));
     lhdc_dec_free_slot_scratch();lhdc_entropy_free();lhdc_dec_free_window();
     lhdc_imdct_free_480();lhdc_imdct_free_960();lhdc_imdct_free_1920();lhdc_imdct_free_cos();
     dbt_codec_release(d,s);d->state=0;if(active==d)active=0;
 }
 static dbt_result_t reset_decoder(dbt_codec_decoder_t *d){
     lhdc_state_t *s=d->state;if(!s || !s->codec)return DBT_INVALID;
-    s->batch=0;s->batch_fragment=false;s->batch_size=s->batch_pos=s->batch_index=0;
-    clear_fragment(d);s->sequence_valid=false;lhdc_dec_reset(s->codec);return DBT_OK;
+    s->batch=0;s->batch_size=s->batch_pos=s->batch_index=0;
+    s->sequence_valid=false;lhdc_dec_reset(s->codec);return DBT_OK;
 }
 static dbt_result_t open_decoder(dbt_codec_decoder_t *d){
     dbt_codec_config_t checked;
@@ -118,9 +110,8 @@ static dbt_result_t open_decoder(dbt_codec_decoder_t *d){
     return DBT_OK;
 }
 static dbt_result_t batch_finish(dbt_codec_decoder_t *d,dbt_result_t result){
-    lhdc_state_t *s=d->state;bool fragmented=s->batch_fragment;
-    s->batch=0;s->batch_fragment=false;s->batch_size=s->batch_pos=s->batch_index=0;
-    if(fragmented)clear_fragment(d);
+    lhdc_state_t *s=d->state;
+    s->batch=0;s->batch_size=s->batch_pos=s->batch_index=0;
     return result;
 }
 static dbt_result_t resume(dbt_codec_decoder_t *d,uint32_t now){
@@ -142,47 +133,32 @@ static dbt_result_t resume(dbt_codec_decoder_t *d,uint32_t now){
     }
     return batch_finish(d,DBT_OK);
 }
-static dbt_result_t decode_payload(dbt_codec_decoder_t *d,const uint8_t *p,uint16_t size,uint32_t timestamp){
+static dbt_result_t decode_payload(dbt_codec_decoder_t *d,const uint8_t *p,uint16_t size,uint8_t declared_frames,uint32_t timestamp){
     lhdc_state_t *s=d->state;if(size<4)return DBT_INVALID;
-    unsigned pos=1,frames=0;
+    unsigned pos=0,frames=0;
     while(pos<size){
         if(size-pos<2)return DBT_INVALID;
         unsigned n=((unsigned)p[pos]|((unsigned)p[pos+1]<<8))&1023u;n*=2u;
         if(!n || n>LHDC_FRAME_MAX || n+2u>size-pos)return DBT_INVALID;
-        pos+=n+2u;++frames;
+        pos+=n+2u;if(++frames>declared_frames)return DBT_INVALID;
     }
-    if(!frames)return DBT_INVALID;
-    s->batch=p;s->batch_size=size;s->batch_pos=1;s->batch_index=0;
-    s->batch_timestamp=timestamp;s->batch_fragment=p==s->fragment;
+    if(!frames || frames!=declared_frames)return DBT_INVALID;
+    s->batch=p;s->batch_size=size;s->batch_pos=0;s->batch_index=0;
+    s->batch_timestamp=timestamp;
     return resume(d,0);
 }
-static void expire(dbt_codec_decoder_t *d,uint32_t now){lhdc_state_t *s=d->state;if(s && !s->batch && s->fragment && now-s->fragment_at>=100u)(void)reset_decoder(d);}
-static bool deadline(const dbt_codec_decoder_t *d,uint32_t *when){
-    const lhdc_state_t *s=d->state;if(!s || !when || !s->fragment || s->batch)return false;
-    *when=s->fragment_at+100u;return true;
-}
 static dbt_result_t media(dbt_codec_decoder_t *d,const dbt_avdtp_media_t *p,uint32_t now){
-    lhdc_state_t *s=d->state;if(!s || !p || !p->payload || p->size<2 || p->payload_type<96)return DBT_INVALID;
+    (void)now;
+    lhdc_state_t *s=d->state;if(!s || !p || !p->payload || p->size<6 || p->payload_type<96)return DBT_INVALID;
     if(s->batch)return DBT_BUSY;
-    expire(d,now);
     if(s->sequence_valid && (p->ssrc!=s->last_ssrc || p->sequence!=(uint16_t)(s->last_sequence+1u)))if(reset_decoder(d)!=DBT_OK)return DBT_INVALID;
     s->sequence_valid=true;s->last_ssrc=p->ssrc;s->last_sequence=p->sequence;
-    unsigned h=p->payload[0],count=h&15u;bool fragmented=(h&128u)!=0,first=(h&64u)!=0,last=(h&32u)!=0;
-    const uint8_t *data=p->payload+1;uint16_t size=(uint16_t)(p->size-1u);
-    if(!fragmented){if(s->fragment && reset_decoder(d)!=DBT_OK)return DBT_INVALID;return decode_payload(d,data,size,p->timestamp);}
-    if(!count || (first && (last || count<2)) || (last && count!=1) || (!last && count==1)){clear_fragment(d);return DBT_INVALID;}
-    if(first){if(s->fragment && reset_decoder(d)!=DBT_OK)return DBT_INVALID;s->timestamp=p->timestamp;s->ssrc=p->ssrc;s->fragment_at=now;s->remaining=(uint8_t)count;s->next_sequence=p->sequence;}
-    if(!s->remaining || count!=s->remaining || p->sequence!=s->next_sequence || p->timestamp!=s->timestamp || p->ssrc!=s->ssrc){clear_fragment(d);return DBT_INVALID;}
-    uint32_t needed=(uint32_t)s->fragment_size+size;if(needed>LHDC_FRAGMENT_MAX){clear_fragment(d);return DBT_INVALID;}
-    if(needed>s->fragment_capacity){
-        uint32_t cap=256;while(cap<needed && cap<2048)cap<<=1;if(cap<needed)cap=LHDC_FRAGMENT_MAX;
-        uint8_t *next=dbt_codec_allocate(d,cap);if(!next){clear_fragment(d);return DBT_NO_SPACE;}
-        copy(next,s->fragment,s->fragment_size);if(s->fragment)dbt_codec_release(d,s->fragment);s->fragment=next;s->fragment_capacity=(uint16_t)cap;
-    }
-    copy(s->fragment+s->fragment_size,data,size);s->fragment_size=(uint16_t)needed;--s->remaining;++s->next_sequence;
-    if(!last)return DBT_OK;
-    dbt_result_t result=decode_payload(d,s->fragment,s->fragment_size,s->timestamp);
-    if(result!=DBT_PENDING)clear_fragment(d);
-    return result;
+    /* LHDC V5 has a two-octet media header. The encoder places its frame
+     * count in bits 7:2 and its packet sequence in the second octet. Those
+     * bits are not SBC F/S/L fragmentation flags. L2CAP reassembly has
+     * already completed before this immutable payload reaches the worker. */
+    uint8_t count=(uint8_t)(p->payload[0]>>2);
+    if(!count || (uint32_t)count*4u>p->size-2u)return DBT_INVALID;
+    return decode_payload(d,p->payload+2,(uint16_t)(p->size-2u),count,p->timestamp);
 }
-const dbt_codec_ops_t dbt_lhdcv5_codec={"LHDC V5",dbt_lhdcv5_configure,open_decoder,close_decoder,reset_decoder,media,expire,resume,deadline};
+const dbt_codec_ops_t dbt_lhdcv5_codec={"LHDC V5",dbt_lhdcv5_configure,open_decoder,close_decoder,reset_decoder,media,0,resume,0};

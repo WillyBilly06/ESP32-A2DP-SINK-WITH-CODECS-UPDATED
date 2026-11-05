@@ -55,7 +55,7 @@ try:
         while pos<len(data):
             n=int.from_bytes(data[pos:pos+2],'little');count=int.from_bytes(data[pos+2:pos+4],'little');pos+=4;raw=data[pos:pos+n];pos+=n
             assert n and count and len(raw)==n and n+2<=4096
-            packet=bytes([0,0])+raw;decoded=(u8*65536)();written=ctypes.c_uint32();assert left.math_packet(buf(packet),len(packet),sequence,decoded,len(decoded),ctypes.byref(written))==0
+            packet=bytes([count<<2,sequence&255])+raw;decoded=(u8*65536)();written=ctypes.c_uint32();assert left.math_packet(buf(packet),len(packet),sequence,decoded,len(decoded),ctypes.byref(written))==0
             expected=bytearray();off=0
             for _ in range(count):
                 size=2+2*(int.from_bytes(raw[off:off+2],'little')&1023);chunk=raw[off:off+size];assert len(chunk)==size

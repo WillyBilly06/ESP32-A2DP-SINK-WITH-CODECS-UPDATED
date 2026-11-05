@@ -139,7 +139,9 @@ def main():
     for rate,depth in lhdc_cases:
         data=(OUT/f'lhdcv5_fixture_encoder/tone_{rate}_{depth}.packets').read_bytes();at=0;packets=[]
         while at<len(data) and len(packets)<3:
-            size=int.from_bytes(data[at:at+2],'little');at+=4;packets.append(bytes([0,0])+data[at:at+size]);at+=size
+            size=int.from_bytes(data[at:at+2],'little');count=int.from_bytes(data[at+2:at+4],'little');at+=4
+            if not 1<=count<=63:raise RuntimeError('Invalid LHDC frame count')
+            packets.append(bytes([count<<2,len(packets)&255])+data[at:at+size]);at+=size
         cie=lhdc_test.cie(rate,depth);assert lhdc.worker_init()==0 and control(lhdc,0,cie)==0 and control(lhdc,3)==0
         pcm=[];samples=240 if rate==44100 else rate//200
         for i,p in enumerate(packets):

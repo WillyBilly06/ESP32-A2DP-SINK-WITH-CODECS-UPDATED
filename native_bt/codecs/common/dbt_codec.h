@@ -94,6 +94,8 @@ typedef struct {
     uint16_t sequence,expected_sequence,bytes,queued;
     dbt_codec_trace_kind_t kind;
     dbt_result_t result;
+    bool marker;
+    uint8_t prefix[2];
 } dbt_codec_trace_t;
 typedef struct {
     dbt_codec_hooks_t decoder;
@@ -110,7 +112,8 @@ typedef struct {
     dbt_codec_stream_async_t async_stream;
     /* Optional bounded, nonblocking diagnostics. Called by host producer or
      * decoder consumer; the receiver must handle these two writers safely.
-     * No payload or security material is exposed. */
+     * Only the first two media octets are exposed for format diagnosis;
+     * no security material is exposed and media bytes are never modified. */
     void (*trace)(void *context,const dbt_codec_trace_t *event);
     dbt_codec_pcm_async_t async_pcm;
 } dbt_codec_worker_hooks_t;
