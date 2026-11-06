@@ -31,7 +31,7 @@ EXPORT int test_ldac_metadata(void){
     CHECK(dbt_ldac_packet_parse(&sentinel,mono,sizeof(mono),&frame,1,&count)==DBT_OK && frame.size==14);
     cie[8]=0x10;uint8_t caps[]={1,0,7,10,0,255,0x2d,1,0,0,0xaa,0,0x30,3};
     cie[9]=1;
-    dbt_avdtp_endpoint_t endpoint={caps,sizeof(caps),1,dbt_a2dp_ldac_validate};
+    dbt_avdtp_endpoint_t endpoint={caps,sizeof(caps),1,dbt_a2dp_ldac_validate,0,0};
     dbt_avdtp_cap_t cap={cie,7,10};CHECK(dbt_a2dp_ldac_validate(&endpoint,&cap)==0);
     caps[12]=0x20;CHECK(dbt_a2dp_ldac_validate(&endpoint,&cap)!=0);
     return 0;

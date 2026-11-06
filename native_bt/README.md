@@ -27,6 +27,14 @@ maximum-quality LDAC/BLE EQ traces have no packet drops, but refill underruns
 remain. The [scheduling/startup record](docs/SCHEDULING_STARTUP_GUARD_2026_11_06.md)
 reports the40–47ms AAC/LDAC guard, unchanged buffers and limited passing AAC runs.
 
+The [local Bluedroid codec comparison](docs/BLUEDROID_CODEC_ROUTING_2026_11_06.md)
+distinguishes controller-only host linkage from reused codec libraries and
+records the actual baseline wrappers. It corrects raw aptX Classic/LL framing,
+selects encoded queue depth per codec, and separates PCM scratch from queued
+packets. [DMA refill ownership](docs/DMA_REFILL_WINDOW_2026_11_06.md) records the
+conservative recovery lease and its limits. The accompanying inventory leaves unreviewed files pending;
+this is not a completed host-layer or all-codec qualification.
+
 The [BTstack code audit](docs/BTSTACK_CODE_AUDIT_2026_11_05.md) now tracks
 all 288 owned implementation/build inputs, confirmed layer defects, unwired modules and
 remaining review coverage against a fresh pinned upstream checkout. The

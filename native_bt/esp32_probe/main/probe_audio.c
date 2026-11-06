@@ -298,9 +298,12 @@ static void log_media_trace(void){
         const dbt_codec_trace_t *e=&record.event;
         printf("{\"probe\":\"media_trace\",\"at_us\":%" PRIu32 ",\"stage\":\"%s\",\"ordinal\":%" PRIu32
                ",\"sequence\":%u,\"expected\":%u,\"rtp_timestamp\":%" PRIu32 ",\"ssrc\":%" PRIu32
-               ",\"previous_ssrc\":%" PRIu32 ",\"bytes\":%u,\"queued\":%u,\"result\":%u,\"codec\":%" PRIu32 ",\"codec_name\":\"%s\",\"rtp_marker\":%s,\"payload_prefix\":[%u,%u]}\n",
+               ",\"previous_ssrc\":%" PRIu32 ",\"bytes\":%u,\"queued\":%u,\"result\":%u,\"codec\":%" PRIu32 ",\"codec_name\":\"%s\",\"rtp_marker\":%s,\"payload_prefix\":[%u,%u],\"framing\":\"%s\",\"sequence_origin\":\"%s\",\"timestamp_origin\":\"%s\"}\n",
                record.at_us,(unsigned)e->kind<sizeof(trace_names)/sizeof(trace_names[0])?trace_names[e->kind]:"invalid",record.ordinal,e->sequence,e->expected_sequence,e->timestamp,
-               e->ssrc,e->previous_ssrc,e->bytes,e->queued,(unsigned)e->result,record.codec,codec_name(record.codec),e->marker?"true":"false",e->prefix[0],e->prefix[1]);
+               e->ssrc,e->previous_ssrc,e->bytes,e->queued,(unsigned)e->result,record.codec,codec_name(record.codec),e->marker?"true":"false",e->prefix[0],e->prefix[1],
+               e->payload_type==DBT_AVDTP_RAW_PAYLOAD_TYPE?"raw":"rtp",
+               e->payload_type==DBT_AVDTP_RAW_PAYLOAD_TYPE?"host_ordinal":"wire_rtp",
+               e->payload_type==DBT_AVDTP_RAW_PAYLOAD_TYPE?"host_samples":"wire_rtp");
     }
 }
 #ifdef DBT_PROBE_LHDC_BUILD
@@ -380,24 +383,24 @@ static const uint8_t ldac_capabilities[]={1,0,7,10,0,0xff,0x2d,1,0,0,0xaa,0,0x3c
 static const uint8_t lhdc_capabilities[]={1,0,7,13,0,0xff,0x3a,5,0,0,0x35,0x4c,0x35,6,0x11,0x40,0,8,0};
 #endif
 static const dbt_avdtp_endpoint_t endpoints[]={
-    {sbc_capabilities,sizeof(sbc_capabilities),1,dbt_a2dp_sbc_validate},
+    {sbc_capabilities,sizeof(sbc_capabilities),1,dbt_a2dp_sbc_validate,0,0},
 #ifdef DBT_PROBE_OPUS_BUILD
-    {android_capabilities,sizeof(android_capabilities),2,dbt_a2dp_opus_validate},
-    {opus05_capabilities,sizeof(opus05_capabilities),3,dbt_a2dp_opus_validate},
+    {android_capabilities,sizeof(android_capabilities),2,dbt_a2dp_opus_validate,0,0},
+    {opus05_capabilities,sizeof(opus05_capabilities),3,dbt_a2dp_opus_validate,0,0},
 #endif
 #ifdef DBT_PROBE_AAC_BUILD
-    {aac_capabilities,sizeof(aac_capabilities),4,dbt_a2dp_aac_validate},
+    {aac_capabilities,sizeof(aac_capabilities),4,dbt_a2dp_aac_validate,0,0},
 #endif
 #ifdef DBT_PROBE_APTX_BUILD
-    {aptx_capabilities,sizeof(aptx_capabilities),5,dbt_a2dp_aptx_validate},
-    {aptx_hd_capabilities,sizeof(aptx_hd_capabilities),6,dbt_a2dp_aptx_validate},
-    {aptx_ll_capabilities,sizeof(aptx_ll_capabilities),7,dbt_a2dp_aptx_validate},
+    {aptx_capabilities,sizeof(aptx_capabilities),5,dbt_a2dp_aptx_validate,4,4},
+    {aptx_hd_capabilities,sizeof(aptx_hd_capabilities),6,dbt_a2dp_aptx_validate,0,0},
+    {aptx_ll_capabilities,sizeof(aptx_ll_capabilities),7,dbt_a2dp_aptx_validate,4,4},
 #endif
 #ifdef DBT_PROBE_LDAC_BUILD
-    {ldac_capabilities,sizeof(ldac_capabilities),8,dbt_a2dp_ldac_validate},
+    {ldac_capabilities,sizeof(ldac_capabilities),8,dbt_a2dp_ldac_validate,0,0},
 #endif
 #ifdef DBT_PROBE_LHDC_BUILD
-    {lhdc_capabilities,sizeof(lhdc_capabilities),9,dbt_a2dp_lhdcv5_validate},
+    {lhdc_capabilities,sizeof(lhdc_capabilities),9,dbt_a2dp_lhdcv5_validate,0,0},
 #endif
 };
 static const dbt_codec_ops_t *const codecs[]={&dbt_sbc_codec,
@@ -793,9 +796,17 @@ static void log_loop(void *unused){
                    at,revision,codec,rate,channels,sample_bytes,cie_size,cie);previous_codec_revision=revision;
         }
         snapshot_log(pcm_snapshot_began,"{\"probe\":\"media_input\",\"collection_cycle_us\":%" PRIu32 ",\"stream_epoch\":%" PRIu32 ",\"packets\":%" PRIu32
-               ",\"payload_bytes\":%" PRIu32 ",\"rtp_first_timestamp\":%" PRIu32 ",\"rtp_last_timestamp\":%" PRIu32 ",\"rate\":%" PRIu32 "}\n",
+               ",\"payload_bytes\":%" PRIu32 ",\"rtp_first_timestamp\":%" PRIu32 ",\"rtp_last_timestamp\":%" PRIu32 ",\"rate\":%" PRIu32 ",\"timestamp_origin\":\"%s\"}\n",
                at,atomic_load(&worker.input_stream_epoch),atomic_load(&worker.input_packets),atomic_load(&worker.input_payload_bytes),
-               atomic_load(&worker.input_first_timestamp),atomic_load(&worker.input_last_timestamp),rate);
+               atomic_load(&worker.input_first_timestamp),atomic_load(&worker.input_last_timestamp),rate,
+               (codec==5u || codec==7u)?"host_samples":"wire_rtp");
+        uint32_t queue_layout=atomic_load_explicit(&worker.queue_layout,memory_order_acquire);
+        uint32_t queue_depth=queue_layout&255u,queue_stride=queue_layout>>16;
+        snapshot_log(pcm_snapshot_began,"{\"probe\":\"codec_queue_memory\",\"collection_cycle_us\":%" PRIu32 ",\"last_started_codec\":%" PRIu32
+            ",\"depth\":%" PRIu32 ",\"credit_low_water\":%" PRIu32 ",\"slot_payload_capacity\":%u,\"slot_stride\":%" PRIu32
+            ",\"accounted_queue_allocation_bytes\":%" PRIu32 ",\"includes_allocation_header\":true}\n",
+            at,codec,queue_depth,(queue_layout>>8)&255u,(unsigned)PROBE_A2DP_RX_MTU,queue_stride,
+            queue_depth?queue_stride*queue_depth+8u:0u);
         snapshot_log(pcm_snapshot_began,"{\"probe\":\"sbc_pcm\",\"frames\":%" PRIu32 ",\"bytes\":%" PRIu32 ",\"fnv1a32\":%" PRIu32
                ",\"fnv1a32_enabled\":" AUDIO_PCM_HASH_JSON ",\"frames_unit\":\"pcm_views\""
                ",\"rate\":%" PRIu32 ",\"channels\":%" PRIu32 ",\"media_packets\":%" PRIu32 ",\"drops\":%" PRIu32
@@ -824,6 +835,13 @@ static void log_loop(void *unused){
 #ifdef DBT_PROBE_AUDIO_OUTPUT
         uint32_t output_snapshot_began=(uint32_t)esp_timer_get_time();
         probe_output_stats_t stats;probe_output_stats(&stats);
+        snapshot_log(output_snapshot_began,"{\"probe\":\"dsp_signal_quality\",\"valid\":%s,\"owner_snapshot_us\":%" PRIu32
+            ",\"rate\":%" PRIu32 ",\"gains_db\":[%d,%d,%d],\"volume\":%u,\"flags\":%u,\"rendered_frames\":%" PRIu32
+            ",\"peak_q27\":%" PRIu32 ",\"limited_channel_samples\":%" PRIu32 ",\"over_full_scale_channel_samples\":%" PRIu32 "}\n",
+            stats.dsp_valid?"true":"false",stats.dsp_at_us,stats.dsp_rate,
+            (int)(int8_t)stats.dsp_gains,(int)(int8_t)(stats.dsp_gains>>8),(int)(int8_t)(stats.dsp_gains>>16),
+            (unsigned)((stats.dsp_options>>8)&255u),(unsigned)(stats.dsp_options&255u),stats.dsp_frames,
+            stats.dsp_peak_q27,stats.dsp_limited,stats.dsp_over_full_scale);
 #ifdef DBT_PROBE_PCM_LOANS
         snapshot_log(output_snapshot_began,"{\"probe\":\"i2s_pcm_loans\",\"mode\":%" PRIu32 ",\"input_ring_bytes_avoided\":%" PRIu32
                ",\"renderer_begun\":%" PRIu32 ",\"renderer_retired\":%" PRIu32 ",\"renderer_cancelled\":%" PRIu32
@@ -875,6 +893,19 @@ static void log_loop(void *unused){
                stats.profile_frames,stats.profile_conversion,stats.profile_dsp,stats.profile_tail,stats.profile_controls,
                stats.profile_conversion_max,stats.profile_dsp_max,stats.profile_tail_max,stats.render_core);
 #endif
+        snapshot_log(output_snapshot_began,"{\"probe\":\"i2s_refill_window\",\"collection_cycle_us\":%" PRIu32
+            " ,\"period_us\":%" PRIu32
+            " ,\"initial_shortage_frames\":%" PRIu32
+            " ,\"recovered_frames\":%" PRIu32
+            " ,\"recovered_copies\":%" PRIu32
+            " ,\"unfilled_frames\":%" PRIu32
+            " ,\"canceled_frames\":%" PRIu32
+            " ,\"copy_max_us\":%" PRIu32
+            " ,\"mask_max_us\":%" PRIu32
+            " ,\"contract_errors\":%" PRIu32
+            " ,\"pending_index\":%" PRIu32 ",\"guard_us\":64,\"copy_budget_us\":32,\"closes_at_next_eof\":true}\n",
+            at,stats.refill_period_us,stats.underrun_frames,stats.refill_recovered_frames,stats.refill_recovered_calls,
+            stats.refill_unfilled_frames,stats.refill_canceled_frames,stats.refill_copy_max_us,stats.refill_mask_max_us,stats.refill_contract_errors,stats.refill_pending_index);
         snapshot_log(output_snapshot_began,"{\"probe\":\"i2s_order_recovery\",\"collection_cycle_us\":%" PRIu32
                ",\"recoveries\":%" PRIu32 ",\"missed_callbacks_min\":%" PRIu32 ",\"source_frames_recovered\":%" PRIu32
                ",\"additional_complete_laps_unknown\":true}\n",at,stats.descriptor_order_recoveries,
@@ -915,8 +946,27 @@ static void sink_event(void *context,dbt_sink_event_t event,dbt_stream_state_t s
     }else if(state==DBT_STREAM_STREAMING)
         product_observer(product_context,PROBE_AUDIO_STREAMING,profile.signaling.handle,profile.signaling.generation,0,now_ms());
 }
-_Static_assert(PROBE_A2DP_MEDIA_SLOTS>=2,"RX-credit policy needs a power-of-two media queue of at least two slots");
-uint16_t probe_audio_rx_credit_window(void){return PROBE_A2DP_MEDIA_SLOTS/2u;}
+_Static_assert(PROBE_A2DP_MEDIA_SLOTS>=8,"Selected-codec policy needs up to eight full-MTU slots");
+static dbt_codec_queue_t codec_queue_policy(void *context,const dbt_codec_config_t *config){
+    (void)context;(void)config;
+    /* Keep burst/startup capacity for AAC, LDAC and LHDC. Lighter codecs use
+     * four slots. Each holds a whole negotiated 1800-byte SDU, not PCM scratch.
+     * The controller may still deliver three previously credited ACL packets. */
+    uint8_t depth=4;
+#ifdef DBT_PROBE_AAC_BUILD
+    if(config->ops==&dbt_aac_codec)depth=8;
+#endif
+#ifdef DBT_PROBE_LDAC_BUILD
+    if(config->ops==&dbt_ldac_codec)depth=8;
+#endif
+#ifdef DBT_PROBE_LHDC_BUILD
+    if(config->ops==&dbt_lhdcv5_codec)depth=8;
+#endif
+    uint8_t low=(uint8_t)(depth/2u);
+    if(low>depth-3u)low=(uint8_t)(depth-3u);
+    return (dbt_codec_queue_t){depth,low};
+}
+uint16_t probe_audio_rx_credit_window(void){return 3u;}
 bool probe_audio_rx_credit_ready(void *context,const dbt_link_t *link){
     (void)context;
     if(!initialized || !link || link->kind!=DBT_LINK_CLASSIC || restart_hold ||
@@ -925,9 +975,9 @@ bool probe_audio_rx_credit_ready(void *context,const dbt_link_t *link){
        profile.signaling.handle!=link->handle || profile.signaling.generation!=link->generation)return true;
     uint32_t read=atomic_load_explicit(&worker.media_read,memory_order_acquire);
     uint32_t written=atomic_load_explicit(&worker.media_written,memory_order_acquire);
-    /* At low-water4 with window4, at most7 slots can become occupied while
-     * the controller exhausts already issued credits; one slot stays spare. */
-    return written-read<PROBE_A2DP_MEDIA_SLOTS-probe_audio_rx_credit_window();
+    uint32_t layout=atomic_load_explicit(&worker.queue_layout,memory_order_acquire);
+    uint8_t low=(uint8_t)(layout>>8);
+    return low && written-read<low;
 }
 dbt_result_t probe_audio_init(dbt_runtime_t *runtime,TaskHandle_t host_owner){
     if(restart_hold)return DBT_BUSY;
@@ -935,6 +985,7 @@ dbt_result_t probe_audio_init(dbt_runtime_t *runtime,TaskHandle_t host_owner){
     dbt_codec_worker_hooks_t hooks={0};hooks.decoder=(dbt_codec_hooks_t){0,codec_allocate,release,pcm};
     hooks.codecs=codecs;hooks.codec_count=(uint8_t)(sizeof(codecs)/sizeof(codecs[0]));
     hooks.wake_worker=wake_worker;hooks.wake_owner=wake_owner;
+    hooks.queue_policy=codec_queue_policy;
     hooks.trace=media_trace;
 #ifdef DBT_PROBE_ASYNC_AUDIO
     hooks.deferred_pcm=true;hooks.async_stream=(dbt_codec_stream_async_t){stream_begin,stream_poll,stream_cancel};

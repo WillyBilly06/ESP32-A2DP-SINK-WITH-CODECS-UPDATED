@@ -21,7 +21,10 @@ typedef struct {
     uint32_t running,failed,rate,requested_bytes,accepted_frames,rendered_frames,ready_frames,input_ready_frames;
     uint32_t priming_ms,priming_remaining_ms;
     uint32_t pcm_target_ms,block_dsp,word_dsp,pcm_input_mode,input_capacity_frames,input_ring_bytes,adaptive_clock,pcm_target_frames;
+    /* underrun_frames retains its original initial-refill-shortage meaning. */
     uint32_t dma_eofs,dma_source_frames,underrun_frames,descriptor_errors,max_eof_gap_us;
+    uint32_t refill_period_us,refill_recovered_frames,refill_recovered_calls,refill_unfilled_frames,refill_canceled_frames;
+    uint32_t refill_copy_max_us,refill_mask_max_us,refill_contract_errors,refill_pending_index;
     uint32_t descriptor_shape_errors,descriptor_pool_errors,descriptor_order_errors;
     /* Recoveries preserve the error count. Missed EOFs are a lower bound;
      * additional complete DMA laps cannot be inferred from the latest IRQ. */
@@ -40,6 +43,7 @@ typedef struct {
     uint32_t allocation_failure_free_32bit,allocation_failure_largest_32bit;
     uint32_t profile_conversion,profile_dsp,profile_tail,profile_controls,profile_frames;
     uint32_t profile_conversion_max,profile_dsp_max,profile_tail_max;
+    uint32_t dsp_valid,dsp_at_us,dsp_rate,dsp_gains,dsp_options,dsp_peak_q27,dsp_limited,dsp_over_full_scale,dsp_frames;
     uint32_t first_underrun_accepted_frames,first_underrun_dma_frames;
     int32_t clock_ppm,clock_observed_ppm,clock_error_frames;
     uint32_t clock_state,clock_target_frames,clock_updates,clock_disturbances;

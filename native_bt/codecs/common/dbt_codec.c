@@ -60,7 +60,7 @@ static void trace(dbt_codec_worker_t *w,dbt_codec_trace_kind_t kind,const media_
     if(!w->hooks.trace)return;
     dbt_codec_trace_t event={slot->timestamp,slot->ssrc,previous_ssrc,slot->sequence,
         expected,slot->size,(uint16_t)(atomic_load(&w->media_written)-atomic_load(&w->media_read)),kind,result,
-        slot->marker,{slot->prefix[0],slot->prefix[1]}};
+        slot->marker,{slot->prefix[0],slot->prefix[1]},slot->payload_type};
     w->hooks.trace(w->hooks.decoder.context,&event);
 }
 static bool reset(dbt_codec_worker_t *w,const media_t *slot){
@@ -108,7 +108,9 @@ dbt_result_t dbt_codec_worker_init(dbt_codec_worker_t *w,dbt_codec_worker_hooks_
        (!hooks.async_stream.begin || !hooks.async_stream.poll || !hooks.async_stream.cancel || hooks.stream))return DBT_INVALID;
     if((hooks.async_pcm.begin || hooks.async_pcm.poll || hooks.async_pcm.cancel) &&
        (!hooks.async_pcm.begin || !hooks.async_pcm.poll || !hooks.async_pcm.cancel || !hooks.deferred_pcm || !hooks.async_stream.begin))return DBT_INVALID;
-    zero(w,sizeof(*w));w->hooks=hooks;w->maximum_payload=payload;w->stride=(uint16_t)stride;w->depth=depth;
+    zero(w,sizeof(*w));w->hooks=hooks;w->maximum_payload=payload;w->stride=(uint16_t)stride;
+    w->depth=w->depth_limit=depth;w->low_water=(uint8_t)((depth+1u)/2u);
+    atomic_init(&w->queue_layout,0);
     atomic_init(&w->job_written,0);atomic_init(&w->job_read,0);atomic_init(&w->receipt_written,0);atomic_init(&w->receipt_read,0);
     atomic_init(&w->gate_epoch,0);atomic_init(&w->started_epoch,0);atomic_init(&w->media_written,0);atomic_init(&w->media_read,0);
     atomic_init(&w->packets,0);atomic_init(&w->media_drops,0);atomic_init(&w->resets,0);atomic_init(&w->faults,0);atomic_init(&w->resident_bytes,0);
@@ -145,6 +147,7 @@ dbt_result_t dbt_codec_worker_submit(void *context,const dbt_sink_job_t *request
 dbt_result_t dbt_codec_worker_media(void *context,const dbt_avdtp_media_t *packet){
     dbt_codec_worker_t *w=context;
     if(!w || !packet || !packet->payload || !packet->size)return DBT_INVALID;
+    if(!enabled(w))return DBT_BUSY;
     if(packet->size>atomic_load_explicit(&w->input_max_payload,memory_order_relaxed))
         atomic_store_explicit(&w->input_max_payload,packet->size,memory_order_relaxed);
     if(packet->size>w->maximum_payload){
@@ -152,7 +155,6 @@ dbt_result_t dbt_codec_worker_media(void *context,const dbt_avdtp_media_t *packe
         atomic_store_explicit(&w->input_last_oversize,packet->size,memory_order_relaxed);
         return DBT_INVALID;
     }
-    if(!enabled(w))return DBT_BUSY;
     uint32_t epoch=atomic_load_explicit(&w->started_epoch,memory_order_acquire);
     if(w->input_epoch!=epoch){
         atomic_store(&w->input_packets,0);atomic_store(&w->input_payload_bytes,0);
@@ -162,7 +164,7 @@ dbt_result_t dbt_codec_worker_media(void *context,const dbt_avdtp_media_t *packe
     atomic_store(&w->input_last_timestamp,packet->timestamp);
     media_t input={packet->timestamp,packet->ssrc,packet->sequence,packet->size,packet->payload_type,packet->marker,
         {packet->payload[0],packet->size>1u?packet->payload[1]:0}};
-    if(w->input_epoch==epoch){
+    if(w->input_epoch==epoch && packet->payload_type!=DBT_AVDTP_RAW_PAYLOAD_TYPE){
         if(packet->sequence!=(uint16_t)(w->input_sequence+1u)){
             atomic_fetch_add(&w->input_sequence_breaks,1);
             trace(w,DBT_CODEC_INPUT_SEQUENCE,&input,(uint16_t)(w->input_sequence+1u),w->input_ssrc,DBT_OK);
@@ -197,13 +199,21 @@ static void clear(dbt_codec_worker_t *w){
     pending_clear(w);w->media_active=false;
     if(w->packet_storage)dbt_codec_release(&w->decoder,w->packet_storage);
     w->packet_storage=0;dbt_codec_close(&w->decoder);w->configured=w->streaming=w->sequence_valid=false;
+    atomic_store_explicit(&w->queue_layout,0,memory_order_release);
     atomic_store(&w->resident_bytes,w->decoder.allocated_bytes);
 }
 static dbt_result_t construct(dbt_codec_worker_t *w,const dbt_codec_config_t *config){
+    dbt_codec_queue_t queue={w->depth_limit,(uint8_t)((w->depth_limit+1u)/2u)};
+    if(w->hooks.queue_policy)queue=w->hooks.queue_policy(w->hooks.decoder.context,config);
+    if(!queue.depth || queue.depth>w->depth_limit || (queue.depth&(queue.depth-1u)) ||
+       !queue.low_water || queue.low_water>queue.depth)return DBT_INVALID;
+    w->depth=queue.depth;w->low_water=queue.low_water;
     dbt_result_t result=dbt_codec_open(&w->decoder,config);if(result!=DBT_OK)return result;
     w->packet_storage=dbt_codec_allocate(&w->decoder,w->stride*w->depth);
     if(!w->packet_storage){dbt_codec_close(&w->decoder);return DBT_NO_SPACE;}
-    w->configured=true;w->sequence_valid=false;atomic_store(&w->media_written,0);atomic_store(&w->media_read,0);return DBT_OK;
+    w->configured=true;w->sequence_valid=false;atomic_store(&w->media_written,0);atomic_store(&w->media_read,0);
+    atomic_store_explicit(&w->queue_layout,(uint32_t)w->depth|((uint32_t)w->low_water<<8)|((uint32_t)w->stride<<16),memory_order_release);
+    return DBT_OK;
 }
 static void fault(dbt_codec_worker_t *w){
     atomic_store_explicit(&w->started_epoch,0,memory_order_release);
@@ -293,8 +303,8 @@ static bool control_async(dbt_codec_worker_t *w,const dbt_codec_job_t *job,uint3
 static void retire_slot(dbt_codec_worker_t *w,uint32_t read){
     uint32_t queued=atomic_load_explicit(&w->media_written,memory_order_acquire)-read;
     atomic_store_explicit(&w->media_read,read+1u,memory_order_release);
-    /* Wake credit release only when crossing below the half-capacity mark. */
-    if(queued==(w->depth+1u)/2u)wake_owner(w);
+    /* Match the selected policy, including small queues with reserved credits. */
+    if(queued==w->low_water)wake_owner(w);
 }
 static void retire_media(dbt_codec_worker_t *w,uint32_t read,dbt_result_t result){
     if(result!=DBT_OK){

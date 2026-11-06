@@ -1,5 +1,8 @@
 #include <stdlib.h>
 #include <string.h>
+#include "freertos/queue.h"
+void vQueueDelete(QueueHandle_t);
+#define xPortGetCoreID() 0u /* This focused fixture runs ISR/owner sequentially on one simulated CPU. */
 #include "../../esp32_probe/main/probe_output.c"
 #ifdef _WIN32
 #define EX __declspec(dllexport)
@@ -32,6 +35,7 @@ unsigned ulTaskNotifyTake(int b,unsigned t){(void)b;(void)t;return 0;}
 /* Metadata plumbing only; this host mock cannot measure an ESP32 stack. */
 unsigned uxTaskGetStackHighWaterMark(TaskHandle_t t){(void)t;++stack_queries;return 4096;}
 int xTaskCreatePinnedToCore(void (*f)(void *),const char *n,unsigned s,void *a,unsigned p,TaskHandle_t *t,int core){(void)f;(void)n;(void)s;(void)a;created_render_priority=p;(void)core;*t=(void *)3;return pdPASS;}
+void vQueueDelete(QueueHandle_t q){(void)q;}
 QueueHandle_t xQueueCreate(unsigned n,unsigned s){(void)n;(void)s;return (void *)(uintptr_t)(++queues_created);}
 int xQueueSend(QueueHandle_t q,const void *p,unsigned t){
     (void)t;if(q==(void *)1){pending_request=*(const request_t *)p;request_pending=true;return pdTRUE;}
@@ -175,5 +179,78 @@ EX int probe_output_compact_copy(void){
     CHECK(probe_output_try_pcm_format(raw,256,2,192000,DBT_PCM_S32_LE)==DBT_BUSY);
     (void)render_step();CHECK(probe_output_try_pcm_format(raw,256,2,192000,DBT_PCM_S32_LE)==DBT_OK);
     CHECK(probe_output_stream_format(false,0,0,0)==DBT_OK && !live);return 0;
+}
+#endif
+
+#ifdef DBT_PROBE_STAY_NATIVE
+static int refill_test_start(int32_t dma[DMA_DESCRIPTORS][DMA_FRAMES*2],uint64_t now){
+    test_clock_us=(int64_t)now;test_clock_step=0;
+    CHECK(start_output(96000,2,DBT_PCM_S32_LE)==DBT_OK);
+    CHECK(dbt_audio_controls(&output.audio,0,0,0,127,0)==DBT_OK);
+    output.enabled=true;atomic_store(&output.running,1);atomic_store(&output.render_core,0);
+    atomic_store(&output.callback_core,0);output.descriptor_count=DMA_DESCRIPTORS;
+    output.descriptor_order_seen=DMA_DESCRIPTORS;output.next_descriptor=0;
+    output.last_eof=(uint32_t)now-atomic_load(&output.refill_period_us);
+    for(unsigned i=0;i<DMA_DESCRIPTORS;++i){
+        memset(dma[i],0x5a,DMA_FRAMES*8u);
+        output.descriptors[i]=(descriptor_t){dma[i],DMA_FRAMES,false};
+    }
+    return 0;
+}
+static int refill_test_pcm(int32_t expected[DMA_FRAMES*2]){
+    int32_t input[DMA_FRAMES*4];
+    for(unsigned i=0;i<DMA_FRAMES*4;++i)input[i]=0x1000000+(int32_t)i*4000;
+    CHECK(probe_output_try_pcm_format(input,DMA_FRAMES*2,2,96000,DBT_PCM_S32_LE)==DBT_OK);
+    CHECK(dbt_audio_render(&output.audio,DMA_FRAMES)==DMA_FRAMES);
+    memcpy(expected,output.audio.output_pages[0],DMA_FRAMES*8u);
+    CHECK(expected[20]!=0);return 0;
+}
+EX int probe_output_refill_windows(void){
+    static int32_t dma[DMA_DESCRIPTORS][DMA_FRAMES*2];int32_t expected[DMA_FRAMES*2],later[DMA_FRAMES*2];
+    CHECK(probe_output_init(0,0)==DBT_OK);
+    i2s_event_data_t event={.dma_buf=dma[0],.size=DMA_FRAMES*8u};
+    /* Timely production code copy preserves the initial shortage counter and
+     * writes the oldest processed PCM before the next descriptor's PCM. */
+    CHECK(refill_test_start(dma,10000)==0);(void)sent(0,&event,&output);
+    CHECK(atomic_load(&output.refill_pending_index)==0 && atomic_load(&output.underrun_frames)==DMA_FRAMES);
+    CHECK(refill_test_pcm(expected)==0);test_clock_us=10200;
+    CHECK(service_refill_window() && !memcmp(dma[0],expected,sizeof expected));
+    CHECK(atomic_load(&output.refill_pending_index)==UINT32_MAX && atomic_load(&output.refill_recovered_frames)==DMA_FRAMES);
+    CHECK(!atomic_load(&output.refill_unfilled_frames) && !atomic_load(&output.refill_contract_errors));
+    CHECK(dbt_audio_render(&output.audio,DMA_FRAMES)==DMA_FRAMES);
+    memcpy(later,output.audio.output_pages[0]+DMA_FRAMES*8u,sizeof later);
+    CHECK(memcmp(expected,later,sizeof later)!=0);event.dma_buf=dma[1];test_clock_us=11333;(void)sent(0,&event,&output);
+    CHECK(!memcmp(dma[1],later,sizeof later));close_output();CHECK(!live);
+    /* A later EOF irrevocably expires the older window before consuming PCM.
+     * A delayed task must not put newer samples in the earlier DMA buffer. */
+    event.dma_buf=dma[0];CHECK(refill_test_start(dma,20000)==0);(void)sent(0,&event,&output);
+    CHECK(refill_test_pcm(expected)==0);event.dma_buf=dma[1];test_clock_us=21333;(void)sent(0,&event,&output);
+    CHECK(!memcmp(dma[1],expected,sizeof expected));test_clock_us=21400;CHECK(!service_refill_window());
+    for(unsigned i=0;i<DMA_FRAMES*2;++i)CHECK(dma[0][i]==0);
+    CHECK(atomic_load(&output.refill_unfilled_frames)==DMA_FRAMES && !atomic_load(&output.refill_recovered_frames));
+    close_output();CHECK(!live);
+    /* Insufficient deadline margin consumes nothing. */
+    event.dma_buf=dma[0];CHECK(refill_test_start(dma,30000)==0);(void)sent(0,&event,&output);CHECK(refill_test_pcm(expected)==0);
+    uint32_t read=atomic_load(&output.audio.output.read);
+    test_clock_us=atomic_load(&output.refill_deadline_us)-REFILL_COPY_BUDGET_US;
+    CHECK(!service_refill_window() && atomic_load(&output.audio.output.read)==read);
+    close_output();CHECK(!live && atomic_load(&output.refill_canceled_frames)==DMA_FRAMES);
+    /* Modular microsecond deadlines retain the same behavior across wrap. */
+    uint64_t wrap=(uint64_t)UINT32_MAX-500u;
+    CHECK(refill_test_start(dma,wrap)==0);(void)sent(0,&event,&output);CHECK(refill_test_pcm(expected)==0);
+    test_clock_us=(int64_t)(wrap+200u);CHECK(service_refill_window() && !memcmp(dma[0],expected,sizeof expected));
+    close_output();CHECK(!live);
+    /* Stop/cancel rejects the new write and cannot retain an old lifetime. */
+    CHECK(refill_test_start(dma,40000)==0);(void)sent(0,&event,&output);CHECK(refill_test_pcm(expected)==0);
+    atomic_store(&output.stop_requested,1);test_clock_us=40200;CHECK(!service_refill_window());close_output();
+    CHECK(!live && atomic_load(&output.refill_pending_index)==UINT32_MAX && atomic_load(&output.refill_canceled_frames)==DMA_FRAMES);
+    /* Explicitly detect a copy that exceeds its bounded critical budget. */
+    CHECK(refill_test_start(dma,50000)==0);(void)sent(0,&event,&output);CHECK(refill_test_pcm(expected)==0);
+    test_clock_us=50200;test_clock_step=100;CHECK(service_refill_window());test_clock_step=0;
+    CHECK(atomic_load(&output.refill_contract_errors)>=1 && atomic_load(&output.failed));close_output();CHECK(!live);
+    /* Invalid prior descriptor history does not grant a refill opportunity. */
+    CHECK(refill_test_start(dma,60000)==0);atomic_store(&output.descriptor_errors,1);(void)sent(0,&event,&output);
+    CHECK(atomic_load(&output.refill_pending_index)==UINT32_MAX && atomic_load(&output.refill_unfilled_frames)==DMA_FRAMES);
+    close_output();CHECK(!live);return 0;
 }
 #endif

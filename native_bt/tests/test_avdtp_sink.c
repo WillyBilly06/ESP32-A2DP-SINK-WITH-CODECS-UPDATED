@@ -9,8 +9,8 @@
 
 static const uint8_t sbc_caps[]={1,0,7,6,0,0,0xff,0xff,2,53,8,0};
 static const dbt_avdtp_endpoint_t endpoints[]={
-    {sbc_caps,sizeof(sbc_caps),1,dbt_a2dp_sbc_validate},
-    {sbc_caps,sizeof(sbc_caps),2,dbt_a2dp_sbc_validate}};
+    {sbc_caps,sizeof(sbc_caps),1,dbt_a2dp_sbc_validate,0,0},
+    {sbc_caps,sizeof(sbc_caps),2,dbt_a2dp_sbc_validate,0,0}};
 static const uint8_t selection[]={4,8,1,0,7,6,0,0,0x21,0x15,2,53,8,0};
 typedef struct {
     dbt_avdtp_sink_t sink;

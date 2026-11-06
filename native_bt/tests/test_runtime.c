@@ -399,7 +399,7 @@ EXPORT int test_avdtp_sink_paired_runtime_media_channels_and_ble(void){
     int result=avdtp_fixture_with_mtu(335);if(result)return result;
     CHECK(dbt_avdtp_bearer_clear(&avdtp_bearers[1])==DBT_OK);
     static const uint8_t caps[]={1,0,7,6,0,0,0xff,0xff,2,53,8,0};
-    static const dbt_avdtp_endpoint_t endpoint={caps,sizeof(caps),1,dbt_a2dp_sbc_validate};
+    static const dbt_avdtp_endpoint_t endpoint={caps,sizeof(caps),1,dbt_a2dp_sbc_validate,0,0};
     dbt_avdtp_sink_hooks_t hooks={&peers[1],allocate,release,sink_work,sink_event,sink_media};
     const dbt_channel_t *signaling=dbt_channels_find(&peers[1].runtime.channels,1,peers[1].cid);
     CHECK(signaling);
@@ -449,7 +449,7 @@ static int acceptor_fixture(void){
         CHECK(dbt_channels_register_fixed(&peers[i].runtime.channels,DBT_LINK_LE,4)==DBT_OK);
     }
     static const uint8_t caps[]={1,0,7,6,0,0,0xff,0xff,2,53,8,0};
-    static const dbt_avdtp_endpoint_t endpoint={caps,sizeof(caps),1,dbt_a2dp_sbc_validate};
+    static const dbt_avdtp_endpoint_t endpoint={caps,sizeof(caps),1,dbt_a2dp_sbc_validate,0,0};
     dbt_avdtp_sink_hooks_t hooks={&peers[1],allocate,release,sink_work,sink_event,sink_media};
     CHECK(dbt_a2dp_acceptor_init(&acceptor,&peers[1].runtime,hooks,&endpoint,1,672,128,5000,1000,2000)==DBT_OK);
     acceptor_enabled=true;sink_job_pending=false;sink_close_pending=false;sink_media_calls=0;

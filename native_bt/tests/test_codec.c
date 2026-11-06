@@ -19,7 +19,7 @@ EXPORT int test_aac_selection_and_endpoint_subset(void){
     selected[4]=0x84;selected[3]=1;CHECK(dbt_aac_configure(selected,8,&c)==DBT_INVALID);
     selected[3]=0;selected[4]=0x44;CHECK(dbt_aac_configure(selected,8,&c)==DBT_UNSUPPORTED);
     selected[3]=1;selected[4]=8;CHECK(dbt_aac_configure(selected,8,&c)==DBT_OK && c.rate==44100 && c.channels==1);
-    dbt_avdtp_endpoint_t endpoint={aac_caps,sizeof(aac_caps),2,dbt_a2dp_aac_validate};
+    dbt_avdtp_endpoint_t endpoint={aac_caps,sizeof(aac_caps),2,dbt_a2dp_aac_validate,0,0};
     dbt_avdtp_cap_t cap={aac_cie,7,8};
     CHECK(!dbt_a2dp_aac_validate(&endpoint,&cap));
     uint8_t local[sizeof(aac_caps)];for(unsigned i=0;i<sizeof(local);++i)local[i]=aac_caps[i];endpoint.capabilities=local;

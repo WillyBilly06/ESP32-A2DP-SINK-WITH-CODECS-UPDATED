@@ -12,6 +12,10 @@ struct dbt_avdtp_endpoint {
     /* Pure bounded metadata validation, no decoder construction. Returns an
      * AVDTP/A2DP rejection code, or zero for a supported complete selection. */
     uint8_t (*validate)(const dbt_avdtp_endpoint_t *endpoint, const dbt_avdtp_cap_t *codec);
+    /* Both zero selects RTP. Otherwise a raw packet contains whole codec
+     * codewords; framing comes from the selected endpoint, never sniffing
+     * compressed bytes that can coincidentally resemble an RTP header. */
+    uint16_t raw_codeword_bytes,raw_codeword_samples;
 };
 typedef enum { DBT_STREAM_IDLE, DBT_STREAM_CONFIGURED, DBT_STREAM_OPEN,
     DBT_STREAM_STREAMING, DBT_STREAM_CLOSING, DBT_STREAM_ABORTING } dbt_stream_state_t;
@@ -92,6 +96,8 @@ typedef struct {
     uint8_t *configuration;
     uint32_t binding, next_token, worker_ms, media_ms, media_deadline, media_binding;
     uint32_t media_packets, media_rejected;
+    uint32_t raw_timestamp;
+    uint16_t raw_sequence;
     uint16_t configuration_size, maximum_configuration;
     dbt_stream_state_t state;
     uint8_t count, endpoint, remote_seid;

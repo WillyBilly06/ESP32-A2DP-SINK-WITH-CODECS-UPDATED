@@ -695,6 +695,7 @@ dbt_result_t dbt_avdtp_sink_init(dbt_avdtp_sink_t *s,dbt_avdtp_sink_hooks_t hook
     for(unsigned i=0;i<count;++i){
         const dbt_avdtp_endpoint_t *ep=&endpoints[i];dbt_avdtp_caps_t caps;dbt_avdtp_cap_error_t error;
         if(!ep->seid || ep->seid>62 || !ep->validate || ep->size>1024 ||
+            ((!ep->raw_codeword_bytes)!=(!ep->raw_codeword_samples)) ||
             dbt_avdtp_caps_validate(ep->capabilities,ep->size,DBT_AVDTP_CAPABILITIES,&caps,&error)!=DBT_OK ||
             (caps.present&0x82u)!=0x82u || (caps.present&~0x182u) || caps.codec.data[0]>>4)return DBT_INVALID;
         for(unsigned j=0;j<i;++j)if(endpoints[j].seid==ep->seid)return DBT_INVALID;
@@ -786,7 +787,8 @@ dbt_result_t dbt_avdtp_sink_poll(dbt_avdtp_sink_t *s,uint32_t now) {
 dbt_result_t dbt_avdtp_sink_media_open(dbt_avdtp_sink_t *s,uint32_t binding,uint32_t now) {
     if(!s || !binding || s->retiring || s->failed || s->state!=DBT_STREAM_OPEN || s->pending.used || s->media_binding)return DBT_INVALID;
     if(due(now,s->media_deadline)){fault(s);return DBT_INVALID;}
-    s->media_binding=binding;s->media_deadline=0;s->media_packets=s->media_rejected=0;return DBT_OK;
+    s->media_binding=binding;s->media_deadline=0;s->media_packets=s->media_rejected=0;
+    s->raw_sequence=0;s->raw_timestamp=0;return DBT_OK;
 }
 dbt_result_t dbt_avdtp_sink_media_closed_ex(dbt_avdtp_sink_t *s,uint32_t binding,bool transport_failed) {
     if(!s || !binding)return DBT_EMPTY;
@@ -830,7 +832,16 @@ dbt_result_t dbt_avdtp_sink_media_receive(dbt_avdtp_sink_t *s,uint32_t binding,c
         if(!c || (c->result.operation!=DBT_SINK_SUSPEND && c->result.operation!=DBT_SINK_CLOSE) ||
            c->result.remote_abort || local_accepted(c,c->result.operation))return DBT_BUSY;
     }
-    dbt_avdtp_media_t media;dbt_result_t result=dbt_avdtp_media_decode(packet,size,&media);
+    if(s->endpoint>=s->count)return DBT_INVALID;
+    const dbt_avdtp_endpoint_t *ep=&s->endpoints[s->endpoint];
+    dbt_avdtp_media_t media;dbt_result_t result;
+    if(ep->raw_codeword_bytes){
+        result=(!packet || !size || size%ep->raw_codeword_bytes)?DBT_INVALID:DBT_OK;
+        if(result==DBT_OK){
+            media=(dbt_avdtp_media_t){packet,s->raw_timestamp,0,size,s->raw_sequence++,DBT_AVDTP_RAW_PAYLOAD_TYPE,false};
+            s->raw_timestamp+=(uint32_t)(size/ep->raw_codeword_bytes)*ep->raw_codeword_samples;
+        }
+    }else result=dbt_avdtp_media_decode(packet,size,&media);
     if(result==DBT_OK)result=s->hooks.media(s->hooks.context,&media);
     if(result==DBT_OK)++s->media_packets;else ++s->media_rejected;
     return result;

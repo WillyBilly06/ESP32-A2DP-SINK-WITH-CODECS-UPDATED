@@ -135,6 +135,10 @@ uint32_t dbt_avdtp_wait_ms(const dbt_avdtp_t *signal, uint32_t now_ms);
  * a view is pinned; it must never release bytes still borrowed by the runtime. */
 dbt_result_t dbt_avdtp_clear(dbt_avdtp_t *signal);
 
+/* Outside the seven-bit RTP payload-type range. Raw codec transport has no
+ * wire sequence/timestamp/SSRC: sequence is a host admission ordinal and
+ * timestamp counts codec samples. Never report these as RF-loss evidence. */
+#define DBT_AVDTP_RAW_PAYLOAD_TYPE 255u
 /* Bounded RTP view for the unmultiplexed, uncompressed media transport service.
  * Handles CSRCs, extensions and padding; leaves codec-specific payload intact.
  * A successful parse is not a decoded-frame or continuity claim. */

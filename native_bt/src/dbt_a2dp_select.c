@@ -64,7 +64,7 @@ dbt_result_t dbt_a2dp_select_exact(const dbt_avdtp_endpoint_t *endpoints,uint8_t
         saw_family=true;r.local_seid=ep->seid;
         uint8_t error=ep->validate(ep,&selected);
         if(error){r.local_codec_error=error;continue;}saw_local=true;
-        dbt_avdtp_endpoint_t source={remote,(uint16_t)(4u+offered.codec.size),peer->seid,ep->validate};
+        dbt_avdtp_endpoint_t source={remote,(uint16_t)(4u+offered.codec.size),peer->seid,ep->validate,ep->raw_codeword_bytes,ep->raw_codeword_samples};
         error=ep->validate(&source,&selected);
         if(error){r.peer_codec_error=error;continue;}saw_peer=true;
         bool enabled=request->delay!=DBT_A2DP_DELAY_DISABLED && request->avdtp_version>=0x0103u &&

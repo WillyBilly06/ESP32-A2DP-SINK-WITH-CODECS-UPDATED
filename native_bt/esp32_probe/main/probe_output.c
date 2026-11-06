@@ -2,6 +2,9 @@
 #include "probe_output.h"
 #include "dbt_async_ticket.h"
 #include <stddef.h>
+#ifdef __XTENSA__
+#include <xtensa/xtruntime.h>
+#endif
 #if defined(DBT_PROBE_CODEC_AWARE_RENDER) && defined(DBT_PROBE_SCHEDULER_TRACE)
 #include "probe_scheduler.h"
 #endif
@@ -29,6 +32,8 @@ extern void dbt_output_test_step(unsigned);
 #define DMA_FRAMES 128u
 #define DMA_DESCRIPTORS 3u
 #define DMA_IRQ_PRIORITY 2
+#define REFILL_GUARD_US 64u
+#define REFILL_COPY_BUDGET_US 32u
 /* The working Bluedroid product consumes exactly one decoded source frame per
  * output frame. Its drift drop/insert path is explicitly disabled. Preserve
  * that PCM behavior: the added always-on FIR is not part of codec decoding or
@@ -73,7 +78,7 @@ typedef struct {
 } response_t;
 typedef struct {
   void *address;
-  uint32_t valid;
+  _Atomic uint32_t valid;
   bool silent;
 } descriptor_t;
 typedef struct {
@@ -114,7 +119,8 @@ typedef struct {
   request_t pending_sound_transition;
   bool restart_after_stop;
 #endif
-  int32_t held_left, held_right, meter_db[3];
+  _Atomic int32_t held_left,held_right;
+  int32_t meter_db[3];
   uint32_t meter_at;
   _Atomic uint32_t meter_value;
   _Atomic uint32_t stop_requested, stop_finished;
@@ -140,6 +146,13 @@ typedef struct {
   uint32_t allocation_request_rate,allocation_request_channels,allocation_request_sample_bytes;
   uint32_t allocation_audio_requested,allocation_input_requested,allocation_success_bytes,allocation_success_calls;
   _Atomic uint32_t first_underrun_accepted_frames, first_underrun_dma_frames;
+  _Atomic uint32_t refill_period_us,refill_pending_index,refill_deadline_us;
+  _Atomic uint32_t refill_recovered_frames,refill_recovered_calls,refill_unfilled_frames,refill_canceled_frames;
+  _Atomic uint32_t refill_copy_max_us,refill_mask_max_us,refill_contract_errors;
+  /* Logger requests a best-effort snapshot. Only the active render owner reads
+   * the DSP; neither logger nor ISR touches its mutable filter state. */
+  _Atomic uint32_t dsp_requested,dsp_generation,dsp_at_us,dsp_open,dsp_rate,dsp_gains,dsp_options;
+  _Atomic uint32_t dsp_peak_q27,dsp_limited,dsp_over_full_scale,dsp_frames;
 } output_t;
 static DRAM_ATTR output_t output;
 
@@ -409,6 +422,73 @@ static bool handle_pcm_loan(const request_t *request){
 }
 #endif
 
+/* A pending shortage belongs only to the most recent completed descriptor.
+ * Every subsequent EOF closes it BEFORE consuming newer output, preserving
+ * sample order even if the notification task could not run in time. */
+static void IRAM_ATTR close_refill_window(output_t *o){
+  uint32_t index=atomic_load_explicit(&o->refill_pending_index,memory_order_acquire);
+  if(index==UINT32_MAX)return;
+  if(index<DMA_DESCRIPTORS){
+    uint32_t valid=atomic_load(&o->descriptors[index].valid);
+    if(valid<=DMA_FRAMES)atomic_store(&o->refill_unfilled_frames,
+        atomic_load(&o->refill_unfilled_frames)+DMA_FRAMES-valid);
+    else atomic_store(&o->failed,1);
+  }else atomic_store(&o->failed,1);
+  atomic_store_explicit(&o->refill_pending_index,UINT32_MAX,memory_order_release);
+}
+/* Render owner only, same CPU as the ISR. A verified three-descriptor ring
+ * gives at least one conservative buffer period after a fresh normal EOF.
+ * No newer EOF is allowed to leave an older window open. The local mask never
+ * waits for another CPU; only a <=1024-byte copy and atomic metadata run here. */
+static bool IRAM_ATTR service_refill_window(void){
+#ifdef DBT_PROBE_STAY_NATIVE
+  if(atomic_load(&output.refill_pending_index)==UINT32_MAX ||
+     atomic_load(&output.failed) || atomic_load(&output.stop_requested) ||
+     atomic_load(&output.callback_core)!=(uint32_t)xPortGetCoreID())return false;
+#ifdef __XTENSA__
+  uint32_t mask=XTOS_SET_MIN_INTLEVEL(5); /* Also exclude the ordinary high-level IPC interrupt during this bounded copy. */
+#endif
+  uint32_t mask_began=(uint32_t)esp_timer_get_time();
+  bool copied=false;
+  uint32_t index=atomic_load_explicit(&output.refill_pending_index,memory_order_acquire);
+  uint32_t now=(uint32_t)esp_timer_get_time();
+  uint32_t deadline=atomic_load(&output.refill_deadline_us);
+  if(index<DMA_DESCRIPTORS && !atomic_load(&output.failed) && !atomic_load(&output.stop_requested) &&
+     (int32_t)(deadline-now)>(int32_t)REFILL_COPY_BUDGET_US){
+    descriptor_t *d=&output.descriptors[index];uint32_t valid=atomic_load(&d->valid);
+    uint32_t missing=valid<=DMA_FRAMES?DMA_FRAMES-valid:0;
+    if(missing && dbt_audio_output_frames(&output.audio)>=missing){
+      uint32_t began=(uint32_t)esp_timer_get_time();
+      int32_t *buffer=d->address;
+      uint32_t taken=dbt_audio_take(&output.audio,buffer+2u*valid,missing);
+      uint32_t ended=(uint32_t)esp_timer_get_time(),elapsed=ended-began;
+      atomic_store(&d->valid,valid+taken);
+      atomic_store(&output.refill_recovered_frames,atomic_load(&output.refill_recovered_frames)+taken);
+      atomic_store(&output.refill_recovered_calls,atomic_load(&output.refill_recovered_calls)+1u);
+      if(elapsed>atomic_load(&output.refill_copy_max_us))atomic_store(&output.refill_copy_max_us,elapsed);
+      if(taken==missing){
+        atomic_store(&output.held_left,buffer[2u*(DMA_FRAMES-1u)]);
+        atomic_store(&output.held_right,buffer[2u*(DMA_FRAMES-1u)+1u]);
+        atomic_store_explicit(&output.refill_pending_index,UINT32_MAX,memory_order_release);
+      }
+      if(taken!=missing || elapsed>REFILL_COPY_BUDGET_US || (int32_t)(ended-deadline)>=0){
+        atomic_store(&output.refill_contract_errors,atomic_load(&output.refill_contract_errors)+1u);
+        atomic_store(&output.failed,1);
+      }
+      copied=taken!=0;
+    }
+  }
+  uint32_t masked=(uint32_t)esp_timer_get_time()-mask_began;
+  if(masked>atomic_load(&output.refill_mask_max_us))atomic_store(&output.refill_mask_max_us,masked);
+  if(masked>REFILL_GUARD_US){atomic_store(&output.refill_contract_errors,atomic_load(&output.refill_contract_errors)+1u);atomic_store(&output.failed,1);}
+#ifdef __XTENSA__
+  XTOS_RESTORE_JUST_INTLEVEL(mask);
+#endif
+  return copied;
+#else
+  return false;
+#endif
+}
 static bool IRAM_ATTR finish_sent(output_t *o,uint32_t began,BaseType_t wake){
   uint32_t elapsed=(uint32_t)esp_timer_get_time()-began;
   if(!atomic_load(&o->callback_calls)){
@@ -444,6 +524,7 @@ static bool IRAM_ATTR sent(i2s_chan_handle_t channel, i2s_event_data_t *event,
     vTaskNotifyGiveFromISR(o->task,&wake);
     return finish_sent(o,now,wake);
   }
+  close_refill_window(o);
   if (o->last_eof) {
     if (gap > atomic_load(&o->max_eof_gap_us))
       atomic_store(&o->max_eof_gap_us, gap);
@@ -525,9 +606,10 @@ static bool IRAM_ATTR sent(i2s_chan_handle_t channel, i2s_event_data_t *event,
                         : DMA_FRAMES;
   uint32_t taken = wanted ? dbt_audio_take(&o->audio, buffer, wanted) : 0;
   if (stopping) {
+    int32_t held_left=atomic_load(&o->held_left),held_right=atomic_load(&o->held_right);
     for (unsigned i = taken; i < wanted; ++i) {
-      buffer[2 * i] = o->held_left;
-      buffer[2 * i + 1u] = o->held_right;
+      buffer[2 * i] = held_left;
+      buffer[2 * i + 1u] = held_right;
     }
     atomic_store(&o->stop_fill_frames,
                  atomic_load(&o->stop_fill_frames) + wanted - taken);
@@ -556,6 +638,21 @@ static bool IRAM_ATTR sent(i2s_chan_handle_t channel, i2s_event_data_t *event,
   if (stopping)
     dbt_audio_fade(&o->fade, buffer, DMA_FRAMES);
   descriptor->valid = taken;
+  if(!stopping && taken<DMA_FRAMES){
+    uint32_t period=atomic_load(&o->refill_period_us);
+    bool eligible=false;
+#ifdef DBT_PROBE_STAY_NATIVE
+    eligible=known && o->descriptor_count==DMA_DESCRIPTORS &&
+        o->descriptor_order_seen==DMA_DESCRIPTORS && !atomic_load(&o->descriptor_errors) &&
+        !atomic_load(&o->failed) && period>REFILL_GUARD_US+REFILL_COPY_BUDGET_US &&
+        gap>=period/2u && gap<=period+REFILL_GUARD_US &&
+        atomic_load(&o->render_core)==(uint32_t)xPortGetCoreID();
+#endif
+    if(eligible){
+      atomic_store(&o->refill_deadline_us,now+period-REFILL_GUARD_US);
+      atomic_store_explicit(&o->refill_pending_index,index,memory_order_release);
+    }else atomic_store(&o->refill_unfilled_frames,atomic_load(&o->refill_unfilled_frames)+DMA_FRAMES-taken);
+  }
   vTaskNotifyGiveFromISR(o->task, &wake);
   return finish_sent(o,now,wake);
 }
@@ -577,6 +674,11 @@ static void close_output(void) {
       (void)i2s_channel_disable(output.channel);
     (void)i2s_del_channel(output.channel);
     output.channel = 0;
+  }
+  uint32_t pending=atomic_exchange_explicit(&output.refill_pending_index,UINT32_MAX,memory_order_acq_rel);
+  if(pending<DMA_DESCRIPTORS){
+    uint32_t valid=atomic_load(&output.descriptors[pending].valid);
+    if(valid<=DMA_FRAMES)atomic_store(&output.refill_canceled_frames,atomic_load(&output.refill_canceled_frames)+DMA_FRAMES-valid);
   }
   /* I2S operations and its ISR belong to this pinned render core. After
    * disable/delete no callback can run while its owner frees the SRAM rings. */
@@ -734,6 +836,11 @@ static dbt_result_t start_output(uint32_t rate, uint8_t channels,
   atomic_store(&output.stop_fill_frames, 0);
   atomic_store(&output.requested_bytes, output.audio.allocated_bytes +
                                             DMA_DESCRIPTORS * DMA_FRAMES * 8u);
+  atomic_store(&output.refill_period_us,DMA_FRAMES*1000000u/rate);
+  atomic_store(&output.refill_pending_index,UINT32_MAX);atomic_store(&output.refill_deadline_us,0);
+  atomic_store(&output.refill_recovered_frames,0);atomic_store(&output.refill_recovered_calls,0);
+  atomic_store(&output.refill_unfilled_frames,0);atomic_store(&output.refill_canceled_frames,0);
+  atomic_store(&output.refill_copy_max_us,0);atomic_store(&output.refill_mask_max_us,0);atomic_store(&output.refill_contract_errors,0);
   atomic_store(&output.first_underrun_accepted_frames, 0);
   atomic_store(&output.first_underrun_dma_frames, 0);
   output.active = true;
@@ -927,10 +1034,30 @@ static void consume_request(request_t request){
   else if(state==DBT_TICKET_WAITING)handle_request(request);
   else atomic_fetch_add(&output.stale_receipts,1);
 }
+static void publish_dsp_quality(void){
+    if(!atomic_load_explicit(&output.dsp_requested,memory_order_acquire))return;
+    atomic_store_explicit(&output.dsp_requested,0,memory_order_release);
+    uint32_t generation=atomic_load_explicit(&output.dsp_generation,memory_order_relaxed);
+    atomic_store_explicit(&output.dsp_generation,generation+1u,memory_order_release);
+    atomic_thread_fence(memory_order_seq_cst);
+    const fixed_dsp_t *d=&output.audio.dsp;bool open=output.audio.opened;
+    uint32_t gains=open?((uint32_t)(uint8_t)d->gains[0]|((uint32_t)(uint8_t)d->gains[1]<<8)|((uint32_t)(uint8_t)d->gains[2]<<16)):0;
+    atomic_store_explicit(&output.dsp_at_us,(uint32_t)esp_timer_get_time(),memory_order_relaxed);
+    atomic_store_explicit(&output.dsp_open,open,memory_order_relaxed);
+    atomic_store_explicit(&output.dsp_rate,open?output.audio.config.rate:0,memory_order_relaxed);
+    atomic_store_explicit(&output.dsp_gains,gains,memory_order_relaxed);
+    atomic_store_explicit(&output.dsp_options,open?((uint32_t)d->flags|((uint32_t)d->requested_volume<<8)):0,memory_order_relaxed);
+    atomic_store_explicit(&output.dsp_peak_q27,open?d->peak_q27:0,memory_order_relaxed);
+    atomic_store_explicit(&output.dsp_limited,open?d->limited:0,memory_order_relaxed);
+    atomic_store_explicit(&output.dsp_over_full_scale,open?d->over_full_scale:0,memory_order_relaxed);
+    atomic_store_explicit(&output.dsp_frames,open?atomic_load(&output.audio.rendered_frames):0,memory_order_relaxed);
+    atomic_store_explicit(&output.dsp_generation,generation+2u,memory_order_release);
+}
 static bool render_step(void) {
 #ifdef DBT_PROBE_CODEC_AWARE_RENDER
     if(!owns_output())return false;
 #endif
+    publish_dsp_quality();
 #ifdef DBT_PROBE_SOUND_BUILD
     bool made_silence=false,blocked_sound=false;
 #endif
@@ -985,6 +1112,7 @@ static bool render_step(void) {
 #endif
         return false;
       }
+      (void)service_refill_window();
       uint32_t target = output.audio.config.target_frames +
                         (output.enabled ? 0 : DMA_DESCRIPTORS * DMA_FRAMES);
       uint32_t available = dbt_audio_output_frames(&output.audio);
@@ -1038,6 +1166,7 @@ static bool render_step(void) {
           atomic_fetch_add(&output.render_calls,1);
           atomic_store(&output.rendered_frames,
                        atomic_load(&output.audio.rendered_frames));
+          (void)service_refill_window();
           if (output.wake_decoder)
             output.wake_decoder(output.wake_context);
 #ifdef DBT_PROBE_SOUND_BUILD
@@ -1178,6 +1307,7 @@ static void render_loop(void *unused) {
 
 dbt_result_t probe_output_init(void (*wake_decoder)(void *), void *context) {
   if(output.task || output.requests)return DBT_BUSY;
+  atomic_store(&output.refill_pending_index,UINT32_MAX);
   output.wake_decoder = wake_decoder;
   output.wake_context = context;
   dbt_ticket_init(&output.ticket);
@@ -1428,6 +1558,19 @@ bool probe_output_running(void){return atomic_load(&output.running)!=0;}
 void probe_output_stats(probe_output_stats_t *s) {
   if (!s)
     return;
+  /* One read attempt. A concurrent publication is invalid for this cycle;
+   * there is no retry loop and no wait for the render owner. */
+  uint32_t dsp_generation=atomic_load_explicit(&output.dsp_generation,memory_order_acquire);
+  s->dsp_valid=dsp_generation && !(dsp_generation&1u) && atomic_load(&output.dsp_open);
+#define DSP_LOAD(field) s->dsp_##field=atomic_load_explicit(&output.dsp_##field,memory_order_relaxed)
+  DSP_LOAD(at_us);DSP_LOAD(rate);DSP_LOAD(gains);DSP_LOAD(options);DSP_LOAD(peak_q27);
+  DSP_LOAD(limited);DSP_LOAD(over_full_scale);DSP_LOAD(frames);
+#undef DSP_LOAD
+  atomic_thread_fence(memory_order_acquire);
+  if(dsp_generation!=atomic_load_explicit(&output.dsp_generation,memory_order_acquire))s->dsp_valid=0;
+  atomic_store_explicit(&output.dsp_requested,1,memory_order_release);
+  TaskHandle_t dsp_owner=atomic_load_explicit(&output.task,memory_order_acquire);
+  if(dsp_owner)xTaskNotifyGive(dsp_owner);
   s->pcm_target_ms=DBT_PROBE_PCM_TARGET_MS;
   uint32_t prime=atomic_load(&output.priming_state),guard=prime&PRIMING_BUDGET;
   s->priming_ms=guard;s->priming_remaining_ms=0;
@@ -1479,6 +1622,8 @@ void probe_output_stats(probe_output_stats_t *s) {
   s->pcm_loan_mode=0;
 #endif
   LOAD(input_ring_bytes_avoided);LOAD(pcm_loans_begun);LOAD(pcm_loans_retired);LOAD(pcm_loans_cancelled);LOAD(pcm_loan_active);LOAD(pcm_loan_max_us);
+  LOAD(refill_period_us);LOAD(refill_recovered_frames);LOAD(refill_recovered_calls);LOAD(refill_unfilled_frames);LOAD(refill_canceled_frames);
+  LOAD(refill_copy_max_us);LOAD(refill_mask_max_us);LOAD(refill_contract_errors);LOAD(refill_pending_index);
   LOAD(input_capacity_frames);LOAD(input_ring_bytes);
   s->configured_irq_priority=DMA_IRQ_PRIORITY;
   LOAD(max_eof_gap_us);

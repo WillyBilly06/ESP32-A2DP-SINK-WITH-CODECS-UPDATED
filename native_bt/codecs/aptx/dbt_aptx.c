@@ -59,6 +59,12 @@ static dbt_result_t resume(dbt_codec_decoder_t *d,uint32_t now){
         size_t left=s->batch_size-s->batch_offset;
         size_t written=0,processed=aptx_decode32(s->codec,s->batch+s->batch_offset,left,pcm(s),1024,&written);
         if(!processed || processed>left || processed%quantum || written>1024 || written%8)return batch_finish(s,DBT_INVALID);
+        /* A whole input codeword remains and another four stereo S32 samples
+         * fit: the library stopped on parity, not on either buffer boundary.
+         * Its failed codeword already advanced predictor/sync state. Replaying
+         * that codeword in a later resume can turn a short failure into static.
+         * Let the worker report/drop/reset once, rather than silently retrying. */
+        if(processed<left && written<=1024u-32u)return batch_finish(s,DBT_INVALID);
         s->batch_offset=(uint16_t)(s->batch_offset+processed);
         if(written){uint16_t frames=(uint16_t)(written/8u);dbt_result_t r=d->hooks.pcm(d->hooks.context,pcm(s),frames,&d->config,s->next_timestamp);
             if(r!=DBT_OK && r!=DBT_PENDING)return batch_finish(s,r);

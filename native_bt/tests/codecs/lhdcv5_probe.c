@@ -42,7 +42,7 @@ EXPORT int probe_configure(const uint8_t *cie,unsigned size,unsigned *rate,unsig
     if(r==DBT_OK){*rate=c.rate;*frames=c.samples;*sample_bytes=c.sample_bytes;}return r;
 }
 EXPORT int probe_validate(const uint8_t *caps,unsigned caps_size,const uint8_t *cie,unsigned size){
-    dbt_avdtp_endpoint_t endpoint={caps,(uint16_t)caps_size,1,dbt_a2dp_lhdcv5_validate};
+    dbt_avdtp_endpoint_t endpoint={caps,(uint16_t)caps_size,1,dbt_a2dp_lhdcv5_validate,0,0};
     dbt_avdtp_cap_t codec={cie,7,(uint8_t)size};return dbt_a2dp_lhdcv5_validate(&endpoint,&codec);
 }
 EXPORT int worker_init(void){dbt_codec_worker_hooks_t h={{0,allocate,release,pcm},codecs,2,0,0,0,false,{0},0,{0}};pcm_frames=0;return dbt_codec_worker_init(&worker,h,2048,2);}

@@ -1,0 +1,11 @@
+# Conservative post-EOF DMA refill window — 2026-11-06
+
+This experiment revisits a partially filled descriptor after its EOF callback, from the same core's render task. The existing initial-shortage counter keeps its original meaning. Recovery, expired/unfilled, canceled, copy/mask maxima and contract errors are separate `i2s_refill_window` UART fields; zero initial shortages does not prove this recovery path ran.
+
+The reviewed IDF 6.1 `esp_driver_i2s/i2s_common.c` invokes the on-sent callback with the completed DMA buffer and subsequently queues it for the public writer. This is a local implementation constraint, not a generic promise that an application can write any descriptor at arbitrary times.
+
+The owned path grants a lease only after verifying the fixed three-descriptor pool/order, a fresh EOF interval, the render/IRQ core match and no latched descriptor errors. At the next valid EOF, it closes the previous lease before newer PCM can overtake it. A task refill requires the entire missing span (at most 128 frames / 1 KiB), a conservative one-period deadline with a 64 us guard, and more than 32 us remaining. Local interrupt masking excludes the same core's I2S callback while copying; no cross-core lock or wait is acquired. A copy above 32 us, masked duration above 64 us or contract mismatch is explicit failure. Shutdown retires the lease before DMA storage is deleted. No new PCM pool or task is allocated.
+
+The production-C focused fixture passed ordering, next-EOF expiry, insufficient time, clock wrap, stop/lifetime, prior-ring-fault and budget rejection cases at 100/1000 Hz mocked clocks. Those are ownership checks, not MCU timing or RF evidence. Prior short hardware observations measured copies at up to 7 us and masked sections up to 9 us with no contract faults, but the high-EQ run had an invalid playback/EQ setup and cannot serve as comparative audio proof. A confirmed flat-EQ LDAC run and the new HD YouTube run had zero initial shortages and did not exercise recovery. Nonzero unfilled frames persisted in other runs. Overall audio continuity remains unqualified.
+
+See [codec routing and current HD evidence](BLUEDROID_CODEC_ROUTING_2026_11_06.md). User-reported aptX HD static after 2–3 seconds remains an open sound-quality problem even when starvation counters are clean.

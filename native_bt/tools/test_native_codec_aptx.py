@@ -93,6 +93,21 @@ def main():
             assert control(5)==0 and lib.probe_live()==0;lib.reference_close()
             vectors.append(dict(codec=kind,rate=rate,encoded_bytes=len(encoded),pcm_bytes=len(actual),
                                 encoded_sha256=hashlib.sha256(encoded).hexdigest(),pcm_sha256=hashlib.sha256(actual).hexdigest(),worker_live_bytes=live))
+    # A parity failure after a successful prefix must not replay that failed
+    # codeword: freeaptx has already advanced its predictor/sync state.
+    config=cie("hd",48000)
+    assert lib.reference_open(True)==0
+    encoded_buf=(u8*8192)();n=u()
+    assert lib.reference_encode(buf(pcm),len(pcm),encoded_buf,len(encoded_buf),ctypes.byref(n))==len(pcm)
+    damaged=bytearray(encoded_buf[:660]);damaged[62*6]^=8
+    standalone=(u8*8192)();standalone_n=u()
+    used=lib.reference_decode(buf(damaged),len(damaged),standalone,len(standalone),ctypes.byref(standalone_n))
+    assert 0<used<len(damaged) and standalone_n.value>0
+    lib.reference_close()
+    assert lib.worker_init()==0 and control(0,config)==0 and control(3)==0
+    before=lib.worker_drops();r,decoded=packet(damaged,0)
+    assert r==0 and lib.worker_drops()==before+1 and len(decoded)<=1024
+    assert control(5)==0 and lib.probe_live()==0
     # Failure of the decoder or packet queue during reconfiguration restores SBC.
     sbc=bytes([0,0,0x11,0x15,2,53]);config=cie("hd",48000)
     for invalid in (config[:-1],config[:8]+bytes([0x11])+config[9:],config[:9]+bytes([1])+config[10:]):
@@ -113,6 +128,7 @@ def main():
     report=dict(passed=True,address_sanitizer=ASAN,scope="offline SDK freeaptx encode and native worker PCM versus standalone reference; no target or RF evidence",
                 vectors=vectors,byte_exact_standalone_reference=True,sbc_live_bytes=sbc_live,aptx_worker_live_bytes=aptx_live,
                 switch_peak_bytes=max(sbc_live,aptx_live),decoder_and_queue_oom_rollback=True,malformed_cie_and_packet=True,
+                partial_parity_failure_not_replayed=True,
                 source_sha256={str(p.relative_to(ROOT.parent)).replace('\\','/'):hashlib.sha256(p.read_bytes()).hexdigest() for p in sources})
     (OUT/("aptx_asan_results.json" if ASAN else "aptx_real_results.json")).write_text(json.dumps(report,indent=2)+"\n")
     print(json.dumps({k:v for k,v in report.items() if k!='source_sha256'},indent=2))

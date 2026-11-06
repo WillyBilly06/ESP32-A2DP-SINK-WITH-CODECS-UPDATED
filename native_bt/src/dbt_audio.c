@@ -144,7 +144,7 @@ uint32_t dbt_audio_input_frames(const dbt_audio_t *a){
     if(!a || !a->opened)return 0;
     return atomic_load_explicit(&a->input.written,memory_order_acquire)-atomic_load_explicit(&a->input.read,memory_order_acquire);
 }
-uint32_t dbt_audio_output_frames(const dbt_audio_t *a){
+uint32_t AUDIO_ISR dbt_audio_output_frames(const dbt_audio_t *a){
     if(!a || !a->opened)return 0;
     return atomic_load_explicit(&a->output.written,memory_order_acquire)-atomic_load_explicit(&a->output.read,memory_order_acquire);
 }

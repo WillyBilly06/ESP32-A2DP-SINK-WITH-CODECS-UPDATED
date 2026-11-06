@@ -1,0 +1,5992 @@
+{
+  "scope": "Local non-external BT C/C++ source/header inventory. Compiled-unit membership and source review are different. Pending does not mean absent. Codec libraries are inventoried by the build manifest separately.",
+  "complete": false,
+  "total": 1193,
+  "reviewed_codec_boundary": 5,
+  "pending": 1188,
+  "controller_only": true,
+  "bluedroid_host_linked": false,
+  "bluedroid_external_compiled_units": 153,
+  "entries": [
+    {
+      "path": "common/api/esp_blufi_api.c",
+      "compiled_unit": true,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "common/api/include/api/esp_blufi_api.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "common/ble_log/deprecated/ble_log_spi_out.c",
+      "compiled_unit": true,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "common/ble_log/deprecated/include/ble_log/ble_log_spi_out.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "common/ble_log/extension/log_compression/ble_log_compression.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "common/ble_log/extension/log_compression/include/log_compression/utils.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "common/ble_log/extension/log_compression/tests/fixtures/c_sources/concatenated_strings.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "common/ble_log/extension/log_compression/tests/fixtures/c_sources/format_specifiers.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "common/ble_log/extension/log_compression/tests/fixtures/c_sources/mesh_logs.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "common/ble_log/extension/log_compression/tests/fixtures/c_sources/multi_level.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "common/ble_log/extension/log_compression/tests/fixtures/c_sources/no_logs.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "common/ble_log/extension/log_compression/tests/fixtures/c_sources/simple_logs.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "common/ble_log/extension/log_compression/tests/fixtures/c_sources/special_tokens.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "common/ble_log/extension/log_compression/tests/fixtures/expected/format_specifiers_index.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "common/ble_log/extension/log_compression/tests/fixtures/expected/multi_file_index.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "common/ble_log/extension/log_compression/tests/fixtures/expected/multi_level_index.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "common/ble_log/extension/log_compression/tests/fixtures/expected/simple_logs_index.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "common/ble_log/extension/log_compression/tests/fixtures/expected/special_tokens_index.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "common/ble_log/include/ble_log.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "common/ble_log/src/ble_log.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "common/ble_log/src/ble_log_lbm.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "common/ble_log/src/ble_log_rt.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "common/ble_log/src/ble_log_ts.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "common/ble_log/src/ble_log_util.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "common/ble_log/src/internal_include/ble_log_lbm.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "common/ble_log/src/internal_include/ble_log_prph.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "common/ble_log/src/internal_include/ble_log_rt.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "common/ble_log/src/internal_include/ble_log_ts.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "common/ble_log/src/internal_include/ble_log_util.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "common/ble_log/src/internal_include/prph/ble_log_prph_dummy.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "common/ble_log/src/internal_include/prph/ble_log_prph_spi_master_dma.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "common/ble_log/src/internal_include/prph/ble_log_prph_uart_dma.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "common/ble_log/src/prph/ble_log_prph_dummy.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "common/ble_log/src/prph/ble_log_prph_spi_master_dma.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "common/ble_log/src/prph/ble_log_prph_uart_dma.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "common/btc/core/btc_alarm.c",
+      "compiled_unit": true,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "common/btc/core/btc_manage.c",
+      "compiled_unit": true,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "common/btc/core/btc_task.c",
+      "compiled_unit": true,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "common/btc/include/btc/btc_alarm.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "common/btc/include/btc/btc_manage.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "common/btc/include/btc/btc_task.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "common/btc/profile/esp/blufi/bluedroid_host/esp_blufi.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "common/btc/profile/esp/blufi/blufi_prf.c",
+      "compiled_unit": true,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "common/btc/profile/esp/blufi/blufi_protocol.c",
+      "compiled_unit": true,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "common/btc/profile/esp/blufi/include/blufi_int.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "common/btc/profile/esp/blufi/include/esp_blufi.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "common/btc/profile/esp/blufi/nimble_host/esp_blufi.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "common/btc/profile/esp/include/btc_blufi_prf.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "common/hci_log/bt_hci_log.c",
+      "compiled_unit": true,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "common/hci_log/bt_hci_log_insights.c",
+      "compiled_unit": true,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "common/hci_log/include/hci_log/bt_hci_log.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "common/include/bt_ble_insights.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "common/include/bt_common.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "common/include/bt_user_config.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "common/include/esp_assume.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "common/osi/alarm.c",
+      "compiled_unit": true,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "common/osi/allocator.c",
+      "compiled_unit": true,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "common/osi/buffer.c",
+      "compiled_unit": true,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "common/osi/config.c",
+      "compiled_unit": true,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "common/osi/fixed_pkt_queue.c",
+      "compiled_unit": true,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "common/osi/fixed_queue.c",
+      "compiled_unit": true,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "common/osi/future.c",
+      "compiled_unit": true,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "common/osi/hash_functions.c",
+      "compiled_unit": true,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "common/osi/hash_map.c",
+      "compiled_unit": true,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "common/osi/include/osi/alarm.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "common/osi/include/osi/allocator.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "common/osi/include/osi/buffer.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "common/osi/include/osi/config.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "common/osi/include/osi/fixed_pkt_queue.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "common/osi/include/osi/fixed_queue.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "common/osi/include/osi/future.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "common/osi/include/osi/hash_functions.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "common/osi/include/osi/hash_map.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "common/osi/include/osi/list.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "common/osi/include/osi/mutex.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "common/osi/include/osi/osi.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "common/osi/include/osi/pkt_queue.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "common/osi/include/osi/semaphore.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "common/osi/include/osi/thread.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "common/osi/list.c",
+      "compiled_unit": true,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "common/osi/mutex.c",
+      "compiled_unit": true,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "common/osi/osi.c",
+      "compiled_unit": true,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "common/osi/pkt_queue.c",
+      "compiled_unit": true,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "common/osi/semaphore.c",
+      "compiled_unit": true,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "common/osi/thread.c",
+      "compiled_unit": true,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "common/tinycrypt/include/tinycrypt/aes.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "common/tinycrypt/include/tinycrypt/cbc_mode.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "common/tinycrypt/include/tinycrypt/ccm_mode.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "common/tinycrypt/include/tinycrypt/cmac_mode.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "common/tinycrypt/include/tinycrypt/constants.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "common/tinycrypt/include/tinycrypt/ctr_mode.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "common/tinycrypt/include/tinycrypt/ctr_prng.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "common/tinycrypt/include/tinycrypt/ecc.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "common/tinycrypt/include/tinycrypt/ecc_dh.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "common/tinycrypt/include/tinycrypt/ecc_dsa.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "common/tinycrypt/include/tinycrypt/ecc_platform_specific.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "common/tinycrypt/include/tinycrypt/hmac.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "common/tinycrypt/include/tinycrypt/hmac_prng.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "common/tinycrypt/include/tinycrypt/sha256.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "common/tinycrypt/include/tinycrypt/utils.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "common/tinycrypt/port/esp_tinycrypt_port.c",
+      "compiled_unit": true,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "common/tinycrypt/port/esp_tinycrypt_port.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "common/tinycrypt/src/aes_decrypt.c",
+      "compiled_unit": true,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "common/tinycrypt/src/aes_encrypt.c",
+      "compiled_unit": true,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "common/tinycrypt/src/cbc_mode.c",
+      "compiled_unit": true,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "common/tinycrypt/src/ccm_mode.c",
+      "compiled_unit": true,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "common/tinycrypt/src/cmac_mode.c",
+      "compiled_unit": true,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "common/tinycrypt/src/ctr_mode.c",
+      "compiled_unit": true,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "common/tinycrypt/src/ctr_prng.c",
+      "compiled_unit": true,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "common/tinycrypt/src/ecc.c",
+      "compiled_unit": true,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "common/tinycrypt/src/ecc_dh.c",
+      "compiled_unit": true,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "common/tinycrypt/src/ecc_dsa.c",
+      "compiled_unit": true,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "common/tinycrypt/src/ecc_platform_specific.c",
+      "compiled_unit": true,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "common/tinycrypt/src/hmac.c",
+      "compiled_unit": true,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "common/tinycrypt/src/hmac_prng.c",
+      "compiled_unit": true,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "common/tinycrypt/src/sha256.c",
+      "compiled_unit": true,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "common/tinycrypt/src/utils.c",
+      "compiled_unit": true,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "controller/esp32/bt.c",
+      "compiled_unit": true,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "controller/esp32/esp_bredr_cfg.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "controller/esp32/hli_api.c",
+      "compiled_unit": true,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "controller/esp32/hli_api.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "controller/esp32c2/ble.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "controller/esp32c2/ble_priv.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "controller/esp32c2/bt.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "controller/esp32c2/dummy.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "controller/esp32c2/esp_bt_cfg.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "controller/esp32c3/bt.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "controller/esp32c5/ble.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "controller/esp32c5/ble_priv.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "controller/esp32c5/bt.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "controller/esp32c5/esp_bt_cfg.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "controller/esp32c6/ble.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "controller/esp32c6/ble_priv.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "controller/esp32c6/bt.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "controller/esp32c6/esp_bt_cfg.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "controller/esp32h2/ble.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "controller/esp32h2/ble_priv.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "controller/esp32h2/bt.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "controller/esp32h2/esp_bt_cfg.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "controller/esp32h4/bt.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "controller/esp32s31/bt.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_audio/api/esp_ble_audio_aics_api.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_audio/api/esp_ble_audio_bap_api.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_audio/api/esp_ble_audio_cap_api.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_audio/api/esp_ble_audio_ccp_api.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_audio/api/esp_ble_audio_codec_api.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_audio/api/esp_ble_audio_common_api.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_audio/api/esp_ble_audio_csip_api.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_audio/api/esp_ble_audio_gmap_api.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_audio/api/esp_ble_audio_has_api.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_audio/api/esp_ble_audio_mcc_api.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_audio/api/esp_ble_audio_media_proxy_api.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_audio/api/esp_ble_audio_micp_api.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_audio/api/esp_ble_audio_pacs_api.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_audio/api/esp_ble_audio_pbp_api.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_audio/api/esp_ble_audio_tbs_api.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_audio/api/esp_ble_audio_tmap_api.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_audio/api/esp_ble_audio_vcp_api.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_audio/api/esp_ble_audio_vocs_api.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_audio/api/include/esp_ble_audio_aics_api.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_audio/api/include/esp_ble_audio_bap_api.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_audio/api/include/esp_ble_audio_bap_lc3_preset_defs.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_audio/api/include/esp_ble_audio_cap_api.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_audio/api/include/esp_ble_audio_ccp_api.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_audio/api/include/esp_ble_audio_codec_api.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_audio/api/include/esp_ble_audio_common_api.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_audio/api/include/esp_ble_audio_csip_api.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_audio/api/include/esp_ble_audio_defs.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_audio/api/include/esp_ble_audio_gmap_api.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_audio/api/include/esp_ble_audio_gmap_lc3_preset_defs.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_audio/api/include/esp_ble_audio_has_api.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_audio/api/include/esp_ble_audio_lc3_defs.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_audio/api/include/esp_ble_audio_mcc_api.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_audio/api/include/esp_ble_audio_mcs_defs.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_audio/api/include/esp_ble_audio_media_proxy_api.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_audio/api/include/esp_ble_audio_micp_api.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_audio/api/include/esp_ble_audio_pacs_api.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_audio/api/include/esp_ble_audio_pbp_api.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_audio/api/include/esp_ble_audio_tbs_api.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_audio/api/include/esp_ble_audio_tmap_api.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_audio/api/include/esp_ble_audio_vcp_api.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_audio/api/include/esp_ble_audio_vocs_api.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_audio/host/adapter/bluedroid/include/bluedroid/init.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_audio/host/adapter/bluedroid/include/bluedroid/profiles/ascs.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_audio/host/adapter/bluedroid/include/bluedroid/profiles/bass.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_audio/host/adapter/bluedroid/include/bluedroid/profiles/cas.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_audio/host/adapter/bluedroid/include/bluedroid/profiles/csis.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_audio/host/adapter/bluedroid/include/bluedroid/profiles/has.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_audio/host/adapter/bluedroid/include/bluedroid/profiles/mcs.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_audio/host/adapter/bluedroid/include/bluedroid/profiles/mics.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_audio/host/adapter/bluedroid/include/bluedroid/profiles/pacs.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_audio/host/adapter/bluedroid/include/bluedroid/profiles/tbs.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_audio/host/adapter/bluedroid/include/bluedroid/profiles/tmas.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_audio/host/adapter/bluedroid/include/bluedroid/profiles/vcs.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_audio/host/adapter/bluedroid/include/bluedroid/server.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_audio/host/adapter/bluedroid/init.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_audio/host/adapter/bluedroid/profiles/ascs.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_audio/host/adapter/bluedroid/profiles/bass.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_audio/host/adapter/bluedroid/profiles/cas.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_audio/host/adapter/bluedroid/profiles/csis.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_audio/host/adapter/bluedroid/profiles/has.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_audio/host/adapter/bluedroid/profiles/mcs.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_audio/host/adapter/bluedroid/profiles/mics.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_audio/host/adapter/bluedroid/profiles/pacs.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_audio/host/adapter/bluedroid/profiles/tbs.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_audio/host/adapter/bluedroid/profiles/tmas.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_audio/host/adapter/bluedroid/profiles/vcs.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_audio/host/adapter/bluedroid/server.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_audio/host/common/include/common/init.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_audio/host/common/init.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_audio/host/services/ots/ots.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_audio/host/services/ots/ots_client.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_audio/host/services/ots/ots_client_internal.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_audio/host/services/ots/ots_dir_list.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_audio/host/services/ots/ots_dir_list_internal.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_audio/host/services/ots/ots_internal.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_audio/host/services/ots/ots_l2cap.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_audio/host/services/ots/ots_l2cap_internal.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_audio/host/services/ots/ots_oacp.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_audio/host/services/ots/ots_oacp_internal.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_audio/host/services/ots/ots_obj_manager.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_audio/host/services/ots/ots_obj_manager_internal.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_audio/host/services/ots/ots_olcp.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_audio/host/services/ots/ots_olcp_internal.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_audio/include/zephyr/bluetooth/audio/aics.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_audio/include/zephyr/bluetooth/audio/audio.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_audio/include/zephyr/bluetooth/audio/bap.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_audio/include/zephyr/bluetooth/audio/bap_lc3_preset.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_audio/include/zephyr/bluetooth/audio/cap.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_audio/include/zephyr/bluetooth/audio/ccid.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_audio/include/zephyr/bluetooth/audio/ccp.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_audio/include/zephyr/bluetooth/audio/csip.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_audio/include/zephyr/bluetooth/audio/gmap.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_audio/include/zephyr/bluetooth/audio/gmap_lc3_preset.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_audio/include/zephyr/bluetooth/audio/has.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_audio/include/zephyr/bluetooth/audio/lc3.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_audio/include/zephyr/bluetooth/audio/mcc.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_audio/include/zephyr/bluetooth/audio/mcs.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_audio/include/zephyr/bluetooth/audio/media_proxy.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_audio/include/zephyr/bluetooth/audio/micp.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_audio/include/zephyr/bluetooth/audio/pacs.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_audio/include/zephyr/bluetooth/audio/pbp.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_audio/include/zephyr/bluetooth/audio/tbs.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_audio/include/zephyr/bluetooth/audio/tmap.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_audio/include/zephyr/bluetooth/audio/vcp.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_audio/include/zephyr/bluetooth/audio/vocs.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_audio/include/zephyr/bluetooth/services/ots.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_audio/lib/include/audio.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_iso/api/esp_ble_iso_common_api.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_iso/api/include/esp_ble_iso_common_api.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_iso/host/adapter/bluedroid/gap.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_iso/host/adapter/bluedroid/gatt/gatt.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_iso/host/adapter/bluedroid/hci.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_iso/host/adapter/bluedroid/include/bluedroid/btm_error.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_iso/host/adapter/bluedroid/include/bluedroid/gap.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_iso/host/adapter/bluedroid/include/bluedroid/gatt.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_iso/host/adapter/bluedroid/include/bluedroid/hci.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_iso/host/adapter/bluedroid/include/bluedroid/iso.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_iso/host/adapter/bluedroid/iso.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_iso/host/common/adv.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_iso/host/common/app/gap.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_iso/host/common/app/gatt.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_iso/host/common/conn.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_iso/host/common/gatt.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_iso/host/common/hci.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_iso/host/common/host.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_iso/host/common/include/common/adv.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_iso/host/common/include/common/app/gap.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_iso/host/common/include/common/app/gatt.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_iso/host/common/include/common/conn.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_iso/host/common/include/common/gatt.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_iso/host/common/include/common/host.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_iso/host/common/include/common/iso.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_iso/host/common/include/common/l2cap.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_iso/host/common/include/common/scan.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_iso/host/common/include/common/task.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_iso/host/common/iso.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_iso/host/common/l2cap.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_iso/host/common/scan.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_iso/host/common/task.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_iso/host/iso/iso.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_iso/host/utils/addr.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_iso/host/utils/bt_str.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_iso/host/utils/buf.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_iso/host/utils/crc/crc32_sw.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_iso/host/utils/crypto.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_iso/host/utils/timer.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_iso/host/utils/utf8.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_iso/host/utils/utils.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_iso/host/utils/uuid.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_iso/include/subsys/bluetooth/host/conn_internal.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_iso/include/subsys/bluetooth/host/hci_core.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_iso/include/subsys/bluetooth/host/iso_internal.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_iso/include/subsys/bluetooth/host/keys.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_iso/include/zephyr/autoconf.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_iso/include/zephyr/bluetooth/addr.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_iso/include/zephyr/bluetooth/assigned_numbers.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_iso/include/zephyr/bluetooth/att.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_iso/include/zephyr/bluetooth/bluetooth.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_iso/include/zephyr/bluetooth/buf.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_iso/include/zephyr/bluetooth/byteorder.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_iso/include/zephyr/bluetooth/common/bt_str.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_iso/include/zephyr/bluetooth/conn.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_iso/include/zephyr/bluetooth/crypto/bt_crypto.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_iso/include/zephyr/bluetooth/crypto.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_iso/include/zephyr/bluetooth/gap.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_iso/include/zephyr/bluetooth/gatt.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_iso/include/zephyr/bluetooth/hci.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_iso/include/zephyr/bluetooth/hci_types.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_iso/include/zephyr/bluetooth/iso.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_iso/include/zephyr/bluetooth/l2cap.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_iso/include/zephyr/bluetooth/uuid.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_iso/include/zephyr/kernel.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_iso/include/zephyr/logging/log.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_iso/include/zephyr/net_buf.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_iso/include/zephyr/sys/atomic.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_iso/include/zephyr/sys/byteorder.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_iso/include/zephyr/sys/check.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_iso/include/zephyr/sys/crc.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_iso/include/zephyr/sys/dlist.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_iso/include/zephyr/sys/iterable_sections.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_iso/include/zephyr/sys/list_gen.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_iso/include/zephyr/sys/slist.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_iso/include/zephyr/sys/util.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_iso/include/zephyr/sys/util_internal.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_iso/include/zephyr/sys/util_internal_is_eq.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_iso/include/zephyr/sys/util_internal_util_dec.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_iso/include/zephyr/sys/util_internal_util_inc.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_iso/include/zephyr/sys/util_internal_util_x2.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_iso/include/zephyr/sys/util_listify.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_iso/include/zephyr/sys/util_loops.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_iso/include/zephyr/sys/util_macro.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_iso/include/zephyr/sys/util_utf8.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_iso/include/zephyr/sys/__assert.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_iso/include/zephyr/toolchain.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_iso/include/zephyr/types.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/api/core/esp_ble_mesh_ble_api.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/api/core/esp_ble_mesh_common_api.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/api/core/esp_ble_mesh_local_data_operation_api.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/api/core/esp_ble_mesh_low_power_api.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/api/core/esp_ble_mesh_networking_api.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/api/core/esp_ble_mesh_provisioning_api.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/api/core/esp_ble_mesh_proxy_api.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/api/core/include/esp_ble_mesh_ble_api.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/api/core/include/esp_ble_mesh_common_api.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/api/core/include/esp_ble_mesh_local_data_operation_api.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/api/core/include/esp_ble_mesh_low_power_api.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/api/core/include/esp_ble_mesh_networking_api.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/api/core/include/esp_ble_mesh_provisioning_api.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/api/core/include/esp_ble_mesh_proxy_api.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/api/esp_ble_mesh_defs.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/api/models/esp_ble_mesh_config_model_api.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/api/models/esp_ble_mesh_generic_model_api.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/api/models/esp_ble_mesh_health_model_api.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/api/models/esp_ble_mesh_lighting_model_api.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/api/models/esp_ble_mesh_sensor_model_api.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/api/models/esp_ble_mesh_time_scene_model_api.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/api/models/include/esp_ble_mesh_config_model_api.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/api/models/include/esp_ble_mesh_generic_model_api.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/api/models/include/esp_ble_mesh_health_model_api.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/api/models/include/esp_ble_mesh_lighting_model_api.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/api/models/include/esp_ble_mesh_sensor_model_api.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/api/models/include/esp_ble_mesh_time_scene_model_api.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/btc/btc_ble_mesh_ble.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/btc/btc_ble_mesh_config_model.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/btc/btc_ble_mesh_generic_model.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/btc/btc_ble_mesh_health_model.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/btc/btc_ble_mesh_lighting_model.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/btc/btc_ble_mesh_prov.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/btc/btc_ble_mesh_sensor_model.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/btc/btc_ble_mesh_time_scene_model.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/btc/include/btc_ble_mesh_ble.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/btc/include/btc_ble_mesh_config_model.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/btc/include/btc_ble_mesh_generic_model.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/btc/include/btc_ble_mesh_health_model.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/btc/include/btc_ble_mesh_lighting_model.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/btc/include/btc_ble_mesh_model_common.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/btc/include/btc_ble_mesh_prov.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/btc/include/btc_ble_mesh_sensor_model.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/btc/include/btc_ble_mesh_time_scene_model.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/common/atomic.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/common/buf.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/common/common.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/common/crypto_mbedtls.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/common/crypto_psa.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/common/crypto_tc.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/common/include/mesh/atomic.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/common/include/mesh/buf.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/common/include/mesh/byteorder.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/common/include/mesh/common.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/common/include/mesh/compiler.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/common/include/mesh/config.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/common/include/mesh/crypto.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/common/include/mesh/dlist.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/common/include/mesh/ffs.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/common/include/mesh/kernel.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/common/include/mesh/mutex.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/common/include/mesh/queue.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/common/include/mesh/slist.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/common/include/mesh/timer.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/common/include/mesh/trace.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/common/include/mesh/types.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/common/include/mesh/utils.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/common/include/mesh/utils_loops.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/common/kernel.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/common/mutex.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/common/queue.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/common/timer.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/common/utils.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/core/access.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/core/access.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/core/adv.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/core/adv.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/core/adv_common.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/core/adv_common.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/core/beacon.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/core/beacon.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/core/ble_adv.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/core/ble_adv.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/core/bluedroid_host/adapter.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/core/cfg_cli.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/core/cfg_srv.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/core/crypto.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/core/crypto.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/core/ext_adv.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/core/ext_adv.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/core/fast_prov.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/core/fast_prov.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/core/foundation.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/core/friend.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/core/friend.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/core/health_cli.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/core/health_srv.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/core/heartbeat.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/core/heartbeat.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/core/include/mesh/access.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/core/include/mesh/adapter.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/core/include/mesh/cfg_cli.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/core/include/mesh/cfg_srv.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/core/include/mesh/hci.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/core/include/mesh/health_cli.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/core/include/mesh/health_srv.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/core/include/mesh/main.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/core/include/mesh/proxy.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/core/include/mesh/uuid.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/core/local.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/core/local.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/core/lpn.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/core/lpn.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/core/main.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/core/mesh.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/core/net.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/core/net.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/core/nimble_host/adapter.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/core/prov_common.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/core/prov_common.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/core/prov_node.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/core/prov_node.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/core/prov_pvnr.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/core/prov_pvnr.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/core/proxy_client.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/core/proxy_client.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/core/proxy_common.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/core/proxy_server.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/core/proxy_server.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/core/pvnr_mgmt.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/core/pvnr_mgmt.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/core/rpl.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/core/rpl.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/core/scan.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/core/scan.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/core/storage/settings.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/core/storage/settings.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/core/storage/settings_nvs.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/core/storage/settings_nvs.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/core/storage/settings_uid.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/core/storage/settings_uid.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/core/tag.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/core/test.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/core/test.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/core/transport.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/core/transport.enh.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/core/transport.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/lib/ext.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/lib/include/mesh_v1.1/utils.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/models/client/client_common.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/models/client/generic_client.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/models/client/include/mesh/client_common.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/models/client/include/mesh/generic_client.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/models/client/include/mesh/lighting_client.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/models/client/include/mesh/sensor_client.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/models/client/include/mesh/time_scene_client.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/models/client/lighting_client.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/models/client/sensor_client.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/models/client/time_scene_client.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/models/common/device_property.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/models/common/include/mesh/device_property.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/models/common/include/mesh/model_common.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/models/common/include/mesh/model_opcode.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/models/common/model_common.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/models/server/generic_server.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/models/server/include/mesh/generic_server.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/models/server/include/mesh/lighting_server.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/models/server/include/mesh/sensor_server.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/models/server/include/mesh/server_common.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/models/server/include/mesh/state_binding.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/models/server/include/mesh/state_transition.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/models/server/include/mesh/time_scene_server.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/models/server/lighting_server.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/models/server/sensor_server.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/models/server/server_common.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/models/server/state_binding.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/models/server/state_transition.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/models/server/time_scene_server.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/v1.1/api/core/esp_ble_mesh_agg_model_api.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/v1.1/api/core/esp_ble_mesh_brc_model_api.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/v1.1/api/core/esp_ble_mesh_cm_data_api.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/v1.1/api/core/esp_ble_mesh_df_model_api.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/v1.1/api/core/esp_ble_mesh_lcd_model_api.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/v1.1/api/core/esp_ble_mesh_odp_model_api.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/v1.1/api/core/esp_ble_mesh_prb_model_api.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/v1.1/api/core/esp_ble_mesh_rpr_model_api.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/v1.1/api/core/esp_ble_mesh_sar_model_api.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/v1.1/api/core/esp_ble_mesh_srpl_model_api.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/v1.1/api/core/include/esp_ble_mesh_agg_model_api.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/v1.1/api/core/include/esp_ble_mesh_brc_model_api.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/v1.1/api/core/include/esp_ble_mesh_cm_data_api.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/v1.1/api/core/include/esp_ble_mesh_df_model_api.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/v1.1/api/core/include/esp_ble_mesh_lcd_model_api.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/v1.1/api/core/include/esp_ble_mesh_odp_model_api.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/v1.1/api/core/include/esp_ble_mesh_prb_model_api.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/v1.1/api/core/include/esp_ble_mesh_rpr_model_api.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/v1.1/api/core/include/esp_ble_mesh_sar_model_api.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/v1.1/api/core/include/esp_ble_mesh_srpl_model_api.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/v1.1/api/models/esp_ble_mesh_dfu_model_api.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/v1.1/api/models/esp_ble_mesh_dfu_slot_api.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/v1.1/api/models/esp_ble_mesh_mbt_model_api.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/v1.1/api/models/include/esp_ble_mesh_blob_model_api.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/v1.1/api/models/include/esp_ble_mesh_dfu_model_api.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/v1.1/api/models/include/esp_ble_mesh_dfu_slot_api.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/v1.1/api/models/include/esp_ble_mesh_mbt_model_api.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/v1.1/btc/btc_ble_mesh_agg_model.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/v1.1/btc/btc_ble_mesh_brc_model.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/v1.1/btc/btc_ble_mesh_dfu_model.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/v1.1/btc/btc_ble_mesh_dfu_slot.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/v1.1/btc/btc_ble_mesh_df_model.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/v1.1/btc/btc_ble_mesh_lcd_model.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/v1.1/btc/btc_ble_mesh_mbt_model.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/v1.1/btc/btc_ble_mesh_odp_model.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/v1.1/btc/btc_ble_mesh_prb_model.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/v1.1/btc/btc_ble_mesh_rpr_model.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/v1.1/btc/btc_ble_mesh_sar_model.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/v1.1/btc/btc_ble_mesh_srpl_model.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/v1.1/btc/include/btc_ble_mesh_agg_model.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/v1.1/btc/include/btc_ble_mesh_brc_model.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/v1.1/btc/include/btc_ble_mesh_dfu_model.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/v1.1/btc/include/btc_ble_mesh_dfu_slot.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/v1.1/btc/include/btc_ble_mesh_df_model.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/v1.1/btc/include/btc_ble_mesh_lcd_model.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/v1.1/btc/include/btc_ble_mesh_mbt_model.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/v1.1/btc/include/btc_ble_mesh_odp_model.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/v1.1/btc/include/btc_ble_mesh_prb_model.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/v1.1/btc/include/btc_ble_mesh_rpr_model.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/v1.1/btc/include/btc_ble_mesh_sar_model.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/v1.1/btc/include/btc_ble_mesh_srpl_model.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/v1.1/dfu/dfd_cli.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/v1.1/dfu/dfd_srv.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/v1.1/dfu/dfd_srv_internal.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/v1.1/dfu/dfu.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/v1.1/dfu/dfu_cli.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/v1.1/dfu/dfu_metadata.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/v1.1/dfu/dfu_slot.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/v1.1/dfu/dfu_slot.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/v1.1/dfu/dfu_srv.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/v1.1/include/mesh_v1.1/dfu/dfd.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/v1.1/include/mesh_v1.1/dfu/dfd_cli.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/v1.1/include/mesh_v1.1/dfu/dfd_srv.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/v1.1/include/mesh_v1.1/dfu/dfu.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/v1.1/include/mesh_v1.1/dfu/dfu_cli.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/v1.1/include/mesh_v1.1/dfu/dfu_metadata.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/v1.1/include/mesh_v1.1/dfu/dfu_srv.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/v1.1/include/mesh_v1.1/mbt/blob.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/v1.1/include/mesh_v1.1/mbt/blob_cli.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/v1.1/include/mesh_v1.1/mbt/blob_srv.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/v1.1/mbt/blob.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/v1.1/mbt/blob_cli.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "esp_ble_mesh/v1.1/mbt/blob_srv.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/api/esp_a2dp_api.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/api/esp_avrc_api.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/api/esp_ble_cte_api.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/api/esp_ble_iso_api.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/api/esp_bluedroid_hci.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/api/esp_bt_device.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/api/esp_bt_main.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/api/esp_gap_ble_api.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/api/esp_gap_bt_api.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/api/esp_gattc_api.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/api/esp_gatts_api.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/api/esp_gatt_common_api.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/api/esp_hf_ag_api.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/api/esp_hf_client_api.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/api/esp_hidd_api.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/api/esp_hidh_api.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/api/esp_l2cap_bt_api.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/api/esp_pbac_api.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/api/esp_sdp_api.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/api/esp_spp_api.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/api/include/api/esp_a2dp_api.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/api/include/api/esp_a2dp_legacy_api.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/api/include/api/esp_avrc_api.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/api/include/api/esp_ble_cte_api.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/api/include/api/esp_ble_iso_api.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/api/include/api/esp_bluedroid_hci.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/api/include/api/esp_bt_defs.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/api/include/api/esp_bt_device.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/api/include/api/esp_bt_main.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/api/include/api/esp_gap_ble_api.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/api/include/api/esp_gap_bt_api.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/api/include/api/esp_gattc_api.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/api/include/api/esp_gatts_api.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/api/include/api/esp_gatt_common_api.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/api/include/api/esp_gatt_defs.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/api/include/api/esp_hf_ag_api.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/api/include/api/esp_hf_ag_legacy_api.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/api/include/api/esp_hf_client_api.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/api/include/api/esp_hf_client_legacy_api.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/api/include/api/esp_hf_defs.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/api/include/api/esp_hidd_api.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/api/include/api/esp_hidh_api.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/api/include/api/esp_l2cap_bt_api.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/api/include/api/esp_pbac_api.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/api/include/api/esp_pba_defs.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/api/include/api/esp_sdp_api.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/api/include/api/esp_spp_api.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/bta/ar/bta_ar.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/bta/ar/include/bta_ar_int.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/bta/av/bta_av_aact.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/bta/av/bta_av_act.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/bta/av/bta_av_api.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/bta/av/bta_av_ca_act.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/bta/av/bta_av_ca_sm.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/bta/av/bta_av_cfg.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/bta/av/bta_av_ci.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/bta/av/bta_av_m24.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/bta/av/bta_av_main.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/bta/av/bta_av_sbc.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/bta/av/bta_av_ssm.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/bta/av/include/bta_av_int.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/bta/dm/bta_dm_act.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/bta/dm/bta_dm_api.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/bta/dm/bta_dm_cfg.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/bta/dm/bta_dm_ci.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/bta/dm/bta_dm_co.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/bta/dm/bta_dm_main.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/bta/dm/bta_dm_pm.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/bta/dm/bta_dm_qos.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/bta/dm/bta_dm_sco.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/bta/dm/include/bta_dm_gap.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/bta/dm/include/bta_dm_int.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/bta/gatt/bta_gattc_act.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/bta/gatt/bta_gattc_api.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/bta/gatt/bta_gattc_cache.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/bta/gatt/bta_gattc_ci.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/bta/gatt/bta_gattc_co.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/bta/gatt/bta_gattc_main.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/bta/gatt/bta_gattc_utils.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/bta/gatt/bta_gatts_act.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/bta/gatt/bta_gatts_api.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/bta/gatt/bta_gatts_co.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/bta/gatt/bta_gatts_main.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/bta/gatt/bta_gatts_utils.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/bta/gatt/bta_gatt_common.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/bta/gatt/include/bta_gattc_int.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/bta/gatt/include/bta_gatts_int.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/bta/hd/bta_hd_act.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/bta/hd/bta_hd_api.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/bta/hd/bta_hd_main.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/bta/hd/include/bta_hd_int.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/bta/hf_ag/bta_ag_act.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/bta/hf_ag/bta_ag_api.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/bta/hf_ag/bta_ag_at.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/bta/hf_ag/bta_ag_cfg.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/bta/hf_ag/bta_ag_cmd.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/bta/hf_ag/bta_ag_main.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/bta/hf_ag/bta_ag_rfc.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/bta/hf_ag/bta_ag_sco.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/bta/hf_ag/bta_ag_sdp.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/bta/hf_ag/include/bta_ag_at.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/bta/hf_ag/include/bta_ag_int.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/bta/hf_client/bta_hf_client_act.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/bta/hf_client/bta_hf_client_api.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/bta/hf_client/bta_hf_client_at.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/bta/hf_client/bta_hf_client_cmd.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/bta/hf_client/bta_hf_client_main.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/bta/hf_client/bta_hf_client_rfc.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/bta/hf_client/bta_hf_client_sco.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/bta/hf_client/bta_hf_client_sdp.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/bta/hf_client/include/bta_hf_client_at.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/bta/hf_client/include/bta_hf_client_int.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/bta/hh/bta_hh_act.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/bta/hh/bta_hh_api.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/bta/hh/bta_hh_cfg.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/bta/hh/bta_hh_le.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/bta/hh/bta_hh_main.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/bta/hh/bta_hh_utils.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/bta/hh/include/bta_hh_int.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/bta/include/bta/bta_ag_api.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/bta/include/bta/bta_ag_co.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/bta/include/bta/bta_api.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/bta/include/bta/bta_ar_api.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/bta/include/bta/bta_av_api.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/bta/include/bta/bta_av_ci.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/bta/include/bta/bta_av_co.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/bta/include/bta/bta_av_m24.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/bta/include/bta/bta_av_sbc.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/bta/include/bta/bta_dm_ci.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/bta/include/bta/bta_dm_co.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/bta/include/bta/bta_gap_bt_co.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/bta/include/bta/bta_gattc_ci.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/bta/include/bta/bta_gattc_co.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/bta/include/bta/bta_gatts_co.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/bta/include/bta/bta_gatt_api.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/bta/include/bta/bta_gatt_common.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/bta/include/bta/bta_hd_api.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/bta/include/bta/bta_hfp_defs.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/bta/include/bta/bta_hf_client_api.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/bta/include/bta/bta_hf_client_co.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/bta/include/bta/bta_hh_api.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/bta/include/bta/bta_hh_co.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/bta/include/bta/bta_jv_api.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/bta/include/bta/bta_jv_co.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/bta/include/bta/bta_pba_client_api.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/bta/include/bta/bta_pba_defs.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/bta/include/bta/bta_sdp_api.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/bta/include/bta/bta_sys.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/bta/include/bta/utl.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/bta/jv/bta_jv_act.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/bta/jv/bta_jv_api.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/bta/jv/bta_jv_cfg.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/bta/jv/bta_jv_main.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/bta/jv/include/bta_jv_int.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/bta/pba/bta_pba_client_act.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/bta/pba/bta_pba_client_api.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/bta/pba/bta_pba_client_main.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/bta/pba/bta_pba_client_sdp.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/bta/pba/include/bta_pba_client_int.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/bta/sdp/bta_sdp.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/bta/sdp/bta_sdp_act.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/bta/sdp/bta_sdp_api.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/bta/sdp/bta_sdp_cfg.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/bta/sdp/include/bta_sdp_int.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/bta/sys/bta_sys_conn.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/bta/sys/bta_sys_main.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/bta/sys/include/bta_sys_int.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/bta/sys/utl.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/btc/core/btc_ble_storage.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/btc/core/btc_config.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/btc/core/btc_dev.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/btc/core/btc_dm.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/btc/core/btc_main.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/btc/core/btc_profile_queue.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/btc/core/btc_sec.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/btc/core/btc_sm.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/btc/core/btc_storage.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/btc/core/btc_util.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/btc/include/btc/btc_ble_storage.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/btc/include/btc/btc_common.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/btc/include/btc/btc_config.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/btc/include/btc/btc_dev.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/btc/include/btc/btc_dm.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/btc/include/btc/btc_main.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/btc/include/btc/btc_profile_queue.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/btc/include/btc/btc_sm.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/btc/include/btc/btc_storage.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/btc/include/btc/btc_util.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/btc/profile/esp/ble_button/button_pro.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/btc/profile/esp/include/button_pro.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/btc/profile/esp/include/wx_airsync_prf.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/btc/profile/esp/wechat_AirSync/wx_airsync_prf.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/btc/profile/std/a2dp/bta_av_co.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/btc/profile/std/a2dp/btc_a2dp.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/btc/profile/std/a2dp/btc_a2dp_control.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/btc/profile/std/a2dp/btc_a2dp_latm_raw.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/btc/profile/std/a2dp/btc_a2dp_sink.c",
+      "compiled_unit": false,
+      "review": "reviewed_codec_boundary",
+      "status": "reviewed_codec_boundary",
+      "ranges": "full file",
+      "sha256": "79142cc01bfbecdc40af99d4a276dd3632045f8705722fb73149266d4536fa0d"
+    },
+    {
+      "path": "host/bluedroid/btc/profile/std/a2dp/btc_a2dp_sink_ext_coedc.c",
+      "compiled_unit": false,
+      "review": "reviewed_codec_boundary",
+      "status": "reviewed_codec_boundary",
+      "ranges": "full file",
+      "sha256": "0b343deef20adba150313195162061ddd25a81f4773d2333c40d39af2744f511"
+    },
+    {
+      "path": "host/bluedroid/btc/profile/std/a2dp/btc_a2dp_source.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/btc/profile/std/a2dp/btc_a2dp_source_ext_codec.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/btc/profile/std/a2dp/btc_av.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/btc/profile/std/a2dp/include/btc_a2dp_latm_raw.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/btc/profile/std/a2dp/include/btc_av_co.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/btc/profile/std/avrc/bta_avrc_co.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/btc/profile/std/avrc/btc_avrc.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/btc/profile/std/battery/battery_prf.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/btc/profile/std/battery/include/srvc_battery_int.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/btc/profile/std/cte/btc_ble_cte.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/btc/profile/std/dis/dis_profile.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/btc/profile/std/dis/include/srvc_dis_int.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/btc/profile/std/gap/bta_gap_bt_co.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/btc/profile/std/gap/btc_gap_ble.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/btc/profile/std/gap/btc_gap_bt.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/btc/profile/std/gatt/btc_gattc.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/btc/profile/std/gatt/btc_gatts.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/btc/profile/std/gatt/btc_gatt_common.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/btc/profile/std/gatt/btc_gatt_util.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/btc/profile/std/hf_ag/bta_ag_co.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/btc/profile/std/hf_ag/btc_hf_ag.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/btc/profile/std/hf_client/bta_hf_client_co.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/btc/profile/std/hf_client/btc_hf_client.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/btc/profile/std/hid/bta_hh_co.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/btc/profile/std/hid/btc_hd.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/btc/profile/std/hid/btc_hh.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/btc/profile/std/include/btc_a2dp.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/btc/profile/std/include/btc_a2dp_control.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/btc/profile/std/include/btc_a2dp_sink.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/btc/profile/std/include/btc_a2dp_source.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/btc/profile/std/include/btc_av.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/btc/profile/std/include/btc_avrc.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/btc/profile/std/include/btc_av_api.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/btc/profile/std/include/btc_ble_cte.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/btc/profile/std/include/btc_gap_ble.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/btc/profile/std/include/btc_gap_bt.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/btc/profile/std/include/btc_gattc.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/btc/profile/std/include/btc_gatts.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/btc/profile/std/include/btc_gatt_common.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/btc/profile/std/include/btc_gatt_util.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/btc/profile/std/include/btc_hd.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/btc/profile/std/include/btc_hf_ag.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/btc/profile/std/include/btc_hf_client.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/btc/profile/std/include/btc_hh.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/btc/profile/std/include/btc_iso_ble.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/btc/profile/std/include/btc_l2cap.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/btc/profile/std/include/btc_pba_client.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/btc/profile/std/include/btc_sdp.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/btc/profile/std/include/btc_spp.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/btc/profile/std/include/bt_sdp.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/btc/profile/std/include/dis_api.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/btc/profile/std/include/srvc_api.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/btc/profile/std/iso/btc_iso_ble.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/btc/profile/std/l2cap/btc_l2cap.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/btc/profile/std/pba/btc_pba_client.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/btc/profile/std/sdp/btc_sdp.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/btc/profile/std/smp/esp_app_sec.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/btc/profile/std/smp/include/esp_sec_api.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/btc/profile/std/spp/btc_spp.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/common/include/common/bluedroid_user_config.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/common/include/common/bte.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/common/include/common/bte_appl.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/common/include/common/bt_common_types.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/common/include/common/bt_defs.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/common/include/common/bt_target.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/common/include/common/bt_trace.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/common/include/common/bt_vendor_lib.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/config/include/config/stack_config.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/config/stack_config.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/device/bdaddr.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/device/controller.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/device/include/device/bdaddr.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/device/include/device/controller.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/device/include/device/device_features.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/device/include/device/event_mask.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/device/include/device/interop.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/device/include/device/interop_database.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/device/include/device/version.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/device/interop.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/hci/ble_hci_iso.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/hci/hci_audio.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/hci/hci_hal_h4.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/hci/hci_layer.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/hci/hci_packet_factory.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/hci/hci_packet_parser.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/hci/include/hci/ble_hci_iso.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/hci/include/hci/bt_vendor_lib.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/hci/include/hci/hci_audio.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/hci/include/hci/hci_hal.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/hci/include/hci/hci_internals.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/hci/include/hci/hci_layer.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/hci/include/hci/hci_packet_factory.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/hci/include/hci/hci_packet_parser.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/hci/include/hci/hci_trans_int.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/hci/include/hci/packet_fragmenter.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/hci/packet_fragmenter.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/main/bte_init.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/main/bte_main.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/a2dp/a2dp_aac.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/a2dp/a2dp_aac_decoder.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/a2dp/a2dp_aac_decoder_custom.c",
+      "compiled_unit": false,
+      "review": "reviewed_codec_boundary",
+      "status": "reviewed_codec_boundary",
+      "ranges": "full file",
+      "sha256": "b5075bd47ce86128d139551f6d62e38e6316ca2f05bdaec63887b2fc99c0b83c"
+    },
+    {
+      "path": "host/bluedroid/stack/a2dp/a2dp_aac_decoder_helix.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/a2dp/a2dp_aac_decoder_hybrid.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/a2dp/a2dp_codec_config.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/a2dp/a2dp_vendor.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/a2dp/a2dp_vendor_aptx.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/a2dp/a2dp_vendor_aptx_decoder.c",
+      "compiled_unit": false,
+      "review": "reviewed_codec_boundary",
+      "status": "reviewed_codec_boundary",
+      "ranges": "full file",
+      "sha256": "f373d5508dff6e444229a0404c78b9ede3799312e5550211c3a471f79b269eec"
+    },
+    {
+      "path": "host/bluedroid/stack/a2dp/a2dp_vendor_aptx_hd.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/a2dp/a2dp_vendor_aptx_ll.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/a2dp/a2dp_vendor_lc3plus.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/a2dp/a2dp_vendor_lc3plus_decoder.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/a2dp/a2dp_vendor_ldac.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/a2dp/a2dp_vendor_ldacbt_decoder.c",
+      "compiled_unit": false,
+      "review": "reviewed_codec_boundary",
+      "status": "reviewed_codec_boundary",
+      "ranges": "full file",
+      "sha256": "5c79cf40b2245209b8bd5978f041d58ce995cbf9d94643281e13bbc7d7b572db"
+    },
+    {
+      "path": "host/bluedroid/stack/a2dp/a2dp_vendor_ldac_decoder.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/a2dp/a2dp_vendor_opus.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/a2dp/a2dp_vendor_opus_decoder.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/a2dp/a2d_api.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/a2dp/a2d_m24.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/a2dp/a2d_sbc.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/a2dp/a2d_sbc_decoder.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/a2dp/include/a2d_int.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/a2dp/include/bt_av.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/a2dp/latm_parser.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/a2dp/latm_parser.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/avct/avct_api.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/avct/avct_ccb.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/avct/avct_l2c.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/avct/avct_lcb.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/avct/avct_lcb_act.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/avct/include/avct_defs.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/avct/include/avct_int.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/avdt/avdt_ad.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/avdt/avdt_api.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/avdt/avdt_ccb.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/avdt/avdt_ccb_act.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/avdt/avdt_l2c.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/avdt/avdt_msg.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/avdt/avdt_scb.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/avdt/avdt_scb_act.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/avdt/include/avdt_defs.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/avdt/include/avdt_int.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/avrc/avrc_api.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/avrc/avrc_bld_ct.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/avrc/avrc_bld_tg.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/avrc/avrc_opt.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/avrc/avrc_pars_ct.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/avrc/avrc_pars_tg.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/avrc/avrc_sdp.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/avrc/avrc_utils.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/avrc/include/avrc_int.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/btm/btm_acl.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/btm/btm_ble.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/btm/btm_ble_5_gap.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/btm/btm_ble_addr.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/btm/btm_ble_adv_filter.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/btm/btm_ble_batchscan.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/btm/btm_ble_bgconn.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/btm/btm_ble_cont_energy.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/btm/btm_ble_cte.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/btm/btm_ble_gap.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/btm/btm_ble_iso.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/btm/btm_ble_multi_adv.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/btm/btm_ble_privacy.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/btm/btm_bredr_pwr_ctrl.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/btm/btm_dev.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/btm/btm_devctl.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/btm/btm_inq.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/btm/btm_main.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/btm/btm_pm.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/btm/btm_sco.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/btm/btm_sec.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/btm/include/btm_ble_int.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/btm/include/btm_int.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/btu/btu_hcif.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/btu/btu_init.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/btu/btu_task.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/gap/gap_api.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/gap/gap_ble.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/gap/gap_conn.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/gap/gap_utils.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/gap/include/gap_int.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/gatt/att_protocol.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/gatt/gatt_api.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/gatt/gatt_attr.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/gatt/gatt_auth.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/gatt/gatt_cl.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/gatt/gatt_db.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/gatt/gatt_main.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/gatt/gatt_sr.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/gatt/gatt_sr_hash.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/gatt/gatt_utils.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/gatt/include/gatt_int.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/goep/goepc_api.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/goep/goepc_main.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/goep/include/goep_int.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/hcic/hciblecmds.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/hcic/hcicmds.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/hid/hidd_api.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/hid/hidd_conn.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/hid/hidh_api.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/hid/hidh_conn.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/hid/include/hid_conn.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/hid/include/hid_int.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/include/stack/a2dp_aac.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/include/stack/a2dp_aac_constants.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/include/stack/a2dp_aac_decoder.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/include/stack/a2dp_codec_api.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/include/stack/a2dp_decoder.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/include/stack/a2dp_shim.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/include/stack/a2dp_vendor.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/include/stack/a2dp_vendor_aptx.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/include/stack/a2dp_vendor_aptx_constants.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/include/stack/a2dp_vendor_aptx_decoder.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/include/stack/a2dp_vendor_aptx_hd.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/include/stack/a2dp_vendor_aptx_hd_constants.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/include/stack/a2dp_vendor_aptx_ll.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/include/stack/a2dp_vendor_aptx_ll_constants.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/include/stack/a2dp_vendor_lc3plus.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/include/stack/a2dp_vendor_lc3plus_constants.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/include/stack/a2dp_vendor_lc3plus_decoder.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/include/stack/a2dp_vendor_ldac.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/include/stack/a2dp_vendor_ldac_constants.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/include/stack/a2dp_vendor_ldac_decoder.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/include/stack/a2dp_vendor_opus.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/include/stack/a2dp_vendor_opus_constants.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/include/stack/a2dp_vendor_opus_decoder.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/include/stack/a2d_api.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/include/stack/a2d_m24.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/include/stack/a2d_sbc.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/include/stack/a2d_sbc_decoder.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/include/stack/acl_hci_link_interface.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/include/stack/avct_api.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/include/stack/avdtc_api.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/include/stack/avdt_api.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/include/stack/avrc_api.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/include/stack/avrc_defs.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/include/stack/btm_api.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/include/stack/btm_ble_api.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/include/stack/btu.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/include/stack/bt_types.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/include/stack/dyn_mem.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/include/stack/gap_api.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/include/stack/gattdefs.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/include/stack/gatt_api.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/include/stack/goepc_api.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/include/stack/goep_common.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/include/stack/hcidefs.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/include/stack/hcimsgs.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/include/stack/hiddefs.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/include/stack/hidd_api.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/include/stack/hidh_api.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/include/stack/l2cap_client.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/include/stack/l2cap_hci_link_interface.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/include/stack/l2cdefs.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/include/stack/l2c_api.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/include/stack/obex_api.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/include/stack/port_api.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/include/stack/port_ext.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/include/stack/profiles_api.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/include/stack/rfcdefs.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/include/stack/sdpdefs.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/include/stack/sdp_api.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/include/stack/smp_api.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/l2cap/include/l2c_int.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/l2cap/l2cap_client.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/l2cap/l2c_api.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/l2cap/l2c_ble.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/l2cap/l2c_csm.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/l2cap/l2c_fcr.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/l2cap/l2c_link.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/l2cap/l2c_main.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/l2cap/l2c_ucd.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/l2cap/l2c_utils.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/obex/include/obex_int.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/obex/include/obex_tl.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/obex/include/obex_tl_l2cap.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/obex/include/obex_tl_rfcomm.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/obex/obex_api.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/obex/obex_main.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/obex/obex_tl_l2cap.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/obex/obex_tl_rfcomm.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/rfcomm/include/port_int.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/rfcomm/include/rfc_int.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/rfcomm/port_api.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/rfcomm/port_rfc.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/rfcomm/port_utils.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/rfcomm/rfc_l2cap_if.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/rfcomm/rfc_mx_fsm.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/rfcomm/rfc_port_fsm.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/rfcomm/rfc_port_if.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/rfcomm/rfc_ts_frames.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/rfcomm/rfc_utils.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/sdp/include/sdpint.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/sdp/sdp_api.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/sdp/sdp_db.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/sdp/sdp_discovery.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/sdp/sdp_main.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/sdp/sdp_server.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/sdp/sdp_utils.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/smp/aes.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/smp/include/aes.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/smp/include/p_256_ecc_pp.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/smp/include/p_256_multprecision.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/smp/include/smp_int.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/smp/p_256_curvepara.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/smp/p_256_ecc_pp.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/smp/p_256_multprecision.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/smp/smp_act.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/smp/smp_api.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/smp/smp_br_main.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/smp/smp_cmac.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/smp/smp_keys.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/smp/smp_l2c.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/smp/smp_main.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "host/bluedroid/stack/smp/smp_utils.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "include/esp32/include/esp_bt.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "include/esp32/include/esp_bt_vs.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "include/esp32c2/include/esp_bt.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "include/esp32c2/include/esp_bt_vs.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "include/esp32c3/include/esp_bt.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "include/esp32c3/include/esp_bt_vs.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "include/esp32c5/include/esp_bt.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "include/esp32c5/include/esp_bt_vs.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "include/esp32c6/include/esp_bt.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "include/esp32c6/include/esp_bt_vs.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "include/esp32h2/include/esp_bt.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "include/esp32h2/include/esp_bt_vs.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "include/esp32h4/include/esp_bt.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "include/esp32h4/include/esp_bt_vs.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "include/esp32s31/include/esp_bt.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "include/esp32s31/include/esp_bt_vs.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "porting/include/bt_osi_mem.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "porting/include/mem_api.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "porting/include/os/endian.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "porting/include/os/os.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "porting/include/os/os_error.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "porting/include/os/os_mbuf.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "porting/include/os/os_mempool.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "porting/include/os/queue.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "porting/include/os/util.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "porting/mem/bt_osi_mem.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "porting/mem/os_mempool.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "porting/mem/os_msys_init.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "porting/npl/freertos/src/npl_os_freertos.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "porting/transport/driver/common/hci_driver_h4.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "porting/transport/driver/common/hci_driver_mem.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "porting/transport/driver/common/hci_driver_util.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "porting/transport/driver/uart/hci_driver_uart.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "porting/transport/driver/uart/hci_driver_uart.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "porting/transport/driver/uart/hci_driver_uart_config.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "porting/transport/driver/uart/hci_driver_uart_dma.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "porting/transport/driver/vhci/hci_driver_nimble.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "porting/transport/driver/vhci/hci_driver_standard.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "porting/transport/driver/vhci/hci_driver_tamplete.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "porting/transport/include/common/hci_driver_h4.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "porting/transport/include/common/hci_driver_mem.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "porting/transport/include/common/hci_driver_util.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "porting/transport/include/esp_hci_driver.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "porting/transport/include/esp_hci_internal.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "porting/transport/include/esp_hci_transport.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "porting/transport/src/hci_transport.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "porting_btdm/controller/ble/include/ble_mbuf.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "porting_btdm/controller/ble/include/ble_msys.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "porting_btdm/controller/ble/include/ble_priv.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "porting_btdm/controller/ble/include/ble_user_cfg.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "porting_btdm/controller/ble/include/os/os_mempool.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "porting_btdm/controller/ble/src/ble.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "porting_btdm/controller/ble/src/ble_msys.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "porting_btdm/controller/bredr/include/bredr_priv.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "porting_btdm/controller/bredr/include/bredr_user_cfg.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "porting_btdm/controller/bredr/src/bredr.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "porting_btdm/controller/btdm_common/include/btdm_coex.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "porting_btdm/controller/btdm_common/include/btdm_endian.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "porting_btdm/controller/btdm_common/include/btdm_external.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "porting_btdm/controller/btdm_common/include/btdm_log.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "porting_btdm/controller/btdm_common/include/btdm_lp.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "porting_btdm/controller/btdm_common/include/btdm_mempool.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "porting_btdm/controller/btdm_common/include/btdm_osal.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "porting_btdm/controller/btdm_common/include/btdm_osal_freertos.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "porting_btdm/controller/btdm_common/include/btdm_user_cfg.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "porting_btdm/controller/btdm_common/include/queue.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "porting_btdm/controller/btdm_common/src/btdm_coex.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "porting_btdm/controller/btdm_common/src/btdm_external.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "porting_btdm/controller/btdm_common/src/btdm_log.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "porting_btdm/controller/btdm_common/src/btdm_lp.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "porting_btdm/controller/btdm_common/src/btdm_osal_freertos.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "porting_btdm/transport/driver/common/hci_driver_h4.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "porting_btdm/transport/driver/common/hci_driver_mem.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "porting_btdm/transport/driver/common/hci_driver_util.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "porting_btdm/transport/driver/uart/hci_driver_uart.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "porting_btdm/transport/driver/uart/hci_driver_uart.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "porting_btdm/transport/driver/uart/hci_driver_uart_config.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "porting_btdm/transport/driver/uart/hci_driver_uart_dma.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "porting_btdm/transport/driver/vhci/hci_driver_nimble.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "porting_btdm/transport/driver/vhci/hci_driver_standard.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "porting_btdm/transport/driver/vhci/hci_driver_tamplete.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "porting_btdm/transport/include/common/hci_driver_h4.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "porting_btdm/transport/include/common/hci_driver_mem.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "porting_btdm/transport/include/common/hci_driver_util.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "porting_btdm/transport/include/esp_hci_driver.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "porting_btdm/transport/include/esp_hci_internal.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "porting_btdm/transport/include/esp_hci_transport.h",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "porting_btdm/transport/src/hci_transport.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "test_apps/basic_unit_test/main/test_bt_common.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "test_apps/basic_unit_test/main/test_bt_main.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "test_apps/basic_unit_test/main/test_smp.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "test_apps/basic_unit_test/main/test_tinycrypt_ecc.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    },
+    {
+      "path": "test_apps/memory_release/main/test_app_main.c",
+      "compiled_unit": false,
+      "review": "pending_in_this_audit"
+    }
+  ]
+}

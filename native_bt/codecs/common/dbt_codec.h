@@ -96,7 +96,10 @@ typedef struct {
     dbt_result_t result;
     bool marker;
     uint8_t prefix[2];
+    uint8_t payload_type;
 } dbt_codec_trace_t;
+
+typedef struct {uint8_t depth,low_water;} dbt_codec_queue_t;
 typedef struct {
     dbt_codec_hooks_t decoder;
     const dbt_codec_ops_t *const *codecs;
@@ -116,6 +119,10 @@ typedef struct {
      * no security material is exposed and media bytes are never modified. */
     void (*trace)(void *context,const dbt_codec_trace_t *event);
     dbt_codec_pcm_async_t async_pcm;
+    /* Pure selected-codec policy, called only while admission is closed.
+     * Every slot retains the full init maximum_payload; no truncated packets.
+     * low_water is the queue depth crossing that wakes receive-credit work. */
+    dbt_codec_queue_t (*queue_policy)(void *context,const dbt_codec_config_t *config);
 } dbt_codec_worker_hooks_t;
 typedef struct {
     dbt_codec_worker_hooks_t hooks;
@@ -133,6 +140,9 @@ typedef struct {
     /* Host-producer diagnostics, distinct from queue saturation/decode errors.
      * Maximum includes a size-rejected packet; no payload is exposed. */
     _Atomic uint32_t input_max_payload,input_oversize_rejects,input_last_oversize;
+    /* Atomic diagnostics/credit geometry: depth in bits0..7, low_water8..15,
+     * slot stride16..31. Zero while the selected working set is absent. */
+    _Atomic uint32_t queue_layout;
     /* Host-producer only; compare before queue admission so locally rejected
      * packets do not masquerade as an upstream sequence discontinuity. */
     uint32_t input_epoch,input_ssrc;
@@ -140,7 +150,7 @@ typedef struct {
     uint8_t *packet_storage;
     uint32_t binding,last_ssrc;
     uint16_t maximum_payload,stride,last_sequence;
-    uint8_t depth;
+    uint8_t depth,depth_limit,low_water;
     bool configured,streaming,sequence_valid;
     /* Worker-owned borrow, not another PCM allocation. media_read pins the
      * input slot until all output and the codec's saved frame cursor retire. */
