@@ -1,7 +1,11 @@
-param([switch]$AptxSnapshot,[switch]$StayNative,[switch]$WordDsp,[switch]$PriorityOrder,[ValidateSet(5,6,21)][int]$DecoderPriority=5,[switch]$SchedulerTrace,[switch]$CodecAwareRender,[switch]$PcmCopied,[switch]$PcmHash,[ValidateSet(-1,0,1)][int]$LoggerCore=-1,[switch]$BlockDsp,[ValidateSet(16,32,64)][int]$PcmTargetMs=64,[switch]$PcmLoans,[switch]$DspInlineCheck,[ValidateSet(0,1)][int]$DecoderCore=0,[switch]$RfProtocolDiagnostic,[switch]$FirCompilerCheck,[switch]$DspStageProfile,[switch]$AudioStageProfile,[switch]$PipelineDiagnostic,[switch]$AsyncAudio,[switch]$DeferredCodecCheck,[switch]$LhdcStageProfile,[switch]$LhdcMaximumCheck,[switch]$CodecDiagnosticOnly,[switch]$WithProductIo,[switch]$WithProductSecurity,[switch]$WithRfcomm,[switch]$WithLhdc,[switch]$WithOpus,[switch]$WithAac,[switch]$WithAptx,[switch]$WithLdac,[switch]$WithSmp,[switch]$WithAvrcp,[switch]$WithSbc,[switch]$WithAudioProbe,[switch]$WithAudioOutput,[switch]$WithGatt,[switch]$WithClassicSecurity,[switch]$TraceIngress,[switch]$WithoutRxFlow,[switch]$KeepOwned=$true,[string]$TestPeer='',[string]$LhdcSourceDir='')
+param([switch]$DspBlockIram,[switch]$UnityPcmCopy,[switch]$LhdcCore0Render,[switch]$LhdcFastMantissa,[switch]$AptxSnapshot,[switch]$StayNative,[switch]$WordDsp,[switch]$PriorityOrder,[ValidateSet(5,6,21)][int]$DecoderPriority=5,[switch]$SchedulerTrace,[switch]$CodecAwareRender,[switch]$PcmCopied,[switch]$PcmHash,[ValidateSet(-1,0,1)][int]$LoggerCore=-1,[switch]$BlockDsp,[ValidateSet(16,32,64)][int]$PcmTargetMs=64,[switch]$PcmLoans,[switch]$DspInlineCheck,[ValidateSet(0,1)][int]$DecoderCore=0,[switch]$RfProtocolDiagnostic,[switch]$FirCompilerCheck,[switch]$DspStageProfile,[switch]$AudioStageProfile,[switch]$PipelineDiagnostic,[switch]$AsyncAudio,[switch]$DeferredCodecCheck,[switch]$LhdcStageProfile,[switch]$LhdcMaximumCheck,[switch]$CodecDiagnosticOnly,[switch]$WithProductIo,[switch]$WithProductSecurity,[switch]$WithRfcomm,[switch]$WithLhdc,[switch]$WithOpus,[switch]$WithAac,[switch]$WithAptx,[switch]$WithLdac,[switch]$WithSmp,[switch]$WithAvrcp,[switch]$WithSbc,[switch]$WithAudioProbe,[switch]$WithAudioOutput,[switch]$WithGatt,[switch]$WithClassicSecurity,[switch]$TraceIngress,[switch]$WithoutRxFlow,[switch]$KeepOwned=$true,[string]$TestPeer='',[string]$LhdcSourceDir='')
 $ErrorActionPreference = 'Stop'
 if ($PriorityOrder) { $DecoderPriority=6; $KeepOwned=$false }
 if ($AptxSnapshot -and (-not $StayNative -or -not $WithAptx -or -not $PcmCopied -or -not $BlockDsp -or -not $WordDsp -or -not $CodecAwareRender)) { throw 'aptX capture requires complete stay-native aptX copied PCM, block/word DSP and codec-aware rendering' }
+if ($DspBlockIram -and -not $BlockDsp) { throw 'Block DSP IRAM placement requires -BlockDsp' }
+if ($UnityPcmCopy -and (-not $StayNative -or -not $PcmCopied -or -not $BlockDsp)) { throw 'Unity PCM copy requires -StayNative -PcmCopied -BlockDsp' }
+if ($LhdcCore0Render -and (-not $WithLhdc -or -not $CodecAwareRender)) { throw 'LHDC Core0 rendering requires -WithLhdc -CodecAwareRender' }
+if ($LhdcFastMantissa -and -not $WithLhdc) { throw 'LHDC mantissa candidate requires -WithLhdc' }
 if ($WordDsp -and -not $BlockDsp) { throw 'Word DSP requires -BlockDsp' }
 if ($LoggerCore -lt 0) { $LoggerCore=1-$DecoderCore }
 if ($PcmCopied -and $PcmLoans) { throw 'PCM input modes are mutually exclusive' }
@@ -162,6 +166,10 @@ $idfArguments += "-DDBT_PROBE_PRIORITY_ORDER=$(if ($PriorityOrder) { 'ON' } else
 $idfArguments += "-DDBT_PROBE_LOGGER_CORE=$LoggerCore"
 $idfArguments += "-DDBT_PROBE_SCHEDULER_TRACE=$(if ($SchedulerTrace) { 'ON' } else { 'OFF' })"
 $idfArguments += "-DDBT_PROBE_CODEC_AWARE_RENDER=$(if ($CodecAwareRender) { 'ON' } else { 'OFF' })"
+$idfArguments += "-DDBT_PROBE_DSP_BLOCK_IRAM=$(if ($DspBlockIram) { 'ON' } else { 'OFF' })"
+$idfArguments += "-DDBT_PROBE_UNITY_PCM_COPY=$(if ($UnityPcmCopy) { 'ON' } else { 'OFF' })"
+$idfArguments += "-DDBT_PROBE_LHDC_CORE0_RENDER=$(if ($LhdcCore0Render) { 'ON' } else { 'OFF' })"
+$idfArguments += "-DDBT_PROBE_LHDC_FAST_MANTISSA=$(if ($LhdcFastMantissa) { 'ON' } else { 'OFF' })"
 $idfArguments += "-DDBT_PROBE_LHDC_MAX_CHECK=$lhdcMaxBuild"
 $idfArguments += "-DDBT_PROBE_LHDC_STAGE_PROFILE=$lhdcStageBuild"
 $sourceManifestPath=Join-Path $buildRoot 'local-build-sources.json'
@@ -212,6 +220,10 @@ $buildReceipt.owner_ready_yield=($DecoderPriority -eq $buildReceipt.host_priorit
 $buildReceipt.logger_core=$LoggerCore
 $buildReceipt.scheduler_trace=[bool]$SchedulerTrace
 $buildReceipt.codec_aware_render=[bool]$CodecAwareRender
+$buildReceipt.dsp_block_iram=[bool]$DspBlockIram
+$buildReceipt.unity_pcm_copy=[bool]$UnityPcmCopy
+$buildReceipt.lhdc_core0_render=[bool]$LhdcCore0Render
+$buildReceipt.lhdc_fast_mantissa=[bool]$LhdcFastMantissa
 $buildReceipt.lhdc_maximum_check=[bool]$LhdcMaximumCheck
 $buildReceipt.lhdc_stage_profile=[bool]$LhdcStageProfile
 if ($buildReceipt.passed) {

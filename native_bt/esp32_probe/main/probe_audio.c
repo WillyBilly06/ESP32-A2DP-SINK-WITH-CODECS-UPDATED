@@ -552,6 +552,11 @@ static dbt_result_t stream_begin(void *context,bool start,const dbt_codec_config
 #ifdef DBT_PROBE_LDAC_BUILD
     share=share || config->ops==&dbt_ldac_codec;
 #endif
+#if defined(DBT_PROBE_LHDC_CORE0_RENDER) && defined(DBT_PROBE_LHDC_BUILD)
+    /* Opt-in measurement: reuse the same closed-channel handoff and the
+     * decoder-aware notification/backpressure policy, with no new task type. */
+    share=share || config->ops==&dbt_lhdcv5_codec;
+#endif
     dbt_result_t result=probe_output_stream_begin_primed(start,config->rate,config->channels,
         (dbt_pcm_format_t)config->sample_bytes,share,priming,ticket);
 #else

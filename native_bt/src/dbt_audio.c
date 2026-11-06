@@ -354,11 +354,50 @@ uint32_t dbt_audio_render(dbt_audio_t *a,uint32_t budget){
 #ifdef DBT_AUDIO_BLOCK_DSP
     pcm_block=output_frame(a,slot);block_capacity=output_span(a,slot,FIXED_DSP_BLOCK_FRAMES);
 #endif
+#if defined(DBT_AUDIO_UNITY_COPY) && defined(DBT_AUDIO_BLOCK_DSP) && defined(__BYTE_ORDER__) && __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+    /* The product's copied S32 stereo unity clock needs no per-sample format,
+     * fraction or resampler work. Copy only the captured input publication into
+     * one unpublished DSP/output span; keep identical block boundaries and the
+     * existing final input/output release publications and mix ordering. */
+    const bool copy_unity=!a->borrowed_input && !a->config.adaptive_clock &&
+        !a->fraction && !a->step_adjust && !a->drain_remaining &&
+        a->config.format==DBT_PCM_S32_LE && a->config.channels==2 && a->input.stride==8;
+#endif
     while(produced<budget && produced<free){
 #ifdef DBT_AUDIO_STAGE_PROFILE
         stage=audio_cycles();
 #endif
         uint32_t available=end-in;
+#if defined(DBT_AUDIO_UNITY_COPY) && defined(DBT_AUDIO_BLOCK_DSP) && defined(__BYTE_ORDER__) && __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+        if(copy_unity){
+            uint32_t count=block_capacity;
+            if(count>budget-produced)count=budget-produced;
+            if(count>free-produced)count=free-produced;
+            if(count>available)count=available;
+            if(!count)break;
+            uint32_t source_slot=in&a->input.mask,first=a->input.frames-source_slot;
+            if(first>count)first=count;
+            memcpy(pcm_block,a->input.bytes+source_slot*8u,first*8u);
+            if(first<count)memcpy(pcm_block+2u*first,a->input.bytes,(count-first)*8u);
+#ifdef DBT_AUDIO_STAGE_PROFILE
+            conversion+=audio_cycles()-stage;
+#endif
+            slot=render_dsp_block(a,pcm_block,count,slot
+#ifdef DBT_AUDIO_STAGE_PROFILE
+                                  ,&dsp,&tail
+#endif
+            );
+#ifdef DBT_AUDIO_STAGE_PROFILE
+            stage=audio_cycles();
+#endif
+            in+=count;produced+=count;
+            pcm_block=output_frame(a,slot);block_capacity=output_span(a,slot,FIXED_DSP_BLOCK_FRAMES);
+#ifdef DBT_AUDIO_STAGE_PROFILE
+            tail+=audio_cycles()-stage;
+#endif
+            continue;
+        }
+#endif
         if(!available && !a->drain_remaining)break;
         int64_t next=(int64_t)a->fraction+4294967296ll+a->step_adjust;
         uint32_t consumed=(uint32_t)(next>>32);

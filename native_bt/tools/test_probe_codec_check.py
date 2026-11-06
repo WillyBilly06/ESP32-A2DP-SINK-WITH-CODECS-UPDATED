@@ -36,6 +36,8 @@ def main():
     parser.add_argument('--pcm-loans',action='store_true',help='Use asynchronous immutable PCM loans with a delayed provider mock')
     parser.add_argument('--lhdc-esp32-paths',action='store_true',help='Host-execute the LHDC source conditionals selected on classic ESP32; not Xtensa execution')
     parser.add_argument('--lhdc-keep-unused-overlap',action='store_true',help='Retain the unused ESP32 overlap snapshot as an allocation reference')
+    parser.add_argument('--lhdc-max-fixture',action='store_true',help='Also run the existing 96-packet maximum LHDC fixture on the host; timing remains stubbed')
+    parser.add_argument('--lhdc-fast-mantissa',action='store_true',help='Compare the exact sliding-word mantissa candidate on pinned codec PCM fixtures')
     parser.add_argument('--lhdc-keep-dedicated-pcm',action='store_true',help='Retain the separate LHDC PCM output allocation for paired comparison')
     args=parser.parse_args()
     if args.lhdc_source:
@@ -81,12 +83,13 @@ def main():
              ROOT/'codecs/lhdcv5/dbt_lhdcv5_codec.c']
     sources += [(port if n.startswith('synthesis-') else SBC/'srce')/(n+'.c') for n in sbc_names]
     aac_sources=[aacport/'aacdec_guarded.c']+[(aacport/(n+'_guarded.c') if n in ('decelmnt','noiseless','huffman') else AAC/(n+'.c')) for n in aac_names]
+    if args.lhdc_max_fixture:sources += [ROOT/'esp32_probe/main/probe_diagnostic_stats.c']
     sources += aac_sources
     sources += [lhdcport/n for n in ('lhdc_dec.c','lhdc_imdct.c','lhdc_entropy_dec.c','lhdc_sns_synth.c')]
     sources += [LHDC/n for n in ('lhdc_bit_reader.c','lhdc_diag_config.c','lhdc_tables.c')]
     inc=[ROOT/'tests/codecs/probe_audio_stubs',ROOT/'include',ROOT/'esp32_probe/main',ROOT/'codecs/common',
          ROOT/'codecs/sbc',ROOT/'codecs/sbc/port',SBC/'include',ROOT/'codecs/opus',OPUS/'include',
-         ROOT/'codecs/aac',AAC,ROOT/'codecs/aptx',APTX,ROOT/'codecs/ldac',ldacport,LDAC/'inc',LDAC/'src',ROOT/'codecs/lhdcv5',LHDC]
+         ROOT/'codecs/aac',AAC,ROOT/'codecs/aptx',APTX,ROOT/'codecs/ldac',ldacport,LDAC/'inc',LDAC/'src',ROOT/'codecs/lhdcv5',lhdcport,LHDC]
     opus_lib=ROOT/'_build/avrcp/probe_opus_guarded/opus.lib'
     if args.sanitize:
         opus_build=ROOT/'_build/avrcp/probe_opus_guarded_asan'
@@ -113,6 +116,7 @@ def main():
         flags+=['-fsanitize=address','-fno-omit-frame-pointer']
         if os.name=='nt':flags+=['-fms-runtime-lib=dll']
     flags+=['-DDBT_PROBE_'+x+'_BUILD=1' for x in ('SBC','OPUS','AAC','APTX','LDAC','LHDC')]
+    if args.lhdc_max_fixture:flags+=['-DDBT_PROBE_LHDC_MAX_CHECK=1']
     if args.pcm_loans:flags+=['-DDBT_TEST_PCM_LOANS=1']
     if args.lhdc_keep_dedicated_pcm:flags+=['-DDBT_LHDC_KEEP_DEDICATED_PCM=1']
     flags+=['-I'+str(p) for p in inc]
@@ -128,6 +132,7 @@ def main():
     for index,unit in enumerate(sources):
         obj=OUT/(str(index)+'_'+unit.stem+('.obj' if os.name=='nt' else '.o'));objects.append(obj)
         extra=['-funsigned-char','-include',str(ROOT/'codecs/aac/host_target_math.h')] if unit in aac_sources else []
+        if args.lhdc_fast_mantissa and unit == lhdcport/'lhdc_dec.c':extra+=['-DDBT_LHDC_FAST_MANTISSA=1']
         if args.lhdc_esp32_paths and unit.parent in (lhdcport,LHDC,ROOT/'codecs/lhdcv5'):
             extra+=['-DCONFIG_IDF_TARGET_ESP32=1']
             if args.lhdc_keep_unused_overlap:extra+=['-DDBT_LHDC_KEEP_UNUSED_OV_SAVE=1']
@@ -164,6 +169,14 @@ def main():
         (OUT/'results.json').write_text(json.dumps(report,indent=2)+'\n')
         print(f'PASS {len(cases)} real-codec deferred cases: every PCM byte/timestamp identical; fragmentation, batching, all 37 configurations and maximum LHDC fixture; host only')
         return
+    max_cases=[e for e in events if e.get('probe')=='lhdc_max_selftest']
+    max_hashes=[e for e in events if e.get('probe')=='lhdc_pcm_hash']
+    if args.lhdc_max_fixture:
+        assert len(max_cases)==3 and all(e['correctness_passed'] and e['sample_frames']==92160 and e['reference_points']==56 for e in max_cases)
+        # Host floating-point transforms may differ in low PCM bits from Xtensa.
+        # Require repeatable full-output hashes here; compare baseline/candidate
+        # receipts separately, while retaining the independent sample points.
+        assert len(max_hashes)==3 and len({(e['fnv1a32'],e['prefix_fnv1a32']) for e in max_hashes})==1
     opus=[e for e in events if e.get('probe')=='target_opus_selftest']
     overall=[e for e in events if e.get('probe')=='target_codec_selftest']
     cases=[e for e in events if e.get('probe')=='target_codec_case']
@@ -180,6 +193,7 @@ def main():
     assert any(e.get('probe')=='target_codec_selftest' and not e['passed'] for e in injected_events)
     assert all(hashlib.sha256(Path(path).read_bytes()).hexdigest()==sha for path,sha in before.items()),'Source changed during host check'
     report={'passed':True,'scope':'actual self-test and codec algorithms on host; timing and FreeRTOS stack metrics are stubs, not target evidence',
+            'lhdc_fast_mantissa':args.lhdc_fast_mantissa,'maximum_lhdc_cases':max_cases,'maximum_lhdc_hashes':max_hashes,
             'opus_marker':opus[0],'summary':overall[0],'cases':cases[:selected],
             'negative_checks':['sample_mismatch','exact_hash_mismatch','low_stack','allocation_failure','failed_marker'],
             'source_sha256':before}

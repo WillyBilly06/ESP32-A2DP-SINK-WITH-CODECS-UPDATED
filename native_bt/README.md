@@ -42,12 +42,18 @@ traces are recorded separately from acoustic and full-feature qualification.
 The [BLE parameter coordinator](docs/BLE_PARAMETER_POLICY_2026_11_06.md) restores
 the original requested policy through HCI or LE signaling and logs actual
 controller parameters. Two HD/BLE settings runs have clean transport counters;
-the user-reported persistent sound corruption remains under investigation.
+the user subsequently reports aptX HD and LDAC sound good on image92fc7e5705b7.
+That is acoustic feedback, with other rates/features still unqualified.
 
 The opt-in [PCM boundary capture](docs/APTX_PCM_BOUNDARIES_2026_11_06.md) matches
 one live HD decoder call, its copied input, and an independent DSP/final block
 against desktop replay. It also records a 440-frame payload versus 336-tick RTP
-discrepancy. Neither finding closes the audible fault; capture is off by default.
+discrepancy. It is not a causal diagnosis of that sound report; capture is off by default.
+
+The [LHDC throughput work](docs/LHDC_V5_THROUGHPUT_2026_11_06.md) adds an exact
+bounded S32 PCM-copy path and records high-rate scheduling/IRAM experiments.
+192k/24-bit/fixed900 playback still underruns; those experiments are not a
+maximum-rate fix, and live1000kbps qualification remains open.
 
 The [BTstack code audit](docs/BTSTACK_CODE_AUDIT_2026_11_05.md) now tracks
 the dated 288-input implementation/build inventory, confirmed layer defects, unwired modules and

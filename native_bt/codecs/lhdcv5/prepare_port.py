@@ -98,6 +98,30 @@ def generate(source,output):
         lhdc_imdct_free_cos();
     }''')
         if name=="lhdc_dec.c":
+            # Preserve the original and its host trace as an explicit comparison.
+            # The candidate is opted in only by the decoder component, with no
+            # change to transport, PCM format, selected quality or buffer sizes.
+            begin=text.index('static LHDC_HOT int64_t lhdc_dec_mant_plane(')
+            end=text.index('\n/*\n * Decode a single channel.',begin)
+            original=text[begin:end]
+            reference=original.replace('lhdc_dec_mant_plane(', 'dbt_lhdc_mantissa_reference(',1)
+            wrapper='''#if defined(DBT_LHDC_FAST_MANTISSA) && DBT_LHDC_FAST_MANTISSA
+#include "dbt_lhdc_mantissa.h"
+#if defined(LHDC_HOST_BUILD)
+'''+reference+'''
+#endif
+static LHDC_HOT int64_t lhdc_dec_mant_plane(const int32_t *coeff,int32_t *out,int cnt,
+    const uint8_t *pl,int total_bits,int start_bit,int pred_mode,int init_shift) {
+#if defined(LHDC_HOST_BUILD)
+    if (g_lhdc_trace > 0) return dbt_lhdc_mantissa_reference(coeff,out,cnt,pl,total_bits,start_bit,pred_mode,init_shift);
+#endif
+    return dbt_lhdc_mantissa_fast(coeff,out,cnt,pl,total_bits,start_bit,pred_mode,init_shift);
+}
+#else
+'''+original+'''#endif
+'''
+            text=text[:begin]+wrapper+text[end:]
+        if name=="lhdc_dec.c":
             text=once(text,'#include <math.h>','''#include <math.h>
 #if defined(__FAST_MATH__) || (defined(__FINITE_MATH_ONLY__) && __FINITE_MATH_ONLY__)
 #error LHDC output safety requires strict finite and unordered comparisons

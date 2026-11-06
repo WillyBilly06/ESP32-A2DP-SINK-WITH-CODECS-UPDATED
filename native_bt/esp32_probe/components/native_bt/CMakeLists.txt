@@ -73,3 +73,11 @@ set_property(SOURCE "${fixed_dsp_source}" APPEND PROPERTY COMPILE_OPTIONS "-Os")
 if(DBT_PROBE_APTX_SNAPSHOT)
     target_compile_definitions(${COMPONENT_LIB} PRIVATE DBT_APTX_SNAPSHOT=1)
 endif()
+
+if(DBT_PROBE_UNITY_PCM_COPY)
+    target_compile_definitions(${COMPONENT_LIB} PRIVATE DBT_AUDIO_UNITY_COPY=1)
+endif()
+
+if(DBT_PROBE_DSP_BLOCK_IRAM)
+    target_compile_definitions(${COMPONENT_LIB} PRIVATE FIXED_DSP_BLOCK_IRAM=1)
+endif()

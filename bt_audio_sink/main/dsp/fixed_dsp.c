@@ -8,6 +8,11 @@
 #else
 #define DSP_HOT
 #endif
+#if defined(ESP_PLATFORM) && defined(FIXED_DSP_BLOCK_IRAM)
+#define DSP_BLOCK_HOT IRAM_ATTR
+#else
+#define DSP_BLOCK_HOT
+#endif
 
 #ifndef FIXED_DSP_TABLES_HEADER
 #define FIXED_DSP_TABLES_HEADER "fixed_dsp_tables.inc"
@@ -104,7 +109,7 @@ static void ramp_target(fdsp_ramp_t *state, int32_t target, uint32_t frames, boo
     state->error = 0;
 }
 
-static inline void ramp_advance(fdsp_ramp_t *state) {
+static inline void DSP_BLOCK_HOT ramp_advance(fdsp_ramp_t *state) {
     if (state->remaining == 0) return;
     state->value += state->step;
     state->error += state->remainder;
@@ -121,7 +126,7 @@ static inline void ramp_advance(fdsp_ramp_t *state) {
 #else
 #define FILTER_INLINE
 #endif
-static inline int32_t FILTER_INLINE filter(const int32_t c[5],
+static inline int32_t DSP_BLOCK_HOT FILTER_INLINE filter(const int32_t c[5],
                               fdsp_history_t *history, int32_t input) {
     int32_t output;
     if (c[0] == COEFF_ONE && c[1] == 0 && c[2] == 0 && c[3] == 0 && c[4] == 0) {
@@ -249,7 +254,7 @@ void fixed_dsp_controls(fixed_dsp_t *dsp, int8_t bass, int8_t mid, int8_t treble
     dsp->requested_volume = volume;
 }
 
-static uint64_t integer_sqrt(uint64_t value) {
+static uint64_t DSP_BLOCK_HOT integer_sqrt(uint64_t value) {
     uint64_t result = 0, bit = (uint64_t)1 << 62;
     while (bit > value) bit >>= 2;
     while (bit != 0) {
@@ -275,7 +280,7 @@ static inline __attribute__((always_inline)) int32_t analysis_average(int64_t su
     uint32_t quotient=(high<<16)+low/divisor;
     return negative?(int32_t)(-(int64_t)quotient):(int32_t)quotient;
 }
-static void analysis(fixed_dsp_t *dsp, int32_t mono) {
+static void DSP_BLOCK_HOT analysis(fixed_dsp_t *dsp, int32_t mono) {
     if (!(dsp->flags & FDSP_ANALYSIS)) return;
     dsp->analysis_sum += mono;
     if (++dsp->analysis_count < dsp->decimation) return;
@@ -312,7 +317,7 @@ static void analysis(fixed_dsp_t *dsp, int32_t mono) {
     dsp->window_count = 0;
 }
 
-static inline int32_t limit(fixed_dsp_t *dsp, int32_t value) {
+static inline int32_t DSP_BLOCK_HOT limit(fixed_dsp_t *dsp, int32_t value) {
     uint32_t magnitude = (uint32_t)(value < 0 ? -(int64_t)value : value);
     if (magnitude > dsp->peak_q27) dsp->peak_q27 = magnitude;
     if (magnitude <= CLIP_THRESHOLD) return value;
@@ -374,7 +379,7 @@ void DSP_HOT fixed_dsp_process(fixed_dsp_t *dsp, int32_t *left, int32_t *right) 
 #endif
 /* One channel at a time keeps coefficient/history reuse within LX6's register
  * budget. It changes neither arithmetic nor the carried Q28 fraction. */
-static BLOCK_KERNEL void filter_steady_block(const int32_t c[5],fdsp_history_t *h,
+static BLOCK_KERNEL DSP_BLOCK_HOT void filter_steady_block(const int32_t c[5],fdsp_history_t *h,
                                              int32_t *pcm,unsigned frames) {
     if(!frames)return;
     if(c[0]==COEFF_ONE && !c[1] && !c[2] && !c[3] && !c[4]){
@@ -428,7 +433,7 @@ static BLOCK_KERNEL void filter_steady_block(const int32_t c[5],fdsp_history_t *
     for(unsigned i=0;i<frames;++i)pcm[2u*i]=filter(c,h,pcm[2u*i]);
 #endif
 }
-bool fixed_dsp_process_block(fixed_dsp_t *dsp,int32_t *pcm,uint16_t frames){
+bool DSP_BLOCK_HOT fixed_dsp_process_block(fixed_dsp_t *dsp,int32_t *pcm,uint16_t frames){
     if(!dsp || frames>FIXED_DSP_BLOCK_FRAMES || (frames && (!pcm || (uintptr_t)pcm%4u)))return false;
     if(!frames)return true;
     /* Target measurements favor the canonical kernel during coefficient

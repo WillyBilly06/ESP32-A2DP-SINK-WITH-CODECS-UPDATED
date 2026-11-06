@@ -1502,7 +1502,19 @@ uint16_t probe_output_decode_budget(void){
   uint32_t input_written=atomic_load_explicit(&output.audio.input.written,memory_order_acquire);
   uint32_t output_read=atomic_load_explicit(&output.audio.output.read,memory_order_acquire);
   uint32_t output_written=atomic_load_explicit(&output.audio.output.written,memory_order_acquire);
-  if(input_written!=input_read && output_written-output_read<2u*DMA_FRAMES){
+  uint32_t reserve=2u*DMA_FRAMES;
+  uint32_t rate=atomic_load_explicit(&output.rate,memory_order_relaxed);
+  if(rate>96000u){
+    /* A 192k LHDC frame is 5ms; measured decoding can occupy CPU0 for
+     * >3ms before the lower-priority renderer runs again. Two DMA blocks
+     * cover only 1.33ms here. Render already-decoded input first, retaining
+     * one frame interval plus the original DMA margin before another decode.
+     * This is admission within existing storage, never a larger buffer. */
+    reserve+=(rate+199u)/200u;
+    uint32_t target=pcm_target_frames(rate);
+    if(reserve>target)reserve=target; /* renderer never fills beyond target */
+  }
+  if(input_written!=input_read && output_written-output_read<reserve){
     TaskHandle_t render=atomic_load_explicit(&output.task,memory_order_acquire);
     if(render)xTaskNotifyGive(render);
     return 0; /* control retirement still runs; wait on existing notification */
