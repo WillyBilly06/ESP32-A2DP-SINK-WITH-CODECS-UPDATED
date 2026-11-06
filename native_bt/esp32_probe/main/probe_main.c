@@ -36,6 +36,7 @@ static int __attribute__((format(printf,1,2))) host_printf(const char *format,..
 #endif
 #ifdef DBT_PROBE_GATT_TEST
 #include "probe_gatt.h"
+#include "probe_ble_parameters.h"
 #include "dbt_ble_nvs.h"
 #ifdef DBT_PROBE_AUDIO_OUTPUT
 #include "probe_output.h"
@@ -463,6 +464,7 @@ static void profile_link(void *context,const dbt_link_change_t *change) {
     probe_security_link(change);
 #endif
 #ifdef DBT_PROBE_GATT_TEST
+    probe_ble_parameters_link(&runtime,change);
     probe_gatt_link(context,change);
 #endif
 }
@@ -527,6 +529,9 @@ static void observe(void *context, const dbt_hci_packet_t *packet) {
     }
 #endif
     if (packet->type != DBT_H4_EVENT || gap.state == DBT_GAP_IDLE) return;
+#ifdef DBT_PROBE_GATT_TEST
+    probe_ble_parameters_event(&runtime,packet);
+#endif
 #ifdef DBT_PROBE_CLASSIC_SECURITY_TEST
     dbt_result_t owned=probe_security_receive(packet,now_ms());
     if(owned!=DBT_UNSUPPORTED) {
@@ -762,6 +767,13 @@ void app_main(void) {
         probe_audio_transport_poll_begin(poll_began_us);
 #endif
         HOST_CALL(PROBE_HOST_RUNTIME,dbt_runtime_poll(&runtime,now,8,8));
+#ifdef DBT_PROBE_GATT_TEST
+        bool parameter_hold=false;
+#ifdef DBT_PROBE_PRODUCT_SECURITY
+        parameter_hold=probe_restart_active(&product_restart);
+#endif
+        HOST_CALL(PROBE_HOST_GATT,probe_ble_parameters_poll(&runtime,now,parameter_hold));
+#endif
 #ifdef DBT_PROBE_AUDIO_TEST
         probe_audio_transport_poll_end(poll_began_us);
 #endif
@@ -1081,6 +1093,9 @@ void app_main(void) {
         unsigned previous_phase=probe_scheduler_host_phase(PROBE_HOST_WAIT);
 #endif
         uint32_t wait = dbt_runtime_wait_ms(&runtime, now_ms());
+#ifdef DBT_PROBE_GATT_TEST
+        {uint32_t parameter_wait=probe_ble_parameters_wait_ms(now_ms());if(parameter_wait<wait)wait=parameter_wait;}
+#endif
 #ifdef DBT_PROBE_AUDIO_TEST
         uint32_t wait_zeros=wait==0?1u:0;
 #endif

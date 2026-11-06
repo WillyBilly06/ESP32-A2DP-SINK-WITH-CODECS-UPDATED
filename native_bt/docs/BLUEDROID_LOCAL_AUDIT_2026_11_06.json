@@ -3,7 +3,7 @@
   "complete": false,
   "total": 1193,
   "reviewed_codec_boundary": 5,
-  "pending": 1188,
+  "pending": 1187,
   "controller_only": true,
   "bluedroid_host_linked": false,
   "bluedroid_external_compiled_units": 153,
@@ -5281,7 +5281,18 @@
     {
       "path": "host/bluedroid/stack/l2cap/l2c_ble.c",
       "compiled_unit": false,
-      "review": "pending_in_this_audit"
+      "review": "partial_connection_parameter_route",
+      "ranges": [
+        [
+          139,
+          190
+        ],
+        [
+          551,
+          591
+        ]
+      ],
+      "sha256": "97555c37f55320f9f93182cca1f573b93f4cafc73d9cadac2910cc86b25c0f78"
     },
     {
       "path": "host/bluedroid/stack/l2cap/l2c_csm.c",
@@ -5988,5 +5999,6 @@
       "compiled_unit": false,
       "review": "pending_in_this_audit"
     }
-  ]
+  ],
+  "partial_connection_parameter_route": 1
 }

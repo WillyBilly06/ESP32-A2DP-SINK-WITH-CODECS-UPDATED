@@ -327,6 +327,41 @@ dbt_result_t dbt_channels_peer_features(const dbt_channels_t *manager,uint16_t h
     }
     return DBT_BUSY;
 }
+dbt_result_t dbt_channels_request_le_parameters(dbt_channels_t *m,uint16_t handle,
+    uint16_t minimum,uint16_t maximum,uint16_t latency,uint16_t timeout,uint32_t now){
+    if(!m||m->in_callback||minimum<6||minimum>maximum||maximum>3200||latency>499||timeout<10||timeout>3200||
+       (uint32_t)timeout*4u<=(uint32_t)(latency+1u)*maximum)return DBT_INVALID;
+    const dbt_link_t *l=dbt_acl_find(m->acl,handle);if(!l||l->kind!=DBT_LINK_LE||l->role!=1)return DBT_UNSUPPORTED;
+    dbt_signal_link_t *s=signal_link(m,handle,l->generation);
+    if(s&&(s->feature_state==FEATURES_QUEUED||s->feature_state==FEATURES_SENT))return DBT_BUSY;
+    uint8_t id=request_id(m,l);if(!id)return DBT_BUSY;
+    s=signal_link(m,handle,l->generation);uint8_t body[8];
+    put16(body,minimum);put16(body+2,maximum);put16(body+4,latency);put16(body+6,timeout);
+    dbt_result_t result=enqueue(m,l,5,0x12,id,body,sizeof(body),0,TX_FEATURES,0);if(result!=DBT_OK)return result;
+    s->feature_id=id;s->feature_state=FEATURES_QUEUED;s->feature_mask=0xffffu;s->feature_deadline=now+m->rtx_ms;
+    return DBT_OK;
+}
+dbt_result_t dbt_channels_le_parameters_result(const dbt_channels_t *m,uint16_t handle,uint16_t *result){
+    if(!m||!result||m->in_callback)return DBT_INVALID;
+    const dbt_link_t *l=dbt_acl_find(m->acl,handle);if(!l||l->kind!=DBT_LINK_LE)return DBT_UNSUPPORTED;
+    for(unsigned i=0;i<DBT_MAX_LINKS;++i){const dbt_signal_link_t *s=&m->links[i];
+        if(!s->used||s->handle!=handle||s->generation!=l->generation)continue;
+        if(s->feature_state==FEATURES_READY){*result=(uint16_t)s->feature_mask;return DBT_OK;}
+        if(s->feature_state==FEATURES_UNAVAILABLE)return s->feature_mask==0x10000u?DBT_CANCELLED:DBT_UNSUPPORTED;
+        return s->feature_state==FEATURES_UNKNOWN?DBT_EMPTY:DBT_BUSY;
+    }
+    return DBT_EMPTY;
+}
+dbt_result_t dbt_channels_cancel_le_parameters(dbt_channels_t *m,uint16_t handle){
+    if(!m||m->in_callback)return DBT_INVALID;
+    const dbt_link_t *l=dbt_acl_find(m->acl,handle);if(!l||l->kind!=DBT_LINK_LE)return DBT_EMPTY;
+    for(unsigned i=0;i<DBT_MAX_LINKS;++i){dbt_signal_link_t *s=&m->links[i];
+        if(!s->used||s->handle!=handle||s->generation!=l->generation)continue;
+        if(s->feature_state!=FEATURES_QUEUED&&s->feature_state!=FEATURES_SENT)return DBT_EMPTY;
+        s->feature_state=FEATURES_UNAVAILABLE;s->feature_mask=0x10000u;prune_tx(m);return DBT_OK;
+    }
+    return DBT_EMPTY;
+}
 static dbt_result_t queue_request(dbt_channels_t *manager, dbt_channel_t *channel, uint8_t code, bool null_config) {
     const dbt_link_t *link = dbt_acl_find(manager->acl, channel->handle);
     if (!link || link->generation != channel->link_generation) return DBT_INVALID;
@@ -1244,7 +1279,15 @@ static dbt_result_t process_command(dbt_channels_t *manager, const dbt_link_t *l
         return DBT_OK;
     }
     case 8: return enqueue(manager, link, 1, 9, id, body, size - 4u, 0, TX_PLAIN, 0);
-    case 9: case 0x13: ++manager->unknown_responses; return DBT_OK;
+    case 9: ++manager->unknown_responses; return DBT_OK;
+    case 0x13: {
+        dbt_signal_link_t *state=signal_link(manager,link->handle,link->generation);
+        if(link->kind!=DBT_LINK_LE||!state||state->feature_state!=FEATURES_SENT||state->feature_id!=id){
+            ++manager->unknown_responses;return DBT_OK;
+        }
+        if(size!=6||dbt_read_le16(body)>1){state->feature_state=FEATURES_UNAVAILABLE;++manager->malformed_pdus;return DBT_OK;}
+        state->feature_mask=dbt_read_le16(body);state->feature_state=FEATURES_READY;return DBT_OK;
+    }
     case 0x0b: {
         dbt_signal_link_t *state=signal_link(manager,link->handle,link->generation);
         if(!state || state->feature_state!=FEATURES_SENT || state->feature_id!=id || dbt_read_le16(body)!=2) {

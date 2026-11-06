@@ -14,6 +14,7 @@ import time
 
 ROOT = Path(__file__).resolve().parents[1]
 TESTS = [
+    "le_parameters_client_lifetime", "le_parameters_client_wrap_timeout_and_bearers",
     "codec_async_pcm_completion_and_exact_order", "codec_async_pcm_cancel_before_codec_lifecycle",
     "codec_async_pcm_deadline_and_stale_retirement",
     "codec_async_pcm_failed_completion_and_busy_begin",

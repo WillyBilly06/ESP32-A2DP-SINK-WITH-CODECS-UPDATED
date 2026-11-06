@@ -94,6 +94,9 @@ typedef struct {
 } dbt_channel_hooks_t;
 
 typedef struct {
+    /* Classic uses this transaction storage for Extended Features; LE uses it
+     * for an outgoing Connection Parameter Update exchange. Bearers cannot
+     * overlap, so no second per-link buffer/identifier/timer is allocated. */
     uint32_t generation, feature_mask, feature_deadline;
     uint16_t handle;
     uint8_t next_id, feature_id, feature_state;
@@ -193,6 +196,21 @@ dbt_result_t dbt_channels_register_fixed(dbt_channels_t *manager, dbt_link_kind_
  * with the peer's mask on success. Neither function advertises a local mode. */
 dbt_result_t dbt_channels_discover_features(dbt_channels_t *manager,uint16_t handle,uint32_t now_ms);
 dbt_result_t dbt_channels_peer_features(const dbt_channels_t *manager,uint16_t handle,uint32_t *mask);
+/* Peripheral LE signaling client, CID5. Request bytes are copied into the
+ * existing bounded signaling queue. Response/deadline state shares the LE
+ * link's otherwise-unused discovery fields. Controller-applied parameters
+ * require a separate HCI update-complete event. One host-owner coordinator
+ * owns this per-link lane; it stops querying after cancellation or retirement
+ * before a replacement begins. No allocation or wait. */
+dbt_result_t dbt_channels_request_le_parameters(dbt_channels_t *,uint16_t handle,
+    uint16_t minimum,uint16_t maximum,uint16_t latency,uint16_t timeout,uint32_t now_ms);
+/* OK returns the peer's wire result (0 accepted, 1 refused). BUSY owns the
+ * exchange; UNSUPPORTED reports reject/timeout, CANCELLED explicit cancellation.
+ * Output is unchanged unless OK. */
+dbt_result_t dbt_channels_le_parameters_result(const dbt_channels_t *,uint16_t handle,uint16_t *result);
+/* Invalidates an unsent pin through the existing transport retirement path;
+ * never frees or overwrites bytes still borrowed by runtime/HCI. */
+dbt_result_t dbt_channels_cancel_le_parameters(dbt_channels_t *,uint16_t handle);
 dbt_result_t dbt_channels_open(dbt_channels_t *manager, uint16_t handle, uint16_t psm,
                                uint16_t rx_mtu, uint16_t minimum_mtu, dbt_security_t security,
                                uint32_t now_ms, uint16_t *local_cid);

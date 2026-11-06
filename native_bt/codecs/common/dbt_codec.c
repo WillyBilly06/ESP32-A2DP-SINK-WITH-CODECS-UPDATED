@@ -430,9 +430,12 @@ static uint16_t deferred_step(dbt_codec_worker_t *w,uint32_t now,uint16_t budget
         }
         ++done;
         if(result==DBT_PENDING && w->pending_pcm){w->media_active=true;w->last_progress=now;continue;}
+        if(result==DBT_PROGRESS && !w->pending_pcm && w->decoder.config.ops->resume){
+            w->media_active=true;w->last_progress=now;continue;
+        }
         /* PENDING without an accepted view, or OK after ignoring a view's
          * PENDING return, is a codec contract violation, never a retry spin. */
-        if(result==DBT_PENDING || w->pending_pcm)result=DBT_INVALID;
+        if(result==DBT_PENDING || result==DBT_PROGRESS || w->pending_pcm)result=DBT_INVALID;
         retire_media(w,read,result);
     }
     return done;
@@ -476,15 +479,17 @@ uint16_t dbt_codec_worker_step(dbt_codec_worker_t *w,uint32_t now,uint16_t budge
     while(!w->hooks.deferred_pcm && count<budget && enabled(w)){
         uint32_t read=atomic_load_explicit(&w->media_read,memory_order_relaxed);if(read==atomic_load_explicit(&w->media_written,memory_order_acquire))break;
         media_t *slot=(media_t *)(w->packet_storage+(read&(w->depth-1u))*w->stride);
-        if(w->sequence_valid && (slot->sequence!=(uint16_t)(w->last_sequence+1u) || slot->ssrc!=w->last_ssrc)){
+        if(!w->media_active && w->sequence_valid && (slot->sequence!=(uint16_t)(w->last_sequence+1u) || slot->ssrc!=w->last_ssrc)){
             atomic_fetch_add(&w->resets,1);
             worker_sequence(w,slot);
             if(!reset(w,slot)){
                 atomic_fetch_add(&w->media_drops,1);atomic_store_explicit(&w->media_read,read+1u,memory_order_release);fault(w);++count;break;
             }
         }
-        w->sequence_valid=true;w->last_sequence=slot->sequence;w->last_ssrc=slot->ssrc;
-        dbt_result_t result=decode(w,slot,now,false);
+        if(!w->media_active){w->sequence_valid=true;w->last_sequence=slot->sequence;w->last_ssrc=slot->ssrc;}
+        dbt_result_t result=decode(w,slot,now,w->media_active);
+        if(result==DBT_PROGRESS && w->decoder.config.ops->resume){w->media_active=true;++count;continue;}
+        w->media_active=false;
         if(result!=DBT_OK){
             atomic_fetch_add(&w->decode_rejects,1);trace(w,DBT_CODEC_DECODE_REJECT,slot,slot->sequence,slot->ssrc,result);
             atomic_fetch_add(&w->media_drops,1);

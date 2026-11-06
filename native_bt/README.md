@@ -35,8 +35,17 @@ packets. [DMA refill ownership](docs/DMA_REFILL_WINDOW_2026_11_06.md) records th
 conservative recovery lease and its limits. The accompanying inventory leaves unreviewed files pending;
 this is not a completed host-layer or all-codec qualification.
 
+[aptX parity-phase recovery](docs/APTX_PHASE_RECOVERY_2026_11_06.md) now uses
+bounded resynchronization after resetting a continuing stream. Focused loss,
+parity-error and resume comparisons pass; live HD resume and raw Classic aptX
+traces are recorded separately from acoustic and full-feature qualification.
+The [BLE parameter coordinator](docs/BLE_PARAMETER_POLICY_2026_11_06.md) restores
+the original requested policy through HCI or LE signaling and logs actual
+controller parameters. Two HD/BLE settings runs have clean transport counters;
+the user-reported persistent sound corruption remains under investigation.
+
 The [BTstack code audit](docs/BTSTACK_CODE_AUDIT_2026_11_05.md) now tracks
-all 288 owned implementation/build inputs, confirmed layer defects, unwired modules and
+the dated 288-input implementation/build inventory, confirmed layer defects, unwired modules and
 remaining review coverage against a fresh pinned upstream checkout. The
 comparison is in progress; file presence or compilation is not feature parity.
 The [codec build-profile review](docs/CODEC_BUILD_PROFILE_2026_11_05.md) restores

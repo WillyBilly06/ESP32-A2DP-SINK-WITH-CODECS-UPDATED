@@ -27,6 +27,10 @@ static dbt_result_t pcm(void *ctx,const void *samples,uint16_t frames,const dbt_
 EXPORT unsigned probe_live(void){return live;}
 EXPORT unsigned probe_peak(void){return peak;}
 EXPORT unsigned worker_drops(void){return atomic_load(&worker.media_drops);}
+EXPORT unsigned worker_resets(void){return atomic_load(&worker.resets);}
+EXPORT unsigned worker_pending(void){return atomic_load(&worker.media_written)-atomic_load(&worker.media_read);}
+EXPORT unsigned worker_active(void){return worker.media_active;}
+EXPORT unsigned probe_recovery(unsigned field){dbt_aptx_quality_t q;dbt_aptx_quality_snapshot(&q);return field==0?q.calls:field==1?q.completed:field==2?q.discarded_bytes:q.active;}
 EXPORT void probe_peak_reset(void){peak=live;}
 EXPORT void probe_fail_in(unsigned n){fail_at=calls+n;}
 EXPORT int probe_configure(const uint8_t *cie,unsigned size,unsigned *rate,unsigned *channels,unsigned *sample_bytes){
@@ -38,6 +42,7 @@ EXPORT int probe_validate(const uint8_t *caps,unsigned caps_size,const uint8_t *
     dbt_avdtp_cap_t codec={cie,7,(uint8_t)size};return dbt_a2dp_aptx_validate(&endpoint,&codec);
 }
 EXPORT int worker_init(void){dbt_codec_worker_hooks_t h={{0,allocate,release,pcm},codecs,2,0,0,0,false,{0},0,{0},0};return dbt_codec_worker_init(&worker,h,2048,2);}
+EXPORT int worker_init_mode(unsigned deferred){dbt_codec_worker_hooks_t h={0};h.decoder=(dbt_codec_hooks_t){0,allocate,release,pcm};h.codecs=codecs;h.codec_count=2;h.deferred_pcm=deferred!=0;return dbt_codec_worker_init(&worker,h,2048,2);}
 EXPORT int worker_control(unsigned op,const uint8_t *cie,unsigned size){
     uint8_t caps[DBT_CODEC_CIE_BYTES+4]={1,0,7,0};if(size>DBT_CODEC_CIE_BYTES)return -1;
     caps[3]=(uint8_t)size;for(unsigned i=0;i<size;++i)caps[4+i]=cie[i];
@@ -48,9 +53,16 @@ EXPORT int worker_control(unsigned op,const uint8_t *cie,unsigned size){
 }
 EXPORT int worker_packet(const uint8_t *data,unsigned size,unsigned seq,uint8_t *pcm_out,unsigned *written){
     dbt_avdtp_media_t packet={data,100+seq*128u,1,(uint16_t)size,(uint16_t)seq,96,false};output=pcm_out;pcm_bytes=0;
-    int r=dbt_codec_worker_media(&worker,&packet);if(r==DBT_OK)dbt_codec_worker_step(&worker,2,1);
+    int r=dbt_codec_worker_media(&worker,&packet);
+    if(r==DBT_OK)for(unsigned budget=0;budget<2u*size+4u && atomic_load(&worker.media_read)!=atomic_load(&worker.media_written);++budget)
+        dbt_codec_worker_step(&worker,2,1);
+    if(r==DBT_OK && worker_pending())r=DBT_BUSY;
     *written=pcm_bytes;output=0;return r;
 }
+EXPORT int worker_admit(const uint8_t *data,unsigned size,unsigned seq){
+    dbt_avdtp_media_t packet={data,100+seq*128u,1,(uint16_t)size,(uint16_t)seq,96,false};return dbt_codec_worker_media(&worker,&packet);
+}
+EXPORT unsigned worker_step_once(uint8_t *pcm_out){output=pcm_out;pcm_bytes=0;unsigned done=dbt_codec_worker_step(&worker,2,1);output=0;return done;}
 EXPORT int reference_open(int is_hd){
     encoder=aptx_init(is_hd);reference=aptx_init(is_hd);return encoder && reference?0:-1;
 }
@@ -60,4 +72,9 @@ EXPORT unsigned reference_encode(const uint8_t *pcm,unsigned size,uint8_t *encod
 }
 EXPORT unsigned reference_decode(const uint8_t *encoded,unsigned size,uint8_t *pcm_out,unsigned capacity,unsigned *written){
     size_t n=0;size_t used=aptx_decode32(reference,encoded,size,pcm_out,capacity,&n);*written=(unsigned)n;return (unsigned)used;
+}
+EXPORT void reference_reset(void){aptx_reset(reference);}
+EXPORT unsigned reference_recover(const uint8_t *encoded,unsigned size,uint8_t *pcm_out,unsigned *written){
+    size_t n=0,dropped=0;int synced=0;size_t used=aptx_decode_sync(reference,encoded,size,pcm_out,24,&n,&synced,&dropped);
+    *written=(unsigned)n;return (unsigned)used;
 }

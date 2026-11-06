@@ -21,7 +21,11 @@ typedef enum {
     /* Accepted work with a retained, explicitly resumable lifetime. This is
      * an internal completion state, never a wire-protocol success response. */
     DBT_PENDING,
-    DBT_CANCELLED
+    DBT_CANCELLED,
+    /* Internal codec continuation: one bounded unit made progress without a
+     * PCM loan. Retain input and resume on a later worker quantum. This value
+     * must never be translated into a wire-protocol success or acknowledgement. */
+    DBT_PROGRESS
 } dbt_result_t;
 
 typedef struct {

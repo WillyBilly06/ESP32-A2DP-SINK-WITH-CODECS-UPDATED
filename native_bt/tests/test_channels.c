@@ -107,6 +107,58 @@ static int open_channel(uint16_t handle,uint16_t mtu,uint16_t peer,uint16_t peer
     return 0;
 }
 
+EXPORT int test_le_parameters_client_lifetime(void){
+    fixture();acl.links[2].role=1;uint16_t result=0x5555;
+    CHECK(dbt_channels_request_le_parameters(&manager,3,5,24,0,400,now)==DBT_INVALID);
+    CHECK(dbt_channels_request_le_parameters(&manager,3,18,24,499,10,now)==DBT_INVALID);
+    CHECK(dbt_channels_request_le_parameters(&manager,1,18,24,0,400,now)==DBT_UNSUPPORTED);
+    CHECK(dbt_channels_request_le_parameters(&manager,3,18,24,0,400,now)==DBT_OK);
+    dbt_signal_view_t view;CHECK(dbt_channels_tx_peek(&manager,&view)==DBT_OK&&view.cid==5&&view.size==12);
+    CHECK(take(0x12)==0&&r16(wire+4)==18&&r16(wire+6)==24&&!r16(wire+8)&&r16(wire+10)==400);
+    uint8_t id=wire_id,reply[2]={0};uint32_t unknown=manager.unknown_responses;
+    CHECK(rx(3,5,0x13,id,reply,2)==DBT_OK);poll(); /* Cannot complete an unsent pin. */
+    CHECK(manager.unknown_responses==unknown+1&&dbt_channels_le_parameters_result(&manager,3,&result)==DBT_BUSY&&result==0x5555);
+    CHECK(commit()==0);CHECK(rx(3,5,0x13,(uint8_t)(id+1u),reply,2)==DBT_OK);poll();
+    CHECK(dbt_channels_le_parameters_result(&manager,3,&result)==DBT_BUSY);
+    CHECK(rx(3,5,0x13,id,reply,2)==DBT_OK);poll();
+    CHECK(dbt_channels_le_parameters_result(&manager,3,&result)==DBT_OK&&result==0);
+    CHECK(dbt_channels_request_le_parameters(&manager,3,18,24,0,400,now)==DBT_OK&&take(0x12)==0&&commit()==0);
+    reply[0]=1;CHECK(rx(3,5,0x13,wire_id,reply,2)==DBT_OK);poll();
+    CHECK(dbt_channels_le_parameters_result(&manager,3,&result)==DBT_OK&&result==1);
+    /* Cancellation preserves a borrowed old pin; canceling it cannot retire
+     * a replacement request using the same per-link state. */
+    CHECK(dbt_channels_request_le_parameters(&manager,3,18,24,0,400,now)==DBT_OK&&take(0x12)==0);
+    id=wire_id;CHECK(dbt_channels_cancel_le_parameters(&manager,3)==DBT_OK&&dbt_channels_tx_obsolete(&manager));
+    CHECK(dbt_channels_le_parameters_result(&manager,3,&result)==DBT_CANCELLED);
+    CHECK(dbt_channels_request_le_parameters(&manager,3,18,24,0,400,now)==DBT_OK);
+    CHECK(dbt_channels_tx_cancel(&manager)==DBT_OK&&dbt_channels_le_parameters_result(&manager,3,&result)==DBT_BUSY);
+    CHECK(take(0x12)==0&&wire_id!=id&&commit()==0);reply[0]=0;
+    CHECK(rx(3,5,0x13,wire_id,reply,2)==DBT_OK);poll();CHECK(dbt_channels_le_parameters_result(&manager,3,&result)==DBT_OK&&!result);
+    dbt_channels_clear(&manager);return 0;
+}
+EXPORT int test_le_parameters_client_wrap_timeout_and_bearers(void){
+    fixture();acl.links[2].role=1;uint16_t result=0xffff;uint32_t mask=0;
+    CHECK(dbt_channels_discover_features(&manager,1,now)==DBT_OK);
+    CHECK(dbt_channels_request_le_parameters(&manager,3,18,24,0,400,now)==DBT_OK);
+    dbt_signal_view_t view;CHECK(dbt_channels_tx_select(&manager,3,&view)==DBT_OK&&view.cid==5);
+    CHECK(take(0x12)==0);uint8_t le_id=wire_id;CHECK(commit()==0);
+    CHECK(dbt_channels_tx_select(&manager,1,&view)==DBT_OK&&view.cid==1&&take(0x0a)==0);
+    uint8_t classic_id=wire_id;CHECK(commit()==0);uint8_t info[8]={2,0,0,0,0x80,0,0,0},reply[2]={0};
+    CHECK(rx(1,1,0x0b,classic_id,info,8)==DBT_OK&&rx(3,5,0x13,le_id,reply,2)==DBT_OK);poll();
+    CHECK(dbt_channels_peer_features(&manager,1,&mask)==DBT_OK&&mask==0x80);
+    CHECK(dbt_channels_le_parameters_result(&manager,3,&result)==DBT_OK&&!result);
+    now=UINT32_MAX-10u;CHECK(dbt_channels_request_le_parameters(&manager,3,18,24,0,400,now)==DBT_OK&&take(0x12)==0&&commit()==0);
+    (void)dbt_channels_poll(&manager,989,1);CHECK(dbt_channels_le_parameters_result(&manager,3,&result)==DBT_BUSY);
+    (void)dbt_channels_poll(&manager,990,1);CHECK(dbt_channels_le_parameters_result(&manager,3,&result)==DBT_UNSUPPORTED);
+    /* Full control queue accepts no request and owns no transaction. */
+    fixture();acl.links[2].role=1;
+    for(unsigned i=0;i<DBT_SIGNAL_TX_SLOTS;++i){CHECK(rx(1,1,8,(uint8_t)(i+1),0,0)==DBT_OK);poll();}
+    dbt_result_t full=dbt_channels_request_le_parameters(&manager,3,18,24,0,400,now);
+    CHECK((full==DBT_BUSY||full==DBT_NO_SPACE)&&dbt_channels_le_parameters_result(&manager,3,&result)==DBT_EMPTY);
+    CHECK(take(9)==0&&commit()==0&&dbt_channels_request_le_parameters(&manager,3,18,24,0,400,now)==DBT_OK);
+    CHECK(dbt_channels_cancel_le_parameters(&manager,3)==DBT_OK);dbt_channels_clear(&manager);return 0;
+}
+
 EXPORT int test_channels_outgoing_and_asymmetric_mtu(void) {
     fixture();uint16_t local=0;
     int result=open_channel(1,256,0x80,1000,&local);if(result)return result;

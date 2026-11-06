@@ -42,6 +42,10 @@ typedef struct dbt_codec_ops {
      * further view when that callback again returns PENDING. No input replay.
      * A caller keeps the original media bytes live until OK/error/reset/close. */
     dbt_result_t (*resume)(dbt_codec_decoder_t *decoder,uint32_t now_ms);
+    /* media/resume may return DBT_PROGRESS after a bounded internal unit that
+     * emitted no PCM. Input remains borrowed and resume is mandatory. Unlike
+     * PENDING, this owns no output view. The codec must advance its input or
+     * finite internal state; waiting for another owner is not progress. */
     /* Decoder-owner query only. False means no fragment expiry is armed. */
     bool (*deadline)(const dbt_codec_decoder_t *decoder,uint32_t *when_ms);
 } dbt_codec_ops_t;
@@ -177,7 +181,8 @@ dbt_result_t dbt_codec_worker_receipt(dbt_codec_worker_t *worker,dbt_codec_recei
 /* First service at most one accepted PCM-loan completion/cancellation so codec
  * teardown cannot overtake it. Then at most four control receipts and the
  * requested media work budget. Legacy
- * mode counts packets; deferred mode counts one codec emission/resume or one
+ * mode counts packet operations (including a DBT_PROGRESS continuation);
+ * deferred mode counts one codec emission/resume or one
  * <=256-frame PCM chunk. A BUSY provider is attempted once and then returns. */
 uint16_t dbt_codec_worker_step(dbt_codec_worker_t *worker,uint32_t now_ms,uint16_t media_budget);
 /* Worker-only scheduling queries. Arm one deadline/notification wait when not

@@ -751,7 +751,7 @@ static void log_loop(void *unused){
             ",\"abandoned\":%" PRIu32 ",\"rejected_wire_packets\":%" PRIu32 ",\"orphan_continuations\":%" PRIu32 ",\"oversized_pdus\":%" PRIu32 ",\"malformed_signaling\":%" PRIu32 ",\"unknown_responses\":%" PRIu32 ",\"retained_storage_bytes\":%" PRIu32 "}\n",
             at,atomic_load(&l2cap_delivered),atomic_load(&l2cap_abandoned),atomic_load(&l2cap_rejected),atomic_load(&l2cap_orphaned),atomic_load(&l2cap_oversized),atomic_load(&l2cap_malformed_signaling),atomic_load(&l2cap_unknown_responses),atomic_load(&l2cap_retained_bytes));
         PROBE_SNAPSHOT_LOG("{\"probe\":\"worker_timing\",\"collection_cycle_us\":%" PRIu32 ",\"steps\":%" PRIu32 ",\"elapsed_us\":%" PRIu32
-               ",\"max_step_us\":%" PRIu32 ",\"wall_time_includes_preemption\":true,\"step_budget\":2,\"histogram_us_le\":[125,250,500,1000,2000,4000,8000],\"histogram_counts\":[%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 "]}\n",
+               ",\"max_step_us\":%" PRIu32 ",\"wall_time_includes_preemption\":true,\"step_budget\":2,\"budget_is_ceiling\":true,\"histogram_us_le\":[125,250,500,1000,2000,4000,8000],\"histogram_counts\":[%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 "]}\n",
                at,atomic_load(&worker_steps),atomic_load(&worker_elapsed_us),atomic_load(&worker_step_max_us),
                atomic_load(&worker_hist[0]),atomic_load(&worker_hist[1]),atomic_load(&worker_hist[2]),atomic_load(&worker_hist[3]),
                atomic_load(&worker_hist[4]),atomic_load(&worker_hist[5]),atomic_load(&worker_hist[6]),atomic_load(&worker_hist[7]));
@@ -800,6 +800,14 @@ static void log_loop(void *unused){
                at,atomic_load(&worker.input_stream_epoch),atomic_load(&worker.input_packets),atomic_load(&worker.input_payload_bytes),
                atomic_load(&worker.input_first_timestamp),atomic_load(&worker.input_last_timestamp),rate,
                (codec==5u || codec==7u)?"host_samples":"wire_rtp");
+#ifdef DBT_PROBE_APTX_BUILD
+        dbt_aptx_quality_t aptx_quality;dbt_aptx_quality_snapshot(&aptx_quality);
+        snapshot_log(pcm_snapshot_began,"{\"probe\":\"aptx_resynchronization\",\"counter_scope\":\"decoder_lifetime_since_boot\",\"active\":%s"
+            ",\"bounded_probe_calls\":%" PRIu32 ",\"consumed_encoded_bytes\":%" PRIu32 ",\"resync_discarded_bytes\":%" PRIu32
+            ",\"completed\":%" PRIu32 ",\"parity_rejects\":%" PRIu32 ",\"max_new_codewords_per_probe\":1,\"radio_loss_counter\":false}\n",
+            aptx_quality.active?"true":"false",aptx_quality.calls,aptx_quality.consumed_bytes,aptx_quality.discarded_bytes,
+            aptx_quality.completed,aptx_quality.parity_rejects);
+#endif
         uint32_t queue_layout=atomic_load_explicit(&worker.queue_layout,memory_order_acquire);
         uint32_t queue_depth=queue_layout&255u,queue_stride=queue_layout>>16;
         snapshot_log(pcm_snapshot_began,"{\"probe\":\"codec_queue_memory\",\"collection_cycle_us\":%" PRIu32 ",\"last_started_codec\":%" PRIu32

@@ -44,7 +44,7 @@ def build():
     if os.name!="nt":args += ["-fPIC"]
     for inc in includes:args += ["-I",str(inc)]
     run(args+[str(p) for p in sources]+["-o",str(dll)],env=env,cwd=OUT)
-    return dll,sources+[APTX/"freeaptx.c",APTX/"freeaptx.h",ROOT/"codecs/aptx/dbt_aptx.h",ROOT/"codecs/common/dbt_codec.h"]
+    return dll,sources+[APTX/"freeaptx.c",APTX/"freeaptx.h",ROOT/"codecs/aptx/dbt_aptx.h",ROOT/"codecs/common/dbt_codec.h",ROOT/"include/dbt_queue.h"]
 
 
 def cie(kind,rate):
@@ -108,6 +108,50 @@ def main():
     before=lib.worker_drops();r,decoded=packet(damaged,0)
     assert r==0 and lib.worker_drops()==before+1 and len(decoded)<=1024
     assert control(5)==0 and lib.probe_live()==0
+    # Loss, parity damage, and pause/resume must recover a continuing encoder's
+    # parity phase. Compare against standalone safe one-codeword sync calls;
+    # the worker is exercised in both copied/deferred and legacy modes.
+    lib.reference_recover.argtypes=[ptr,u,ptr,ctypes.POINTER(u)]
+    lib.worker_admit.argtypes=[ptr,u,u];lib.worker_step_once.argtypes=[ptr]
+    recovery_vectors=[]
+    for kind in ("standard","hd"):
+        quantum=6 if kind=="hd" else 4
+        for deferred in (0,1):
+            for fault in ("loss","parity","resume"):
+                config=cie(kind,48000);assert lib.reference_open(kind=="hd")==0
+                encoded_buf=(u8*8192)();n=u()
+                assert lib.reference_encode(buf(pcm),len(pcm),encoded_buf,len(encoded_buf),ctypes.byref(n))==len(pcm)
+                stream=bytes(encoded_buf[:n.value]);parts=[stream[i:i+660] for i in range(0,len(stream),660)]
+                assert len(parts)>=6 and lib.worker_init_mode(deferred)==0 and control(0,config)==0 and control(3)==0
+                for seq in range(2):assert packet(parts[seq],seq)[0]==0
+                before_calls=lib.probe_recovery(0);before_completed=lib.probe_recovery(1)
+                if fault=="parity":
+                    damaged=bytearray(parts[2]);damaged[62*quantum]^=8 if kind=="hd" else 32
+                    old=lib.worker_drops();assert packet(damaged,2)[0]==0 and lib.worker_drops()==old+1
+                elif fault=="resume":assert control(4)==0 and control(3)==0
+                lib.reference_reset();actual=bytearray();expected=bytearray()
+                start=2 if fault=="resume" else 3
+                for seq in range(start,len(parts)):
+                    r,decoded=packet(parts[seq],seq);assert r==0
+                    actual.extend(decoded)
+                    for pos in range(0,len(parts[seq]),quantum):
+                        out=(u8*24)();n=u();word=parts[seq][pos:pos+quantum]
+                        assert lib.reference_recover(buf(word),len(word),out,ctypes.byref(n))==len(word)
+                        packed=bytes(out[:n.value]);assert len(packed)%6==0
+                        for sample in range(0,len(packed),3):expected.extend(b'\0'+packed[sample:sample+3])
+                assert actual==expected and len(actual)>2048
+                assert lib.probe_recovery(0)>before_calls and lib.probe_recovery(1)==before_completed+1 and not lib.probe_recovery(3)
+                assert control(5)==0 and lib.probe_live()==0;lib.reference_close()
+                recovery_vectors.append(dict(codec=kind,deferred=bool(deferred),fault=fault,pcm_bytes=len(actual),sha256=hashlib.sha256(actual).hexdigest()))
+    # One recovery quantum retains the input; CLOSE can retire it immediately.
+    assert lib.reference_open(True)==0
+    encoded_buf=(u8*8192)();n=u();assert lib.reference_encode(buf(pcm),len(pcm),encoded_buf,len(encoded_buf),ctypes.byref(n))==len(pcm)
+    stream=bytes(encoded_buf[:n.value]);assert lib.worker_init_mode(1)==0 and control(0,cie("hd",48000))==0 and control(3)==0
+    assert packet(stream[:660],0)[0]==0
+    assert lib.worker_admit(buf(stream[1320:1980]),660,2)==0
+    calls=lib.probe_recovery(0);out=(u8*8192)()
+    assert lib.worker_step_once(out)==1 and lib.probe_recovery(0)==calls+1 and lib.worker_pending()==1 and lib.worker_active()
+    assert control(5)==0 and lib.probe_live()==0;lib.reference_close()
     # Failure of the decoder or packet queue during reconfiguration restores SBC.
     sbc=bytes([0,0,0x11,0x15,2,53]);config=cie("hd",48000)
     for invalid in (config[:-1],config[:8]+bytes([0x11])+config[9:],config[:9]+bytes([1])+config[10:]):
@@ -129,6 +173,7 @@ def main():
                 vectors=vectors,byte_exact_standalone_reference=True,sbc_live_bytes=sbc_live,aptx_worker_live_bytes=aptx_live,
                 switch_peak_bytes=max(sbc_live,aptx_live),decoder_and_queue_oom_rollback=True,malformed_cie_and_packet=True,
                 partial_parity_failure_not_replayed=True,
+                bounded_phase_recovery=recovery_vectors,recovery_quantum_and_close=True,
                 source_sha256={str(p.relative_to(ROOT.parent)).replace('\\','/'):hashlib.sha256(p.read_bytes()).hexdigest() for p in sources})
     (OUT/("aptx_asan_results.json" if ASAN else "aptx_real_results.json")).write_text(json.dumps(report,indent=2)+"\n")
     print(json.dumps({k:v for k,v in report.items() if k!='source_sha256'},indent=2))

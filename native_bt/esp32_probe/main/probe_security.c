@@ -1,5 +1,6 @@
 #include "dbt_esp32_affinity.h"
 #include "probe_security.h"
+#include "probe_ble_parameters.h"
 #include "freertos/queue.h"
 #include "nvs.h"
 #include "esp_timer.h"
@@ -58,6 +59,7 @@ typedef struct {
         struct {uint32_t token;int error;uint8_t peer[6];bool deleting,verified,committed;} bond_store;
         struct {uint32_t token,at_us,lost;uint16_t opcode;uint8_t peer[6],phase,flags,status,outcome;} incoming;
         struct {uint32_t generation,serial,lost;int result;uint16_t handle,cid,bytes;uint8_t pdu,client;} sdp_error;
+        probe_ble_parameters_record_t ble_parameters;
     };
     uint8_t event, reason, status,local_record;
 } log_item_t;
@@ -289,6 +291,16 @@ static void logger(void *context) {
             printf("{\"probe\":\"pairing_features\",\"handle\":%u,\"generation\":%lu,\"opcode\":%u,\"io\":%u,\"oob\":%u,\"auth\":%u,\"key_size\":%u,\"initiator_keys\":%u,\"responder_keys\":%u}\n",
                 item.pairing_features.handle,(unsigned long)item.pairing_features.generation,item.pairing_features.opcode,item.pairing_features.io,
                 item.pairing_features.oob,item.pairing_features.auth,item.pairing_features.key_size,item.pairing_features.initiator_keys,item.pairing_features.responder_keys);
+            continue;
+        }
+        if(item.local_record==14){
+            const probe_ble_parameters_record_t *p=&item.ble_parameters;
+            static const char *const stages[]={"created","observed","queued","admitted","updated","failed","expired","retired"};
+            bool matches=p->interval>=PROBE_BLE_INTERVAL_MIN&&p->interval<=PROBE_BLE_INTERVAL_MAX&&!p->latency&&p->timeout==PROBE_BLE_SUPERVISION;
+            printf("{\"probe\":\"ble_connection_parameters\",\"handle\":%u,\"generation\":%lu,\"event_at_ms\":%lu,\"stage\":\"%s\",\"opcode\":%u,\"hci_status\":%u,\"hci_outcome\":%u,\"local_result\":%u,\"l2cap_result\":%u,\"role\":%u,\"local_ll_request\":%u,\"peer_ll_request\":%u,\"retries\":%u,\"requested_min_us\":%u,\"requested_max_us\":%u,\"requested_timeout_ms\":%u,\"actual_interval_us\":%lu,\"actual_latency\":%u,\"actual_timeout_ms\":%lu,\"matches_requested\":%s}\n",
+                p->handle,(unsigned long)p->generation,(unsigned long)p->at_ms,p->stage<8?stages[p->stage]:"invalid",p->opcode,p->status,p->outcome,p->local_result,p->l2cap_result,p->role,p->local_feature,p->peer_feature,p->retries,
+                (unsigned)(PROBE_BLE_INTERVAL_MIN*1250u),(unsigned)(PROBE_BLE_INTERVAL_MAX*1250u),(unsigned)(PROBE_BLE_SUPERVISION*10u),
+                (unsigned long)p->interval*1250u,p->latency,(unsigned long)p->timeout*10u,matches?"true":"false");
             continue;
         }
         if(item.local_record==8){
@@ -581,6 +593,11 @@ void probe_security_smp_trace(uint16_t handle,uint32_t generation,uint8_t stage,
     item.smp_trace.result=result;item.smp_trace.code=code;item.smp_trace.size=size;item.smp_trace.window=window;
     item.smp_trace.at_us=(uint32_t)esp_timer_get_time();item.smp_trace.lost=protocol_log_lost;
     if(xQueueSend(log_queue,&item,0)!=pdTRUE && protocol_log_lost!=UINT32_MAX)++protocol_log_lost;
+}
+void probe_ble_parameters_log(const probe_ble_parameters_record_t *record){
+    if(!log_queue||!record)return;
+    log_item_t item;wipe(&item,sizeof(item));item.local_record=14;item.ble_parameters=*record;
+    if(xQueueSend(log_queue,&item,0)!=pdTRUE&&protocol_log_lost!=UINT32_MAX)++protocol_log_lost;
 }
 void probe_security_pairing_features(uint16_t handle,uint32_t generation,const uint8_t fields[7]){
     if(!log_queue || !fields)return;

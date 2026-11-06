@@ -3,10 +3,21 @@
 
 extern size_t dbt_aptx_backend_size(void);
 extern struct aptx_context *dbt_aptx_backend_init(void *memory,int hd);
+extern size_t dbt_aptx_backend_recover32(struct aptx_context *,const uint8_t *,size_t,uint8_t *,size_t *,uint8_t *,bool *,size_t *);
 typedef struct {
-    struct aptx_context *codec;uint32_t workspace_bytes,next_timestamp;bool clock_valid;
+    struct aptx_context *codec;uint32_t workspace_bytes,next_timestamp;bool clock_valid,recovering;uint8_t sync_run;
     const uint8_t *batch;uint16_t batch_size,batch_offset;
 } aptx_state_t;
+static _Atomic uint32_t recovery_calls,recovery_consumed,recovery_discarded,recovery_completed,parity_rejects,recovery_active;
+/* One decoder owner writes these counters. The logger only reads them. */
+static void quality_add(_Atomic uint32_t *counter,uint32_t amount){
+    atomic_store_explicit(counter,atomic_load_explicit(counter,memory_order_relaxed)+amount,memory_order_relaxed);
+}
+void dbt_aptx_quality_snapshot(dbt_aptx_quality_t *q){
+    if(!q)return;
+    *q=(dbt_aptx_quality_t){atomic_load(&recovery_calls),atomic_load(&recovery_consumed),atomic_load(&recovery_discarded),
+        atomic_load(&recovery_completed),atomic_load(&parity_rejects),atomic_load(&recovery_active)};
+}
 static uint32_t align8(uint32_t n){return (n+7u)&~7u;}
 static uint32_t le32(const uint8_t *p){return (uint32_t)p[0]|((uint32_t)p[1]<<8)|((uint32_t)p[2]<<16)|((uint32_t)p[3]<<24);}
 static unsigned le16(const uint8_t *p){return (unsigned)p[0]|((unsigned)p[1]<<8);}
@@ -35,8 +46,13 @@ uint8_t dbt_a2dp_aptx_validate(const dbt_avdtp_endpoint_t *endpoint,const dbt_av
 }
 static uint8_t *workspace(aptx_state_t *s){return (uint8_t *)s+align8(sizeof(*s));}
 static uint8_t *pcm(aptx_state_t *s){return workspace(s)+s->workspace_bytes;}
-static void close_decoder(dbt_codec_decoder_t *d){if(d->state){dbt_codec_release(d,d->state);d->state=0;}}
-static dbt_result_t reset_decoder(dbt_codec_decoder_t *d){aptx_state_t *s=d->state;if(!s)return DBT_INVALID;aptx_reset(s->codec);s->clock_valid=false;s->batch=0;s->batch_size=s->batch_offset=0;return DBT_OK;}
+static void close_decoder(dbt_codec_decoder_t *d){if(d->state){dbt_codec_release(d,d->state);d->state=0;}atomic_store(&recovery_active,0);}
+static dbt_result_t reset_decoder(dbt_codec_decoder_t *d){
+    aptx_state_t *s=d->state;if(!s)return DBT_INVALID;
+    s->recovering=s->recovering || s->clock_valid;s->sync_run=0;
+    aptx_reset(s->codec);s->clock_valid=false;s->batch=0;s->batch_size=s->batch_offset=0;
+    atomic_store(&recovery_active,s->recovering);return DBT_OK;
+}
 static dbt_result_t open_decoder(dbt_codec_decoder_t *d){
     dbt_codec_config_t c;
     if(dbt_aptx_configure(d->config.cie,d->config.cie_size,&c)!=DBT_OK || c.rate!=d->config.rate || c.channels!=d->config.channels ||
@@ -57,18 +73,29 @@ static dbt_result_t resume(dbt_codec_decoder_t *d,uint32_t now){
     unsigned quantum=hd(d->config.cie)?6u:4u;
     while(s->batch_offset<s->batch_size){
         size_t left=s->batch_size-s->batch_offset;
-        size_t written=0,processed=aptx_decode32(s->codec,s->batch+s->batch_offset,left,pcm(s),1024,&written);
-        if(!processed || processed>left || processed%quantum || written>1024 || written%8)return batch_finish(s,DBT_INVALID);
+        size_t written=0,processed;bool recovering=s->recovering;
+        if(recovering){
+            bool ready=false;size_t discarded=0;
+            processed=dbt_aptx_backend_recover32(s->codec,s->batch+s->batch_offset,left,pcm(s),&written,&s->sync_run,&ready,&discarded);
+            quality_add(&recovery_calls,1);quality_add(&recovery_consumed,(uint32_t)processed);
+            quality_add(&recovery_discarded,(uint32_t)discarded);
+            if(ready){s->recovering=false;atomic_store(&recovery_active,0);quality_add(&recovery_completed,1);}
+        }else processed=aptx_decode32(s->codec,s->batch+s->batch_offset,left,pcm(s),1024,&written);
+        if(!processed || processed>left || (!recovering && processed%quantum) || written>1024 || written%8){
+            if(!recovering)quality_add(&parity_rejects,1);
+            return batch_finish(s,DBT_INVALID);
+        }
         /* A whole input codeword remains and another four stereo S32 samples
          * fit: the library stopped on parity, not on either buffer boundary.
          * Its failed codeword already advanced predictor/sync state. Replaying
          * that codeword in a later resume can turn a short failure into static.
          * Let the worker report/drop/reset once, rather than silently retrying. */
-        if(processed<left && written<=1024u-32u)return batch_finish(s,DBT_INVALID);
+        if(!recovering && processed<left && written<=1024u-32u){quality_add(&parity_rejects,1);return batch_finish(s,DBT_INVALID);}
         s->batch_offset=(uint16_t)(s->batch_offset+processed);
         if(written){uint16_t frames=(uint16_t)(written/8u);dbt_result_t r=d->hooks.pcm(d->hooks.context,pcm(s),frames,&d->config,s->next_timestamp);
             if(r!=DBT_OK && r!=DBT_PENDING)return batch_finish(s,r);
             s->next_timestamp+=frames;d->frames+=frames;if(r==DBT_PENDING)return r;}
+        if(recovering && s->batch_offset<s->batch_size)return DBT_PROGRESS;
     }
     return batch_finish(s,DBT_OK);
 }

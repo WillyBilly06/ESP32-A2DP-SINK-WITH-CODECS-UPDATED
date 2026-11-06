@@ -10,7 +10,7 @@ The compile database contains 153 translation units under Bluedroid's **external
 
 ## Reviewed source versus pending source
 
-[Local inventory](BLUEDROID_LOCAL_AUDIT_2026_11_06.json) lists 1,193 non-external C/C++ source/header files under the local BT component, excluding NimBLE. Five have a complete codec-boundary review recorded in this audit; 1,188 remain pending **in this audit**. Build inclusion is recorded independently from review status. This is not an assertion that every external decoder implementation, protocol layer, or earlier review has been re-audited.
+[Local inventory](BLUEDROID_LOCAL_AUDIT_2026_11_06.json) lists 1,193 non-external C/C++ source/header files under the local BT component, excluding NimBLE. Five have a complete codec-boundary review and one has a partial connection-parameter-route review recorded in this audit; 1,187 remain pending **in this audit**. Build inclusion is recorded independently from review status. This is not an assertion that every external decoder implementation, protocol layer, or earlier review has been re-audited.
 
 The released Bluedroid build's actual compile database at `D:/bt-idf61/bt_audio_sink/build-idf61/compile_commands.json` selects `a2dp_vendor_ldacbt_decoder.c` and `a2dp_aac_decoder_custom.c`. The FDK AAC wrapper and older LDAC wrapper are inactive alternatives. Comparing only their filenames or buffers would give the wrong baseline.
 

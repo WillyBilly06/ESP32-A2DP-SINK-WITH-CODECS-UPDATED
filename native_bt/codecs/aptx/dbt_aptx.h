@@ -4,4 +4,9 @@
 dbt_result_t dbt_aptx_configure(const uint8_t *cie,uint16_t size,dbt_codec_config_t *config);
 uint8_t dbt_a2dp_aptx_validate(const dbt_avdtp_endpoint_t *endpoint,const dbt_avdtp_cap_t *codec);
 extern const dbt_codec_ops_t dbt_aptx_codec;
+/* Independent decoder-owner counters, cumulative since boot, not RF loss.
+ * Snapshot uses fixed atomic loads; the caller must not infer one transaction
+ * across fields while the worker advances. No codec pointers are borrowed. */
+typedef struct {uint32_t calls,consumed_bytes,discarded_bytes,completed,parity_rejects,active;} dbt_aptx_quality_t;
+void dbt_aptx_quality_snapshot(dbt_aptx_quality_t *);
 #endif
