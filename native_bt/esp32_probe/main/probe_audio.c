@@ -286,8 +286,8 @@ static void log_first_starvation(void){
         ",\"coherent\":%s,\"phase\":%" PRIu32 ",\"phase_name\":\"%s\",\"phase_since_us\":%" PRIu32 ",\"encoded_queued_at_phase_change\":%" PRIu32 "}\n",
         s.stream_serial,s.at_us,s.decoder_coherent?"true":"false",s.decoder_phase,s.decoder_phase<9?phases[s.decoder_phase]:"unknown",s.decoder_at_us,s.decoder_queued);
     PROBE_SNAPSHOT_LOG("{\"probe\":\"starvation_renderer\",\"stream_serial\":%" PRIu32 ",\"event_us\":%" PRIu32
-        ",\"coherent\":%s,\"inside_audio_render\":%s,\"phase_since_us\":%" PRIu32 "}\n",
-        s.stream_serial,s.at_us,s.render_coherent?"true":"false",s.render_phase?"true":"false",s.render_at_us);
+        ",\"coherent\":%s,\"inside_audio_render\":%s,\"phase_since_us\":%" PRIu32 ",\"dsp_assist_state_at_gap\":%" PRIu32 "}\n",
+        s.stream_serial,s.at_us,s.render_coherent?"true":"false",s.render_phase?"true":"false",s.render_at_us,s.dsp_assist_state);
 }
 #endif
 static void log_media_trace(void){
@@ -582,6 +582,14 @@ static dbt_result_t stream(void *context,bool started,const dbt_codec_config_t *
     return publish_stream(started,config);
 }
 #endif
+bool probe_audio_dsp_assist_ready(void){
+#ifdef DBT_PROBE_LHDC_BUILD
+    return atomic_load_explicit(&decoder_wait_kind,memory_order_acquire)==0u &&
+        atomic_load_explicit(&pcm_codec,memory_order_relaxed)==9u;
+#else
+    return false;
+#endif
+}
 static TickType_t decoder_wait_ticks(uint32_t now){
     uint32_t when;
     if(!dbt_codec_worker_deadline(&worker,&when))return portMAX_DELAY;
@@ -682,6 +690,12 @@ static void log_loop(void *unused){
         if(++ticks<10)continue;
         ticks=0;
         uint32_t at=(uint32_t)esp_timer_get_time();
+#ifdef DBT_PROBE_DSP_ASSIST
+        probe_dsp_assist_stats_t assisted;probe_output_dsp_assist_snapshot(&assisted);
+        PROBE_SNAPSHOT_LOG("{\"probe\":\"dsp_assist\",\"collection_cycle_us\":%" PRIu32 ",\"counter_scope\":\"since_boot\",\"independent_counters\":true,\"enabled\":%" PRIu32 ",\"state\":%" PRIu32 ",\"worker_core\":0,\"render_owner_core\":1,\"jobs\":%" PRIu32 ",\"blocks\":%" PRIu32 ",\"max_blocks_per_job\":4,\"max_job_frames\":%" PRIu32 ",\"frames\":%" PRIu32 ",\"helper_cycles\":%" PRIu32 ",\"helper_max_cycles\":%" PRIu32 ",\"queue_max_us\":%" PRIu32 ",\"finish_to_commit_max_us\":%" PRIu32 ",\"commit_to_retire_max_us\":%" PRIu32 ",\"publication_core\":0,\"wall_max_us\":%" PRIu32 ",\"failures\":%" PRIu32 ",\"cycles_include_preemption\":true,\"cycles_wrap_uint32\":true,\"wall_includes_async_wait\":true}\n",
+            at,assisted.enabled,assisted.state,assisted.jobs,assisted.blocks,assisted.max_job_frames,assisted.frames,assisted.cycles,assisted.max_cycles,
+            assisted.queue_max_us,assisted.finish_wait_max_us,assisted.retire_wait_max_us,assisted.wall_max_us,assisted.failures);
+#endif
 #ifdef DBT_PROBE_LHDC_BUILD
         log_lhdc_quality(at);
 #endif
@@ -904,9 +918,9 @@ static void log_loop(void *unused){
                stats.descriptor_fault_at_us,stats.descriptor_fault_gap_us,stats.descriptor_fault_stopping);
 #ifdef DBT_AUDIO_STAGE_PROFILE
         snapshot_log(output_snapshot_began,"{\"probe\":\"render_stage_cycles\",\"collection_cycle_us\":%" PRIu32
-               ",\"frames\":%" PRIu32 ",\"conversion_fir\":%" PRIu32 ",\"dsp\":%" PRIu32 ",\"publication_mix\":%" PRIu32
+               ",\"frames\":%" PRIu32 ",\"conversion_fir\":%" PRIu32 ",\"dsp\":%" PRIu32 ",\"dsp_counter_excludes_assist\":true,\"publication_mix\":%" PRIu32
                ",\"controls\":%" PRIu32 ",\"conversion_fir_max\":%" PRIu32 ",\"dsp_max\":%" PRIu32 ",\"publication_mix_max\":%" PRIu32
-               ",\"core\":%" PRIu32 ",\"core_cycles_include_preemption\":true,\"counts_wrap_uint32\":true}\n",at,
+               ",\"core\":%" PRIu32 ",\"core_field_is_render_owner\":true,\"cycles_measured_on_executing_core\":true,\"core_cycles_include_preemption\":true,\"counts_wrap_uint32\":true}\n",at,
                stats.profile_frames,stats.profile_conversion,stats.profile_dsp,stats.profile_tail,stats.profile_controls,
                stats.profile_conversion_max,stats.profile_dsp_max,stats.profile_tail_max,stats.render_core);
 #endif

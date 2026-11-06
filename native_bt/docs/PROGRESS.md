@@ -1,5 +1,12 @@
 # Current project progress
 
+Latest focused update2026-11-06: [bounded LHDC DSP assistance](LHDC_DSP_ASSIST_2026_11_06.md)
+is implemented with worker-side PCM publication, a four-block maximum, no new
+PCM storage and tested stop/cancel fences. COM6 runs image2fd4bbc8dba4.
+The fixed900 trace still has262528 unfilled frames; high-rate LHDC and the
+master goal remain incomplete. The dated measurements below remain historical.
+
+
 Updated 2026-11-04 for ESP-IDF 6.1. The goal is **active and incomplete**.
 The user has released COM6 for flashing/testing; other boards remain excluded.
 Released main/recovery artifacts remain preserved. Latest measured evidence:

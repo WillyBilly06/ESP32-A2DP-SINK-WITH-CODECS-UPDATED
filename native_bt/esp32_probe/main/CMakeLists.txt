@@ -220,3 +220,7 @@ endif()
 if(DBT_PROBE_LHDC_CORE0_RENDER)
     target_compile_definitions(${COMPONENT_LIB} PRIVATE DBT_PROBE_LHDC_CORE0_RENDER=1)
 endif()
+
+if(DBT_PROBE_DSP_ASSIST)
+    target_compile_definitions(${COMPONENT_LIB} PRIVATE DBT_PROBE_DSP_ASSIST=1 FIXED_DSP_BLOCK_API=1)
+endif()

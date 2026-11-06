@@ -31,6 +31,15 @@ typedef struct {
     int32_t ppm, observed_ppm, error_frames;
     uint32_t state,target_frames,updates,disturbances,observed_valid;
 } dbt_audio_clock_stats_t;
+/* A prepared unity block owns an unpublished output span and the corresponding
+ * input-read reservation. Metadata is immutable until finish; a borrower may
+ * mutate only dsp/pcm. It must retire before the render owner calls finish. */
+typedef struct {
+    fixed_dsp_t *dsp;int32_t *pcm;
+    uint32_t token,frames,input_after,output_after,output_slot;
+    uint32_t conversion_cycles,controls_cycles;
+} dbt_audio_render_job_t;
+
 typedef struct {
     dbt_audio_memory_t memory;
     dbt_audio_config_t config;
@@ -71,13 +80,18 @@ typedef struct {
     uint32_t allocated_bytes;
     uint16_t drain_remaining;
     bool opened,draining_input;
+    /* Render-owner reservation; only one externally computed DSP block.
+     * Serial survives close/open, preventing stale job completion reuse. */
+    uint32_t render_serial,render_pending,render_pending_frames;
+    bool render_failed;
     void *mix_context;
     void (*mix)(void *,int32_t *,uint32_t);
 } dbt_audio_t;
 
 /* Decoder -> render -> DMA/ISR are distinct SPSC boundaries. Initialize before
- * owners start. open/close require the decoder and DMA consumer quiesced; only
- * the render owner mutates filter/history/clock state. All large buffers are
+ * owners start. open/close require decoder, DMA and prepared DSP work quiesced.
+ * DSP state has one active owner: renderer or its explicit block borrower.
+ * Clock/publication state remains render-owner-only. All large buffers are
  * lazy and configuration-specific. No floating-point signal processing. */
 dbt_result_t dbt_audio_init(dbt_audio_t *audio,dbt_audio_memory_t memory);
 dbt_result_t dbt_audio_open(dbt_audio_t *audio,dbt_audio_config_t config);
@@ -114,6 +128,18 @@ dbt_result_t dbt_audio_analysis(dbt_audio_t *,bool);
  * complete render call to DMA. No extra PCM block or intermediate output copy.
  * The caller controls output watermarks; this function performs bounded work. */
 uint32_t dbt_audio_render(dbt_audio_t *audio,uint32_t budget);
+/* Optional copied S32 stereo unity path, at most128 frames and one output
+ * page span. OK transfers exclusive DSP/span ownership through job; no input
+ * read or output write is published yet. EMPTY/UNSUPPORTED/BUSY transfer none.
+ * The owner must not render, mix, drain, reconfigure or close before finish.
+ * Atomic control publication, input producer and DMA consumer may continue. */
+dbt_result_t dbt_audio_render_prepare(dbt_audio_t *,uint32_t,dbt_audio_render_job_t *);
+/* Caller proves the borrower has retired. Success publishes exactly once;
+ * failure publishes nothing and fences further rendering until close/open.
+ * Stale tokens do not retire a reservation. Invalid matching metadata fails
+ * closed without publication. Never waits. */
+dbt_result_t dbt_audio_render_finish(dbt_audio_t *,const dbt_audio_render_job_t *,bool,uint32_t *);
+bool dbt_audio_render_inflight(const dbt_audio_t *);
 /* Render owner only. Borrowed mix context must remain live until explicitly
  * detached by that owner. NULL preserves the original signal path. */
 void dbt_audio_set_mix(dbt_audio_t *,void (*)(void *,int32_t *,uint32_t),void *);

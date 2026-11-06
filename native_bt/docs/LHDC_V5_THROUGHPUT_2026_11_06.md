@@ -52,6 +52,11 @@ A private limiter prototype replaces a wide rational division using an integer r
 
 Run tools/test_audio_unity_copy.py for complete PCM/state comparisons, tools/test_decode_reserve.py for the actual scheduling guard, and tools/test_probe_codec_check.py --lhdc-max-fixture --lhdc-esp32-paths --lhdc-source followed by the existing decoder checkout path. Add --lhdc-fast-mantissa only for the unadopted arithmetic comparison. Builds use ccache. The host fixture include order now selects the same generated2048-byte LHDC headers as the target, correcting the previous accidental1536-byte upstream header selection. Failed pre-fix receipts remain archived.
 
-## Next engineering step
+## Follow-up
+
+The proposed partial assistance is now implemented and measured in
+[Bounded LHDC DSP assistance](LHDC_DSP_ASSIST_2026_11_06.md). Its worker-side
+publication and four-block leases still underrun; maximum-rate qualification
+remains open. The historical proposal below is retained as the trial rationale.
 
 Whole-DSP placement on either core is insufficient under these observed workloads. Investigate bounded partial DSP assistance on the existing Core0 render task while the decoder is waiting for PCM space, with one active DSP owner and explicit completion/lifetime fences. Preserve exact block math, use unpublished existing output spans, return immediately while work is pending, and defer stream teardown/control application until borrowed work retires. This is a proposed next step, not an implemented or qualified feature. Full maximum1000kbps, BLE/control/storage coexistence, lifecycle, acoustic and sustained headroom gates remain open.

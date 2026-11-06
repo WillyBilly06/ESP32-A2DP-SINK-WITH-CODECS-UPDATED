@@ -51,6 +51,7 @@ int xTaskCreatePinnedToCore(void (*fn)(void *),const char *name,unsigned stack,v
     HANDLE h=CreateThread(NULL,0,task_entry,a,0,NULL);if(!h){free(a);return 0;}*task=h;atomic_store(&render_handle,(uintptr_t)h);return pdPASS;
 }
 QueueHandle_t xQueueCreate(unsigned cap,unsigned size){queue_t *q=calloc(1,sizeof(*q));if(!q)return 0;InitializeCriticalSection(&q->lock);q->cap=cap;q->size=size;q->data=calloc(cap,size);return q;}
+void vQueueDelete(QueueHandle_t h){queue_t *q=h;if(q){DeleteCriticalSection(&q->lock);free(q->data);free(q);}}
 int xQueueSend(QueueHandle_t h,const void *data,unsigned ticks){
     if(ticks)atomic_fetch_add(&blocking_sends,1);
     queue_t *q=h;ULONGLONG until=GetTickCount64()+ticks;

@@ -52,6 +52,10 @@ discrepancy. It is not a causal diagnosis of that sound report; capture is off b
 
 The [LHDC throughput work](docs/LHDC_V5_THROUGHPUT_2026_11_06.md) adds an exact
 bounded S32 PCM-copy path and records high-rate scheduling/IRAM experiments.
+[Bounded DSP assistance](docs/LHDC_DSP_ASSIST_2026_11_06.md) now uses the existing
+Core0 worker for up to four canonical blocks, publishing each span directly.
+Focused ownership/arithmetic tests pass; the measured fixed900 run still has
+262528 unfilled frames and long Core1 dispatch/retirement intervals.
 192k/24-bit/fixed900 playback still underruns; those experiments are not a
 maximum-rate fix, and live1000kbps qualification remains open.
 
