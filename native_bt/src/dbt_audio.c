@@ -4,7 +4,15 @@
 #error "Block rendering requires the exact bounded DSP block API"
 #endif
 #ifdef DBT_AUDIO_STAGE_PROFILE
+#ifdef __XTENSA__
+/* The SDK esp_cpu header pulls GNU-only asm spelling into this C11 component.
+ * Its Xtensa HAL accessor reads the same per-core cycle counter with __asm__. */
+#include <xtensa/core-macros.h>
+#define audio_cycles() ((uint32_t)XTHAL_GET_CCOUNT())
+#else
 #include "esp_cpu.h"
+#define audio_cycles() esp_cpu_get_cycle_count()
+#endif
 #endif
 #ifdef ESP_PLATFORM
 #include "esp_attr.h"
@@ -299,22 +307,18 @@ static uint32_t render_dsp_block(dbt_audio_t *a,int32_t *pcm,unsigned frames,uin
 #endif
 ){
 #ifdef DBT_AUDIO_STAGE_PROFILE
-    uint32_t began=esp_cpu_get_cycle_count();
+    uint32_t began=audio_cycles();
 #endif
-    /* Internal bounds/alignment are established by the fixed stack array and
-     * its <=128-frame fill count. This API rejects only invalid arguments. */
+    /* pcm is a naturally aligned, unpublished output-ring span. The caller
+     * bounds it by one page/ring edge and FIXED_DSP_BLOCK_FRAMES. DSP mutates
+     * only renderer-owned free slots; the whole render call publishes later. */
     (void)fixed_dsp_process_block(&a->dsp,pcm,(uint16_t)frames);
 #ifdef DBT_AUDIO_STAGE_PROFILE
-    uint32_t at=esp_cpu_get_cycle_count();*dsp_cycles+=at-began;
+    uint32_t at=audio_cycles();*dsp_cycles+=at-began;
 #endif
-    unsigned copied=0;
-    while(copied<frames){
-        uint32_t span=output_span(a,slot,frames-copied);
-        memcpy(output_frame(a,slot),pcm+2u*copied,span*8u);
-        slot=output_advance(a,slot,span);copied+=span;
-    }
+    slot=output_advance(a,slot,frames);
 #ifdef DBT_AUDIO_STAGE_PROFILE
-    *tail_cycles+=esp_cpu_get_cycle_count()-at;
+    *tail_cycles+=audio_cycles()-at;
 #endif
     return slot;
 }
@@ -322,14 +326,14 @@ static uint32_t render_dsp_block(dbt_audio_t *a,int32_t *pcm,unsigned frames,uin
 uint32_t dbt_audio_render(dbt_audio_t *a,uint32_t budget){
     if(!a || !a->opened)return 0;
 #ifdef DBT_AUDIO_BLOCK_DSP
-    int32_t pcm_block[FIXED_DSP_BLOCK_FRAMES*2u];unsigned block_frames=0;
+    int32_t *pcm_block;unsigned block_frames=0,block_capacity;
 #endif
 #ifdef DBT_AUDIO_STAGE_PROFILE
-    uint32_t stage=esp_cpu_get_cycle_count(),conversion=0,dsp=0,tail=0;
+    uint32_t stage=audio_cycles(),conversion=0,dsp=0,tail=0;
 #endif
     controls(a);
 #ifdef DBT_AUDIO_STAGE_PROFILE
-    uint32_t control_cycles=esp_cpu_get_cycle_count()-stage;
+    uint32_t control_cycles=audio_cycles()-stage;
 #endif
     uint32_t in=atomic_load_explicit(&a->input.read,memory_order_relaxed);
     uint32_t end=atomic_load_explicit(&a->input.written,memory_order_acquire);
@@ -337,9 +341,12 @@ uint32_t dbt_audio_render(dbt_audio_t *a,uint32_t budget){
     uint32_t free=a->output.frames-(out-atomic_load_explicit(&a->output.read,memory_order_acquire));
     uint32_t produced=0;
     uint32_t slot=a->output_write_slot;
+#ifdef DBT_AUDIO_BLOCK_DSP
+    pcm_block=output_frame(a,slot);block_capacity=output_span(a,slot,FIXED_DSP_BLOCK_FRAMES);
+#endif
     while(produced<budget && produced<free){
 #ifdef DBT_AUDIO_STAGE_PROFILE
-        stage=esp_cpu_get_cycle_count();
+        stage=audio_cycles();
 #endif
         uint32_t available=end-in;
         if(!available && !a->drain_remaining)break;
@@ -373,29 +380,30 @@ uint32_t dbt_audio_render(dbt_audio_t *a,uint32_t budget){
             in+=consumed;
         }
 #ifdef DBT_AUDIO_STAGE_PROFILE
-        uint32_t at=esp_cpu_get_cycle_count();conversion+=at-stage;stage=at;
+        uint32_t at=audio_cycles();conversion+=at-stage;stage=at;
 #endif
 #ifdef DBT_AUDIO_BLOCK_DSP
         pcm_block[2u*block_frames]=left;pcm_block[2u*block_frames+1u]=right;++block_frames;
 #else
         fixed_dsp_process(&a->dsp,&left,&right);
 #ifdef DBT_AUDIO_STAGE_PROFILE
-        at=esp_cpu_get_cycle_count();dsp+=at-stage;stage=at;
+        at=audio_cycles();dsp+=at-stage;stage=at;
 #endif
         int32_t *destination=output_frame(a,slot);destination[0]=left;destination[1]=right;
         slot=output_advance(a,slot,1);
 #endif
         a->fraction=(uint32_t)next;++produced;
 #ifdef DBT_AUDIO_STAGE_PROFILE
-        tail+=esp_cpu_get_cycle_count()-stage;
+        tail+=audio_cycles()-stage;
 #endif
 #ifdef DBT_AUDIO_BLOCK_DSP
-        if(block_frames==FIXED_DSP_BLOCK_FRAMES){
+        if(block_frames==block_capacity){
             slot=render_dsp_block(a,pcm_block,block_frames,slot
 #ifdef DBT_AUDIO_STAGE_PROFILE
                                   ,&dsp,&tail
 #endif
             );block_frames=0;
+            pcm_block=output_frame(a,slot);block_capacity=output_span(a,slot,FIXED_DSP_BLOCK_FRAMES);
         }
 #endif
     }

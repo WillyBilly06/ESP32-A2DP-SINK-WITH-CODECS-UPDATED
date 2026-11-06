@@ -125,48 +125,57 @@
       "owned": "native_bt/codecs/aptx/CMakeLists.txt",
       "sha256": "f482092929b164bdc694726720a67ca4998427e0b2092e911855c09655cc140b",
       "lines": 14,
-      "reference_files": [],
-      "status": "pending",
-      "mapping": "Added through full filesystem/build-manifest cross-check; source generation/build inputs included"
+      "reference_files": [
+        "src/classic/avdtp.c:169-183",
+        "src/classic/avdtp_util.c:881-900,1723-1753",
+        "ESP-IDF libfreeaptx freeaptx.c:1097-1132,1358-1391",
+        "Actual aptx_decoder compile commands"
+      ],
+      "status": "reviewed_build",
+      "mapping": "Vendor CIE adapter and existing SDK aptX decoder allocation/PCM boundary",
+      "review_scope": "Complete authored wrapper/header/build body read. Full vendor/codec identity, strict current CIE lengths, 4/6-byte quanta, bounded 1024-byte PCM continuation and workspace/reset/free symmetry checked against selected SDK contracts. SDK codec internals not fully audited; live crashes, parity loss, aptX LL extensions, lifecycle and quality remain unqualified. Standalone codec CMake template read; actual product uses aptx_decoder component."
     },
     {
       "owned": "native_bt/codecs/aptx/dbt_aptx_backend.c",
       "sha256": "3ced933c854a92a5d0fd3af97218af73b9fb27a3558e1f0d3f9635760ffb77d2",
       "lines": 11,
       "reference_files": [
-        "src/classic/avdtp.c",
-        "example/a2dp_sink_demo.c",
-        "src/btstack_resample.c",
-        "src/btstack_sample_rate_compensation.c"
+        "src/classic/avdtp.c:169-183",
+        "src/classic/avdtp_util.c:881-900,1723-1753",
+        "ESP-IDF libfreeaptx freeaptx.c:1097-1132,1358-1391",
+        "Actual aptx_decoder compile commands"
       ],
-      "status": "pending",
-      "mapping": "counterpart_candidates"
+      "status": "reviewed_no_change",
+      "mapping": "Vendor CIE adapter and existing SDK aptX decoder allocation/PCM boundary",
+      "review_scope": "Complete authored wrapper/header/build body read. Full vendor/codec identity, strict current CIE lengths, 4/6-byte quanta, bounded 1024-byte PCM continuation and workspace/reset/free symmetry checked against selected SDK contracts. SDK codec internals not fully audited; live crashes, parity loss, aptX LL extensions, lifecycle and quality remain unqualified. Standalone codec CMake template read; actual product uses aptx_decoder component."
     },
     {
       "owned": "native_bt/codecs/aptx/dbt_aptx.c",
       "sha256": "f08457e91d4120c6a2f5a8234fc4e801424008212c1ddc3e006168491d6bec19",
       "lines": 78,
       "reference_files": [
-        "src/classic/avdtp.c",
-        "example/a2dp_sink_demo.c",
-        "src/btstack_resample.c",
-        "src/btstack_sample_rate_compensation.c"
+        "src/classic/avdtp.c:169-183",
+        "src/classic/avdtp_util.c:881-900,1723-1753",
+        "ESP-IDF libfreeaptx freeaptx.c:1097-1132,1358-1391",
+        "Actual aptx_decoder compile commands"
       ],
-      "status": "pending",
-      "mapping": "counterpart_candidates"
+      "status": "reviewed_no_change",
+      "mapping": "Vendor CIE adapter and existing SDK aptX decoder allocation/PCM boundary",
+      "review_scope": "Complete authored wrapper/header/build body read. Full vendor/codec identity, strict current CIE lengths, 4/6-byte quanta, bounded 1024-byte PCM continuation and workspace/reset/free symmetry checked against selected SDK contracts. SDK codec internals not fully audited; live crashes, parity loss, aptX LL extensions, lifecycle and quality remain unqualified. Standalone codec CMake template read; actual product uses aptx_decoder component."
     },
     {
       "owned": "native_bt/codecs/aptx/dbt_aptx.h",
       "sha256": "e0eac08f9e9bf50fcaadfa23b940e576e75254953a1f3ba93d57ee9151567e9c",
       "lines": 8,
       "reference_files": [
-        "src/classic/avdtp.c",
-        "example/a2dp_sink_demo.c",
-        "src/btstack_resample.c",
-        "src/btstack_sample_rate_compensation.c"
+        "src/classic/avdtp.c:169-183",
+        "src/classic/avdtp_util.c:881-900,1723-1753",
+        "ESP-IDF libfreeaptx freeaptx.c:1097-1132,1358-1391",
+        "Actual aptx_decoder compile commands"
       ],
-      "status": "pending",
-      "mapping": "counterpart_candidates"
+      "status": "reviewed_contract",
+      "mapping": "Vendor CIE adapter and existing SDK aptX decoder allocation/PCM boundary",
+      "review_scope": "Complete authored wrapper/header/build body read. Full vendor/codec identity, strict current CIE lengths, 4/6-byte quanta, bounded 1024-byte PCM continuation and workspace/reset/free symmetry checked against selected SDK contracts. SDK codec internals not fully audited; live crashes, parity loss, aptX LL extensions, lifecycle and quality remain unqualified. Standalone codec CMake template read; actual product uses aptx_decoder component."
     },
     {
       "owned": "native_bt/codecs/common/dbt_codec.c",
@@ -1402,8 +1411,8 @@
     },
     {
       "owned": "native_bt/include/dbt_audio.h",
-      "sha256": "e7029ae2af6dfa182b9c815d98f6e58160b17c03b84135df558bf025393feadd",
-      "lines": 149,
+      "sha256": "2ff18d1c4d66176da9f8a5aa24836cbce5c3213e9fee0b7c9bd611bf84382659",
+      "lines": 152,
       "reference_files": [
         "src/classic/avdtp.c",
         "example/a2dp_sink_demo.c",
@@ -2214,8 +2223,8 @@
     },
     {
       "owned": "native_bt/src/dbt_audio.c",
-      "sha256": "ec4d2b7091a53d1409e20564daa7afad68ca142f4f7699eff1eba172388f0d11",
-      "lines": 603,
+      "sha256": "2278caf648a9a9c06fe18bfc54f8ae573abad2623ae68157f9ef4d97c11d261f",
+      "lines": 611,
       "reference_files": [
         "src/classic/avdtp.c",
         "example/a2dp_sink_demo.c",
@@ -3499,6 +3508,22 @@
       "fix": "Per-command completion ownership, unsent cancellation/borrowed retirement, complete-response caller buffering and read-only query/endpoint iteration with separate results.",
       "resource_change": "Query context64/result36/callback8 target bytes plus caller response storage. One4-byte signal pointer; profile396→400, but aggregate BSS/data/IRAM unchanged. Flash text+104 bytes in default linked image.",
       "limits": "No automatic query/selection/mutating endpoint procedure, no wire/malformed/fragment/cancel/capacity/stack/timing qualification. Capability structural success is not codec compatibility."
+    },
+    {
+      "id": "AUDIO-DIRECT-RENDER",
+      "state": "implemented_source_compiler_build_passed_runtime_pending",
+      "owned": [
+        "native_bt/src/dbt_audio.c",
+        "native_bt/include/dbt_audio.h"
+      ],
+      "reference": [
+        "port/esp32/components/btstack/btstack_audio_esp32_v5.c:230-256",
+        "Owned SPSC output/free-span and DSP block contracts"
+      ],
+      "issue": "Block rendering used an intermediate 1024-byte stack PCM buffer and copied processed samples into already-owned free output storage.",
+      "fix": "Convert and process directly in unpublished aligned output spans bounded by DSP block/page/ring limits; retain complete-call release publication. Use C11-compatible SDK Xtensa cycle accessor in optional profiler.",
+      "resource_change": "Compiler render own frame1120→112 (1008 saved), text−448; no change to persistent storage or configured task stack. One8-byte copy per stereo output frame removed; no speed measurement.",
+      "limits": "Output/state/page/ring/concurrency/acoustic equivalence and sustainable max LHDC/audio throughput not qualified. No held campaigns."
     }
   ],
   "sections_reviewed": [
@@ -3986,6 +4011,37 @@
       ],
       "outcome": "Explicit proposal-only ranking sequentially assesses every eligible audio Source with caller-buffered queries and strict ordered format requests. Per-step bounded work; cancellation/timeout fences accepted query lifetime, unknown token retains storage and requests matching signal retirement. Incoming configuration receives handoff. No new task/default instance/begin caller; active wire/order/fault/timing and full-layer qualification incomplete.",
       "full_layer_complete": false
+    },
+    {
+      "layer": "Direct unpublished output rendering and cycle-profile C11 integration",
+      "owned": [
+        "native_bt/src/dbt_audio.c",
+        "native_bt/include/dbt_audio.h",
+        "bt_audio_sink/main/dsp/fixed_dsp.c:block boundary contract"
+      ],
+      "reference": [
+        "port/esp32/components/btstack/btstack_audio_esp32_v5.c:230-256",
+        "SDK xtensa/core-macros.h:XTHAL_GET_CCOUNT"
+      ],
+      "outcome": "Removed intermediate 1024-byte stack PCM array and post-DSP copy; direct in-place processing in unpublished free page/ring spans keeps final release publication and all arithmetic. SDK HAL cycle accessor fixes strict C11 profiling header failure. Matched target own frame1120→112, no render memcpy relocation, text−448; active equivalence/timing/concurrency/playback unqualified.",
+      "full_layer_complete": false
+    },
+    {
+      "layer": "aptX authored wrapper and SDK boundary",
+      "owned": [
+        "native_bt/codecs/aptx/dbt_aptx.c",
+        "native_bt/codecs/aptx/dbt_aptx_backend.c",
+        "native_bt/codecs/aptx/dbt_aptx.h",
+        "native_bt/codecs/aptx/CMakeLists.txt"
+      ],
+      "reference": [
+        "src/classic/avdtp.c:169-183",
+        "src/classic/avdtp_util.c:881-900,1723-1753",
+        "SDK freeaptx.c:1097-1132,1358-1391",
+        "Actual -O2/-fwrapv product compile entries"
+      ],
+      "outcome": "Complete authored wrapper bodies/contract/build template read. Existing SDK decoder initialized in aligned owner workspace, reset preserves HD mode, decode32 emits signed 24-bit content in S32 LE slots, raw4/6-byte quanta and <=128-frame continuation preserved. No new defect established in these boundaries; SDK internals/LL extensions/crash/lifecycle/quality remain unqualified.",
+      "full_layer_complete": false
     }
   ],
   "integration_gaps": [
@@ -4033,12 +4089,12 @@
   ],
   "coverage": {
     "owned_files": 287,
-    "reviewed_owned_c_bodies": 29,
+    "reviewed_owned_c_bodies": 31,
     "partial_files": 19,
-    "pending_files": 205,
+    "pending_files": 201,
     "compiled_owned_units_missing": 0,
-    "reviewed_headers": 22,
-    "reviewed_build_files": 6,
+    "reviewed_headers": 23,
+    "reviewed_build_files": 7,
     "reviewed_generators": 4,
     "reviewed_static_data": 2,
     "compiled_owned_units": 106
@@ -4307,6 +4363,16 @@
         "Accepted cancellation/timeout query waits for callback fence. Unknown accepted token retains ownership and requests same-signaling retirement without spin. Incoming configuration ends assessment through explicit conflict handoff.",
         "Root terminal result detaches context route. Durable peer/reconnect/backoff/handover/default caller, queued/crossed control policy and wire/security/audio/headroom qualification remain unfinished."
       ]
+    },
+    {
+      "id": "AUDIO-DIRECT-RENDER",
+      "status": "implemented_compiler_copy_and_frame_reduction_runtime_pending",
+      "notes": [
+        "Conservative free snapshot reserves unpublished renderer spans; no output publication until conversion, same integer DSP and existing mix complete.",
+        "DSP block splits at page/ring edges, allowing arbitrary <=128 counts through existing ramp/identity/bypass boundary contract. No task/ring/FIR/codec/precision changes.",
+        "Compiler own frame−1008 and render memcpy relocations removed; whole-chain headroom and speed unmeasured. Profile strict C11 now uses existing SDK Xtensa getter.",
+        "Page/ring boundaries, rapid settings/sounds/drain/concurrency/audio/LHDC behavior remain unqualified under held campaigns."
+      ]
     }
   ],
   "next_review": [
@@ -4314,7 +4380,7 @@
     "Complete queued/crossed control and backend policy before automatic integration; rank only returns a proposal, no peer acceptance or reservation.",
     "Continue pending file/feature/security/lifecycle/codec crash/audio underrun/LHDC headroom work. Keep new automatic RF disabled under held campaigns."
   ],
-  "latest_build_image": "e00fe22a099cdb2f2cf7ff3c9a0a0d3c0b559da01e349c224fd72388d4b0bb6e",
+  "latest_build_image": "6b698779ec31828a722ba2a589f59e16919e2a1d8fa7445a2f8cd21b4750eac6",
   "verification_source_contracts": [
     {
       "file": "native_bt/tools/test_ldac_target_component.py",

@@ -109,6 +109,9 @@ dbt_result_t dbt_audio_eq(dbt_audio_t *,int8_t,int8_t,int8_t);
 dbt_result_t dbt_audio_control_flags(dbt_audio_t *,uint8_t);
 dbt_result_t dbt_audio_analysis(dbt_audio_t *,bool);
 /* Render owner. Input conversion, optional fractional clock correction, then DSP.
+ * The block path converts/processes directly in unpublished free output slots,
+ * splitting at page/ring edges. Only the final release publication exposes the
+ * complete render call to DMA. No extra PCM block or intermediate output copy.
  * The caller controls output watermarks; this function performs bounded work. */
 uint32_t dbt_audio_render(dbt_audio_t *audio,uint32_t budget);
 /* Render owner only. Borrowed mix context must remain live until explicitly
