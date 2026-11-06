@@ -1,5 +1,6 @@
 #include "probe_schedule_limits.h"
 #include "probe_audio.h"
+#include "probe_sdp.h"
 #include "probe_audio_limits.h"
 #ifdef DBT_PROBE_SCHEDULER_TRACE
 #include "probe_scheduler.h"
@@ -99,6 +100,7 @@
 #endif
 
 static dbt_a2dp_acceptor_t profile;
+static dbt_a2dp_connect_t *outgoing_connect;
 static dbt_codec_worker_t worker;
 static TaskHandle_t owner,decoder_task,logger_task;
 static _Atomic uint32_t decoder_run_core;
@@ -803,13 +805,43 @@ dbt_result_t probe_audio_connect_status(const dbt_a2dp_channel_t *key){
 dbt_result_t probe_audio_connect_cancel(const dbt_a2dp_channel_t *key){
     return initialized?dbt_a2dp_acceptor_connect_cancel(&profile,key,now_ms()):DBT_INVALID;
 }
+dbt_result_t probe_audio_dial_begin(dbt_a2dp_connect_t *context,dbt_gap_t *gap,
+                                    dbt_a2dp_connect_config_t config,uint32_t *token){
+    if(!context || !token)return DBT_INVALID;
+    if(!initialized || restart_hold || failed || outgoing_connect)return DBT_BUSY;
+    dbt_result_t result=probe_sdp_discovery_bind(&context->discovery);
+    if(result!=DBT_OK)return result;
+    result=dbt_a2dp_connect_begin(context,&profile,gap,config,now_ms(),token);
+    if(result==DBT_PENDING){outgoing_connect=context;return result;}
+    if(probe_sdp_discovery_unbind(&context->discovery)!=DBT_OK)return DBT_INVALID;
+    return result;
+}
+dbt_result_t probe_audio_dial_cancel(dbt_a2dp_connect_t *context,uint32_t token){
+    if(!context || !token)return DBT_INVALID;
+    return outgoing_connect==context?dbt_a2dp_connect_cancel(context,token):DBT_EMPTY;
+}
+dbt_result_t probe_audio_dial_result(dbt_a2dp_connect_t *context,uint32_t token,dbt_a2dp_connect_result_t *result){
+    if(!context || !token || !result)return DBT_INVALID;
+    if(outgoing_connect!=context)return DBT_EMPTY;
+    dbt_result_t status=dbt_a2dp_connect_result(outgoing_connect,token,result);
+    if(status==DBT_OK){
+        dbt_result_t detached=probe_sdp_discovery_unbind(&outgoing_connect->discovery);
+        if(detached!=DBT_OK)return detached==DBT_BUSY?DBT_PENDING:DBT_INVALID;
+        outgoing_connect=0;
+    }
+    return status;
+}
 void probe_audio_event(dbt_channel_event_t event,const dbt_channel_t *channel){
-    if(!initialized || channel->psm!=0x19)return;
+    probe_audio_event_ex(event,channel,DBT_CH_REASON_NORMAL,0);
+}
+void probe_audio_event_ex(dbt_channel_event_t event,const dbt_channel_t *channel,dbt_channel_reason_t reason,uint16_t wire_result){
+    if(!initialized || !channel || channel->psm!=0x19)return;
     bool was_active=profile.active;
     bool signal=profile.signaling.serial && channel->serial==profile.signaling.serial &&
         channel->handle==profile.signaling.handle && channel->link_generation==profile.signaling.generation;
     uint16_t handle=channel->handle;uint32_t generation=channel->link_generation;
     dbt_result_t result=dbt_a2dp_acceptor_event(&profile,event,channel);
+    if(outgoing_connect)dbt_a2dp_connect_event(outgoing_connect,event,channel,reason,wire_result,now_ms());
     if(result==DBT_OK && product_observer){
         if(event==DBT_CH_EVENT_OPEN && !was_active && profile.active && profile.signaling.serial==channel->serial)
             product_observer(product_context,PROBE_AUDIO_CONNECTED,handle,generation,0,now_ms());
@@ -844,6 +876,10 @@ void probe_audio_poll(uint32_t now){
     }
     if(failed || restart_hold)restart_drained=dbt_a2dp_acceptor_stop(&profile,now)==DBT_OK;
     (void)dbt_a2dp_acceptor_poll(&profile,now);
+    if(outgoing_connect){
+        if(failed || restart_hold)(void)dbt_a2dp_connect_cancel(outgoing_connect,outgoing_connect->serial);
+        dbt_a2dp_connect_poll(outgoing_connect,now);
+    }
     atomic_store(&l2cap_delivered,profile.runtime->rx.delivered);
     atomic_store(&l2cap_abandoned,profile.runtime->rx.abandoned);
     atomic_store(&l2cap_rejected,profile.runtime->rx.rejected);
@@ -904,6 +940,7 @@ void probe_audio_poll(uint32_t now){
 uint32_t probe_audio_wait_ms(uint32_t now){
     if(!initialized)return UINT32_MAX;
     uint32_t wait=dbt_a2dp_acceptor_wait_ms(&profile,now);
+    if(outgoing_connect){uint32_t next=dbt_a2dp_connect_wait_ms(outgoing_connect,now);if(next<wait)wait=next;}
 #ifdef DBT_PROBE_AUDIO_OUTPUT
     uint32_t report=delay_report_wait_ms(now);if(report<wait)wait=report;
 #endif
@@ -925,7 +962,10 @@ dbt_result_t probe_audio_restart_hold(bool hold,uint32_t now){
     restart_hold=hold;restart_drained=!initialized;
     if(!initialized)return DBT_OK;
     if(!hold){if(!failed)profile.enabled=true;return failed?DBT_INVALID:DBT_OK;}
+    if(outgoing_connect)(void)dbt_a2dp_connect_cancel(outgoing_connect,outgoing_connect->serial);
     dbt_result_t r=dbt_a2dp_acceptor_stop(&profile,now);restart_drained=r==DBT_OK;
+    if(outgoing_connect && !dbt_a2dp_connect_done(outgoing_connect) && r==DBT_OK)r=DBT_BUSY;
     return failed?DBT_INVALID:r;
 }
-bool probe_audio_restart_quiescent(void){return restart_hold && restart_drained && !failed;}
+bool probe_audio_restart_quiescent(void){return restart_hold && restart_drained && !failed &&
+    (!outgoing_connect || dbt_a2dp_connect_done(outgoing_connect));}

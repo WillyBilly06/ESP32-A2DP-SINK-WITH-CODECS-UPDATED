@@ -543,7 +543,7 @@ static void profile_channel(void *context, dbt_channel_event_t event, const dbt_
     probe_avrcp_event(event,channel);
 #endif
 #ifdef DBT_PROBE_AUDIO_TEST
-    probe_audio_event(event,channel);
+    probe_audio_event_ex(event,channel,reason,result);
 #endif
 }
 static bool profile_accept(void *context,const dbt_link_t *link,uint16_t psm){

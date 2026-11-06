@@ -6,6 +6,7 @@
 static dbt_sdp_t server;
 static dbt_sdp_bearer_t bearer;
 static dbt_sdp_discovery_t *discovery;
+static bool discovery_external;
 static const uint8_t server_class[] = {0x35, 3, 0x19, 0x10, 0};
 static const uint8_t versions[] = {0x35, 3, 9, 1, 0};
 #ifdef DBT_PROBE_AUDIO_OUTPUT
@@ -114,16 +115,19 @@ void probe_sdp_event(dbt_channel_event_t event, const dbt_channel_t *channel) {
     probe_sdp_event_ex(event,channel,DBT_CH_REASON_NORMAL,0);
 }
 void probe_sdp_event_ex(dbt_channel_event_t event,const dbt_channel_t *channel,dbt_channel_reason_t reason,uint16_t result){
-    if(discovery)dbt_sdp_discovery_event(discovery,event,channel,reason,result,bearer.runtime->now_ms);
+    if(discovery && dbt_sdp_discovery_matches(discovery,channel)){
+        dbt_sdp_discovery_event(discovery,event,channel,reason,result,bearer.runtime->now_ms);
+        return; /* A client channel must not also acquire a server slot. */
+    }
     dbt_sdp_bearer_event(&bearer,event,channel);
 }
 dbt_result_t probe_sdp_poll(void) {
-    if(discovery)dbt_sdp_discovery_poll(discovery,bearer.runtime->now_ms);
+    if(discovery && !discovery_external)dbt_sdp_discovery_poll(discovery,bearer.runtime->now_ms);
     return dbt_sdp_bearer_poll(&bearer);
 }
 uint32_t probe_sdp_wait_ms(void) {
     uint32_t wait=dbt_sdp_bearer_wait_ms(&bearer);
-    if(discovery){uint32_t next=dbt_sdp_discovery_wait_ms(discovery,bearer.runtime->now_ms);if(next<wait)wait=next;}
+    if(discovery && !discovery_external){uint32_t next=dbt_sdp_discovery_wait_ms(discovery,bearer.runtime->now_ms);if(next<wait)wait=next;}
     return wait;
 }
 dbt_result_t probe_sdp_discover_audio_source(dbt_sdp_discovery_t *context,const dbt_link_t *link,
@@ -133,14 +137,36 @@ dbt_result_t probe_sdp_discover_audio_source(dbt_sdp_discovery_t *context,const 
     if(result==DBT_OK)discovery=context;
     return result;
 }
-dbt_result_t probe_sdp_discover_cancel(uint32_t token){return discovery?dbt_sdp_discovery_cancel(discovery,token):DBT_EMPTY;}
+dbt_result_t probe_sdp_discover_cancel(uint32_t token){
+    if(discovery_external)return DBT_UNSUPPORTED;
+    return discovery?dbt_sdp_discovery_cancel(discovery,token):DBT_EMPTY;
+}
 dbt_result_t probe_sdp_discover_result(uint32_t token,dbt_sdp_discovery_result_t *result){
     if(!discovery)return DBT_EMPTY;
+    if(discovery_external)return DBT_UNSUPPORTED;
     dbt_result_t status=dbt_sdp_discovery_result(discovery,token,result);
     if(status==DBT_OK)discovery=0; /* Detach routing before caller storage retires. */
     return status;
 }
-unsigned probe_sdp_bytes(void) { return sizeof(server)+sizeof(bearer)+sizeof(records)+sizeof(extra_record)+sizeof(record_count)+sizeof(initialized)+sizeof(controller_enabled)+sizeof(target_enabled)+sizeof(state)+sizeof(discovery); }
+dbt_result_t probe_sdp_discovery_bind(dbt_sdp_discovery_t *context){
+    if(!context)return DBT_INVALID;
+    if(!initialized || discovery)return DBT_BUSY;
+    if(context->state){
+        dbt_sdp_discovery_result_t result;
+        if(!context->serial || dbt_sdp_discovery_result(context,context->serial,&result)!=DBT_OK)return DBT_BUSY;
+    }
+    discovery=context;discovery_external=true;return DBT_OK;
+}
+dbt_result_t probe_sdp_discovery_unbind(dbt_sdp_discovery_t *context){
+    if(!context)return DBT_INVALID;
+    if(discovery!=context || !discovery_external)return DBT_EMPTY;
+    if(context->state){
+        dbt_sdp_discovery_result_t result;
+        if(!context->serial || dbt_sdp_discovery_result(context,context->serial,&result)!=DBT_OK)return DBT_BUSY;
+    }
+    discovery=0;discovery_external=false;return DBT_OK;
+}
+unsigned probe_sdp_bytes(void) { return sizeof(server)+sizeof(bearer)+sizeof(records)+sizeof(extra_record)+sizeof(record_count)+sizeof(initialized)+sizeof(controller_enabled)+sizeof(target_enabled)+sizeof(state)+sizeof(discovery)+sizeof(discovery_external); }
 unsigned probe_sdp_records(void){return record_count;}
 bool probe_sdp_audio_sink(void){
 #ifdef DBT_PROBE_AUDIO_OUTPUT

@@ -119,6 +119,8 @@ dbt_result_t dbt_gap_connect_cancel(dbt_gap_t *,uint32_t token,uint32_t now_ms);
  * releases caller page storage. CONNECTED may win cancellation: the caller
  * must then disconnect the exact handle/generation if still desired. */
 dbt_result_t dbt_gap_connect_result(dbt_gap_t *,uint32_t token,dbt_gap_connect_result_t *);
+/* Pure owner query; true means result can consume the retirement receipt. */
+bool dbt_gap_connect_ready(const dbt_gap_t *,uint32_t token);
 /* READY does not imply either bearer is discoverable. Enable explicitly only
  * after profile/security initialization. Properties change only on successful
  * command completion; on LE connection complete advertising becomes false. */

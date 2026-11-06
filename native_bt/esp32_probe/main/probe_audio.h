@@ -1,6 +1,7 @@
 #ifndef PROBE_AUDIO_H
 #define PROBE_AUDIO_H
 #include "dbt_a2dp_acceptor.h"
+#include "dbt_a2dp_connect.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 /* Host-owner control/data hooks; decoder and PCM work run on the separate
@@ -13,7 +14,14 @@ bool probe_audio_accept(void *context,const dbt_link_t *link,uint16_t psm);
 dbt_result_t probe_audio_connect_begin(const dbt_link_t *,dbt_a2dp_channel_t *);
 dbt_result_t probe_audio_connect_status(const dbt_a2dp_channel_t *);
 dbt_result_t probe_audio_connect_cancel(const dbt_a2dp_channel_t *);
+/* Owner coordinator: init caller storage once; PENDING borrows context/buffers
+ * through terminal dial_result, which also detaches SDP routing. No automatic
+ * peer selection, endpoint negotiation or audio start. */
+dbt_result_t probe_audio_dial_begin(dbt_a2dp_connect_t *,dbt_gap_t *,dbt_a2dp_connect_config_t,uint32_t *);
+dbt_result_t probe_audio_dial_cancel(dbt_a2dp_connect_t *,uint32_t);
+dbt_result_t probe_audio_dial_result(dbt_a2dp_connect_t *,uint32_t,dbt_a2dp_connect_result_t *);
 void probe_audio_event(dbt_channel_event_t event,const dbt_channel_t *channel);
+void probe_audio_event_ex(dbt_channel_event_t,const dbt_channel_t *,dbt_channel_reason_t,uint16_t);
 void probe_audio_receive(const dbt_channel_t *channel,const uint8_t *data,uint16_t size);
 void probe_audio_poll(uint32_t now_ms);
 uint32_t probe_audio_wait_ms(uint32_t now_ms);

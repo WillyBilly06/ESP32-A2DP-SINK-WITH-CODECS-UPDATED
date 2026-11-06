@@ -18,6 +18,10 @@ dbt_result_t probe_sdp_discover_audio_source(dbt_sdp_discovery_t *,const dbt_lin
     dbt_sdp_discovery_config_t,uint32_t now_ms,uint32_t *token);
 dbt_result_t probe_sdp_discover_cancel(uint32_t token);
 dbt_result_t probe_sdp_discover_result(uint32_t token,dbt_sdp_discovery_result_t *);
+/* Reserve one externally-polled discovery route before starting a coordinator.
+ * Fresh or terminal storage only; unbind is the caller-storage release fence. */
+dbt_result_t probe_sdp_discovery_bind(dbt_sdp_discovery_t *);
+dbt_result_t probe_sdp_discovery_unbind(dbt_sdp_discovery_t *);
 dbt_result_t probe_sdp_poll(void);
 uint32_t probe_sdp_wait_ms(void);
 unsigned probe_sdp_bytes(void);

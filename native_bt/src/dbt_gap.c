@@ -235,6 +235,14 @@ dbt_result_t dbt_gap_connect_cancel(dbt_gap_t *gap,uint32_t token,uint32_t now){
     if(gap->page->active)(void)dbt_page_cancel(gap->page,token,now);
     return DBT_PENDING; /* GAP's terminal receipt owns the caller-storage fence. */
 }
+static bool connect_pending(const dbt_gap_t *gap){
+    if(gap->host->state==DBT_HOST_FAILED)
+        return gap->page->create_pending || gap->page->cancel_pending || gap->reply_inflight;
+    return gap->page->active || ((gap->page_flags&PAGE_IN_SEEN) && !(gap->page_flags&PAGE_IN_DONE));
+}
+bool dbt_gap_connect_ready(const dbt_gap_t *gap,uint32_t token){
+    return gap && token && gap->page && gap->page->result.token==token && !connect_pending(gap);
+}
 dbt_result_t dbt_gap_connect_result(dbt_gap_t *gap,uint32_t token,dbt_gap_connect_result_t *result){
     if(!gap || !token || !result)return DBT_INVALID;
     if(!gap->page || gap->page->result.token!=token)return DBT_EMPTY;
@@ -249,10 +257,9 @@ dbt_result_t dbt_gap_connect_result(dbt_gap_t *gap,uint32_t token,dbt_gap_connec
     if(result->outcome==DBT_PAGE_CONNECTED){
         result->handle=incoming?gap->page_incoming_handle:page->result.handle;result->generation=gap->page_generation;
     }
-    bool pending=page->active || ((gap->page_flags&PAGE_IN_SEEN) && !(gap->page_flags&PAGE_IN_DONE));
+    bool pending=connect_pending(gap);
     if(gap->host->state==DBT_HOST_FAILED){
         result->outcome=DBT_PAGE_FAILED;result->handle=0;result->generation=0;
-        pending=page->create_pending || page->cancel_pending || gap->reply_inflight;
     }
     if(pending)return DBT_PENDING;
     gap->page=0;gap->page_acl=0;gap->page_flags=0;return DBT_OK;
