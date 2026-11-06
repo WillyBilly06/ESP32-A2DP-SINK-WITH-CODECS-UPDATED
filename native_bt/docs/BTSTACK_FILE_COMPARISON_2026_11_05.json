@@ -684,16 +684,16 @@
     },
     {
       "owned": "native_bt/esp32_probe/main/probe_audio.c",
-      "sha256": "63be9ce54c909d2c9c8b6ebee61c3c5646201728e51864a682618ef0d305c148",
-      "lines": 1036,
+      "sha256": "5321b426578b49b87d14e2c9f6cf78c2a772abb5b5410e8e893ffccd11831889",
+      "lines": 1045,
       "reference_files": [],
       "status": "partial_review",
       "mapping": "product/support code; no direct protocol counterpart assigned"
     },
     {
       "owned": "native_bt/esp32_probe/main/probe_audio.h",
-      "sha256": "6a6a420a75082ddcda974721d54b78a310c41a6be57623ebf7e9cda2ff7b2add",
-      "lines": 79,
+      "sha256": "f71eb6af536665908719197f7cebbc960e9b405997c823d36c12196ab7556a82",
+      "lines": 81,
       "reference_files": [],
       "status": "partial_review",
       "mapping": "product/support code; no direct protocol counterpart assigned"
@@ -1488,8 +1488,8 @@
     },
     {
       "owned": "native_bt/include/dbt_avdtp_sink.h",
-      "sha256": "39231943bdbeb6c29832c4a49c51cf9539b494bf156bd51bd6a98f2a33d7243c",
-      "lines": 182,
+      "sha256": "45a63ac45924223641f2da519c3c56f2ae5e1d6644db3cb9447de87d659f18c5",
+      "lines": 190,
       "reference_files": [
         "src/classic/avdtp.c",
         "src/classic/avdtp_acceptor.c",
@@ -2300,8 +2300,8 @@
     },
     {
       "owned": "native_bt/src/dbt_avdtp_sink.c",
-      "sha256": "7120e39dceca016ac3dcf32046ddcefadc38146a7d284516f5e0ce3930fe4f60",
-      "lines": 762,
+      "sha256": "24bb9ce3eea03c634f58c8bdd22b220d8f5ac7eb153ab74369fb37977a8a289e",
+      "lines": 809,
       "reference_files": [
         "src/classic/avdtp.c",
         "src/classic/avdtp_acceptor.c",
@@ -3805,6 +3805,25 @@
       ],
       "outcome": "Added copied exact-media Close, independent backend/transport retirement and detailed profile event path. Corrected loss of real failure reason/status when an opened channel emits CLOSED. Broader root/channel bodies remain partial; full runtime/layer qualification incomplete.",
       "full_layer_complete": false
+    },
+    {
+      "layer": "Local Reconfigure and one-workspace worker restoration",
+      "owned": [
+        "native_bt/include/dbt_avdtp_sink.h",
+        "native_bt/src/dbt_avdtp_sink.c",
+        "native_bt/esp32_probe/main/probe_audio.h",
+        "native_bt/esp32_probe/main/probe_audio.c",
+        "native_bt/src/dbt_avdtp_caps.c:31-69",
+        "native_bt/codecs/common/dbt_codec.h:5-13,61-74",
+        "native_bt/codecs/common/dbt_codec.c:215-229"
+      ],
+      "reference": [
+        "src/classic/avdtp_initiator.c:278-293,386-399,514-535",
+        "src/classic/avdtp_util.c:348-362,516-542",
+        "src/classic/avdtp.c:1524-1552"
+      ],
+      "outcome": "Added selected-codec reconfigure with committed old caps retained, worker preparation before wire release, peer-accept commit and explicit typed restoration. Worker input contains copied CIE, no caller bytes/interior frees or second live workspace. Broad protocol/runtime/product qualification remains incomplete.",
+      "full_layer_complete": false
     }
   ],
   "integration_gaps": [
@@ -4075,14 +4094,24 @@
         "Detailed channel reason/status now reaches the profile: CLOSED can mean failure of a previously open channel. Media failed/timeout and raw event/reason/status are separate from backend results; no false successful Close.",
         "No automatic caller. Wire/order/queue/cancel/deadline/failed-media/worker/collision and audio qualification remain open."
       ]
+    },
+    {
+      "id": "AVDTP-LOCAL-RECONFIGURE",
+      "status": "implemented_source_api_no_automatic_caller_wire_pending",
+      "notes": [
+        "Requires current Open endpoint and exact signaling/media identities, mandatory supported codec TLV; copied wire SEID+Codec and normalized committed Transport/retained Delay are distinct.",
+        "Old committed caps remain until peer Accept. Existing worker releases old workspace before constructing new; peer reject/pre-wire cancel uses explicit RECONFIGURE restore READY when preparation was accepted/changed.",
+        "Rollback operation/token selects RECONFIGURE or Start SUSPEND; enqueue/receipt/deadline routing is independent from primary preparation with the same opcode. No second live decoder workspace.",
+        "No automatic caller; active wire/restore/allocator/cancel/Abort/media/fault/codec behavior and full quality/headroom remain unqualified."
+      ]
     }
   ],
   "next_review": [
-    "Implement local reconfigure and Abort initiation using exact operation-specific worker/wire/resource rules. Close/Suspend/Start/Open/initial Configure source APIs exist; do not repeat them.",
-    "Implement real Source codec/peer selection and persisted reconnect/backoff/handover/default caller; keep new automatic RF disabled under held campaigns.",
-    "Complete crossed peer/local policy, remaining file/feature/security/lifecycle/audio performance and codec crash/underrun qualification."
+    "Implement local Abort initiation through exact command/resource/media/reply semantics. Other local procedures now exist as source APIs; do not repeat them.",
+    "Review crossed peer/local controls, broader state/wire/backend-phase correctness and actual feature inventory before default automatic integration.",
+    "Implement real Source peer/codec selection, durable reconnect/backoff/handover/default caller and full source/feature/security/lifecycle/audio qualification. No automatic RF under held campaigns."
   ],
-  "latest_build_image": "970367813cd023b69682897a49e543a1d2d4c5fde6a11aecabeae05fcbb81df8",
+  "latest_build_image": "048319c63de9299f0f5eb2e28790f90089a3b1c6809ff49aa1e25d57d6da531f",
   "verification_source_contracts": [
     {
       "file": "native_bt/tools/test_ldac_target_component.py",

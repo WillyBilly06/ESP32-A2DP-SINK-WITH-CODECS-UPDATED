@@ -111,9 +111,10 @@ static void local_response(void *context,dbt_avdtp_outcome_t outcome,const dbt_a
            !s->failed && !s->retiring && s->pending.operation==r->operation &&
            s->pending.done && r->worker_result_valid && r->worker_result==DBT_SINK_WORK_READY &&
             ((r->operation==DBT_SINK_CONFIGURE && s->state==DBT_STREAM_IDLE) ||
+             (r->operation==DBT_SINK_RECONFIGURE && s->state==DBT_STREAM_OPEN && s->media_binding==r->media_binding) ||
              (r->operation==DBT_SINK_OPEN && s->state==DBT_STREAM_CONFIGURED) ||
              (r->operation==DBT_SINK_START && s->state==DBT_STREAM_OPEN && s->media_binding==r->media_binding))){
-            if(r->operation==DBT_SINK_CONFIGURE){
+            if(r->operation==DBT_SINK_CONFIGURE || r->operation==DBT_SINK_RECONFIGURE){
                 apply_configuration(s,&s->pending);r->resources_transferred=true;
             }else if(r->operation==DBT_SINK_OPEN){
                 s->state=DBT_STREAM_OPEN;s->media_initiator=true;s->media_deadline=s->signal.now_ms+s->media_ms;
@@ -124,7 +125,7 @@ static void local_response(void *context,dbt_avdtp_outcome_t outcome,const dbt_a
             emit(s,DBT_SINK_STATE);drop_pending(s);
         }else if(m->type!=DBT_AVDTP_ACCEPT){
             if(m->size){
-                if(r->command==DBT_AVDTP_SET_CONFIGURATION && m->size>1)r->peer_category=m->data[0];
+                if((r->command==DBT_AVDTP_SET_CONFIGURATION || r->command==DBT_AVDTP_RECONFIGURE) && m->size>1)r->peer_category=m->data[0];
                 if((r->command==DBT_AVDTP_START || r->command==DBT_AVDTP_SUSPEND) && m->size>1)r->peer_seid=m->data[0]>>2;
                 r->peer_error=m->data[m->size-1u];
             }
@@ -145,7 +146,7 @@ static dbt_result_t local_worker_complete(dbt_avdtp_sink_t *s,dbt_sink_work_resu
         c->result.drop_result=result;c->result.drop_result_valid=true;
         if(result==DBT_SINK_WORK_READY){s->worker_live=false;c->result.cleanup_complete=true;}
         else local_failure(s,c,DBT_AVDTP_LOCAL_CLEANUP_ERROR);
-    }else if(p->operation==DBT_SINK_SUSPEND && c->rollback_started){
+    }else if(c->rollback_started && p->token==c->result.rollback_token && p->operation==c->result.rollback_operation){
         c->result.rollback_result=result;c->result.rollback_result_valid=true;
         if(due(now,p->deadline))c->result.rollback_timed_out=true;
         if(result==DBT_SINK_WORK_READY && !c->result.rollback_timed_out)c->result.cleanup_complete=true;
@@ -225,16 +226,19 @@ static void local_poll(dbt_avdtp_sink_t *s,uint32_t now){
         if(!s->worker_live)r->cleanup_complete=true;
         else {begin(s,DBT_SINK_DROP,c->endpoint,true,false);s->pending.deadline=now+s->worker_ms;r->drop_token=s->pending.token;}
     }else if(!release){
-        bool rollback=r->operation==DBT_SINK_START && r->worker_accepted;
+        bool rollback=r->worker_accepted && (r->operation==DBT_SINK_START ||
+            (r->operation==DBT_SINK_RECONFIGURE && !(r->worker_result_valid && r->worker_result==DBT_SINK_WORK_REJECTED)));
         if(rollback && !c->rollback_started){
             c->rollback_started=true;r->cleanup_complete=false;r->phase=DBT_AVDTP_LOCAL_ROLLBACK;drop_pending(s);
-            begin(s,DBT_SINK_SUSPEND,c->endpoint,true,false);s->pending.deadline=now+s->worker_ms;r->rollback_token=s->pending.token;r->rollback_deadline_ms=s->pending.deadline;
+            r->rollback_operation=r->operation==DBT_SINK_RECONFIGURE?DBT_SINK_RECONFIGURE:DBT_SINK_SUSPEND;
+            begin(s,r->rollback_operation,c->endpoint,true,false);s->pending.deadline=now+s->worker_ms;
+            r->rollback_token=s->pending.token;r->rollback_deadline_ms=s->pending.deadline;
         }else if(!rollback && (!r->worker_accepted || p->done))r->cleanup_complete=true;
     }
     p=&s->pending;
     if(!r->cleanup_complete && p->used && !p->done && due(now,p->deadline)){
         r->cleanup_timed_out=true;
-        bool rollback=p->operation==DBT_SINK_SUSPEND && c->rollback_started;
+        bool rollback=c->rollback_started && p->token==r->rollback_token && p->operation==r->rollback_operation;
         if(rollback)r->rollback_timed_out=true;
         local_failure(s,c,rollback?DBT_AVDTP_LOCAL_ROLLBACK_ERROR:DBT_AVDTP_LOCAL_CLEANUP_ERROR);return;
     }
@@ -514,6 +518,49 @@ dbt_result_t dbt_avdtp_sink_local_configure_begin(dbt_avdtp_sink_t *s,dbt_avdtp_
     s->pending.configuration=raw;s->pending.size=bytes;s->pending.remote_seid=remote_seid;
     c->result.worker_token=s->pending.token;c->result.worker_deadline_ms=s->pending.deadline;*id=serial;return DBT_PENDING;
 }
+dbt_result_t dbt_avdtp_sink_local_reconfigure_begin(dbt_avdtp_sink_t *s,dbt_avdtp_local_t *c,
+    uint32_t media_binding,const uint8_t *configuration,uint16_t size,uint32_t now,uint32_t *id){
+    if(!s || !c || !configuration || !id || !size || s->in_work || s->signal.in_callback ||
+       local_owned(s,c,sizeof(*c)) || local_owned(s,configuration,size) || local_owned(s,id,sizeof(*id)) ||
+       local_overlap(c,sizeof(*c),configuration,size) || local_overlap(c,sizeof(*c),id,sizeof(*id)) ||
+       local_overlap(configuration,size,id,sizeof(*id)))return DBT_INVALID;
+    if(c->active || s->local || s->pending.used || s->retiring || s->drained || s->signal.tx[0].used)return DBT_BUSY;
+    if(s->failed || !s->binding || dbt_avdtp_poll(&s->signal,now)!=DBT_OK)return DBT_INVALID;
+    if(s->state!=DBT_STREAM_OPEN || !s->worker_live || !s->configuration || !s->remote_seid ||
+       s->endpoint>=s->count || !media_binding || media_binding!=s->media_binding)return DBT_INVALID;
+    if(c->serial==UINT32_MAX)return DBT_NO_SPACE;
+    dbt_avdtp_caps_t caps,local;dbt_avdtp_cap_error_t error;
+    if(dbt_avdtp_caps_validate(configuration,size,DBT_AVDTP_RECONFIGURATION,&caps,&error)!=DBT_OK)return DBT_INVALID;
+    const dbt_avdtp_endpoint_t *ep=&s->endpoints[s->endpoint];
+    if(dbt_avdtp_caps_validate(ep->capabilities,ep->size,DBT_AVDTP_CAPABILITIES,&local,&error)!=DBT_OK)return DBT_INVALID;
+    uint16_t cursor=0;dbt_avdtp_cap_t cap;
+    while(dbt_avdtp_cap_next(configuration,size,&cursor,&cap)==DBT_OK)
+        if(!(local.present&(1u<<cap.category)))return DBT_UNSUPPORTED;
+    if(!caps.codec.data || ep->validate(ep,&caps.codec))return DBT_UNSUPPORTED;
+    bool delay=s->delay_enabled;
+    uint16_t bytes=(uint16_t)(4u+caps.codec.size+(delay?2u:0u)),wire=(uint16_t)(3u+caps.codec.size);
+    if(bytes>s->maximum_configuration || wire>s->signal.maximum_message)return DBT_INVALID;
+    uint8_t *raw=s->hooks.allocate(s->hooks.context,bytes);if(!raw)return DBT_NO_SPACE;
+    raw[0]=1;raw[1]=(uint8_t)(s->remote_seid<<2);raw[2]=7;raw[3]=caps.codec.size;
+    copy(raw+4,caps.codec.data,caps.codec.size);
+    if(delay){raw[bytes-2u]=8;raw[bytes-1u]=0;}
+    c->completion=(dbt_avdtp_completion_t){c,local_response};uint8_t label;
+    /* Reconfigure sends SEID + Codec only; normalized Transport/Delay stay
+     * host-side. queue copies this body before the temporary byte is restored. */
+    dbt_result_t reserved=dbt_avdtp_command_prepare(&s->signal,DBT_AVDTP_RECONFIGURE,raw+1,wire,now,&label,&c->completion);
+    raw[1]=0;
+    if(reserved!=DBT_OK){s->hooks.release(s->hooks.context,raw);return reserved;}
+    uint32_t serial=c->serial+1u;*c=(dbt_avdtp_local_t){0};
+    c->completion=(dbt_avdtp_completion_t){c,local_response};c->sink=s;c->serial=serial;c->active=true;c->endpoint=s->endpoint;
+    c->result.token=serial;c->result.binding=s->binding;c->result.local_seid=ep->seid;c->result.remote_seid=s->remote_seid;
+    c->result.media_binding=media_binding;c->result.label=label;c->result.configuration_size=bytes;
+    c->result.operation=DBT_SINK_RECONFIGURE;c->result.command=DBT_AVDTP_RECONFIGURE;
+    c->result.phase=DBT_AVDTP_LOCAL_PREPARING;s->local=c;
+    begin(s,DBT_SINK_RECONFIGURE,s->endpoint,true,true);
+    s->pending.configuration=raw;s->pending.size=bytes;s->pending.remote_seid=s->remote_seid;
+    c->result.worker_token=s->pending.token;c->result.worker_deadline_ms=s->pending.deadline;
+    *id=serial;return DBT_PENDING;
+}
 static dbt_result_t local_control_begin(dbt_avdtp_sink_t *s,dbt_avdtp_local_t *c,dbt_sink_operation_t operation,
     uint32_t media_binding,uint32_t now,uint32_t *id){
     if(!s || !c || !id || s->in_work || s->signal.in_callback || local_owned(s,c,sizeof(*c)) ||
@@ -658,13 +705,12 @@ dbt_result_t dbt_avdtp_sink_poll(dbt_avdtp_sink_t *s,uint32_t now) {
         s->in_work=true;dbt_result_t result=s->hooks.work(s->hooks.context,&request);s->in_work=false;
         if(s->local){
             dbt_avdtp_local_result_t *r=&s->local->result;
-            if(p->operation==DBT_SINK_CONFIGURE || p->operation==DBT_SINK_OPEN || p->operation==DBT_SINK_START ||
-               ((p->operation==DBT_SINK_SUSPEND || p->operation==DBT_SINK_CLOSE) && p->operation==r->operation)){r->worker_submit_result=result;if(result==DBT_OK)r->worker_accepted=true;
-                else if(result==DBT_BUSY && r->worker_busy<UINT16_MAX)++r->worker_busy;}
-            else if(p->operation==DBT_SINK_SUSPEND && s->local->rollback_started){r->rollback_submit_result=result;if(result==DBT_OK)r->rollback_accepted=true;
-                else if(result==DBT_BUSY && r->rollback_busy<UINT16_MAX)++r->rollback_busy;}
-            else if(p->operation==DBT_SINK_DROP){r->drop_submit_result=result;if(result==DBT_OK)r->drop_accepted=true;
+            if(p->operation==DBT_SINK_DROP){r->drop_submit_result=result;if(result==DBT_OK)r->drop_accepted=true;
                 else if(result==DBT_BUSY && r->drop_busy<UINT16_MAX)++r->drop_busy;}
+            else if(s->local->rollback_started && p->token==r->rollback_token){r->rollback_submit_result=result;if(result==DBT_OK)r->rollback_accepted=true;
+                else if(result==DBT_BUSY && r->rollback_busy<UINT16_MAX)++r->rollback_busy;}
+            else {r->worker_submit_result=result;if(result==DBT_OK)r->worker_accepted=true;
+                else if(result==DBT_BUSY && r->worker_busy<UINT16_MAX)++r->worker_busy;}
         }
         if(result==DBT_OK){p->submitted=true;s->worker_live=true;}
         else if(result!=DBT_BUSY){
@@ -684,7 +730,7 @@ dbt_result_t dbt_avdtp_sink_media_open(dbt_avdtp_sink_t *s,uint32_t binding,uint
 }
 dbt_result_t dbt_avdtp_sink_media_closed_ex(dbt_avdtp_sink_t *s,uint32_t binding,bool transport_failed) {
     if(!s || !binding || s->media_binding!=binding)return DBT_EMPTY;
-    s->media_binding=0;
+    s->media_binding=0;if(s->local)s->local->result.media_closed=true;
     if(transport_failed){
         if(s->local){s->local->result.media_closed=true;s->local->result.media_close_failed=true;local_failure(s,s->local,DBT_AVDTP_LOCAL_MEDIA_ERROR);}
         else fault(s);
@@ -701,7 +747,8 @@ dbt_result_t dbt_avdtp_sink_media_closed_ex(dbt_avdtp_sink_t *s,uint32_t binding
         emit(s,DBT_SINK_STATE);return DBT_OK;
     }
     if(s->state==DBT_STREAM_CLOSING || s->state==DBT_STREAM_ABORTING){idle(s);emit(s,DBT_SINK_STATE);return DBT_OK;}
-    fault(s);return DBT_INVALID;
+    if(s->local)local_failure(s,s->local,DBT_AVDTP_LOCAL_MEDIA_ERROR);else fault(s);
+    return DBT_INVALID;
 }
 dbt_result_t dbt_avdtp_sink_media_closed(dbt_avdtp_sink_t *s,uint32_t binding){
     return dbt_avdtp_sink_media_closed_ex(s,binding,false);

@@ -61,7 +61,7 @@ typedef enum {DBT_AVDTP_LOCAL_PREPARING,DBT_AVDTP_LOCAL_WAIT_PEER,
 typedef struct {
     uint32_t token,binding,worker_token,drop_token,rollback_token,media_binding,worker_deadline_ms,rollback_deadline_ms;
     dbt_avdtp_local_outcome_t outcome;dbt_avdtp_local_phase_t phase;
-    dbt_sink_operation_t operation;
+    dbt_sink_operation_t operation,rollback_operation;
     dbt_avdtp_outcome_t transport_outcome;dbt_avdtp_type_t response_type;
     dbt_sink_work_result_t worker_result,drop_result,rollback_result;
     dbt_result_t worker_submit_result,drop_submit_result,rollback_submit_result;
@@ -114,7 +114,7 @@ struct dbt_avdtp_local {
  * only a fresh or terminal context. Begin returns PENDING only on acceptance.
  * Submitted/borrowed cancellation may retire signaling to avoid an uncertain
  * peer configuration. Local Open commits only signaling acceptance; the profile
- * must establish its media channel separately. Local reconfigure remains unfinished. */
+ * must establish its media channel separately. */
 void dbt_avdtp_local_init(dbt_avdtp_local_t *);
 dbt_result_t dbt_avdtp_sink_local_configure_begin(dbt_avdtp_sink_t *,dbt_avdtp_local_t *,
     uint8_t local_seid,uint8_t remote_seid,const uint8_t *,uint16_t,uint32_t,uint32_t *token);
@@ -142,6 +142,14 @@ dbt_result_t dbt_avdtp_sink_local_suspend_begin(dbt_avdtp_sink_t *,dbt_avdtp_loc
  * Rejection or unsent cancel retains the prior state unless media was lost. */
 dbt_result_t dbt_avdtp_sink_local_close_begin(dbt_avdtp_sink_t *,dbt_avdtp_local_t *,
     uint32_t media_binding,uint32_t now_ms,uint32_t *token);
+/* Reconfigure the current Open endpoint using Reconfigure TLVs, requiring
+ * an exact locally supported codec selection. Transport and negotiated Delay
+ * remain committed. New normalized bytes are copied; only caller context is
+ * borrowed. READY precedes wire release; Accept commits. Reject/pre-wire cancel
+ * restores the old committed codec through a separately acknowledged worker
+ * job when needed, without holding two decoder workspaces. */
+dbt_result_t dbt_avdtp_sink_local_reconfigure_begin(dbt_avdtp_sink_t *,dbt_avdtp_local_t *,
+    uint32_t media_binding,const uint8_t *,uint16_t,uint32_t now_ms,uint32_t *token);
 dbt_result_t dbt_avdtp_local_cancel(dbt_avdtp_local_t *,uint32_t token);
 dbt_result_t dbt_avdtp_local_result(const dbt_avdtp_local_t *,uint32_t token,dbt_avdtp_local_result_t *);
 

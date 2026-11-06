@@ -50,8 +50,12 @@ binding the reserved media channel on its OPEN event. Final drain completion
 wakeups are corrected. [Local Start](docs/AVDTP_LOCAL_START_2026_11_05.md) now
 checks exact channel lifetimes, commits on peer acceptance and waits for
 acknowledged renderer rollback on rejection/cancel. Worker, rollback and DROP
-results stay separate. No automatic caller is enabled. Selection and local
-reconfigure/abort initiation remain unfinished.
+results stay separate. No automatic caller is enabled. Peer selection and local
+Abort initiation remain unfinished.
+[Local Reconfigure](docs/AVDTP_LOCAL_RECONFIGURE_2026_11_05.md) now preserves
+committed settings until peer acceptance and restores them through an explicit
+worker operation on rejection/cancel, without two live decoder workspaces.
+No automatic Reconfigure caller is enabled.
 [Local Close](docs/AVDTP_LOCAL_CLOSE_2026_11_05.md) now joins decoder release and
 media retirement after peer acceptance. Full channel reason/status reaches
 the profile, so an error on a previously open channel cannot look like success.
@@ -66,7 +70,7 @@ Sustained performance remains unqualified.
 
 The owned Classic+BLE host is selected on the local COM6 board in ota1 at
 0x390000, marked VALID, with automatic Bluedroid restoration disabled. The
-verified image is `970367813cd023b69682897a49e543a1d2d4c5fde6a11aecabeae05fcbb81df8`.
+verified image is `048319c63de9299f0f5eb2e28790f90089a3b1c6809ff49aa1e25d57d6da531f`.
 This remains development firmware with incomplete feature/runtime qualification.
 
 Recent source corrections cover [codec payload boundaries and shared PCM

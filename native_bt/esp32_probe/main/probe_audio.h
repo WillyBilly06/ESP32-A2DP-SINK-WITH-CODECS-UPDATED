@@ -28,6 +28,8 @@ dbt_result_t probe_audio_suspend_begin(const dbt_a2dp_channel_t *signaling,const
     dbt_avdtp_local_t *,uint32_t *);
 dbt_result_t probe_audio_close_begin(const dbt_a2dp_channel_t *signaling,const dbt_a2dp_channel_t *media,
     dbt_avdtp_local_t *,uint32_t *);
+dbt_result_t probe_audio_reconfigure_begin(const dbt_a2dp_channel_t *signaling,const dbt_a2dp_channel_t *media,
+    dbt_avdtp_local_t *,const uint8_t *,uint16_t,uint32_t *);
 dbt_result_t probe_audio_local_cancel(dbt_avdtp_local_t *,uint32_t);
 dbt_result_t probe_audio_local_result(const dbt_avdtp_local_t *,uint32_t,dbt_avdtp_local_result_t *);
 /* Media follows local Open acceptance. Keys are copied; no audio start/default caller. */
