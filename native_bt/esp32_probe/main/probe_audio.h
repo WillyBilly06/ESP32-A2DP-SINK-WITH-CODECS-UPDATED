@@ -4,6 +4,7 @@
 #include "dbt_a2dp_connect.h"
 #include "dbt_avdtp_query.h"
 #include "dbt_a2dp_select.h"
+#include "dbt_a2dp_generate.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 /* Host-owner control/data hooks; decoder and PCM work run on the separate
@@ -52,6 +53,9 @@ dbt_result_t probe_audio_query_result(const dbt_avdtp_query_t *,uint32_t,dbt_avd
 dbt_result_t probe_audio_match(const dbt_a2dp_channel_t *,const dbt_avdtp_query_t *discover,uint32_t discover_token,
     const dbt_avdtp_query_t *capabilities,uint32_t capabilities_token,const dbt_a2dp_select_request_t *,
     uint8_t *configuration,uint16_t capacity,dbt_a2dp_select_result_t *);
+/* Generated strict family/format proposal using the same current query fences. */
+dbt_result_t probe_audio_generate(const dbt_a2dp_channel_t *,const dbt_avdtp_query_t *,uint32_t,
+    const dbt_avdtp_query_t *,uint32_t,const dbt_a2dp_generate_request_t *,uint8_t *,uint16_t,dbt_a2dp_generate_result_t *);
 dbt_result_t probe_audio_dial_begin(dbt_a2dp_connect_t *,dbt_gap_t *,dbt_a2dp_connect_config_t,uint32_t *);
 dbt_result_t probe_audio_dial_cancel(dbt_a2dp_connect_t *,uint32_t);
 dbt_result_t probe_audio_dial_result(dbt_a2dp_connect_t *,uint32_t,dbt_a2dp_connect_result_t *);

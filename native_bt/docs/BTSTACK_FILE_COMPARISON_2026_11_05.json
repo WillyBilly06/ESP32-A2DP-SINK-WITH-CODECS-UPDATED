@@ -609,7 +609,7 @@
     },
     {
       "owned": "native_bt/esp32_probe/components/native_bt/CMakeLists.txt",
-      "sha256": "854ff5ebbb37e5222b49456828507ed936ad6d0a1252ebb8c3f1b91c6762b1e2",
+      "sha256": "cc9d9b9ac6d3c739d046d7512466afb9f75a8e2e3ed37e90ebbe087ce5442e53",
       "lines": 72,
       "reference_files": [],
       "status": "reviewed_build",
@@ -684,16 +684,16 @@
     },
     {
       "owned": "native_bt/esp32_probe/main/probe_audio.c",
-      "sha256": "765e9c988692e4df44538c4afc1d9d7ce126f74c0b0b0dea5c49b8439d08346d",
-      "lines": 1090,
+      "sha256": "fcf0063ef45ff1788ee036c21e603a6a7b0f20455f1b2e53d3a6f180d8a4abfb",
+      "lines": 1118,
       "reference_files": [],
       "status": "partial_review",
       "mapping": "product/support code; no direct protocol counterpart assigned"
     },
     {
       "owned": "native_bt/esp32_probe/main/probe_audio.h",
-      "sha256": "44eba9199615b95d13f2a3ded213e46b1ac360b067893fed47b4d72ffc77a808",
-      "lines": 89,
+      "sha256": "71e81daa439e23b8cf7225a7e6ca2e3372151413e10102e2c30ddd945741dbfb",
+      "lines": 93,
       "reference_files": [],
       "status": "partial_review",
       "mapping": "product/support code; no direct protocol counterpart assigned"
@@ -3026,6 +3026,34 @@
       "status": "reviewed_contract",
       "mapping": "Independently authored exact-format proposal/validation boundary using current codec callbacks",
       "review_scope": "Complete authored body/contract read; aliasing, no-partial output, exact role/identity and local/peer validation reviewed. No active matching, full codec compatibility, field fuzz or runtime qualification."
+    },
+    {
+      "owned": "native_bt/src/dbt_a2dp_generate.c",
+      "sha256": "eccd7905c28bfddede314995c2b965b5bcf66604562fc69fddbc7d892e33f0bd",
+      "lines": 173,
+      "reference_files": [
+        "src/classic/a2dp.c",
+        "src/classic/avdtp_util.c",
+        "A2DP1.4.1 SBC limits",
+        "Owned exact matcher/current codec validators"
+      ],
+      "status": "reviewed_with_findings",
+      "mapping": "Requested-family candidate generation separate from source encoder-quality and cross-family policy",
+      "review_scope": "Complete authored body/contract read; strict field construction, numeric limits, exact validation, no-partial and ownership boundaries reviewed. No active generation/codec/extension/fuzz/runtime proof."
+    },
+    {
+      "owned": "native_bt/include/dbt_a2dp_generate.h",
+      "sha256": "ef19d42f42a157349dcb28a6653cd33d439b6e3356efe05902dffbea967bc29c",
+      "lines": 57,
+      "reference_files": [
+        "src/classic/a2dp.c",
+        "src/classic/avdtp_util.c",
+        "A2DP1.4.1 SBC limits",
+        "Owned exact matcher/current codec validators"
+      ],
+      "status": "reviewed_contract",
+      "mapping": "Requested-family candidate generation separate from source encoder-quality and cross-family policy",
+      "review_scope": "Complete authored body/contract read; strict field construction, numeric limits, exact validation, no-partial and ownership boundaries reviewed. No active generation/codec/extension/fuzz/runtime proof."
     }
   ],
   "findings": [
@@ -3893,6 +3921,25 @@
       ],
       "outcome": "Added pure exact-format proposal with real discovery/caps receipt fencing and current family validators on both endpoints. Preserved source-only app preferences and no-fallback selection. Broader backend/root bodies, automatic policy and all runtime qualification remain incomplete.",
       "full_layer_complete": false
+    },
+    {
+      "layer": "Requested family format generation and output ownership",
+      "owned": [
+        "native_bt/src/dbt_a2dp_generate.c",
+        "native_bt/include/dbt_a2dp_generate.h",
+        "native_bt/esp32_probe/main/probe_audio.c:shared query/ownership adapter",
+        "native_bt/esp32_probe/main/probe_audio.h",
+        "native_bt/esp32_probe/components/native_bt/CMakeLists.txt",
+        "native_bt/src/dbt_sbc_media.c:5-44",
+        "Current codec configure/validator sections"
+      ],
+      "reference": [
+        "A2DP1.4.1 frame bitpool/rate rules",
+        "src/classic/a2dp.c typed configuration boundaries",
+        "Owned exact matcher and codec CIE contracts"
+      ],
+      "outcome": "Added explicit-family parameter construction across current supported layouts with strict nonzero constraints, then exact local/peer validation. Preserved source-only preference ownership and bounded pure processing. Broad root/backend audit and runtime policy/quality qualification remain incomplete.",
+      "full_layer_complete": false
     }
   ],
   "integration_gaps": [
@@ -3939,12 +3986,12 @@
     }
   ],
   "coverage": {
-    "owned_files": 283,
-    "reviewed_owned_c_bodies": 27,
+    "owned_files": 285,
+    "reviewed_owned_c_bodies": 28,
     "partial_files": 19,
     "pending_files": 205,
     "compiled_owned_units_missing": 0,
-    "reviewed_headers": 20,
+    "reviewed_headers": 21,
     "reviewed_build_files": 6,
     "reviewed_generators": 4,
     "reviewed_static_data": 2
@@ -4193,14 +4240,24 @@
         "Delay has explicit version+mutual capability policy; alias/partial-output handling bounded, no heap/decoder work. App codec controls are Android method-channel preferences, not a new firmware BLE mask.",
         "Automatic candidate generation/ranking, existing-stream policy, durable reconnect/default caller and full capability/codec/extension/lifecycle/timing qualification remain incomplete."
       ]
+    },
+    {
+      "id": "A2DP-FAMILY-GENERATION",
+      "status": "implemented_requested_family_format_no_automatic_ranking_runtime_pending",
+      "notes": [
+        "All current advertised families construct candidates from exact rate/channels and active codec-specific constraints, then use existing exact matching/local+peer validation. No hidden family/rate/depth/bitrate-bound fallback.",
+        "SBC defaults fit current frame parser policy; AAC object/VBR/max bitrate, LDAC mode/rate, aptX variants, Opus durations/location/raw field and LHDC numeric min/max/depth/features handled separately. Source-only quality/PCM depth absent from CIE is not invented.",
+        "Current query fence shared by raw/generate adapter; output ownership protection now includes runtime, committed/pending config and signal storage. No heap/task/default instance.",
+        "Cross-family ranking, peer/reconnect/default policy, unknown extensions and full malformed/codec/quality/lifecycle/timing qualification remain unfinished."
+      ]
     }
   ],
   "next_review": [
-    "Implement automatic candidate generation/ranking only from actual source capabilities and explicit quality constraints; no bitrate/depth claims from fields that do not negotiate them. Exact CIE matcher exists; do not call it a complete automatic selector.",
-    "Complete queued/crossed control policy and durable Classic peer/reconnect/backoff/handover/default caller from actual baseline settings; app preferences are source-side Android controls.",
-    "Continue remaining file/feature/security/lifecycle/codec crash/audio underrun/LHDC headroom qualification. No new automatic RF under held campaigns."
+    "Complete cross-family preference/ranking and durable Classic peer/reconnect/backoff/handover/default caller from actual source policy and baseline storage, without overriding Android source preferences or claiming actual bitrate from nominal fields.",
+    "All basic local procedures, exact matcher and requested-family generator now exist; do not repeat source primitives. Complete queued/crossed state/backend policy before automatic integration.",
+    "Continue remaining file/feature/security/lifecycle/codec crash/audio underrun/LHDC headroom qualification. No new automatic RF under hold."
   ],
-  "latest_build_image": "85e6fe8a8ca3e4f44c196b52ab72b5e4655d1b3b5e16c9d30c58f83c4abec153",
+  "latest_build_image": "7b94c38cde7ad4266754d3c8e7586e1e5a67947b2991ac2e25bfaa51923e2029",
   "verification_source_contracts": [
     {
       "file": "native_bt/tools/test_ldac_target_component.py",

@@ -2,7 +2,7 @@
 
 A fresh checkout of https://github.com/bluekitchen/btstack is at D:/BluetoothReferences/btstack-20261105, pinned to upstream HEAD 9edb5d82ea6ec4466a393415d65030929330acdf. This is the same pin as the earlier nine-file reference list. That earlier list was not an exhaustive code audit. BTstack code is not integrated into the owned host or its build dependencies.
 
-The machine-readable [coverage ledger](BTSTACK_FILE_COMPARISON_2026_11_05.json) inventories 281 owned implementation/build inputs (C/header/data/linker files, source generators, platform/product integration and fixed DSP), with source hashes and counterpart candidates. Mapping is many-to-many because the implementations divide responsibilities differently. Files, missing handlers and modules with no reachable product caller are all included. Unreviewed rows remain explicitly pending. This report does not claim that all 283 files have been compared.
+The machine-readable [coverage ledger](BTSTACK_FILE_COMPARISON_2026_11_05.json) inventories 281 owned implementation/build inputs (C/header/data/linker files, source generators, platform/product integration and fixed DSP), with source hashes and counterpart candidates. Mapping is many-to-many because the implementations divide responsibilities differently. Files, missing handlers and modules with no reachable product caller are all included. Unreviewed rows remain explicitly pending. This report does not claim that all 285 files have been compared.
 
 ## Confirmed first-layer defects
 
@@ -199,8 +199,16 @@ The owner adapter consumes current terminal accepted complete Discover and Get[A
 
 Two authored source/contract inputs enter the ledger: 283 inputs, 27 reviewed C bodies, 20 reviewed headers; 205 pending and 19 partial remain. Larger root/codec/backend bodies retain scoped review. Full feature/security/lifecycle/audio/headroom and crossed/reconnect policy remain unfinished.
 
+## Requested-family codec candidate generation
+
+The [generation review](A2DP_CANDIDATE_GENERATION_2026_11_05.md) adds explicit family/rate/channel generation for current SBC/AAC/aptX variants/LDAC/Opus variants/LHDC layouts, followed by exact matching. Nonzero codec-specific requests stay strict. SBC defaults fit current frame bounds; AAC object/VBR/bitrate, Opus duration/location/raw field and LHDC numeric ranges/depth/features retain distinct semantics. LDAC source quality and non-negotiated PCM depth are not invented as CIE fields. No automatic cross-family ranking or caller is supplied.
+
+The owner adapters share current discovery/capability receipt fences. Known profile/runtime/config/signal storage is protected against output aliasing. Strict Clang, target compilation and full ccache/source/workspace checks pass. Request/result ABI is 28/36 bytes; generator own frame 208 excludes matcher 416 and the remaining chain. It is not stack-headroom measurement. Default image omits generator symbols; text/BSS/IRAM/data remain unchanged. Active/malformed/codec/quality/latency proof is missing.
+
+The ledger now has 285 inputs, 28 reviewed C bodies and 21 header contracts; 205 pending and 19 partial remain. Larger root/backend bodies retain partial scope. Ranking, durable peer/default/reconnect, crossed policy and full feature/security/lifecycle/audio qualification remain unfinished.
+
 ## Current COM6 deployment
 
-Image 85e6fe8a8ca3e4f44c196b52ab72b5e4655d1b3b5e16c9d30c58f83c4abec153 was flashed at 921600 baud to ota1 at 0x390000. The first verification attempt failed on a short UART chunk; the supported retry at the same rates completed full image and selector readbacks at 230400. Both match and original application MD5 is unchanged. The owned host stays selected VALID. Ordinary startup reaches ready without watchdog/backtrace. Decoder CPU0 priority21, host CPU1 priority22 and renderer CPU1 priority20 remain selected.
+Image 7b94c38cde7ad4266754d3c8e7586e1e5a67947b2991ac2e25bfaa51923e2029 was flashed at 921600 baud to ota1 at 0x390000. Full image and selector readbacks at 230400 match; original application MD5 is unchanged. The owned host stays selected VALID. Ordinary startup is ready with no watchdog/backtrace. Decoder CPU0 priority21, host CPU1 priority22 and renderer CPU1 priority20 remain selected.
 
-Retained RX remains 16384 bytes; encoded input remains 1800 bytes × 8. Idle heap is 138008 free/69636 minimum/110592 largest bytes. Text 873947, BSS 50316, IRAM 122255 and DRAM data 23893 are unchanged. New matcher request/result is 12/24 bytes, own compiler frame 416 excluding callees. Its symbols are unlinked in the default image, so ordinary boot does not qualify it. UART source 109 is connected. The existing 37 startup codec cases pass (RF false); no separate matcher/RF/playback/app/timing campaign ran. Successful archive: native_bt/_build/hardware/runs/1793937197213764700-85e6fe8a8ca3/. Failed first-attempt archive remains separate.
+Retained RX remains 16384 bytes; encoded input remains 1800 bytes × 8. Idle heap is 138008 free/69636 minimum/110592 largest bytes. Text 873947, BSS 50316, IRAM 122255 and DRAM data 23893 are unchanged. Generator request/result is 28/36 bytes, own compiler frame 208 excluding callees. Its symbols are unlinked, so ordinary boot does not qualify it. UART source 111 is connected. The existing 37 startup codec cases pass (RF false); no separate generation/RF/playback/app/timing campaign ran. Archive: native_bt/_build/hardware/runs/1793938794107942700-7b94c38cde7a/.

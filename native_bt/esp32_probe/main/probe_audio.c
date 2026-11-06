@@ -883,44 +883,72 @@ dbt_result_t probe_audio_query_result(const dbt_avdtp_query_t *query,uint32_t to
 static bool match_overlap(const void *a,unsigned an,const void *b,unsigned bn){
     uintptr_t x=(uintptr_t)a,y=(uintptr_t)b;return an && bn && (x<=y?y-x<an:x-y<bn);
 }
-static bool match_output_alias(uint8_t *configuration,uint16_t capacity,dbt_a2dp_select_result_t *result,const void *p,unsigned bytes){
-    return match_overlap(configuration,capacity,p,bytes) || match_overlap(result,sizeof(*result),p,bytes);
+static bool match_owned(const void *p,unsigned n){
+    const dbt_avdtp_sink_t *sink=&profile.sink;const dbt_avdtp_t *signal=&sink->signal;
+    return match_overlap(p,n,&profile,sizeof(profile)) ||
+        (profile.runtime && match_overlap(p,n,profile.runtime,sizeof(*profile.runtime))) ||
+        match_overlap(p,n,sink->configuration,sink->configuration_size) ||
+        match_overlap(p,n,sink->pending.configuration,sink->pending.size) ||
+        match_overlap(p,n,signal->rx,signal->rx_capacity) || match_overlap(p,n,signal->packet,signal->packet_size) ||
+        match_overlap(p,n,signal->tx[0].data,signal->tx[0].size) || match_overlap(p,n,signal->tx[1].data,signal->tx[1].size);
+}
+static bool match_output_alias(uint8_t *configuration,uint16_t capacity,void *result,unsigned result_size,const void *p,unsigned bytes){
+    return match_overlap(configuration,capacity,p,bytes) || match_overlap(result,result_size,p,bytes);
+}
+static bool match_buffers(uint8_t *configuration,uint16_t capacity,void *result,unsigned result_size,
+    const dbt_a2dp_channel_t *key,const dbt_avdtp_query_t *discover,const dbt_avdtp_query_t *capabilities,const void *request,unsigned request_size){
+    return key && discover && capabilities && request && result && (configuration || !capacity) &&
+        !match_owned(configuration,capacity) && !match_owned(result,result_size) && !match_overlap(configuration,capacity,result,result_size) &&
+        !match_output_alias(configuration,capacity,result,result_size,key,sizeof(*key)) &&
+        !match_output_alias(configuration,capacity,result,result_size,request,request_size) &&
+        !match_output_alias(configuration,capacity,result,result_size,discover,sizeof(*discover)) &&
+        !match_output_alias(configuration,capacity,result,result_size,capabilities,sizeof(*capabilities)) &&
+        !match_output_alias(configuration,capacity,result,result_size,discover->response,discover->capacity) &&
+        !match_output_alias(configuration,capacity,result,result_size,capabilities->response,capabilities->capacity);
 }
 static bool match_receipt(const dbt_avdtp_query_result_t *r,uint32_t binding){
     return r->binding==binding && r->outcome==DBT_AVDTP_QUERY_SUCCESS && r->transport_outcome==DBT_AVDTP_RESPONSE &&
         r->response_seen && r->response_type==DBT_AVDTP_ACCEPT && r->payload_status==DBT_OK &&
         !r->cancel_requested && r->bytes==r->required;
 }
-dbt_result_t probe_audio_match(const dbt_a2dp_channel_t *key,const dbt_avdtp_query_t *discover,uint32_t discover_token,
-    const dbt_avdtp_query_t *capabilities,uint32_t capabilities_token,const dbt_a2dp_select_request_t *request,
-    uint8_t *configuration,uint16_t capacity,dbt_a2dp_select_result_t *result){
-    if(!key || !discover || !capabilities || !request || !result || (!configuration && capacity) ||
-       match_output_alias(configuration,capacity,result,&profile,sizeof(profile)) ||
-       match_output_alias(configuration,capacity,result,key,sizeof(*key)) ||
-       match_output_alias(configuration,capacity,result,request,sizeof(*request)) ||
-       match_output_alias(configuration,capacity,result,discover,sizeof(*discover)) ||
-       match_output_alias(configuration,capacity,result,capabilities,sizeof(*capabilities)) ||
-       match_output_alias(configuration,capacity,result,discover->response,discover->capacity) ||
-       match_output_alias(configuration,capacity,result,capabilities->response,capabilities->capacity))return DBT_INVALID;
+static dbt_result_t match_view(const dbt_a2dp_channel_t *key,const dbt_avdtp_query_t *discover,uint32_t discover_token,
+    const dbt_avdtp_query_t *capabilities,uint32_t capabilities_token,dbt_avdtp_sep_t *peer,const uint8_t **body,uint16_t *bytes){
     if(!initialized || restart_hold)return DBT_BUSY;
     dbt_result_t ready=dbt_a2dp_acceptor_connect_status(&profile,key);
     if(ready!=DBT_OK)return ready==DBT_PENDING?DBT_BUSY:ready;
     if(discover->signal!=&profile.sink.signal || capabilities->signal!=&profile.sink.signal)return DBT_EMPTY;
-    dbt_avdtp_query_result_t d,c;const uint8_t *records,*body;
+    dbt_avdtp_query_result_t d,c;const uint8_t *records;
     ready=dbt_avdtp_query_result(discover,discover_token,&d,&records);
     if(ready!=DBT_OK)return ready==DBT_PENDING?DBT_BUSY:ready;
-    ready=dbt_avdtp_query_result(capabilities,capabilities_token,&c,&body);
+    ready=dbt_avdtp_query_result(capabilities,capabilities_token,&c,body);
     if(ready!=DBT_OK)return ready==DBT_PENDING?DBT_BUSY:ready;
     if(!match_receipt(&d,key->serial) || !match_receipt(&c,key->serial) || d.command!=DBT_AVDTP_DISCOVER ||
        (c.command!=DBT_AVDTP_GET_CAPABILITIES && c.command!=DBT_AVDTP_GET_ALL_CAPABILITIES))return DBT_UNSUPPORTED;
-    uint16_t cursor=0;dbt_avdtp_sep_t peer;
+    uint16_t cursor=0;
     for(unsigned i=0;i<62;++i){
-        ready=dbt_avdtp_sep_next(records,d.bytes,&cursor,&peer);
+        ready=dbt_avdtp_sep_next(records,d.bytes,&cursor,peer);
         if(ready!=DBT_OK)return ready;
-        if(peer.seid==c.seid)return dbt_a2dp_select_exact(endpoints,(uint8_t)(sizeof(endpoints)/sizeof(endpoints[0])),
-            &peer,body,c.bytes,request,configuration,capacity,result);
+        if(peer->seid==c.seid){*bytes=c.bytes;return DBT_OK;}
     }
     return DBT_EMPTY;
+}
+dbt_result_t probe_audio_match(const dbt_a2dp_channel_t *key,const dbt_avdtp_query_t *discover,uint32_t discover_token,
+    const dbt_avdtp_query_t *capabilities,uint32_t capabilities_token,const dbt_a2dp_select_request_t *request,
+    uint8_t *configuration,uint16_t capacity,dbt_a2dp_select_result_t *result){
+    if(!match_buffers(configuration,capacity,result,sizeof(*result),key,discover,capabilities,request,sizeof(*request)))return DBT_INVALID;
+    dbt_avdtp_sep_t peer;const uint8_t *body;uint16_t bytes;
+    dbt_result_t ready=match_view(key,discover,discover_token,capabilities,capabilities_token,&peer,&body,&bytes);
+    if(ready!=DBT_OK)return ready;
+    return dbt_a2dp_select_exact(endpoints,(uint8_t)(sizeof(endpoints)/sizeof(endpoints[0])),&peer,body,bytes,request,configuration,capacity,result);
+}
+dbt_result_t probe_audio_generate(const dbt_a2dp_channel_t *key,const dbt_avdtp_query_t *discover,uint32_t discover_token,
+    const dbt_avdtp_query_t *capabilities,uint32_t capabilities_token,const dbt_a2dp_generate_request_t *request,
+    uint8_t *configuration,uint16_t capacity,dbt_a2dp_generate_result_t *result){
+    if(!match_buffers(configuration,capacity,result,sizeof(*result),key,discover,capabilities,request,sizeof(*request)))return DBT_INVALID;
+    dbt_avdtp_sep_t peer;const uint8_t *body;uint16_t bytes;
+    dbt_result_t ready=match_view(key,discover,discover_token,capabilities,capabilities_token,&peer,&body,&bytes);
+    if(ready!=DBT_OK)return ready;
+    return dbt_a2dp_generate(endpoints,(uint8_t)(sizeof(endpoints)/sizeof(endpoints[0])),&peer,body,bytes,request,configuration,capacity,result);
 }
 dbt_result_t probe_audio_dial_begin(dbt_a2dp_connect_t *context,dbt_gap_t *gap,
                                     dbt_a2dp_connect_config_t config,uint32_t *token){
