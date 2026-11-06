@@ -54,7 +54,7 @@ typedef enum {
     DBT_AVDTP_LOCAL_NONE,DBT_AVDTP_LOCAL_SUCCESS,DBT_AVDTP_LOCAL_PEER_REJECTED,
     DBT_AVDTP_LOCAL_WORKER_REJECTED,DBT_AVDTP_LOCAL_WORKER_FATAL,
     DBT_AVDTP_LOCAL_WORKER_TIMEOUT,DBT_AVDTP_LOCAL_CANCELLED,
-    DBT_AVDTP_LOCAL_REMOTE_ABORT,DBT_AVDTP_LOCAL_SIGNAL_ERROR,DBT_AVDTP_LOCAL_CLEANUP_ERROR,DBT_AVDTP_LOCAL_ROLLBACK_ERROR
+    DBT_AVDTP_LOCAL_REMOTE_ABORT,DBT_AVDTP_LOCAL_SIGNAL_ERROR,DBT_AVDTP_LOCAL_CLEANUP_ERROR,DBT_AVDTP_LOCAL_ROLLBACK_ERROR,DBT_AVDTP_LOCAL_MEDIA_ERROR,DBT_AVDTP_LOCAL_MEDIA_TIMEOUT
 } dbt_avdtp_local_outcome_t;
 typedef enum {DBT_AVDTP_LOCAL_PREPARING,DBT_AVDTP_LOCAL_WAIT_PEER,
     DBT_AVDTP_LOCAL_CLEANUP,DBT_AVDTP_LOCAL_RETIRING,DBT_AVDTP_LOCAL_DONE,DBT_AVDTP_LOCAL_ROLLBACK,DBT_AVDTP_LOCAL_WAIT_MEDIA_CLOSE,DBT_AVDTP_LOCAL_APPLYING} dbt_avdtp_local_phase_t;
@@ -66,11 +66,11 @@ typedef struct {
     dbt_sink_work_result_t worker_result,drop_result,rollback_result;
     dbt_result_t worker_submit_result,drop_submit_result,rollback_submit_result;
     uint16_t worker_busy,drop_busy,rollback_busy;
-    uint16_t configuration_size;
-    uint8_t local_seid,remote_seid,label,command,peer_category,peer_error,peer_seid;
+    uint16_t configuration_size,media_status;
+    uint8_t local_seid,remote_seid,label,command,peer_category,peer_error,peer_seid,media_event,media_reason;
     bool transport_done,response_seen,worker_accepted,worker_result_valid;
     bool drop_accepted,drop_result_valid,cancel_requested,remote_abort;
-    bool rollback_accepted,rollback_result_valid,rollback_timed_out,abort_response_admitted,media_closed,command_cancelled_unsent;
+    bool rollback_accepted,rollback_result_valid,rollback_timed_out,abort_response_admitted,media_closed,command_cancelled_unsent,media_close_requested,media_close_failed,media_timed_out,media_event_valid;
     bool worker_timed_out,cleanup_timed_out,cleanup_complete,resources_transferred,profile_retired;
 } dbt_avdtp_local_result_t;
 
@@ -136,6 +136,12 @@ dbt_result_t dbt_avdtp_sink_local_start_begin(dbt_avdtp_sink_t *,dbt_avdtp_local
  * The caller must supply the exact bound media lifetime, as for Start. */
 dbt_result_t dbt_avdtp_sink_local_suspend_begin(dbt_avdtp_sink_t *,dbt_avdtp_local_t *,
     uint32_t media_binding,uint32_t now_ms,uint32_t *token);
+/* Close from established Open/Streaming: keep the prior stream before peer
+ * acceptance, then join asynchronous decoder release and exact media closure.
+ * The caller context/configuration remain reserved until both are acknowledged.
+ * Rejection or unsent cancel retains the prior state unless media was lost. */
+dbt_result_t dbt_avdtp_sink_local_close_begin(dbt_avdtp_sink_t *,dbt_avdtp_local_t *,
+    uint32_t media_binding,uint32_t now_ms,uint32_t *token);
 dbt_result_t dbt_avdtp_local_cancel(dbt_avdtp_local_t *,uint32_t token);
 dbt_result_t dbt_avdtp_local_result(const dbt_avdtp_local_t *,uint32_t token,dbt_avdtp_local_result_t *);
 
@@ -157,6 +163,8 @@ dbt_result_t dbt_avdtp_sink_complete(dbt_avdtp_sink_t *sink, uint32_t binding,
  * its unique nonzero lifetime here. OPEN response admission precedes this call. */
 dbt_result_t dbt_avdtp_sink_media_open(dbt_avdtp_sink_t *sink, uint32_t media_binding, uint32_t now_ms);
 dbt_result_t dbt_avdtp_sink_media_closed(dbt_avdtp_sink_t *sink, uint32_t media_binding);
+/* Owner distinguishes failed transport retirement from an acknowledged close. */
+dbt_result_t dbt_avdtp_sink_media_closed_ex(dbt_avdtp_sink_t *,uint32_t media_binding,bool transport_failed);
 dbt_result_t dbt_avdtp_sink_media_receive(dbt_avdtp_sink_t *sink, uint32_t media_binding,
     const uint8_t *packet, uint16_t size);
 dbt_result_t dbt_avdtp_sink_delay(dbt_avdtp_sink_t *sink, uint16_t delay_100us, uint32_t now_ms);

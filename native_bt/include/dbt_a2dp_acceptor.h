@@ -62,6 +62,10 @@ dbt_result_t dbt_a2dp_acceptor_media_cancel(dbt_a2dp_acceptor_t *,const dbt_a2dp
  * a composite application must close that channel explicitly. */
 dbt_result_t dbt_a2dp_acceptor_event(dbt_a2dp_acceptor_t *profile,dbt_channel_event_t event,
     const dbt_channel_t *channel);
+/* Production routing must retain reason/status: CLOSED also covers failure of
+ * a formerly open channel. The legacy wrapper assumes NORMAL/status0. */
+dbt_result_t dbt_a2dp_acceptor_event_ex(dbt_a2dp_acceptor_t *,dbt_channel_event_t,
+    const dbt_channel_t *,dbt_channel_reason_t reason,uint16_t wire_result);
 /* Malformed signaling returns INVALID and increments sink.signal.discarded
  * without retiring live media. Transport/lifetime/resource failures still drain. */
 dbt_result_t dbt_a2dp_acceptor_receive(dbt_a2dp_acceptor_t *profile,const dbt_channel_t *channel,

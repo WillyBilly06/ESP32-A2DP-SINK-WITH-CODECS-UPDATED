@@ -78,8 +78,8 @@ static void local_retired(dbt_avdtp_sink_t *s){
     c->result.profile_retired=true;c->result.cleanup_complete=!s->worker_live;
     local_finish(s,c,DBT_AVDTP_LOCAL_SIGNAL_ERROR);
 }
-static bool local_suspend_accepted(const dbt_avdtp_local_t *c){
-    return c->result.operation==DBT_SINK_SUSPEND && c->result.transport_done &&
+static bool local_accepted(const dbt_avdtp_local_t *c,dbt_sink_operation_t operation){
+    return c->result.operation==operation && c->result.transport_done &&
         c->result.response_seen && c->result.response_type==DBT_AVDTP_ACCEPT;
 }
 static void local_response(void *context,dbt_avdtp_outcome_t outcome,const dbt_avdtp_message_t *m){
@@ -97,6 +97,16 @@ static void local_response(void *context,dbt_avdtp_outcome_t outcome,const dbt_a
            s->media_binding==r->media_binding && s->pending.operation==DBT_SINK_SUSPEND && s->pending.done){
             begin(s,DBT_SINK_SUSPEND,c->endpoint,true,true);r->phase=DBT_AVDTP_LOCAL_APPLYING;
             r->worker_token=s->pending.token;r->worker_deadline_ms=s->pending.deadline;
+        }else if(m->type==DBT_AVDTP_ACCEPT && r->operation==DBT_SINK_CLOSE && c->wire_released &&
+           !r->cancel_requested && !s->failed && !s->retiring &&
+           (s->state==DBT_STREAM_OPEN || s->state==DBT_STREAM_STREAMING || (s->state==DBT_STREAM_CLOSING && r->media_closed)) &&
+           (s->media_binding==r->media_binding || (!s->media_binding && r->media_closed)) &&
+           s->pending.operation==DBT_SINK_CLOSE && s->pending.done){
+            begin(s,DBT_SINK_CLOSE,c->endpoint,true,true);r->phase=DBT_AVDTP_LOCAL_APPLYING;
+            r->worker_token=s->pending.token;r->worker_deadline_ms=s->pending.deadline;
+            s->state=DBT_STREAM_CLOSING;s->media_deadline=s->signal.now_ms+s->media_ms;
+            emit(s,DBT_SINK_STATE);
+            if(s->media_binding){r->media_close_requested=true;emit(s,DBT_SINK_CLOSE_MEDIA);}
         }else if(m->type==DBT_AVDTP_ACCEPT && c->wire_released && !r->cancel_requested &&
            !s->failed && !s->retiring && s->pending.operation==r->operation &&
            s->pending.done && r->worker_result_valid && r->worker_result==DBT_SINK_WORK_READY &&
@@ -143,9 +153,13 @@ static dbt_result_t local_worker_complete(dbt_avdtp_sink_t *s,dbt_sink_work_resu
     }else {
         c->result.worker_result=result;c->result.worker_result_valid=true;
         if(due(now,p->deadline)){c->result.worker_timed_out=true;local_outcome(c,DBT_AVDTP_LOCAL_WORKER_TIMEOUT);}
-        if(local_suspend_accepted(c) && (result!=DBT_SINK_WORK_READY || c->result.worker_timed_out)){
+        if((local_accepted(c,DBT_SINK_SUSPEND) || local_accepted(c,DBT_SINK_CLOSE)) &&
+           (result!=DBT_SINK_WORK_READY || c->result.worker_timed_out)){
             local_failure(s,c,c->result.worker_timed_out?DBT_AVDTP_LOCAL_WORKER_TIMEOUT:
                 result==DBT_SINK_WORK_FATAL?DBT_AVDTP_LOCAL_WORKER_FATAL:DBT_AVDTP_LOCAL_WORKER_REJECTED);
+        }else if(local_accepted(c,DBT_SINK_CLOSE) && result==DBT_SINK_WORK_READY){
+            s->worker_live=false;
+            if(!s->failed)c->result.phase=s->media_binding?DBT_AVDTP_LOCAL_WAIT_MEDIA_CLOSE:DBT_AVDTP_LOCAL_CLEANUP;
         }else if(result==DBT_SINK_WORK_REJECTED){
             if(c->result.operation==DBT_SINK_CONFIGURE)s->worker_live=false;
             local_outcome(c,DBT_AVDTP_LOCAL_WORKER_REJECTED);
@@ -164,23 +178,31 @@ static void local_poll(dbt_avdtp_sink_t *s,uint32_t now){
     dbt_avdtp_local_result_t *r=&c->result;dbt_sink_pending_t *p=&s->pending;
     if(!c->cleaning && !p->done && due(now,p->deadline)){
         r->worker_timed_out=true;local_outcome(c,DBT_AVDTP_LOCAL_WORKER_TIMEOUT);
-        if(local_suspend_accepted(c)){local_failure(s,c,DBT_AVDTP_LOCAL_WORKER_TIMEOUT);return;}
+        if(local_accepted(c,DBT_SINK_SUSPEND) || local_accepted(c,DBT_SINK_CLOSE)){local_failure(s,c,DBT_AVDTP_LOCAL_WORKER_TIMEOUT);return;}
     }
     bool cleanup=r->cancel_requested || r->outcome!=DBT_AVDTP_LOCAL_NONE;
     if(!cleanup && !c->wire_released && p->done){
-        if(r->operation!=DBT_SINK_SUSPEND && (!r->worker_result_valid || r->worker_result!=DBT_SINK_WORK_READY)){
+        if(r->operation!=DBT_SINK_SUSPEND && r->operation!=DBT_SINK_CLOSE && (!r->worker_result_valid || r->worker_result!=DBT_SINK_WORK_READY)){
             local_failure(s,c,DBT_AVDTP_LOCAL_WORKER_FATAL);return;
         }
         dbt_result_t ready=dbt_avdtp_command_ready(&s->signal,s->binding,r->label,&c->completion,now);
         if(ready!=DBT_OK){local_failure(s,c,DBT_AVDTP_LOCAL_SIGNAL_ERROR);return;}
         c->wire_released=true;r->phase=DBT_AVDTP_LOCAL_WAIT_PEER;return;
     }
-    if(!cleanup && local_suspend_accepted(c) && p->done){
+    if(!cleanup && local_accepted(c,DBT_SINK_SUSPEND) && p->done){
         if(!r->worker_result_valid || r->worker_result!=DBT_SINK_WORK_READY ||
            s->state!=DBT_STREAM_STREAMING || s->media_binding!=r->media_binding){
             local_failure(s,c,DBT_AVDTP_LOCAL_WORKER_FATAL);return;
         }
         c->notifying=true;s->state=DBT_STREAM_OPEN;local_finish(s,c,DBT_AVDTP_LOCAL_SUCCESS);
+        emit(s,DBT_SINK_STATE);drop_pending(s);c->notifying=false;return;
+    }
+    if(!cleanup && local_accepted(c,DBT_SINK_CLOSE)){
+        if(!p->done || s->media_binding)return;
+        if(!r->worker_result_valid || r->worker_result!=DBT_SINK_WORK_READY || s->worker_live || !r->media_closed){
+            local_failure(s,c,DBT_AVDTP_LOCAL_CLEANUP_ERROR);return;
+        }
+        c->notifying=true;idle(s);r->cleanup_complete=true;local_finish(s,c,DBT_AVDTP_LOCAL_SUCCESS);
         emit(s,DBT_SINK_STATE);drop_pending(s);c->notifying=false;return;
     }
     if(!cleanup)return;
@@ -192,6 +214,9 @@ static void local_poll(dbt_avdtp_sink_t *s,uint32_t now){
     if(r->cancel_requested && c->wire_released && !r->remote_abort && !r->command_cancelled_unsent &&
        (!r->transport_done || (r->response_seen && r->response_type==DBT_AVDTP_ACCEPT))){
         local_failure(s,c,DBT_AVDTP_LOCAL_CANCELLED);return;
+    }
+    if(r->operation==DBT_SINK_CLOSE && r->media_closed && !r->remote_abort){
+        local_failure(s,c,DBT_AVDTP_LOCAL_SIGNAL_ERROR);return;
     }
     if(!c->cleaning){c->cleaning=true;r->phase=DBT_AVDTP_LOCAL_CLEANUP;}
     bool release=r->operation==DBT_SINK_CONFIGURE || r->remote_abort;
@@ -222,7 +247,7 @@ static void local_poll(dbt_avdtp_sink_t *s,uint32_t now){
     }
     if(r->cleanup_complete && r->remote_abort && r->abort_response_admitted && s->media_binding){
         if(s->state!=DBT_STREAM_ABORTING){
-            s->state=DBT_STREAM_ABORTING;s->media_deadline=now+s->media_ms;r->phase=DBT_AVDTP_LOCAL_WAIT_MEDIA_CLOSE;
+            s->state=DBT_STREAM_ABORTING;s->media_deadline=now+s->media_ms;r->phase=DBT_AVDTP_LOCAL_WAIT_MEDIA_CLOSE;r->media_close_requested=true;
             emit(s,DBT_SINK_STATE);emit(s,DBT_SINK_CLOSE_MEDIA);
         }
         return; /* Media closure/event or its deadline wakes the owner. */
@@ -237,7 +262,8 @@ static uint32_t local_wait(const dbt_avdtp_sink_t *s){
     const dbt_avdtp_local_result_t *r=&c->result;
     if((r->cancel_requested || r->outcome!=DBT_AVDTP_LOCAL_NONE) && !c->cleaning)return 0;
     if(!c->wire_released && s->pending.done && !c->cleaning)return 0;
-    if(local_suspend_accepted(c) && s->pending.done && !c->cleaning)return 0;
+    if(local_accepted(c,DBT_SINK_SUSPEND) && s->pending.done && !c->cleaning)return 0;
+    if(local_accepted(c,DBT_SINK_CLOSE) && s->pending.done && !s->media_binding && !c->cleaning)return 0;
     if(c->cleaning && !c->drop_started && (r->remote_abort ||
        (!r->cleanup_complete && (!r->worker_accepted || s->pending.done))))return 0;
     if(r->cleanup_complete){
@@ -505,6 +531,10 @@ static dbt_result_t local_control_begin(dbt_avdtp_sink_t *s,dbt_avdtp_local_t *c
     }else if(operation==DBT_SINK_SUSPEND){
         if(s->state!=DBT_STREAM_STREAMING || !media_binding || media_binding!=s->media_binding)return DBT_INVALID;
         command=DBT_AVDTP_SUSPEND;
+    }else if(operation==DBT_SINK_CLOSE){
+        if((s->state!=DBT_STREAM_OPEN && s->state!=DBT_STREAM_STREAMING) ||
+           !media_binding || media_binding!=s->media_binding)return DBT_INVALID;
+        command=DBT_AVDTP_CLOSE;
     }else return DBT_INVALID;
     if(c->serial==UINT32_MAX)return DBT_NO_SPACE;
     uint8_t body=(uint8_t)(s->remote_seid<<2),label;
@@ -517,7 +547,7 @@ static dbt_result_t local_control_begin(dbt_avdtp_sink_t *s,dbt_avdtp_local_t *c
     c->result.remote_seid=s->remote_seid;c->result.label=label;c->result.command=command;c->result.media_binding=media_binding;
     c->result.operation=operation;c->result.configuration_size=s->configuration_size;
     c->result.phase=DBT_AVDTP_LOCAL_PREPARING;s->local=c;
-    bool work=operation!=DBT_SINK_SUSPEND;begin(s,operation,s->endpoint,work,true);
+    bool work=operation!=DBT_SINK_SUSPEND && operation!=DBT_SINK_CLOSE;begin(s,operation,s->endpoint,work,true);
     if(work){c->result.worker_token=s->pending.token;c->result.worker_deadline_ms=s->pending.deadline;}
     *id=serial;return DBT_PENDING;
 }
@@ -529,6 +559,9 @@ dbt_result_t dbt_avdtp_sink_local_start_begin(dbt_avdtp_sink_t *s,dbt_avdtp_loca
 }
 dbt_result_t dbt_avdtp_sink_local_suspend_begin(dbt_avdtp_sink_t *s,dbt_avdtp_local_t *c,uint32_t media,uint32_t now,uint32_t *id){
     return local_control_begin(s,c,DBT_SINK_SUSPEND,media,now,id);
+}
+dbt_result_t dbt_avdtp_sink_local_close_begin(dbt_avdtp_sink_t *s,dbt_avdtp_local_t *c,uint32_t media,uint32_t now,uint32_t *id){
+    return local_control_begin(s,c,DBT_SINK_CLOSE,media,now,id);
 }
 dbt_result_t dbt_avdtp_local_cancel(dbt_avdtp_local_t *c,uint32_t token){
     if(!c || !token)return DBT_INVALID;
@@ -610,7 +643,9 @@ dbt_result_t dbt_avdtp_sink_poll(dbt_avdtp_sink_t *s,uint32_t now) {
     bool media_wait=(s->state==DBT_STREAM_OPEN && !s->media_binding) ||
         ((s->state==DBT_STREAM_CLOSING || s->state==DBT_STREAM_ABORTING) && s->media_binding);
     if(!s->retiring && media_wait && due(now,s->media_deadline)){
-        fault(s);return DBT_INVALID;
+        if(s->local){s->local->result.media_timed_out=true;local_failure(s,s->local,DBT_AVDTP_LOCAL_MEDIA_TIMEOUT);}
+        else fault(s);
+        return DBT_INVALID;
     }
     if(s->local && !s->retiring){local_poll(s,now);if(s->failed)return DBT_INVALID;}
     dbt_sink_pending_t *p=&s->pending;
@@ -624,7 +659,7 @@ dbt_result_t dbt_avdtp_sink_poll(dbt_avdtp_sink_t *s,uint32_t now) {
         if(s->local){
             dbt_avdtp_local_result_t *r=&s->local->result;
             if(p->operation==DBT_SINK_CONFIGURE || p->operation==DBT_SINK_OPEN || p->operation==DBT_SINK_START ||
-               (p->operation==DBT_SINK_SUSPEND && r->operation==DBT_SINK_SUSPEND)){r->worker_submit_result=result;if(result==DBT_OK)r->worker_accepted=true;
+               ((p->operation==DBT_SINK_SUSPEND || p->operation==DBT_SINK_CLOSE) && p->operation==r->operation)){r->worker_submit_result=result;if(result==DBT_OK)r->worker_accepted=true;
                 else if(result==DBT_BUSY && r->worker_busy<UINT16_MAX)++r->worker_busy;}
             else if(p->operation==DBT_SINK_SUSPEND && s->local->rollback_started){r->rollback_submit_result=result;if(result==DBT_OK)r->rollback_accepted=true;
                 else if(result==DBT_BUSY && r->rollback_busy<UINT16_MAX)++r->rollback_busy;}
@@ -647,22 +682,37 @@ dbt_result_t dbt_avdtp_sink_media_open(dbt_avdtp_sink_t *s,uint32_t binding,uint
     if(due(now,s->media_deadline)){fault(s);return DBT_INVALID;}
     s->media_binding=binding;s->media_deadline=0;s->media_packets=s->media_rejected=0;return DBT_OK;
 }
-dbt_result_t dbt_avdtp_sink_media_closed(dbt_avdtp_sink_t *s,uint32_t binding) {
+dbt_result_t dbt_avdtp_sink_media_closed_ex(dbt_avdtp_sink_t *s,uint32_t binding,bool transport_failed) {
     if(!s || !binding || s->media_binding!=binding)return DBT_EMPTY;
     s->media_binding=0;
+    if(transport_failed){
+        if(s->local){s->local->result.media_closed=true;s->local->result.media_close_failed=true;local_failure(s,s->local,DBT_AVDTP_LOCAL_MEDIA_ERROR);}
+        else fault(s);
+        return DBT_INVALID;
+    }
     if(s->local && s->local->result.remote_abort){
         s->local->result.media_closed=true;s->local->result.phase=DBT_AVDTP_LOCAL_CLEANUP;s->state=DBT_STREAM_ABORTING;
         emit(s,DBT_SINK_STATE);return DBT_OK;
     }
+    if(s->local && s->local->result.operation==DBT_SINK_CLOSE && s->local->wire_released){
+        dbt_avdtp_local_t *c=s->local;c->result.media_closed=true;s->state=DBT_STREAM_CLOSING;
+        c->result.phase=local_accepted(c,DBT_SINK_CLOSE)?
+            (c->result.worker_result_valid?DBT_AVDTP_LOCAL_CLEANUP:DBT_AVDTP_LOCAL_APPLYING):DBT_AVDTP_LOCAL_WAIT_PEER;
+        emit(s,DBT_SINK_STATE);return DBT_OK;
+    }
     if(s->state==DBT_STREAM_CLOSING || s->state==DBT_STREAM_ABORTING){idle(s);emit(s,DBT_SINK_STATE);return DBT_OK;}
     fault(s);return DBT_INVALID;
+}
+dbt_result_t dbt_avdtp_sink_media_closed(dbt_avdtp_sink_t *s,uint32_t binding){
+    return dbt_avdtp_sink_media_closed_ex(s,binding,false);
 }
 dbt_result_t dbt_avdtp_sink_media_receive(dbt_avdtp_sink_t *s,uint32_t binding,const uint8_t *packet,uint16_t size) {
     if(!s || !binding || binding!=s->media_binding)return DBT_EMPTY;
     if(s->failed || s->retiring || s->state!=DBT_STREAM_STREAMING)return DBT_BUSY;
     if(s->pending.used && s->pending.operation!=DBT_SINK_START){
         const dbt_avdtp_local_t *c=s->local;
-        if(!c || c->result.operation!=DBT_SINK_SUSPEND || c->result.remote_abort || local_suspend_accepted(c))return DBT_BUSY;
+        if(!c || (c->result.operation!=DBT_SINK_SUSPEND && c->result.operation!=DBT_SINK_CLOSE) ||
+           c->result.remote_abort || local_accepted(c,c->result.operation))return DBT_BUSY;
     }
     dbt_avdtp_media_t media;dbt_result_t result=dbt_avdtp_media_decode(packet,size,&media);
     if(result==DBT_OK)result=s->hooks.media(s->hooks.context,&media);

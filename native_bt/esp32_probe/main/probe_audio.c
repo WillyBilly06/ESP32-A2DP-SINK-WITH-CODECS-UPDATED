@@ -825,19 +825,22 @@ dbt_result_t probe_audio_open_begin(const dbt_a2dp_channel_t *key,dbt_avdtp_loca
     return dbt_avdtp_sink_local_open_begin(&profile.sink,context,now_ms(),token);
 }
 static dbt_result_t local_stream_begin(const dbt_a2dp_channel_t *signaling,const dbt_a2dp_channel_t *media,
-    dbt_avdtp_local_t *context,uint32_t *token,bool start){
+    dbt_avdtp_local_t *context,uint32_t *token,dbt_sink_operation_t operation){
     if(!initialized || restart_hold)return DBT_BUSY;
     dbt_result_t ready=dbt_a2dp_acceptor_connect_status(&profile,signaling);
     if(ready!=DBT_OK)return ready==DBT_PENDING?DBT_BUSY:ready;
     ready=dbt_a2dp_acceptor_media_status(&profile,media);
     if(ready!=DBT_OK)return ready==DBT_PENDING?DBT_BUSY:ready;
-    return start?dbt_avdtp_sink_local_start_begin(&profile.sink,context,media->serial,now_ms(),token):
-        dbt_avdtp_sink_local_suspend_begin(&profile.sink,context,media->serial,now_ms(),token);
+    if(operation==DBT_SINK_START)return dbt_avdtp_sink_local_start_begin(&profile.sink,context,media->serial,now_ms(),token);
+    if(operation==DBT_SINK_SUSPEND)return dbt_avdtp_sink_local_suspend_begin(&profile.sink,context,media->serial,now_ms(),token);
+    return operation==DBT_SINK_CLOSE?dbt_avdtp_sink_local_close_begin(&profile.sink,context,media->serial,now_ms(),token):DBT_UNSUPPORTED;
 }
 dbt_result_t probe_audio_start_begin(const dbt_a2dp_channel_t *signaling,const dbt_a2dp_channel_t *media,
-    dbt_avdtp_local_t *context,uint32_t *token){return local_stream_begin(signaling,media,context,token,true);}
+    dbt_avdtp_local_t *context,uint32_t *token){return local_stream_begin(signaling,media,context,token,DBT_SINK_START);}
 dbt_result_t probe_audio_suspend_begin(const dbt_a2dp_channel_t *signaling,const dbt_a2dp_channel_t *media,
-    dbt_avdtp_local_t *context,uint32_t *token){return local_stream_begin(signaling,media,context,token,false);}
+    dbt_avdtp_local_t *context,uint32_t *token){return local_stream_begin(signaling,media,context,token,DBT_SINK_SUSPEND);}
+dbt_result_t probe_audio_close_begin(const dbt_a2dp_channel_t *signaling,const dbt_a2dp_channel_t *media,
+    dbt_avdtp_local_t *context,uint32_t *token){return local_stream_begin(signaling,media,context,token,DBT_SINK_CLOSE);}
 dbt_result_t probe_audio_local_cancel(dbt_avdtp_local_t *context,uint32_t token){return dbt_avdtp_local_cancel(context,token);}
 dbt_result_t probe_audio_local_result(const dbt_avdtp_local_t *context,uint32_t token,dbt_avdtp_local_result_t *result){
     return dbt_avdtp_local_result(context,token,result);
@@ -900,7 +903,7 @@ void probe_audio_event_ex(dbt_channel_event_t event,const dbt_channel_t *channel
     bool signal=profile.signaling.serial && channel->serial==profile.signaling.serial &&
         channel->handle==profile.signaling.handle && channel->link_generation==profile.signaling.generation;
     uint16_t handle=channel->handle;uint32_t generation=channel->link_generation;
-    dbt_result_t result=dbt_a2dp_acceptor_event(&profile,event,channel);
+    dbt_result_t result=dbt_a2dp_acceptor_event_ex(&profile,event,channel,reason,wire_result);
     if(outgoing_connect)dbt_a2dp_connect_event(outgoing_connect,event,channel,reason,wire_result,now_ms());
     if(result==DBT_OK && product_observer){
         if(event==DBT_CH_EVENT_OPEN && !was_active && profile.active && profile.signaling.serial==channel->serial)

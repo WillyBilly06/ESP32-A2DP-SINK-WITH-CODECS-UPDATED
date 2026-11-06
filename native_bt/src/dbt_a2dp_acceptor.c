@@ -60,7 +60,8 @@ bool dbt_a2dp_acceptor_accept(const dbt_a2dp_acceptor_t *p,const dbt_link_t *lin
         p->sink.state==DBT_STREAM_OPEN && !p->sink.pending.used && !p->sink.media_binding &&
         !p->media.serial && !p->sink.failed && !p->sink.media_initiator;
 }
-dbt_result_t dbt_a2dp_acceptor_event(dbt_a2dp_acceptor_t *p,dbt_channel_event_t kind,const dbt_channel_t *channel){
+dbt_result_t dbt_a2dp_acceptor_event_ex(dbt_a2dp_acceptor_t *p,dbt_channel_event_t kind,const dbt_channel_t *channel,
+    dbt_channel_reason_t reason,uint16_t wire_result){
     if(!p || !p->runtime || !channel)return DBT_INVALID;
     if(channel->psm!=0x19)return DBT_UNSUPPORTED;
     if(kind==DBT_CH_EVENT_OPEN){
@@ -90,7 +91,12 @@ dbt_result_t dbt_a2dp_acceptor_event(dbt_a2dp_acceptor_t *p,dbt_channel_event_t 
         }
         if(matches(&p->media,channel)){
             bool bound=p->sink.media_binding==channel->serial;
-            dbt_result_t result=bound?dbt_avdtp_sink_media_closed(&p->sink,channel->serial):DBT_OK;
+            if(bound && p->sink.local){
+                dbt_avdtp_local_result_t *r=&p->sink.local->result;r->media_event_valid=true;
+                r->media_event=(uint8_t)kind;r->media_reason=(uint8_t)reason;r->media_status=wire_result;
+            }
+            bool failed=kind==DBT_CH_EVENT_FAILED || reason!=DBT_CH_REASON_NORMAL || wire_result!=0;
+            dbt_result_t result=bound?dbt_avdtp_sink_media_closed_ex(&p->sink,channel->serial,failed):DBT_OK;
             zero(&p->media,sizeof(p->media));p->close_media=false;
             if(!bound || result!=DBT_OK)p->draining=true;
             return DBT_OK;
@@ -102,6 +108,9 @@ dbt_result_t dbt_a2dp_acceptor_event(dbt_a2dp_acceptor_t *p,dbt_channel_event_t 
         if(key->rx_mtu!=channel->rx_mtu || key->tx_mtu!=channel->tx_mtu)p->draining=true;
     }
     return DBT_OK;
+}
+dbt_result_t dbt_a2dp_acceptor_event(dbt_a2dp_acceptor_t *p,dbt_channel_event_t kind,const dbt_channel_t *channel){
+    return dbt_a2dp_acceptor_event_ex(p,kind,channel,DBT_CH_REASON_NORMAL,0);
 }
 dbt_result_t dbt_a2dp_acceptor_receive(dbt_a2dp_acceptor_t *p,const dbt_channel_t *channel,const uint8_t *data,uint16_t size){
     if(!p || !p->runtime || !channel)return DBT_INVALID;

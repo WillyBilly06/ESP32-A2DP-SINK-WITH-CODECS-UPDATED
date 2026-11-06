@@ -684,16 +684,16 @@
     },
     {
       "owned": "native_bt/esp32_probe/main/probe_audio.c",
-      "sha256": "0ca96f5698f27041a898e3b194cbed9a6a872134fd482f103755473d05cec636",
-      "lines": 1033,
+      "sha256": "63be9ce54c909d2c9c8b6ebee61c3c5646201728e51864a682618ef0d305c148",
+      "lines": 1036,
       "reference_files": [],
       "status": "partial_review",
       "mapping": "product/support code; no direct protocol counterpart assigned"
     },
     {
       "owned": "native_bt/esp32_probe/main/probe_audio.h",
-      "sha256": "4ebc47726ee6d54c3a767dd7d64a95c8aea3a2dbdeba80ba0a514d12ff8fda57",
-      "lines": 77,
+      "sha256": "6a6a420a75082ddcda974721d54b78a310c41a6be57623ebf7e9cda2ff7b2add",
+      "lines": 79,
       "reference_files": [],
       "status": "partial_review",
       "mapping": "product/support code; no direct protocol counterpart assigned"
@@ -1328,8 +1328,8 @@
     },
     {
       "owned": "native_bt/include/dbt_a2dp_acceptor.h",
-      "sha256": "d71be761fe1ce7a6a09731e2344e8cf01447a926220b5bdf500b27c25d2e6aa2",
-      "lines": 82,
+      "sha256": "b7e4cbcbd62b5f69318fb7453fd27aed6f1452376ed43ab6ae06293fdbfbb260",
+      "lines": 86,
       "reference_files": [
         "src/classic/a2dp.c",
         "src/classic/a2dp_sink.c",
@@ -1488,8 +1488,8 @@
     },
     {
       "owned": "native_bt/include/dbt_avdtp_sink.h",
-      "sha256": "992cdf0ff3edcb54755141b53a52a8b2b5167daa209913813b46e30b7fca3fe7",
-      "lines": 174,
+      "sha256": "39231943bdbeb6c29832c4a49c51cf9539b494bf156bd51bd6a98f2a33d7243c",
+      "lines": 182,
       "reference_files": [
         "src/classic/avdtp.c",
         "src/classic/avdtp_acceptor.c",
@@ -2138,8 +2138,8 @@
     },
     {
       "owned": "native_bt/src/dbt_a2dp_acceptor.c",
-      "sha256": "52cb1d7483d9763bf315ece90dc28738c0b3e533863eba97f7749481afc982ab",
-      "lines": 276,
+      "sha256": "54e823019fb8a68a6c27c7b98844004bafc27f85cc89cff3c3a43c1930c00025",
+      "lines": 285,
       "reference_files": [
         "src/classic/a2dp.c",
         "src/classic/a2dp_sink.c",
@@ -2300,8 +2300,8 @@
     },
     {
       "owned": "native_bt/src/dbt_avdtp_sink.c",
-      "sha256": "5613adf823969077ccf30655a3ec23a86f5381420c39b36d22834ffb4f7dd6da",
-      "lines": 712,
+      "sha256": "7120e39dceca016ac3dcf32046ddcefadc38146a7d284516f5e0ce3930fe4f60",
+      "lines": 762,
       "reference_files": [
         "src/classic/avdtp.c",
         "src/classic/avdtp_acceptor.c",
@@ -3786,6 +3786,25 @@
       ],
       "outcome": "Added wire-first local Suspend and preserved ingress while awaiting peer acceptance, then distinct backend acknowledgment before terminal Open. Refined unsent cancellation without releasing actual borrowed/submitted work. Full protocol/runtime/feature qualification remains incomplete.",
       "full_layer_complete": false
+    },
+    {
+      "layer": "Local Close joins and cross-layer channel-reason preservation",
+      "owned": [
+        "native_bt/include/dbt_avdtp_sink.h",
+        "native_bt/src/dbt_avdtp_sink.c",
+        "native_bt/include/dbt_a2dp_acceptor.h",
+        "native_bt/src/dbt_a2dp_acceptor.c",
+        "native_bt/esp32_probe/main/probe_audio.h",
+        "native_bt/esp32_probe/main/probe_audio.c",
+        "native_bt/src/dbt_channels.c:127-142,finish call sites",
+        "native_bt/esp32_probe/main/probe_main.c:channel event forwarding"
+      ],
+      "reference": [
+        "src/classic/avdtp_initiator.c:349-359,607-620",
+        "Owned worker CLOSE/DROP and async ticket contracts"
+      ],
+      "outcome": "Added copied exact-media Close, independent backend/transport retirement and detailed profile event path. Corrected loss of real failure reason/status when an opened channel emits CLOSED. Broader root/channel bodies remain partial; full runtime/layer qualification incomplete.",
+      "full_layer_complete": false
     }
   ],
   "integration_gaps": [
@@ -4046,14 +4065,24 @@
         "READY commits backend Open state; reject/unsent cancel retains streaming, post-acceptance failure retires through DROP. Separate peer/backend stages, stale-token and Abort cleanup retained.",
         "General cancellation now tries exact unsent command cancellation before inferring uncertainty from transmission permission. No default caller; active wire/queue/cancel/collision/fault/audio qualification remains open."
       ]
+    },
+    {
+      "id": "AVDTP-LOCAL-CLOSE",
+      "status": "implemented_source_api_no_automatic_caller_wire_pending",
+      "notes": [
+        "Wire-first Close retains media until Accept; worker release and media retirement proceed independently with both required before caller/configuration reuse.",
+        "Normal early media closure is retained through the peer/worker outcome; reject/cancel cannot restore a missing media channel. Remote Abort supersedes through DROP.",
+        "Detailed channel reason/status now reaches the profile: CLOSED can mean failure of a previously open channel. Media failed/timeout and raw event/reason/status are separate from backend results; no false successful Close.",
+        "No automatic caller. Wire/order/queue/cancel/deadline/failed-media/worker/collision and audio qualification remain open."
+      ]
     }
   ],
   "next_review": [
-    "Implement local Close/reconfigure/Abort initiation with exact resource, reply and media closure identities. Close must preserve current streaming ingress and decoder work while awaiting peer acceptance, then coordinate backend and channel closure.",
-    "Implement compatible remote peer/codec selection, persisted reconnect/backoff/handover/default caller. Explicit Configure/Open/media/Start/Suspend source APIs exist; no automatic RF caller under hold.",
-    "Complete crossed peer/local command policy, remaining file/feature/security/lifecycle/audio qualification and maximum LHDC headroom/underrun diagnosis."
+    "Implement local reconfigure and Abort initiation using exact operation-specific worker/wire/resource rules. Close/Suspend/Start/Open/initial Configure source APIs exist; do not repeat them.",
+    "Implement real Source codec/peer selection and persisted reconnect/backoff/handover/default caller; keep new automatic RF disabled under held campaigns.",
+    "Complete crossed peer/local policy, remaining file/feature/security/lifecycle/audio performance and codec crash/underrun qualification."
   ],
-  "latest_build_image": "6fda754e0cff372de75b477a90253985b3a279a63780a4d8e9bab6a58861027f",
+  "latest_build_image": "970367813cd023b69682897a49e543a1d2d4c5fde6a11aecabeae05fcbb81df8",
   "verification_source_contracts": [
     {
       "file": "native_bt/tools/test_ldac_target_component.py",
