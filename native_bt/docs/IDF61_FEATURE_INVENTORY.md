@@ -43,3 +43,12 @@ sink still persists `a2dp/last_bda`. The owning files were verified clean.
 Phone-initiated reconnect and rapid codec-switch handling are active baseline
 behaviors. Speaker-initiated automatic reconnect remains an explicit new
 master-goal requirement and still needs complete owned-stack integration.
+
+## Codec preference ownership clarification
+
+The inspected local BDK Flutter codec adapter submits preferences through the
+Android method channel and treats submission separately from negotiated
+confirmation. This path is source-device policy, not a firmware BLE codec-mask
+command. The [exact-format matcher](A2DP_EXACT_SELECTION_2026_11_05.md) preserves
+that distinction; automatic outgoing parameter generation/ranking and current
+installed-app interoperability are not established by its compilation.

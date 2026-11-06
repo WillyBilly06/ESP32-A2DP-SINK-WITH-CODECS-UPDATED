@@ -3,6 +3,7 @@
 #include "dbt_a2dp_acceptor.h"
 #include "dbt_a2dp_connect.h"
 #include "dbt_avdtp_query.h"
+#include "dbt_a2dp_select.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 /* Host-owner control/data hooks; decoder and PCM work run on the separate
@@ -45,6 +46,12 @@ dbt_result_t probe_audio_query_result(const dbt_avdtp_query_t *,uint32_t,dbt_avd
 /* Owner coordinator: init caller storage once; PENDING borrows context/buffers
  * through terminal dial_result, which also detaches SDP routing. No automatic
  * peer selection, endpoint negotiation or audio start. */
+/* Exact-format proposal from terminal Discover + Get[All]Capabilities query
+ * objects on this signaling lifetime. Inputs stay disjoint/caller-owned; no
+ * reservation, decoder activation, Android preference write or RF command. */
+dbt_result_t probe_audio_match(const dbt_a2dp_channel_t *,const dbt_avdtp_query_t *discover,uint32_t discover_token,
+    const dbt_avdtp_query_t *capabilities,uint32_t capabilities_token,const dbt_a2dp_select_request_t *,
+    uint8_t *configuration,uint16_t capacity,dbt_a2dp_select_result_t *);
 dbt_result_t probe_audio_dial_begin(dbt_a2dp_connect_t *,dbt_gap_t *,dbt_a2dp_connect_config_t,uint32_t *);
 dbt_result_t probe_audio_dial_cancel(dbt_a2dp_connect_t *,uint32_t);
 dbt_result_t probe_audio_dial_result(dbt_a2dp_connect_t *,uint32_t,dbt_a2dp_connect_result_t *);

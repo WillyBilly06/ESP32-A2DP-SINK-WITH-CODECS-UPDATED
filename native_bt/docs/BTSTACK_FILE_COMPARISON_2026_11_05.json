@@ -609,7 +609,7 @@
     },
     {
       "owned": "native_bt/esp32_probe/components/native_bt/CMakeLists.txt",
-      "sha256": "c1915939123777ed81e5d8897021e4a56bef661e97938d6026d17f334e3ba939",
+      "sha256": "854ff5ebbb37e5222b49456828507ed936ad6d0a1252ebb8c3f1b91c6762b1e2",
       "lines": 72,
       "reference_files": [],
       "status": "reviewed_build",
@@ -684,16 +684,16 @@
     },
     {
       "owned": "native_bt/esp32_probe/main/probe_audio.c",
-      "sha256": "72e3820f1b35e3d3d340f8b15a0012e2b88453e81c0d83030b6197f731724624",
-      "lines": 1048,
+      "sha256": "765e9c988692e4df44538c4afc1d9d7ce126f74c0b0b0dea5c49b8439d08346d",
+      "lines": 1090,
       "reference_files": [],
       "status": "partial_review",
       "mapping": "product/support code; no direct protocol counterpart assigned"
     },
     {
       "owned": "native_bt/esp32_probe/main/probe_audio.h",
-      "sha256": "5dc6180a34bebbdba29f750206b452b42c51474a19a6bb0ada2146109097b4e9",
-      "lines": 82,
+      "sha256": "44eba9199615b95d13f2a3ded213e46b1ac360b067893fed47b4d72ffc77a808",
+      "lines": 89,
       "reference_files": [],
       "status": "partial_review",
       "mapping": "product/support code; no direct protocol counterpart assigned"
@@ -3000,6 +3000,32 @@
       ],
       "status": "pending",
       "mapping": "project_specific_offline_generator_no_direct_reference_implementation"
+    },
+    {
+      "owned": "native_bt/src/dbt_a2dp_select.c",
+      "sha256": "d9a8e5e0a735bf61ff9ce1dba9a9ef887aceb1d203a5b775f321367ca5842869",
+      "lines": 86,
+      "reference_files": [
+        "src/classic/a2dp_sink.c",
+        "src/classic/a2dp.c",
+        "src/classic/avdtp_util.c"
+      ],
+      "status": "reviewed_with_findings",
+      "mapping": "Independently authored exact-format proposal/validation boundary using current codec callbacks",
+      "review_scope": "Complete authored body/contract read; aliasing, no-partial output, exact role/identity and local/peer validation reviewed. No active matching, full codec compatibility, field fuzz or runtime qualification."
+    },
+    {
+      "owned": "native_bt/include/dbt_a2dp_select.h",
+      "sha256": "7582d7d2673a4983a9bb69f3fe170c02d35f56c76db6135b0f704651fbdc3063",
+      "lines": 50,
+      "reference_files": [
+        "src/classic/a2dp_sink.c",
+        "src/classic/a2dp.c",
+        "src/classic/avdtp_util.c"
+      ],
+      "status": "reviewed_contract",
+      "mapping": "Independently authored exact-format proposal/validation boundary using current codec callbacks",
+      "review_scope": "Complete authored body/contract read; aliasing, no-partial output, exact role/identity and local/peer validation reviewed. No active matching, full codec compatibility, field fuzz or runtime qualification."
     }
   ],
   "findings": [
@@ -3843,6 +3869,30 @@
       ],
       "outcome": "Added explicit accepted-Abort parallel wire/worker progress and exact pending-media capture/join. No work receipt is synthesized when no live worker exists. Scoped serialized admission differs from queued upstream intent; broader policy, runtime and full layer qualification remain incomplete.",
       "full_layer_complete": false
+    },
+    {
+      "layer": "Exact requested-format matching and preserved app preference ownership",
+      "owned": [
+        "native_bt/src/dbt_a2dp_select.c",
+        "native_bt/include/dbt_a2dp_select.h",
+        "native_bt/esp32_probe/main/probe_audio.c:match adapter/endpoints",
+        "native_bt/esp32_probe/main/probe_audio.h",
+        "native_bt/esp32_probe/components/native_bt/CMakeLists.txt",
+        "native_bt/src/dbt_a2dp_sbc.c",
+        "native_bt/codecs/aac/dbt_aac_transport.c:4-29",
+        "native_bt/codecs/aptx/dbt_aptx.c:14-34",
+        "native_bt/codecs/ldac/dbt_ldac.c:4-21",
+        "native_bt/codecs/opus/dbt_opus.c:39-123",
+        "native_bt/codecs/lhdcv5/dbt_lhdcv5_codec.c:38-59"
+      ],
+      "reference": [
+        "src/classic/a2dp_sink.c:185-207",
+        "src/classic/a2dp.c:1010-1034,1138-1158",
+        "BDK Flutter local codec_adapter.dart:95-109",
+        "Retained IDF61 feature inventory and baseline auto_reconnect(false)"
+      ],
+      "outcome": "Added pure exact-format proposal with real discovery/caps receipt fencing and current family validators on both endpoints. Preserved source-only app preferences and no-fallback selection. Broader backend/root bodies, automatic policy and all runtime qualification remain incomplete.",
+      "full_layer_complete": false
     }
   ],
   "integration_gaps": [
@@ -3889,12 +3939,12 @@
     }
   ],
   "coverage": {
-    "owned_files": 281,
-    "reviewed_owned_c_bodies": 26,
+    "owned_files": 283,
+    "reviewed_owned_c_bodies": 27,
     "partial_files": 19,
     "pending_files": 205,
     "compiled_owned_units_missing": 0,
-    "reviewed_headers": 19,
+    "reviewed_headers": 20,
     "reviewed_build_files": 6,
     "reviewed_generators": 4,
     "reviewed_static_data": 2
@@ -4133,14 +4183,24 @@
         "Crossed remote Abort supersedes through DROP/reply admission and includes pending media in the join. Irreversible cancellation/rejection/failure retires the profile.",
         "Existing local/remote procedure/outgoing request yields BUSY without acceptance; arbitrary queued urgent preemption/default caller/crossed policy and active wire/worker/media/fault/audio qualification remain unfinished."
       ]
+    },
+    {
+      "id": "A2DP-EXACT-SELECTION",
+      "status": "implemented_explicit_format_proposal_no_automatic_policy_runtime_pending",
+      "notes": [
+        "Audio Source/availability and mandatory Transport+Codec checked; full vendor/codec identity, exact requested CIE validated against local descriptor and normalized peer offer by current codec validator. No quality/rate fallback.",
+        "Source bridge requires current exact signaling plus terminal accepted complete Discover and Get[All]Capabilities objects/tokens; peer record comes from discovery rather than caller SEID guesses.",
+        "Delay has explicit version+mutual capability policy; alias/partial-output handling bounded, no heap/decoder work. App codec controls are Android method-channel preferences, not a new firmware BLE mask.",
+        "Automatic candidate generation/ranking, existing-stream policy, durable reconnect/default caller and full capability/codec/extension/lifecycle/timing qualification remain incomplete."
+      ]
     }
   ],
   "next_review": [
-    "Review/complete crossed local/peer control and caller queued-intent policy against normative rules and actual baseline features; do not treat the existing single local slot and BUSY admission as fully qualified recovery.",
-    "Implement real Source endpoint/codec selection and durable Classic reconnect/backoff/handover/default caller from preserved feature inventory. All basic local procedure source APIs now exist; no new automatic RF caller under hold.",
-    "Continue remaining file/feature/security/lifecycle/audio/codec crash/underrun/headroom qualification; compilation and ordinary boot are insufficient."
+    "Implement automatic candidate generation/ranking only from actual source capabilities and explicit quality constraints; no bitrate/depth claims from fields that do not negotiate them. Exact CIE matcher exists; do not call it a complete automatic selector.",
+    "Complete queued/crossed control policy and durable Classic peer/reconnect/backoff/handover/default caller from actual baseline settings; app preferences are source-side Android controls.",
+    "Continue remaining file/feature/security/lifecycle/codec crash/audio underrun/LHDC headroom qualification. No new automatic RF under held campaigns."
   ],
-  "latest_build_image": "e6601b0cf6cb7174c43c6cfef2b2e53eebc86f4ce2c61e9788b03c87e16de613",
+  "latest_build_image": "85e6fe8a8ca3e4f44c196b52ab72b5e4655d1b3b5e16c9d30c58f83c4abec153",
   "verification_source_contracts": [
     {
       "file": "native_bt/tools/test_ldac_target_component.py",
