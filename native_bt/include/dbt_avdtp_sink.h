@@ -70,7 +70,7 @@ typedef struct {
     uint8_t local_seid,remote_seid,label,command,peer_category,peer_error,peer_seid,media_event,media_reason;
     bool transport_done,response_seen,worker_accepted,worker_result_valid;
     bool drop_accepted,drop_result_valid,cancel_requested,remote_abort;
-    bool rollback_accepted,rollback_result_valid,rollback_timed_out,abort_response_admitted,media_closed,command_cancelled_unsent,media_close_requested,media_close_failed,media_timed_out,media_event_valid;
+    bool rollback_accepted,rollback_result_valid,rollback_timed_out,abort_response_admitted,media_closed,command_cancelled_unsent,media_close_requested,media_close_failed,media_timed_out,media_event_valid,worker_not_needed,media_was_pending;
     bool worker_timed_out,cleanup_timed_out,cleanup_complete,resources_transferred,profile_retired;
 } dbt_avdtp_local_result_t;
 
@@ -150,6 +150,13 @@ dbt_result_t dbt_avdtp_sink_local_close_begin(dbt_avdtp_sink_t *,dbt_avdtp_local
  * job when needed, without holding two decoder workspaces. */
 dbt_result_t dbt_avdtp_sink_local_reconfigure_begin(dbt_avdtp_sink_t *,dbt_avdtp_local_t *,
     uint32_t media_binding,const uint8_t *,uint16_t,uint32_t now_ms,uint32_t *token);
+/* Abort starts local release and wire submission independently. The owner
+ * supplies zero, the bound media lifetime or an exactly reserved pending media
+ * lifetime. It is irreversible once accepted: cancel/reject/failure retires
+ * the profile. Context remains borrowed through worker/wire/media retirement.
+ * Other active local/remote procedures return BUSY without accepting this call. */
+dbt_result_t dbt_avdtp_sink_local_abort_begin(dbt_avdtp_sink_t *,dbt_avdtp_local_t *,
+    uint32_t media_lifetime,uint32_t now_ms,uint32_t *token);
 dbt_result_t dbt_avdtp_local_cancel(dbt_avdtp_local_t *,uint32_t token);
 dbt_result_t dbt_avdtp_local_result(const dbt_avdtp_local_t *,uint32_t token,dbt_avdtp_local_result_t *);
 

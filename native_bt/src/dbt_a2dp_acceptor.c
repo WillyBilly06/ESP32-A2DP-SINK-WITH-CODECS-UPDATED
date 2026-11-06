@@ -80,6 +80,10 @@ dbt_result_t dbt_a2dp_acceptor_event_ex(dbt_a2dp_acceptor_t *p,dbt_channel_event
         }
         if(p->signaling.handle!=channel->handle || p->signaling.generation!=channel->link_generation ||
            ((p->media.serial || p->sink.media_initiator) && !matches(&p->media,channel)))return DBT_INVALID;
+        if(p->sink.local && p->sink.local->result.operation==DBT_SINK_ABORT &&
+           p->sink.local->result.media_was_pending && p->sink.local->result.media_binding==channel->serial){
+            p->close_media=true;return DBT_OK; /* Retire; never bind an aborted setup. */
+        }
         dbt_result_t result=dbt_avdtp_sink_media_open(&p->sink,channel->serial,p->runtime->now_ms);
         if(result==DBT_OK)remember(&p->media,channel);
         return result;
@@ -91,14 +95,16 @@ dbt_result_t dbt_a2dp_acceptor_event_ex(dbt_a2dp_acceptor_t *p,dbt_channel_event
         }
         if(matches(&p->media,channel)){
             bool bound=p->sink.media_binding==channel->serial;
-            if(bound && p->sink.local){
+            bool pending_abort=p->sink.local && p->sink.local->result.operation==DBT_SINK_ABORT &&
+                p->sink.local->result.media_was_pending && p->sink.local->result.media_binding==channel->serial;
+            if((bound || pending_abort) && p->sink.local){
                 dbt_avdtp_local_result_t *r=&p->sink.local->result;r->media_event_valid=true;
                 r->media_event=(uint8_t)kind;r->media_reason=(uint8_t)reason;r->media_status=wire_result;
             }
-            bool failed=kind==DBT_CH_EVENT_FAILED || reason!=DBT_CH_REASON_NORMAL || wire_result!=0;
-            dbt_result_t result=bound?dbt_avdtp_sink_media_closed_ex(&p->sink,channel->serial,failed):DBT_OK;
+            bool failed=(kind==DBT_CH_EVENT_FAILED && !pending_abort) || reason!=DBT_CH_REASON_NORMAL || wire_result!=0;
+            dbt_result_t result=(bound || pending_abort)?dbt_avdtp_sink_media_closed_ex(&p->sink,channel->serial,failed):DBT_OK;
             zero(&p->media,sizeof(p->media));p->close_media=false;
-            if(!bound || result!=DBT_OK)p->draining=true;
+            if((!bound && !pending_abort) || result!=DBT_OK)p->draining=true;
             return DBT_OK;
         }
         return DBT_EMPTY;
@@ -180,6 +186,26 @@ dbt_result_t dbt_a2dp_acceptor_connect_cancel(dbt_a2dp_acceptor_t *p,const dbt_a
 }
 static bool overlap(const void *a,unsigned an,const void *b,unsigned bn){
     uintptr_t x=(uintptr_t)a,y=(uintptr_t)b;return an && bn && (x<=y?y-x<an:x-y<bn);
+}
+dbt_result_t dbt_a2dp_acceptor_abort_begin(dbt_a2dp_acceptor_t *p,const dbt_a2dp_channel_t *signaling,
+    dbt_avdtp_local_t *context,uint32_t now,uint32_t *id){
+    if(!p || !p->runtime || !signaling || !context || !id || overlap(p,sizeof(*p),context,sizeof(*context)) ||
+       overlap(p,sizeof(*p),id,sizeof(*id)) || overlap(p->runtime,sizeof(*p->runtime),context,sizeof(*context)) ||
+       overlap(p->runtime,sizeof(*p->runtime),id,sizeof(*id)) || overlap(signaling,sizeof(*signaling),context,sizeof(*context)) ||
+       overlap(signaling,sizeof(*signaling),id,sizeof(*id)))return DBT_INVALID;
+    dbt_result_t ready=dbt_a2dp_acceptor_connect_status(p,signaling);if(ready!=DBT_OK)return ready==DBT_PENDING?DBT_BUSY:ready;
+    const dbt_channel_t *selected=0;
+    for(unsigned i=0;i<DBT_CHANNEL_LIMIT;++i){
+        const dbt_channel_t *ch=&p->runtime->channels.channels[i];
+        if(ch->state==DBT_CH_FREE || ch->psm!=0x19 || matches(&p->signaling,ch))continue;
+        if(selected || ch->handle!=p->signaling.handle || ch->link_generation!=p->signaling.generation)return DBT_BUSY;
+        selected=ch;
+    }
+    if(p->media.serial && (!selected || !matches(&p->media,selected)))return DBT_BUSY;
+    if(p->sink.media_binding && (!selected || selected->serial!=p->sink.media_binding))return DBT_INVALID;
+    dbt_result_t result=dbt_avdtp_sink_local_abort_begin(&p->sink,context,selected?selected->serial:0,now,id);
+    if(result==DBT_PENDING && selected && !p->media.serial)remember(&p->media,selected);
+    return result;
 }
 dbt_result_t dbt_a2dp_acceptor_media_begin(dbt_a2dp_acceptor_t *p,const dbt_a2dp_channel_t *signal,
     uint32_t now,dbt_a2dp_channel_t *key){

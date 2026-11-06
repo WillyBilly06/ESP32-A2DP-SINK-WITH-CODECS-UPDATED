@@ -684,16 +684,16 @@
     },
     {
       "owned": "native_bt/esp32_probe/main/probe_audio.c",
-      "sha256": "5321b426578b49b87d14e2c9f6cf78c2a772abb5b5410e8e893ffccd11831889",
-      "lines": 1045,
+      "sha256": "72e3820f1b35e3d3d340f8b15a0012e2b88453e81c0d83030b6197f731724624",
+      "lines": 1048,
       "reference_files": [],
       "status": "partial_review",
       "mapping": "product/support code; no direct protocol counterpart assigned"
     },
     {
       "owned": "native_bt/esp32_probe/main/probe_audio.h",
-      "sha256": "f71eb6af536665908719197f7cebbc960e9b405997c823d36c12196ab7556a82",
-      "lines": 81,
+      "sha256": "5dc6180a34bebbdba29f750206b452b42c51474a19a6bb0ada2146109097b4e9",
+      "lines": 82,
       "reference_files": [],
       "status": "partial_review",
       "mapping": "product/support code; no direct protocol counterpart assigned"
@@ -1328,8 +1328,8 @@
     },
     {
       "owned": "native_bt/include/dbt_a2dp_acceptor.h",
-      "sha256": "b7e4cbcbd62b5f69318fb7453fd27aed6f1452376ed43ab6ae06293fdbfbb260",
-      "lines": 86,
+      "sha256": "700a69973533ed8222d9cd4c79eb55c6435e84d9b1bbe37f405b344ad249e564",
+      "lines": 91,
       "reference_files": [
         "src/classic/a2dp.c",
         "src/classic/a2dp_sink.c",
@@ -1488,8 +1488,8 @@
     },
     {
       "owned": "native_bt/include/dbt_avdtp_sink.h",
-      "sha256": "45a63ac45924223641f2da519c3c56f2ae5e1d6644db3cb9447de87d659f18c5",
-      "lines": 190,
+      "sha256": "be4bf79ffb579ada8a4f6d437839e452690f1cf87897670fe8ccfbb5f4dc1b07",
+      "lines": 197,
       "reference_files": [
         "src/classic/avdtp.c",
         "src/classic/avdtp_acceptor.c",
@@ -2138,8 +2138,8 @@
     },
     {
       "owned": "native_bt/src/dbt_a2dp_acceptor.c",
-      "sha256": "54e823019fb8a68a6c27c7b98844004bafc27f85cc89cff3c3a43c1930c00025",
-      "lines": 285,
+      "sha256": "e9c7c4ee08bbb4625e698cb35d7a6665630954581305be3ac23c3ca6daba8a11",
+      "lines": 311,
       "reference_files": [
         "src/classic/a2dp.c",
         "src/classic/a2dp_sink.c",
@@ -2300,8 +2300,8 @@
     },
     {
       "owned": "native_bt/src/dbt_avdtp_sink.c",
-      "sha256": "24bb9ce3eea03c634f58c8bdd22b220d8f5ac7eb153ab74369fb37977a8a289e",
-      "lines": 809,
+      "sha256": "0cc6efc8ca73993d1d5626c336520c0768404de79f2379e15fe1c3a4b22e62c1",
+      "lines": 877,
       "reference_files": [
         "src/classic/avdtp.c",
         "src/classic/avdtp_acceptor.c",
@@ -3824,6 +3824,25 @@
       ],
       "outcome": "Added selected-codec reconfigure with committed old caps retained, worker preparation before wire release, peer-accept commit and explicit typed restoration. Worker input contains copied CIE, no caller bytes/interior frees or second live workspace. Broad protocol/runtime/product qualification remains incomplete.",
       "full_layer_complete": false
+    },
+    {
+      "layer": "Local Abort, independent release and exact pending media retirement",
+      "owned": [
+        "native_bt/include/dbt_avdtp_sink.h",
+        "native_bt/src/dbt_avdtp_sink.c",
+        "native_bt/include/dbt_a2dp_acceptor.h",
+        "native_bt/src/dbt_a2dp_acceptor.c",
+        "native_bt/esp32_probe/main/probe_audio.h",
+        "native_bt/esp32_probe/main/probe_audio.c",
+        "native_bt/src/dbt_avdtp.c:157-177"
+      ],
+      "reference": [
+        "src/classic/avdtp_initiator.c:361-374,623-629",
+        "src/classic/avdtp.c:1310-1334",
+        "Owned channel finish normal never-opened cancellation and worker ABORT/CLOSE/DROP contracts"
+      ],
+      "outcome": "Added explicit accepted-Abort parallel wire/worker progress and exact pending-media capture/join. No work receipt is synthesized when no live worker exists. Scoped serialized admission differs from queued upstream intent; broader policy, runtime and full layer qualification remain incomplete.",
+      "full_layer_complete": false
     }
   ],
   "integration_gaps": [
@@ -4104,14 +4123,24 @@
         "Rollback operation/token selects RECONFIGURE or Start SUSPEND; enqueue/receipt/deadline routing is independent from primary preparation with the same opcode. No second live decoder workspace.",
         "No automatic caller; active wire/restore/allocator/cancel/Abort/media/fault/codec behavior and full quality/headroom remain unqualified."
       ]
+    },
+    {
+      "id": "AVDTP-LOCAL-ABORT",
+      "status": "implemented_source_api_serialized_admission_no_automatic_caller_wire_pending",
+      "notes": [
+        "Accepted local Abort releases wire without waiting for backend; joins peer acceptance, actual worker READY/no-worker-needed and exact bound/pending media retirement.",
+        "Profile captures staged media and never rebinds an aborted setup. Normal never-opened cancellation uses reason/status, not FAILED kind alone. Pending lease drives deadlines/readiness as an outstanding resource even with sink.media_binding zero.",
+        "Crossed remote Abort supersedes through DROP/reply admission and includes pending media in the join. Irreversible cancellation/rejection/failure retires the profile.",
+        "Existing local/remote procedure/outgoing request yields BUSY without acceptance; arbitrary queued urgent preemption/default caller/crossed policy and active wire/worker/media/fault/audio qualification remain unfinished."
+      ]
     }
   ],
   "next_review": [
-    "Implement local Abort initiation through exact command/resource/media/reply semantics. Other local procedures now exist as source APIs; do not repeat them.",
-    "Review crossed peer/local controls, broader state/wire/backend-phase correctness and actual feature inventory before default automatic integration.",
-    "Implement real Source peer/codec selection, durable reconnect/backoff/handover/default caller and full source/feature/security/lifecycle/audio qualification. No automatic RF under held campaigns."
+    "Review/complete crossed local/peer control and caller queued-intent policy against normative rules and actual baseline features; do not treat the existing single local slot and BUSY admission as fully qualified recovery.",
+    "Implement real Source endpoint/codec selection and durable Classic reconnect/backoff/handover/default caller from preserved feature inventory. All basic local procedure source APIs now exist; no new automatic RF caller under hold.",
+    "Continue remaining file/feature/security/lifecycle/audio/codec crash/underrun/headroom qualification; compilation and ordinary boot are insufficient."
   ],
-  "latest_build_image": "048319c63de9299f0f5eb2e28790f90089a3b1c6809ff49aa1e25d57d6da531f",
+  "latest_build_image": "e6601b0cf6cb7174c43c6cfef2b2e53eebc86f4ce2c61e9788b03c87e16de613",
   "verification_source_contracts": [
     {
       "file": "native_bt/tools/test_ldac_target_component.py",

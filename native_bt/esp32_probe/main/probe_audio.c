@@ -850,6 +850,9 @@ dbt_result_t probe_audio_reconfigure_begin(const dbt_a2dp_channel_t *signaling,c
     if(ready!=DBT_OK)return ready==DBT_PENDING?DBT_BUSY:ready;
     return dbt_avdtp_sink_local_reconfigure_begin(&profile.sink,context,media->serial,configuration,size,now_ms(),token);
 }
+dbt_result_t probe_audio_abort_begin(const dbt_a2dp_channel_t *signaling,dbt_avdtp_local_t *context,uint32_t *token){
+    return initialized && !restart_hold?dbt_a2dp_acceptor_abort_begin(&profile,signaling,context,now_ms(),token):DBT_BUSY;
+}
 dbt_result_t probe_audio_local_cancel(dbt_avdtp_local_t *context,uint32_t token){return dbt_avdtp_local_cancel(context,token);}
 dbt_result_t probe_audio_local_result(const dbt_avdtp_local_t *context,uint32_t token,dbt_avdtp_local_result_t *result){
     return dbt_avdtp_local_result(context,token,result);

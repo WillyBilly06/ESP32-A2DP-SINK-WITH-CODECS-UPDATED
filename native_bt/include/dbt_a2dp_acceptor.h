@@ -57,6 +57,11 @@ dbt_result_t dbt_a2dp_acceptor_media_begin(dbt_a2dp_acceptor_t *,const dbt_a2dp_
  * channel/worker ownership drains, preserving the shared ACL and other PSMs. */
 dbt_result_t dbt_a2dp_acceptor_media_status(const dbt_a2dp_acceptor_t *,const dbt_a2dp_channel_t *);
 dbt_result_t dbt_a2dp_acceptor_media_cancel(dbt_a2dp_acceptor_t *,const dbt_a2dp_channel_t *,uint32_t now_ms);
+/* Abort the current endpoint on this exact signaling lifetime. Captures a
+ * bound or staged media channel before accepting; even pending setup must
+ * retire before terminal success. PENDING borrows context, not the input key. */
+dbt_result_t dbt_a2dp_acceptor_abort_begin(dbt_a2dp_acceptor_t *,const dbt_a2dp_channel_t *,
+    dbt_avdtp_local_t *,uint32_t now_ms,uint32_t *token);
 /* Owner callbacks: no channel mutation/reentry; close operations are deferred
  * to poll. UNSUPPORTED means another PSM. INVALID means an unexpected channel;
  * a composite application must close that channel explicitly. */
