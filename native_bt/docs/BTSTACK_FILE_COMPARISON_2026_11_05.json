@@ -1621,15 +1621,17 @@
     },
     {
       "owned": "native_bt/include/dbt_channels.h",
-      "sha256": "50fba728582c99475c2d304317f47f3e05c1fcd4aac0d98615d3aec24ff61317",
-      "lines": 241,
+      "sha256": "4c63ee55a35aef8f330ae8cb231686c1af95f99ad1de5d77a7b43b24318f4f6b",
+      "lines": 246,
       "reference_files": [
         "src/hci.c",
         "src/l2cap.c",
-        "src/l2cap.h"
+        "src/l2cap.h",
+        "src/l2cap.c:644-721,1297-1324,5296-5301"
       ],
-      "status": "partial_review",
-      "mapping": "counterpart_candidates"
+      "status": "reviewed_contract",
+      "mapping": "ERTM negotiated encoded storage, frame pins and provider callback ownership",
+      "review_scope": "Complete contract read against selected implementation paths. Allocation/release callbacks share owner non-reentrancy. Encoded buffer reserved before OPEN, retained to teardown; existing TX/RX metadata allocation and protocol qualification remain explicit."
     },
     {
       "owned": "native_bt/include/dbt_classic_security.h",
@@ -1665,15 +1667,17 @@
     },
     {
       "owned": "native_bt/include/dbt_ertm_engine.h",
-      "sha256": "e6e06a029793602a0d6a2c6c1b73c8a6eaee53fcdb8e38afc734d345e1cbc4a4",
-      "lines": 60,
+      "sha256": "80cbbc7fe40ba3467ae15f47d4ef85c1aa5751e2c9d124598b537e2e44eecf5d",
+      "lines": 63,
       "reference_files": [
         "src/hci.c",
         "src/l2cap.c",
-        "src/l2cap.h"
+        "src/l2cap.h",
+        "src/l2cap.c:644-721,1297-1324,5296-5301"
       ],
-      "status": "pending",
-      "mapping": "counterpart_candidates"
+      "status": "reviewed_contract",
+      "mapping": "ERTM negotiated encoded storage, frame pins and provider callback ownership",
+      "review_scope": "Complete contract read against selected implementation paths. Allocation/release callbacks share owner non-reentrancy. Encoded buffer reserved before OPEN, retained to teardown; existing TX/RX metadata allocation and protocol qualification remain explicit."
     },
     {
       "owned": "native_bt/include/dbt_ertm.h",
@@ -2434,15 +2438,17 @@
     },
     {
       "owned": "native_bt/src/dbt_channels.c",
-      "sha256": "7cbc6eb7d544928e1ecd11d9ac90d950818c0fc5c0077e7b39080f5298285b49",
-      "lines": 1630,
+      "sha256": "7d5fa3ccebe1c16a03d37c7321d62218da53dab03d94334273a8306879e3f241",
+      "lines": 1644,
       "reference_files": [
         "src/hci.c",
         "src/l2cap.c",
-        "src/l2cap.h"
+        "src/l2cap.h",
+        "src/l2cap.c:644-721,1297-1324,5296-5301"
       ],
       "status": "partial_review",
-      "mapping": "counterpart_candidates"
+      "mapping": "ERTM negotiated encoded storage, frame pins and provider callback ownership",
+      "review_scope": "Selected setup/frame/commit/cancel/dispose/provider/reconfiguration and engine lifetime paths read. Encoded per-frame heap churn removed, provider reentry fenced. Larger channel signaling/security/protocol-state comparison and live wire/fault/throughput qualification remain partial."
     },
     {
       "owned": "native_bt/src/dbt_classic_security.c",
@@ -2470,15 +2476,17 @@
     },
     {
       "owned": "native_bt/src/dbt_ertm_engine.c",
-      "sha256": "5b7e4bcad21f0d574c881bb67408d5dbe120b0b22cbda62dc56671fb3322fc38",
-      "lines": 288,
+      "sha256": "a3509748e39a65499e8a1ef293a8738e3cdfc948bc88e5090a336bc24dbbe4ba",
+      "lines": 300,
       "reference_files": [
         "src/hci.c",
         "src/l2cap.c",
-        "src/l2cap.h"
+        "src/l2cap.h",
+        "src/l2cap.c:644-721,1297-1324,5296-5301"
       ],
-      "status": "pending",
-      "mapping": "counterpart_candidates"
+      "status": "partial_review",
+      "mapping": "ERTM negotiated encoded storage, frame pins and provider callback ownership",
+      "review_scope": "Selected setup/frame/commit/cancel/dispose/provider/reconfiguration and engine lifetime paths read. Encoded per-frame heap churn removed, provider reentry fenced. Larger channel signaling/security/protocol-state comparison and live wire/fault/throughput qualification remain partial."
     },
     {
       "owned": "native_bt/src/dbt_ertm.c",
@@ -4351,9 +4359,9 @@
     "owned_files": 287,
     "reviewed_owned_c_bodies": 38,
     "partial_files": 15,
-    "pending_files": 182,
+    "pending_files": 180,
     "compiled_owned_units_missing": 0,
-    "reviewed_headers": 36,
+    "reviewed_headers": 38,
     "reviewed_build_files": 9,
     "reviewed_generators": 5,
     "reviewed_static_data": 2,
@@ -4693,10 +4701,21 @@
         "Full ccache build passes,10348 source hashes stable,rebuildable455.611MiB. Text+632; BSS/data/IRAM unchanged. Callback/RF/audio behavior remains unqualified.",
         "COM6 image ed8ac589f89eba80928644fd41ca5ba9ac3be7db4f9da9c1215eeb0d58f1133a and selector readbacks match. Original full-region MD5 unchanged; owned VALID, no automatic fallback. Ready idle, no watchdog/backtrace,37 existing cold checks pass RFfalse, idleheap137912/min67356/largest110592 unchanged, UARTsource129 connected. No live callback/fault/throughput proof."
       ]
+    },
+    {
+      "id": "ERTM-CHANNEL-STORAGE",
+      "status": "source_fixed_analysis_ccache_build_only_not_deployed",
+      "notes": [
+        "Same encoded capacity is prepared before OPEN, retained through frame commit/cancel and MTU-only reconfiguration, freed at dispose. Initial/accepted reconfig bounds keep capacity valid.",
+        "Manager and engine allocation/release providers preserve existing callback fence. Layout unchanged; no extra task, lock, queue or flag.",
+        "Active ERTM retains peerMPS+6 plus allocator overhead between pins. Window metadata and segmented RX still allocate; Basic A2DP uses no encoded ERTM pool. No claim this fixes Basic A2DP underruns.",
+        "Strict Clang empty diagnostics and target -Os compile pass. Frame own stack96→80, close32→48; no call-chain/time/live proof.",
+        "Full ccache build passes, all10348 source hashes stable; text+64, BSS/data/IRAM unchanged. Candidate 102b5785a57317ec5d6d2a1484c4fadca6c3a583b782ed5465390bff56dc02f8 not flashed; COM6 still on verified6707d86b/ed8ac589 image."
+      ]
     }
   ],
-  "next_review": "Continue channel/provider/ERTM teardown, callback and pin ownership, then remaining Classic/BLE/security/app integration. Keep held campaigns and incomplete runtime parity explicit.",
-  "latest_build_image": "ed8ac589f89eba80928644fd41ca5ba9ac3be7db4f9da9c1215eeb0d58f1133a",
+  "next_review": "Prioritize active A2DP lifecycle and missing product peer/reconnect integration; source APIs alone are not a complete usable feature. Continue full pending source comparison; held RF/campaign scope remains in force.",
+  "latest_build_image": "102b5785a57317ec5d6d2a1484c4fadca6c3a583b782ed5465390bff56dc02f8",
   "verification_source_contracts": [
     {
       "file": "native_bt/tools/test_ldac_target_component.py",

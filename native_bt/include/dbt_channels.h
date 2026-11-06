@@ -76,7 +76,9 @@ typedef struct {
      * allocation/security work. Pure bounded admission policy, no mutations of
      * this manager. It does not replace authorization or encryption checks. */
     bool (*accept)(void *context, const dbt_link_t *link, uint16_t psm);
-    /* Optional LE CoC state/reassembly allocator, host owner only. */
+    /* Optional LE CoC / ERTM state and working-storage provider, host owner
+     * only. Bounded/nonblocking; the manager cannot be recursively mutated
+     * from either hook (callback-safe close intent remains available). */
     uint8_t *(*allocate)(void *context,uint16_t bytes);
     void (*release)(void *context,uint8_t *bytes);
     /* Pure LE security qualification, returns wire result 0 or 5..8. Required
@@ -150,7 +152,10 @@ typedef struct {
 
 /* Single host owner. Callbacks are borrowed, nonblocking and non-reentrant.
  * Classic Basic and LE credit channels share signaling/ownership. ERTM is
- * advertised only when explicitly required; enhanced credit mode is not. */
+ * advertised only when explicitly required; enhanced credit mode is not.
+ * ERTM reserves one peer-MPS+6 encoded frame before OPEN, retains it across
+ * frame commit/cancel and MTU-only reconfiguration, and releases it at teardown.
+ * Allocation failure retires setup instead of announcing a usable channel. */
 dbt_result_t dbt_channels_init(dbt_channels_t *manager, dbt_acl_t *acl,
                                dbt_channel_hooks_t hooks, uint16_t maximum_mtu,
                                uint32_t rtx_ms, uint32_t ertx_ms);

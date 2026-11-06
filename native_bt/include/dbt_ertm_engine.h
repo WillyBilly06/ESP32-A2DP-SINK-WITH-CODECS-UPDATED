@@ -35,7 +35,10 @@ typedef struct {
 /* Single-owner, already-negotiated Enhanced-Control ERTM. Init allocates no
  * payloads. REJ receive recovery; peer SREJ honored. Local timers are actual
  * non-flushable sender values; peer MaxTransmit limits our attempts (0=infinite).
- * Negotiation/runtime are separate. A failed engine requires channel closure. */
+ * Negotiation/runtime are separate. A failed engine requires channel closure.
+ * All hooks are bounded/nonblocking borrowed callbacks, including allocation
+ * and release. Mutating APIs reject recursive calls from these hooks; init is
+ * allowed only on new storage or after close and all callbacks have returned. */
 dbt_result_t dbt_ertm_engine_init(dbt_ertm_engine_t *engine,dbt_ertm_hooks_t hooks,
     uint16_t local_cid,uint16_t remote_cid,dbt_ertm_parameters_t local,
     dbt_ertm_parameters_t peer,bool fcs);

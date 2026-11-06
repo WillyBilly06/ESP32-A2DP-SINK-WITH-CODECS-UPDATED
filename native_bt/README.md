@@ -43,6 +43,10 @@ uses a bounded span copy. Live fragment/audio/memory-failure behavior remains un
 wake for oversized PDUs even without a payload buffer. TX fragment assembly uses
 at most three source-span copies with unchanged admission/commit timing.
 Live timeout/prefix/credit/backpressure behavior remains unqualified.
+[ERTM channel storage](docs/ERTM_CHANNEL_STORAGE_2026_11_05.md) now reserves the
+encoded frame buffer before OPEN and retains it through commit/cancel, with
+provider callback fences. Active ERTM retains that capacity between frames;
+Basic A2DP has no added buffer, and live ERTM/audio behavior remains unqualified.
 [Callback-safe abort](docs/CALLBACK_ABORT_OWNERSHIP_2026_11_05.md) now defers
 borrowed RX/channel/TX reclamation until callbacks return and prevents further
 ACL submission after a callback failure. Host/runtime target layout is unchanged;

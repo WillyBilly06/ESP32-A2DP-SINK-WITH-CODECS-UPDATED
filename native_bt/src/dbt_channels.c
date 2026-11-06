@@ -48,19 +48,31 @@ static bool due(uint32_t now, uint32_t deadline) {
 }
 static bool psm_valid(uint16_t psm) { return (psm & 0x0101u) == 1u; }
 static uint16_t smaller(uint16_t left, uint16_t right) { return left < right ? left : right; }
+/* Provider callbacks share the same non-reentrant manager contract as events.
+ * Preserve an outer fence when cleanup invokes another provider hook. */
+static uint8_t *channel_allocate(dbt_channels_t *m,uint16_t bytes){
+    bool previous=m->in_callback;m->in_callback=true;
+    uint8_t *result=m->hooks.allocate(m->hooks.context,bytes);
+    m->in_callback=previous;return result;
+}
+static void channel_release(dbt_channels_t *m,uint8_t *bytes){
+    bool previous=m->in_callback;m->in_callback=true;
+    m->hooks.release(m->hooks.context,bytes);
+    m->in_callback=previous;
+}
 static uint8_t *le_allocate(void *context,uint16_t bytes){
     struct dbt_le_channel *le=context;dbt_channels_t *m=le->manager;
-    return m->hooks.allocate(m->hooks.context,bytes);
+    return channel_allocate(m,bytes);
 }
 static void le_release(void *context,uint8_t *bytes){
-    struct dbt_le_channel *le=context;dbt_channels_t *m=le->manager;m->hooks.release(m->hooks.context,bytes);
+    struct dbt_le_channel *le=context;dbt_channels_t *m=le->manager;channel_release(m,bytes);
 }
 static void le_sdu(void *context,const uint8_t *bytes,uint16_t size){
     struct dbt_le_channel *le=context;dbt_channels_t *m=le->manager;
     if(m->hooks.data){m->in_callback=true;m->hooks.data(m->hooks.context,le->channel,bytes,size);m->in_callback=false;}
 }
 static void le_dispose(dbt_channels_t *m,dbt_channel_t *c){
-    if(c->le){dbt_credit_close(&c->le->engine);m->hooks.release(m->hooks.context,(uint8_t *)c->le);c->le=0;}
+    if(c->le){dbt_credit_close(&c->le->engine);channel_release(m,(uint8_t *)c->le);c->le=0;}
 }
 static void ertm_dispose(dbt_channels_t *m,dbt_channel_t *c){
     if(!c->ertm)return;
@@ -71,22 +83,22 @@ static void ertm_dispose(dbt_channels_t *m,dbt_channel_t *c){
             (void)dbt_ertm_engine_close(&e->engine);
         }
     }
-    if(e->encoded)m->hooks.release(m->hooks.context,e->encoded);
-    m->hooks.release(m->hooks.context,(uint8_t *)e);c->ertm=0;
+    if(e->encoded)channel_release(m,e->encoded);
+    channel_release(m,(uint8_t *)e);c->ertm=0;
 }
 static bool ertm_construct(dbt_channels_t *m,dbt_channel_t *c,dbt_ertm_parameters_t local){
-    struct dbt_ertm_channel *e=(struct dbt_ertm_channel *)m->hooks.allocate(m->hooks.context,sizeof(*e));
+    struct dbt_ertm_channel *e=(struct dbt_ertm_channel *)channel_allocate(m,sizeof(*e));
     if(!e)return false;
     if((uintptr_t)e%_Alignof(struct dbt_ertm_channel)){
-        m->hooks.release(m->hooks.context,(uint8_t *)e);return false;
+        channel_release(m,(uint8_t *)e);return false;
     }
     zero(e,sizeof(*e));e->local=local;e->manager=m;e->channel=c;c->ertm=e;return true;
 }
 static uint8_t *ertm_allocate(void *context,uint16_t bytes){
-    struct dbt_ertm_channel *e=context;return e->manager->hooks.allocate(e->manager->hooks.context,bytes);
+    struct dbt_ertm_channel *e=context;return channel_allocate(e->manager,bytes);
 }
 static void ertm_release(void *context,uint8_t *bytes){
-    struct dbt_ertm_channel *e=context;e->manager->hooks.release(e->manager->hooks.context,bytes);
+    struct dbt_ertm_channel *e=context;channel_release(e->manager,bytes);
 }
 static void ertm_sdu(void *context,const uint8_t *bytes,uint16_t size){
     struct dbt_ertm_channel *e=context;dbt_channels_t *m=e->manager;
@@ -155,6 +167,11 @@ static void maybe_open(dbt_channels_t *manager, dbt_channel_t *channel) {
             ertm_fault(manager,channel);return;
         }
         e->initialized=true;
+        /* One encoded-frame loan per channel. Reserve after negotiation and
+         * before OPEN; commit/cancel returns the pin, not this working storage.
+         * Accepted reconfiguration keeps MPS unchanged. */
+        e->encoded=channel_allocate(manager,(uint16_t)(e->peer.mps+6u));
+        if(!e->encoded){ertm_fault(manager,channel);return;}
     }
     bool reconfigured = channel->reconfiguring;
     channel->state = DBT_CH_OPEN;
@@ -373,12 +390,12 @@ static uint16_t le_security(dbt_channels_t *m,const dbt_link_t *link,const dbt_l
     return authorized(m,link,s->spsm,s->security)?0:6;
 }
 static bool le_construct(dbt_channels_t *m,dbt_channel_t *c,const dbt_le_service_t *s,dbt_credit_parameters_t peer){
-    struct dbt_le_channel *le=(struct dbt_le_channel *)m->hooks.allocate(m->hooks.context,sizeof(*le));
+    struct dbt_le_channel *le=(struct dbt_le_channel *)channel_allocate(m,sizeof(*le));
     if(!le)return false;
     zero(le,sizeof(*le));le->manager=m;le->channel=c;le->initial_credits=s->receive.credits;le->minimum_key_size=s->minimum_key_size;
     dbt_credit_parameters_t local=s->receive;local.credits=0;
     dbt_credit_hooks_t hooks={le,le_allocate,le_release,le_sdu};
-    if(dbt_credit_init(&le->engine,hooks,local,peer)!=DBT_OK){m->hooks.release(m->hooks.context,(uint8_t *)le);return false;}
+    if(dbt_credit_init(&le->engine,hooks,local,peer)!=DBT_OK){channel_release(m,(uint8_t *)le);return false;}
     c->le=le;return true;
 }
 static void le_fault(dbt_channels_t *m,dbt_channel_t *c){
@@ -533,11 +550,11 @@ dbt_result_t dbt_channels_open(dbt_channels_t *manager, uint16_t handle, uint16_
 dbt_result_t dbt_channels_open_ertm(dbt_channels_t *m,uint16_t handle,uint16_t psm,uint16_t minimum,
     dbt_security_t security,dbt_ertm_parameters_t local,uint32_t now,uint16_t *cid){
     if(!m || m->in_callback || !cid || !ertm_policy_valid(m,local))return DBT_INVALID;
-    struct dbt_ertm_channel *e=(struct dbt_ertm_channel *)m->hooks.allocate(m->hooks.context,sizeof(*e));
+    struct dbt_ertm_channel *e=(struct dbt_ertm_channel *)channel_allocate(m,sizeof(*e));
     if(!e)return DBT_NO_SPACE;
-    if((uintptr_t)e%_Alignof(struct dbt_ertm_channel)){m->hooks.release(m->hooks.context,(uint8_t *)e);return DBT_NO_SPACE;}
+    if((uintptr_t)e%_Alignof(struct dbt_ertm_channel)){channel_release(m,(uint8_t *)e);return DBT_NO_SPACE;}
     dbt_result_t result=dbt_channels_open(m,handle,psm,local.mtu,minimum,security,now,cid);
-    if(result!=DBT_OK){m->hooks.release(m->hooks.context,(uint8_t *)e);return result;}
+    if(result!=DBT_OK){channel_release(m,(uint8_t *)e);return result;}
     dbt_channel_t *c=find(m,handle,*cid);zero(e,sizeof(*e));e->manager=m;e->channel=c;e->local=local;c->ertm=e;
     m->ertm_enabled=true;return DBT_OK;
 }
@@ -1551,8 +1568,7 @@ dbt_result_t dbt_channels_ertm_frame(dbt_channels_t *m,uint16_t handle,dbt_l2cap
         if(result==DBT_EMPTY)continue;
         if(result!=DBT_OK){ertm_fault(m,c);continue;}
         uint16_t cap=(uint16_t)(e->peer.mps+6u),written=0;
-        if(!e->encoded)e->encoded=m->hooks.allocate(m->hooks.context,cap);
-        if(!e->encoded){(void)dbt_ertm_engine_cancel_frame(&e->engine);ertm_fault(m,c);return DBT_NO_SPACE;}
+        if(!e->encoded){(void)dbt_ertm_engine_cancel_frame(&e->engine);ertm_fault(m,c);return DBT_INVALID;}
         result=dbt_ertm_engine_peek(&e->engine,e->encoded,cap,&written);
         if(result!=DBT_OK){(void)dbt_ertm_engine_cancel_frame(&e->engine);ertm_fault(m,c);return result;}
         result=dbt_l2cap_tx_begin(frame,link,c->remote_cid,e->encoded,written);
@@ -1565,7 +1581,6 @@ dbt_result_t dbt_channels_ertm_commit(dbt_channels_t *m,uint16_t handle,uint16_t
     if(!m || m->in_callback)return DBT_INVALID;
     dbt_channel_t *c=find(m,handle,cid);if(!c || !c->ertm || !c->ertm->initialized)return DBT_INVALID;
     struct dbt_ertm_channel *e=c->ertm;dbt_result_t result=dbt_ertm_engine_commit(&e->engine,now);
-    if(e->encoded){m->hooks.release(m->hooks.context,e->encoded);e->encoded=0;}
     if(result!=DBT_OK)ertm_fault(m,c);
     return result;
 }
@@ -1573,7 +1588,6 @@ dbt_result_t dbt_channels_ertm_cancel(dbt_channels_t *m,uint16_t handle,uint16_t
     if(!m || m->in_callback)return DBT_INVALID;
     dbt_channel_t *c=find(m,handle,cid);if(!c || !c->ertm || !c->ertm->initialized)return DBT_INVALID;
     struct dbt_ertm_channel *e=c->ertm;dbt_result_t result=dbt_ertm_engine_cancel_frame(&e->engine);
-    if(e->encoded){m->hooks.release(m->hooks.context,e->encoded);e->encoded=0;}
     return result;
 }
 bool dbt_channels_ertm_sdu_active(const dbt_channels_t *m,uint16_t handle,uint16_t cid){

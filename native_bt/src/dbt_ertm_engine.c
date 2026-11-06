@@ -12,12 +12,24 @@ static struct dbt_ertm_slot *slot(dbt_ertm_engine_t *c,uint8_t seq){
     unsigned at=distance(seq,c->expected_ack);
     return at<c->count?&c->slots[(c->head+at)%c->capacity]:0;
 }
+/* Allocator/release hooks borrow the engine too; reject recursive mutation
+ * until their caller has finished installing or clearing its storage. */
+static uint8_t *storage_allocate(dbt_ertm_engine_t *c,uint16_t size){
+    bool previous=c->in_callback;c->in_callback=true;
+    uint8_t *result=c->hooks.allocate(c->hooks.context,size);
+    c->in_callback=previous;return result;
+}
+static void storage_release(dbt_ertm_engine_t *c,uint8_t *bytes){
+    bool previous=c->in_callback;c->in_callback=true;
+    c->hooks.release(c->hooks.context,bytes);
+    c->in_callback=previous;
+}
 static void partial_clear(dbt_ertm_engine_t *c){
-    if(c->partial)c->hooks.release(c->hooks.context,c->partial);
+    if(c->partial)storage_release(c,c->partial);
     c->partial=0;c->rx_size=c->rx_cursor=0;
 }
 static void transmit_clear(dbt_ertm_engine_t *c){
-    if(c->slots)c->hooks.release(c->hooks.context,(uint8_t *)c->slots);
+    if(c->slots)storage_release(c,(uint8_t *)c->slots);
     c->slots=0;c->transmit=0;c->tx_active=false;c->capacity=c->head=c->count=0;c->retransmit=0;
 }
 dbt_result_t dbt_ertm_engine_close(dbt_ertm_engine_t *c){
@@ -52,9 +64,9 @@ dbt_result_t dbt_ertm_engine_send(dbt_ertm_engine_t *c,const uint8_t *bytes,uint
     if(size>c->peer.mtu)return DBT_NO_SPACE;
     uint32_t frames=size?((uint32_t)size+c->peer.mps-1u)/c->peer.mps:1u;
     uint8_t count=(uint8_t)(frames<c->peer.window?frames:c->peer.window);
-    uint8_t *storage=c->hooks.allocate(c->hooks.context,(uint16_t)(count*sizeof(struct dbt_ertm_slot)));
+    uint8_t *storage=storage_allocate(c,(uint16_t)(count*sizeof(struct dbt_ertm_slot)));
     if(!storage)return DBT_NO_SPACE;
-    if((uintptr_t)storage%_Alignof(struct dbt_ertm_slot)){c->hooks.release(c->hooks.context,storage);return DBT_NO_SPACE;}
+    if((uintptr_t)storage%_Alignof(struct dbt_ertm_slot)){storage_release(c,storage);return DBT_NO_SPACE;}
     c->slots=(struct dbt_ertm_slot *)storage;c->capacity=count;c->head=c->count=0;
     c->transmit=bytes;c->tx_size=size;c->tx_cursor=0;c->tx_active=true;c->generated=false;return DBT_OK;
 }
@@ -87,7 +99,7 @@ static dbt_result_t payload(dbt_ertm_engine_t *c,const dbt_ertm_frame_t *f,const
     }
     if(f->sar==DBT_ERTM_START){
         if(c->partial || !f->sdu_length || f->sdu_length>c->local.mtu || f->size>f->sdu_length)return fail(c,DBT_INVALID);
-        c->partial=c->hooks.allocate(c->hooks.context,f->sdu_length);if(!c->partial)return fail(c,DBT_NO_SPACE);
+        c->partial=storage_allocate(c,f->sdu_length);if(!c->partial)return fail(c,DBT_NO_SPACE);
         c->rx_size=f->sdu_length;c->rx_cursor=f->size;copy(c->partial,f->data,f->size);return DBT_OK;
     }
     if(!c->partial || (uint32_t)c->rx_cursor+f->size>c->rx_size)return fail(c,DBT_INVALID);

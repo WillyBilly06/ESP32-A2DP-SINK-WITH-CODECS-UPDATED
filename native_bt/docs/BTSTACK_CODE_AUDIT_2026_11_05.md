@@ -273,6 +273,14 @@ Strict Clang diagnostics are empty for both bodies, and matched Xtensa -Os compi
 
 Coverage now has 38 reviewed authored C bodies, 36 contracts, 9 build inputs, 5 generators and 2 static data among 287 inputs; 15 partial and 182 pending remain. Broader channel/provider/ERTM and full feature/security/lifecycle/audio qualification are still incomplete.
 
+## ERTM encoded channel storage and provider fences
+
+The [ERTM storage review](ERTM_CHANNEL_STORAGE_2026_11_05.md) compares pinned buffer validation/carving and release order with the owned setup/frame/reconfiguration paths. The encoded frame buffer now reserves its unchanged peer-MPS+6 capacity before OPEN, remains valid through frame commit/cancel and is released at disposal. Accepted reconfiguration keeps MPS fixed. Manager and engine allocation/release hooks now preserve the existing callback fence, preventing recursive mutation while provider callers retain live storage.
+
+The cost is retained active-ERTM capacity between pins; Basic A2DP adds no buffer. Engine window metadata and segmented RX still allocate, so this is not an all-path allocation-free claim or an established Basic A2DP underrun fix. Strict Clang and standalone Xtensa compilation pass. Layouts remain manager2664/channel172/engine192/runtime11160; frame own stack96→80 and engine close32→48, excluding callees/timing. Full product ccache build/source/workspace guards pass; text+64, BSS/data/IRAM unchanged. This candidate is compiled only; COM6 remains on commit6707d86b, documented below.
+
+Coverage has 38 reviewed authored C bodies, 38 contracts, 9 build files, 5 generators and 2 static data among287 inputs;15 partial and180 pending remain. ERTM state-machine and broader channel/security signaling, default reconnection integration, all-feature and audio qualification are unfinished.
+
 ## Current COM6 deployment
 
 Image ed8ac589f89eba80928644fd41ca5ba9ac3be7db4f9da9c1215eeb0d58f1133a was flashed at 921600 baud to ota1 at 0x390000. Full image and selector readbacks at 230400 match; original application full-region MD5 is unchanged. Owned host remains selected VALID with automatic Bluedroid restoration disabled. Ordinary idle startup is ready with no watchdog/backtrace; decoder CPU0 priority21, host CPU1 priority22 and renderer CPU1 priority20 remain selected.
