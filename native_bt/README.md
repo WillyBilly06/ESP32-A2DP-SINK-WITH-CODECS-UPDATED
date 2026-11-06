@@ -39,6 +39,10 @@ before old-workspace release. Live boundary/fault/audio behavior remains unquali
 removes Opus media/expiry/reset heap activity with a 6144-byte pool reserved only
 while Opus is configured. It adds 6152 accounted bytes in that mode; LDAC staging
 uses a bounded span copy. Live fragment/audio/memory-failure behavior remains unqualified.
+[Transport discard deadlines](docs/TRANSPORT_DISCARD_DEADLINE_2026_11_05.md) now
+wake for oversized PDUs even without a payload buffer. TX fragment assembly uses
+at most three source-span copies with unchanged admission/commit timing.
+Live timeout/prefix/credit/backpressure behavior remains unqualified.
 [Exact zero-tail FIR work](docs/FIR_ZERO_TAIL_2026_11_05.md) now omits two universally
 zero taps’ work per output frame and fixes failed renderer initialization cleanup.
 The full coefficient bank, filter delay, history and precision remain unchanged.
@@ -95,7 +99,7 @@ a stream. Automatic peer/reconnect policy and sustained performance remain unqua
 
 The owned Classic+BLE host is selected on the local COM6 board in ota1 at
 0x390000, marked VALID, with automatic Bluedroid restoration disabled. The
-verified image is `8a8929fb4626cce6460f6a011440b0332fabc2a464d1c70e5719ffcb6fe8d0de`.
+verified image is `a2957dd2351f9e96f8f326711eb1e9db421d3cc2ca9516b15319f2ec5f67ae4c`.
 This remains development firmware with incomplete feature/runtime qualification.
 
 Recent source corrections cover [codec payload boundaries and shared PCM

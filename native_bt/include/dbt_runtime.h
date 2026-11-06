@@ -62,8 +62,9 @@ typedef struct {
     uint8_t tx_packet[DBT_MAX_H4_BYTES];
 } dbt_runtime_t;
 
-/* One owner for every call except receive. Allocator is used only for fragmented RX PDUs, active
- * LE channel metadata and fragmented LE SDUs. There are no permanent per-codec or per-link payload pools.
+/* One owner for every call except receive. Owning layers allocate fragmented
+ * RX, LE metadata/SDUs and enhanced-channel working storage. Runtime init adds
+ * no per-codec payload pool; the product may bind retained per-link RX storage.
  * Hooks are borrowed/nonblocking; poll is never reentrant. */
 dbt_result_t dbt_runtime_init(dbt_runtime_t *runtime, dbt_transport_t transport,
     dbt_runtime_hooks_t hooks, uint16_t maximum_mtu, uint32_t command_timeout_ms);

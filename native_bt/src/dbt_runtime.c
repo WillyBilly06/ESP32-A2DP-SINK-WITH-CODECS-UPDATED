@@ -445,7 +445,9 @@ uint32_t dbt_runtime_wait_ms(const dbt_runtime_t *runtime, uint32_t now_ms) {
     if (channels < wait) wait = channels;
     for (unsigned i = 0; i < DBT_MAX_LINKS; ++i) {
         const dbt_l2cap_partial_t *partial = &runtime->rx.partial[i];
-        if (!partial->data) continue;
+        /* Oversized PDUs retain a discard cursor/deadline without a payload
+         * buffer. Match the RX owner active predicate, not storage presence. */
+        if (!partial->data && partial->expected<=runtime->rx.max_pdu_payload) continue;
         uint32_t remaining = (uint32_t)(now_ms - partial->deadline) < 0x80000000u ? 0 : partial->deadline - now_ms;
         if (remaining < wait) wait = remaining;
     }

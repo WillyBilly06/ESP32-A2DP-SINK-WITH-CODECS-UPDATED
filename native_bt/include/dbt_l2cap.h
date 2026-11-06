@@ -65,7 +65,10 @@ dbt_result_t dbt_l2cap_tx_begin(dbt_l2cap_tx_t *tx, const dbt_link_t *link,
 /* Optional copied SDU-length prefix plus borrowed K-frame payload. */
 dbt_result_t dbt_l2cap_tx_begin_credit(dbt_l2cap_tx_t *tx,const dbt_link_t *link,
     uint16_t cid,const uint8_t *data,uint16_t size,bool first,uint16_t sdu_length);
-/* Peek is repeatable under backpressure. Commit only after dbt_acl_submit OK. */
+/* Peek is repeatable under backpressure. Commit only after dbt_acl_submit OK.
+ * Output scratch and written are disjoint from the TX/ACL objects, each other
+ * and the immutable borrowed payload. Prefix shape/body presence is validated
+ * before output writes. At most three contiguous source spans are copied. */
 dbt_result_t dbt_l2cap_tx_peek(dbt_l2cap_tx_t *tx, const dbt_acl_t *acl,
                               uint8_t *output, uint16_t capacity, uint16_t *written);
 dbt_result_t dbt_l2cap_tx_commit(dbt_l2cap_tx_t *tx);

@@ -186,6 +186,8 @@ dbt_result_t dbt_l2cap_tx_peek(dbt_l2cap_tx_t *tx, const dbt_acl_t *acl,
                               uint8_t *output, uint16_t capacity, uint16_t *written) {
     if (tx == 0 || acl == 0 || output == 0 || written == 0) return DBT_INVALID;
     tx->pending = 0;
+    if(tx->prefix_size>sizeof(tx->prefix) || tx->size<tx->prefix_size ||
+       (tx->size>tx->prefix_size && !tx->data))return DBT_INVALID;
     const dbt_link_t *link = dbt_acl_find(acl, tx->handle);
     if (link == 0 || link->generation != tx->generation) return DBT_INVALID;
     uint32_t total = 4u + tx->size;
@@ -204,11 +206,19 @@ dbt_result_t dbt_l2cap_tx_peek(dbt_l2cap_tx_t *tx, const dbt_acl_t *acl,
     output[3] = (uint8_t)payload;
     output[4] = (uint8_t)(payload >> 8);
     uint8_t header[4] = {(uint8_t)tx->size, (uint8_t)(tx->size >> 8), (uint8_t)tx->cid, (uint8_t)(tx->cid >> 8)};
-    for (uint32_t i = 0; i < payload; ++i) {
-        uint32_t position = tx->cursor + i;
-        output[5u+i]=position<4u?header[position]:position<4u+tx->prefix_size?
-            tx->prefix[position-4u]:tx->data[position-4u-tx->prefix_size];
+    /* The logical PDU has three disjoint spans: basic header, optional copied
+     * prefix and borrowed payload. Copy each intersected span once, including
+     * fragments that end inside the header/prefix. No per-byte dispatch. */
+    uint32_t position=tx->cursor,remaining=payload;uint8_t *destination=output+5u;
+    if(position<4u){
+        uint32_t span=4u-position;if(span>remaining)span=remaining;
+        memcpy(destination,header+position,span);destination+=span;position+=span;remaining-=span;
     }
+    if(remaining && position<4u+tx->prefix_size){
+        uint32_t span=4u+tx->prefix_size-position;if(span>remaining)span=remaining;
+        memcpy(destination,tx->prefix+(position-4u),span);destination+=span;position+=span;remaining-=span;
+    }
+    if(remaining)memcpy(destination,tx->data+(position-4u-tx->prefix_size),remaining);
     *written = (uint16_t)(5u + payload);
     tx->pending = (uint16_t)payload;
     return DBT_OK;

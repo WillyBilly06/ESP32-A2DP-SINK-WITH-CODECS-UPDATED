@@ -1385,12 +1385,13 @@
       "sha256": "37fc4d1ce24e87ceda6a7d96f794ca6efb9e1f3c1cdd3631529714e5553d62fe",
       "lines": 47,
       "reference_files": [
-        "src/hci.c",
-        "src/hci.h",
-        "port/esp32/components/btstack/hci_transport_esp32_vhci.c"
+        "src/hci.c:954-1025,1295-1374,4443-4477",
+        "Owned RX active/expiry predicate",
+        "Selected channel/ERTM/credit provider contracts"
       ],
-      "status": "pending",
-      "mapping": "counterpart_candidates"
+      "status": "reviewed_contract",
+      "mapping": "Controller/ACL/L2CAP ownership and event-driven transport deadlines",
+      "review_scope": "Complete link generation/shared-vs-split pool/credit and submission lifetime contract read alongside full body. No new credit mutation change; controller/RF/fault qualification missing."
     },
     {
       "owned": "native_bt/include/dbt_async_ticket.h",
@@ -1711,12 +1712,13 @@
       "sha256": "8b9d6e36edd0d13ee7f95516f77e40d505867c99e3e34fcd1c5f9a104eebc2d1",
       "lines": 37,
       "reference_files": [
-        "src/hci.c",
-        "src/hci.h",
-        "port/esp32/components/btstack/hci_transport_esp32_vhci.c"
+        "src/hci.c:954-1025,1295-1374,4443-4477",
+        "Owned RX active/expiry predicate",
+        "Selected channel/ERTM/credit provider contracts"
       ],
-      "status": "pending",
-      "mapping": "counterpart_candidates"
+      "status": "reviewed_contract",
+      "mapping": "Controller/ACL/L2CAP ownership and event-driven transport deadlines",
+      "review_scope": "Complete H4 borrowed view/framing/command declarations read against full decoder body, including SCO status and unsupported ISO boundary. No voice/profile or malformed-input qualification implied."
     },
     {
       "owned": "native_bt/include/dbt_host.h",
@@ -1748,8 +1750,8 @@
     },
     {
       "owned": "native_bt/include/dbt_l2cap.h",
-      "sha256": "967c58f30e0f17778c714061b8dcc09b8c6699f27eb17d7cdf130a106d3cc2a7",
-      "lines": 77,
+      "sha256": "28869576311de296ee83b6379ea2adee8a2f0c94413a94abf067b654cde87737",
+      "lines": 80,
       "reference_files": [
         "src/hci.c",
         "src/l2cap.c",
@@ -1899,23 +1901,29 @@
     },
     {
       "owned": "native_bt/include/dbt_runtime.h",
-      "sha256": "6c392f4d5c28519512401384784d53f3f5347641b332ab41437fc2315306bf7c",
-      "lines": 94,
-      "reference_files": [],
-      "status": "pending",
-      "mapping": "product/support code; no direct protocol counterpart assigned"
+      "sha256": "85968ca6ad751031335bad9117ae22ab557d42de58d2545019beab412e549386",
+      "lines": 95,
+      "reference_files": [
+        "src/hci.c:954-1025,1295-1374,4443-4477",
+        "Owned RX active/expiry predicate",
+        "Selected channel/ERTM/credit provider contracts"
+      ],
+      "status": "reviewed_contract",
+      "mapping": "Controller/ACL/L2CAP ownership and event-driven transport deadlines",
+      "review_scope": "Complete runtime ownership/callback/TX loan/fixed cancellation/failure metadata API read against body. Allocation wording now covers enhanced storage and externally bound retained RX; no all-provider qualification."
     },
     {
       "owned": "native_bt/include/dbt_rx_flow.h",
       "sha256": "c60da405ece15d26528f449f38c68c15075523a70c08b3c1571930fd46ceb949",
       "lines": 53,
       "reference_files": [
-        "src/hci.c",
-        "src/hci.h",
-        "port/esp32/components/btstack/hci_transport_esp32_vhci.c"
+        "src/hci.c:954-1025,1295-1374,4443-4477",
+        "Owned RX active/expiry predicate",
+        "Selected channel/ERTM/credit provider contracts"
       ],
-      "status": "pending",
-      "mapping": "counterpart_candidates"
+      "status": "reviewed_contract",
+      "mapping": "Controller/ACL/L2CAP ownership and event-driven transport deadlines",
+      "review_scope": "Complete RX-flow state/ACK storage/owner/callback/credit independence/abort contract read alongside full body. Strict analysis/target compile passes; live flow/backpressure/fault qualification missing."
     },
     {
       "owned": "native_bt/include/dbt_sbc_media.h",
@@ -2213,7 +2221,8 @@
       ],
       "status": "reviewed_with_findings",
       "mapping": "counterpart_candidates",
-      "review_note": "Complete owned C body inspected against corresponding HCI/ACL framing, credits, reassembly and transmission sections. See findings and remaining integration/qualification gaps."
+      "review_note": "Complete owned C body inspected against corresponding HCI/ACL framing, credits, reassembly and transmission sections. See findings and remaining integration/qualification gaps.",
+      "review_scope": "undefined Later transport pass reread complete authored body/contract against selected HCI accounting/fragmentation references; no additional defect established in unchanged logic. No live controller/flow/recovery proof."
     },
     {
       "owned": "native_bt/src/dbt_att_bearer.c",
@@ -2501,7 +2510,8 @@
       ],
       "status": "reviewed_no_change",
       "mapping": "counterpart_candidates",
-      "review_note": "Complete owned C body inspected against corresponding HCI/ACL framing, credits, reassembly and transmission sections. See findings and remaining integration/qualification gaps."
+      "review_note": "Complete owned C body inspected against corresponding HCI/ACL framing, credits, reassembly and transmission sections. See findings and remaining integration/qualification gaps.",
+      "review_scope": "undefined Later transport pass reread complete authored body/contract against selected HCI accounting/fragmentation references; no additional defect established in unchanged logic. No live controller/flow/recovery proof."
     },
     {
       "owned": "native_bt/src/dbt_host.c",
@@ -2525,8 +2535,8 @@
     },
     {
       "owned": "native_bt/src/dbt_l2cap.c",
-      "sha256": "a45e9e8e943a30bf5069053ff556c6c4b755fbfb8d12d872d0bb23cafa56e678",
-      "lines": 235,
+      "sha256": "ed8296fc60e6f9df40a4c9fcaae5dd90d89c6b0aed30b124447d03b9e3e3ebf6",
+      "lines": 245,
       "reference_files": [
         "src/hci.c",
         "src/l2cap.c",
@@ -2534,7 +2544,8 @@
       ],
       "status": "reviewed_with_findings",
       "mapping": "counterpart_candidates",
-      "review_note": "Complete owned C body inspected against corresponding HCI/ACL framing, credits, reassembly and transmission sections. See findings and remaining integration/qualification gaps."
+      "review_note": "Complete owned C body inspected against corresponding HCI/ACL framing, credits, reassembly and transmission sections. See findings and remaining integration/qualification gaps.",
+      "review_scope": "undefined Later TX review replaces byte dispatch with <=3 source spans and validates prefix/body shape; disjoint scratch remains caller precondition, cursor commits only after admission. Prefix/split/wire/backpressure qualification missing."
     },
     {
       "owned": "native_bt/src/dbt_led.c",
@@ -2675,11 +2686,16 @@
     },
     {
       "owned": "native_bt/src/dbt_runtime.c",
-      "sha256": "644a1ad4ea63f9ebe729a7ab780d055f66b1828ca94fb74b91e8cd4b7460b454",
-      "lines": 465,
-      "reference_files": [],
-      "status": "partial_review",
-      "mapping": "product/support code; no direct protocol counterpart assigned"
+      "sha256": "c56b4da94a85b1e6c0d2ac413f36355c190ed4ecb0a873e2ebe47025580782e9",
+      "lines": 467,
+      "reference_files": [
+        "src/hci.c:954-1025,1295-1374,4443-4477",
+        "Owned RX active/expiry predicate",
+        "Selected channel/ERTM/credit provider contracts"
+      ],
+      "status": "reviewed_with_findings",
+      "mapping": "Controller/ACL/L2CAP ownership and event-driven transport deadlines",
+      "review_scope": "Complete authored runtime body read: init, callback dispatch, RX accounting, send/credit/ERTM selection, retirement, bounded poll and wait. Bufferless discard deadline mismatch fixed. Selected provider/channel integration reviewed; broader callback-abort/queued-control/ERTM pins, all-layer wire/fault/security/performance qualification remain incomplete."
     },
     {
       "owned": "native_bt/src/dbt_rx_flow.c",
@@ -2692,7 +2708,8 @@
       ],
       "status": "reviewed_no_change",
       "mapping": "counterpart_candidates",
-      "review_note": "Complete owned C body inspected against corresponding HCI/ACL framing, credits, reassembly and transmission sections. See findings and remaining integration/qualification gaps."
+      "review_note": "Complete owned C body inspected against corresponding HCI/ACL framing, credits, reassembly and transmission sections. See findings and remaining integration/qualification gaps.",
+      "review_scope": "undefined Later transport pass reread complete authored body/contract against selected HCI accounting/fragmentation references; no additional defect established in unchanged logic. No live controller/flow/recovery proof."
     },
     {
       "owned": "native_bt/src/dbt_sbc_media.c",
@@ -3615,6 +3632,37 @@
       "fix": "Reserve existing6144 limit as separate codec-open allocation; clear only cursor/remaining fields in media/expiry/reset and release once at close. Active tests/deadline use length rather than allocated pointer. Use bounded SDK copies; preserve all framing/PCM/queue limits.",
       "resource_change": "Configured Opus costs6152 accounted bytes (cold tracker6160). Main allocation unchanged, no boot/static pool. State136→132 but same136 rounded allocation. Media own frame48→64, open96 unchanged, text−84, BSS/data/IRAM unchanged. No speed claim.",
       "limits": "No live fragment/order/expiry/failure/backpressure/concurrency/codec-switch/audio campaign. More configured Opus RAM can reject setup earlier under low memory; largest main block unchanged. No max LHDC or all-codec underrun proof."
+    },
+    {
+      "id": "L2CAP-DISCARD-WAKE",
+      "state": "implemented_source_analysis_build_readback_idle_live_timeout_pending",
+      "owned": [
+        "native_bt/src/dbt_runtime.c",
+        "native_bt/src/dbt_l2cap.c"
+      ],
+      "reference": [
+        "Owned partial_active/release_partial/expire",
+        "Pinned HCI RX recombination lifecycle"
+      ],
+      "issue": "Runtime deadline considered only partial.data; oversize discard retains expected/cursor/deadline without data, so idle owner could sleep beyond reassembly timeout.",
+      "fix": "Include bufferless expected>max_pdu_payload in existing wrap-safe wake deadline, matching RX active/expiry predicate. No polling/task/storage added.",
+      "resource_change": "No struct/BSS/data/IRAM change; runtime wait own frame48 unchanged. Combined TX+wait linked text+80.",
+      "limits": "No active idle-discard, timeout/wrap, oversize owner, transport/backpressure or malformed/RF/audio campaign; not a proven cause of all reported underruns."
+    },
+    {
+      "id": "L2CAP-TX-SPANS",
+      "state": "implemented_source_analysis_build_readback_idle_wire_pending",
+      "owned": [
+        "native_bt/src/dbt_l2cap.c",
+        "native_bt/include/dbt_l2cap.h"
+      ],
+      "reference": [
+        "Pinned hci.c:954-1025 immutable-vs-stack-owned framing comparison"
+      ],
+      "issue": "TX loop dispatched header/prefix/body for each copied byte.",
+      "fix": "At most3 bounded source span copies with prefix/body-presence checks; disjoint scratch/count is caller precondition. No cursor movement before successful ACL submission.",
+      "resource_change": "Peek own frame48→64; no new allocation/buffer/task. Combined transport text+80; no measured speed gain.",
+      "limits": "No prefix/split/alias/empty/capacity/backpressure/wire campaign. In-place aliasing is not an advertised interface; immutable loan and separate scratch required."
     }
   ],
   "sections_reviewed": [
@@ -4194,6 +4242,28 @@
       ],
       "outcome": "Opus reserves6144 bytes separately at setup and releases at close, removing hot allocator/free/growth copies; cursor-based active/expiry checks preserve protocol and PCM lifetimes. LDAC staged span uses memcpy. Full authored scratch/parser/wrapper bodies reviewed; no additional defect established in unchanged sections. Full upstream algorithm, memory-failure/fragment/audio/cross-codec/throughput qualification remains open.",
       "full_layer_complete": false
+    },
+    {
+      "layer": "Controller/ACL/RX-flow/runtime full authored pass and L2CAP TX spans",
+      "owned": [
+        "native_bt/src/dbt_runtime.c",
+        "native_bt/include/dbt_runtime.h",
+        "native_bt/include/dbt_acl.h",
+        "native_bt/include/dbt_hci.h",
+        "native_bt/include/dbt_rx_flow.h",
+        "native_bt/src/dbt_rx_flow.c",
+        "native_bt/src/dbt_acl.c",
+        "native_bt/src/dbt_hci.c",
+        "native_bt/src/dbt_l2cap.c",
+        "native_bt/include/dbt_l2cap.h"
+      ],
+      "reference": [
+        "src/hci.c:954-1025,1295-1374,4443-4477",
+        "Owned oversized-discard active predicate and expiry",
+        "Selected channel provider/ERTM cleanup sections"
+      ],
+      "outcome": "Fixed missing idle wakeup for bufferless oversize discard. TX assembles basic header/optional prefix/borrowed body in <=3 copies with shape checks and unchanged admission/commit. Runtime storage documentation now includes enhanced work and product-bound RX. Complete authored transport body pass; dependent channel/provider/callback/wire/security/performance coverage remains partial.",
+      "full_layer_complete": false
     }
   ],
   "integration_gaps": [
@@ -4241,11 +4311,11 @@
   ],
   "coverage": {
     "owned_files": 287,
-    "reviewed_owned_c_bodies": 36,
-    "partial_files": 16,
-    "pending_files": 188,
+    "reviewed_owned_c_bodies": 37,
+    "partial_files": 15,
+    "pending_files": 184,
     "compiled_owned_units_missing": 0,
-    "reviewed_headers": 31,
+    "reviewed_headers": 35,
     "reviewed_build_files": 9,
     "reviewed_generators": 5,
     "reviewed_static_data": 2,
@@ -4554,15 +4624,26 @@
         "LDAC staging remains515 max+two lookahead zeros in520 buffer, now memcpy; no format/quality/bitrate/queue cap changes.",
         "Full owned Opus/scratch/LDAC parser and selected counterparts reviewed; upstream algorithms, active wire/fault/audio/headroom remain unfinished."
       ]
+    },
+    {
+      "id": "TRANSPORT-DISCARD-WAKE-SPANS",
+      "status": "source_fixed_analysis_ccache_readback_idle_only",
+      "notes": [
+        "Oversize discard and payload-backed partial both contribute deadline; expire clears state, preventing perpetual due wake. No readiness/credit gate on local expiry.",
+        "TX spans preserve same logical slice and pending/commit boundary for valid disjoint contexts; internal prefix/body state is validated. No new RAM or task.",
+        "Full runtime/RX-flow/ACL/HCI bodies and four contracts reread; channel/ERTM/deferred abort/callback provider integration remains partial. Keep strict completed-event aggregation difference explicit rather than copying reference clamping.",
+        "Live malformed/timeout/prefix/credit/disconnect/queue/codec/BLE/RF/security/audio/headroom qualification remains unfinished under held campaigns."
+      ]
     }
   ],
   "next_review": [
+    "Continue remaining partial channel/provider/ERTM and callback-abort/retirement policy against source: runtime body is now read, but inter-layer lifetime and error scheduling need completion. The bufferless discard deadline and TX span source fixes already exist; do not repeat them.",
     "Raw dbt_lhdcv5_open now snapshots validated config before close/free. S32/nonfinite conversion boundaries are defined in the pinned port; do not repeat these source fixes. Active alias, failure, boundary/output/state and headroom qualification remains incomplete.",
     "Ordered cross-family request ranking now exists; do not repeat query/generator/rank primitives. Complete durable Classic peer/reconnect/backoff/handover/default caller policy from actual baseline/storage without overriding Android source preferences.",
     "Complete queued/crossed control and backend policy before automatic integration; rank only returns a proposal, no peer acceptance or reservation.",
     "Continue pending file/feature/security/lifecycle/codec crash/audio underrun/LHDC headroom work. Keep new automatic RF disabled under held campaigns."
   ],
-  "latest_build_image": "8a8929fb4626cce6460f6a011440b0332fabc2a464d1c70e5719ffcb6fe8d0de",
+  "latest_build_image": "a2957dd2351f9e96f8f326711eb1e9db421d3cc2ca9516b15319f2ec5f67ae4c",
   "verification_source_contracts": [
     {
       "file": "native_bt/tools/test_ldac_target_component.py",
