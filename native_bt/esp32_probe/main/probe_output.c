@@ -183,6 +183,18 @@ static void release(void *context, uint8_t *bytes) {
   (void)context;
   heap_caps_free(bytes);
 }
+/* The working product's16384-byte Q31 ring has a1023-frame start target
+ * and1024-frame producer watermark. Round this reserve to one AAC unit
+ * at44.1/48k;16ms alone is
+ * shorter than one AAC1024-frame access unit. Existing1536-frame output
+ * pages already cover this watermark at both rates; no added audio memory. */
+static uint32_t pcm_target_frames(uint32_t rate){
+  uint32_t target=(rate*DBT_PROBE_PCM_TARGET_MS+999u)/1000u;
+#ifdef DBT_PROBE_STAY_NATIVE
+  if(target<1024u)target=1024u;
+#endif
+  return target;
+}
 static uint32_t power2(uint32_t n) {
   uint32_t result = 2;
   while (result < n)
@@ -486,7 +498,7 @@ static dbt_result_t start_output(uint32_t rate, uint8_t channels,
 #endif
   output.allocation_success_bytes=output.allocation_success_calls=0;
   output.allocation_request_rate=rate;output.allocation_request_channels=channels;output.allocation_request_sample_bytes=(uint32_t)format;
-  uint32_t target = (rate * DBT_PROBE_PCM_TARGET_MS + 999u) / 1000u;
+  uint32_t target = pcm_target_frames(rate);
   uint32_t input_frames=power2((rate * 32u + 999u) / 1000u),avoided=0;
 #ifdef DBT_PROBE_PCM_COPIED
   input_frames=power2((rate*4u+999u)/1000u);
@@ -1201,6 +1213,8 @@ void probe_output_stats(probe_output_stats_t *s) {
     return;
   s->pcm_target_ms=DBT_PROBE_PCM_TARGET_MS;
   s->adaptive_clock=OUTPUT_ADAPTIVE_CLOCK;
+  uint32_t target_rate=atomic_load(&output.rate);
+  s->pcm_target_frames=target_rate?pcm_target_frames(target_rate):0;
 #if defined(DBT_PROBE_PCM_COPIED)
   s->pcm_input_mode=2;
 #elif defined(DBT_PROBE_PCM_LOANS)
@@ -1292,7 +1306,7 @@ uint16_t probe_output_delay_100us(uint32_t rate) {
                     atomic_load(&output.input_ready_frames) +
                     DMA_DESCRIPTORS * DMA_FRAMES + 80u;
   if (!atomic_load(&output.running))
-    frames = (rate * DBT_PROBE_PCM_TARGET_MS + 999u) / 1000u + DMA_DESCRIPTORS * DMA_FRAMES + 80u;
+    frames = pcm_target_frames(rate) + DMA_DESCRIPTORS * DMA_FRAMES + 80u;
   if(OUTPUT_ADAPTIVE_CLOCK)frames += dbt_resampler_delay_frames(rate);
   uint32_t value = (uint32_t)(((uint64_t)frames * 10000u + rate - 1u) / rate);
   return value > UINT16_MAX ? UINT16_MAX : (uint16_t)value;

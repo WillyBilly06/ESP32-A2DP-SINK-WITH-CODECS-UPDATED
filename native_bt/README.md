@@ -56,6 +56,11 @@ failed LDAC96k attempt with PCM backpressure, renderer over-budget timing and a
 latched DMA order fault. Verified-pool EOF gaps now have bounded recovery and
 separate accounting; passive role/stage counters retain the complete product.
 Throughput, starvation and active recovery qualification remain unfinished.
+[AAC LATM version1](docs/AAC_LATM_VERSION1_2026_11_06.md) now matches the observed
+Redmagic transport mode and produces PCM without decoder rejection. Restored
+bounded PCM reserve does not yet eliminate AAC startup gaps; aptX HD also has
+a remaining small underrun. These short traces do not qualify every codec or
+BLE/OTA coexistence.
 [AAC parser bounds](docs/AAC_PARSER_BOUNDS_2026_11_06.md) now reject zero-progress
 sections, out-of-range band/TNS/pulse fields and truncated bit consumption through
 source-pinned SDK units. All four existing cold AAC cases preserve their reference

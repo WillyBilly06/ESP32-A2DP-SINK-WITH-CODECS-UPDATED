@@ -10,7 +10,8 @@ typedef struct {bool configured;uint8_t subframes;} dbt_aac_mux_t;
 /* AAC-LC, 44.1/48 kHz, mono/stereo; preserve output on invalid selection. */
 dbt_result_t dbt_aac_configure(const uint8_t *cie,uint16_t size,dbt_codec_config_t *config);
 uint8_t dbt_a2dp_aac_validate(const dbt_avdtp_endpoint_t *endpoint,const dbt_avdtp_cap_t *codec);
-/* Strict LATM version-0 / single-program single-layer AAC-LC transport.
+/* Strict LATM versions0/1 (versionA=0), single-program/layer AAC-LC.
+ * Version1 ASC is bounded by its declared length; only alignment pad is skipped.
  * All units and padding are validated before mux state or outputs are published.
  * Optional other-data/CRC and 960-sample/SBR/PCE modes are refused explicitly. */
 dbt_result_t dbt_aac_latm_parse(dbt_aac_mux_t *mux,const dbt_codec_config_t *config,

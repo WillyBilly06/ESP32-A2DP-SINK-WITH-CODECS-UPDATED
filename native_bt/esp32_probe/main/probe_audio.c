@@ -747,7 +747,7 @@ static void log_loop(void *unused){
                ",\"application_callback_only\":true,\"elapsed_includes_preemption\":true}\n",
                stats.configured_irq_priority,stats.callback_calls,stats.callback_elapsed_us,stats.callback_max_us,stats.callback_core);
         snapshot_log(output_snapshot_began,"{\"probe\":\"pcm_clock_policy\",\"adaptive_clock\":%" PRIu32
-               ",\"one_to_one_pcm\":%s}\n",stats.adaptive_clock,stats.adaptive_clock?"false":"true");
+               ",\"one_to_one_pcm\":%s,\"target_frames\":%" PRIu32 "}\n",stats.adaptive_clock,stats.adaptive_clock?"false":"true",stats.pcm_target_frames);
 #ifdef DBT_PROBE_CODEC_AWARE_RENDER
         snapshot_log(output_snapshot_began,"{\"probe\":\"render_owner_policy\",\"collection_cycle_us\":%" PRIu32
                ",\"core\":%" PRIu32 ",\"transfers\":%" PRIu32 ",\"auxiliary_stack_bytes\":%" PRIu32

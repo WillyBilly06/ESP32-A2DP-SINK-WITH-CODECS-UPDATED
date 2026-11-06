@@ -34,6 +34,13 @@ static uint32_t get(bits_t *b,unsigned n){
     for(unsigned i=0;i<n;++i){value=(value<<1)|((b->data[b->pos>>3]>>(7u-(b->pos&7u)))&1u);++b->pos;}
     return value;
 }
+/* LATM values carry one to four octets after a two-bit octet-count field.
+ * get remains bounded to32 bits and leaves its sticky error on truncation. */
+static uint32_t mux_value(bits_t *b){
+    unsigned octets=(unsigned)get(b,2)+1u;
+    return get(b,8u*octets);
+}
+
 dbt_result_t dbt_aac_latm_parse(dbt_aac_mux_t *mux,const dbt_codec_config_t *config,
     const uint8_t *data,uint16_t size,dbt_aac_unit_t *units,uint8_t capacity,uint8_t *count){
     if(!mux || !config || (config->channels!=1 && config->channels!=2) ||
@@ -41,10 +48,24 @@ dbt_result_t dbt_aac_latm_parse(dbt_aac_mux_t *mux,const dbt_codec_config_t *con
     bits_t b={data,(uint32_t)size*8u,0,false};dbt_aac_mux_t next=*mux;
     uint32_t same=get(&b,1);
     if(!same){
-        if(get(&b,1)!=0 || get(&b,1)!=1)return b.bad?DBT_INVALID:DBT_UNSUPPORTED;
+        unsigned version=get(&b,1);
+        if(version){
+            if(get(&b,1)!=0)return b.bad?DBT_INVALID:DBT_UNSUPPORTED;
+            (void)mux_value(&b); /* taraBufferFullness is transport metadata. */
+        }
+        if(b.bad)return DBT_INVALID;
+        if(get(&b,1)!=1)return b.bad?DBT_INVALID:DBT_UNSUPPORTED;
         unsigned frames=get(&b,6)+1u,programs=get(&b,4),layers=get(&b,3);
         if(b.bad)return DBT_INVALID;
         if(programs || layers)return DBT_UNSUPPORTED;
+        uint32_t mux_bits=b.bits;
+        if(version){
+            uint32_t asc_bits=mux_value(&b);
+            if(b.bad || asc_bits>b.bits-b.pos)return DBT_INVALID;
+            /* Parse ASC inside its declared bit span, so a short ASC cannot
+             * borrow frame-length/payload bits and publish a false config. */
+            b.bits=b.pos+asc_bits;
+        }
         unsigned object=get(&b,5),index=get(&b,4);
         uint32_t rate=0;
         if(index==15)rate=get(&b,24);
@@ -53,6 +74,13 @@ dbt_result_t dbt_aac_latm_parse(dbt_aac_mux_t *mux,const dbt_codec_config_t *con
         unsigned channels=get(&b,4),flags=get(&b,3);
         if(b.bad)return DBT_INVALID;
         if(object!=2 || rate!=config->rate || channels!=config->channels || flags)return DBT_UNSUPPORTED;
+        if(version){
+            /* AAC-LC fields above are complete. Allow only byte-alignment
+             * padding; extensions such as SBR remain explicitly unsupported. */
+            uint32_t padding=b.bits-b.pos;
+            if(padding>7u || get(&b,(unsigned)padding))return DBT_UNSUPPORTED;
+            b.bits=mux_bits;
+        }
         if(get(&b,3)!=0)return b.bad?DBT_INVALID:DBT_UNSUPPORTED;
         (void)get(&b,8);unsigned other=get(&b,1),crc=get(&b,1);
         if(b.bad)return DBT_INVALID;

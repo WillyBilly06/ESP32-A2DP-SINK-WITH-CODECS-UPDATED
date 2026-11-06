@@ -78,22 +78,22 @@
     },
     {
       "owned": "native_bt/codecs/aac/dbt_aac_transport.c",
-      "sha256": "2dcfd46bbf17d8d53ad8be89b2e07a9e686b8f6eebaaead1cce67ccd674c6d8d",
-      "lines": 86,
+      "sha256": "817518cfc2327c433af4907a9b7fac8adf1125fd203cce951e6acb13d75470d0",
+      "lines": 114,
       "reference_files": [
         "src/classic/avdtp.c",
         "example/a2dp_sink_demo.c",
         "src/btstack_resample.c",
         "src/btstack_sample_rate_compensation.c"
       ],
-      "status": "reviewed_no_change",
+      "status": "reviewed_with_findings",
       "mapping": "counterpart_candidates",
-      "review_scope": "Complete owned body and reference/working-backend boundaries reviewed. Not functional or performance qualification."
+      "review_scope": "Complete owned body and reference/working-backend boundaries reviewed. Not functional or performance qualification. AAC version1/ASC span bounds and baseline1023/1024-frame reserve follow-up; compiler/analysis/readback/cold/live PCM evidence recorded. AAC startup and aptX HD residual underruns remain unqualified."
     },
     {
       "owned": "native_bt/codecs/aac/dbt_aac.h",
-      "sha256": "ab2d713cf7fdd0b18490a2991d631e53335082ab1bd86680e5130a01db46205d",
-      "lines": 22,
+      "sha256": "4a49b66df58248f903b9679961ab0f07ad8e727cff540dbabf72ce1e5fba61cd",
+      "lines": 23,
       "reference_files": [
         "src/classic/avdtp.c",
         "example/a2dp_sink_demo.c",
@@ -102,7 +102,7 @@
       ],
       "status": "reviewed_contract",
       "mapping": "counterpart_candidates",
-      "review_scope": "Complete public ownership/format declaration read against the implementation."
+      "review_scope": "Complete public ownership/format declaration read against the implementation. AAC version1/ASC span bounds and baseline1023/1024-frame reserve follow-up; compiler/analysis/readback/cold/live PCM evidence recorded. AAC startup and aptX HD residual underruns remain unqualified."
     },
     {
       "owned": "native_bt/codecs/aac/host_target_math.h",
@@ -715,12 +715,12 @@
     },
     {
       "owned": "native_bt/esp32_probe/main/probe_audio.c",
-      "sha256": "5d506edae4cc3f7eeb7d3183c44783ca0c718c83e62051c277e4e809490676d4",
+      "sha256": "89aaadb33140705a67e77801e8f712ec3f3285363a0f44326674e776c233a3ee",
       "lines": 1218,
       "reference_files": [],
       "status": "partial_review",
       "mapping": "product/support code; no direct protocol counterpart assigned",
-      "review_scope": "Selected active decode/render/owner/telemetry and passive stage/scheduler integration reviewed; source remains partial. Trace shows output pressure/latched failure with decoder rejects0, but full profile/default peer/feature/security and shared throughput proof remain unfinished. Follow-up: closed-channel codec-aware core ownership and one-to-one PCM selection checked against released Bluedroid; LDAC96k short playback has0 underruns/queue drops/rejects/WDT. All-mode lifecycle, fidelity, concurrency and sustained qualification remain open."
+      "review_scope": "Selected active decode/render/owner/telemetry and passive stage/scheduler integration reviewed; source remains partial. Trace shows output pressure/latched failure with decoder rejects0, but full profile/default peer/feature/security and shared throughput proof remain unfinished. Follow-up: closed-channel codec-aware core ownership and one-to-one PCM selection checked against released Bluedroid; LDAC96k short playback has0 underruns/queue drops/rejects/WDT. All-mode lifecycle, fidelity, concurrency and sustained qualification remain open. AAC version1/ASC span bounds and baseline1023/1024-frame reserve follow-up; compiler/analysis/readback/cold/live PCM evidence recorded. AAC startup and aptX HD residual underruns remain unqualified."
     },
     {
       "owned": "native_bt/esp32_probe/main/probe_audio.h",
@@ -1084,23 +1084,23 @@
     },
     {
       "owned": "native_bt/esp32_probe/main/probe_output.c",
-      "sha256": "3e6f3820856e2aec683519c9a5733b0e0db05b73248331e7992833772f738345",
-      "lines": 1341,
+      "sha256": "1d2ec8d060c6756eb0bce2c4ec2320a33a1017fd27dbd5dde8be52524b820c81",
+      "lines": 1355,
       "reference_files": [
         "port/esp32/components/btstack/btstack_audio_esp32_v5.c"
       ],
       "status": "reviewed_with_findings",
       "mapping": "reviewed_port_audio_boundaries",
-      "review_scope": "Authored output body previously reviewed; current callback lookup, descriptor-copy accounting, verified-pool recovery, stop streak, reset/stats and compiled mode reread against actual ESP32 SDK EOF ISR. Error visibility retained; renderer overload/IRQ-delay cause, all-mode lifecycle and active recovery proof remain incomplete. Follow-up: closed-channel codec-aware core ownership and one-to-one PCM selection checked against released Bluedroid; LDAC96k short playback has0 underruns/queue drops/rejects/WDT. All-mode lifecycle, fidelity, concurrency and sustained qualification remain open."
+      "review_scope": "Authored output body previously reviewed; current callback lookup, descriptor-copy accounting, verified-pool recovery, stop streak, reset/stats and compiled mode reread against actual ESP32 SDK EOF ISR. Error visibility retained; renderer overload/IRQ-delay cause, all-mode lifecycle and active recovery proof remain incomplete. Follow-up: closed-channel codec-aware core ownership and one-to-one PCM selection checked against released Bluedroid; LDAC96k short playback has0 underruns/queue drops/rejects/WDT. All-mode lifecycle, fidelity, concurrency and sustained qualification remain open. AAC version1/ASC span bounds and baseline1023/1024-frame reserve follow-up; compiler/analysis/readback/cold/live PCM evidence recorded. AAC startup and aptX HD residual underruns remain unqualified."
     },
     {
       "owned": "native_bt/esp32_probe/main/probe_output.h",
-      "sha256": "9764797d94dcac4356a6fe99a6e64553210394b097173987e28be8cc458b4b80",
+      "sha256": "cd8f8f308d06c6fa6da156bf5f8ce945ce30ad25bc8a1fe0b3352574e2bf4712",
       "lines": 115,
       "reference_files": [],
       "status": "reviewed_contract",
       "mapping": "product/support code; no direct protocol counterpart assigned",
-      "review_scope": "Complete output API/stats declaration reread for added recovery/minimum counters; copied DMA ownership and incomplete callback-count/replay inference explicit. No payload pool/task introduced. Follow-up: closed-channel codec-aware core ownership and one-to-one PCM selection checked against released Bluedroid; LDAC96k short playback has0 underruns/queue drops/rejects/WDT. All-mode lifecycle, fidelity, concurrency and sustained qualification remain open."
+      "review_scope": "Complete output API/stats declaration reread for added recovery/minimum counters; copied DMA ownership and incomplete callback-count/replay inference explicit. No payload pool/task introduced. Follow-up: closed-channel codec-aware core ownership and one-to-one PCM selection checked against released Bluedroid; LDAC96k short playback has0 underruns/queue drops/rejects/WDT. All-mode lifecycle, fidelity, concurrency and sustained qualification remain open. AAC version1/ASC span bounds and baseline1023/1024-frame reserve follow-up; compiler/analysis/readback/cold/live PCM evidence recorded. AAC startup and aptX HD residual underruns remain unqualified."
     },
     {
       "owned": "native_bt/esp32_probe/main/probe_pair_button.c",
@@ -4759,10 +4759,21 @@
         "LDAC96k stereo/S32 targeted10s command trace and flushed stream totals: accepted=rendered=DMA-source1234688;0 underruns/queue drops/rejects/descriptor errors/RTP breaks/WDT. Mean0.434ms/call vs1.333ms deadline, max2.352ms includes preemption. Queue high-water4. Short evidence only; individual worker trace records lost4501, aggregate snapshots intact.",
         "Following AAC trace receives473 payloads but produces no PCM: prefix47fc announces version1, owned parser only accepts version0. Independent compatibility defect remains. No claim all codecs or BLE/OTA/lifecycle/full stress are qualified."
       ]
+    },
+    {
+      "id": "AAC-LATM-VERSION1-PCM-RESERVE",
+      "status": "source_analysis_build_readback_cold_live_decode_pass_continuity_open",
+      "notes": [
+        "Observed47fc prefix announces version1/A0, unlike owned version0-only parser. Actual released build links compatible LATM/custom AAC sources. Added bounded LATM value and ASC span parsing, zero-pad-only supported LC tail, no allocation/layout change. Target stack592 unchanged, Clang no diagnostics.",
+        "Restored product minimum1024 PCM frames from actual baseline1023 consumer/1024 producer watermark. At44.1/48k existing output capacity1536 frames unchanged; higher-rate16ms targets retained. Lower sound-only rates can use more pages. Effective target/delay reported.",
+        "Image863d0b94ba605641231714f02101168a0e9b55d633fecfb3bd8fdc99fdb9b275 readbacks match, original preserved, owned active/no auto fallback.10349 source hashes stable,37 cold checks pass, monitor resumed.",
+        "AAC now renders PCM,0 decoder rejects/queue drops/RTP breaks/faults/WDT;1024-frame target records384 underrun frames, repeat512. Watermark alone did not fix AAC startup continuity. Host console samples unchanged during repeat; no proof host logging causes this gap. Worker trace losses prevent packet-arrival inference.",
+        "aptX HD16ms prior trace386 underrun frames;1024-frame trace2. No isolated repeatable gain or zero-gap claim. LDAC96k earlier one-to-one/Core0 trace0 underruns/drops. Full-rate/codec/BLE/security/lifecycle/OTA/stress gates remain open."
+      ]
     }
   ],
-  "next_review": "Fix observed AAC LATM version1 incompatibility against the actual working Bluedroid path; continue approved bounded codec playback diagnosis. Preserve one-to-one PCM baseline and measured core sharing. Full feature/security/long-duration gates remain open.",
-  "latest_build_image": "6c4e683dc2aca9f188b4f3c53431be48b5b942025edb5c0a15bca71ab5587bba",
+  "next_review": "Add bounded passive per-stage arrival/first-starvation timing to locate AAC/aptX HD residual gaps; do not infer RF loss from diagnostic-ring loss. Preserve measured one-to-one LDAC fix, original bounded reserve and explicit core policy. Continue only approved targeted playback; all-feature qualification remains incomplete.",
+  "latest_build_image": "863d0b94ba605641231714f02101168a0e9b55d633fecfb3bd8fdc99fdb9b275",
   "verification_source_contracts": [
     {
       "file": "native_bt/tools/test_ldac_target_component.py",
