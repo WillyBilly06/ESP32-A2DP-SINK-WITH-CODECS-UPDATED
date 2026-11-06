@@ -58,7 +58,7 @@ bool dbt_a2dp_acceptor_accept(const dbt_a2dp_acceptor_t *p,const dbt_link_t *lin
     if(!p->active)return staged==0;
     return staged==1 && p->signaling.handle==link->handle && p->signaling.generation==link->generation &&
         p->sink.state==DBT_STREAM_OPEN && !p->sink.pending.used && !p->sink.media_binding &&
-        !p->media.serial && !p->sink.failed;
+        !p->media.serial && !p->sink.failed && !p->sink.media_initiator;
 }
 dbt_result_t dbt_a2dp_acceptor_event(dbt_a2dp_acceptor_t *p,dbt_channel_event_t kind,const dbt_channel_t *channel){
     if(!p || !p->runtime || !channel)return DBT_INVALID;
@@ -77,7 +77,8 @@ dbt_result_t dbt_a2dp_acceptor_event(dbt_a2dp_acceptor_t *p,dbt_channel_event_t 
             if(result!=DBT_OK){(void)dbt_avdtp_sink_shutdown(&p->sink,p->runtime->now_ms);return result;}
             remember(&p->signaling,channel);p->active=true;return DBT_OK;
         }
-        if(p->signaling.handle!=channel->handle || p->signaling.generation!=channel->link_generation || p->media.serial)return DBT_INVALID;
+        if(p->signaling.handle!=channel->handle || p->signaling.generation!=channel->link_generation ||
+           ((p->media.serial || p->sink.media_initiator) && !matches(&p->media,channel)))return DBT_INVALID;
         dbt_result_t result=dbt_avdtp_sink_media_open(&p->sink,channel->serial,p->runtime->now_ms);
         if(result==DBT_OK)remember(&p->media,channel);
         return result;
@@ -88,9 +89,10 @@ dbt_result_t dbt_a2dp_acceptor_event(dbt_a2dp_acceptor_t *p,dbt_channel_event_t 
             p->draining=true;return DBT_OK;
         }
         if(matches(&p->media,channel)){
-            dbt_result_t result=dbt_avdtp_sink_media_closed(&p->sink,channel->serial);
+            bool bound=p->sink.media_binding==channel->serial;
+            dbt_result_t result=bound?dbt_avdtp_sink_media_closed(&p->sink,channel->serial):DBT_OK;
             zero(&p->media,sizeof(p->media));p->close_media=false;
-            if(result!=DBT_OK)p->draining=true;
+            if(!bound || result!=DBT_OK)p->draining=true;
             return DBT_OK;
         }
         return DBT_EMPTY;
@@ -167,6 +169,42 @@ dbt_result_t dbt_a2dp_acceptor_connect_cancel(dbt_a2dp_acceptor_t *p,const dbt_a
     dbt_result_t result=dbt_channels_request_close(&p->runtime->channels,channel);
     return result==DBT_OK?DBT_PENDING:result;
 }
+static bool overlap(const void *a,unsigned an,const void *b,unsigned bn){
+    uintptr_t x=(uintptr_t)a,y=(uintptr_t)b;return an && bn && (x<=y?y-x<an:x-y<bn);
+}
+dbt_result_t dbt_a2dp_acceptor_media_begin(dbt_a2dp_acceptor_t *p,const dbt_a2dp_channel_t *signal,
+    uint32_t now,dbt_a2dp_channel_t *key){
+    if(!p || !p->runtime || !signal || !key || overlap(p,sizeof(*p),key,sizeof(*key)) ||
+       overlap(p->runtime,sizeof(*p->runtime),key,sizeof(*key)) || overlap(signal,sizeof(*signal),key,sizeof(*key)))return DBT_INVALID;
+    dbt_result_t ready=dbt_a2dp_acceptor_connect_status(p,signal);if(ready!=DBT_OK)return ready==DBT_PENDING?DBT_BUSY:ready;
+    if(!p->enabled || p->sink.state!=DBT_STREAM_OPEN || !p->sink.media_initiator || !p->sink.worker_live || p->sink.pending.used ||
+       p->sink.local || p->sink.media_binding || p->media.serial || p->close_media)return DBT_BUSY;
+    if((int32_t)(now-p->sink.media_deadline)>=0)return DBT_INVALID;
+    for(unsigned i=0;i<DBT_CHANNEL_LIMIT;++i){
+        const dbt_channel_t *channel=&p->runtime->channels.channels[i];
+        if(channel->state!=DBT_CH_FREE && channel->psm==0x19 && !matches(&p->signaling,channel))return DBT_BUSY;
+    }
+    uint16_t cid;dbt_result_t result=dbt_channels_open(&p->runtime->channels,p->signaling.handle,0x19,
+        p->mtu,335,DBT_SECURITY_ENCRYPTED,now,&cid);
+    if(result!=DBT_OK)return result;
+    const dbt_channel_t *channel=dbt_channels_find(&p->runtime->channels,p->signaling.handle,cid);
+    if(!channel || !channel->serial || channel->link_generation!=p->signaling.generation){
+        dbt_runtime_abort(p->runtime,DBT_FAULT_BAD_RESPONSE);return DBT_INVALID;
+    }
+    remember(&p->media,channel);*key=p->media;return DBT_PENDING;
+}
+dbt_result_t dbt_a2dp_acceptor_media_status(const dbt_a2dp_acceptor_t *p,const dbt_a2dp_channel_t *key){
+    if(!p || !p->runtime || !key || !key->serial || !key->generation)return DBT_INVALID;
+    const dbt_channel_t *channel=live(p,key);if(!channel || channel->psm!=0x19 || !matches(&p->media,channel))return DBT_EMPTY;
+    if(p->runtime->host.state==DBT_HOST_FAILED)return DBT_INVALID;
+    if(p->draining || p->close_media || channel->state!=DBT_CH_OPEN || channel->app_close_requested)return DBT_PENDING;
+    return p->active && p->sink.media_binding==channel->serial && !p->sink.failed?DBT_OK:DBT_INVALID;
+}
+dbt_result_t dbt_a2dp_acceptor_media_cancel(dbt_a2dp_acceptor_t *p,const dbt_a2dp_channel_t *key,uint32_t now){
+    if(!p || !p->runtime || !key || !key->serial || !key->generation)return DBT_INVALID;
+    const dbt_channel_t *channel=live(p,key);if(!channel || !matches(&p->media,channel))return DBT_EMPTY;
+    (void)now;p->draining=true;return DBT_PENDING;
+}
 static void close_all(dbt_a2dp_acceptor_t *p,uint32_t now){
     for(unsigned i=0;i<DBT_CHANNEL_LIMIT;++i){
         const dbt_channel_t *channel=&p->runtime->channels.channels[i];
@@ -212,7 +250,7 @@ uint32_t dbt_a2dp_acceptor_wait_ms(const dbt_a2dp_acceptor_t *p,uint32_t now){
         if((p->signaling.serial && !signal) || (p->media.serial && !media_channel) ||
             (signal && dbt_channels_close_ready(&p->runtime->channels,signal->handle,signal->local_cid)) ||
             (media_channel && dbt_channels_close_ready(&p->runtime->channels,media_channel->handle,media_channel->local_cid)))return 0;
-        if(!p->signaling.serial && !p->media.serial && !p->sink.retiring && !staged(p))return 0;
+        if(!p->signaling.serial && !p->media.serial && (!p->sink.retiring || p->sink.drained) && !staged(p))return 0;
         return p->sink.retiring?dbt_avdtp_sink_wait_ms(&p->sink,now):UINT32_MAX;
     }
     if(p->close_media){const dbt_channel_t *channel=live(p,&p->media);if(channel && dbt_channels_close_ready(&p->runtime->channels,channel->handle,channel->local_cid))return 0;}

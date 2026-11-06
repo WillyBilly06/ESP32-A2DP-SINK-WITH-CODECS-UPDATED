@@ -45,6 +45,18 @@ dbt_result_t dbt_a2dp_acceptor_connect_status(const dbt_a2dp_acceptor_t *,const 
 /* Callback-safe close intent for that exact identity. Closing an established
  * signaling binding also retires its media/decoder through the normal owner. */
 dbt_result_t dbt_a2dp_acceptor_connect_cancel(dbt_a2dp_acceptor_t *,const dbt_a2dp_channel_t *key,uint32_t now_ms);
+/* After local Open Accept, initiate media on the exact current signaling key.
+ * PENDING copies an identity and reserves it in the profile; only its OPEN
+ * event binds media. No caller key storage is retained. No audio is started.
+ * Poll/event/data routing and the existing media deadline remain mandatory.
+ * BUSY accepts nothing. Call begin on the owner outside borrowed callbacks. */
+dbt_result_t dbt_a2dp_acceptor_media_begin(dbt_a2dp_acceptor_t *,const dbt_a2dp_channel_t *signaling,
+    uint32_t now_ms,dbt_a2dp_channel_t *media_key);
+/* Readiness rather than a latched receipt; normal event reason/status retains
+ * detailed failure information. Cancel retires this profile and decoder after
+ * channel/worker ownership drains, preserving the shared ACL and other PSMs. */
+dbt_result_t dbt_a2dp_acceptor_media_status(const dbt_a2dp_acceptor_t *,const dbt_a2dp_channel_t *);
+dbt_result_t dbt_a2dp_acceptor_media_cancel(dbt_a2dp_acceptor_t *,const dbt_a2dp_channel_t *,uint32_t now_ms);
 /* Owner callbacks: no channel mutation/reentry; close operations are deferred
  * to poll. UNSUPPORTED means another PSM. INVALID means an unexpected channel;
  * a composite application must close that channel explicitly. */

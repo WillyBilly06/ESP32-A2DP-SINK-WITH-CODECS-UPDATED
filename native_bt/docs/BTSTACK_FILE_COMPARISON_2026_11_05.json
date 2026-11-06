@@ -684,16 +684,16 @@
     },
     {
       "owned": "native_bt/esp32_probe/main/probe_audio.c",
-      "sha256": "c7a247a9aaf5d14cd21ddd51e10ac1f9c2786c1dcc3ae3c1d2a9aef9676d313a",
-      "lines": 1000,
+      "sha256": "c03ff7cc479c462a2c03d8eb95a3c3978924b60c1558b2f7c7fee06d0afb3b6c",
+      "lines": 1019,
       "reference_files": [],
       "status": "partial_review",
       "mapping": "product/support code; no direct protocol counterpart assigned"
     },
     {
       "owned": "native_bt/esp32_probe/main/probe_audio.h",
-      "sha256": "267fe8db564febf91e1186a8606e011440ff126d927dc74e8eb54474b4dcc7c8",
-      "lines": 65,
+      "sha256": "6815b6cf6c3a720479be108ffccf0671d15ebe501daef2abf1b636913e8bc897",
+      "lines": 73,
       "reference_files": [],
       "status": "partial_review",
       "mapping": "product/support code; no direct protocol counterpart assigned"
@@ -1328,8 +1328,8 @@
     },
     {
       "owned": "native_bt/include/dbt_a2dp_acceptor.h",
-      "sha256": "decaa52da73c7fcb057034cb6f9fda1dca6b9c71cf4a3bb9f4402be580824e55",
-      "lines": 70,
+      "sha256": "d71be761fe1ce7a6a09731e2344e8cf01447a926220b5bdf500b27c25d2e6aa2",
+      "lines": 82,
       "reference_files": [
         "src/classic/a2dp.c",
         "src/classic/a2dp_sink.c",
@@ -1488,8 +1488,8 @@
     },
     {
       "owned": "native_bt/include/dbt_avdtp_sink.h",
-      "sha256": "27f3a383a005210288267833ec0590d0a5f4e7ffaa2041cf9dbb1266de017a2a",
-      "lines": 152,
+      "sha256": "b058286c44c56a328e8d0007511d7593a68edf309b214d375e1f22e414ca2a80",
+      "lines": 159,
       "reference_files": [
         "src/classic/avdtp.c",
         "src/classic/avdtp_acceptor.c",
@@ -2138,8 +2138,8 @@
     },
     {
       "owned": "native_bt/src/dbt_a2dp_acceptor.c",
-      "sha256": "9d920135fb74929e16108daa30cfddd6c632d8b01be64fe77568d887402e1bf1",
-      "lines": 238,
+      "sha256": "52cb1d7483d9763bf315ece90dc28738c0b3e533863eba97f7749481afc982ab",
+      "lines": 276,
       "reference_files": [
         "src/classic/a2dp.c",
         "src/classic/a2dp_sink.c",
@@ -2300,8 +2300,8 @@
     },
     {
       "owned": "native_bt/src/dbt_avdtp_sink.c",
-      "sha256": "176860d8a5e804956e6168a4d13f975c90b320ab155b11c01713427189c0d379",
-      "lines": 568,
+      "sha256": "60d8e63046e0d52b722f91624f7627cc0c7a901ebb483e713d3e8d3ab9d5f4d8",
+      "lines": 603,
       "reference_files": [
         "src/classic/avdtp.c",
         "src/classic/avdtp_acceptor.c",
@@ -3737,6 +3737,24 @@
       ],
       "outcome": "DBT_MAX_LINKS=4 allocation scan and six-byte address copy have no resource wait. BTstack also performs synchronous finite connection lookup. No unsupported loop-unrolling or speed improvement claim.",
       "full_layer_complete": false
+    },
+    {
+      "layer": "Local Open, outgoing media identity and acknowledged drain finalization",
+      "owned": [
+        "native_bt/include/dbt_avdtp_sink.h",
+        "native_bt/src/dbt_avdtp_sink.c",
+        "native_bt/include/dbt_a2dp_acceptor.h",
+        "native_bt/src/dbt_a2dp_acceptor.c",
+        "native_bt/esp32_probe/main/probe_audio.h",
+        "native_bt/esp32_probe/main/probe_audio.c"
+      ],
+      "reference": [
+        "src/classic/avdtp_initiator.c:322-345",
+        "src/classic/avdtp.c:983-1063",
+        "A2DP1.4.1 3.1/3.2/5.2.1"
+      ],
+      "outcome": "Shared caller operation now supports initial local Open and preserves/cleans worker state explicitly. Outgoing media reserves exact identity before asynchronous binding. Final receipt-to-drain readiness corrected. Larger product body/contract remains partial; runtime/full layer qualification incomplete.",
+      "full_layer_complete": false
     }
   ],
   "integration_gaps": [
@@ -3958,7 +3976,7 @@
       "notes": [
         "Endpoint iteration and read-only capability/config queries preserve full caller-buffered response or explicit no-space.",
         "Completion lifetime is separate from timeout-pinned TX; stale cancel never grants buffer release.",
-        "Selector still must require mandatory services and compatible exact codec fields. Initial local SetConfiguration is now source-implemented separately; Open/Start/reconfigure and automatic caller remain unfinished."
+        "Selector still must require mandatory services and compatible exact codec fields. Local SetConfiguration/Open and outgoing media are source-implemented separately; Start/reconfigure and automatic caller remain unfinished."
       ]
     },
     {
@@ -3967,16 +3985,25 @@
       "notes": [
         "Prepared command blocks wire submission until decoder READY; Accept commits configuration and app notification before pending metadata release.",
         "Reject/cancel/Abort cleanup waits for serialized DROP; retiring failed sink still polls worker drain. Separate result metadata and exact binding/token identity.",
-        "No automatic begin caller or new startup RF; local Open/Start/reconfigure, peer selection, collision/lifecycle and all held qualification remain unfinished."
+        "Initial local Open and exact outgoing media establishment are now source-implemented using the shared operation. Start/reconfigure and peer/default/retry policy and held qualification remain unfinished."
+      ]
+    },
+    {
+      "id": "AVDTP-LOCAL-OPEN-MEDIA",
+      "status": "implemented_source_api_no_automatic_caller_wire_pending",
+      "notes": [
+        "Open waits for worker READY and peer Accept; rejection/pre-wire cancellation retain the configured decoder and drain accepted worker receipt. Remote Abort promotes cleanup to DROP.",
+        "Initiator direction and exact reserved media handle/generation/CID/serial distinguish outgoing media from incoming admission; OPEN event binds it. Shared profile storage unchanged.",
+        "Final acceptor drain and retained-Open receipt wakeups return control without idle-finalization stalls. No caller is automatically enabled; full wire/cancel/collision/fault/audio qualification remains open."
       ]
     }
   ],
   "next_review": [
-    "Implement local Open/media channel setup/Start and response/cancellation/cleanup, reusing prepared command/worker ownership. Initial local SetConfiguration is source-implemented; do not repeat it.",
-    "Implement compatible peer codec selection and durable Classic reconnect/backoff/handover policy. No automatic RF caller under hold.",
-    "Complete remaining file and feature/security/lifecycle/audio performance reviews and qualification."
+    "Implement local Start using the shared operation, with worker preparation and peer response/rollback/cancel/drop semantics. Keep internal Open-wait/media binding distinct from streaming.",
+    "Implement local reconfigure/suspend/close/abort and peer selection from real Source capabilities plus durable reconnect/backoff/handover. No automatic RF caller under hold.",
+    "Complete all remaining file/feature/security/lifecycle/audio performance qualification."
   ],
-  "latest_build_image": "c7fe644c553c8df464a2b39b3b6c85b3d5300f2d562265da51fc9c0b49952059",
+  "latest_build_image": "9715c0865300571dbf2780dbc27ca930004a925c60007a580a65e77bec3d0515",
   "verification_source_contracts": [
     {
       "file": "native_bt/tools/test_ldac_target_component.py",
