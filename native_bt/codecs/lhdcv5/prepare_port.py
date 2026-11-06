@@ -74,6 +74,29 @@ def generate(source,output):
                       '#define S960_TBL_FLOATS (2*IMDCT_N2_960*IMDCT_N1_960 + 2*IMDCT_P_960 + 16)')
             text=once(text,'#define S1920_TBL_FLOATS (2*IMDCT_N2_1920*IMDCT_N2_1920 \\\n                          + 2*IMDCT_N2_1920*IMDCT_N1_1920 + 2*IMDCT_P_1920)',
                       '#define S1920_TBL_FLOATS (2*IMDCT_N2_1920*IMDCT_N1_1920 + 2*IMDCT_P_1920 + 32)')
+            # An executable transform must have either its verified fast tables
+            # or its selected reference cache ready before reporting success.
+            text=once(text,'''    if (!(N == IMDCT_N && s_fast_ok) && !(N == IMDCT_N_960 && s960_ok) &&
+        !(N == IMDCT_N_1920 && s1920_ok)) {
+        (void)lhdc_cos_table_ensure(N);
+    } else if (!(g_lhdc_diag_force_ref_imdct_960 && N == IMDCT_N_960)) {
+        /* init() also runs per frame. Keep an explicitly forced reference
+         * table cached; otherwise diagnostics would allocate/free every frame. */
+#if defined(LHDC_HOST_BUILD)
+        if (!getenv("LHDC_FORCE_REF"))
+#endif
+            lhdc_imdct_free_cos();
+    }''','''    int reference = (!(N == IMDCT_N && s_fast_ok) && !(N == IMDCT_N_960 && s960_ok) &&
+                     !(N == IMDCT_N_1920 && s1920_ok)) ||
+                    (g_lhdc_diag_force_ref_imdct_960 && N == IMDCT_N_960);
+#if defined(LHDC_HOST_BUILD)
+    if (getenv("LHDC_FORCE_REF")) reference = 1;
+#endif
+    if (reference) {
+        if (lhdc_cos_table_ensure(N) != 0) return -1;
+    } else {
+        lhdc_imdct_free_cos();
+    }''')
         if name=="lhdc_dec.c":
             text=once(text,'#include <math.h>','''#include <math.h>
 #if defined(__FAST_MATH__) || (defined(__FINITE_MATH_ONLY__) && __FINITE_MATH_ONLY__)
@@ -95,6 +118,45 @@ def generate(source,output):
         0) {
 #else
         !dec->ov_save) {''')
+            # Prepare target windows while configuration still owns allocation.
+            # Valid generic shapes remain supported; cache that decision too.
+            start=text.index('static void lhdc_dec_window_prepare(int mdct_size)')
+            end=text.index('\n/* Release the KBD analysis window.',start)
+            block=text[start:end]
+            block=once(block,'static void lhdc_dec_window_prepare','static int lhdc_dec_window_prepare')
+            block=once(block,'    if (s_win.n == mdct_size) return;',
+                '    if (s_win.n == mdct_size) return 0;')
+            block=once(block,'    if (!w || mdct_size < 4 || (mdct_size & 1)) return;',
+                '''    if (!w || mdct_size < 4 || (mdct_size & 1)) return -1;
+    s_win.n = mdct_size; /* prepared generic path unless the exact shape matches */''')
+            block=once(block,'    if (!ramp) return;',
+                '    if (!ramp) { s_win.n = 0; return -1; }')
+            if block.count('return;')!=6:raise RuntimeError('LHDC window shape branches changed')
+            block=block.replace('return;','return 0;')
+            block=once(block,'/* out of memory -> generic path */','/* allocation failure is explicit */')
+            block=once(block,'/* already built for this rate */','/* prepared for this rate */')
+            block=once(block,'    s_win.ramp = ramp;','    s_win.ramp = ramp;\n    return 0;')
+            text=text[:start]+block+text[end:]
+            text=once(text,'s_win.ramp == NULL (unrecognized window / out of memory) -> generic loop',
+                's_win.ramp == NULL (valid unrecognized shape) -> generic loop')
+            text=once(text,'        lhdc_imdct_init(M);','''        if (lhdc_imdct_init(M) != 0) {
+            lhdc_dec_free_tails(dec);
+            return NULL;
+        }
+#if !defined(LHDC_HOST_BUILD)
+        /* Host-only window-file overrides retain their first-frame timing. */
+        if (lhdc_dec_window_prepare(M) != 0) {
+            lhdc_dec_free_tails(dec);
+            return NULL;
+        }
+#endif''')
+            text=once(text,'    lhdc_entropy_alloc();','''    lhdc_entropy_alloc();
+    if (!dbt_lhdc_entropy_ready()) {
+        lhdc_dec_free_tails(dec);
+        return NULL;
+    }''')
+            text=once(text,'    lhdc_dec_window_prepare(mdct_size);',
+                '    if (lhdc_dec_window_prepare(mdct_size) != 0) return LHDC_DEC_ERROR;')
             # Six timestamps per channel were executed even with the stage
             # profiler disabled. Keep the two frame-latency timestamps, and
             # enable these stage marks only for an explicit diagnostic build.

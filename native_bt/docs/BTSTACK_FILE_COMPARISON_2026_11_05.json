@@ -395,8 +395,8 @@
     },
     {
       "owned": "native_bt/codecs/lhdcv5/prepare_port.py",
-      "sha256": "37ab1de00712911f1fbc330f19e5278e10fe3cbc59717fd637ab84ab338cf44a",
-      "lines": 340,
+      "sha256": "3b8a0b23ccb181e657a46995a988a2f5a1985b12566ba897855781aec4f7f84f",
+      "lines": 402,
       "reference_files": [
         "src/classic/btstack_sbc_bluedroid.c:423-431,526-535",
         "src/classic/btstack_sbc_decoder_bluedroid.c:335-343,441-450",
@@ -405,7 +405,7 @@
       ],
       "status": "reviewed_generator",
       "mapping": "Single-owner LHDC integration and explicit recovered-error visibility",
-      "review_scope": "Complete transformer body read: source/header pinning, allocation/scratch/cache/bits/metadata changes and exact new channel/quality observations. Generation/compilation pass; no full upstream algorithm or active quality/fault/format/throughput proof. Later PCM boundary stage: defined positive S32 saturation, sticky nonfinite peak/overlap concealment, explicit nonfinite quality flag/count and safe config snapshot reviewed. Source/compiler/ordinary boot only; no active boundary/audio/fault/headroom proof."
+      "review_scope": "Complete transformer body read: source/header pinning, allocation/scratch/cache/bits/metadata changes and exact new channel/quality observations. Generation/compilation pass; no full upstream algorithm or active quality/fault/format/throughput proof. Later PCM boundary stage: defined positive S32 saturation, sticky nonfinite peak/overlap concealment, explicit nonfinite quality flag/count and safe config snapshot reviewed. Source/compiler/ordinary boot only; no active boundary/audio/fault/headroom proof. Configuration-window stage: selected sibling window/cleanup/init/reference-cache blocks reread; target window preparation and explicit transform/entropy readiness moved before initialized/READY. Valid generic/diagnostic selection preserved; host analysis has unchanged IMDCT dead increment. No live failure/latency/quality/headroom proof."
     },
     {
       "owned": "native_bt/codecs/opus/dbt_opus.c",
@@ -3663,6 +3663,20 @@
       "fix": "At most3 bounded source span copies with prefix/body-presence checks; disjoint scratch/count is caller precondition. No cursor movement before successful ACL submission.",
       "resource_change": "Peek own frame48→64; no new allocation/buffer/task. Combined transport text+80; no measured speed gain.",
       "limits": "No prefix/split/alias/empty/capacity/backpressure/wire campaign. In-place aliasing is not an advertised interface; immutable loan and separate scratch required."
+    },
+    {
+      "id": "LHDC-WINDOW-CONFIG",
+      "state": "implemented_source_target_ccache_readback_cold_idle_live_setup_pending",
+      "owned": [
+        "native_bt/codecs/lhdcv5/prepare_port.py"
+      ],
+      "reference": [
+        "Sibling window preparation/constructor/reference-cache status and adapter cleanup"
+      ],
+      "issue": "First-frame window ramp preparation could allocate after accepted configuration; void helper/ignored transform readiness allowed resource errors too late.",
+      "fix": "Target constructor prepares/checks existing window before initialization success. Shape helper returns status and caches valid generic choice; selected transform cache failure propagates, entropy readiness checked, failed tails released.",
+      "resource_change": "No new steady/BSS/data/IRAM storage; existing360/712/1416 accounted ramp bytes move to setup. Text+72. Four cold LHDC tracked peaks unchanged; no timing claim.",
+      "limits": "No live first-frame/failure/low-memory/generic/reference/concurrency/codec-switch/audio campaign. Portable IMDCT analyzer retains original unused local cursor increment warning; target-only branch source-reviewed/target-compiled."
     }
   ],
   "sections_reviewed": [
@@ -4264,6 +4278,20 @@
       ],
       "outcome": "Fixed missing idle wakeup for bufferless oversize discard. TX assembles basic header/optional prefix/borrowed body in <=3 copies with shape checks and unchanged admission/commit. Runtime storage documentation now includes enhanced work and product-bound RX. Complete authored transport body pass; dependent channel/provider/callback/wire/security/performance coverage remains partial.",
       "full_layer_complete": false
+    },
+    {
+      "layer": "LHDC configured window/transform/entropy readiness",
+      "owned": [
+        "native_bt/codecs/lhdcv5/prepare_port.py",
+        "Canonical/raw close and configuration consumer sections"
+      ],
+      "reference": [
+        "Pinned sibling lhdc_dec.c:103-234,1429-1588,1703-1713",
+        "Pinned sibling lhdc_imdct.c:58-83,952-1031",
+        "Current unmodified lhdc_tables.c window dimensions"
+      ],
+      "outcome": "Moved required target ramp preparation before READY, status-returning cached generic/fast shape choice, meaningful selected-transform cache failure, checked entropy readiness and tail cleanup. No table/arithmetic/format/resource-size change. Existing host diagnostic timing and reference policy kept; target/host static/build/readback/cold+idle evidence only, full runtime behavior unqualified.",
+      "full_layer_complete": false
     }
   ],
   "integration_gaps": [
@@ -4634,6 +4662,16 @@
         "Full runtime/RX-flow/ACL/HCI bodies and four contracts reread; channel/ERTM/deferred abort/callback provider integration remains partial. Keep strict completed-event aggregation difference explicit rather than copying reference clamping.",
         "Live malformed/timeout/prefix/credit/disconnect/queue/codec/BLE/RF/security/audio/headroom qualification remains unfinished under held campaigns."
       ]
+    },
+    {
+      "id": "LHDC-WINDOW-CONFIG",
+      "status": "configuration_readiness_source_build_readback_cold_idle_only",
+      "notes": [
+        "FFT/FAC already prepared in original constructor; remaining target window setup now there too. Do not duplicate prewarm changes.",
+        "Current normal target fixed-rate caches ready before stream; unchanged steady window storage. Valid generic shape is cached, errors propagate instead of silent READY. Reference readiness is not a throughput guarantee.",
+        "All37 existing cold codec checks pass; four LHDC peak allocations unchanged and overall56899 unchanged. Idle137912/largest110592 unchanged, reported regional-minimum67356 is not proof of saved steady memory.",
+        "No live setup/fault/low-memory/switch/diagnostic/acoustic/performance proof; continue remaining host/channel/provider/source and full feature/security/lifecycle work."
+      ]
     }
   ],
   "next_review": [
@@ -4643,7 +4681,7 @@
     "Complete queued/crossed control and backend policy before automatic integration; rank only returns a proposal, no peer acceptance or reservation.",
     "Continue pending file/feature/security/lifecycle/codec crash/audio underrun/LHDC headroom work. Keep new automatic RF disabled under held campaigns."
   ],
-  "latest_build_image": "a2957dd2351f9e96f8f326711eb1e9db421d3cc2ca9516b15319f2ec5f67ae4c",
+  "latest_build_image": "4c24457a6aba94837aee242eae3c43b7513abbb6aeef4d2bd521b673d6f60413",
   "verification_source_contracts": [
     {
       "file": "native_bt/tools/test_ldac_target_component.py",
