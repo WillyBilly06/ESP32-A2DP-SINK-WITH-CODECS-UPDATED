@@ -43,6 +43,11 @@ uses a bounded span copy. Live fragment/audio/memory-failure behavior remains un
 wake for oversized PDUs even without a payload buffer. TX fragment assembly uses
 at most three source-span copies with unchanged admission/commit timing.
 Live timeout/prefix/credit/backpressure behavior remains unqualified.
+[Shared output recovery](docs/SHARED_OUTPUT_RECOVERY_2026_11_06.md) follows a
+failed LDAC96k attempt with PCM backpressure, renderer over-budget timing and a
+latched DMA order fault. Verified-pool EOF gaps now have bounded recovery and
+separate accounting; passive role/stage counters retain the complete product.
+Throughput, starvation and active recovery qualification remain unfinished.
 [AAC parser bounds](docs/AAC_PARSER_BOUNDS_2026_11_06.md) now reject zero-progress
 sections, out-of-range band/TNS/pulse fields and truncated bit consumption through
 source-pinned SDK units. All four existing cold AAC cases preserve their reference

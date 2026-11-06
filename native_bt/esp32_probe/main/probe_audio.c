@@ -743,6 +743,18 @@ static void log_loop(void *unused){
                at,stats.descriptor_shape_errors,stats.descriptor_pool_errors,stats.descriptor_order_errors,
                stats.descriptor_expected_index,stats.descriptor_observed_index,stats.descriptor_observed_size,
                stats.descriptor_fault_at_us,stats.descriptor_fault_gap_us,stats.descriptor_fault_stopping);
+#ifdef DBT_AUDIO_STAGE_PROFILE
+        snapshot_log(output_snapshot_began,"{\"probe\":\"render_stage_cycles\",\"collection_cycle_us\":%" PRIu32
+               ",\"frames\":%" PRIu32 ",\"conversion_fir\":%" PRIu32 ",\"dsp\":%" PRIu32 ",\"publication_mix\":%" PRIu32
+               ",\"controls\":%" PRIu32 ",\"conversion_fir_max\":%" PRIu32 ",\"dsp_max\":%" PRIu32 ",\"publication_mix_max\":%" PRIu32
+               ",\"core\":%" PRIu32 ",\"core_cycles_include_preemption\":true,\"counts_wrap_uint32\":true}\n",at,
+               stats.profile_frames,stats.profile_conversion,stats.profile_dsp,stats.profile_tail,stats.profile_controls,
+               stats.profile_conversion_max,stats.profile_dsp_max,stats.profile_tail_max,stats.render_core);
+#endif
+        snapshot_log(output_snapshot_began,"{\"probe\":\"i2s_order_recovery\",\"collection_cycle_us\":%" PRIu32
+               ",\"recoveries\":%" PRIu32 ",\"missed_callbacks_min\":%" PRIu32 ",\"source_frames_recovered\":%" PRIu32
+               ",\"additional_complete_laps_unknown\":true}\n",at,stats.descriptor_order_recoveries,
+               stats.descriptor_missed_eofs_min,stats.descriptor_recovered_source_frames);
         snapshot_log(output_snapshot_began,"{\"probe\":\"native_i2s\",\"running\":%" PRIu32 ",\"failed\":%" PRIu32 ",\"rate\":%" PRIu32
                ",\"requested_bytes\":%" PRIu32 ",\"accepted_frames\":%" PRIu32 ",\"rendered_frames\":%" PRIu32 ",\"ready_frames\":%" PRIu32
                ",\"dma_eofs\":%" PRIu32 ",\"dma_source_frames\":%" PRIu32 ",\"underrun_frames\":%" PRIu32

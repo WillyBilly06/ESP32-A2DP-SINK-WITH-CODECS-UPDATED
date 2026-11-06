@@ -20,7 +20,8 @@ assert re.findall(r'(?:^|\s)-DDBT_PROBE_STAY_NATIVE=(\S+)',main_command)==(['1']
 assert not re.search(r'(?:^|\s)-UDBT_PROBE_STAY_NATIVE(?:\s|$)',main_command)
 if stay_native:
     assert not diagnostic and not pipeline and build_status.get('async_audio') and build_status.get('product_io') and build_status.get('product_security')
-    assert not build_status.get('rf_protocol_diagnostic') and not build_status.get('scheduler_trace')
+    # Passive tick sampling retains the complete product entry and adds no workload.
+    assert not build_status.get('rf_protocol_diagnostic')
     assert 'DBT_PROBE_KEEP_OWNED_ACTIVE:BOOL=ON' in cache and entry_name=='probe_main.c'
 
 scheduler_trace=bool(build_status.get('scheduler_trace'))
@@ -206,7 +207,7 @@ if fir_check:
     for variant,optimization in (('wide','-O3'),('os','-Os'),('o2','-O2'),('o3','-O3'),('fold','-O3'),('pair','-O3')):
         variant_command=next(e['command'] for e in commands if Path(e['file']).name==f'probe_fir_{variant}.c')
         assert re.findall(r'(?:^|\s)(-O\S+)',variant_command)[-1]==optimization
-elif audio_profile:
+elif audio_profile and not stay_native:
     assert pipeline
     candidate=('profile','-Os') if dsp_profile else ('inline','-Os') if dsp_inline else ('o3','-O3')
     for variant,optimization in (('os','-Os'),candidate):
@@ -216,6 +217,9 @@ elif audio_profile:
         for block_variant in ('block','word'):
             block_command=next(e['command'] for e in commands if Path(e['file']).name==f'probe_dsp_{block_variant}.c')
             assert re.findall(r'(?:^|\s)(-O\S+)',block_command)[-1]=='-Os'
+if audio_profile and stay_native:
+    assert not diagnostic and not pipeline and not dsp_profile and not dsp_inline and not fir_check
+    assert not any(Path(e['file']).name.startswith(('probe_dsp_', 'probe_fir_', 'probe_pipeline_check')) for e in commands), 'Passive profile must not compile benchmark workloads'
 assert bool(re.search(r'(?:^|\s)-DDBT_PROBE_PIPELINE_DIAGNOSTIC=1(?:\s|$)',main_command))==pipeline
 if pipeline:
     assert diagnostic and build_status.get('async_audio')

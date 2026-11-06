@@ -22,6 +22,9 @@ typedef struct {
     uint32_t pcm_target_ms,block_dsp,word_dsp,pcm_input_mode,input_capacity_frames,input_ring_bytes;
     uint32_t dma_eofs,dma_source_frames,underrun_frames,descriptor_errors,max_eof_gap_us;
     uint32_t descriptor_shape_errors,descriptor_pool_errors,descriptor_order_errors;
+    /* Recoveries preserve the error count. Missed EOFs are a lower bound;
+     * additional complete DMA laps cannot be inferred from the latest IRQ. */
+    uint32_t descriptor_order_recoveries,descriptor_missed_eofs_min,descriptor_recovered_source_frames;
     uint32_t descriptor_expected_index,descriptor_observed_index,descriptor_observed_size;
     uint32_t descriptor_fault_at_us,descriptor_fault_gap_us,descriptor_fault_stopping;
     uint32_t configured_irq_priority,callback_calls,callback_elapsed_us,callback_max_us,callback_core,render_core;

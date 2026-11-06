@@ -11,7 +11,7 @@ if ($RfProtocolDiagnostic) {
 }
 if ($FirCompilerCheck -and (-not $AudioStageProfile -or $DspStageProfile)) { throw 'FIR compiler check requires -AudioStageProfile and excludes -DspStageProfile' }
 if ($DspStageProfile -and -not $AudioStageProfile) { throw 'DSP stage profiling requires -AudioStageProfile' }
-if ($AudioStageProfile -and -not $PipelineDiagnostic) { throw 'Audio stage profiling requires -PipelineDiagnostic' }
+if ($AudioStageProfile -and -not $PipelineDiagnostic -and -not $StayNative) { throw 'Audio stage profiling requires -PipelineDiagnostic or the complete -StayNative product' }
 if ($PipelineDiagnostic) {
     if ($DeferredCodecCheck -or $LhdcMaximumCheck -or $LhdcStageProfile) { throw 'Pipeline diagnostic is a separate finite check' }
     $CodecDiagnosticOnly=$true; $WithLhdc=$true; $WithAudioOutput=$true; $AsyncAudio=$true; $KeepOwned=$false
@@ -29,7 +29,7 @@ if ($WithRfcomm) { $WithClassicSecurity=$true }
 if ($WithAudioOutput -and -not $PipelineDiagnostic) { $WithAudioProbe = $true }
 if ($AsyncAudio -and -not $WithAudioOutput) { throw 'Async audio requires -WithAudioOutput or -WithProductIo' }
 if ($SchedulerTrace) {
-    if (-not $WithAudioProbe -or $CodecDiagnosticOnly -or $PipelineDiagnostic) { throw 'Scheduler trace requires a finite live audio probe' }
+    if (-not $WithAudioProbe -or $CodecDiagnosticOnly -or $PipelineDiagnostic) { throw 'Scheduler trace requires live audio and excludes synthetic diagnostics' }
     $KeepOwned=$false
 }
 if ($PcmLoans) {
@@ -55,7 +55,7 @@ if (($TestPeer -and $TestPeer -notmatch '^[0-9a-fA-F]{2}(:[0-9a-fA-F]{2}){5}$') 
     throw 'The Classic pairing probe requires -TestPeer with the exact test peer address'
 }
 if ($StayNative) {
-    if (-not $WithProductIo -or -not $AsyncAudio -or $CodecDiagnosticOnly -or $PipelineDiagnostic -or $RfProtocolDiagnostic -or $SchedulerTrace) { throw 'Stay-native requires the complete asynchronous product entry' }
+    if (-not $WithProductIo -or -not $AsyncAudio -or $CodecDiagnosticOnly -or $PipelineDiagnostic -or $RfProtocolDiagnostic -or $DspStageProfile -or $FirCompilerCheck -or $DspInlineCheck) { throw 'Stay-native requires the complete asynchronous product entry' }
     if ($DecoderCore -ne 0 -or $LoggerCore -ne 1) { throw 'Stay-native product reserves CPU0 for decoding; use -DecoderCore 0 -LoggerCore 1' }
     $DecoderPriority=21
     $KeepOwned=$true

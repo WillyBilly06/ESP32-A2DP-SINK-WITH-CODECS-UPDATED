@@ -70,6 +70,7 @@ typedef struct {
   void (*wake_decoder)(void *);
   void *wake_context;
   bool active, enabled, stopping;
+  uint8_t descriptor_order_seen; /* Complete repeat verifies discovered ring order. */
   uint32_t descriptor_count, next_descriptor, zero_completions, last_eof,
       clock_at;
   uint32_t stop_request, stop_at;
@@ -100,6 +101,7 @@ typedef struct {
   _Atomic uint32_t dma_eofs, dma_source_frames, underrun_frames,
       descriptor_errors, max_eof_gap_us;
   _Atomic uint32_t descriptor_shape_errors,descriptor_pool_errors,descriptor_order_errors;
+  _Atomic uint32_t descriptor_order_recoveries,descriptor_missed_eofs_min,descriptor_recovered_source_frames;
   _Atomic uint32_t descriptor_expected_index,descriptor_observed_index,descriptor_observed_size;
   _Atomic uint32_t descriptor_fault_at_us,descriptor_fault_gap_us,descriptor_fault_stopping;
   _Atomic uint32_t callback_calls,callback_elapsed_us,callback_max_us,callback_core,render_core;
@@ -272,6 +274,7 @@ static bool IRAM_ATTR sent(i2s_chan_handle_t channel, i2s_event_data_t *event,
   while (index < o->descriptor_count &&
          o->descriptors[index].address != event->dma_buf)
     ++index;
+  bool known=index<o->descriptor_count;
   if (index == o->descriptor_count) {
     if (index == DMA_DESCRIPTORS) {
       atomic_store(&o->descriptor_fault_at_us,now);
@@ -300,8 +303,28 @@ static bool IRAM_ATTR sent(i2s_chan_handle_t channel, i2s_event_data_t *event,
     atomic_store(&o->descriptor_observed_size,event->size);
     atomic_store(&o->descriptor_errors,
                  atomic_load(&o->descriptor_errors) + 1u);
-    atomic_store(&o->failed, 1);
-  }
+    if(known && o->descriptor_count==DMA_DESCRIPTORS &&
+       o->descriptor_order_seen==DMA_DESCRIPTORS && o->next_descriptor<DMA_DESCRIPTORS &&
+       !atomic_load(&o->failed)){
+      /* ESP32 reports the latest completed descriptor once per ISR. Coalesced
+       * EOFs need not visit each index. Require a verified stable ring first.
+       * Pending valid counts are DMA-owned copies, not borrowed PCM storage.
+       * Credit skipped copies once; extra complete laps remain unknown. */
+      uint32_t missed=0,recovered=0;unsigned prior=o->next_descriptor;
+      while(prior!=index && missed<DMA_DESCRIPTORS){
+        recovered+=o->descriptors[prior].valid;
+        o->descriptors[prior].valid=0;
+        ++missed;if(++prior==DMA_DESCRIPTORS)prior=0;
+      }
+      atomic_store(&o->descriptor_order_recoveries,atomic_load(&o->descriptor_order_recoveries)+1u);
+      atomic_store(&o->descriptor_missed_eofs_min,atomic_load(&o->descriptor_missed_eofs_min)+missed);
+      atomic_store(&o->descriptor_recovered_source_frames,atomic_load(&o->descriptor_recovered_source_frames)+recovered);
+      atomic_store(&o->dma_source_frames,atomic_load(&o->dma_source_frames)+recovered);
+      /* Stop requires a fresh complete consecutive silent traversal. */
+      o->zero_completions=0;
+    }else atomic_store(&o->failed,1);
+  }else if(known && o->descriptor_count==DMA_DESCRIPTORS &&
+           o->descriptor_order_seen<DMA_DESCRIPTORS)++o->descriptor_order_seen;
   o->next_descriptor = index + 1u;
   if (o->next_descriptor == DMA_DESCRIPTORS)
     o->next_descriptor = 0;
@@ -484,6 +507,7 @@ static dbt_result_t start_output(uint32_t rate, uint8_t channels,
     output.descriptors[i] = (descriptor_t){0};
   output.descriptor_count = output.next_descriptor = output.zero_completions =
       output.last_eof = 0;
+  output.descriptor_order_seen=0;
   output.held_left = output.held_right = 0;
   output.clock_at = (uint32_t)(esp_timer_get_time() / 1000);
   dbt_audio_fade_init(&output.fade, rate / 50u);
@@ -500,6 +524,9 @@ static dbt_result_t start_output(uint32_t rate, uint8_t channels,
   atomic_store(&output.descriptor_shape_errors,0);
   atomic_store(&output.descriptor_pool_errors,0);
   atomic_store(&output.descriptor_order_errors,0);
+  atomic_store(&output.descriptor_order_recoveries,0);
+  atomic_store(&output.descriptor_missed_eofs_min,0);
+  atomic_store(&output.descriptor_recovered_source_frames,0);
   atomic_store(&output.descriptor_expected_index,0);
   atomic_store(&output.descriptor_observed_index,0);
   atomic_store(&output.descriptor_observed_size,0);
@@ -1095,6 +1122,7 @@ void probe_output_stats(probe_output_stats_t *s) {
   LOAD(underrun_frames);
   LOAD(descriptor_errors);
   LOAD(descriptor_shape_errors);LOAD(descriptor_pool_errors);LOAD(descriptor_order_errors);
+  LOAD(descriptor_order_recoveries);LOAD(descriptor_missed_eofs_min);LOAD(descriptor_recovered_source_frames);
   LOAD(descriptor_expected_index);LOAD(descriptor_observed_index);LOAD(descriptor_observed_size);
   LOAD(descriptor_fault_at_us);LOAD(descriptor_fault_gap_us);LOAD(descriptor_fault_stopping);
   LOAD(callback_calls);LOAD(callback_elapsed_us);LOAD(callback_max_us);LOAD(callback_core);LOAD(render_core);

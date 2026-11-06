@@ -581,11 +581,12 @@
     },
     {
       "owned": "native_bt/esp32_probe/CMakeLists.txt",
-      "sha256": "fb8a6160f89c72722421eb6b4ff92feda53e4d2eaf5e73dc34699960de8f81fa",
+      "sha256": "53259b1ccdeed6ce57fc31199c5603eadf24fde8560d5cd4893a34f40c5be486",
       "lines": 186,
       "reference_files": [],
-      "status": "pending",
-      "mapping": "Added through full filesystem/build-manifest cross-check; source generation/build inputs included"
+      "status": "partial_review",
+      "mapping": "Added through full filesystem/build-manifest cross-check; source generation/build inputs included",
+      "review_scope": "Product/diagnostic/profile gates, source selection and compile definitions reviewed. Stay-native retains complete async entry while allowing passive sampler/audio counters; benchmark sources excluded and actual compile commands verified. Broader component/build recipe review remains partial."
     },
     {
       "owned": "native_bt/esp32_probe/components/aac_decoder/CMakeLists.txt",
@@ -673,11 +674,12 @@
     },
     {
       "owned": "native_bt/esp32_probe/main/CMakeLists.txt",
-      "sha256": "e4c0440bdb73c50546e476953759c393ed940d2a97cb9cdd96508911589f4a02",
+      "sha256": "283125c476e4409f54d51c8fde01774665974c24b4898d3e7b8ead6d7482cf3f",
       "lines": 212,
       "reference_files": [],
-      "status": "pending",
-      "mapping": "Added through full filesystem/build-manifest cross-check; source generation/build inputs included"
+      "status": "partial_review",
+      "mapping": "Added through full filesystem/build-manifest cross-check; source generation/build inputs included",
+      "review_scope": "Product/diagnostic/profile gates, source selection and compile definitions reviewed. Stay-native retains complete async entry while allowing passive sampler/audio counters; benchmark sources excluded and actual compile commands verified. Broader component/build recipe review remains partial."
     },
     {
       "owned": "native_bt/esp32_probe/main/Kconfig.projbuild",
@@ -713,11 +715,12 @@
     },
     {
       "owned": "native_bt/esp32_probe/main/probe_audio.c",
-      "sha256": "803ca3b02c279507a5a11dfc16288bf99bd47c073a464c98d51228e18c368156",
-      "lines": 1183,
+      "sha256": "417c469fd8f484dd28b2e7d4d97c642786d0b04735066b6cfbe82a1ab1a24016",
+      "lines": 1195,
       "reference_files": [],
       "status": "partial_review",
-      "mapping": "product/support code; no direct protocol counterpart assigned"
+      "mapping": "product/support code; no direct protocol counterpart assigned",
+      "review_scope": "Selected active decode/render/owner/telemetry and passive stage/scheduler integration reviewed; source remains partial. Trace shows output pressure/latched failure with decoder rejects0, but full profile/default peer/feature/security and shared throughput proof remain unfinished."
     },
     {
       "owned": "native_bt/esp32_probe/main/probe_audio.h",
@@ -1081,23 +1084,23 @@
     },
     {
       "owned": "native_bt/esp32_probe/main/probe_output.c",
-      "sha256": "d843fe97d1455d729b3d4833c27136b2f1495e11d19ae95087b5bd845f96db64",
-      "lines": 1196,
+      "sha256": "83a4533ef38166645179bec8a72549915317cc0ea08d833a723054aa38a22c85",
+      "lines": 1224,
       "reference_files": [
         "port/esp32/components/btstack/btstack_audio_esp32_v5.c"
       ],
       "status": "reviewed_with_findings",
       "mapping": "reviewed_port_audio_boundaries",
-      "review_scope": "Complete owned body read; compared reference ESP32 v5 refill/format/cache-safety sections and current async client/link reachability. Runtime lifecycle, faults, concurrency and ISR load remain unqualified."
+      "review_scope": "Authored output body previously reviewed; current callback lookup, descriptor-copy accounting, verified-pool recovery, stop streak, reset/stats and compiled mode reread against actual ESP32 SDK EOF ISR. Error visibility retained; renderer overload/IRQ-delay cause, all-mode lifecycle and active recovery proof remain incomplete."
     },
     {
       "owned": "native_bt/esp32_probe/main/probe_output.h",
-      "sha256": "cd0eb7d2a5f0c674c0004112ee128709ccbf8e9d8f89cf9b3afc76e34c4eb4d0",
-      "lines": 108,
+      "sha256": "f7c9d2458d63e88aef77b5342b36047ec9c43a080220a6574497fe0c2ba0db2c",
+      "lines": 111,
       "reference_files": [],
       "status": "reviewed_contract",
       "mapping": "product/support code; no direct protocol counterpart assigned",
-      "review_scope": "Complete initialization, ticket/loan/legacy and producer-quiescence API contract read against implementation."
+      "review_scope": "Complete output API/stats declaration reread for added recovery/minimum counters; copied DMA ownership and incomplete callback-count/replay inference explicit. No payload pool/task introduced."
     },
     {
       "owned": "native_bt/esp32_probe/main/probe_pair_button.c",
@@ -1256,16 +1259,18 @@
       "sha256": "42528e1b51da8ab5cfc309ea4ad056f67a3f2e14f7fac4488ef4e605a85be91e",
       "lines": 100,
       "reference_files": [],
-      "status": "pending",
-      "mapping": "product/support code; no direct protocol counterpart assigned"
+      "status": "reviewed_no_change",
+      "mapping": "product/support code; no direct protocol counterpart assigned",
+      "review_scope": "Complete passive sampler body and contract read: single-writer per-core counters, release/acquire initialization, bounded role lookup and non-spinning snapshot, startup rollback. Tick masking/aliasing/preemption bias explicit; not exact CPU usage or playback proof."
     },
     {
       "owned": "native_bt/esp32_probe/main/probe_scheduler.h",
       "sha256": "55515a972a6a2382f0ab6a4f3492607d76464a7d18a95dee1fa8f40c8f534d9e",
       "lines": 28,
       "reference_files": [],
-      "status": "pending",
-      "mapping": "product/support code; no direct protocol counterpart assigned"
+      "status": "reviewed_contract",
+      "mapping": "product/support code; no direct protocol counterpart assigned",
+      "review_scope": "Complete once-per-boot init/snapshot/host-phase contract read against implementation. No task/query/lock or logging in tick callbacks; passive sampled identity is not exact runtime."
     },
     {
       "owned": "native_bt/esp32_probe/main/probe_scheduler.lf",
@@ -4368,15 +4373,15 @@
   ],
   "coverage": {
     "owned_files": 288,
-    "reviewed_owned_c_bodies": 38,
-    "partial_files": 15,
-    "pending_files": 180,
+    "reviewed_owned_c_bodies": 39,
+    "partial_files": 17,
+    "pending_files": 176,
     "compiled_owned_units_missing": 0,
-    "reviewed_headers": 39,
+    "reviewed_headers": 40,
     "reviewed_build_files": 9,
     "reviewed_generators": 5,
     "reviewed_static_data": 2,
-    "compiled_owned_units": 106
+    "compiled_owned_units": 107
   },
   "inventory_corrections": [
     {
@@ -4733,10 +4738,20 @@
         "COM6 975e2c84582bfc43ec85e761c414867008453945351f1339d5d3a93250626da0 readbacks match, owned VALID ready, original preserved.37 existing cold checks pass; four AAC cases zero reference error with unchanged tracked allocation peaks. UART131, idle137912/min67356/largest110592.",
         "No held malformed/crash/playback/RF/app/performance campaign. Copied PCM mode avoids the suspected loan-ticket serialization; shared FIR/render throughput still needs proof. Prior slower FIR variants remain disabled; do not add blocking SDK APLL tuning to hot path."
       ]
+    },
+    {
+      "id": "SHARED-OUTPUT-EOF-RECOVERY",
+      "status": "source_build_readback_idle_only_after_failed_scoped_playback",
+      "notes": [
+        "One approved playback attempt failed during setup;60s timed window saw frozen counters. Retained history shows LDAC96k,0 RTP sequence breaks/decoder rejects/oversize,178 queue drops,2025 PCM busy,2.356ms elapsed/128 vs1.333ms budget. Elapsed includes preemption. IDLE1 watchdog/single main PC is not host-spin proof.",
+        "Known, correctly sized EOF gaps recover only after full pool and complete repeat verify ring order. Skipped entries credit pending DMA copies once; no skipped buffer writes/PCM loan returns. Errors retained, minimum missed callbacks/ambiguous complete laps separate. Shape/unknown/unverified faults remain fatal.",
+        "Stay-native passive sampler/stage counters compile with product features and no benchmark units;10349 source hashes stable. ISR own64 frame unchanged. DRAM data+BSS+288, IRAM+688; no new pool/task/fidelity change.",
+        "COM6 0d068bd01a5308bca8c77e217eb626ba427ec0df94dbb6754d6cdbe08386793f readbacks match, original preserved, owned VALID ready.37 existing cold checks pass RFfalse, idle137624/min67068/largest110592; source133. No new-image active recovery/throughput/all-codec qualification."
+      ]
     }
   ],
   "next_review": "Prioritize shared all-codec media/PCM/render scheduling and sustained-throughput bottlenecks, comparing the actual baseline. Keep AAC live crash and all-feature/security qualification open. Do not repeat rejected FIR variants or add automatic RF/test callers under hold.",
-  "latest_build_image": "975e2c84582bfc43ec85e761c414867008453945351f1339d5d3a93250626da0",
+  "latest_build_image": "0d068bd01a5308bca8c77e217eb626ba427ec0df94dbb6754d6cdbe08386793f",
   "verification_source_contracts": [
     {
       "file": "native_bt/tools/test_ldac_target_component.py",
