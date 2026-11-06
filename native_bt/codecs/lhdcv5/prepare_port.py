@@ -126,6 +126,40 @@ extern void dbt_lhdc_stage_record(uint32_t,uint32_t,uint32_t,uint32_t,uint32_t,u
 #endif
 '''
             text=once(text,anchor,instrument+anchor)
+            # Observe the existing recovery decisions without changing samples,
+            # return codes, retry policy, or stdout behavior on the decoder core.
+            text=once(text,'''        if (ret != LHDC_DEC_OK) return ret;
+        if (ret1 != LHDC_DEC_OK) {''','''        if (ret != LHDC_DEC_OK) {
+#ifdef DBT_LHDC_QUALITY
+            dbt_lhdc_channel_failure(0, (int)ret);
+#endif
+            return ret;
+        }
+        if (ret1 != LHDC_DEC_OK) {
+#ifdef DBT_LHDC_QUALITY
+            dbt_lhdc_channel_failure(1, (int)ret1);
+#endif''')
+            text=once(text,'''        ret = lhdc_dec_decode_channel_autosel(dec, 0, out_l);
+        if (ret != LHDC_DEC_OK) {
+            return ret;
+        }''','''        ret = lhdc_dec_decode_channel_autosel(dec, 0, out_l);
+        if (ret != LHDC_DEC_OK) {
+#ifdef DBT_LHDC_QUALITY
+            dbt_lhdc_channel_failure(0, (int)ret);
+#endif
+            return ret;
+        }''')
+            text=once(text,'''            if (ret != LHDC_DEC_OK) {
+                /* Fall back to silence on this channel if ch1 fails. */''','''            if (ret != LHDC_DEC_OK) {
+#ifdef DBT_LHDC_QUALITY
+                dbt_lhdc_channel_failure(1, (int)ret);
+#endif
+                /* Fall back to silence on this channel if ch1 fails. */''')
+            text=once(text,'    int conceal = (frame_peak > 2.0f * clip_lim);',
+                '''    int conceal = (frame_peak > 2.0f * clip_lim);
+#ifdef DBT_LHDC_QUALITY
+    dbt_lhdc_frame_quality(frame_peak, (unsigned)clip_cnt, conceal);
+#endif''')
             # Frame size/rate/depth are stable across most stream packets.
             # Cache the exact existing float results, never an approximation;
             # target is single-owner (LHDC_NSLOTS==1). Host diagnostic builds

@@ -45,6 +45,7 @@ idf_component_register(SRCS "${owned}/dbt_lhdcv5_codec.c"
     INCLUDE_DIRS "${owned}" PRIV_INCLUDE_DIRS "${port}" "${decoder}"
     REQUIRES native_bt codec_core PRIV_REQUIRES log esp_common esp_timer esp_hw_support heap freertos)
 target_compile_options(${COMPONENT_LIB} PRIVATE -std=gnu11 -fwrapv -O3)
+target_compile_definitions(${COMPONENT_LIB} PRIVATE DBT_LHDC_QUALITY=1)
 if(DBT_PROBE_LHDC_STAGE_PROFILE)
     target_compile_definitions(${COMPONENT_LIB} PRIVATE DBT_LHDC_STAGE_PROFILE=1 DBT_LHDC_STAGE_CLOCK_CYCLES=1)
 endif()

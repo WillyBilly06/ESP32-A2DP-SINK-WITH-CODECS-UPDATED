@@ -28,6 +28,10 @@ copy loops and single-writer counter retries while preserving publication order.
 the intermediate render block and post-DSP copy, with the same final publication
 fence. The target render function own frame falls from 1120 to 112 bytes;
 playback timing and full-chain headroom remain unqualified.
+[LHDC quality visibility](docs/LHDC_QUALITY_VISIBILITY_2026_11_05.md) now separates
+successful-return channel silence and frame concealment from ordinary decoder
+rejection, with bounded metadata and separate UART records. Live quality events
+and sustainable playback remain unqualified.
 [Exact zero-tail FIR work](docs/FIR_ZERO_TAIL_2026_11_05.md) now omits two universally
 zero taps’ work per output frame and fixes failed renderer initialization cleanup.
 The full coefficient bank, filter delay, history and precision remain unchanged.
@@ -84,7 +88,7 @@ a stream. Automatic peer/reconnect policy and sustained performance remain unqua
 
 The owned Classic+BLE host is selected on the local COM6 board in ota1 at
 0x390000, marked VALID, with automatic Bluedroid restoration disabled. The
-verified image is `6b698779ec31828a722ba2a589f59e16919e2a1d8fa7445a2f8cd21b4750eac6`.
+verified image is `48b1a0c785af3f6da99fe34e19158401d01be1b0d76837bea721ef3ff0554051`.
 This remains development firmware with incomplete feature/runtime qualification.
 
 Recent source corrections cover [codec payload boundaries and shared PCM

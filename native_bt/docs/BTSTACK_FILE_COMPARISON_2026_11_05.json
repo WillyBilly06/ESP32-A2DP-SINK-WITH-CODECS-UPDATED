@@ -301,22 +301,29 @@
       "owned": "native_bt/codecs/lhdcv5/CMakeLists.txt",
       "sha256": "e952f8de82501ee9fc0195029874b6bb43a7527f17be54eafb9d04339942d394",
       "lines": 4,
-      "reference_files": [],
-      "status": "pending",
-      "mapping": "Added through full filesystem/build-manifest cross-check; source generation/build inputs included"
+      "reference_files": [
+        "src/classic/btstack_sbc_bluedroid.c:423-431,526-535",
+        "src/classic/btstack_sbc_decoder_bluedroid.c:335-343,441-450",
+        "Pinned sibling lhdc_dec.c:292-366,688-820,1229-1285,1647-1931",
+        "SDK heap_caps.c:306-315 and esp_heap_caps.h:223-241"
+      ],
+      "status": "reviewed_build",
+      "mapping": "Single-owner LHDC integration and explicit recovered-error visibility",
+      "review_scope": "Complete duplicate-component rejection read; only canonical LHDC owner may be linked. This file intentionally rejects standalone duplicate registration."
     },
     {
       "owned": "native_bt/codecs/lhdcv5/dbt_lhdc_alloc.h",
-      "sha256": "035fcc5c71d5a14a0298aea04662e700fc17a9ffabec66db07b49f08ee5f0410",
-      "lines": 9,
+      "sha256": "73d9f6d6da8d69ae8e73368f0efe6ef640bb3f85aedf3a93b133457af73e26e3",
+      "lines": 14,
       "reference_files": [
-        "src/classic/avdtp.c",
-        "example/a2dp_sink_demo.c",
-        "src/btstack_resample.c",
-        "src/btstack_sample_rate_compensation.c"
+        "src/classic/btstack_sbc_bluedroid.c:423-431,526-535",
+        "src/classic/btstack_sbc_decoder_bluedroid.c:335-343,441-450",
+        "Pinned sibling lhdc_dec.c:292-366,688-820,1229-1285,1647-1931",
+        "SDK heap_caps.c:306-315 and esp_heap_caps.h:223-241"
       ],
-      "status": "pending",
-      "mapping": "counterpart_candidates"
+      "status": "reviewed_contract",
+      "mapping": "Single-owner LHDC integration and explicit recovered-error visibility",
+      "review_scope": "Complete one-owner allocation/quality callback declaration read against both adapters and generated call sites. No callback formatting/UART/wait is added; runtime fault qualification missing."
     },
     {
       "owned": "native_bt/codecs/lhdcv5/dbt_lhdc_bits.h",
@@ -333,30 +340,31 @@
     },
     {
       "owned": "native_bt/codecs/lhdcv5/dbt_lhdcv5_codec.c",
-      "sha256": "a37d6b05c18381b35baee3026302b052888a91b4f869b94a386328b7f43940cf",
-      "lines": 165,
+      "sha256": "b92dd323d745427e4cc34bb6797ebad17ab00f18694afe1c52c70f208f469df4",
+      "lines": 251,
       "reference_files": [
-        "src/classic/avdtp.c",
-        "example/a2dp_sink_demo.c",
-        "src/btstack_resample.c",
-        "src/btstack_sample_rate_compensation.c"
+        "src/classic/btstack_sbc_bluedroid.c:423-431,526-535",
+        "src/classic/btstack_sbc_decoder_bluedroid.c:335-343,441-450",
+        "Pinned sibling lhdc_dec.c:292-366,688-820,1229-1285,1647-1931",
+        "SDK heap_caps.c:306-315 and esp_heap_caps.h:223-241"
       ],
-      "status": "partial_review",
-      "mapping": "counterpart_candidates",
-      "review_scope": "Complete wrapper body read. LDAC header/frame mask and LHDC emitted depth checked; full vendor backend/reference/state/performance review remains open."
+      "status": "reviewed_with_findings",
+      "mapping": "Single-owner LHDC integration and explicit recovered-error visibility",
+      "review_scope": "Complete authored worker adapter body read: CIE/frame/PCM continuation, ownership/reset/close and new recovered-error accounting. Selected sibling decode/quality/allocation sections reviewed; complete sibling algorithm, raw borrow edges, allocator faults, concurrency, acoustic/live throughput remain unqualified."
     },
     {
       "owned": "native_bt/codecs/lhdcv5/dbt_lhdcv5_codec.h",
-      "sha256": "6d739471967946d2977af695680cdfbba1584c250a2ab2ed88ce076d24d64c73",
-      "lines": 8,
+      "sha256": "9349540bd54b5f5b62b2ad943eee1666bf3ed86e97d7af80392d4e9c29d3766c",
+      "lines": 25,
       "reference_files": [
-        "src/classic/avdtp.c",
-        "example/a2dp_sink_demo.c",
-        "src/btstack_resample.c",
-        "src/btstack_sample_rate_compensation.c"
+        "src/classic/btstack_sbc_bluedroid.c:423-431,526-535",
+        "src/classic/btstack_sbc_decoder_bluedroid.c:335-343,441-450",
+        "Pinned sibling lhdc_dec.c:292-366,688-820,1229-1285,1647-1931",
+        "SDK heap_caps.c:306-315 and esp_heap_caps.h:223-241"
       ],
-      "status": "pending",
-      "mapping": "counterpart_candidates"
+      "status": "reviewed_contract",
+      "mapping": "Single-owner LHDC integration and explicit recovered-error visibility",
+      "review_scope": "Complete advertised codec and bounded quality-snapshot contract read; counts and latest-notable context are separate from packet-loss/bitrate claims. Runtime qualification missing."
     },
     {
       "owned": "native_bt/codecs/lhdcv5/dbt_lhdcv5.c",
@@ -370,28 +378,35 @@
       ],
       "status": "partial_review",
       "mapping": "counterpart_candidates",
-      "review_scope": "Complete wrapper body read. LDAC header/frame mask and LHDC emitted depth checked; full vendor backend/reference/state/performance review remains open."
+      "review_scope": "Authored body and cache/workspace/raw-frame contract read. Still partial: open closes old workspace before finishing config reads, without copy/exclusion of aliased config; source fix and alias/lifecycle qualification pending. Product does not link this alternate adapter."
     },
     {
       "owned": "native_bt/codecs/lhdcv5/dbt_lhdcv5.h",
       "sha256": "b226914acc93f5397700bc1b57c5c9f51e0183cefd91b3ac6555c52f41bb5119",
       "lines": 31,
       "reference_files": [
-        "src/classic/avdtp.c",
-        "example/a2dp_sink_demo.c",
-        "src/btstack_resample.c",
-        "src/btstack_sample_rate_compensation.c"
+        "src/classic/btstack_sbc_bluedroid.c:423-431,526-535",
+        "src/classic/btstack_sbc_decoder_bluedroid.c:335-343,441-450",
+        "Pinned sibling lhdc_dec.c:292-366,688-820,1229-1285,1647-1931",
+        "SDK heap_caps.c:306-315 and esp_heap_caps.h:223-241"
       ],
-      "status": "pending",
-      "mapping": "counterpart_candidates"
+      "status": "reviewed_contract",
+      "mapping": "Single-owner LHDC integration and explicit recovered-error visibility",
+      "review_scope": "Complete unlinked raw-session API contract read. Mutable workspace/config borrowing requires further implementation work; no live/allocator/alias qualification."
     },
     {
       "owned": "native_bt/codecs/lhdcv5/prepare_port.py",
-      "sha256": "649ff47f74e633fdc5a14330836b169924a1a033d18fe5a17f68d64658dbf027",
-      "lines": 292,
-      "reference_files": [],
-      "status": "pending",
-      "mapping": "Added through full filesystem/build-manifest cross-check; source generation/build inputs included"
+      "sha256": "94f3acbc8c5f9d539f219992efe8a0cc957d2073cdb6d9e9deb574c9ee0ae0d3",
+      "lines": 326,
+      "reference_files": [
+        "src/classic/btstack_sbc_bluedroid.c:423-431,526-535",
+        "src/classic/btstack_sbc_decoder_bluedroid.c:335-343,441-450",
+        "Pinned sibling lhdc_dec.c:292-366,688-820,1229-1285,1647-1931",
+        "SDK heap_caps.c:306-315 and esp_heap_caps.h:223-241"
+      ],
+      "status": "reviewed_generator",
+      "mapping": "Single-owner LHDC integration and explicit recovered-error visibility",
+      "review_scope": "Complete transformer body read: source/header pinning, allocation/scratch/cache/bits/metadata changes and exact new channel/quality observations. Generation/compilation pass; no full upstream algorithm or active quality/fault/format/throughput proof."
     },
     {
       "owned": "native_bt/codecs/opus/dbt_opus.c",
@@ -610,11 +625,17 @@
     },
     {
       "owned": "native_bt/esp32_probe/components/lhdcv5_decoder/CMakeLists.txt",
-      "sha256": "c457dffcda11ea2b96e0f7a9c853e474dc196a4ac4bbf2ab8c4183a5d35e264c",
-      "lines": 51,
-      "reference_files": [],
-      "status": "pending",
-      "mapping": "Added through full filesystem/build-manifest cross-check; source generation/build inputs included"
+      "sha256": "4630c976ba03c0818f65b887e09390cec65753e8e06a395f114857f6d5b45e01",
+      "lines": 52,
+      "reference_files": [
+        "src/classic/btstack_sbc_bluedroid.c:423-431,526-535",
+        "src/classic/btstack_sbc_decoder_bluedroid.c:335-343,441-450",
+        "Pinned sibling lhdc_dec.c:292-366,688-820,1229-1285,1647-1931",
+        "SDK heap_caps.c:306-315 and esp_heap_caps.h:223-241"
+      ],
+      "status": "reviewed_build",
+      "mapping": "Single-owner LHDC integration and explicit recovered-error visibility",
+      "review_scope": "Complete canonical component/transform/header-regeneration/one-owner/O3/GNU11/profile/quality integration read. Full ccache build passes; source presence is not feature/quality/performance parity."
     },
     {
       "owned": "native_bt/esp32_probe/components/native_bt/CMakeLists.txt",
@@ -693,8 +714,8 @@
     },
     {
       "owned": "native_bt/esp32_probe/main/probe_audio.c",
-      "sha256": "fd8f98fd8d787fefc85c5766e209537c9aafc5dfca4c3fab9ed8f74e0c409d07",
-      "lines": 1156,
+      "sha256": "c15ad781bb8ddfdbb9ac7ac1036fdd4aa05d91b231b83f62cd33e8975b0bfa31",
+      "lines": 1183,
       "reference_files": [],
       "status": "partial_review",
       "mapping": "product/support code; no direct protocol counterpart assigned"
@@ -3524,6 +3545,26 @@
       "fix": "Convert and process directly in unpublished aligned output spans bounded by DSP block/page/ring limits; retain complete-call release publication. Use C11-compatible SDK Xtensa cycle accessor in optional profiler.",
       "resource_change": "Compiler render own frame1120→112 (1008 saved), text−448; no change to persistent storage or configured task stack. One8-byte copy per stereo output frame removed; no speed measurement.",
       "limits": "Output/state/page/ring/concurrency/acoustic equivalence and sustainable max LHDC/audio throughput not qualified. No held campaigns."
+    },
+    {
+      "id": "LHDC-QUALITY-VISIBILITY",
+      "state": "implemented_source_analysis_build_readback_idle_only",
+      "owned": [
+        "native_bt/codecs/lhdcv5/dbt_lhdcv5_codec.c",
+        "native_bt/codecs/lhdcv5/dbt_lhdcv5_codec.h",
+        "native_bt/codecs/lhdcv5/dbt_lhdc_alloc.h",
+        "native_bt/codecs/lhdcv5/prepare_port.py",
+        "native_bt/esp32_probe/components/lhdcv5_decoder/CMakeLists.txt",
+        "native_bt/esp32_probe/main/probe_audio.c"
+      ],
+      "reference": [
+        "Pinned sibling lhdc_dec.c:1745-1891",
+        "BTstack SBC/mSBC distinct good/bad/zero recovery counters"
+      ],
+      "issue": "Worker decode-reject alone omitted successful-return right-channel silence and full-frame peak concealment; normal trace-disabled builds hid these recoveries.",
+      "fix": "Source-pinned bounded notifications and single-owner atomic counts/latest-notable tuple; logger emits separate decode/channel/frame records, independent of worker/radio/queue/DMA counters.",
+      "resource_change": "BSS+88 bytes, active LHDC state+24, snapshot80, text+1816, aggregate data+864 mostly strings. Resume own frame112 unchanged. No task/packet queue added; timing cost unmeasured.",
+      "limits": "No live quality event or held campaign exercised; constructor generation differs from stream/reset generation, latest-notable snapshot is not lossless replay, and events do not establish RF/codec fault cause."
     }
   ],
   "sections_reviewed": [
@@ -4042,6 +4083,27 @@
       ],
       "outcome": "Complete authored wrapper bodies/contract/build template read. Existing SDK decoder initialized in aligned owner workspace, reset preserves HD mode, decode32 emits signed 24-bit content in S32 LE slots, raw4/6-byte quanta and <=128-frame continuation preserved. No new defect established in these boundaries; SDK internals/LL extensions/crash/lifecycle/quality remain unqualified.",
       "full_layer_complete": false
+    },
+    {
+      "layer": "LHDC recovered-error/quality visibility and canonical owner integration",
+      "owned": [
+        "native_bt/codecs/lhdcv5/dbt_lhdcv5_codec.c",
+        "native_bt/codecs/lhdcv5/dbt_lhdcv5_codec.h",
+        "native_bt/codecs/lhdcv5/dbt_lhdc_alloc.h",
+        "native_bt/codecs/lhdcv5/dbt_lhdcv5.h",
+        "native_bt/codecs/lhdcv5/prepare_port.py",
+        "native_bt/codecs/lhdcv5/CMakeLists.txt",
+        "native_bt/esp32_probe/components/lhdcv5_decoder/CMakeLists.txt",
+        "native_bt/esp32_probe/main/probe_audio.c:quality init/logger only",
+        "native_bt/codecs/lhdcv5/dbt_lhdcv5.c:partial borrow review"
+      ],
+      "reference": [
+        "src/classic/btstack_sbc_bluedroid.c:423-431,526-535",
+        "Selected pinned sibling channel/quality/frame return sections",
+        "SDK regional minimum heap semantics"
+      ],
+      "outcome": "Observed successful-return channel silence/frame concealment explicitly with lock-free bounded metadata, counts after cold checks and separate low-priority records. No PCM/recovery policy changed; no task/packet buffer added. Alternate raw config-borrow edge remains pending. Broader decoder/root/algorithm and full runtime/layer parity unqualified.",
+      "full_layer_complete": false
     }
   ],
   "integration_gaps": [
@@ -4089,13 +4151,13 @@
   ],
   "coverage": {
     "owned_files": 287,
-    "reviewed_owned_c_bodies": 31,
-    "partial_files": 19,
-    "pending_files": 201,
+    "reviewed_owned_c_bodies": 32,
+    "partial_files": 18,
+    "pending_files": 195,
     "compiled_owned_units_missing": 0,
-    "reviewed_headers": 23,
-    "reviewed_build_files": 7,
-    "reviewed_generators": 4,
+    "reviewed_headers": 26,
+    "reviewed_build_files": 9,
+    "reviewed_generators": 5,
     "reviewed_static_data": 2,
     "compiled_owned_units": 106
   },
@@ -4373,14 +4435,25 @@
         "Compiler own frame−1008 and render memcpy relocations removed; whole-chain headroom and speed unmeasured. Profile strict C11 now uses existing SDK Xtensa getter.",
         "Page/ring boundaries, rapid settings/sounds/drain/concurrency/audio/LHDC behavior remain unqualified under held campaigns."
       ]
+    },
+    {
+      "id": "LHDC-QUALITY-VISIBILITY",
+      "status": "implemented_source_build_readback_idle_live_event_pending",
+      "notes": [
+        "Successful-return right-channel silence and frame concealment now have separate counts/context; keep distinct from generic reject/radio/queue/DMA records.",
+        "Counts enabled after cold checks; latest-notable metadata persists over clean frames. Single-writer lock-free words, reader max3 attempts, no packet buffer/task/UART on decoder.",
+        "88 static+24 active codec bytes; idle137920/min67092/largest110592. SDK minimum is sum of regional lows; additional transient minimum change not attributed. No speed/quality/LHDC headroom proof.",
+        "Next fix the unlinked raw-session open config borrow before old workspace close, then continue held runtime qualifications/remaining source work."
+      ]
     }
   ],
   "next_review": [
+    "Fix unlinked dbt_lhdcv5_open config input borrowing across dbt_lhdcv5_close: copy the validated requested configuration before any old-workspace release; compile/review caller/output ownership. This is not established as a product crash cause.",
     "Ordered cross-family request ranking now exists; do not repeat query/generator/rank primitives. Complete durable Classic peer/reconnect/backoff/handover/default caller policy from actual baseline/storage without overriding Android source preferences.",
     "Complete queued/crossed control and backend policy before automatic integration; rank only returns a proposal, no peer acceptance or reservation.",
     "Continue pending file/feature/security/lifecycle/codec crash/audio underrun/LHDC headroom work. Keep new automatic RF disabled under held campaigns."
   ],
-  "latest_build_image": "6b698779ec31828a722ba2a589f59e16919e2a1d8fa7445a2f8cd21b4750eac6",
+  "latest_build_image": "48b1a0c785af3f6da99fe34e19158401d01be1b0d76837bea721ef3ff0554051",
   "verification_source_contracts": [
     {
       "file": "native_bt/tools/test_ldac_target_component.py",

@@ -251,6 +251,25 @@ static void log_media_trace(void){
                e->ssrc,e->previous_ssrc,e->bytes,e->queued,(unsigned)e->result,record.codec,codec_name(record.codec),e->marker?"true":"false",e->prefix[0],e->prefix[1]);
     }
 }
+#ifdef DBT_PROBE_LHDC_BUILD
+static void log_lhdc_quality(uint32_t cycle){
+    dbt_lhdcv5_quality_t q;if(!dbt_lhdcv5_quality_snapshot(&q) || !q.attempts)return;
+    PROBE_SNAPSHOT_LOG("{\"probe\":\"lhdc_decode_result\",\"collection_cycle_us\":%" PRIu32 ",\"revision\":%" PRIu32
+        ",\"scope\":\"decoder_owner_after_cold_checks\",\"attempts\":%" PRIu32 ",\"rejected\":%" PRIu32
+        ",\"last_event_valid\":%s,\"last_event_attempt\":%" PRIu32 ",\"last_event_generation\":%" PRIu32
+        ",\"last_event_frame_index\":%" PRIu32 ",\"last_event_sequence\":%" PRIu32 ",\"last_event_rtp_timestamp\":%" PRIu32
+        ",\"last_event_ssrc\":%" PRIu32 ",\"last_event_frame_bytes\":%" PRIu32 ",\"last_event_result\":%" PRId32 ",\"last_event_flags\":%" PRIu32 "}\n",
+        cycle,q.revision,q.attempts,q.rejected,q.flags?"true":"false",q.event_attempt,q.generation,q.frame_index,q.sequence,q.rtp_timestamp,q.ssrc,q.frame_bytes,q.result,q.flags);
+    PROBE_SNAPSHOT_LOG("{\"probe\":\"lhdc_channel_recovery\",\"collection_cycle_us\":%" PRIu32 ",\"revision\":%" PRIu32
+        ",\"channel0_errors\":%" PRIu32 ",\"channel1_silenced\":%" PRIu32 ",\"last_event_attempt\":%" PRIu32
+        ",\"last_event_channel0_result\":%" PRId32 ",\"last_event_channel1_result\":%" PRId32 ",\"last_event_flags\":%" PRIu32 "}\n",
+        cycle,q.revision,q.channel0_errors,q.channel1_silenced,q.event_attempt,q.channel0_result,q.channel1_result,q.flags);
+    PROBE_SNAPSHOT_LOG("{\"probe\":\"lhdc_frame_quality\",\"collection_cycle_us\":%" PRIu32 ",\"revision\":%" PRIu32
+        ",\"peak_concealed\":%" PRIu32 ",\"clipped_frames\":%" PRIu32 ",\"clipped_samples\":%" PRIu32
+        ",\"last_event_attempt\":%" PRIu32 ",\"last_event_peak_f32_bits\":\"%08" PRIx32 "\",\"last_event_flags\":%" PRIu32 "}\n",
+        cycle,q.revision,q.peak_concealed,q.clipped_frames,q.clipped_samples,q.event_attempt,q.peak_f32_bits,q.flags);
+}
+#endif
 void probe_audio_transport_received(uint32_t began_us,uint16_t bytes,uint8_t type,dbt_result_t result,bool isr){
     atomic_fetch_add(&rx_packets,1);atomic_fetch_add(&rx_bytes,bytes);
     if(type==DBT_H4_ACL)atomic_fetch_add(&rx_acl,1);
@@ -549,6 +568,9 @@ static void log_loop(void *unused){
         if(++ticks<10)continue;
         ticks=0;
         uint32_t at=(uint32_t)esp_timer_get_time();
+#ifdef DBT_PROBE_LHDC_BUILD
+        log_lhdc_quality(at);
+#endif
 #ifdef DBT_PROBE_SCHEDULER_TRACE
         for(unsigned core=0;core<2;++core){
             probe_scheduler_snapshot_t sample;uint32_t began=(uint32_t)esp_timer_get_time();
@@ -777,6 +799,11 @@ dbt_result_t probe_audio_init(dbt_runtime_t *runtime,TaskHandle_t host_owner){
     dbt_avdtp_sink_hooks_t client={&worker,allocate,release,dbt_codec_worker_submit,sink_event,dbt_codec_worker_media};
     result=dbt_a2dp_acceptor_init(&profile,runtime,client,endpoints,(uint8_t)(sizeof(endpoints)/sizeof(endpoints[0])),PROBE_A2DP_RX_MTU,64,5000,2000,5000);
     if(result!=DBT_OK)return result;
+    /* Cold codec checks finished before this init. Enable live quality counts
+     * before creating the single decoder owner; never read its codec pointers. */
+#ifdef DBT_PROBE_LHDC_BUILD
+    dbt_lhdcv5_quality_start();
+#endif
     if(xTaskCreatePinnedToCore(decode_loop,"native_decoder",8192,0,DBT_PROBE_DECODER_PRIORITY,&decoder_task,DBT_PROBE_DECODER_CORE)!=pdPASS)return DBT_NO_SPACE;
 #ifdef DBT_PROBE_AUDIO_OUTPUT
     result=probe_audio_output_bootstrap();

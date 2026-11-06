@@ -13,6 +13,9 @@ _Static_assert(LHDC_NSLOTS==1,"The native LHDC worker requires the single-slot s
 #define LHDC_FRAME_MAX (1023u * 2u)
 _Static_assert(LHDC_DEC_MAX_FRAME_BYTES>=LHDC_FRAME_MAX,"LHDC decoder payload buffer is smaller than a valid encoded frame");
 typedef struct {
+#ifdef DBT_LHDC_QUALITY
+    struct {uint32_t flags,peak_f32_bits,clipped_samples,generation;int32_t channel_result[2];} quality;
+#endif
     lhdc_decoder_t *codec;
     uint32_t workspace_bytes,last_ssrc;
     uint16_t last_sequence;
@@ -26,6 +29,75 @@ typedef struct {
  * to that owner's hooks by the generated decoder units. */
 static dbt_codec_decoder_t *active;
 static bool allocation_failed;
+
+#ifdef DBT_LHDC_QUALITY
+#define QUALITY_FIELDS(X) \
+    X(uint32_t,attempts) X(uint32_t,rejected) X(uint32_t,channel0_errors) X(uint32_t,channel1_silenced) \
+    X(uint32_t,peak_concealed) X(uint32_t,clipped_frames) X(uint32_t,clipped_samples) \
+    X(uint32_t,event_attempt) X(uint32_t,generation) X(uint32_t,frame_index) X(uint32_t,rtp_timestamp) X(uint32_t,ssrc) \
+    X(uint32_t,sequence) X(uint32_t,frame_bytes) X(uint32_t,flags) X(uint32_t,peak_f32_bits) \
+    X(int32_t,result) X(int32_t,channel0_result) X(int32_t,channel1_result)
+static struct {
+    _Atomic uint32_t revision,enabled;
+#define QUALITY_ATOMIC(type,field) _Atomic type field;
+    QUALITY_FIELDS(QUALITY_ATOMIC)
+#undef QUALITY_ATOMIC
+} quality;
+static uint32_t quality_serial;
+_Static_assert(ATOMIC_INT_LOCK_FREE==2 && sizeof(float)==4,"LHDC quality metadata requires lock-free words and binary32 storage");
+void dbt_lhdcv5_quality_start(void){atomic_store_explicit(&quality.enabled,true,memory_order_seq_cst);}
+bool dbt_lhdcv5_quality_snapshot(dbt_lhdcv5_quality_t *out){
+    if(!out || !atomic_load_explicit(&quality.enabled,memory_order_seq_cst))return false;
+    for(unsigned attempt=0;attempt<3;++attempt){
+        uint32_t revision=atomic_load_explicit(&quality.revision,memory_order_seq_cst);if(revision&1u)continue;
+        dbt_lhdcv5_quality_t value;value.revision=revision;
+#define QUALITY_LOAD(type,field) value.field=atomic_load_explicit(&quality.field,memory_order_seq_cst);
+        QUALITY_FIELDS(QUALITY_LOAD)
+#undef QUALITY_LOAD
+        if(revision==atomic_load_explicit(&quality.revision,memory_order_seq_cst)){*out=value;return true;}
+    }
+    return false;
+}
+void dbt_lhdc_channel_failure(unsigned channel,int result){
+    if(!active || !active->state || channel>1)return;
+    lhdc_state_t *s=active->state;s->quality.flags|=channel?DBT_LHDC_CHANNEL1_SILENCED:DBT_LHDC_CHANNEL0_ERROR;
+    s->quality.channel_result[channel]=result;
+}
+void dbt_lhdc_frame_quality(float peak,unsigned clipped_samples,int concealed){
+    if(!active || !active->state)return;
+    lhdc_state_t *s=active->state;s->quality.flags|=DBT_LHDC_QUALITY_SCANNED;
+    if(concealed)s->quality.flags|=DBT_LHDC_PEAK_CONCEALED;
+    if(clipped_samples)s->quality.flags|=DBT_LHDC_CLIPPED;
+    s->quality.clipped_samples=clipped_samples;
+    __builtin_memcpy(&s->quality.peak_f32_bits,&peak,sizeof(peak));
+}
+static void quality_add(_Atomic uint32_t *value,uint32_t add){
+    if(add)atomic_store_explicit(value,atomic_load_explicit(value,memory_order_seq_cst)+add,memory_order_seq_cst);
+}
+static void quality_commit(const lhdc_state_t *s,uint32_t frame,uint32_t timestamp,uint16_t bytes,int result,bool accepted){
+    if(!atomic_load_explicit(&quality.enabled,memory_order_seq_cst))return;
+    uint32_t revision=atomic_load_explicit(&quality.revision,memory_order_seq_cst),flags=s->quality.flags;
+    if(!accepted)flags|=DBT_LHDC_FRAME_REJECTED;
+    atomic_store_explicit(&quality.revision,revision+1u,memory_order_seq_cst);
+    quality_add(&quality.attempts,1);quality_add(&quality.rejected,!accepted);
+    quality_add(&quality.channel0_errors,(flags&DBT_LHDC_CHANNEL0_ERROR)!=0);
+    quality_add(&quality.channel1_silenced,(flags&DBT_LHDC_CHANNEL1_SILENCED)!=0);
+    quality_add(&quality.peak_concealed,(flags&DBT_LHDC_PEAK_CONCEALED)!=0);
+    quality_add(&quality.clipped_frames,(flags&DBT_LHDC_CLIPPED)!=0);quality_add(&quality.clipped_samples,s->quality.clipped_samples);
+#define QUALITY_STORE(field,value) atomic_store_explicit(&quality.field,(value),memory_order_seq_cst)
+    if(flags&~(uint32_t)DBT_LHDC_QUALITY_SCANNED){
+        QUALITY_STORE(event_attempt,atomic_load_explicit(&quality.attempts,memory_order_seq_cst));
+        QUALITY_STORE(generation,s->quality.generation);QUALITY_STORE(frame_index,frame);QUALITY_STORE(rtp_timestamp,timestamp);
+        QUALITY_STORE(ssrc,s->last_ssrc);QUALITY_STORE(sequence,s->last_sequence);QUALITY_STORE(frame_bytes,bytes);
+        QUALITY_STORE(flags,flags);QUALITY_STORE(peak_f32_bits,s->quality.peak_f32_bits);QUALITY_STORE(result,result);
+        QUALITY_STORE(channel0_result,s->quality.channel_result[0]);QUALITY_STORE(channel1_result,s->quality.channel_result[1]);
+    }
+#undef QUALITY_STORE
+    atomic_store_explicit(&quality.revision,revision+2u,memory_order_seq_cst);
+}
+#undef QUALITY_FIELDS
+#endif
+
 void *dbt_lhdc_mem_alloc(size_t size){
     if(!active || !size || size>UINT32_MAX){allocation_failed=true;return 0;}
     void *p=dbt_codec_allocate(active,(uint32_t)size);if(!p)allocation_failed=true;return p;
@@ -107,6 +179,10 @@ static dbt_result_t open_decoder(dbt_codec_decoder_t *d){
        (uint32_t)checked.samples*checked.channels*checked.sample_bytes>
        (uint32_t)s->codec->alloc_mdct_size*sizeof(float))return DBT_INVALID;
 #endif
+#ifdef DBT_LHDC_QUALITY
+    if(++quality_serial==0)++quality_serial;
+    s->quality.generation=quality_serial;
+#endif
     return DBT_OK;
 }
 static dbt_result_t batch_finish(dbt_codec_decoder_t *d,dbt_result_t result){
@@ -121,10 +197,20 @@ static dbt_result_t resume(dbt_codec_decoder_t *d,uint32_t now){
         const uint8_t *p=s->batch;unsigned pos=s->batch_pos;
         unsigned expected=2u+2u*(((unsigned)p[pos]|((unsigned)p[pos+1]<<8))&1023u);
         size_t consumed=0;uint32_t generated=0;lhdc_dec_frame_info_t info={0};allocation_failed=false;
+#ifdef DBT_LHDC_QUALITY
+        s->quality.flags=s->quality.peak_f32_bits=s->quality.clipped_samples=0;
+        s->quality.channel_result[0]=s->quality.channel_result[1]=0;
+        uint32_t frame_index=s->codec->frame_index;
+#endif
         lhdc_dec_ret_t r=lhdc_dec_decode_frame(s->codec,p+pos,expected,pcm(s),d->config.samples,&consumed,&generated,&info);
-        if(r!=LHDC_DEC_OK || allocation_failed || consumed!=expected || generated!=d->config.samples || info.samples_per_channel!=generated ||
-           info.channels!=d->config.channels || info.sample_rate!=d->config.rate || info.bit_depth!=8u*d->config.sample_bytes || info.frame_duration_ms!=5)
-            return batch_finish(d,DBT_INVALID);
+        bool valid=r==LHDC_DEC_OK && !allocation_failed && consumed==expected && generated==d->config.samples && info.samples_per_channel==generated &&
+            info.channels==d->config.channels && info.sample_rate==d->config.rate && info.bit_depth==8u*d->config.sample_bytes && info.frame_duration_ms==5;
+#ifdef DBT_LHDC_QUALITY
+        if(allocation_failed)s->quality.flags|=DBT_LHDC_ALLOCATION_FAILED;
+        if(r==LHDC_DEC_OK && !allocation_failed && !valid)s->quality.flags|=DBT_LHDC_FORMAT_MISMATCH;
+        quality_commit(s,frame_index,s->batch_timestamp+(uint32_t)s->batch_index*d->config.samples,(uint16_t)expected,(int)r,valid);
+#endif
+        if(!valid)return batch_finish(d,DBT_INVALID);
         dbt_result_t result=d->hooks.pcm(d->hooks.context,pcm(s),(uint16_t)generated,&d->config,
             s->batch_timestamp+(uint32_t)s->batch_index*generated);
         if(result!=DBT_OK && result!=DBT_PENDING)return batch_finish(d,result);
