@@ -1722,15 +1722,18 @@
     },
     {
       "owned": "native_bt/include/dbt_host.h",
-      "sha256": "bd9f38671ec54ea1d042576f47da5ca481d3e4155280fb75a310f50b2e847d67",
-      "lines": 134,
+      "sha256": "5797813842cd231098ce01a5973592af296ee7648c3451bdb69043bfd51a95ed",
+      "lines": 140,
       "reference_files": [
         "src/hci.c",
         "src/hci.h",
-        "port/esp32/components/btstack/hci_transport_esp32_vhci.c"
+        "port/esp32/components/btstack/hci_transport_esp32_vhci.c",
+        "src/l2cap.c:1297-1324,5296-5301",
+        "src/hci.c:1385-1403"
       ],
-      "status": "pending",
-      "mapping": "counterpart_candidates"
+      "status": "reviewed_contract",
+      "mapping": "Owner callbacks, borrowed resource lifetime, deferred abort and bounded failure scheduling",
+      "review_scope": "Complete authored body/contract read. Failure intent is immediate; command/RX/channel/TX reclamation waits for borrowed callback unwind; failure gates prevent later ACL submission and cleanup contributes owner wake. Broader channel/provider/ERTM internals and full wire/fault/security/audio qualification remain unfinished."
     },
     {
       "owned": "native_bt/include/dbt_input_esp32.h",
@@ -1901,16 +1904,18 @@
     },
     {
       "owned": "native_bt/include/dbt_runtime.h",
-      "sha256": "85968ca6ad751031335bad9117ae22ab557d42de58d2545019beab412e549386",
-      "lines": 95,
+      "sha256": "8bec09ee28955697f676171bb9ab4d4600bb4e3aacd94d3605b930c123435ae7",
+      "lines": 104,
       "reference_files": [
         "src/hci.c:954-1025,1295-1374,4443-4477",
         "Owned RX active/expiry predicate",
-        "Selected channel/ERTM/credit provider contracts"
+        "Selected channel/ERTM/credit provider contracts",
+        "src/l2cap.c:1297-1324,5296-5301",
+        "src/hci.c:1385-1403"
       ],
       "status": "reviewed_contract",
-      "mapping": "Controller/ACL/L2CAP ownership and event-driven transport deadlines",
-      "review_scope": "Complete runtime ownership/callback/TX loan/fixed cancellation/failure metadata API read against body. Allocation wording now covers enhanced storage and externally bound retained RX; no all-provider qualification."
+      "mapping": "Owner callbacks, borrowed resource lifetime, deferred abort and bounded failure scheduling",
+      "review_scope": "Complete authored body/contract read. Failure intent is immediate; command/RX/channel/TX reclamation waits for borrowed callback unwind; failure gates prevent later ACL submission and cleanup contributes owner wake. Broader channel/provider/ERTM internals and full wire/fault/security/audio qualification remain unfinished."
     },
     {
       "owned": "native_bt/include/dbt_rx_flow.h",
@@ -2515,15 +2520,18 @@
     },
     {
       "owned": "native_bt/src/dbt_host.c",
-      "sha256": "f104ac7beb5abfef0b94e138583b36359711480d53a59d60df9b410a13ae3cc2",
-      "lines": 409,
+      "sha256": "c373678f339d0bccc8eb03124873d6c5f5859cff1dafa42f1ddec22cb998d4bd",
+      "lines": 424,
       "reference_files": [
         "src/hci.c",
         "src/hci.h",
-        "port/esp32/components/btstack/hci_transport_esp32_vhci.c"
+        "port/esp32/components/btstack/hci_transport_esp32_vhci.c",
+        "src/l2cap.c:1297-1324,5296-5301",
+        "src/hci.c:1385-1403"
       ],
-      "status": "pending",
-      "mapping": "counterpart_candidates"
+      "status": "reviewed_with_findings",
+      "mapping": "Owner callbacks, borrowed resource lifetime, deferred abort and bounded failure scheduling",
+      "review_scope": "Complete authored body/contract read. Failure intent is immediate; command/RX/channel/TX reclamation waits for borrowed callback unwind; failure gates prevent later ACL submission and cleanup contributes owner wake. Broader channel/provider/ERTM internals and full wire/fault/security/audio qualification remain unfinished."
     },
     {
       "owned": "native_bt/src/dbt_input.c",
@@ -2686,16 +2694,18 @@
     },
     {
       "owned": "native_bt/src/dbt_runtime.c",
-      "sha256": "c56b4da94a85b1e6c0d2ac413f36355c190ed4ecb0a873e2ebe47025580782e9",
-      "lines": 467,
+      "sha256": "30a3818e0b11eccc12d83c9461b875a3aab490a123b5309ad4a6523049037d7b",
+      "lines": 564,
       "reference_files": [
         "src/hci.c:954-1025,1295-1374,4443-4477",
         "Owned RX active/expiry predicate",
-        "Selected channel/ERTM/credit provider contracts"
+        "Selected channel/ERTM/credit provider contracts",
+        "src/l2cap.c:1297-1324,5296-5301",
+        "src/hci.c:1385-1403"
       ],
       "status": "reviewed_with_findings",
-      "mapping": "Controller/ACL/L2CAP ownership and event-driven transport deadlines",
-      "review_scope": "Complete authored runtime body read: init, callback dispatch, RX accounting, send/credit/ERTM selection, retirement, bounded poll and wait. Bufferless discard deadline mismatch fixed. Selected provider/channel integration reviewed; broader callback-abort/queued-control/ERTM pins, all-layer wire/fault/security/performance qualification remain incomplete."
+      "mapping": "Owner callbacks, borrowed resource lifetime, deferred abort and bounded failure scheduling",
+      "review_scope": "Complete authored body/contract read. Failure intent is immediate; command/RX/channel/TX reclamation waits for borrowed callback unwind; failure gates prevent later ACL submission and cleanup contributes owner wake. Broader channel/provider/ERTM internals and full wire/fault/security/audio qualification remain unfinished."
     },
     {
       "owned": "native_bt/src/dbt_rx_flow.c",
@@ -4339,11 +4349,11 @@
   ],
   "coverage": {
     "owned_files": 287,
-    "reviewed_owned_c_bodies": 37,
+    "reviewed_owned_c_bodies": 38,
     "partial_files": 15,
-    "pending_files": 184,
+    "pending_files": 182,
     "compiled_owned_units_missing": 0,
-    "reviewed_headers": 35,
+    "reviewed_headers": 36,
     "reviewed_build_files": 9,
     "reviewed_generators": 5,
     "reviewed_static_data": 2,
@@ -4672,16 +4682,21 @@
         "All37 existing cold codec checks pass; four LHDC peak allocations unchanged and overall56899 unchanged. Idle137912/largest110592 unchanged, reported regional-minimum67356 is not proof of saved steady memory.",
         "No live setup/fault/low-memory/switch/diagnostic/acoustic/performance proof; continue remaining host/channel/provider/source and full feature/security/lifecycle work."
       ]
+    },
+    {
+      "id": "CALLBACK-ABORT-OWNERSHIP",
+      "status": "source_fixed_analysis_ccache_readback_cold_idle_only",
+      "notes": [
+        "Host/runtime callbacks preserve loans through unwind; safe owner finalization replaces callback-time destruction. Post-callback failure blocks further ACL submission and requests a cleanup turn.",
+        "Host6696/runtime11160 and checked offsets unchanged; no task/queue/storage added. Individual host fail frame grows32 to64; finalizer48. No stack-chain or timing proof.",
+        "Reference teardown notification order is compared explicitly, not copied. Remaining channel/provider/ERTM lifecycle/queued-control internals and live qualification are unfinished.",
+        "Full ccache build passes,10348 source hashes stable,rebuildable455.611MiB. Text+632; BSS/data/IRAM unchanged. Callback/RF/audio behavior remains unqualified.",
+        "COM6 image ed8ac589f89eba80928644fd41ca5ba9ac3be7db4f9da9c1215eeb0d58f1133a and selector readbacks match. Original full-region MD5 unchanged; owned VALID, no automatic fallback. Ready idle, no watchdog/backtrace,37 existing cold checks pass RFfalse, idleheap137912/min67356/largest110592 unchanged, UARTsource129 connected. No live callback/fault/throughput proof."
+      ]
     }
   ],
-  "next_review": [
-    "Continue remaining partial channel/provider/ERTM and callback-abort/retirement policy against source: runtime body is now read, but inter-layer lifetime and error scheduling need completion. The bufferless discard deadline and TX span source fixes already exist; do not repeat them.",
-    "Raw dbt_lhdcv5_open now snapshots validated config before close/free. S32/nonfinite conversion boundaries are defined in the pinned port; do not repeat these source fixes. Active alias, failure, boundary/output/state and headroom qualification remains incomplete.",
-    "Ordered cross-family request ranking now exists; do not repeat query/generator/rank primitives. Complete durable Classic peer/reconnect/backoff/handover/default caller policy from actual baseline/storage without overriding Android source preferences.",
-    "Complete queued/crossed control and backend policy before automatic integration; rank only returns a proposal, no peer acceptance or reservation.",
-    "Continue pending file/feature/security/lifecycle/codec crash/audio underrun/LHDC headroom work. Keep new automatic RF disabled under held campaigns."
-  ],
-  "latest_build_image": "4c24457a6aba94837aee242eae3c43b7513abbb6aeef4d2bd521b673d6f60413",
+  "next_review": "Continue channel/provider/ERTM teardown, callback and pin ownership, then remaining Classic/BLE/security/app integration. Keep held campaigns and incomplete runtime parity explicit.",
+  "latest_build_image": "ed8ac589f89eba80928644fd41ca5ba9ac3be7db4f9da9c1215eeb0d58f1133a",
   "verification_source_contracts": [
     {
       "file": "native_bt/tools/test_ldac_target_component.py",

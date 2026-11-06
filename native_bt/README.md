@@ -43,6 +43,10 @@ uses a bounded span copy. Live fragment/audio/memory-failure behavior remains un
 wake for oversized PDUs even without a payload buffer. TX fragment assembly uses
 at most three source-span copies with unchanged admission/commit timing.
 Live timeout/prefix/credit/backpressure behavior remains unqualified.
+[Callback-safe abort](docs/CALLBACK_ABORT_OWNERSHIP_2026_11_05.md) now defers
+borrowed RX/channel/TX reclamation until callbacks return and prevents further
+ACL submission after a callback failure. Host/runtime target layout is unchanged;
+live callback/fault/audio behavior remains unqualified.
 [LHDC window setup](docs/LHDC_WINDOW_SETUP_2026_11_05.md) now prepares the target
 window and checks transform/entropy readiness during configuration, moving the
 remaining required ramp allocation out of the first frame. Steady working

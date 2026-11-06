@@ -12,19 +12,35 @@ static bool remember_failure(dbt_runtime_t *runtime,dbt_runtime_fault_origin_t o
     return true;
 }
 
-static void finish_tx(dbt_runtime_tx_t *tx, dbt_tx_outcome_t outcome) {
+/* Nested borrowed callbacks share the owner operation fence. They may enqueue
+ * follow-up work, but cannot recursively poll or reclaim the current loan. */
+static bool callback_enter(dbt_runtime_t *runtime) {
+    bool previous=runtime->in_poll;runtime->in_poll=true;return previous;
+}
+static void callback_leave(dbt_runtime_t *runtime,bool previous) {
+    runtime->in_poll=previous;
+}
+static void finish_tx(dbt_runtime_t *runtime,dbt_runtime_tx_t *tx, dbt_tx_outcome_t outcome) {
     dbt_tx_done_t done = tx->done;
     void *context = tx->context;
     tx->active = false;
-    if (done) done(context, outcome);
+    if (done) {
+        bool previous=callback_enter(runtime);
+        done(context,outcome);
+        callback_leave(runtime,previous);
+    }
 }
 static uint8_t *allocate(void *context, uint16_t bytes) {
     dbt_runtime_t *runtime = context;
-    return runtime->hooks.allocate(runtime->hooks.context, bytes);
+    bool previous=callback_enter(runtime);
+    uint8_t *result=runtime->hooks.allocate(runtime->hooks.context,bytes);
+    callback_leave(runtime,previous);return result;
 }
 static void release(void *context, uint8_t *data) {
     dbt_runtime_t *runtime = context;
-    runtime->hooks.release(runtime->hooks.context, data);
+    bool previous=callback_enter(runtime);
+    runtime->hooks.release(runtime->hooks.context,data);
+    callback_leave(runtime,previous);
 }
 static void pdu(void *context, uint16_t handle, uint32_t generation,
                  uint16_t cid, const uint8_t *data, uint16_t size) {
@@ -58,7 +74,10 @@ static dbt_result_t oversized_pdu(void *context,uint16_t handle,uint32_t generat
 static bool authorize(void *context, const dbt_link_t *link, uint16_t psm, dbt_security_t security) {
     dbt_runtime_t *runtime = context;
     dbt_channel_hooks_t *hooks = &runtime->hooks.channels;
-    return hooks->authorize ? hooks->authorize(hooks->context, link, psm, security) : security != DBT_SECURITY_AUTHENTICATED;
+    if(!hooks->authorize)return security!=DBT_SECURITY_AUTHENTICATED;
+    bool previous=callback_enter(runtime);
+    bool result=hooks->authorize(hooks->context,link,psm,security);
+    callback_leave(runtime,previous);return result;
 }
 static bool tx_idle(void *context, uint16_t handle, uint16_t local_cid) {
     dbt_runtime_t *runtime = context;
@@ -68,19 +87,31 @@ static bool tx_idle(void *context, uint16_t handle, uint16_t local_cid) {
     for (unsigned i = 0; i < DBT_MAX_LINKS; ++i)
         if (runtime->tx[i].active && runtime->tx[i].pdu.handle == handle) return false;
     dbt_channel_hooks_t *hooks = &runtime->hooks.channels;
-    return !hooks->tx_idle || hooks->tx_idle(hooks->context, handle, local_cid);
+    if(!hooks->tx_idle)return true;
+    bool previous=callback_enter(runtime);
+    bool result=hooks->tx_idle(hooks->context,handle,local_cid);
+    callback_leave(runtime,previous);return result;
 }
 static dbt_result_t request_security(void *context,const dbt_link_t *link,uint16_t psm,dbt_security_t security,bool start) {
     dbt_runtime_t *runtime=context;dbt_channel_hooks_t *hooks=&runtime->hooks.channels;
-    return hooks->security_request?hooks->security_request(hooks->context,link,psm,security,start):DBT_UNSUPPORTED;
+    if(!hooks->security_request)return DBT_UNSUPPORTED;
+    bool previous=callback_enter(runtime);
+    dbt_result_t result=hooks->security_request(hooks->context,link,psm,security,start);
+    callback_leave(runtime,previous);return result;
 }
 static bool accept_channel(void *context,const dbt_link_t *link,uint16_t psm) {
     dbt_runtime_t *runtime=context;dbt_channel_hooks_t *hooks=&runtime->hooks.channels;
-    return !hooks->accept || hooks->accept(hooks->context,link,psm);
+    if(!hooks->accept)return true;
+    bool previous=callback_enter(runtime);
+    bool result=hooks->accept(hooks->context,link,psm);
+    callback_leave(runtime,previous);return result;
 }
 static uint16_t qualify_le_security(void *context,const dbt_link_t *link,uint16_t spsm,dbt_security_t security,uint8_t minimum){
     dbt_runtime_t *runtime=context;dbt_channel_hooks_t *h=&runtime->hooks.channels;
-    return h->le_security?h->le_security(h->context,link,spsm,security,minimum):security==DBT_SECURITY_AUTHENTICATED?5:minimum?7:0;
+    if(!h->le_security)return security==DBT_SECURITY_AUTHENTICATED?5:minimum?7:0;
+    bool previous=callback_enter(runtime);
+    uint16_t result=h->le_security(h->context,link,spsm,security,minimum);
+    callback_leave(runtime,previous);return result;
 }
 static void event(void *context, dbt_channel_event_t kind, const dbt_channel_t *channel,
                    dbt_channel_reason_t reason, uint16_t result) {
@@ -93,31 +124,49 @@ static void event(void *context, dbt_channel_event_t kind, const dbt_channel_t *
                frame->local_cid==channel->local_cid)frame->active=false;
             dbt_runtime_tx_t *tx=&runtime->tx[i];
             if(tx->active && tx->pdu.handle==channel->handle && tx->pdu.generation==channel->link_generation &&
-                tx->local_cid==channel->local_cid) finish_tx(tx,reason==DBT_CH_REASON_LINK_LOST?DBT_TX_LINK_LOST:DBT_TX_ABORTED);
+                tx->local_cid==channel->local_cid) finish_tx(runtime,tx,reason==DBT_CH_REASON_LINK_LOST?DBT_TX_LINK_LOST:DBT_TX_ABORTED);
         }
     }
-    if (hooks->event) hooks->event(hooks->context, kind, channel, reason, result);
+    if (hooks->event) {
+        bool previous=callback_enter(runtime);
+        hooks->event(hooks->context,kind,channel,reason,result);
+        callback_leave(runtime,previous);
+    }
 }
 static void data(void *context, const dbt_channel_t *channel, const uint8_t *bytes, uint16_t size) {
     dbt_runtime_t *runtime = context;
     dbt_channel_hooks_t *hooks = &runtime->hooks.channels;
-    if (hooks->data) hooks->data(hooks->context, channel, bytes, size);
+    if (hooks->data) {
+        bool previous=callback_enter(runtime);
+        hooks->data(hooks->context,channel,bytes,size);
+        callback_leave(runtime,previous);
+    }
 }
 static void fixed(void *context, const dbt_link_t *link, uint16_t cid, const uint8_t *bytes, uint16_t size) {
     dbt_runtime_t *runtime = context;
     dbt_channel_hooks_t *hooks = &runtime->hooks.channels;
-    if (hooks->fixed_data) hooks->fixed_data(hooks->context, link, cid, bytes, size);
+    if (hooks->fixed_data) {
+        bool previous=callback_enter(runtime);
+        hooks->fixed_data(hooks->context,link,cid,bytes,size);
+        callback_leave(runtime,previous);
+    }
 }
 static dbt_result_t fixed_oversized(void *context,const dbt_link_t *link,uint16_t cid,
     const uint8_t *prefix,uint16_t bytes,uint16_t declared){
     dbt_runtime_t *r=context;dbt_channel_hooks_t *h=&r->hooks.channels;
-    return h->fixed_oversized?h->fixed_oversized(h->context,link,cid,prefix,bytes,declared):DBT_NO_SPACE;
+    if(!h->fixed_oversized)return DBT_NO_SPACE;
+    bool previous=callback_enter(r);
+    dbt_result_t result=h->fixed_oversized(h->context,link,cid,prefix,bytes,declared);
+    callback_leave(r,previous);return result;
 }
 static bool parameters(void *context, const dbt_link_t *link, uint16_t minimum,
                          uint16_t maximum, uint16_t latency, uint16_t timeout) {
     dbt_runtime_t *runtime = context;
     dbt_channel_hooks_t *hooks = &runtime->hooks.channels;
-    return hooks->le_parameters && hooks->le_parameters(hooks->context, link, minimum, maximum, latency, timeout);
+    if(!hooks->le_parameters)return false;
+    bool previous=callback_enter(runtime);
+    bool result=hooks->le_parameters(hooks->context,link,minimum,maximum,latency,timeout);
+    callback_leave(runtime,previous);return result;
 }
 static bool initialize_layers(dbt_runtime_t *runtime) {
     if (runtime->ready) return true;
@@ -168,10 +217,14 @@ static void packet(void *context, const dbt_hci_packet_t *view) {
                     for (unsigned i = 0; i < DBT_MAX_LINKS; ++i) {
                         dbt_runtime_tx_t *tx = &runtime->tx[i];
                         if (tx->active && tx->pdu.handle == change.handle && tx->pdu.generation == change.generation)
-                            finish_tx(tx, DBT_TX_LINK_LOST);
+                            finish_tx(runtime,tx, DBT_TX_LINK_LOST);
                     }
                 }
-                if (runtime->hooks.link) runtime->hooks.link(runtime->hooks.context, &change);
+                if (runtime->hooks.link) {
+                    bool previous=callback_enter(runtime);
+                    runtime->hooks.link(runtime->hooks.context,&change);
+                    callback_leave(runtime,previous);
+                }
             }
         } else if (view->type == DBT_H4_ACL) {
             uint32_t rejected=runtime->rx.rejected;
@@ -190,11 +243,19 @@ static void packet(void *context, const dbt_hci_packet_t *view) {
                 dbt_host_abort(&runtime->host,result == DBT_NO_SPACE ? DBT_FAULT_RX_OVERRUN : DBT_FAULT_BAD_PACKET);
             }
         } else if(view->type==DBT_H4_SCO) {
-            if(runtime->hooks.sco)runtime->hooks.sco(runtime->hooks.context,view);
+            if(runtime->hooks.sco) {
+                bool previous=callback_enter(runtime);
+                runtime->hooks.sco(runtime->hooks.context,view);
+                callback_leave(runtime,previous);
+            }
             else dbt_host_abort(&runtime->host,DBT_FAULT_UNSUPPORTED_PACKET);
         }
     }
-    if (runtime->hooks.packet) runtime->hooks.packet(runtime->hooks.context, view);
+    if (runtime->hooks.packet) {
+        bool previous=callback_enter(runtime);
+        runtime->hooks.packet(runtime->hooks.context,view);
+        callback_leave(runtime,previous);
+    }
     if(view->type==DBT_H4_ACL && runtime->host.state==DBT_HOST_IDENTIFIED &&
        runtime->rx_flow.state==DBT_RX_FLOW_ACTIVE) {
         const dbt_link_t *link=dbt_acl_find(&runtime->acl,view->handle);
@@ -239,18 +300,40 @@ dbt_result_t dbt_runtime_receive(dbt_runtime_t *runtime, const uint8_t *data, ui
     if (!runtime) return DBT_INVALID;
     return dbt_host_receive(&runtime->host, data, size);
 }
-void dbt_runtime_abort(dbt_runtime_t *runtime, dbt_fault_t fault) {
-    if (!runtime || fault == DBT_FAULT_NONE) return;
-    dbt_host_abort(&runtime->host, fault);
+/* Only the owner calls this after every borrowed callback has unwound. The
+ * runtime operation fence remains set while release/completion hooks run. */
+static void finalize_abort(dbt_runtime_t *runtime) {
+    if(runtime->cleared || runtime->host.in_poll || runtime->host.in_callback ||
+       runtime->channels.in_callback)return;
+    bool previous=callback_enter(runtime);
+    dbt_host_abort(&runtime->host,runtime->host.fault);
     dbt_rx_flow_abort(&runtime->rx_flow);
-    if (runtime->cleared) return;
-    runtime->cleared = true; runtime->ready = false;
+    runtime->cleared=true;runtime->ready=false;
     dbt_l2cap_rx_clear(&runtime->rx);
-    if (runtime->control_active) (void)dbt_channels_tx_cancel(&runtime->channels);
-    runtime->control_active = false;
+    if(runtime->control_active)(void)dbt_channels_tx_cancel(&runtime->channels);
+    runtime->control_active=false;
     dbt_channels_clear(&runtime->channels);
-    for (unsigned i = 0; i < DBT_MAX_LINKS; ++i)
-        if (runtime->tx[i].active) finish_tx(&runtime->tx[i], DBT_TX_ABORTED);
+    for(unsigned i=0;i<DBT_MAX_LINKS;++i) {
+        runtime->ertm_tx[i].active=false;
+        if(runtime->tx[i].active)finish_tx(runtime,&runtime->tx[i],DBT_TX_ABORTED);
+    }
+    callback_leave(runtime,previous);
+}
+void dbt_runtime_abort(dbt_runtime_t *runtime, dbt_fault_t fault) {
+    if(!runtime || fault==DBT_FAULT_NONE)return;
+    bool previous=runtime->in_poll;
+    bool host_callback=runtime->host.in_callback;
+    bool defer=previous || host_callback || runtime->host.in_poll || runtime->channels.in_callback;
+    runtime->in_poll=true;runtime->ready=false;
+    /* Mark the host failed without recursively draining command callbacks on
+     * a provider/channel/transport callback stack. The owner drains below or
+     * at its next poll, after the current operation has returned. */
+    runtime->host.in_callback=true;
+    dbt_host_abort(&runtime->host,fault);
+    runtime->host.in_callback=host_callback;
+    dbt_rx_flow_abort(&runtime->rx_flow);
+    runtime->in_poll=previous;
+    if(!defer)finalize_abort(runtime);
 }
 static dbt_runtime_tx_t *slot(dbt_runtime_t *runtime, uint16_t handle) {
     for (unsigned i = 0; i < DBT_MAX_LINKS; ++i) {
@@ -306,7 +389,7 @@ dbt_result_t dbt_runtime_cancel_fixed(dbt_runtime_t *runtime,uint16_t handle,uin
         if(!tx->active || tx->local_cid!=cid || tx->pdu.cid!=cid || tx->pdu.handle!=handle || tx->pdu.generation!=generation ||
            tx->done!=done || tx->context!=context)continue;
         if(tx->pdu.cursor)return DBT_BUSY;
-        finish_tx(tx,DBT_TX_ABORTED);return DBT_OK;
+        finish_tx(runtime,tx,DBT_TX_ABORTED);return DBT_OK;
     }
     return DBT_EMPTY;
 }
@@ -331,9 +414,10 @@ static bool send_fragment(dbt_runtime_t *runtime, unsigned index) {
                 if(c)(void)dbt_channels_ertm_cancel(&runtime->channels,link->handle,app->local_cid);
                 enhanced->active=false;
             }
-            finish_tx(app,DBT_TX_ABORTED);
+            finish_tx(runtime,app,DBT_TX_ABORTED);
         }
     }
+    if(runtime->host.state==DBT_HOST_FAILED)return false;
     bool control = runtime->control_active && runtime->control.handle == link->handle;
     bool app_ready=app->active && !app->ertm_channel && (!app->credit_channel || app->frame_ready ||
         dbt_channels_credit_ready(&runtime->channels,link->handle,app->local_cid));
@@ -354,9 +438,10 @@ static bool send_fragment(dbt_runtime_t *runtime, unsigned index) {
     if(!control && !use_ertm && app->credit_channel && !app->frame_ready){
         dbt_result_t prepared=dbt_channels_credit_frame(&runtime->channels,link->handle,app->local_cid,tx);
         if(prepared==DBT_BUSY)return false;
-        if(prepared!=DBT_OK){finish_tx(app,DBT_TX_ABORTED);return false;}
+        if(prepared!=DBT_OK){finish_tx(runtime,app,DBT_TX_ABORTED);return false;}
         app->frame_ready=true;
     }
+    if(runtime->host.state==DBT_HOST_FAILED)return false;
     dbt_result_t result = dbt_l2cap_send_next(tx, &runtime->acl, runtime->host.transport,
                                            runtime->tx_packet, sizeof(runtime->tx_packet));
     if (result == DBT_BUSY) return false;
@@ -371,16 +456,20 @@ static bool send_fragment(dbt_runtime_t *runtime, unsigned index) {
         } else if(app->credit_channel){
             bool complete=false;
             if(dbt_channels_credit_commit(&runtime->channels,link->handle,app->local_cid,&complete)!=DBT_OK)
-                finish_tx(app,DBT_TX_ABORTED);
-            else if(complete){enhanced->prefer_ertm=true;finish_tx(app,DBT_TX_ADMITTED);}
+                finish_tx(runtime,app,DBT_TX_ABORTED);
+            else if(complete){enhanced->prefer_ertm=true;finish_tx(runtime,app,DBT_TX_ADMITTED);}
             else{app->frame_ready=false;app->pdu.cursor=0;}
-        } else {enhanced->prefer_ertm=true;finish_tx(app, DBT_TX_ADMITTED);}
+        } else {enhanced->prefer_ertm=true;finish_tx(runtime,app, DBT_TX_ADMITTED);}
     }
     return true;
 }
 void dbt_runtime_poll(dbt_runtime_t *runtime, uint32_t now_ms, uint16_t rx_budget, uint16_t tx_budget) {
-    if (!runtime || runtime->in_poll) return;
+    if (!runtime || runtime->in_poll || runtime->host.in_poll ||
+        runtime->host.in_callback || runtime->channels.in_callback) return;
     runtime->in_poll = true; runtime->now_ms = now_ms;
+    if(runtime->host.state==DBT_HOST_FAILED) {
+        finalize_abort(runtime);runtime->in_poll=false;return;
+    }
     if(runtime->ready)runtime->channels.now_ms=now_ms;
     /* Return released RX buffers before another ordinary command can take the
      * transport. Acks remain independent of command and outbound ACL credits. */
@@ -392,11 +481,14 @@ void dbt_runtime_poll(dbt_runtime_t *runtime, uint32_t now_ms, uint16_t rx_budge
     (void)initialize_layers(runtime);
     dbt_rx_flow_poll(&runtime->rx_flow,now_ms);
     if (runtime->host.state == DBT_HOST_FAILED) {
-        dbt_runtime_abort(runtime, runtime->host.fault);
+        finalize_abort(runtime);
         runtime->in_poll = false; return;
     }
     if (runtime->ready) {
         (void)dbt_channels_poll(&runtime->channels, now_ms, rx_budget);
+        if(runtime->host.state==DBT_HOST_FAILED) {
+            finalize_abort(runtime);runtime->in_poll=false;return;
+        }
         /* Local retirement needs neither controller readiness nor ACL credits.
          * Once any fragment was sent, finish that SDU before returning its pin. */
         if(runtime->control_active && !runtime->control.cursor && dbt_channels_tx_obsolete(&runtime->channels)){
@@ -413,29 +505,34 @@ void dbt_runtime_poll(dbt_runtime_t *runtime, uint32_t now_ms, uint16_t rx_budge
                         if(c)(void)dbt_channels_ertm_cancel(&runtime->channels,tx->pdu.handle,tx->local_cid);
                         frame->active=false;
                     }
-                    finish_tx(tx,DBT_TX_ABORTED);
+                    finish_tx(runtime,tx,DBT_TX_ABORTED);
                 }else if(!dbt_channels_ertm_sdu_active(&runtime->channels,tx->pdu.handle,tx->local_cid))
-                    finish_tx(tx,DBT_TX_ADMITTED);
+                    finish_tx(runtime,tx,DBT_TX_ADMITTED);
             }
         }
-        for (unsigned sent = 0; sent < tx_budget; ++sent) {
+        for (unsigned sent = 0; sent < tx_budget && runtime->host.state!=DBT_HOST_FAILED; ++sent) {
             if (!runtime->host.transport.can_send(runtime->host.transport.context)) break;
             bool progressed = false;
             for (unsigned n = 0; n < DBT_MAX_LINKS; ++n) {
                 unsigned index = (runtime->next_link + n) % DBT_MAX_LINKS;
                 const dbt_link_t *link = &runtime->acl.links[index];
                 if (!link->used || !credit(runtime, link)) continue;
-                if (!send_fragment(runtime, index)) continue;
+                if (!send_fragment(runtime, index)) {
+                    if(runtime->host.state==DBT_HOST_FAILED)break;
+                    continue;
+                }
                 runtime->next_link = (uint8_t)((index + 1u) % DBT_MAX_LINKS);
                 progressed = true; break;
             }
             if (!progressed || runtime->host.state == DBT_HOST_FAILED) break;
         }
     }
+    if(runtime->host.state==DBT_HOST_FAILED)finalize_abort(runtime);
     runtime->in_poll = false;
 }
 uint32_t dbt_runtime_wait_ms(const dbt_runtime_t *runtime, uint32_t now_ms) {
     if (!runtime) return UINT32_MAX;
+    if(runtime->host.state==DBT_HOST_FAILED && !runtime->cleared)return 0;
     uint32_t wait = dbt_host_wait_ms(&runtime->host, now_ms);
     if (!runtime->ready || runtime->host.state == DBT_HOST_FAILED) return wait;
     if(runtime->control_active && !runtime->control.cursor && dbt_channels_tx_obsolete(&runtime->channels))return 0;

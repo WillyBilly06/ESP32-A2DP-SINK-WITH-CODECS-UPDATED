@@ -58,7 +58,9 @@ typedef enum { DBT_COMMAND_SUCCESS, DBT_COMMAND_REJECTED,
 typedef enum { DBT_COMMAND_CANCELLED, DBT_COMMAND_ALREADY_SUBMITTED,
                DBT_COMMAND_NOT_FOUND } dbt_command_cancel_result_t;
 /* STATUS success means controller procedure admission, not connection completion.
- * Return parameters (including Status) are borrowed only during this callback. */
+ * Return parameters (including Status) are borrowed only during this callback.
+ * May enqueue work; never reenter poll/start. Abort records failure immediately,
+ * but other aborted-command callbacks wait until borrowed callbacks unwind. */
 typedef void (*dbt_command_done_t)(void *context, uint16_t opcode,
     dbt_command_outcome_t outcome, uint8_t status, const uint8_t *returns, uint8_t size);
 typedef struct {
@@ -89,6 +91,7 @@ typedef struct {
     uint8_t command_credits;
     uint8_t probe_index;
     uint8_t controller_status;
+    bool in_callback; /* Owner-only borrowed-callback fence, in existing padding. */
     /* Owner-only failure metadata. No packet payload or key bytes retained.
      * Stages: 1 ingress, 2 queue, 3 H4 decode, 4 HCI event, 5 observer. */
     uint16_t fault_packet_size;
@@ -128,6 +131,9 @@ dbt_result_t dbt_host_command_tracked(dbt_host_t *host, uint16_t opcode,
  * removed and wiped before its synchronous ABORTED callback. An HCI-admitted
  * command stays pending until its normal completion or host failure. */
 dbt_command_cancel_result_t dbt_host_cancel_command(dbt_host_t *host,uint32_t token);
+/* Failure is immediate. During poll/borrowed callbacks, command cancellation
+ * and RX wiping are deferred until unwind; wait_ms reports pending cleanup.
+ * Retained transport TX storage is not released by abort. */
 void dbt_host_abort(dbt_host_t *host, dbt_fault_t fault);
 
 #endif

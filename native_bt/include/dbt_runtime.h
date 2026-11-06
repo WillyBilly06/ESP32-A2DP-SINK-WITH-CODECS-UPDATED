@@ -58,6 +58,7 @@ typedef struct {
     uint32_t now_ms;
     uint16_t maximum_mtu;
     uint8_t next_link;
+    /* in_poll also fences nested borrowed callbacks/owner cleanup operations. */
     bool ready, control_active, in_poll, cleared;
     uint8_t tx_packet[DBT_MAX_H4_BYTES];
 } dbt_runtime_t;
@@ -65,7 +66,9 @@ typedef struct {
 /* One owner for every call except receive. Owning layers allocate fragmented
  * RX, LE metadata/SDUs and enhanced-channel working storage. Runtime init adds
  * no per-codec payload pool; the product may bind retained per-link RX storage.
- * Hooks are borrowed/nonblocking; poll is never reentrant. */
+ * Hooks are borrowed/nonblocking; poll is never reentrant, including from host
+ * or channel-manager callbacks. Callbacks may request abort; their borrowed
+ * storage remains valid through return and owner polling finishes cleanup. */
 dbt_result_t dbt_runtime_init(dbt_runtime_t *runtime, dbt_transport_t transport,
     dbt_runtime_hooks_t hooks, uint16_t maximum_mtu, uint32_t command_timeout_ms);
 dbt_result_t dbt_runtime_start(dbt_runtime_t *runtime, uint32_t now_ms);
@@ -77,7 +80,8 @@ uint32_t dbt_runtime_wait_ms(const dbt_runtime_t *runtime, uint32_t now_ms);
 /* One borrowed outbound SDU per connection. Keep it unchanged until done, even
  * during controller credit stalls. Channel callbacks may enqueue fixed replies;
  * dynamic channel operations follow the channel manager's non-reentrant rules.
- * ERTM retains the SDU through peer acknowledgment and any pinned frame. */
+ * ERTM retains the SDU through peer acknowledgment and any pinned frame.
+ * A done callback may enqueue its next SDU; the completed slot is already free. */
 dbt_result_t dbt_runtime_send(dbt_runtime_t *runtime, uint16_t handle, uint16_t local_cid,
     const uint8_t *data, uint16_t size, dbt_tx_done_t done, void *context);
 dbt_result_t dbt_runtime_send_fixed(dbt_runtime_t *runtime, uint16_t handle, uint16_t cid,
@@ -88,7 +92,12 @@ dbt_result_t dbt_runtime_send_fixed(dbt_runtime_t *runtime, uint16_t handle, uin
  * BUSY means a fragment was sent, EMPTY means no exact matching loan. */
 dbt_result_t dbt_runtime_cancel_fixed(dbt_runtime_t *,uint16_t handle,uint32_t generation,
                                       uint16_t cid,dbt_tx_done_t done,void *context);
-/* Host owner only; release all borrowed SDUs and partial RX allocations. */
+/* Host owner only. Outside callbacks/owner polling, release SDU loans and RX/
+ * channel resources synchronously. Inside a borrowed callback, record failure
+ * immediately and defer releases until callbacks unwind; the owner must poll
+ * afterward (wait_ms returns zero until cleanup). cleared becomes true only at
+ * actual cleanup. Transport-retained TX bytes stay valid until can_send returns
+ * them; wait for that before reinitializing/freeing the runtime. */
 void dbt_runtime_abort(dbt_runtime_t *runtime, dbt_fault_t fault);
 
 #endif
