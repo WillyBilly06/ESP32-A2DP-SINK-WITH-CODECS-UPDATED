@@ -77,6 +77,10 @@ dbt_result_t dbt_lhdcv5_open(dbt_lhdcv5_session_t *session, const lhdc_dec_confi
     if (session == 0 || !valid(config)) return DBT_INVALID;
     if (active_session != 0 && active_session != session) return DBT_BUSY;
     if (active_session == session && same_config(&session->config, config)) return DBT_OK;
+    /* config may borrow the old workspace. Snapshot it before close frees that
+     * allocation; all later size/init/commit reads use this bounded local copy. */
+    lhdc_dec_config_t requested = *config;
+    config = &requested;
     /* Caller has already fenced and joined its codec worker/media generation.
      * Drop the old working set before allocating the new configuration. */
     dbt_lhdcv5_close(session);

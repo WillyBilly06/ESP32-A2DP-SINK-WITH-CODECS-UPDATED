@@ -8,6 +8,6 @@ int dbt_lhdc_entropy_ready(void);
 #ifdef DBT_LHDC_QUALITY
 /* Single decoder-owner notifications; only capture metadata here. */
 void dbt_lhdc_channel_failure(unsigned channel,int result);
-void dbt_lhdc_frame_quality(float peak,unsigned clipped_samples,int concealed);
+void dbt_lhdc_frame_quality(float peak,unsigned clipped_samples,int concealed,int nonfinite);
 #endif
 #endif

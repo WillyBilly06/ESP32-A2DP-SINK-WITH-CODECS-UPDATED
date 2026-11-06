@@ -265,9 +265,9 @@ static void log_lhdc_quality(uint32_t cycle){
         ",\"last_event_channel0_result\":%" PRId32 ",\"last_event_channel1_result\":%" PRId32 ",\"last_event_flags\":%" PRIu32 "}\n",
         cycle,q.revision,q.channel0_errors,q.channel1_silenced,q.event_attempt,q.channel0_result,q.channel1_result,q.flags);
     PROBE_SNAPSHOT_LOG("{\"probe\":\"lhdc_frame_quality\",\"collection_cycle_us\":%" PRIu32 ",\"revision\":%" PRIu32
-        ",\"peak_concealed\":%" PRIu32 ",\"clipped_frames\":%" PRIu32 ",\"clipped_samples\":%" PRIu32
+        ",\"peak_concealed\":%" PRIu32 ",\"nonfinite_frames\":%" PRIu32 ",\"clipped_frames\":%" PRIu32 ",\"clipped_samples\":%" PRIu32
         ",\"last_event_attempt\":%" PRIu32 ",\"last_event_peak_f32_bits\":\"%08" PRIx32 "\",\"last_event_flags\":%" PRIu32 "}\n",
-        cycle,q.revision,q.peak_concealed,q.clipped_frames,q.clipped_samples,q.event_attempt,q.peak_f32_bits,q.flags);
+        cycle,q.revision,q.peak_concealed,q.nonfinite_frames,q.clipped_frames,q.clipped_samples,q.event_attempt,q.peak_f32_bits,q.flags);
 }
 #endif
 void probe_audio_transport_received(uint32_t began_us,uint16_t bytes,uint8_t type,dbt_result_t result,bool isr){

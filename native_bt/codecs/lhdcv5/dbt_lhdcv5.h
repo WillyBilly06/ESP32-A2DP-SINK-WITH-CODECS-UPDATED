@@ -18,6 +18,8 @@ typedef struct {
     uint32_t generation;
 } dbt_lhdcv5_session_t;
 
+/* Open snapshots the validated configuration before releasing old workspace.
+ * The caller keeps the session object live and fences its decoder/media owner. */
 dbt_result_t dbt_lhdcv5_open(dbt_lhdcv5_session_t *session, const lhdc_dec_config_t *config);
 void dbt_lhdcv5_close(dbt_lhdcv5_session_t *session);
 void dbt_lhdcv5_flush(dbt_lhdcv5_session_t *session);

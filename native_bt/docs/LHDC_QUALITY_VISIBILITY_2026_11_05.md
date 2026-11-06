@@ -1,5 +1,7 @@
 # LHDC recovered-error and concealment visibility — 2026-11-05
 
+This records the original 9f54c900 visibility checkpoint. The later [PCM boundary fix](LHDC_PCM_BOUNDARIES_2026_11_05.md) defines S32 saturation and nonfinite-frame handling, adds flag 256/nonfinite_frames and grows the snapshot to 84 bytes. Earlier image/layout/deployment figures below remain historical evidence.
+
 The supplied decoder can return LHDC_DEC_OK after replacing a failed right channel with silence, and after concealing a complete frame whose decoded peak exceeds its corruption threshold. The worker's ordinary decode-reject counter therefore did not describe all decoder-generated silence. Normal trace-disabled builds also suppressed the legacy diagnostic printf. These code paths exist; their comments and historical rates do not prove their frequency or RF cause on the current image.
 
 The pinned source transformer now observes primary-channel failure, right-channel silence and the existing frame-quality decision without changing their return values, retry policy, overlap handling or PCM samples. The worker adapter associates each completed C99 decode attempt with its codec constructor generation, decoder frame index, RTP sequence/timestamp/SSRC and total encoded-frame size (including its two-byte frame header). Allocation failures and wrapper format/length mismatches have separate flags.
@@ -35,7 +37,7 @@ Strict adapter Clang analysis and target compilation pass. Source-pinned generat
 
 No separate functional, packet, playback, pairing, app, RF, stress, acoustic or fault-injection campaign was run. Existing startup checks and ordinary idle boot do not exercise live recovered-error records or establish max LHDC headroom. Full source/feature/security/lifecycle, reported codec crashes, underruns and sustained quality remain unfinished.
 
-The unrelated legacy raw-session adapter remains unlinked in the product. Its source review identified an input-borrow edge to finish: open closes an old workspace before it has finished reading the config pointer, without copying or explicitly excluding aliasing with that workspace. This is not established as a cause of any reported product crash; that adapter's review remains partial.
+The unrelated legacy raw-session adapter remains unlinked in the product. Its source review identified an input-borrow edge to finish: open closes an old workspace before it has finished reading the config pointer, without copying or explicitly excluding aliasing with that workspace. The later PCM boundary checkpoint snapshots this input before close. Its active alias/failure/lifecycle qualification remains missing, and it is not an established product crash cause.
 
 The idle heap snapshot is 137920 free/67092 minimum/110592 largest bytes. Compared with the prior image, free falls 88 bytes, the cold-check allocation snapshot falls 112, and the aggregate reported minimum falls 2544. ESP-IDF esp_heap_caps.h:223–241 and heap_caps.c:306–315 define minimum as the sum of regional low watermarks that may have occurred at different times. The larger minimum change is not attributable from the captured stage snapshots and is not proof of 2544 extra simultaneous live bytes. No lower-RAM or timing improvement is claimed.
 

@@ -313,7 +313,7 @@
     },
     {
       "owned": "native_bt/codecs/lhdcv5/dbt_lhdc_alloc.h",
-      "sha256": "73d9f6d6da8d69ae8e73368f0efe6ef640bb3f85aedf3a93b133457af73e26e3",
+      "sha256": "cccadb8ec153c90acad3e05b7051b9326269546b8638fa0692a3671dcbd53dc4",
       "lines": 14,
       "reference_files": [
         "src/classic/btstack_sbc_bluedroid.c:423-431,526-535",
@@ -323,7 +323,7 @@
       ],
       "status": "reviewed_contract",
       "mapping": "Single-owner LHDC integration and explicit recovered-error visibility",
-      "review_scope": "Complete one-owner allocation/quality callback declaration read against both adapters and generated call sites. No callback formatting/UART/wait is added; runtime fault qualification missing."
+      "review_scope": "Complete one-owner allocation/quality callback declaration read against both adapters and generated call sites. No callback formatting/UART/wait is added; runtime fault qualification missing. Later PCM boundary stage: defined positive S32 saturation, sticky nonfinite peak/overlap concealment, explicit nonfinite quality flag/count and safe config snapshot reviewed. Source/compiler/ordinary boot only; no active boundary/audio/fault/headroom proof."
     },
     {
       "owned": "native_bt/codecs/lhdcv5/dbt_lhdc_bits.h",
@@ -340,8 +340,8 @@
     },
     {
       "owned": "native_bt/codecs/lhdcv5/dbt_lhdcv5_codec.c",
-      "sha256": "b92dd323d745427e4cc34bb6797ebad17ab00f18694afe1c52c70f208f469df4",
-      "lines": 251,
+      "sha256": "00a0c90874a3152ee022a2a6996a1084737f45f92286dff6c7b0443650289808",
+      "lines": 253,
       "reference_files": [
         "src/classic/btstack_sbc_bluedroid.c:423-431,526-535",
         "src/classic/btstack_sbc_decoder_bluedroid.c:335-343,441-450",
@@ -350,11 +350,11 @@
       ],
       "status": "reviewed_with_findings",
       "mapping": "Single-owner LHDC integration and explicit recovered-error visibility",
-      "review_scope": "Complete authored worker adapter body read: CIE/frame/PCM continuation, ownership/reset/close and new recovered-error accounting. Selected sibling decode/quality/allocation sections reviewed; complete sibling algorithm, raw borrow edges, allocator faults, concurrency, acoustic/live throughput remain unqualified."
+      "review_scope": "Complete authored worker adapter body read: CIE/frame/PCM continuation, ownership/reset/close and new recovered-error accounting. Selected sibling decode/quality/allocation sections reviewed; complete sibling algorithm, raw borrow edges, allocator faults, concurrency, acoustic/live throughput remain unqualified. Later PCM boundary stage: defined positive S32 saturation, sticky nonfinite peak/overlap concealment, explicit nonfinite quality flag/count and safe config snapshot reviewed. Source/compiler/ordinary boot only; no active boundary/audio/fault/headroom proof."
     },
     {
       "owned": "native_bt/codecs/lhdcv5/dbt_lhdcv5_codec.h",
-      "sha256": "9349540bd54b5f5b62b2ad943eee1666bf3ed86e97d7af80392d4e9c29d3766c",
+      "sha256": "66b2c0d42a4a5ee31f88a4ad2f2754aea10f28ed8f551d881ca33fc3be6935c1",
       "lines": 25,
       "reference_files": [
         "src/classic/btstack_sbc_bluedroid.c:423-431,526-535",
@@ -364,26 +364,26 @@
       ],
       "status": "reviewed_contract",
       "mapping": "Single-owner LHDC integration and explicit recovered-error visibility",
-      "review_scope": "Complete advertised codec and bounded quality-snapshot contract read; counts and latest-notable context are separate from packet-loss/bitrate claims. Runtime qualification missing."
+      "review_scope": "Complete advertised codec and bounded quality-snapshot contract read; counts and latest-notable context are separate from packet-loss/bitrate claims. Runtime qualification missing. Later PCM boundary stage: defined positive S32 saturation, sticky nonfinite peak/overlap concealment, explicit nonfinite quality flag/count and safe config snapshot reviewed. Source/compiler/ordinary boot only; no active boundary/audio/fault/headroom proof."
     },
     {
       "owned": "native_bt/codecs/lhdcv5/dbt_lhdcv5.c",
-      "sha256": "2575fa94cb85f5284e27a1e0c7753e4eda129f93c80f475c9a6f940188a15b7e",
-      "lines": 137,
+      "sha256": "c207b36cf2152da08b7a12c31903feeb15050e9fc3af3da3ecd2a724ab7ddacf",
+      "lines": 141,
       "reference_files": [
         "src/classic/avdtp.c",
         "example/a2dp_sink_demo.c",
         "src/btstack_resample.c",
         "src/btstack_sample_rate_compensation.c"
       ],
-      "status": "partial_review",
+      "status": "reviewed_with_findings",
       "mapping": "counterpart_candidates",
-      "review_scope": "Authored body and cache/workspace/raw-frame contract read. Still partial: open closes old workspace before finishing config reads, without copy/exclusion of aliased config; source fix and alias/lifecycle qualification pending. Product does not link this alternate adapter."
+      "review_scope": "Complete authored raw-session body read. Validated requested config now copied before workspace close/free, matching canonical config ownership. Strict Clang/target compilation passes; product does not link this adapter. Alias/fault/allocation/lifecycle/output ownership runtime qualification remains missing."
     },
     {
       "owned": "native_bt/codecs/lhdcv5/dbt_lhdcv5.h",
-      "sha256": "b226914acc93f5397700bc1b57c5c9f51e0183cefd91b3ac6555c52f41bb5119",
-      "lines": 31,
+      "sha256": "600040fe7703f15d9102d973558642b535d06c9e08b5f3eef53a426ca7c06175",
+      "lines": 33,
       "reference_files": [
         "src/classic/btstack_sbc_bluedroid.c:423-431,526-535",
         "src/classic/btstack_sbc_decoder_bluedroid.c:335-343,441-450",
@@ -392,12 +392,12 @@
       ],
       "status": "reviewed_contract",
       "mapping": "Single-owner LHDC integration and explicit recovered-error visibility",
-      "review_scope": "Complete unlinked raw-session API contract read. Mutable workspace/config borrowing requires further implementation work; no live/allocator/alias qualification."
+      "review_scope": "Complete unlinked raw-session API contract read. Mutable workspace/config borrowing requires further implementation work; no live/allocator/alias qualification. Later PCM boundary stage: defined positive S32 saturation, sticky nonfinite peak/overlap concealment, explicit nonfinite quality flag/count and safe config snapshot reviewed. Source/compiler/ordinary boot only; no active boundary/audio/fault/headroom proof."
     },
     {
       "owned": "native_bt/codecs/lhdcv5/prepare_port.py",
-      "sha256": "94f3acbc8c5f9d539f219992efe8a0cc957d2073cdb6d9e9deb574c9ee0ae0d3",
-      "lines": 326,
+      "sha256": "37ab1de00712911f1fbc330f19e5278e10fe3cbc59717fd637ab84ab338cf44a",
+      "lines": 340,
       "reference_files": [
         "src/classic/btstack_sbc_bluedroid.c:423-431,526-535",
         "src/classic/btstack_sbc_decoder_bluedroid.c:335-343,441-450",
@@ -406,7 +406,7 @@
       ],
       "status": "reviewed_generator",
       "mapping": "Single-owner LHDC integration and explicit recovered-error visibility",
-      "review_scope": "Complete transformer body read: source/header pinning, allocation/scratch/cache/bits/metadata changes and exact new channel/quality observations. Generation/compilation pass; no full upstream algorithm or active quality/fault/format/throughput proof."
+      "review_scope": "Complete transformer body read: source/header pinning, allocation/scratch/cache/bits/metadata changes and exact new channel/quality observations. Generation/compilation pass; no full upstream algorithm or active quality/fault/format/throughput proof. Later PCM boundary stage: defined positive S32 saturation, sticky nonfinite peak/overlap concealment, explicit nonfinite quality flag/count and safe config snapshot reviewed. Source/compiler/ordinary boot only; no active boundary/audio/fault/headroom proof."
     },
     {
       "owned": "native_bt/codecs/opus/dbt_opus.c",
@@ -714,7 +714,7 @@
     },
     {
       "owned": "native_bt/esp32_probe/main/probe_audio.c",
-      "sha256": "c15ad781bb8ddfdbb9ac7ac1036fdd4aa05d91b231b83f62cd33e8975b0bfa31",
+      "sha256": "803ca3b02c279507a5a11dfc16288bf99bd47c073a464c98d51228e18c368156",
       "lines": 1183,
       "reference_files": [],
       "status": "partial_review",
@@ -3565,6 +3565,40 @@
       "fix": "Source-pinned bounded notifications and single-owner atomic counts/latest-notable tuple; logger emits separate decode/channel/frame records, independent of worker/radio/queue/DMA counters.",
       "resource_change": "BSS+88 bytes, active LHDC state+24, snapshot80, text+1816, aggregate data+864 mostly strings. Resume own frame112 unchanged. No task/packet queue added; timing cost unmeasured.",
       "limits": "No live quality event or held campaign exercised; constructor generation differs from stream/reset generation, latest-notable snapshot is not lossless replay, and events do not establish RF/codec fault cause."
+    },
+    {
+      "id": "LHDC-PCM-BOUNDS",
+      "state": "implemented_source_analysis_build_readback_idle_only",
+      "owned": [
+        "native_bt/codecs/lhdcv5/prepare_port.py",
+        "native_bt/codecs/lhdcv5/dbt_lhdcv5_codec.c",
+        "native_bt/codecs/lhdcv5/dbt_lhdcv5_codec.h",
+        "native_bt/esp32_probe/main/probe_audio.c"
+      ],
+      "reference": [
+        "Pinned sibling PCM/quality loop and macro:1788-1877",
+        "ESP32 binary32/int32 numeric bounds"
+      ],
+      "issue": "S32 upper float bound rounds to2^31 before cast; NaNs can bypass ordered peak tests and enter undefined conversion/overlap state.",
+      "fix": "Guard cast upper/unordered values explicitly; finite peak decisions preserved while unordered inputs select sticky+Inf concealment and overlap reset. Add explicit nonfinite count/flag; reject fast/finite-only compiler modes.",
+      "resource_change": "Text+56, aggregate BSS+8 (counter4 plus placement), data+16; snapshot80→84, active state56 and resume ownframe112 unchanged. No new task/buffer/allocation.",
+      "limits": "No separate NaN/Inf/saturation, output/state/audio equivalence, fault, playback or real-time headroom campaign. Does not establish cause of all codec crashes/underruns."
+    },
+    {
+      "id": "LHDC-RAW-CONFIG-BORROW",
+      "state": "source_fixed_strict_compilation_product_unlinked_runtime_pending",
+      "owned": [
+        "native_bt/codecs/lhdcv5/dbt_lhdcv5.c",
+        "native_bt/codecs/lhdcv5/dbt_lhdcv5.h"
+      ],
+      "reference": [
+        "Canonical dbt_codec.c:41-50",
+        "Sibling lhdc_dec_init embedded config copy"
+      ],
+      "issue": "Raw open read config after releasing an old workspace that the input may borrow.",
+      "fix": "Snapshot validated24-byte configuration before close, then use the local copy through size/init/commit.",
+      "resource_change": "Raw open own frame48→80 bytes, no persistent allocation. Raw adapter remains unlinked in product.",
+      "limits": "Active alias/allocator/failure/lifecycle behavior not exercised; not a proven current product crash cause."
     }
   ],
   "sections_reviewed": [
@@ -4104,6 +4138,25 @@
       ],
       "outcome": "Observed successful-return channel silence/frame concealment explicitly with lock-free bounded metadata, counts after cold checks and separate low-priority records. No PCM/recovery policy changed; no task/packet buffer added. Alternate raw config-borrow edge remains pending. Broader decoder/root/algorithm and full runtime/layer parity unqualified.",
       "full_layer_complete": false
+    },
+    {
+      "layer": "Defined LHDC PCM conversion and raw config input lifetime",
+      "owned": [
+        "native_bt/codecs/lhdcv5/prepare_port.py",
+        "native_bt/codecs/lhdcv5/dbt_lhdcv5.c",
+        "native_bt/codecs/lhdcv5/dbt_lhdcv5.h",
+        "native_bt/codecs/lhdcv5/dbt_lhdcv5_codec.c",
+        "native_bt/codecs/lhdcv5/dbt_lhdcv5_codec.h",
+        "native_bt/codecs/lhdcv5/dbt_lhdc_alloc.h",
+        "native_bt/esp32_probe/main/probe_audio.c:nonfinite field"
+      ],
+      "reference": [
+        "Pinned sibling lhdc_dec.c:1788-1877",
+        "Canonical dbt_codec.c:41-50 config snapshot before close",
+        "Binary32 representability and int32 conversion bounds"
+      ],
+      "outcome": "Explicit S32 upper saturation before conversion, defined defensive NaN fallback, sticky nonfinite peak selecting existing frame/overlap concealment, flag256/nonfinite count. Reject unsafe finite-only compiler flags. Raw config copied before old workspace retirement. No format/precision/bitrate downgrade. Source/compiler/readback/idle only, no live boundary/fault/timing qualification.",
+      "full_layer_complete": false
     }
   ],
   "integration_gaps": [
@@ -4151,8 +4204,8 @@
   ],
   "coverage": {
     "owned_files": 287,
-    "reviewed_owned_c_bodies": 32,
-    "partial_files": 18,
+    "reviewed_owned_c_bodies": 33,
+    "partial_files": 17,
     "pending_files": 195,
     "compiled_owned_units_missing": 0,
     "reviewed_headers": 26,
@@ -4443,17 +4496,26 @@
         "Successful-return right-channel silence and frame concealment now have separate counts/context; keep distinct from generic reject/radio/queue/DMA records.",
         "Counts enabled after cold checks; latest-notable metadata persists over clean frames. Single-writer lock-free words, reader max3 attempts, no packet buffer/task/UART on decoder.",
         "88 static+24 active codec bytes; idle137920/min67092/largest110592. SDK minimum is sum of regional lows; additional transient minimum change not attributed. No speed/quality/LHDC headroom proof.",
-        "Next fix the unlinked raw-session open config borrow before old workspace close, then continue held runtime qualifications/remaining source work."
+        "Raw-session config snapshot and S32/nonfinite boundary guards now exist; live alias/fault/audio/quality qualification and remaining source work are unfinished."
+      ]
+    },
+    {
+      "id": "LHDC-PCM-BOUNDS",
+      "status": "source_fixed_compiler_readback_idle_runtime_pending",
+      "notes": [
+        "Positive S32 endpoint saturates explicitly; in-range truncation preserved. Unordered peak becomes stickyInf and is reported/concealed with full overlap reset; fast-math unsafe modes fail compilation.",
+        "Raw config is copied before old workspace close/free; alternate adapter stays unlinked. No new queues/tasks or lowered negotiated format.",
+        "Snapshot84, BSS50412, active state56. Live boundary/fault/alias/output equivalence and sustainable LHDC/codec switching remain unqualified under held campaigns."
       ]
     }
   ],
   "next_review": [
-    "Fix unlinked dbt_lhdcv5_open config input borrowing across dbt_lhdcv5_close: copy the validated requested configuration before any old-workspace release; compile/review caller/output ownership. This is not established as a product crash cause.",
+    "Raw dbt_lhdcv5_open now snapshots validated config before close/free. S32/nonfinite conversion boundaries are defined in the pinned port; do not repeat these source fixes. Active alias, failure, boundary/output/state and headroom qualification remains incomplete.",
     "Ordered cross-family request ranking now exists; do not repeat query/generator/rank primitives. Complete durable Classic peer/reconnect/backoff/handover/default caller policy from actual baseline/storage without overriding Android source preferences.",
     "Complete queued/crossed control and backend policy before automatic integration; rank only returns a proposal, no peer acceptance or reservation.",
     "Continue pending file/feature/security/lifecycle/codec crash/audio underrun/LHDC headroom work. Keep new automatic RF disabled under held campaigns."
   ],
-  "latest_build_image": "48b1a0c785af3f6da99fe34e19158401d01be1b0d76837bea721ef3ff0554051",
+  "latest_build_image": "aa791132c7472a621f37ad1f0d08eb6ff694dc6057994157812c83602ce9c0df",
   "verification_source_contracts": [
     {
       "file": "native_bt/tools/test_ldac_target_component.py",

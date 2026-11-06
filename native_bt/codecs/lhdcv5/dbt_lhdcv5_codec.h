@@ -7,9 +7,9 @@ extern const dbt_codec_ops_t dbt_lhdcv5_codec;
 
 enum { DBT_LHDC_CHANNEL0_ERROR=1u, DBT_LHDC_CHANNEL1_SILENCED=2u,
     DBT_LHDC_PEAK_CONCEALED=4u, DBT_LHDC_CLIPPED=8u, DBT_LHDC_ALLOCATION_FAILED=16u,
-    DBT_LHDC_FORMAT_MISMATCH=32u, DBT_LHDC_QUALITY_SCANNED=64u, DBT_LHDC_FRAME_REJECTED=128u };
+    DBT_LHDC_FORMAT_MISMATCH=32u, DBT_LHDC_QUALITY_SCANNED=64u, DBT_LHDC_FRAME_REJECTED=128u, DBT_LHDC_NONFINITE=256u };
 typedef struct {
-    uint32_t revision,attempts,rejected,channel0_errors,channel1_silenced,peak_concealed,clipped_frames,clipped_samples;
+    uint32_t revision,attempts,rejected,channel0_errors,channel1_silenced,peak_concealed,nonfinite_frames,clipped_frames,clipped_samples;
     uint32_t event_attempt,generation,frame_index,rtp_timestamp,ssrc,sequence,frame_bytes,flags,peak_f32_bits;
     int32_t result,channel0_result,channel1_result;
 } dbt_lhdcv5_quality_t;

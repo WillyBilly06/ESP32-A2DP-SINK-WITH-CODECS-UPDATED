@@ -75,6 +75,10 @@ def generate(source,output):
             text=once(text,'#define S1920_TBL_FLOATS (2*IMDCT_N2_1920*IMDCT_N2_1920 \\\n                          + 2*IMDCT_N2_1920*IMDCT_N1_1920 + 2*IMDCT_P_1920)',
                       '#define S1920_TBL_FLOATS (2*IMDCT_N2_1920*IMDCT_N1_1920 + 2*IMDCT_P_1920 + 32)')
         if name=="lhdc_dec.c":
+            text=once(text,'#include <math.h>','''#include <math.h>
+#if defined(__FAST_MATH__) || (defined(__FINITE_MATH_ONLY__) && __FINITE_MATH_ONLY__)
+#error LHDC output safety requires strict finite and unordered comparisons
+#endif''')
             # Classic ESP32 already compiles out the selector retry that is
             # the only reader of ov_save. Keep the portable retry/storage and
             # an explicit retained-buffer reference for paired validation.
@@ -155,10 +159,20 @@ extern void dbt_lhdc_stage_record(uint32_t,uint32_t,uint32_t,uint32_t,uint32_t,u
                 dbt_lhdc_channel_failure(1, (int)ret);
 #endif
                 /* Fall back to silence on this channel if ch1 fails. */''')
+            # Preserve every finite peak comparison result. An unordered sample
+            # becomes a sticky +Inf peak, selecting existing frame concealment
+            # and overlap retirement before any float-to-integer conversion.
+            text=once(text,'''        if (al > frame_peak) frame_peak = al;
+        if (ar > frame_peak) frame_peak = ar;''','''        if (!(al <= frame_peak)) frame_peak = al >= 0.0f ? al : INFINITY;
+        if (!(ar <= frame_peak)) frame_peak = ar >= 0.0f ? ar : INFINITY;''')
+            # INT32_MAX rounds upward to 2^31 as float. Guard this endpoint and
+            # unordered values explicitly before the representable-range cast.
+            text=once(text,'''        (dst) = (int32_t)_s; } while (0)''',r'''        if (!(_s < 2147483648.0f)) (dst) = (_s == _s) ? INT32_MAX : 0; \
+        else (dst) = (int32_t)_s; } while (0)''')
             text=once(text,'    int conceal = (frame_peak > 2.0f * clip_lim);',
                 '''    int conceal = (frame_peak > 2.0f * clip_lim);
 #ifdef DBT_LHDC_QUALITY
-    dbt_lhdc_frame_quality(frame_peak, (unsigned)clip_cnt, conceal);
+    dbt_lhdc_frame_quality(frame_peak, (unsigned)clip_cnt, conceal, !isfinite(frame_peak));
 #endif''')
             # Frame size/rate/depth are stable across most stream packets.
             # Cache the exact existing float results, never an approximation;

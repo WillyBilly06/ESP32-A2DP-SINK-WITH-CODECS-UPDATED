@@ -33,7 +33,7 @@ static bool allocation_failed;
 #ifdef DBT_LHDC_QUALITY
 #define QUALITY_FIELDS(X) \
     X(uint32_t,attempts) X(uint32_t,rejected) X(uint32_t,channel0_errors) X(uint32_t,channel1_silenced) \
-    X(uint32_t,peak_concealed) X(uint32_t,clipped_frames) X(uint32_t,clipped_samples) \
+    X(uint32_t,peak_concealed) X(uint32_t,nonfinite_frames) X(uint32_t,clipped_frames) X(uint32_t,clipped_samples) \
     X(uint32_t,event_attempt) X(uint32_t,generation) X(uint32_t,frame_index) X(uint32_t,rtp_timestamp) X(uint32_t,ssrc) \
     X(uint32_t,sequence) X(uint32_t,frame_bytes) X(uint32_t,flags) X(uint32_t,peak_f32_bits) \
     X(int32_t,result) X(int32_t,channel0_result) X(int32_t,channel1_result)
@@ -63,10 +63,11 @@ void dbt_lhdc_channel_failure(unsigned channel,int result){
     lhdc_state_t *s=active->state;s->quality.flags|=channel?DBT_LHDC_CHANNEL1_SILENCED:DBT_LHDC_CHANNEL0_ERROR;
     s->quality.channel_result[channel]=result;
 }
-void dbt_lhdc_frame_quality(float peak,unsigned clipped_samples,int concealed){
+void dbt_lhdc_frame_quality(float peak,unsigned clipped_samples,int concealed,int nonfinite){
     if(!active || !active->state)return;
     lhdc_state_t *s=active->state;s->quality.flags|=DBT_LHDC_QUALITY_SCANNED;
     if(concealed)s->quality.flags|=DBT_LHDC_PEAK_CONCEALED;
+    if(nonfinite)s->quality.flags|=DBT_LHDC_NONFINITE;
     if(clipped_samples)s->quality.flags|=DBT_LHDC_CLIPPED;
     s->quality.clipped_samples=clipped_samples;
     __builtin_memcpy(&s->quality.peak_f32_bits,&peak,sizeof(peak));
@@ -83,6 +84,7 @@ static void quality_commit(const lhdc_state_t *s,uint32_t frame,uint32_t timesta
     quality_add(&quality.channel0_errors,(flags&DBT_LHDC_CHANNEL0_ERROR)!=0);
     quality_add(&quality.channel1_silenced,(flags&DBT_LHDC_CHANNEL1_SILENCED)!=0);
     quality_add(&quality.peak_concealed,(flags&DBT_LHDC_PEAK_CONCEALED)!=0);
+    quality_add(&quality.nonfinite_frames,(flags&DBT_LHDC_NONFINITE)!=0);
     quality_add(&quality.clipped_frames,(flags&DBT_LHDC_CLIPPED)!=0);quality_add(&quality.clipped_samples,s->quality.clipped_samples);
 #define QUALITY_STORE(field,value) atomic_store_explicit(&quality.field,(value),memory_order_seq_cst)
     if(flags&~(uint32_t)DBT_LHDC_QUALITY_SCANNED){
