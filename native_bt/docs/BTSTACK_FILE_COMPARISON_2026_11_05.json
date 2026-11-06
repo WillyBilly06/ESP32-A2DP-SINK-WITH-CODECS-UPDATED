@@ -691,19 +691,21 @@
     },
     {
       "owned": "native_bt/esp32_probe/main/probe_admission.c",
-      "sha256": "64a6c6e90836aecc6d03307338c19dbceb3354569d68921db78e368d187463dc",
-      "lines": 296,
+      "sha256": "9c2a108cd5a9cecf8e055e0199dc054f7243c9b6d77eb4abe757efc4ec74c653",
+      "lines": 310,
       "reference_files": [],
       "status": "pending",
-      "mapping": "product/support code; no direct protocol counterpart assigned"
+      "mapping": "product/support code; no direct protocol counterpart assigned",
+      "review_scope": "Selected sections only; whole-file comparison remains unfinished. Follow-up2026-11-06: scoped Classic renewal, asynchronous VHCI ownership, first-starvation metadata and/or SMP consent/store renewal sections reviewed as applicable; see BLE_CLASSIC_COEX_2026_11_06.md and FIRST_STARVATION_2026_11_06.md. Status/coverage is not promoted by this selected-section follow-up."
     },
     {
       "owned": "native_bt/esp32_probe/main/probe_admission.h",
-      "sha256": "bbcff0acaef3bbb1b9336c4bc6a5719760af37a796031568f30cbdf50abd6a60",
-      "lines": 48,
+      "sha256": "be32cb945f5163d2be32eb07aa7fba43e0ce950710e3173ec15015950001d721",
+      "lines": 51,
       "reference_files": [],
       "status": "pending",
-      "mapping": "product/support code; no direct protocol counterpart assigned"
+      "mapping": "product/support code; no direct protocol counterpart assigned",
+      "review_scope": "Selected sections only; whole-file comparison remains unfinished. Follow-up2026-11-06: scoped Classic renewal, asynchronous VHCI ownership, first-starvation metadata and/or SMP consent/store renewal sections reviewed as applicable; see BLE_CLASSIC_COEX_2026_11_06.md and FIRST_STARVATION_2026_11_06.md. Status/coverage is not promoted by this selected-section follow-up."
     },
     {
       "owned": "native_bt/esp32_probe/main/probe_audio_limits.h",
@@ -715,12 +717,12 @@
     },
     {
       "owned": "native_bt/esp32_probe/main/probe_audio.c",
-      "sha256": "89aaadb33140705a67e77801e8f712ec3f3285363a0f44326674e776c233a3ee",
-      "lines": 1218,
+      "sha256": "51e1c8dc8c92919cdd81c526a6171f482ee5e0dcf71e1f05e6bb6394961adc02",
+      "lines": 1286,
       "reference_files": [],
       "status": "partial_review",
       "mapping": "product/support code; no direct protocol counterpart assigned",
-      "review_scope": "Selected active decode/render/owner/telemetry and passive stage/scheduler integration reviewed; source remains partial. Trace shows output pressure/latched failure with decoder rejects0, but full profile/default peer/feature/security and shared throughput proof remain unfinished. Follow-up: closed-channel codec-aware core ownership and one-to-one PCM selection checked against released Bluedroid; LDAC96k short playback has0 underruns/queue drops/rejects/WDT. All-mode lifecycle, fidelity, concurrency and sustained qualification remain open. AAC version1/ASC span bounds and baseline1023/1024-frame reserve follow-up; compiler/analysis/readback/cold/live PCM evidence recorded. AAC startup and aptX HD residual underruns remain unqualified."
+      "review_scope": "Selected active decode/render/owner/telemetry and passive stage/scheduler integration reviewed; source remains partial. Trace shows output pressure/latched failure with decoder rejects0, but full profile/default peer/feature/security and shared throughput proof remain unfinished. Follow-up: closed-channel codec-aware core ownership and one-to-one PCM selection checked against released Bluedroid; LDAC96k short playback has0 underruns/queue drops/rejects/WDT. All-mode lifecycle, fidelity, concurrency and sustained qualification remain open. AAC version1/ASC span bounds and baseline1023/1024-frame reserve follow-up; compiler/analysis/readback/cold/live PCM evidence recorded. AAC startup and aptX HD residual underruns remain unqualified. Follow-up2026-11-06: scoped Classic renewal, asynchronous VHCI ownership, first-starvation metadata and/or SMP consent/store renewal sections reviewed as applicable; see BLE_CLASSIC_COEX_2026_11_06.md and FIRST_STARVATION_2026_11_06.md. Status/coverage is not promoted by this selected-section follow-up."
     },
     {
       "owned": "native_bt/esp32_probe/main/probe_audio.h",
@@ -1063,11 +1065,15 @@
     },
     {
       "owned": "native_bt/esp32_probe/main/probe_main.c",
-      "sha256": "10e603b4e1b36f6d0ed7ff3b7cfe859165deda30414d8a16a711ecf1659c90eb",
-      "lines": 1140,
-      "reference_files": [],
+      "sha256": "c360042d9dd1490048d09fb1b80e6b81721c1922a1387554f31bab6197f5a4eb",
+      "lines": 1152,
+      "reference_files": [
+        "src/hci.c",
+        "port/esp32/components/btstack/hci_transport_esp32_vhci.c"
+      ],
       "status": "partial_review",
-      "mapping": "product/support code; no direct protocol counterpart assigned"
+      "mapping": "product/support code; no direct protocol counterpart assigned",
+      "review_scope": "Selected sections only; whole-file comparison remains unfinished. Follow-up2026-11-06: scoped Classic renewal, asynchronous VHCI ownership, first-starvation metadata and/or SMP consent/store renewal sections reviewed as applicable; see BLE_CLASSIC_COEX_2026_11_06.md and FIRST_STARVATION_2026_11_06.md. Status/coverage is not promoted by this selected-section follow-up."
     },
     {
       "owned": "native_bt/esp32_probe/main/probe_opus_vectors.h",
@@ -1084,23 +1090,23 @@
     },
     {
       "owned": "native_bt/esp32_probe/main/probe_output.c",
-      "sha256": "1d2ec8d060c6756eb0bce2c4ec2320a33a1017fd27dbd5dde8be52524b820c81",
-      "lines": 1355,
+      "sha256": "93dd88b8690cded7572e7612770a53e7396795c6f5352d37b2f5843dce285456",
+      "lines": 1493,
       "reference_files": [
         "port/esp32/components/btstack/btstack_audio_esp32_v5.c"
       ],
       "status": "reviewed_with_findings",
       "mapping": "reviewed_port_audio_boundaries",
-      "review_scope": "Authored output body previously reviewed; current callback lookup, descriptor-copy accounting, verified-pool recovery, stop streak, reset/stats and compiled mode reread against actual ESP32 SDK EOF ISR. Error visibility retained; renderer overload/IRQ-delay cause, all-mode lifecycle and active recovery proof remain incomplete. Follow-up: closed-channel codec-aware core ownership and one-to-one PCM selection checked against released Bluedroid; LDAC96k short playback has0 underruns/queue drops/rejects/WDT. All-mode lifecycle, fidelity, concurrency and sustained qualification remain open. AAC version1/ASC span bounds and baseline1023/1024-frame reserve follow-up; compiler/analysis/readback/cold/live PCM evidence recorded. AAC startup and aptX HD residual underruns remain unqualified."
+      "review_scope": "Authored output body previously reviewed; current callback lookup, descriptor-copy accounting, verified-pool recovery, stop streak, reset/stats and compiled mode reread against actual ESP32 SDK EOF ISR. Error visibility retained; renderer overload/IRQ-delay cause, all-mode lifecycle and active recovery proof remain incomplete. Follow-up: closed-channel codec-aware core ownership and one-to-one PCM selection checked against released Bluedroid; LDAC96k short playback has0 underruns/queue drops/rejects/WDT. All-mode lifecycle, fidelity, concurrency and sustained qualification remain open. AAC version1/ASC span bounds and baseline1023/1024-frame reserve follow-up; compiler/analysis/readback/cold/live PCM evidence recorded. AAC startup and aptX HD residual underruns remain unqualified. Follow-up2026-11-06: scoped Classic renewal, asynchronous VHCI ownership, first-starvation metadata and/or SMP consent/store renewal sections reviewed as applicable; see BLE_CLASSIC_COEX_2026_11_06.md and FIRST_STARVATION_2026_11_06.md. Status/coverage is not promoted by this selected-section follow-up."
     },
     {
       "owned": "native_bt/esp32_probe/main/probe_output.h",
-      "sha256": "cd8f8f308d06c6fa6da156bf5f8ce945ce30ad25bc8a1fe0b3352574e2bf4712",
-      "lines": 115,
+      "sha256": "a4654d1fddbfdf542bdc73fae8458641e1d5b4e15bd7c297b8cbbe4cbefc935b",
+      "lines": 130,
       "reference_files": [],
       "status": "reviewed_contract",
       "mapping": "product/support code; no direct protocol counterpart assigned",
-      "review_scope": "Complete output API/stats declaration reread for added recovery/minimum counters; copied DMA ownership and incomplete callback-count/replay inference explicit. No payload pool/task introduced. Follow-up: closed-channel codec-aware core ownership and one-to-one PCM selection checked against released Bluedroid; LDAC96k short playback has0 underruns/queue drops/rejects/WDT. All-mode lifecycle, fidelity, concurrency and sustained qualification remain open. AAC version1/ASC span bounds and baseline1023/1024-frame reserve follow-up; compiler/analysis/readback/cold/live PCM evidence recorded. AAC startup and aptX HD residual underruns remain unqualified."
+      "review_scope": "Complete output API/stats declaration reread for added recovery/minimum counters; copied DMA ownership and incomplete callback-count/replay inference explicit. No payload pool/task introduced. Follow-up: closed-channel codec-aware core ownership and one-to-one PCM selection checked against released Bluedroid; LDAC96k short playback has0 underruns/queue drops/rejects/WDT. All-mode lifecycle, fidelity, concurrency and sustained qualification remain open. AAC version1/ASC span bounds and baseline1023/1024-frame reserve follow-up; compiler/analysis/readback/cold/live PCM evidence recorded. AAC startup and aptX HD residual underruns remain unqualified. Follow-up2026-11-06: scoped Classic renewal, asynchronous VHCI ownership, first-starvation metadata and/or SMP consent/store renewal sections reviewed as applicable; see BLE_CLASSIC_COEX_2026_11_06.md and FIRST_STARVATION_2026_11_06.md. Status/coverage is not promoted by this selected-section follow-up."
     },
     {
       "owned": "native_bt/esp32_probe/main/probe_pair_button.c",
@@ -1298,11 +1304,15 @@
     },
     {
       "owned": "native_bt/esp32_probe/main/probe_security.c",
-      "sha256": "fc7408dde90850a5c932dd7d5461728977cc11502e0e71aa8730c7de19a7ca4c",
-      "lines": 704,
-      "reference_files": [],
+      "sha256": "f20a5d204710e34e67fed4c0d0c42948ba0f403891b21e49d7857adddbf09c36",
+      "lines": 718,
+      "reference_files": [
+        "src/hci.c",
+        "src/ble/sm.c"
+      ],
       "status": "pending",
-      "mapping": "product/support code; no direct protocol counterpart assigned"
+      "mapping": "product/support code; no direct protocol counterpart assigned",
+      "review_scope": "Selected sections only; whole-file comparison remains unfinished. Follow-up2026-11-06: scoped Classic renewal, asynchronous VHCI ownership, first-starvation metadata and/or SMP consent/store renewal sections reviewed as applicable; see BLE_CLASSIC_COEX_2026_11_06.md and FIRST_STARVATION_2026_11_06.md. Status/coverage is not promoted by this selected-section follow-up."
     },
     {
       "owned": "native_bt/esp32_probe/main/probe_security.h",
@@ -1314,11 +1324,14 @@
     },
     {
       "owned": "native_bt/esp32_probe/main/probe_smp.c",
-      "sha256": "c291cf70d8d65c24f39d9c60b87c5223f11e25c5b3a38fd30451d1756d2a8dab",
-      "lines": 1124,
-      "reference_files": [],
+      "sha256": "ba369f9c91bba2d0b0c4542608f31d9e93bfe6ff6850895da0d5dcb514a4560b",
+      "lines": 1172,
+      "reference_files": [
+        "src/ble/sm.c"
+      ],
       "status": "partial_review",
-      "mapping": "product/support code; no direct protocol counterpart assigned"
+      "mapping": "product/support code; no direct protocol counterpart assigned",
+      "review_scope": "Selected sections only; whole-file comparison remains unfinished. Follow-up2026-11-06: scoped Classic renewal, asynchronous VHCI ownership, first-starvation metadata and/or SMP consent/store renewal sections reviewed as applicable; see BLE_CLASSIC_COEX_2026_11_06.md and FIRST_STARVATION_2026_11_06.md. Status/coverage is not promoted by this selected-section follow-up."
     },
     {
       "owned": "native_bt/esp32_probe/main/probe_smp.h",
@@ -2457,15 +2470,16 @@
     },
     {
       "owned": "native_bt/src/dbt_classic_security.c",
-      "sha256": "b86d201b6ba872c856e386456b763816ff61e7eaa2fd3897cc9796ef2e3fdc79",
-      "lines": 1043,
+      "sha256": "254f564afad5e0635353c3b01a0a247ad7d9ecc00d3263390da28702976637a8",
+      "lines": 1049,
       "reference_files": [
         "src/hci.c",
         "src/hci.h",
         "port/esp32/components/btstack/hci_transport_esp32_vhci.c"
       ],
       "status": "pending",
-      "mapping": "counterpart_candidates"
+      "mapping": "counterpart_candidates",
+      "review_scope": "Selected sections only; whole-file comparison remains unfinished. Follow-up2026-11-06: scoped Classic renewal, asynchronous VHCI ownership, first-starvation metadata and/or SMP consent/store renewal sections reviewed as applicable; see BLE_CLASSIC_COEX_2026_11_06.md and FIRST_STARVATION_2026_11_06.md. Status/coverage is not promoted by this selected-section follow-up."
     },
     {
       "owned": "native_bt/src/dbt_credit.c",
@@ -4326,6 +4340,24 @@
       ],
       "outcome": "Moved required target ramp preparation before READY, status-returning cached generic/fast shape choice, meaningful selected-transform cache failure, checked entropy readiness and tail cleanup. No table/arithmetic/format/resource-size change. Existing host diagnostic timing and reference policy kept; target/host static/build/readback/cold+idle evidence only, full runtime behavior unqualified.",
       "full_layer_complete": false
+    },
+    {
+      "layer": "BTDM transport ownership and SMP consent/identity renewal",
+      "owned": [
+        "native_bt/esp32_probe/main/probe_admission.c",
+        "native_bt/esp32_probe/main/probe_admission.h",
+        "native_bt/esp32_probe/main/probe_main.c",
+        "native_bt/esp32_probe/main/probe_security.c",
+        "native_bt/esp32_probe/main/probe_smp.c",
+        "native_bt/src/dbt_classic_security.c"
+      ],
+      "reference": [
+        "port/esp32/components/btstack/hci_transport_esp32_vhci.c",
+        "src/hci.c",
+        "src/ble/sm.c"
+      ],
+      "outcome": "Selected sections compared; explicit TX lifetime, scoped trusted Classic SSP renewal and SMP consent/store renewal corrected. Full readback/cold plus short prompt-policy, durable LE re-pairing, stored-key reconnect and acknowledged app EQ during LDAC evidence; all-mode encrypted control/stress/security qualification remains open.",
+      "full_layer_complete": false
     }
   ],
   "integration_gaps": [
@@ -4770,10 +4802,22 @@
         "AAC now renders PCM,0 decoder rejects/queue drops/RTP breaks/faults/WDT;1024-frame target records384 underrun frames, repeat512. Watermark alone did not fix AAC startup continuity. Host console samples unchanged during repeat; no proof host logging causes this gap. Worker trace losses prevent packet-arrival inference.",
         "aptX HD16ms prior trace386 underrun frames;1024-frame trace2. No isolated repeatable gain or zero-gap claim. LDAC96k earlier one-to-one/Core0 trace0 underruns/drops. Full-rate/codec/BLE/security/lifecycle/OTA/stress gates remain open."
       ]
+    },
+    {
+      "id": "BTDM-VHCI-SMP-CONSENT-RENEWAL",
+      "status": "source_build_readback_cold_pairing_stored_key_reconnect_eq_audio_targeted_pass_continuity_open",
+      "notes": [
+        "BTstack9edb5d82ea6ec4466a393415d65030929330acdf selected ESP32 transport/HCI/SM sections compared. Controller-only BTDM was already enabled;1 Classic +1 LE and separate pools remain. Explicit asynchronous VHCI in-flight guard, no new packet buffer/task.",
+        "Trusted encrypted durable16-byte Classic session may renew its generation-scoped30s SSP lease; completed IO flags reset for new exchange. Live renewal succeeded with SSP status0 and durable readback.",
+        "SMPwindow0 Security Request followed by policy rejection4 and LE local disconnect reproduced in0d5f74f9. Product consent now gates proactive prompts, cancellation/wait/quiescence; unsupported starts use bounded Pairing Failed before teardown.",
+        "cd927af6 full application bytes verified in115200 read-only recovery after230400 USB truncation, prior VALID selector281 retained, protected original unchanged, owned/no fallback,37 cold cases pass. Two finite12s96k traces retain exact Android route; LE stays beyond52s without unsolicited prompt. Native underruns remain.",
+        "Authorized GPIO0/DTR3.3s gesture (no RTS/reset marker/UART TX) opens consent. Checked identity-proof renewal in516147fc reaches durable commit: stage12 result0/step4/flags3.10349 stable build hashes; full readbacks921600write/115200read,37 existing cold cases pass, owned active/no fallback. Normal bonded LE reconnect in window0 accepts LTK and resolves stored identity. Two12s LDAC96k runs acknowledge Deep Bass then Balanced through actual app, no route/focus loss or security disconnect; native640 then128 underrun frames. This is limited functional evidence, not full security/feature/fidelity/continuity qualification.",
+        "AAC/Core1 trial rejected and restoredCore0. Broad codec/security/lifecycle/OTA/maxLHDC/long-duration/audio-fidelity qualification still open. No whole-stack-complete claim."
+      ]
     }
   ],
   "next_review": "Add bounded passive per-stage arrival/first-starvation timing to locate AAC/aptX HD residual gaps; do not infer RF loss from diagnostic-ring loss. Preserve measured one-to-one LDAC fix, original bounded reserve and explicit core policy. Continue only approved targeted playback; all-feature qualification remains incomplete.",
-  "latest_build_image": "863d0b94ba605641231714f02101168a0e9b55d633fecfb3bd8fdc99fdb9b275",
+  "latest_build_image": "516147fc4e930190d3bf4bb13a336930606cd4b75e85572ef7a5fb6db2cd4c5f",
   "verification_source_contracts": [
     {
       "file": "native_bt/tools/test_ldac_target_component.py",

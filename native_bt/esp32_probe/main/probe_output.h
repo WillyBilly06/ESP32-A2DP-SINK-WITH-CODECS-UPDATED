@@ -78,6 +78,21 @@ dbt_result_t probe_output_pcm_format(const void *samples,uint16_t frames,uint8_t
  * Stream control must keep the producer quiescent through format/stop tickets. */
 dbt_result_t probe_output_try_pcm_format(const void *,uint16_t,uint8_t,uint32_t,dbt_pcm_format_t);
 void probe_output_stats(probe_output_stats_t *stats);
+#ifdef DBT_PROBE_SCHEDULER_TRACE
+/* Passive stage stamps. Each producer has one writer; snapshots never spin.
+ * Phase0=between operations;1=decode;2=reset;3=PCM delivery;
+ *4/5/6/7=waiting for PCM space/loan/control/encoded input. */
+typedef struct {
+    uint32_t captured,coherent;
+    uint32_t stream_serial,at_us,taken_frames,input_frames,output_frames,accepted_frames,rendered_frames,dma_source_frames,acl_us,host_poll_us,media_us,media_admit_us,media_epoch,media_sequence,media_timestamp,media_ssrc,media_result,media_gap_us,media_max_gap_us,media_coherent,decoder_phase,decoder_at_us,decoder_coherent,render_phase,render_at_us,render_coherent,decoder_queued;
+} probe_output_starvation_t;
+void probe_output_trace_media(uint32_t began,uint32_t ended,uint32_t epoch,uint16_t sequence,uint32_t timestamp,uint32_t ssrc,dbt_result_t result);
+void probe_output_trace_acl(uint32_t at);
+void probe_output_trace_host_poll(uint32_t at);
+void probe_output_trace_decoder(uint32_t phase,uint32_t at,uint32_t queued);
+void probe_output_first_starvation(probe_output_starvation_t *snapshot);
+#endif
+
 /* Cheap failure fence for hot-path monitoring; no stack scanning/snapshot. */
 bool probe_output_failed(void);
 bool probe_output_running(void);

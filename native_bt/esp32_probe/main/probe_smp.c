@@ -7,11 +7,15 @@
 #include "freertos/queue.h"
 #include <nvs.h>
 #include <string.h>
-#ifdef DBT_PROBE_RF_PROTOCOL_DIAGNOSTIC
+#if defined(DBT_PROBE_RF_PROTOCOL_DIAGNOSTIC) || defined(DBT_PROBE_PRODUCT_SECURITY)
 #include "probe_security.h"
-/* Owner-only, at most 24 metadata records. No key/nonce/random/PDU contents. */
+/* Owner-only, at most 64 metadata records per link generation. Nonblocking
+ * existing logger queue; no key, nonce, random or PDU contents. */
 static void trace_smp(uint16_t h,uint32_t g,uint8_t stage,int result,uint8_t code,uint16_t size,uint32_t window){
-    static unsigned count;if(count>=24)return;++count;
+    static uint32_t generation;static uint16_t handle;static unsigned count;
+    if(generation!=g || handle!=h){generation=g;handle=h;count=0;}
+    if(count>=64)return;
+    ++count;
     probe_security_smp_trace(h,g,stage,result,code,size,window);
 }
 #else
@@ -48,6 +52,7 @@ typedef struct {
     work_kind_t kind;
     uint32_t generation,serial;
     bool success,existing,resolved_candidate;
+    uint8_t store_step;bool identity_proof_preserved;
     dbt_smp_session_crypto_kind_t crypto_kind;
     dbt_result_t status;
     dbt_smp_bond_op_t operation;
@@ -160,6 +165,15 @@ static uint32_t request_window(uint32_t now){
     (void)now;return 0;
 #endif
 }
+/* Do not prompt the central to start pairing when local consent forbids it.
+ * Bonded centrals may still initiate encryption through the normal LTK path. */
+static bool security_request_allowed(uint32_t window){
+#ifdef DBT_PROBE_PRODUCT_SECURITY
+    return window!=0;
+#else
+    (void)window;return true;
+#endif
+}
 static bool request_frozen(void){
 #ifdef DBT_PROBE_PRODUCT_SECURITY
     return probe_admission_frozen();
@@ -183,7 +197,7 @@ void probe_smp_security_request_preflight(uint32_t now){
         }
         if(!configuration.peripheral_security_requests)continue;
         stale=stale || l->role!=1;
-        if(r->loan && (stale || l->encrypted || request_frozen() || slot.active || expired))
+        if(r->loan && (stale || l->encrypted || request_frozen() || !security_request_allowed(window) || slot.active || expired))
             (void)cancel_request(r,expired);
         if(stale && !r->loan)wipe(r,sizeof(*r));
     }
@@ -206,6 +220,7 @@ static void security_request_poll(uint32_t now){
     if(!runtime || !runtime->ready || !configuration.peripheral_security_requests || request_frozen() ||
        slot.active || maintenance.active || runtime->acl.mtu[DBT_LINK_LE]<6)return;
     uint32_t window=request_window(now);
+    if(!security_request_allowed(window))return;
     for(unsigned i=0;i<DBT_MAX_LINKS;i++){
         const dbt_link_t *l=&runtime->acl.links[i];
         if(!l->used || l->kind!=DBT_LINK_LE || l->role!=1 || l->encrypted || quarantined(l->handle))continue;
@@ -351,25 +366,50 @@ static void worker_execute(worker_state_t *state,work_t *w,completion_t *result)
                                                             &done.crypto.legacy);
             }
         } else if (work.kind==WORK_STORE) {
-            done.serial=work.payload.store.serial;
+            done.serial=work.payload.store.serial;done.status=DBT_INVALID;done.store_step=1;
+            bool eligible=state->storage_open && !provider->poisoned &&
+                *crypto_generation==work.generation && work.payload.store.generation==work.generation &&
+                work.payload.store.op==DBT_SMP_BOND_STORE;
             bool bound=true;
-            if (work.require_rpa_binding) {
+            if(eligible && work.require_rpa_binding){
+                done.store_step=2;
                 const dbt_smp_bond_record_t *r=&work.payload.store.record;
                 bound=r->have_irk && r->candidate_present && r->identity_type==r->candidate_type &&
                     !memcmp(r->identity,r->candidate_identity,6) && !memcmp(r->irk,r->candidate_irk,16);
                 bool matching=false;
-                if (bound) bound=dbt_smp_nvs_verify_rpa(work.binding_rpa,r->irk,&matching) && matching;
+                if(bound)bound=dbt_smp_nvs_verify_rpa(work.binding_rpa,r->irk,&matching) && matching;
             }
-            done.success=state->storage_open && !provider->poisoned &&
-                *crypto_generation==work.generation && work.payload.store.generation==work.generation &&
-                work.payload.store.op==DBT_SMP_BOND_STORE && bound &&
-                dbt_smp_nvs_execute(provider,&work.payload.store,NULL)==DBT_OK;
-            if (done.success) {
+            if(eligible && bound){
+                done.store_step=3;
+                /* A fresh LTK must not erase an already verified, unchanged
+                 * identity/IRK. Reuse existing completion storage for the load;
+                 * all NVS work stays in this worker. Generic downgrade checks
+                 * remain authoritative for security and identity changes. */
+                work.payload.store.op=DBT_SMP_BOND_LOAD;
+                done.status=dbt_smp_nvs_execute(provider,&work.payload.store,&done.previous);
+                work.payload.store.op=DBT_SMP_BOND_STORE;
+                if(done.status==DBT_OK || done.status==DBT_EMPTY){
+                    dbt_smp_bond_record_t *r=&work.payload.store.record;
+                    const dbt_smp_bond_record_t *old=&done.previous;
+                    if(done.status==DBT_OK && work.require_rpa_binding && old->candidate_verified &&
+                       old->have_irk && r->have_irk && old->candidate_present && r->candidate_present &&
+                       old->identity_type==r->identity_type && !memcmp(old->identity,r->identity,6) &&
+                       old->candidate_type==r->candidate_type && !memcmp(old->candidate_identity,r->candidate_identity,6) &&
+                       !memcmp(old->irk,r->irk,16) && !memcmp(old->candidate_irk,r->candidate_irk,16)){
+                        r->candidate_verified=true;done.identity_proof_preserved=true;
+                    }
+                    done.store_step=4;
+                    done.status=dbt_smp_nvs_execute(provider,&work.payload.store,NULL);
+                    done.success=done.status==DBT_OK;
+                }
+            }
+            wipe(&done.previous,sizeof(done.previous));
+            if(done.success){
                 done.identity_type=work.payload.store.identity_type;
                 memcpy(done.identity,work.payload.store.identity,6);
                 done.tag_valid=probe_cccd_bond_tag(&work.payload.store.record,done.bond_tag);
             }
-            if (provider->poisoned) storage_poisoned=true;
+            if(provider->poisoned)storage_poisoned=true;
         } else if (work.kind==WORK_LOAD || work.kind==WORK_RESOLVE) {
             done.serial=work.payload.store.serial;
             if (!state->storage_open && !storage_poisoned) {
@@ -536,10 +576,9 @@ static uint8_t smp_size_error(uint8_t opcode,uint16_t size){
     if(!opcode || opcode>=sizeof(lengths))return 7;
     return size==lengths[opcode]?0:10;
 }
-dbt_result_t probe_smp_reject_size(const dbt_link_t *l,uint8_t opcode,uint16_t declared){
+static dbt_result_t reject_pairing(const dbt_link_t *l,uint8_t opcode,uint16_t declared,uint8_t reason){
     if(!runtime || !runtime->ready || !l || !l->used || l->kind!=DBT_LINK_LE)return DBT_INVALID;
     const dbt_link_t *current=dbt_acl_find(&runtime->acl,l->handle);
-    uint8_t reason=smp_size_error(opcode,declared);
     if(!current || current->generation!=l->generation || !reason)return DBT_INVALID;
     security_request_t *r=request_for(l->handle,l->generation);
     if(r && r->rejecting)return DBT_OK;
@@ -554,11 +593,14 @@ dbt_result_t probe_smp_reject_size(const dbt_link_t *l,uint8_t opcode,uint16_t d
     trace_smp(l->handle,l->generation,8,DBT_OK,opcode,declared,request_window(runtime->now_ms));
     return DBT_OK;
 }
+dbt_result_t probe_smp_reject_size(const dbt_link_t *l,uint8_t opcode,uint16_t declared){
+    return reject_pairing(l,opcode,declared,smp_size_error(opcode,declared));
+}
 dbt_result_t probe_smp_receive(const dbt_link_t *l,uint16_t cid,const uint8_t *p,uint16_t n) {
     if (!l || cid!=SMP_CID || !p || !n) return DBT_INVALID;
     if(rejecting_peer(l->handle,l->generation))return DBT_OK;
     if(smp_size_error(p[0],n))return probe_smp_reject_size(l,p[0],n);
-#ifdef DBT_PROBE_RF_PROTOCOL_DIAGNOSTIC
+#if defined(DBT_PROBE_RF_PROTOCOL_DIAGNOSTIC) || defined(DBT_PROBE_PRODUCT_SECURITY)
     if(n==7 && (p[0]==1 || p[0]==2)){
         static unsigned feature_records;if(feature_records<4){++feature_records;probe_security_pairing_features(l->handle,l->generation,p);}
     }
@@ -569,6 +611,8 @@ dbt_result_t probe_smp_receive(const dbt_link_t *l,uint16_t cid,const uint8_t *p
         if (p[0]!=1) return DBT_INVALID;
         dbt_result_t rc=begin(l,false);
         trace_smp(l->handle,l->generation,4,(int)rc,p[0],n,request_window(runtime?runtime->now_ms:0));
+        if(rc==DBT_UNSUPPORTED || rc==DBT_BUSY)
+            return reject_pairing(l,p[0],n,rc==DBT_UNSUPPORTED?5:8);
         if (rc!=DBT_OK) return rc;
     }
     if (l->handle!=slot.handle || l->generation!=slot.generation || slot.failed || slot.disconnected)
@@ -579,7 +623,7 @@ dbt_result_t probe_smp_receive(const dbt_link_t *l,uint16_t cid,const uint8_t *p
     memcpy(slot.inbox,p,n); slot.inbox_size=(uint8_t)n; return DBT_OK;
 }
 void probe_smp_link(const dbt_link_change_t *change) {
-#ifdef DBT_PROBE_RF_PROTOCOL_DIAGNOSTIC
+#if defined(DBT_PROBE_RF_PROTOCOL_DIAGNOSTIC) || defined(DBT_PROBE_PRODUCT_SECURITY)
     if(change && change->kind==DBT_LINK_ADDED){
         const dbt_link_t *l=dbt_acl_find(&runtime->acl,change->handle);
         if(l && l->generation==change->generation && l->kind==DBT_LINK_LE){
@@ -731,8 +775,11 @@ static void reconnect_reply(uint32_t now) {
     } else if (rc!=DBT_BUSY && rc!=DBT_NO_SPACE) slot.failed=true;
 }
 static void complete(completion_t *done,uint32_t now) {
-    if(slot.active && done->generation==slot.generation)
+    if(slot.active && done->generation==slot.generation){
         trace_smp(slot.handle,slot.generation,9,(int)done->status,(uint8_t)done->kind,(uint16_t)((done->success?1:0)|(done->existing?2:0)),request_window(now));
+        if(done->kind==WORK_STORE)trace_smp(slot.handle,slot.generation,12,(int)done->status,done->store_step,
+            (uint16_t)((done->success?1:0)|(done->identity_proof_preserved?2:0)),request_window(now));
+    }
     work_inflight=false;
     if (maintenance.active && done->generation==maintenance.generation) {
         if (done->kind==WORK_RETIRE) {
@@ -1000,7 +1047,7 @@ uint32_t probe_smp_wait_ms(uint32_t now) {
             const security_request_t *r=&security_requests[i];
             if(r->used && r->loan && !r->rejecting){uint32_t delay=(int32_t)(now-r->deadline)>=0?0:r->deadline-now;if(delay<wait)wait=delay;}
         }
-        if(runtime->ready && runtime->acl.mtu[DBT_LINK_LE]>=6 && !request_frozen() && !slot.active && !maintenance.active){
+        if(runtime->ready && runtime->acl.mtu[DBT_LINK_LE]>=6 && !request_frozen() && security_request_allowed(window) && !slot.active && !maintenance.active){
             for(unsigned i=0;i<DBT_MAX_LINKS;i++){
                 const dbt_link_t *l=&runtime->acl.links[i];
                 if(!l->used || l->kind!=DBT_LINK_LE || l->role!=1 || l->encrypted || quarantined(l->handle))continue;
@@ -1032,6 +1079,7 @@ bool probe_smp_quiescent(void){
         uint32_t window=request_window(runtime->now_ms);
         for(unsigned i=0;i<DBT_MAX_LINKS;i++){
             const dbt_link_t *l=&runtime->acl.links[i];
+            if(!security_request_allowed(window))break;
             if(!l->used || l->kind!=DBT_LINK_LE || l->role!=1 || l->encrypted || quarantined(l->handle))continue;
             security_request_t *r=request_for(l->handle,l->generation);
             if(r && r->rejecting)continue;

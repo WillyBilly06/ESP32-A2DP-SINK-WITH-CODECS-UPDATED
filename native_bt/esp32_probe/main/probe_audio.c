@@ -214,10 +214,35 @@ static void __attribute__((format(printf,2,3))) snapshot_log(uint32_t began,cons
     if(ready)printf("%s",line);
 }
 #define PROBE_SNAPSHOT_LOG(...) do {uint32_t snapshot_began=(uint32_t)esp_timer_get_time();snapshot_log(snapshot_began,__VA_ARGS__);}while(0)
+#if defined(DBT_PROBE_SCHEDULER_TRACE) && defined(DBT_PROBE_AUDIO_OUTPUT)
+static void decoder_timeline(uint32_t phase,uint32_t at){
+    uint32_t read=atomic_load(&worker.media_read),written=atomic_load(&worker.media_written);
+    probe_output_trace_decoder(phase,at,written-read);
+}
+static dbt_result_t timed_worker_media(void *context,const dbt_avdtp_media_t *packet){
+    uint32_t began=(uint32_t)esp_timer_get_time();
+    if(context && packet && packet->payload && packet->size){
+        dbt_codec_worker_t *w=context;
+        probe_output_trace_media(began,0,atomic_load(&w->started_epoch),packet->sequence,packet->timestamp,packet->ssrc,DBT_PENDING);
+    }
+    dbt_result_t result=dbt_codec_worker_media(context,packet);
+    if(context && packet && packet->payload && packet->size){
+        dbt_codec_worker_t *w=context;
+        probe_output_trace_media(began,(uint32_t)esp_timer_get_time(),atomic_load(&w->input_stream_epoch),
+            packet->sequence,packet->timestamp,packet->ssrc,result);
+    }
+    return result;
+}
+#else
+#define timed_worker_media dbt_codec_worker_media
+#endif
 static void timing_event(unsigned kind){
     unsigned index=(kind-DBT_CODEC_DECODE_BEGIN)/2u;
     if(index>=3)return;
     phase_timing_t *phase=&phase_timing[index];uint32_t at=(uint32_t)esp_timer_get_time();
+#if defined(DBT_PROBE_SCHEDULER_TRACE) && defined(DBT_PROBE_AUDIO_OUTPUT)
+    decoder_timeline((kind-DBT_CODEC_DECODE_BEGIN)%2u?0u:index+1u,at);
+#endif
     if((kind-DBT_CODEC_DECODE_BEGIN)%2u==0){phase->began=at;return;}
     uint32_t elapsed=at-phase->began;
     atomic_fetch_add(&phase->calls,1);atomic_fetch_add(&phase->elapsed_us,elapsed);maximum(&phase->maximum_us,elapsed);
@@ -237,6 +262,32 @@ static void media_trace(void *context,const dbt_codec_trace_t *event){
     ring->items[written%TRACE_SLOTS]=(media_trace_t){*event,(uint32_t)esp_timer_get_time(),ordinal,atomic_load_explicit(&pcm_codec,memory_order_relaxed)};
     atomic_store_explicit(&ring->written,written+1u,memory_order_release);
 }
+#if defined(DBT_PROBE_SCHEDULER_TRACE) && defined(DBT_PROBE_AUDIO_OUTPUT)
+static void log_first_starvation(void){
+    static uint32_t prior_serial=UINT32_MAX,prior_captured;
+    probe_output_starvation_t s;probe_output_first_starvation(&s);
+    if(!s.coherent || (s.stream_serial==prior_serial && s.captured==prior_captured))return;
+    prior_serial=s.stream_serial;prior_captured=s.captured;
+    PROBE_SNAPSHOT_LOG("{\"probe\":\"first_starvation\",\"stream_serial\":%" PRIu32 ",\"captured\":%s,\"coherent\":true"
+        ",\"event_us\":%" PRIu32 ",\"taken_frames\":%" PRIu32 ",\"input_frames\":%" PRIu32 ",\"output_frames\":%" PRIu32
+        ",\"accepted_frames\":%" PRIu32 ",\"rendered_frames\":%" PRIu32 ",\"dma_source_frames\":%" PRIu32 "}\n",
+        s.stream_serial,s.captured?"true":"false",s.at_us,s.taken_frames,s.input_frames,s.output_frames,s.accepted_frames,s.rendered_frames,s.dma_source_frames);
+    if(!s.captured)return;
+    PROBE_SNAPSHOT_LOG("{\"probe\":\"starvation_media\",\"stream_serial\":%" PRIu32 ",\"event_us\":%" PRIu32
+        ",\"coherent\":%s,\"last_acl_any_link_us\":%" PRIu32 ",\"last_host_poll_us\":%" PRIu32
+        ",\"media_begin_us\":%" PRIu32 ",\"media_admitted_us\":%" PRIu32 ",\"media_epoch\":%" PRIu32
+        ",\"media_sequence\":%" PRIu32 ",\"media_timestamp\":%" PRIu32 ",\"media_ssrc\":%" PRIu32 ",\"media_result\":%" PRIu32
+        ",\"last_media_gap_us\":%" PRIu32 ",\"max_media_gap_us\":%" PRIu32 "}\n",s.stream_serial,s.at_us,s.media_coherent?"true":"false",
+        s.acl_us,s.host_poll_us,s.media_us,s.media_admit_us,s.media_epoch,s.media_sequence,s.media_timestamp,s.media_ssrc,s.media_result,s.media_gap_us,s.media_max_gap_us);
+    static const char *const phases[]={"between_operations","decode","reset","pcm_delivery","wait_pcm_space","wait_pcm_loan","wait_control","wait_encoded_input"};
+    PROBE_SNAPSHOT_LOG("{\"probe\":\"starvation_decoder\",\"stream_serial\":%" PRIu32 ",\"event_us\":%" PRIu32
+        ",\"coherent\":%s,\"phase\":%" PRIu32 ",\"phase_name\":\"%s\",\"phase_since_us\":%" PRIu32 ",\"encoded_queued_at_phase_change\":%" PRIu32 "}\n",
+        s.stream_serial,s.at_us,s.decoder_coherent?"true":"false",s.decoder_phase,s.decoder_phase<8?phases[s.decoder_phase]:"unknown",s.decoder_at_us,s.decoder_queued);
+    PROBE_SNAPSHOT_LOG("{\"probe\":\"starvation_renderer\",\"stream_serial\":%" PRIu32 ",\"event_us\":%" PRIu32
+        ",\"coherent\":%s,\"inside_audio_render\":%s,\"phase_since_us\":%" PRIu32 "}\n",
+        s.stream_serial,s.at_us,s.render_coherent?"true":"false",s.render_phase?"true":"false",s.render_at_us);
+}
+#endif
 static void log_media_trace(void){
     for(unsigned i=0;i<2;++i)for(unsigned budget=0;budget<2;++budget){
         media_trace_ring_t *ring=&media_trace_rings[i];uint32_t read=atomic_load(&ring->read);
@@ -272,7 +323,12 @@ static void log_lhdc_quality(uint32_t cycle){
 #endif
 void probe_audio_transport_received(uint32_t began_us,uint16_t bytes,uint8_t type,dbt_result_t result,bool isr){
     atomic_fetch_add(&rx_packets,1);atomic_fetch_add(&rx_bytes,bytes);
-    if(type==DBT_H4_ACL)atomic_fetch_add(&rx_acl,1);
+    if(type==DBT_H4_ACL){
+        atomic_fetch_add(&rx_acl,1);
+#if defined(DBT_PROBE_SCHEDULER_TRACE) && defined(DBT_PROBE_AUDIO_OUTPUT)
+        probe_output_trace_acl(began_us);
+#endif
+    }
     if(type==DBT_H4_EVENT)atomic_fetch_add(&rx_events,1);
     if(isr)atomic_fetch_add(&rx_isr,1);
     if(result!=DBT_OK)atomic_fetch_add(&rx_rejected,1);
@@ -282,6 +338,9 @@ void probe_audio_transport_received(uint32_t began_us,uint16_t bytes,uint8_t typ
 }
 void probe_audio_transport_poll_begin(uint32_t began_us){
     (void)began_us;
+#if defined(DBT_PROBE_SCHEDULER_TRACE) && defined(DBT_PROBE_AUDIO_OUTPUT)
+    probe_output_trace_host_poll(began_us);
+#endif
     uint32_t pending=atomic_exchange_explicit(&rx_pending_us,0,memory_order_acq_rel);
     /* A controller callback may preempt the owner after its caller sampled
      * began_us. Sample after taking the pending stamp to avoid a negative
@@ -536,7 +595,13 @@ static void decode_loop(void *unused){
         uint32_t before=(uint32_t)esp_timer_get_time();
         atomic_store_explicit(&decoder_wait_began,before,memory_order_relaxed);
         atomic_store_explicit(&decoder_wait_kind,reason,memory_order_release);
+#if defined(DBT_PROBE_SCHEDULER_TRACE) && defined(DBT_PROBE_AUDIO_OUTPUT)
+        decoder_timeline(4u+reason,before);
+#endif
         (void)ulTaskNotifyTake(pdTRUE,wait);
+#if defined(DBT_PROBE_SCHEDULER_TRACE) && defined(DBT_PROBE_AUDIO_OUTPUT)
+        decoder_timeline(0,(uint32_t)esp_timer_get_time());
+#endif
         uint32_t waited=(uint32_t)esp_timer_get_time()-before;
         atomic_store_explicit(&decoder_wait_kind,UINT32_MAX,memory_order_release);
         atomic_fetch_add(&decoder_wait_calls[reason],1);
@@ -580,6 +645,9 @@ static void log_loop(void *unused){
     uint32_t previous_codec_revision=0;
     for(;;){
         vTaskDelay(pdMS_TO_TICKS(100));log_media_trace();
+#if defined(DBT_PROBE_SCHEDULER_TRACE) && defined(DBT_PROBE_AUDIO_OUTPUT)
+        log_first_starvation();
+#endif
         if(++ticks<10)continue;
         ticks=0;
         uint32_t at=(uint32_t)esp_timer_get_time();
@@ -831,7 +899,7 @@ dbt_result_t probe_audio_init(dbt_runtime_t *runtime,TaskHandle_t host_owner){
 #endif
     dbt_result_t result=dbt_codec_worker_init(&worker,hooks,PROBE_A2DP_RX_MTU,PROBE_A2DP_MEDIA_SLOTS);
     if(result!=DBT_OK)return result;
-    dbt_avdtp_sink_hooks_t client={&worker,allocate,release,dbt_codec_worker_submit,sink_event,dbt_codec_worker_media};
+    dbt_avdtp_sink_hooks_t client={&worker,allocate,release,dbt_codec_worker_submit,sink_event,timed_worker_media};
     result=dbt_a2dp_acceptor_init(&profile,runtime,client,endpoints,(uint8_t)(sizeof(endpoints)/sizeof(endpoints[0])),PROBE_A2DP_RX_MTU,64,5000,2000,5000);
     if(result!=DBT_OK)return result;
     /* Cold codec checks finished before this init. Enable live quality counts

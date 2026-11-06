@@ -380,7 +380,16 @@ static void wake_owner(void) {
     }
 }
 
-static void send_available(void) { wake_owner(); }
+/* Original ESP32 VHCI is asynchronous. Match BTstack's transport-sent
+ * ownership rule: availability queries do not release a submitted buffer.
+ * Only this controller notification returns the one in-flight transport slot.
+ * Host and ACL builders already retain their buffers while can_send is false. */
+static _Atomic uint32_t vhci_tx_inflight;
+_Static_assert(ATOMIC_INT_LOCK_FREE==2,"VHCI completion must be lock-free");
+static void send_available(void) {
+    atomic_store_explicit(&vhci_tx_inflight,false,memory_order_release);
+    wake_owner();
+}
 
 static int receive_packet(uint8_t *data, uint16_t size) {
     /* No allocation, logging, decoding, profile state mutation or waiting here. */
@@ -405,6 +414,7 @@ static int receive_packet(uint8_t *data, uint16_t size) {
 
 static bool transport_ready(void *context) {
     (void)context;
+    if(atomic_load_explicit(&vhci_tx_inflight,memory_order_acquire))return false;
     bool available;HOST_CALL(PROBE_HOST_QUERY,available=esp_vhci_host_check_send_available());return available;
 }
 
@@ -414,6 +424,8 @@ static bool transport_send(void *context, uint8_t *data, uint16_t size) {
 #ifdef DBT_PROBE_CLASSIC_SECURITY_TEST
     probe_echo_transmit(data,size);
 #endif
+    /* Publish before send: completion may arrive during the SDK call. */
+    atomic_store_explicit(&vhci_tx_inflight,true,memory_order_release);
     /* Host task only, outside critical sections and scheduler suspension. */
     HOST_CALL(PROBE_HOST_SUBMIT,esp_vhci_host_send_packet(data,size));
     return true;

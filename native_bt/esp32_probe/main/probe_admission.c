@@ -165,6 +165,20 @@ static bool valid_link(const dbt_link_t *l,dbt_link_kind_t kind){
     const dbt_link_t *current=dbt_acl_find(&runtime->acl,l->handle);
     return current && current->generation==l->generation && current->kind==kind && same(current->peer,l->peer,6);
 }
+bool probe_admission_classic_renew(const dbt_link_t *l,uint32_t now){
+    /* Caller proved the current cipher/key and durable bond, not just BD_ADDR.
+     * Keep the grant scoped to this live generation for one bounded procedure. */
+    if(frozen || poisoned || !valid_link(l,DBT_LINK_CLASSIC) || !l->encrypted || other_secure_classic(l))return false;
+    lease_t *slot=NULL;
+    for(unsigned i=0;i<DBT_MAX_LINKS;i++){
+        lease_t *c=&classic[i];
+        if(c->used && c->handle==l->handle && c->generation==l->generation){slot=c;break;}
+        if(!c->used && !slot)slot=c;
+    }
+    if(!slot)return false;
+    *slot=(lease_t){.used=true,.handle=l->handle,.generation=l->generation,.expires=now+30000u};
+    memcpy(slot->address,l->peer,6);return true;
+}
 bool probe_admission_classic_pair(const dbt_link_t *l,uint32_t now){
     if(frozen || poisoned || !valid_link(l,DBT_LINK_CLASSIC))return false;
     for(unsigned i=0;i<DBT_MAX_LINKS;i++)if(classic[i].used && classic[i].handle==l->handle && classic[i].generation==l->generation)

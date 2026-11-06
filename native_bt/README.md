@@ -14,6 +14,13 @@ rendering. Read the measured hardware limits in that record before treating this
 development image as a replacement. COM6 runs the owned host without automatic
 Bluedroid fallback.
 
+The [BLE/Classic investigation](docs/BLE_CLASSIC_COEX_2026_11_06.md) records
+a reproduced SMP consent mismatch, explicit VHCI submission ownership and scoped
+Classic re-pairing recovery. BTDM was already enabled. Selected BTstack sections
+have been compared; encrypted GATT/audio coexistence and all-feature parity are
+still being qualified. [First-starvation captures](docs/FIRST_STARVATION_2026_11_06.md)
+keep media, decoder, renderer and DMA evidence separate.
+
 The [BTstack code audit](docs/BTSTACK_CODE_AUDIT_2026_11_05.md) now tracks
 all 288 owned implementation/build inputs, confirmed layer defects, unwired modules and
 remaining review coverage against a fresh pinned upstream checkout. The

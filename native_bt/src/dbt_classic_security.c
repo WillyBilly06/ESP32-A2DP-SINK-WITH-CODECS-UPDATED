@@ -811,6 +811,12 @@ dbt_result_t dbt_classic_security_receive(dbt_classic_security_t *security,
         }
         return DBT_OK;
     }
+    /* An IO request after a completed SSP exchange starts a new procedure.
+     * Do not reuse the previous procedure's acceptance or suppress its reply. */
+    if(packet->event==0x31 && peer->pairing_complete){
+        peer->accepted_pairing=peer->io_replied=peer->auto_confirmed=peer->pairing_complete=false;
+        peer->input_token=0;peer->input=DBT_CLASSIC_INPUT_NONE;
+    }
     bool accepted = peer->accepted_pairing || pairing_allowed(security, peer);
     if (packet->event == 0x31) {
         if (!accepted) {

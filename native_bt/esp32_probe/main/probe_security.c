@@ -52,7 +52,7 @@ typedef struct {
         struct {uint32_t generation,serial;uint16_t handle,cid,psm,rx_mtu,tx_mtu,result;uint8_t event,reason;} channel;
         struct {uint32_t generation;uint16_t handle;uint8_t flags,key_size;} le_security;
         dbt_channel_oversize_t oversized;
-        struct {uint32_t generation,window;int result;uint16_t handle,size;uint8_t stage,code;} smp_trace;
+        struct {uint32_t generation,window,at_us,lost;int result;uint16_t handle,size;uint8_t stage,code;} smp_trace;
         struct {uint32_t generation;uint16_t handle;uint8_t opcode,io,oob,auth,key_size,initiator_keys,responder_keys;} pairing_features;
         struct {uint32_t lost;int result;uint16_t bytes,handle;uint8_t peer[6],event,status,key_type;bool known,window;} classic_hci;
         struct {uint32_t token;int error;uint8_t peer[6];bool deleting,verified,committed;} bond_store;
@@ -235,6 +235,11 @@ static void logger(void *context) {
         log_item_t item;
         if (xQueueReceive(log_queue, &item, portMAX_DELAY) != pdTRUE)
             continue;
+        if(item.local_record==16){
+            printf("{\"probe\":\"classic_session_renewal\",\"handle\":%u,\"generation\":%lu,\"trusted_encrypted_session\":true,\"allowed\":%s}\n",
+                item.link.handle,(unsigned long)item.link.generation,item.status?"true":"false");
+            continue;
+        }
         if(item.local_record==13){
             printf("{\"probe\":\"sdp_channel_error\",\"role\":\"%s\",\"handle\":%u,\"generation\":%lu,\"cid\":%u,\"serial\":%lu,"
                    "\"bytes\":%u,\"pdu\":%u,\"result\":%d,\"action\":\"deferred_channel_close\",\"trace_records_lost\":%lu}\n",
@@ -287,8 +292,8 @@ static void logger(void *context) {
             continue;
         }
         if(item.local_record==8){
-            printf("{\"probe\":\"smp_trace\",\"handle\":%u,\"generation\":%lu,\"stage\":%u,\"result\":%d,\"code\":%u,\"size\":%u,\"window\":%lu}\n",
-                item.smp_trace.handle,(unsigned long)item.smp_trace.generation,item.smp_trace.stage,item.smp_trace.result,item.smp_trace.code,item.smp_trace.size,(unsigned long)item.smp_trace.window);
+            printf("{\"probe\":\"smp_trace\",\"handle\":%u,\"generation\":%lu,\"stage\":%u,\"result\":%d,\"code\":%u,\"size\":%u,\"window\":%lu,\"at_us\":%lu,\"trace_records_lost\":%lu}\n",
+                item.smp_trace.handle,(unsigned long)item.smp_trace.generation,item.smp_trace.stage,item.smp_trace.result,item.smp_trace.code,item.smp_trace.size,(unsigned long)item.smp_trace.window,(unsigned long)item.smp_trace.at_us,(unsigned long)item.smp_trace.lost);
             continue;
         }
         if(item.local_record==7){
@@ -387,8 +392,16 @@ static bool pairing(void *context, const uint8_t address[6]) {
 #ifdef DBT_PROBE_PRODUCT_SECURITY
     for(unsigned i=0;i<DBT_MAX_LINKS;i++){
         const dbt_link_t *l=&runtime->acl.links[i];
-        if(l->used && l->kind==DBT_LINK_CLASSIC && same(l->peer,address))
+        if(l->used && l->kind==DBT_LINK_CLASSIC && same(l->peer,address)){
+            if(cache_index(address)>=0 && dbt_classic_security_authorize(&security,l,DBT_SECURITY_ENCRYPTED)){
+                bool allowed=probe_admission_classic_renew(l,runtime->now_ms);
+                if(log_queue){log_item_t item;wipe(&item,sizeof(item));item.local_record=16;item.link.handle=l->handle;
+                    item.link.generation=l->generation;item.status=allowed;
+                    if(xQueueSend(log_queue,&item,0)!=pdTRUE)++protocol_log_lost;}
+                return allowed;
+            }
             return probe_admission_classic_pair(l,runtime->now_ms);
+        }
     }
     return false;
 #else
@@ -566,7 +579,8 @@ void probe_security_smp_trace(uint16_t handle,uint32_t generation,uint8_t stage,
     log_item_t item;wipe(&item,sizeof(item));item.local_record=8;
     item.smp_trace.handle=handle;item.smp_trace.generation=generation;item.smp_trace.stage=stage;
     item.smp_trace.result=result;item.smp_trace.code=code;item.smp_trace.size=size;item.smp_trace.window=window;
-    (void)xQueueSend(log_queue,&item,0);
+    item.smp_trace.at_us=(uint32_t)esp_timer_get_time();item.smp_trace.lost=protocol_log_lost;
+    if(xQueueSend(log_queue,&item,0)!=pdTRUE && protocol_log_lost!=UINT32_MAX)++protocol_log_lost;
 }
 void probe_security_pairing_features(uint16_t handle,uint32_t generation,const uint8_t fields[7]){
     if(!log_queue || !fields)return;

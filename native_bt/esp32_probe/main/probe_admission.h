@@ -26,6 +26,9 @@ uint32_t probe_admission_prompt_epoch(uint32_t now_ms);
  * allowing previously admitted security work and durable writes to finish. */
 void probe_admission_freeze(bool frozen);
 bool probe_admission_frozen(void);
+/* Owner only, after full encrypted-session authorization and durable-key cache
+ * validation. Renews one Classic procedure lease; opens no BLE/global window. */
+bool probe_admission_classic_renew(const dbt_link_t *,uint32_t now_ms);
 bool probe_admission_classic_pair(const dbt_link_t *,uint32_t now_ms);
 bool probe_admission_classic_store(const uint8_t address[6],uint32_t now_ms);
 bool probe_admission_le_begin(const dbt_link_t *,uint32_t now_ms);

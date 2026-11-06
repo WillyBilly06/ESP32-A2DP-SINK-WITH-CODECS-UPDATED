@@ -138,6 +138,131 @@ typedef struct {
   _Atomic uint32_t first_underrun_accepted_frames, first_underrun_dma_frames;
 } output_t;
 static DRAM_ATTR output_t output;
+
+#ifdef DBT_PROBE_SCHEDULER_TRACE
+/* No queue or borrowed object: immutable first-gap metadata survives UART
+ * backpressure. All shared cells are atomic. Seq-cst versions and cells give
+ * bounded readers an explicit coherent/incoherent result without retry. */
+typedef struct {
+  _Atomic uint32_t version,valid;
+  _Atomic uint32_t stream_serial,at_us,taken_frames,input_frames,output_frames,accepted_frames,rendered_frames,dma_source_frames,acl_us,host_poll_us,media_us,media_admit_us,media_epoch,media_sequence,media_timestamp,media_ssrc,media_result,media_gap_us,media_max_gap_us,media_coherent,decoder_phase,decoder_at_us,decoder_coherent,render_phase,render_at_us,render_coherent,decoder_queued;
+} starvation_capture_t;
+static DRAM_ATTR struct {
+  _Atomic uint32_t stream_serial,acl_us,host_poll_us;
+  _Atomic uint32_t media_version,media_us,media_admit_us,media_epoch,media_sequence;
+  _Atomic uint32_t media_timestamp,media_ssrc,media_result,media_gap_us,media_max_gap_us;
+  _Atomic uint32_t decoder_version,decoder_phase,decoder_at_us,decoder_queued;
+  _Atomic uint32_t render_version,render_phase,render_at_us;
+  starvation_capture_t first;
+} timeline;
+void IRAM_ATTR probe_output_trace_acl(uint32_t at){atomic_store(&timeline.acl_us,at);}
+void probe_output_trace_host_poll(uint32_t at){atomic_store(&timeline.host_poll_us,at);}
+void probe_output_trace_media(uint32_t began,uint32_t ended,uint32_t epoch,uint16_t sequence,uint32_t timestamp,uint32_t ssrc,dbt_result_t result){
+  uint32_t version=atomic_load(&timeline.media_version);
+  uint32_t previous=atomic_load(&timeline.media_us);
+  bool same=epoch==atomic_load(&timeline.media_epoch) && ssrc==atomic_load(&timeline.media_ssrc);
+  bool completion=same && began==previous && sequence==atomic_load(&timeline.media_sequence);
+  uint32_t gap=completion?atomic_load(&timeline.media_gap_us):same && previous?began-previous:0;
+  uint32_t maximum=same?atomic_load(&timeline.media_max_gap_us):0;
+  atomic_store(&timeline.media_version,version+1u);
+  atomic_store(&timeline.media_us,began);atomic_store(&timeline.media_admit_us,ended);
+  atomic_store(&timeline.media_epoch,epoch);atomic_store(&timeline.media_sequence,sequence);
+  atomic_store(&timeline.media_timestamp,timestamp);atomic_store(&timeline.media_ssrc,ssrc);
+  atomic_store(&timeline.media_result,(uint32_t)result);atomic_store(&timeline.media_gap_us,gap);
+  atomic_store(&timeline.media_max_gap_us,gap>maximum?gap:maximum);
+  atomic_store(&timeline.media_version,version+2u);
+}
+void probe_output_trace_decoder(uint32_t phase,uint32_t at,uint32_t queued){
+  uint32_t version=atomic_load(&timeline.decoder_version);
+  atomic_store(&timeline.decoder_version,version+1u);
+  atomic_store(&timeline.decoder_phase,phase);atomic_store(&timeline.decoder_at_us,at);
+  atomic_store(&timeline.decoder_queued,queued);
+  atomic_store(&timeline.decoder_version,version+2u);
+}
+static void trace_render(uint32_t phase,uint32_t at){
+  uint32_t version=atomic_load(&timeline.render_version);
+  atomic_store(&timeline.render_version,version+1u);
+  atomic_store(&timeline.render_phase,phase);atomic_store(&timeline.render_at_us,at);
+  atomic_store(&timeline.render_version,version+2u);
+}
+static void IRAM_ATTR capture_starvation(output_t *o,uint32_t now,uint32_t taken){
+  starvation_capture_t *f=&timeline.first;uint32_t version=atomic_load(&f->version);
+  atomic_store(&f->version,version+1u);
+  atomic_store(&f->stream_serial,atomic_load(&timeline.stream_serial));
+  atomic_store(&f->at_us,now);atomic_store(&f->taken_frames,taken);
+  /* Consumer read precedes producer written; capacity bounds remain visible.
+   * These are adjacent atomic observations, not a simultaneous queue lock. */
+  uint32_t read=atomic_load(&o->audio.input.read),written=atomic_load(&o->audio.input.written);
+  atomic_store(&f->input_frames,written-read);
+  read=atomic_load(&o->audio.output.read);written=atomic_load(&o->audio.output.written);
+  atomic_store(&f->output_frames,written-read);
+  atomic_store(&f->accepted_frames,atomic_load(&o->accepted_frames));
+  atomic_store(&f->rendered_frames,atomic_load(&o->audio.rendered_frames));
+  atomic_store(&f->dma_source_frames,atomic_load(&o->dma_source_frames));
+  atomic_store(&f->acl_us,atomic_load(&timeline.acl_us));
+  atomic_store(&f->host_poll_us,atomic_load(&timeline.host_poll_us));
+  uint32_t before=atomic_load(&timeline.media_version);
+  atomic_store(&f->media_us,atomic_load(&timeline.media_us));
+  atomic_store(&f->media_admit_us,atomic_load(&timeline.media_admit_us));
+  atomic_store(&f->media_epoch,atomic_load(&timeline.media_epoch));
+  atomic_store(&f->media_sequence,atomic_load(&timeline.media_sequence));
+  atomic_store(&f->media_timestamp,atomic_load(&timeline.media_timestamp));
+  atomic_store(&f->media_ssrc,atomic_load(&timeline.media_ssrc));
+  atomic_store(&f->media_result,atomic_load(&timeline.media_result));
+  atomic_store(&f->media_gap_us,atomic_load(&timeline.media_gap_us));
+  atomic_store(&f->media_max_gap_us,atomic_load(&timeline.media_max_gap_us));
+  atomic_store(&f->media_coherent,!(before&1u) && before==atomic_load(&timeline.media_version));
+  before=atomic_load(&timeline.decoder_version);
+  atomic_store(&f->decoder_phase,atomic_load(&timeline.decoder_phase));atomic_store(&f->decoder_at_us,atomic_load(&timeline.decoder_at_us));
+  atomic_store(&f->decoder_queued,atomic_load(&timeline.decoder_queued));
+  atomic_store(&f->decoder_coherent,!(before&1u) && before==atomic_load(&timeline.decoder_version));
+  before=atomic_load(&timeline.render_version);
+  atomic_store(&f->render_phase,atomic_load(&timeline.render_phase));atomic_store(&f->render_at_us,atomic_load(&timeline.render_at_us));
+  atomic_store(&f->render_coherent,!(before&1u) && before==atomic_load(&timeline.render_version));
+  atomic_store(&f->version,version+2u);atomic_store(&f->valid,1);
+}
+void probe_output_first_starvation(probe_output_starvation_t *s){
+  if(!s)return;
+  *s=(probe_output_starvation_t){0};
+  starvation_capture_t *f=&timeline.first;uint32_t serial=atomic_load(&timeline.stream_serial);
+  s->stream_serial=serial;s->coherent=1;
+  if(!atomic_load(&f->valid)){
+    s->coherent=serial==atomic_load(&timeline.stream_serial) && !atomic_load(&f->valid);return;
+  }
+  uint32_t before=atomic_load(&f->version);
+  s->stream_serial=atomic_load(&f->stream_serial);
+  s->at_us=atomic_load(&f->at_us);
+  s->taken_frames=atomic_load(&f->taken_frames);
+  s->input_frames=atomic_load(&f->input_frames);
+  s->output_frames=atomic_load(&f->output_frames);
+  s->accepted_frames=atomic_load(&f->accepted_frames);
+  s->rendered_frames=atomic_load(&f->rendered_frames);
+  s->dma_source_frames=atomic_load(&f->dma_source_frames);
+  s->acl_us=atomic_load(&f->acl_us);
+  s->host_poll_us=atomic_load(&f->host_poll_us);
+  s->media_us=atomic_load(&f->media_us);
+  s->media_admit_us=atomic_load(&f->media_admit_us);
+  s->media_epoch=atomic_load(&f->media_epoch);
+  s->media_sequence=atomic_load(&f->media_sequence);
+  s->media_timestamp=atomic_load(&f->media_timestamp);
+  s->media_ssrc=atomic_load(&f->media_ssrc);
+  s->media_result=atomic_load(&f->media_result);
+  s->media_gap_us=atomic_load(&f->media_gap_us);
+  s->media_max_gap_us=atomic_load(&f->media_max_gap_us);
+  s->media_coherent=atomic_load(&f->media_coherent);
+  s->decoder_phase=atomic_load(&f->decoder_phase);
+  s->decoder_at_us=atomic_load(&f->decoder_at_us);
+  s->decoder_coherent=atomic_load(&f->decoder_coherent);
+  s->render_phase=atomic_load(&f->render_phase);
+  s->render_at_us=atomic_load(&f->render_at_us);
+  s->render_coherent=atomic_load(&f->render_coherent);
+  s->decoder_queued=atomic_load(&f->decoder_queued);
+  s->captured=atomic_load(&f->valid);
+  s->coherent=s->captured && !(before&1u) && before==atomic_load(&f->version) &&
+      serial==s->stream_serial && serial==atomic_load(&timeline.stream_serial);
+}
+#endif
+
 #ifdef DBT_PROBE_CODEC_AWARE_RENDER
 #define AUX_RENDER_STACK_BYTES 6144u
 _Static_assert(ATOMIC_POINTER_LOCK_FREE==2,"Output owner needs lock-free handles");
@@ -393,6 +518,9 @@ static bool IRAM_ATTR sent(i2s_chan_handle_t channel, i2s_event_data_t *event,
                  atomic_load(&o->stop_fill_frames) + wanted - taken);
   } else {
     if (taken < DMA_FRAMES && !atomic_load(&o->underrun_frames)) {
+#ifdef DBT_PROBE_SCHEDULER_TRACE
+      capture_starvation(o,now,taken);
+#endif
       atomic_store(&o->first_underrun_accepted_frames,
                    atomic_load(&o->accepted_frames));
       atomic_store(&o->first_underrun_dma_frames,
@@ -559,6 +687,10 @@ static dbt_result_t start_output(uint32_t rate, uint8_t channels,
   atomic_store(&output.dma_eofs, 0);
   atomic_store(&output.dma_source_frames, 0);
   atomic_store(&output.underrun_frames, 0);
+#ifdef DBT_PROBE_SCHEDULER_TRACE
+  atomic_store(&timeline.first.valid,0);
+  atomic_store(&timeline.stream_serial,atomic_load(&timeline.stream_serial)+1u);
+#endif
   atomic_store(&output.descriptor_errors, 0);
   atomic_store(&output.descriptor_shape_errors,0);
   atomic_store(&output.descriptor_pool_errors,0);
@@ -843,6 +975,9 @@ static bool render_step(void) {
           if(sound_frames && sound_frames<budget)budget=sound_frames;
         }
 #endif
+#ifdef DBT_PROBE_SCHEDULER_TRACE
+        trace_render(1,began);
+#endif
         uint32_t made = budget?dbt_audio_render(&output.audio, budget):0;
 #ifdef DBT_PROBE_SOUND_BUILD
         if(made && output.sound_silence){
@@ -861,6 +996,9 @@ static bool render_step(void) {
             dbt_audio_clock_reset(&output.audio,output.clock_at);output.sound_silence=true;
           }
         }
+#endif
+#ifdef DBT_PROBE_SCHEDULER_TRACE
+        trace_render(0,(uint32_t)esp_timer_get_time());
 #endif
         if (made) {
           uint32_t elapsed = (uint32_t)esp_timer_get_time() - began;
