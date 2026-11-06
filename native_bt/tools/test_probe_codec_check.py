@@ -80,7 +80,7 @@ def main():
              ROOT/'codecs/ldac/dbt_ldac_bt.c',ROOT/'codecs/ldac/dbt_ldac_lib.c',
              ROOT/'codecs/lhdcv5/dbt_lhdcv5_codec.c']
     sources += [(port if n.startswith('synthesis-') else SBC/'srce')/(n+'.c') for n in sbc_names]
-    aac_sources=[aacport/'aacdec_guarded.c']+[AAC/(n+'.c') for n in aac_names]
+    aac_sources=[aacport/'aacdec_guarded.c']+[(aacport/(n+'_guarded.c') if n in ('decelmnt','noiseless','huffman') else AAC/(n+'.c')) for n in aac_names]
     sources += aac_sources
     sources += [lhdcport/n for n in ('lhdc_dec.c','lhdc_imdct.c','lhdc_entropy_dec.c','lhdc_sns_synth.c')]
     sources += [LHDC/n for n in ('lhdc_bit_reader.c','lhdc_diag_config.c','lhdc_tables.c')]

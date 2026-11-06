@@ -19,9 +19,9 @@ endif()
 set(aac_sdk_units
     "${CMAKE_CURRENT_BINARY_DIR}/port/aacdec_guarded.c"
     "${helix}/aactabs.c" "${helix}/bitstream.c" "${helix}/buffers.c"
-    "${helix}/dct4.c" "${helix}/decelmnt.c" "${helix}/dequant.c"
-    "${helix}/fft.c" "${helix}/filefmt.c" "${helix}/huffman.c"
-    "${helix}/hufftabs.c" "${helix}/imdct.c" "${helix}/noiseless.c"
+    "${helix}/dct4.c" "${CMAKE_CURRENT_BINARY_DIR}/port/decelmnt_guarded.c" "${helix}/dequant.c"
+    "${helix}/fft.c" "${helix}/filefmt.c" "${CMAKE_CURRENT_BINARY_DIR}/port/huffman_guarded.c"
+    "${helix}/hufftabs.c" "${helix}/imdct.c" "${CMAKE_CURRENT_BINARY_DIR}/port/noiseless_guarded.c"
     "${helix}/pns.c" "${helix}/stproc.c" "${helix}/tns.c" "${helix}/trigtabs.c")
 idf_component_register(SRCS "${owned}/dbt_aac_decoder.c" "${owned}/dbt_aac_transport.c" ${aac_sdk_units}
     INCLUDE_DIRS "${owned}" PRIV_INCLUDE_DIRS "${helix}"

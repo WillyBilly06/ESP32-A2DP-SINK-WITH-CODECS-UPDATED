@@ -64,17 +64,17 @@
     },
     {
       "owned": "native_bt/codecs/aac/dbt_aac_decoder.c",
-      "sha256": "b03e379d23ec8103f297195820a42e163f60bc4b7471c53a6f54d2be5206adbb",
-      "lines": 158,
+      "sha256": "eed2ff255bb5e308ac88ba275c005dde20c947b29f644147a9f9538ff8c30530",
+      "lines": 162,
       "reference_files": [
         "src/classic/avdtp.c",
         "example/a2dp_sink_demo.c",
         "src/btstack_resample.c",
         "src/btstack_sample_rate_compensation.c"
       ],
-      "status": "reviewed_no_change",
+      "status": "reviewed_with_findings",
       "mapping": "counterpart_candidates",
-      "review_scope": "Complete owned body and reference/working-backend boundaries reviewed. Not functional or performance qualification."
+      "review_scope": "Complete wrapper reread. Requires four guarded SDK units; existing configuration/PCM/raw/fragment/continuation/teardown behavior retained. Selected backend section/band/TNS/pulse/read/escape safety fixed; not a live crash or performance proof."
     },
     {
       "owned": "native_bt/codecs/aac/dbt_aac_transport.c",
@@ -114,12 +114,12 @@
     },
     {
       "owned": "native_bt/codecs/aac/prepare_port.py",
-      "sha256": "36dffa340624e4652cca44269a02493cc3653ac29523669a81db95f485c70945",
-      "lines": 50,
+      "sha256": "cb85f28e147b944236ef2f3c6f389be0d5b7ca38744c642560a5ec543d7cbf1f",
+      "lines": 148,
       "reference_files": [],
       "status": "reviewed_generator",
       "mapping": "Added through full filesystem/build-manifest cross-check; source generation/build inputs included",
-      "review_scope": "Complete source pin and two generated channel guards reviewed; complete Helix backend audit remains open."
+      "review_scope": "Complete generator read: four canonical source pins, bounded matching rewrite sites, separate guarded-unit hashes/proofs, positive bounded sections, checked field/bit/cursor bounds. Remaining backend algorithm audit incomplete."
     },
     {
       "owned": "native_bt/codecs/aptx/CMakeLists.txt",
@@ -589,12 +589,12 @@
     },
     {
       "owned": "native_bt/esp32_probe/components/aac_decoder/CMakeLists.txt",
-      "sha256": "f767d83a1d802fc0a4cb767f9043d3d10a6b22a5aa0b3e325c80f2e4a34e0114",
+      "sha256": "12ae74abccf5d781ddfc2289b19144063d8b0dc0b0590607c55235968f2aceef",
       "lines": 33,
       "reference_files": [],
       "status": "reviewed_build",
       "mapping": "Added through full filesystem/build-manifest cross-check; source generation/build inputs included",
-      "review_scope": "Complete CMake input/dependency/flags reviewed against actual working baseline compile commands. SDK decoder implementation remains separate from host ownership."
+      "review_scope": "Complete component recipe read;19 units retain O2/fwrapv/two-channel/no-SBR and four generated guarded source routes. Actual compile commands and linked proof symbols checked; no host fallback."
     },
     {
       "owned": "native_bt/esp32_probe/components/aptx_decoder/CMakeLists.txt",
@@ -3146,6 +3146,17 @@
       "review_scope": "Complete new body/contract read; bounded work, explicit strict request ordering, complete capability assessment, cancellation/fault retain and output/borrow ownership reviewed. No automatic begin or wire/performance qualification.",
       "sha256": "b0d67af8b8570ca947debdbacfc1ed7720ed21e24c8ed1814c7f7c47abcfba7e",
       "lines": 70
+    },
+    {
+      "owned": "native_bt/codecs/aac/helix_internal_guards.h",
+      "sha256": "834d5e64f688e130dc06a8209c83f508a2be90de551ebc56a4f9eeb9405f4a29",
+      "lines": 51,
+      "reference_files": [
+        "Pinned SDK AAC bitstream.c/noiseless.c/decelmnt.c/huffman.c and coder/aaccommon bounds"
+      ],
+      "status": "reviewed_contract",
+      "mapping": "Private generated-port bit/ICS/pulse helper contract and inline implementation",
+      "review_scope": "Complete header read/target compiled: bounded raw input precondition, sticky underflow, exact valid reads/advance, band/group/table and pulse-position bounds. No ABI/pool added; not whole decoder safety or timing qualification."
     }
   ],
   "findings": [
@@ -4356,12 +4367,12 @@
     }
   ],
   "coverage": {
-    "owned_files": 287,
+    "owned_files": 288,
     "reviewed_owned_c_bodies": 38,
     "partial_files": 15,
     "pending_files": 180,
     "compiled_owned_units_missing": 0,
-    "reviewed_headers": 38,
+    "reviewed_headers": 39,
     "reviewed_build_files": 9,
     "reviewed_generators": 5,
     "reviewed_static_data": 2,
@@ -4712,10 +4723,20 @@
         "Strict Clang empty diagnostics and target -Os compile pass. Frame own stack96→80, close32→48; no call-chain/time/live proof.",
         "Full ccache build passes, all10348 source hashes stable; text+64, BSS/data/IRAM unchanged. Candidate 102b5785a57317ec5d6d2a1484c4fadca6c3a583b782ed5465390bff56dc02f8 not flashed; COM6 still on verified6707d86b/ed8ac589 image."
       ]
+    },
+    {
+      "id": "AAC-SIDE-INFORMATION",
+      "status": "source_fixed_analysis_ccache_readback_cold_idle_only",
+      "notes": [
+        "Positive bounded sections eliminate a confirmed zero-progress loop and pre-write section overflow. Band/table, TNS, pulse, mask, bit-underflow, cursor and positive-int escape bounds are guarded in four pinned SDK units. Original SDK equals released baseline; not proof these caused the phone crash.",
+        "19 AAC units select guarded four with separate required link symbols. Clang wrapper/noiseless/elements empty; Huffman three original dead stores retained. Strict target compiler own frames unchanged, all10349 source hashes stable, text+4072/static RAM unchanged.",
+        "COM6 975e2c84582bfc43ec85e761c414867008453945351f1339d5d3a93250626da0 readbacks match, owned VALID ready, original preserved.37 existing cold checks pass; four AAC cases zero reference error with unchanged tracked allocation peaks. UART131, idle137912/min67356/largest110592.",
+        "No held malformed/crash/playback/RF/app/performance campaign. Copied PCM mode avoids the suspected loan-ticket serialization; shared FIR/render throughput still needs proof. Prior slower FIR variants remain disabled; do not add blocking SDK APLL tuning to hot path."
+      ]
     }
   ],
-  "next_review": "Prioritize active A2DP lifecycle and missing product peer/reconnect integration; source APIs alone are not a complete usable feature. Continue full pending source comparison; held RF/campaign scope remains in force.",
-  "latest_build_image": "102b5785a57317ec5d6d2a1484c4fadca6c3a583b782ed5465390bff56dc02f8",
+  "next_review": "Prioritize shared all-codec media/PCM/render scheduling and sustained-throughput bottlenecks, comparing the actual baseline. Keep AAC live crash and all-feature/security qualification open. Do not repeat rejected FIR variants or add automatic RF/test callers under hold.",
+  "latest_build_image": "975e2c84582bfc43ec85e761c414867008453945351f1339d5d3a93250626da0",
   "verification_source_contracts": [
     {
       "file": "native_bt/tools/test_ldac_target_component.py",

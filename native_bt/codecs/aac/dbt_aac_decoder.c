@@ -9,6 +9,9 @@
 _Static_assert(AAC_MAX_NCHANS==2,"The native PCM workspace requires exactly two-channel Helix bounds");
 /* Provided only by the reviewed, generated channel-guarded SDK unit. */
 extern int dbt_helix_channel_guard(void);
+extern int dbt_helix_spectral_guard(void);
+extern int dbt_helix_element_guard(void);
+extern int dbt_helix_huffman_guard(void);
 
 typedef struct {
     HAACDecoder codec;
@@ -59,7 +62,8 @@ static dbt_result_t reset_decoder(dbt_codec_decoder_t *d){
 }
 static dbt_result_t open_decoder(dbt_codec_decoder_t *d){
     dbt_codec_config_t checked;
-    if(dbt_helix_channel_guard()!=1 || dbt_aac_configure(d->config.cie,d->config.cie_size,&checked)!=DBT_OK ||
+    if(dbt_helix_channel_guard()!=1 || dbt_helix_spectral_guard()!=1 ||
+       dbt_helix_element_guard()!=1 || dbt_helix_huffman_guard()!=1 || dbt_aac_configure(d->config.cie,d->config.cie_size,&checked)!=DBT_OK ||
        checked.rate!=d->config.rate || checked.channels!=d->config.channels ||
        d->config.samples!=1024 || d->config.sample_bytes!=2)return DBT_INVALID;
     uint32_t work=align8(sizeof(AACDecInfo))+align8(sizeof(PSInfoBase));

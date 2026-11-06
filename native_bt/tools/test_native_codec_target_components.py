@@ -70,7 +70,8 @@ def main():
         assert all('btstack' not in str(p).lower() for p in sources)
         if name=='aac_decoder':
             assert len(sources)==19 and sources[2].name=='aacdec_guarded.c'
-            assert not any(p.name in ('aacdec.c','aac_decoder_helix.c') for p in sources)
+            assert not any(p.name in ('aacdec.c','aac_decoder_helix.c','decelmnt.c','noiseless.c','huffman.c') for p in sources)
+            assert {'aacdec_guarded.c','decelmnt_guarded.c','noiseless_guarded.c','huffman_guarded.c'} <= {p.name for p in sources}
             assert {'ESP32=1','USE_DEFAULT_STDLIB','AAC_MAX_NCHANS=2'}<=set(fields['DEFINITION'])
             guard=json.loads((folder/'port/aac_port.json').read_text())
             assert guard['guard_sites']==2 and guard['source_sha256']=='f3260aeca52c91675761b8dccf2ec83cf42f8cc07ef47da10676ec1aa66ea5d6'
@@ -122,7 +123,7 @@ def main():
     text_size,data_size,bss_size=map(int,size_output[:3])
     assert data_size==0 and bss_size==0,(data_size,bss_size)
     undefined=run([str(tools/'xtensa-esp32-elf-nm.exe'),'-u',str(linked)])
-    for symbol in ('dbt_helix_channel_guard','AACInitDecoderPre','aptx_decode32','dbt_codec_allocate','dbt_avdtp_caps_validate'):
+    for symbol in ('dbt_helix_channel_guard','dbt_helix_spectral_guard','dbt_helix_element_guard','dbt_helix_huffman_guard','AACInitDecoderPre','aptx_decode32','dbt_codec_allocate','dbt_avdtp_caps_validate'):
         assert not re.search(r'\b'+symbol+r'\b',undefined),f'unresolved required codec symbol: {symbol}'
     symbols=run([str(tools/'xtensa-esp32-elf-nm.exe'),'-S','--size-sort',str(linked)])
     writable=[]

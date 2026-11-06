@@ -43,6 +43,10 @@ uses a bounded span copy. Live fragment/audio/memory-failure behavior remains un
 wake for oversized PDUs even without a payload buffer. TX fragment assembly uses
 at most three source-span copies with unchanged admission/commit timing.
 Live timeout/prefix/credit/backpressure behavior remains unqualified.
+[AAC parser bounds](docs/AAC_PARSER_BOUNDS_2026_11_06.md) now reject zero-progress
+sections, out-of-range band/TNS/pulse fields and truncated bit consumption through
+source-pinned SDK units. All four existing cold AAC cases preserve their reference
+output; reported live crashes and shared low-bitrate behavior remain unqualified.
 [ERTM channel storage](docs/ERTM_CHANNEL_STORAGE_2026_11_05.md) now reserves the
 encoded frame buffer before OPEN and retains it through commit/cancel, with
 provider callback fences. Active ERTM retains that capacity between frames;

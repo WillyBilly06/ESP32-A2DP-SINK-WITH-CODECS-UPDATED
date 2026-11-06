@@ -41,7 +41,7 @@ try:
          root/'codecs/common/dbt_codec.c',root/'codecs/sbc/dbt_sbc_codec.c',root/'codecs/sbc/dbt_sbc_decoder.c',root/'codecs/opus/dbt_opus.c',root/'codecs/opus/scratch/dbt_opus_scratch.c']
     src += [(port if x.startswith('synthesis-') else sbc/'srce')/(x+'.c') for x in names]
     aac_names='aactabs bitstream buffers dct4 decelmnt dequant fft filefmt huffman hufftabs imdct noiseless pns stproc tns trigtabs'.split()
-    src += [aac_port/'aacdec_guarded.c']+[helix/(x+'.c') for x in aac_names]
+    src += [aac_port/'aacdec_guarded.c']+[(aac_port/(x+'_guarded.c') if x in ('decelmnt','noiseless','huffman') else helix/(x+'.c')) for x in aac_names]
     src += [root/'codecs/aac/dbt_aac_decoder.c',root/'codecs/aac/dbt_aac_transport.c',root/'codecs/aptx/dbt_aptx.c',root/'codecs/aptx/dbt_aptx_backend.c',root/'src/dbt_audio.c',root/'src/dbt_resampler.c',ws/'bt_audio_sink/main/dsp/fixed_dsp.c']
     incs=[root/'tests/codecs/probe_audio_stubs',root/'include',root/'codecs/common',root/'codecs/sbc',root/'codecs/sbc/port',root/'codecs/opus',root/'codecs/aac',root/'codecs/aptx',root/'esp32_probe/main',ws/'bt_audio_sink/main/dsp',sbc/'include',opus/'include',helix,aptx]
     cmd=[cc,'-std=c11','-O1','-g','-fwrapv','-shared','-DUSE_DEFAULT_STDLIB','-DAAC_MAX_NCHANS=2']
