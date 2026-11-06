@@ -40,7 +40,7 @@ static void reject(dbt_avdtp_sink_t *s,uint8_t detail,uint8_t error) {
 }
 static void reply_pending(dbt_avdtp_sink_t *s) {
     dbt_sink_pending_t *p=&s->pending;
-    if(!p->used || p->queued || !p->done || s->retiring || s->failed)return;
+    if(s->local_configure || !p->used || p->queued || !p->done || s->retiring || s->failed)return;
     uint8_t body[2]={p->error_detail,p->error};
     bool detailed=p->signal==3 || p->signal==5 || p->signal==7 || p->signal==9;
     dbt_result_t result=respond(s,p->error?DBT_AVDTP_REJECT:DBT_AVDTP_ACCEPT,
@@ -55,6 +55,132 @@ static void begin(dbt_avdtp_sink_t *s,dbt_sink_operation_t operation,uint8_t end
     p->label=s->signal.remote_label;p->signal=s->signal.remote_signal;
     p->deadline=s->signal.now_ms+s->worker_ms;p->apply=apply;p->done=!work;
     if(work)p->token=token(s);
+}
+
+static void apply_configuration(dbt_avdtp_sink_t *s,dbt_sink_pending_t *p){
+    if(s->configuration)s->hooks.release(s->hooks.context,s->configuration);
+    s->configuration=p->configuration;s->configuration_size=p->size;p->configuration=0;
+    s->endpoint=p->endpoint;s->remote_seid=p->remote_seid;
+    dbt_avdtp_caps_t caps;dbt_avdtp_cap_error_t error;
+    (void)dbt_avdtp_caps_validate(s->configuration,s->configuration_size,DBT_AVDTP_CONFIGURATION,&caps,&error);
+    s->delay_enabled=(caps.present&(1u<<8))!=0;
+    if(p->operation==DBT_SINK_CONFIGURE)s->state=DBT_STREAM_CONFIGURED;
+}
+static void local_outcome(dbt_avdtp_local_configure_t *c,dbt_local_config_outcome_t outcome){
+    if(c->result.outcome==DBT_LOCAL_CONFIG_NONE)c->result.outcome=outcome;
+}
+static void local_finish(dbt_avdtp_sink_t *s,dbt_avdtp_local_configure_t *c,dbt_local_config_outcome_t outcome){
+    if(s->signal.local_completion==&c->completion)return;
+    local_outcome(c,outcome);s->local_configure=0;c->active=false;c->done=true;c->result.phase=DBT_LOCAL_CONFIG_DONE;
+}
+static void local_retired(dbt_avdtp_sink_t *s){
+    dbt_avdtp_local_configure_t *c=s->local_configure;if(!c)return;
+    c->result.profile_retired=true;c->result.cleanup_complete=!s->worker_live;
+    local_finish(s,c,DBT_LOCAL_CONFIG_SIGNAL_ERROR);
+}
+static void local_response(void *context,dbt_avdtp_outcome_t outcome,const dbt_avdtp_message_t *m){
+    dbt_avdtp_local_configure_t *c=context;if(!c || !c->active)return;
+    c->notifying=true;dbt_avdtp_sink_t *s=c->sink;dbt_local_config_result_t *r=&c->result;
+    r->transport_done=true;r->transport_outcome=outcome;
+    if(outcome==DBT_AVDTP_TIMEOUT)local_outcome(c,DBT_LOCAL_CONFIG_SIGNAL_ERROR);
+    else if(outcome==DBT_AVDTP_CANCELLED)local_outcome(c,r->cancel_requested?DBT_LOCAL_CONFIG_CANCELLED:DBT_LOCAL_CONFIG_SIGNAL_ERROR);
+    else if(!m || m->signal!=DBT_AVDTP_SET_CONFIGURATION || m->label!=r->label)
+        local_outcome(c,DBT_LOCAL_CONFIG_SIGNAL_ERROR);
+    else {
+        r->response_seen=true;r->response_type=m->type;
+        if(m->type==DBT_AVDTP_ACCEPT && c->wire_released && !r->cancel_requested &&
+           !s->failed && !s->retiring && s->pending.operation==DBT_SINK_CONFIGURE &&
+           s->pending.done && r->worker_result_valid && r->worker_result==DBT_SINK_WORK_READY){
+            apply_configuration(s,&s->pending);r->resources_transferred=true;
+            local_finish(s,c,DBT_LOCAL_CONFIG_SUCCESS);
+            /* Commit before another peer command can arrive. The result getter
+             * stays pending until this notification returns. */
+            emit(s,DBT_SINK_STATE);drop_pending(s);
+        }else if(m->type!=DBT_AVDTP_ACCEPT){
+            if(m->size){r->peer_category=m->size>1?m->data[0]:0;r->peer_error=m->data[m->size-1u];}
+            local_outcome(c,DBT_LOCAL_CONFIG_PEER_REJECTED);
+        }else if(!r->cancel_requested){
+            local_outcome(c,DBT_LOCAL_CONFIG_SIGNAL_ERROR);r->phase=DBT_LOCAL_CONFIG_RETIRING;fault(s);
+        }
+    }
+    c->notifying=false;
+}
+static void local_failure(dbt_avdtp_sink_t *s,dbt_avdtp_local_configure_t *c,dbt_local_config_outcome_t outcome){
+    local_outcome(c,outcome);c->result.phase=DBT_LOCAL_CONFIG_RETIRING;fault(s);
+}
+static dbt_result_t local_worker_complete(dbt_avdtp_sink_t *s,dbt_sink_work_result_t result,uint32_t now){
+    dbt_avdtp_local_configure_t *c=s->local_configure;dbt_sink_pending_t *p=&s->pending;
+    p->done=true;
+    if(p->operation==DBT_SINK_DROP){
+        c->result.drop_result=result;c->result.drop_result_valid=true;
+        if(result==DBT_SINK_WORK_READY){s->worker_live=false;c->result.cleanup_complete=true;}
+        else local_failure(s,c,DBT_LOCAL_CONFIG_CLEANUP_ERROR);
+    }else {
+        c->result.worker_result=result;c->result.worker_result_valid=true;
+        if(due(now,p->deadline)){c->result.worker_timed_out=true;local_outcome(c,DBT_LOCAL_CONFIG_WORKER_TIMEOUT);}
+        if(result==DBT_SINK_WORK_REJECTED){s->worker_live=false;local_outcome(c,DBT_LOCAL_CONFIG_WORKER_REJECTED);}
+        else if(result==DBT_SINK_WORK_FATAL)local_outcome(c,DBT_LOCAL_CONFIG_WORKER_FATAL);
+    }
+    return s->failed?DBT_INVALID:DBT_OK;
+}
+static void local_abort(dbt_avdtp_sink_t *s,const dbt_avdtp_message_t *m,unsigned index){
+    dbt_avdtp_local_configure_t *c=s->local_configure;
+    if(index!=c->endpoint){if(respond(s,DBT_AVDTP_ACCEPT,0,0)!=DBT_OK)fault(s);return;}
+    c->result.remote_abort=true;c->result.cancel_requested=true;c->abort_label=m->label;
+    local_outcome(c,DBT_LOCAL_CONFIG_REMOTE_ABORT);
+}
+static void local_poll(dbt_avdtp_sink_t *s,uint32_t now){
+    dbt_avdtp_local_configure_t *c=s->local_configure;if(!c || s->retiring)return;
+    dbt_local_config_result_t *r=&c->result;dbt_sink_pending_t *p=&s->pending;
+    if(!c->cleaning && !p->done && due(now,p->deadline)){
+        r->worker_timed_out=true;local_outcome(c,DBT_LOCAL_CONFIG_WORKER_TIMEOUT);
+    }
+    bool cleanup=r->cancel_requested || r->outcome!=DBT_LOCAL_CONFIG_NONE;
+    if(r->cancel_requested && c->wire_released && !r->remote_abort &&
+       (!r->transport_done || (r->response_seen && r->response_type==DBT_AVDTP_ACCEPT))){
+        local_failure(s,c,DBT_LOCAL_CONFIG_CANCELLED);return;
+    }
+    if(!cleanup && !c->wire_released && p->done){
+        if(!r->worker_result_valid || r->worker_result!=DBT_SINK_WORK_READY){
+            local_failure(s,c,DBT_LOCAL_CONFIG_WORKER_FATAL);return;
+        }
+        dbt_result_t ready=dbt_avdtp_command_ready(&s->signal,s->binding,r->label,&c->completion,now);
+        if(ready!=DBT_OK){local_failure(s,c,DBT_LOCAL_CONFIG_SIGNAL_ERROR);return;}
+        c->wire_released=true;r->phase=DBT_LOCAL_CONFIG_WAIT_PEER;return;
+    }
+    if(!cleanup)return;
+    if(!r->transport_done && !c->cancel_attempted){
+        dbt_result_t cancelled=dbt_avdtp_command_cancel(&s->signal,s->binding,r->label,&c->completion,now);
+        if(cancelled!=DBT_OK && cancelled!=DBT_PENDING){local_failure(s,c,DBT_LOCAL_CONFIG_SIGNAL_ERROR);return;}
+        c->cancel_attempted=true;
+    }
+    if(!c->cleaning){
+        c->cleaning=true;r->phase=DBT_LOCAL_CONFIG_CLEANUP;drop_pending(s);
+        if(!s->worker_live)r->cleanup_complete=true;
+        else {begin(s,DBT_SINK_DROP,c->endpoint,true,false);s->pending.deadline=now+s->worker_ms;r->drop_token=s->pending.token;}
+    }
+    p=&s->pending;
+    if(p->used && !p->done && due(now,p->deadline)){
+        r->cleanup_timed_out=true;local_failure(s,c,DBT_LOCAL_CONFIG_CLEANUP_ERROR);return;
+    }
+    if(r->cleanup_complete && r->remote_abort && !c->abort_queued){
+        if(!s->signal.remote_pending || s->signal.remote_signal!=DBT_AVDTP_ABORT ||
+           s->signal.remote_label!=c->abort_label || respond(s,DBT_AVDTP_ACCEPT,0,0)!=DBT_OK){
+            local_failure(s,c,DBT_LOCAL_CONFIG_SIGNAL_ERROR);return;
+        }
+        c->abort_queued=true;
+    }
+    if(r->cleanup_complete && r->transport_done && (!r->remote_abort || c->abort_queued)){
+        drop_pending(s);idle(s);local_finish(s,c,DBT_LOCAL_CONFIG_CANCELLED);
+    }
+}
+static uint32_t local_wait(const dbt_avdtp_sink_t *s){
+    const dbt_avdtp_local_configure_t *c=s->local_configure;if(!c || s->retiring)return UINT32_MAX;
+    const dbt_local_config_result_t *r=&c->result;
+    if((r->cancel_requested || r->outcome!=DBT_LOCAL_CONFIG_NONE) && !c->cleaning)return 0;
+    if(!c->wire_released && s->pending.done && !c->cleaning)return 0;
+    if(r->cleanup_complete && ((r->remote_abort && !c->abort_queued) || r->transport_done))return 0;
+    return UINT32_MAX;
 }
 
 static void capabilities(dbt_avdtp_sink_t *s,const dbt_avdtp_endpoint_t *ep,bool all) {
@@ -83,6 +209,7 @@ static void capabilities(dbt_avdtp_sink_t *s,const dbt_avdtp_endpoint_t *ep,bool
 static void configure(dbt_avdtp_sink_t *s,const dbt_avdtp_message_t *m,unsigned index,bool reconfigure) {
     uint16_t header=reconfigure?1:2;
     if(m->size<header){reject(s,0,0x11);return;}
+    if(s->local_configure){reject(s,0,reconfigure?0x31:0x13);return;}
     if((reconfigure && (s->state!=DBT_STREAM_OPEN || index!=s->endpoint)) ||
        (!reconfigure && s->state!=DBT_STREAM_IDLE)){
         reject(s,0,!reconfigure && index==s->endpoint?0x13:0x31);return;
@@ -142,7 +269,7 @@ static void command(void *context,const dbt_avdtp_message_t *m) {
         if(m->size){reject(s,0,0x11);return;}
         uint8_t bytes[2*DBT_AVDTP_SINK_ENDPOINT_LIMIT];
         for(unsigned i=0;i<s->count;++i){
-            bytes[2*i]=(uint8_t)((s->endpoints[i].seid<<2)|((s->state!=DBT_STREAM_IDLE && s->endpoint==i)?2:0));
+            bytes[2*i]=(uint8_t)((s->endpoints[i].seid<<2)|(((s->state!=DBT_STREAM_IDLE && s->endpoint==i) || (s->local_configure && s->local_configure->endpoint==i))?2:0));
             bytes[2*i+1]=8; /* Audio, sink */
         }
         if(respond(s,DBT_AVDTP_ACCEPT,bytes,(uint16_t)(2u*s->count))!=DBT_OK)reject(s,0,0x31);
@@ -171,6 +298,7 @@ static void command(void *context,const dbt_avdtp_message_t *m) {
         else (void)dbt_avdtp_ignore_abort(&s->signal,m->label);
         return;
     }
+    if(s->local_configure && m->signal==DBT_AVDTP_ABORT){local_abort(s,m,(unsigned)index);return;}
     switch(m->signal){
     case DBT_AVDTP_GET_CAPABILITIES:case DBT_AVDTP_GET_ALL_CAPABILITIES:
         capabilities(s,&s->endpoints[index],m->signal==DBT_AVDTP_GET_ALL_CAPABILITIES);return;
@@ -194,18 +322,12 @@ static void command(void *context,const dbt_avdtp_message_t *m) {
 
 static void responded(void *context,uint8_t label,uint8_t signal,dbt_avdtp_type_t type) {
     dbt_avdtp_sink_t *s=context;dbt_sink_pending_t *p=&s->pending;
-    if(!p->used || !p->queued || p->label!=label || p->signal!=signal || p->reply!=type)return;
+    if(s->local_configure || !p->used || !p->queued || p->label!=label || p->signal!=signal || p->reply!=type)return;
     bool close_media=false;
     if(p->apply){
         switch(p->operation){
         case DBT_SINK_CONFIGURE:case DBT_SINK_RECONFIGURE:{
-            if(s->configuration)s->hooks.release(s->hooks.context,s->configuration);
-            s->configuration=p->configuration;s->configuration_size=p->size;p->configuration=0;
-            s->endpoint=p->endpoint;s->remote_seid=p->remote_seid;
-            dbt_avdtp_caps_t caps;dbt_avdtp_cap_error_t error;
-            (void)dbt_avdtp_caps_validate(s->configuration,s->configuration_size,DBT_AVDTP_CONFIGURATION,&caps,&error);
-            s->delay_enabled=(caps.present&(1u<<8))!=0;
-            if(p->operation==DBT_SINK_CONFIGURE)s->state=DBT_STREAM_CONFIGURED;
+            apply_configuration(s,p);
             break;}
         case DBT_SINK_OPEN:s->state=DBT_STREAM_OPEN;s->media_deadline=s->signal.now_ms+s->media_ms;break;
         case DBT_SINK_START:s->state=DBT_STREAM_STREAMING;break;
@@ -229,13 +351,79 @@ static void local_complete(void *context,dbt_avdtp_outcome_t outcome,const dbt_a
 }
 static bool interrupt(void *context,const dbt_avdtp_message_t *m) {
     dbt_avdtp_sink_t *s=context;dbt_sink_pending_t *p=&s->pending;
-    if(s->failed || s->retiring || m->size!=1 || !p->used || p->queued ||
+    if(s->local_configure || s->failed || s->retiring || m->size!=1 || !p->used || p->queued ||
        (m->data[0]>>2)!=s->endpoints[p->endpoint].seid)return false;
     if(s->state==DBT_STREAM_IDLE && s->worker_live)s->endpoint=p->endpoint;
     /* Worker copied its job. A later serialized Abort releases any resources
      * it creates; the superseded completion token must no longer affect state. */
     drop_pending(s);
     return true;
+}
+
+void dbt_avdtp_local_configure_init(dbt_avdtp_local_configure_t *c){if(c)*c=(dbt_avdtp_local_configure_t){0};}
+static bool local_overlap(const void *a,unsigned an,const void *b,unsigned bn){
+    uintptr_t x=(uintptr_t)a,y=(uintptr_t)b;return an && bn && (x<=y?y-x<an:x-y<bn);
+}
+static bool local_owned(const dbt_avdtp_sink_t *s,const void *p,unsigned n){
+    return local_overlap(s,sizeof(*s),p,n) || local_overlap(s->signal.rx,s->signal.rx_capacity,p,n) ||
+        local_overlap(s->signal.packet,s->signal.packet_size,p,n) ||
+        local_overlap(s->signal.tx[0].data,s->signal.tx[0].size,p,n) ||
+        local_overlap(s->signal.tx[1].data,s->signal.tx[1].size,p,n);
+}
+dbt_result_t dbt_avdtp_sink_local_configure_begin(dbt_avdtp_sink_t *s,dbt_avdtp_local_configure_t *c,
+    uint8_t local_seid,uint8_t remote_seid,const uint8_t *configuration,uint16_t size,uint32_t now,uint32_t *id){
+    if(!s || !c || !configuration || !id || !size || !remote_seid || remote_seid>62 ||
+       local_owned(s,c,sizeof(*c)) || local_owned(s,configuration,size) || local_overlap(c,sizeof(*c),configuration,size) ||
+       local_overlap(c,sizeof(*c),id,sizeof(*id)) || local_owned(s,id,sizeof(*id)) ||
+       local_overlap(configuration,size,id,sizeof(*id)) || s->in_work || s->signal.in_callback)return DBT_INVALID;
+    if(c->active || s->local_configure || s->pending.used || s->state!=DBT_STREAM_IDLE ||
+       s->worker_live || s->configuration || s->retiring || s->drained || s->signal.tx[0].used)return DBT_BUSY;
+    if(s->failed || !s->binding || dbt_avdtp_poll(&s->signal,now)!=DBT_OK)return DBT_INVALID;
+    if(c->serial==UINT32_MAX)return DBT_NO_SPACE;
+    int index=endpoint_index(s,local_seid);if(index<0)return DBT_UNSUPPORTED;
+    dbt_avdtp_caps_t caps,local;dbt_avdtp_cap_error_t error;
+    if(dbt_avdtp_caps_validate(configuration,size,DBT_AVDTP_CONFIGURATION,&caps,&error)!=DBT_OK)return DBT_INVALID;
+    const dbt_avdtp_endpoint_t *ep=&s->endpoints[index];
+    if(dbt_avdtp_caps_validate(ep->capabilities,ep->size,DBT_AVDTP_CAPABILITIES,&local,&error)!=DBT_OK)return DBT_INVALID;
+    uint16_t cursor=0;dbt_avdtp_cap_t cap;
+    while(dbt_avdtp_cap_next(configuration,size,&cursor,&cap)==DBT_OK)
+        if(!(local.present&(1u<<cap.category)))return DBT_UNSUPPORTED;
+    if(!caps.codec.data || ep->validate(ep,&caps.codec))return DBT_UNSUPPORTED;
+    bool delay=(caps.present&(1u<<8))!=0;
+    uint16_t bytes=(uint16_t)(4u+caps.codec.size+(delay?2u:0u));
+    if(bytes>s->maximum_configuration || (uint32_t)bytes+2u>s->signal.maximum_message)return DBT_INVALID;
+    uint8_t *raw=s->hooks.allocate(s->hooks.context,(uint16_t)(bytes+2u));if(!raw)return DBT_NO_SPACE;
+    raw[0]=(uint8_t)(remote_seid<<2);raw[1]=(uint8_t)(local_seid<<2);
+    raw[2]=1;raw[3]=0;raw[4]=7;raw[5]=caps.codec.size;copy(raw+6,caps.codec.data,caps.codec.size);
+    if(delay){raw[bytes]=8;raw[bytes+1u]=0;}
+    c->completion=(dbt_avdtp_completion_t){c,local_response};uint8_t label;
+    dbt_result_t reserved=dbt_avdtp_command_prepare(&s->signal,DBT_AVDTP_SET_CONFIGURATION,raw,
+        (uint16_t)(bytes+2u),now,&label,&c->completion);
+    if(reserved!=DBT_OK){s->hooks.release(s->hooks.context,raw);return reserved;}
+    /* Signal owns its wire copy; retain a normalized, base-address allocation
+     * for worker preparation and eventual committed Get Configuration data. */
+    for(unsigned i=0;i<bytes;++i)raw[i]=raw[i+2u];
+    uint32_t serial=c->serial+1u;*c=(dbt_avdtp_local_configure_t){0};
+    c->completion=(dbt_avdtp_completion_t){c,local_response};c->sink=s;c->serial=serial;c->active=true;c->endpoint=(uint8_t)index;
+    c->result.token=serial;c->result.binding=s->binding;c->result.local_seid=local_seid;
+    c->result.remote_seid=remote_seid;c->result.label=label;c->result.configuration_size=bytes;
+    c->result.phase=DBT_LOCAL_CONFIG_PREPARING;s->local_configure=c;
+    begin(s,DBT_SINK_CONFIGURE,(uint8_t)index,true,true);
+    s->pending.configuration=raw;s->pending.size=bytes;s->pending.remote_seid=remote_seid;
+    c->result.worker_token=s->pending.token;*id=serial;return DBT_PENDING;
+}
+dbt_result_t dbt_avdtp_local_configure_cancel(dbt_avdtp_local_configure_t *c,uint32_t token){
+    if(!c || !token)return DBT_INVALID;
+    if(c->serial!=token || !c->sink)return DBT_EMPTY;
+    c->result.cancel_requested=true;
+    if(c->done)return c->notifying?DBT_PENDING:DBT_OK;
+    local_outcome(c,DBT_LOCAL_CONFIG_CANCELLED);return DBT_PENDING;
+}
+dbt_result_t dbt_avdtp_local_configure_result(const dbt_avdtp_local_configure_t *c,uint32_t token,dbt_local_config_result_t *result){
+    if(!c || !token || !result || local_overlap(c,sizeof(*c),result,sizeof(*result)))return DBT_INVALID;
+    if(c->serial!=token || !c->sink)return DBT_EMPTY;
+    if(c->active && local_owned(c->sink,result,sizeof(*result)))return DBT_INVALID;
+    *result=c->result;return c->done && !c->notifying?DBT_OK:DBT_PENDING;
 }
 
 dbt_result_t dbt_avdtp_sink_init(dbt_avdtp_sink_t *s,dbt_avdtp_sink_hooks_t hooks,
@@ -263,9 +451,11 @@ dbt_result_t dbt_avdtp_sink_complete(dbt_avdtp_sink_t *s,uint32_t binding,uint32
     if(!s || s->in_work || result>DBT_SINK_WORK_FATAL || result<DBT_SINK_WORK_READY)return DBT_INVALID;
     dbt_sink_pending_t *p=&s->pending;
     if(binding!=s->binding || !p->used || !p->submitted || p->done || job!=p->token)return DBT_EMPTY;
+    if(s->local_configure && !s->retiring)return local_worker_complete(s,result,now);
     if(p->operation==DBT_SINK_DROP){
+        if(s->local_configure){s->local_configure->result.drop_result=result;s->local_configure->result.drop_result_valid=true;}
         if(result!=DBT_SINK_WORK_READY){fault(s);return DBT_INVALID;}
-        s->worker_live=false;drop_pending(s);idle(s);s->drained=true;emit(s,DBT_SINK_DRAINED);return DBT_OK;
+        s->worker_live=false;drop_pending(s);idle(s);s->drained=true;local_retired(s);emit(s,DBT_SINK_DRAINED);return DBT_OK;
     }
     if(s->retiring)return DBT_EMPTY;
     if(dbt_avdtp_poll(&s->signal,now)!=DBT_OK || due(now,p->deadline)){fault(s);return DBT_INVALID;}
@@ -288,6 +478,7 @@ dbt_result_t dbt_avdtp_sink_poll(dbt_avdtp_sink_t *s,uint32_t now) {
     if(!s->retiring && media_wait && due(now,s->media_deadline)){
         fault(s);return DBT_INVALID;
     }
+    if(s->local_configure && !s->retiring){local_poll(s,now);if(s->failed)return DBT_INVALID;}
     dbt_sink_pending_t *p=&s->pending;
     if(p->used && !p->done && due(now,p->deadline)){fault(s);return DBT_INVALID;}
     if(p->used && !p->submitted && !p->done){
@@ -296,6 +487,13 @@ dbt_result_t dbt_avdtp_sink_poll(dbt_avdtp_sink_t *s,uint32_t now) {
         dbt_sink_job_t request={s->binding,p->token,p->operation,s->endpoints[p->endpoint].seid,configuration,size};
         p->attempted=true;
         s->in_work=true;dbt_result_t result=s->hooks.work(s->hooks.context,&request);s->in_work=false;
+        if(s->local_configure){
+            dbt_local_config_result_t *r=&s->local_configure->result;
+            if(p->operation==DBT_SINK_CONFIGURE){r->worker_submit_result=result;if(result==DBT_OK)r->worker_accepted=true;
+                else if(result==DBT_BUSY && r->worker_busy<UINT16_MAX)++r->worker_busy;}
+            else if(p->operation==DBT_SINK_DROP){r->drop_submit_result=result;if(result==DBT_OK)r->drop_accepted=true;
+                else if(result==DBT_BUSY && r->drop_busy<UINT16_MAX)++r->drop_busy;}
+        }
         if(result==DBT_OK){p->submitted=true;s->worker_live=true;}
         else if(result!=DBT_BUSY){
             if(p->operation==DBT_SINK_DROP){fault(s);return DBT_INVALID;}
@@ -336,6 +534,7 @@ dbt_result_t dbt_avdtp_sink_delay(dbt_avdtp_sink_t *s,uint16_t delay,uint32_t no
 uint32_t dbt_avdtp_sink_wait_ms(const dbt_avdtp_sink_t *s,uint32_t now) {
     if(!s || s->drained || (!s->retiring && s->failed))return UINT32_MAX;
     uint32_t wait=s->retiring?UINT32_MAX:dbt_avdtp_wait_ms(&s->signal,now);
+    uint32_t setup=local_wait(s);if(setup<wait)wait=setup;
     const dbt_sink_pending_t *p=&s->pending;
     if(p->used && !p->done){
         if(!p->attempted)return 0;
@@ -359,9 +558,10 @@ dbt_result_t dbt_avdtp_sink_shutdown(dbt_avdtp_sink_t *s,uint32_t now) {
         s->retiring=true;
         if(s->signal.binding && dbt_avdtp_clear(&s->signal)!=DBT_OK)return DBT_BUSY;
         drop_pending(s);
-        if(!s->worker_live){idle(s);s->drained=true;emit(s,DBT_SINK_DRAINED);return DBT_OK;}
+        if(!s->worker_live){idle(s);s->drained=true;local_retired(s);emit(s,DBT_SINK_DRAINED);return DBT_OK;}
         dbt_sink_pending_t *p=&s->pending;p->used=true;p->operation=DBT_SINK_DROP;
-        p->endpoint=s->endpoint;p->token=token(s);p->deadline=now+s->worker_ms;
+        p->endpoint=s->local_configure?s->local_configure->endpoint:s->endpoint;p->token=token(s);p->deadline=now+s->worker_ms;
+        if(s->local_configure)s->local_configure->result.drop_token=p->token;
     }
     return DBT_BUSY;
 }

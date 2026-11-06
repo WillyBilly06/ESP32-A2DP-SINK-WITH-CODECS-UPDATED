@@ -55,7 +55,7 @@ typedef struct {
     uint32_t deadline;
     uint16_t size, offset;
     uint8_t label, signal, type, count, index;
-    bool used, waiting;
+    bool used, waiting, blocked;
     uint8_t small[8];
 } dbt_avdtp_tx_t;
 
@@ -94,6 +94,13 @@ dbt_result_t dbt_avdtp_command(dbt_avdtp_t *signal, uint8_t command,
  * callback borrow but still retains any transport-owned TX bytes. */
 dbt_result_t dbt_avdtp_command_with_completion(dbt_avdtp_t *,uint8_t,const uint8_t *,uint16_t,
     uint32_t,uint8_t *,const dbt_avdtp_completion_t *);
+/* Reserve/copy a command without transmitting it. The caller completion is
+ * borrowed immediately; normal command deadlines still apply. Ready releases
+ * this exact reservation after its worker has prepared resources. */
+dbt_result_t dbt_avdtp_command_prepare(dbt_avdtp_t *,uint8_t,const uint8_t *,uint16_t,
+    uint32_t,uint8_t *,const dbt_avdtp_completion_t *);
+dbt_result_t dbt_avdtp_command_ready(dbt_avdtp_t *,uint32_t binding,uint8_t label,
+    const dbt_avdtp_completion_t *,uint32_t now_ms);
 /* Exact current command only. Unsent/unborrowed work cancels immediately; a
  * submitted/borrowed request remains pending through response/timeout/clear.
  * This primitive uses wire label plus binding/completion identity. Higher

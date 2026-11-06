@@ -48,6 +48,29 @@ typedef struct {
     dbt_result_t (*media)(void *context, const dbt_avdtp_media_t *media);
 } dbt_avdtp_sink_hooks_t;
 
+
+typedef struct dbt_avdtp_local_configure dbt_avdtp_local_configure_t;
+typedef enum {
+    DBT_LOCAL_CONFIG_NONE,DBT_LOCAL_CONFIG_SUCCESS,DBT_LOCAL_CONFIG_PEER_REJECTED,
+    DBT_LOCAL_CONFIG_WORKER_REJECTED,DBT_LOCAL_CONFIG_WORKER_FATAL,
+    DBT_LOCAL_CONFIG_WORKER_TIMEOUT,DBT_LOCAL_CONFIG_CANCELLED,
+    DBT_LOCAL_CONFIG_REMOTE_ABORT,DBT_LOCAL_CONFIG_SIGNAL_ERROR,DBT_LOCAL_CONFIG_CLEANUP_ERROR
+} dbt_local_config_outcome_t;
+typedef enum {DBT_LOCAL_CONFIG_PREPARING,DBT_LOCAL_CONFIG_WAIT_PEER,
+    DBT_LOCAL_CONFIG_CLEANUP,DBT_LOCAL_CONFIG_RETIRING,DBT_LOCAL_CONFIG_DONE} dbt_local_config_phase_t;
+typedef struct {
+    uint32_t token,binding,worker_token,drop_token;
+    dbt_local_config_outcome_t outcome;dbt_local_config_phase_t phase;
+    dbt_avdtp_outcome_t transport_outcome;dbt_avdtp_type_t response_type;
+    dbt_sink_work_result_t worker_result,drop_result;
+    dbt_result_t worker_submit_result,drop_submit_result;uint16_t worker_busy,drop_busy;
+    uint16_t configuration_size;
+    uint8_t local_seid,remote_seid,label,peer_category,peer_error;
+    bool transport_done,response_seen,worker_accepted,worker_result_valid;
+    bool drop_accepted,drop_result_valid,cancel_requested,remote_abort;
+    bool worker_timed_out,cleanup_timed_out,cleanup_complete,resources_transferred,profile_retired;
+} dbt_local_config_result_t;
+
 typedef struct {
     uint8_t *configuration;
     uint32_t token, deadline;
@@ -70,7 +93,29 @@ typedef struct {
     dbt_stream_state_t state;
     uint8_t count, endpoint, remote_seid;
     bool worker_live, retiring, failed, in_work, drained, delay_enabled;
+    dbt_avdtp_local_configure_t *local_configure;
 } dbt_avdtp_sink_t;
+
+struct dbt_avdtp_local_configure {
+    dbt_avdtp_completion_t completion;dbt_avdtp_sink_t *sink;
+    dbt_local_config_result_t result;uint32_t serial;
+    uint8_t endpoint,abort_label;
+    bool active,done,notifying,wire_released,cleaning,cancel_attempted,abort_queued;
+};
+/* Initial local Set Configuration only: caller supplies an exact supported
+ * selection, local Sink SEID and remote Source SEID. The command is copied
+ * and blocked before worker preparation; only READY releases it to the peer.
+ * No caller configuration bytes are borrowed. Keep context until matching
+ * terminal result; rejection waits for acknowledged DROP before reuse.
+ * Call all methods on the signaling owner, outside borrowed callbacks; init
+ * only a fresh or terminal context. Begin returns PENDING only on acceptance.
+ * Cancellation after wire release may retire signaling to avoid an uncertain
+ * peer configuration. Open/start/reconfigure are separate unfinished APIs. */
+void dbt_avdtp_local_configure_init(dbt_avdtp_local_configure_t *);
+dbt_result_t dbt_avdtp_sink_local_configure_begin(dbt_avdtp_sink_t *,dbt_avdtp_local_configure_t *,
+    uint8_t local_seid,uint8_t remote_seid,const uint8_t *,uint16_t,uint32_t,uint32_t *token);
+dbt_result_t dbt_avdtp_local_configure_cancel(dbt_avdtp_local_configure_t *,uint32_t token);
+dbt_result_t dbt_avdtp_local_configure_result(const dbt_avdtp_local_configure_t *,uint32_t token,dbt_local_config_result_t *);
 
 /* Acceptor side, one active audio stream/decoder per sink instance, selected
  * from immutable flash endpoints. No per-codec mutable arrays. The application

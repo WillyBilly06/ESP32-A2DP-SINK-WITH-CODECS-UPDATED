@@ -117,6 +117,20 @@ dbt_result_t dbt_avdtp_command_with_completion(dbt_avdtp_t *s,uint8_t signal,con
        owns_storage(s,completion,sizeof(*completion)) || overlaps(completion,sizeof(*completion),label,sizeof(*label)))return DBT_INVALID;
     return command(s,signal,body,size,now,label,completion);
 }
+dbt_result_t dbt_avdtp_command_prepare(dbt_avdtp_t *s,uint8_t signal,const uint8_t *body,uint16_t size,
+    uint32_t now,uint8_t *label,const dbt_avdtp_completion_t *completion){
+    dbt_result_t result=dbt_avdtp_command_with_completion(s,signal,body,size,now,label,completion);
+    if(result==DBT_OK)s->tx[0].blocked=true;
+    return result;
+}
+dbt_result_t dbt_avdtp_command_ready(dbt_avdtp_t *s,uint32_t binding,uint8_t label,
+    const dbt_avdtp_completion_t *completion,uint32_t now){
+    if(!s || !completion || s->in_callback || s->binding!=binding)return DBT_INVALID;
+    if(dbt_avdtp_poll(s,now)!=DBT_OK)return DBT_INVALID;
+    dbt_avdtp_tx_t *t=&s->tx[0];
+    if(!t->used || !t->blocked || t->waiting || t->index || t->label!=label || s->local_completion!=completion)return DBT_EMPTY;
+    t->blocked=false;t->deadline=now+s->transmit_ms;return DBT_OK;
+}
 dbt_result_t dbt_avdtp_command_cancel(dbt_avdtp_t *s,uint32_t binding,uint8_t label,
     const dbt_avdtp_completion_t *completion,uint32_t now){
     if(!s || !binding || !completion || s->in_callback)return DBT_INVALID;
@@ -278,7 +292,7 @@ dbt_result_t dbt_avdtp_tx_peek(dbt_avdtp_t *s, const uint8_t **packet, uint16_t 
     if (s->pinned) return DBT_BUSY;
     if (!s->selected_valid) {
         if (s->tx[1].used) s->selected = 1;
-        else if (s->tx[0].used && !s->tx[0].waiting) s->selected = 0;
+        else if (s->tx[0].used && !s->tx[0].waiting && !s->tx[0].blocked) s->selected = 0;
         else return DBT_EMPTY;
         s->selected_valid = true;
     }

@@ -40,14 +40,18 @@ Default remembered-peer policy and local endpoint negotiation remain unfinished.
 [Read-only endpoint queries](docs/AVDTP_PEER_QUERY_2026_11_05.md) now isolate
 Discover/capability/configuration responses from Delay Report handling, with
 caller-buffered complete results and explicit completion/cancellation ownership.
-Automatic selection and outgoing stream configuration remain unfinished.
+[Initial local Set Configuration](docs/AVDTP_LOCAL_CONFIGURE_2026_11_05.md) now
+reserves its command until decoder READY and retains ownership through peer
+acceptance or acknowledged cleanup. Configuration notifications precede metadata
+release, and failed profiles still drain worker resources. No automatic caller
+is enabled. Selection and local Open/Start/reconfigure remain unfinished.
 Sustained performance remains unqualified.
 
 ## Current development checkpoint — 2026-11-05
 
 The owned Classic+BLE host is selected on the local COM6 board in ota1 at
 0x390000, marked VALID, with automatic Bluedroid restoration disabled. The
-verified image is `ca19e7a3cbe414814c93cdf1b636efb9981ae800e7223fd5c816e8bbb043dbb7`.
+verified image is `c7fe644c553c8df464a2b39b3b6c85b3d5300f2d562265da51fc9c0b49952059`.
 This remains development firmware with incomplete feature/runtime qualification.
 
 Recent source corrections cover [codec payload boundaries and shared PCM

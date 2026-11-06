@@ -17,6 +17,10 @@ dbt_result_t probe_audio_connect_status(const dbt_a2dp_channel_t *);
 dbt_result_t probe_audio_connect_cancel(const dbt_a2dp_channel_t *);
 /* Read-only AVDTP queries on an exact current signaling binding. Context and
  * response stay caller-owned through terminal query_result; no default query. */
+dbt_result_t probe_audio_configure_begin(const dbt_a2dp_channel_t *,dbt_avdtp_local_configure_t *,
+    uint8_t local_seid,uint8_t remote_seid,const uint8_t *,uint16_t,uint32_t *);
+dbt_result_t probe_audio_configure_cancel(dbt_avdtp_local_configure_t *,uint32_t);
+dbt_result_t probe_audio_configure_result(const dbt_avdtp_local_configure_t *,uint32_t,dbt_local_config_result_t *);
 dbt_result_t probe_audio_query_begin(const dbt_a2dp_channel_t *,dbt_avdtp_query_t *,uint8_t,uint8_t,
     uint8_t *,uint16_t,uint32_t *);
 dbt_result_t probe_audio_query_cancel(dbt_avdtp_query_t *,uint32_t);

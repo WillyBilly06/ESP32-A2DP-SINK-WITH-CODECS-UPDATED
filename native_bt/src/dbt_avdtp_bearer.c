@@ -70,7 +70,7 @@ uint32_t dbt_avdtp_bearer_wait_ms(const dbt_avdtp_bearer_t *b, uint32_t now) {
     if (!current(b) || b->runtime->host.state == DBT_HOST_FAILED) return 0;
     uint32_t wait = dbt_avdtp_wait_ms(b->signal, now);
     if (!b->active && !b->signal->failed &&
-        (b->signal->tx[1].used || (b->signal->tx[0].used && !b->signal->tx[0].waiting))) {
+        (b->signal->tx[1].used || (b->signal->tx[0].used && !b->signal->tx[0].waiting && !b->signal->tx[0].blocked))) {
         for (unsigned i = 0; i < DBT_MAX_LINKS; ++i)
             if (b->runtime->acl.links[i].used && b->runtime->acl.links[i].handle == b->handle &&
                 !b->runtime->tx[i].active) return 0;
