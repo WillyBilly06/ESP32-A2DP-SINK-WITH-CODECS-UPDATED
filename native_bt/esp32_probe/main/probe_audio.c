@@ -793,6 +793,16 @@ dbt_result_t probe_audio_init(dbt_runtime_t *runtime,TaskHandle_t host_owner){
     return DBT_OK;
 }
 bool probe_audio_accept(void *context,const dbt_link_t *link,uint16_t psm){(void)context;return psm!=0x19 || (initialized && !restart_hold && dbt_a2dp_acceptor_accept(&profile,link));}
+dbt_result_t probe_audio_connect_begin(const dbt_link_t *link,dbt_a2dp_channel_t *key){
+    if(!initialized || restart_hold)return DBT_BUSY;
+    return dbt_a2dp_acceptor_connect_begin(&profile,link,now_ms(),key);
+}
+dbt_result_t probe_audio_connect_status(const dbt_a2dp_channel_t *key){
+    return initialized?dbt_a2dp_acceptor_connect_status(&profile,key):DBT_INVALID;
+}
+dbt_result_t probe_audio_connect_cancel(const dbt_a2dp_channel_t *key){
+    return initialized?dbt_a2dp_acceptor_connect_cancel(&profile,key,now_ms()):DBT_INVALID;
+}
 void probe_audio_event(dbt_channel_event_t event,const dbt_channel_t *channel){
     if(!initialized || channel->psm!=0x19)return;
     bool was_active=profile.active;

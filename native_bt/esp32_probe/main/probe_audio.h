@@ -8,6 +8,11 @@
  * when their corresponding DBT_PROBE_*_BUILD components are enabled. */
 dbt_result_t probe_audio_init(dbt_runtime_t *runtime,TaskHandle_t owner);
 bool probe_audio_accept(void *context,const dbt_link_t *link,uint16_t psm);
+/* Host-owner outgoing signaling entry points. No peer is automatically
+ * selected/paged and no codec procedure is initiated by these APIs. */
+dbt_result_t probe_audio_connect_begin(const dbt_link_t *,dbt_a2dp_channel_t *);
+dbt_result_t probe_audio_connect_status(const dbt_a2dp_channel_t *);
+dbt_result_t probe_audio_connect_cancel(const dbt_a2dp_channel_t *);
 void probe_audio_event(dbt_channel_event_t event,const dbt_channel_t *channel);
 void probe_audio_receive(const dbt_channel_t *channel,const uint8_t *data,uint16_t size);
 void probe_audio_poll(uint32_t now_ms);

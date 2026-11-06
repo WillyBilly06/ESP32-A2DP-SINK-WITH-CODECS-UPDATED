@@ -193,6 +193,9 @@ dbt_result_t dbt_channels_open(dbt_channels_t *manager, uint16_t handle, uint16_
                                uint32_t now_ms, uint16_t *local_cid);
 dbt_result_t dbt_channels_open_ertm(dbt_channels_t *manager,uint16_t handle,uint16_t psm,
     uint16_t minimum_mtu,dbt_security_t security,dbt_ertm_parameters_t receive,uint32_t now_ms,uint16_t *local_cid);
+/* Closing a sent/borrowed Classic Connection Request returns BUSY and retains
+ * close intent through its response/deadline. No remote CID is invented. Keep
+ * polling; an unsent borrowed request is returned by the runtime first. */
 dbt_result_t dbt_channels_close(dbt_channels_t *manager, uint16_t handle,
                                 uint16_t local_cid, uint32_t now_ms);
 /* Callback-safe intent only. Exact serial/generation matching prevents an old
@@ -224,6 +227,10 @@ dbt_result_t dbt_channels_tx_peek(dbt_channels_t *manager, dbt_signal_view_t *vi
 dbt_result_t dbt_channels_tx_select(dbt_channels_t *manager, uint16_t handle, dbt_signal_view_t *view);
 bool dbt_channels_tx_pending(const dbt_channels_t *manager, uint16_t handle);
 dbt_result_t dbt_channels_tx_commit(dbt_channels_t *manager, uint32_t now_ms);
+/* Owner transport query: obsolete/currently-cancelled pin can be cancelled
+ * locally only before ANY ACL bytes are admitted. A partial SDU must finish.
+ * cancel on an obsolete pin never fails a newer/current channel transaction. */
+bool dbt_channels_tx_obsolete(const dbt_channels_t *manager);
 dbt_result_t dbt_channels_tx_cancel(dbt_channels_t *manager);
 void dbt_channels_link_change(dbt_channels_t *manager, const dbt_link_change_t *change);
 dbt_result_t dbt_channels_prepare_data(dbt_channels_t *manager, uint16_t handle, uint16_t local_cid,

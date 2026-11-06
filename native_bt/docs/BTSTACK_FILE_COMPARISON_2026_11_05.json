@@ -684,18 +684,18 @@
     },
     {
       "owned": "native_bt/esp32_probe/main/probe_audio.c",
-      "sha256": "6349de4a4b56980263b19558c786982a670677bac1d7fa7e6784d9f81c4566ca",
-      "lines": 922,
+      "sha256": "6493de8052101890de6f83748c4252bb3e7e74055bc5b3786717e822406d3e68",
+      "lines": 932,
       "reference_files": [],
-      "status": "pending",
+      "status": "partial_review",
       "mapping": "product/support code; no direct protocol counterpart assigned"
     },
     {
       "owned": "native_bt/esp32_probe/main/probe_audio.h",
-      "sha256": "f89223a522f5b025aedf7bf46f65da7ca9680721af12c880b3dc934236b42c1b",
-      "lines": 41,
+      "sha256": "406ed0bfcef2ec7135006c8af67cdc7a93ef999f512460e8d718cc54dd4ad5e2",
+      "lines": 46,
       "reference_files": [],
-      "status": "pending",
+      "status": "partial_review",
       "mapping": "product/support code; no direct protocol counterpart assigned"
     },
     {
@@ -1328,8 +1328,8 @@
     },
     {
       "owned": "native_bt/include/dbt_a2dp_acceptor.h",
-      "sha256": "47d59eadfd04a399ca60743e90ba193d1125309ad4ec90962f99dde5ecb4cdb7",
-      "lines": 55,
+      "sha256": "decaa52da73c7fcb057034cb6f9fda1dca6b9c71cf4a3bb9f4402be580824e55",
+      "lines": 70,
       "reference_files": [
         "src/classic/a2dp.c",
         "src/classic/a2dp_sink.c",
@@ -1567,8 +1567,8 @@
     },
     {
       "owned": "native_bt/include/dbt_channels.h",
-      "sha256": "b5339b8c9f392fc377137f5107cc2b864381c0eb2859b79e1301133a004ff0f0",
-      "lines": 234,
+      "sha256": "50fba728582c99475c2d304317f47f3e05c1fcd4aac0d98615d3aec24ff61317",
+      "lines": 241,
       "reference_files": [
         "src/hci.c",
         "src/l2cap.c",
@@ -1755,8 +1755,9 @@
       "sha256": "52639f28c1fd64c6c486730e9e805a9de19f9dbde9abc00dfc69a7bf59a08ee6",
       "lines": 20,
       "reference_files": [],
-      "status": "pending",
-      "mapping": "product/support code; no direct protocol counterpart assigned"
+      "status": "reviewed_contract",
+      "mapping": "product/support code; no direct protocol counterpart assigned",
+      "review_scope": "Complete single-writer/generation-grant lifetime contract read against owning implementation."
     },
     {
       "owned": "native_bt/include/dbt_queue.h",
@@ -2113,8 +2114,8 @@
     },
     {
       "owned": "native_bt/src/dbt_a2dp_acceptor.c",
-      "sha256": "83ff3e23e649efbf3030bb36371dc9b541924d923370e5379e57530b4aa36eff",
-      "lines": 205,
+      "sha256": "9d920135fb74929e16108daa30cfddd6c632d8b01be64fe77568d887402e1bf1",
+      "lines": 238,
       "reference_files": [
         "src/classic/a2dp.c",
         "src/classic/a2dp_sink.c",
@@ -2342,8 +2343,8 @@
     },
     {
       "owned": "native_bt/src/dbt_channels.c",
-      "sha256": "44c7126221cecd4b7af89d7e6650f4b3813bc11299b14ebcc866d0703e63b7df",
-      "lines": 1603,
+      "sha256": "7cbc6eb7d544928e1ecd11d9ac90d950818c0fc5c0077e7b39080f5298285b49",
+      "lines": 1630,
       "reference_files": [
         "src/hci.c",
         "src/l2cap.c",
@@ -2491,8 +2492,9 @@
       "sha256": "105a3c1cb85b0fe61e2eedd65085ba7302211f8d4d15847e7bd6ce459e71c18a",
       "lines": 42,
       "reference_files": [],
-      "status": "pending",
-      "mapping": "product/support code; no direct protocol counterpart assigned"
+      "status": "reviewed_no_change",
+      "mapping": "product/support code; no direct protocol counterpart assigned",
+      "review_scope": "Complete bounded atomic snapshot body read; confirms BLE grant/OTA role rather than Classic peer persistence. Caller security/lifecycle qualification remains separate."
     },
     {
       "owned": "native_bt/src/dbt_queue.c",
@@ -2596,8 +2598,8 @@
     },
     {
       "owned": "native_bt/src/dbt_runtime.c",
-      "sha256": "9bbaa7dcad1fcf6947dc0109d7921c9fd31add0e29cceba69149a262646ddf1b",
-      "lines": 458,
+      "sha256": "644a1ad4ea63f9ebe729a7ab780d055f66b1828ca94fb74b91e8cd4b7460b454",
+      "lines": 465,
       "reference_files": [],
       "status": "partial_review",
       "mapping": "product/support code; no direct protocol counterpart assigned"
@@ -3289,6 +3291,39 @@
       "fix": "Exact base65536 long division uses two native word divisions, restores sign safely and retains all sum/sample/cadence/state semantics.",
       "resource_change": "Flash text +52 bytes; IRAM/data/BSS and analysis own compiler frame unchanged. No new table/state.",
       "limits": "No measured cycle/underrun gain. Limiter/window normalization wide division, interrupted-EQ/acoustic and full performance/feature qualification remain open."
+    },
+    {
+      "id": "L2CAP-019",
+      "state": "implemented_static_analysis_compilation_passed_wire_unqualified",
+      "owned": [
+        "native_bt/src/dbt_channels.c",
+        "native_bt/include/dbt_channels.h",
+        "native_bt/src/dbt_runtime.c"
+      ],
+      "reference": [
+        "Core 6.1 L2CAP6.1.2/6.2",
+        "BTstack src/l2cap.c:2936-2979"
+      ],
+      "issue": "Close could forget sent/pinned Classic setup; obsolete unsent control could remain selected; stale pin cancellation could fail a changed transaction; late Pending could rearm an expired absolute limit.",
+      "fix": "Retain Classic setup close intent through response/deadline; return obsolete unsent pins locally before transport gates; cancel only still-valid current transactions; suppress new configuration/open during close; retain expired Pending ceiling.",
+      "limits": "No wire race/backpressure/partial-SDU/timeout/CID reuse qualification. LE/incoming pending cancellation and full layer review remain incomplete."
+    },
+    {
+      "id": "OUTGOING-020",
+      "state": "source_api_compiled_no_product_caller_or_wire_qualification",
+      "owned": [
+        "native_bt/src/dbt_a2dp_acceptor.c",
+        "native_bt/include/dbt_a2dp_acceptor.h",
+        "native_bt/esp32_probe/main/probe_audio.c",
+        "native_bt/esp32_probe/main/probe_audio.h"
+      ],
+      "reference": [
+        "BTstack src/classic/avdtp.c:331-389",
+        "Current GAP/SDP/acceptor contracts"
+      ],
+      "issue": "Profile had no outgoing signaling entry point; BLE product-peer snapshot is not remembered Classic policy.",
+      "fix": "Expose explicit exact-ACL signaling begin/status/cancel and product wrappers, using existing security and channel routing without new persistent storage.",
+      "limits": "Not automatic reconnection or endpoint negotiation. No active caller/linked operation and no RF campaign."
     }
   ],
   "sections_reviewed": [
@@ -3516,12 +3551,33 @@
       ],
       "outcome": "Complete sources/contract/generator/build reviewed and all generated endpoint/accumulator bounds checked; replaced only exact decimation average. Kept measured Os/O3 split and explicit low-rate clamp difference. Full layer/qualification unfinished.",
       "full_layer_complete": false
+    },
+    {
+      "layer": "Outgoing integration boundary and Classic request retirement",
+      "owned": [
+        "native_bt/src/dbt_channels.c",
+        "native_bt/include/dbt_channels.h",
+        "native_bt/src/dbt_runtime.c",
+        "native_bt/src/dbt_a2dp_acceptor.c",
+        "native_bt/include/dbt_a2dp_acceptor.h",
+        "native_bt/esp32_probe/main/probe_audio.c",
+        "native_bt/esp32_probe/main/probe_audio.h",
+        "native_bt/src/dbt_product_peer.c",
+        "native_bt/include/dbt_product_peer.h"
+      ],
+      "reference": [
+        "src/classic/avdtp.c:331-389",
+        "src/l2cap.c:2936-2979",
+        "Core 6.1 L2CAP6.1.2/6.2"
+      ],
+      "outcome": "Confirmed true missing coordinator rather than misusing BLE grants; exposed source signaling entry and fixed prerequisite request/pin/deadline retirement. Complete small product-peer body/contract read; larger channel/runtime/product files retain partial scope.",
+      "full_layer_complete": false
     }
   ],
   "integration_gaps": [
     {
       "id": "OUTGOING-001",
-      "status": "confirmed_unwired",
+      "status": "signaling_entry_source_added_product_coordinator_unwired",
       "owned": [
         "native_bt/src/dbt_gap.c",
         "native_bt/src/dbt_sdp_discovery.c",
@@ -3533,10 +3589,11 @@
         "src/classic/a2dp_sink.c"
       ],
       "evidence": [
-        "Only product dbt_avdtp_command call is Delay Report",
-        "Latest ELF has no dbt_gap_connect or dbt_sdp_discovery_begin/probe_sdp_discover_audio_source symbol"
+        "Acceptor/product wrappers now provide exact-channel signaling begin/status/cancel; no product caller exists, so symbols are compiled in objects but unlinked.",
+        "Only enabled product dbt_avdtp_command remains Delay Report; remembered-peer selection and local endpoint/configuration initiation are still absent.",
+        "Latest ELF still has no dbt_gap_connect or dbt_sdp_discovery_begin/probe_sdp_discover_audio_source symbol."
       ],
-      "impact": "No enabled product automatic outgoing connection/discovery/stream-setup policy. Generic command helpers and caller-owned modules do not supply that policy.",
+      "impact": "Source now supports opening/cancelling signaling on a caller-selected existing ACL through current profile hooks; automatic peer/paging/SDP/endpoint orchestration remains missing.",
       "requirement": "Explicit master-goal automatic reconnection; released app disabled speaker-initiated auto reconnect."
     },
     {
@@ -3562,11 +3619,11 @@
   ],
   "coverage": {
     "owned_files": 277,
-    "reviewed_owned_c_bodies": 23,
-    "partial_files": 13,
-    "pending_files": 213,
+    "reviewed_owned_c_bodies": 24,
+    "partial_files": 15,
+    "pending_files": 209,
     "compiled_owned_units_missing": 0,
-    "reviewed_headers": 16,
+    "reviewed_headers": 17,
     "reviewed_build_files": 6,
     "reviewed_generators": 4,
     "reviewed_static_data": 2
@@ -3625,7 +3682,11 @@
       "status": "pending_retirement_review_not_a_confirmed_defect",
       "owned": "native_bt/src/dbt_channels.c:allocate_channel",
       "reference": "src/l2cap.c:1000-1013",
-      "difference": "Owned allocation starts at the lowest free CID; reference rotates its next-CID cursor. Compare close/retirement guarantees before changing a wire-legal allocation policy."
+      "difference": "Owned allocation starts at the lowest free CID; reference rotates its next-CID cursor. Compare close/retirement guarantees before changing a wire-legal allocation policy.",
+      "notes": [
+        "Classic sent/pinned Connection Requests now retain their identity through cancel response/deadline; this fixes a concrete close-boundary gap.",
+        "Rotating CID allocation remains a separate policy review; normal timeout/late response, LE/incoming setup and full retirement qualification remain incomplete."
+      ]
     },
     {
       "id": "AVDTP-REVIEW",
@@ -3707,14 +3768,23 @@
         "Limiter and window normalization retain separate wide divisions; no measured speed benefit or acoustic/rapid-ramp qualification.",
         "Whole DSP unit remains -Os by existing measured policy; only steady block has an -O3 function attribute."
       ]
+    },
+    {
+      "id": "CLASSIC-CONNECT-RETIREMENT",
+      "status": "implemented_compiled_wire_qualification_pending",
+      "notes": [
+        "Local cleanup does not wait for HCI availability/credits when no ACL bytes were sent. Partial SDUs retain their pins through completion.",
+        "Expired absolute Pending ceiling cannot be extended through unsigned subtraction.",
+        "No new automatic product/RF caller, outgoing codec procedures or remembered-peer policy."
+      ]
     }
   ],
   "next_review": [
-    "Trace remaining actual decoder/renderer costs and protocol/backend/product rows; avoid blanket compiler-policy changes or replacing full FIR with reference linear interpolation.",
-    "Retain unresolved limiter/window cost, rapid-control stability/acoustic and sustained max-LHDC headroom as qualification gaps.",
-    "Product outgoing reconnect/SDP/AVDTP integration and complete BLE/AVRCP/security feature parity remain unfinished."
+    "Use the new signaling source API when implementing the missing owner coordinator: caller-selected durable Classic peer, GAP page/collision result, security, SDP source service, signaling, then endpoint/configuration procedures. No automatic RF activity under the test hold.",
+    "Review all remaining L2CAP lifecycle paths, especially LE/incoming pending close and partial-SDU/timeout/CID behavior, without assuming the rotating-CID difference is a defect.",
+    "Continue remaining protocol/backend/product rows and sustained audio/feature/security qualification; no complete reconnect or underrun fix claimed."
   ],
-  "latest_build_image": "1735633a1705677d93f4b77f2a7226b1896f9846e3258eed3f92df0b725f82bd",
+  "latest_build_image": "75cf72ad98d23687a79cbbe3f5739b4d1be3a46a40a2390964988e7ebda64cba",
   "verification_source_contracts": [
     {
       "file": "native_bt/tools/test_ldac_target_component.py",

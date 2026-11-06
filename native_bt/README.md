@@ -29,13 +29,17 @@ zero taps’ work per output frame and fixes failed renderer initialization clea
 The full coefficient bank, filter delay, history and precision remain unchanged.
 [DSP analysis averaging](docs/DSP_ANALYSIS_AVERAGE_2026_11_05.md) now uses exact
 native-word division without changing analysis samples, cadence, state or tables.
+[Classic setup retirement](docs/CLASSIC_CONNECT_RETIREMENT_2026_11_05.md) now keeps
+sent requests and signaling pins associated with their lifetime during close, and
+preserves the absolute Pending limit. Outgoing signaling source entry points are
+available; automatic peer/paging/SDP/endpoint coordination remains unfinished.
 Sustained performance remains unqualified.
 
 ## Current development checkpoint — 2026-11-05
 
 The owned Classic+BLE host is selected on the local COM6 board in ota1 at
 0x390000, marked VALID, with automatic Bluedroid restoration disabled. The
-verified image is `1735633a1705677d93f4b77f2a7226b1896f9846e3258eed3f92df0b725f82bd`.
+verified image is `75cf72ad98d23687a79cbbe3f5739b4d1be3a46a40a2390964988e7ebda64cba`.
 This remains development firmware with incomplete feature/runtime qualification.
 
 Recent source corrections cover [codec payload boundaries and shared PCM

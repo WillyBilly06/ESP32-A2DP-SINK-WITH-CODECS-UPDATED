@@ -397,6 +397,12 @@ void dbt_runtime_poll(dbt_runtime_t *runtime, uint32_t now_ms, uint16_t rx_budge
     }
     if (runtime->ready) {
         (void)dbt_channels_poll(&runtime->channels, now_ms, rx_budget);
+        /* Local retirement needs neither controller readiness nor ACL credits.
+         * Once any fragment was sent, finish that SDU before returning its pin. */
+        if(runtime->control_active && !runtime->control.cursor && dbt_channels_tx_obsolete(&runtime->channels)){
+            (void)dbt_channels_tx_cancel(&runtime->channels);
+            runtime->control_active=false;
+        }
         for(unsigned i=0;i<DBT_MAX_LINKS;++i){
             dbt_runtime_tx_t *tx=&runtime->tx[i];
             if(tx->active && tx->ertm_channel){
@@ -432,6 +438,7 @@ uint32_t dbt_runtime_wait_ms(const dbt_runtime_t *runtime, uint32_t now_ms) {
     if (!runtime) return UINT32_MAX;
     uint32_t wait = dbt_host_wait_ms(&runtime->host, now_ms);
     if (!runtime->ready || runtime->host.state == DBT_HOST_FAILED) return wait;
+    if(runtime->control_active && !runtime->control.cursor && dbt_channels_tx_obsolete(&runtime->channels))return 0;
     uint32_t receive_flow=dbt_rx_flow_wait_ms(&runtime->rx_flow);
     if(receive_flow<wait)wait=receive_flow;
     uint32_t channels = dbt_channels_wait_ms(&runtime->channels, now_ms);

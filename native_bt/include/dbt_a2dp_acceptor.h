@@ -30,6 +30,21 @@ dbt_result_t dbt_a2dp_acceptor_init(dbt_a2dp_acceptor_t *profile,dbt_runtime_t *
     dbt_avdtp_sink_hooks_t worker,const dbt_avdtp_endpoint_t *endpoints,uint8_t count,
     uint16_t mtu,uint16_t maximum_configuration,uint32_t signal_ms,uint32_t worker_ms,uint32_t media_ms);
 bool dbt_a2dp_acceptor_accept(const dbt_a2dp_acceptor_t *profile,const dbt_link_t *link);
+/* Outgoing signaling only, on an exact existing Classic ACL. The caller owns
+ * peer/SDP selection; normal asynchronous encryption/authorization still runs.
+ * PENDING copies a channel identity into key, BUSY accepts nothing. No caller
+ * storage is borrowed. Route the usual channel events/data and keep polling.
+ * This does not negotiate endpoints/configuration, start audio or select a
+ * remembered peer. Initial MTUs are provisional until the OPEN event. */
+dbt_result_t dbt_a2dp_acceptor_connect_begin(dbt_a2dp_acceptor_t *,const dbt_link_t *,
+                                           uint32_t now_ms,dbt_a2dp_channel_t *key);
+/* Current readiness, not a latched completion: OK is the exact live signaling
+ * binding, PENDING is channel setup/retirement, EMPTY is stale/gone. Detailed
+ * terminal reasons remain in the existing channel-event hook. */
+dbt_result_t dbt_a2dp_acceptor_connect_status(const dbt_a2dp_acceptor_t *,const dbt_a2dp_channel_t *key);
+/* Callback-safe close intent for that exact identity. Closing an established
+ * signaling binding also retires its media/decoder through the normal owner. */
+dbt_result_t dbt_a2dp_acceptor_connect_cancel(dbt_a2dp_acceptor_t *,const dbt_a2dp_channel_t *key,uint32_t now_ms);
 /* Owner callbacks: no channel mutation/reentry; close operations are deferred
  * to poll. UNSUPPORTED means another PSM. INVALID means an unexpected channel;
  * a composite application must close that channel explicitly. */

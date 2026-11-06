@@ -134,6 +134,39 @@ static bool staged(const dbt_a2dp_acceptor_t *p){
         if(p->runtime->channels.channels[i].state!=DBT_CH_FREE && p->runtime->channels.channels[i].psm==0x19)return true;
     return false;
 }
+dbt_result_t dbt_a2dp_acceptor_connect_begin(dbt_a2dp_acceptor_t *p,const dbt_link_t *link,
+                                           uint32_t now,dbt_a2dp_channel_t *key){
+    if(!p || !p->runtime || !link || !key || !link->used || link->kind!=DBT_LINK_CLASSIC)return DBT_INVALID;
+    if(!p->runtime->ready || p->runtime->host.state!=DBT_HOST_IDENTIFIED ||
+       !p->enabled || p->active || p->draining || staged(p))return DBT_BUSY;
+    const dbt_link_t *current=dbt_acl_find(&p->runtime->acl,link->handle);
+    if(!current || current->generation!=link->generation || current->kind!=DBT_LINK_CLASSIC)return DBT_EMPTY;
+    uint16_t cid;
+    dbt_result_t result=dbt_channels_open(&p->runtime->channels,current->handle,0x19,p->mtu,335,
+                                         DBT_SECURITY_ENCRYPTED,now,&cid);
+    if(result!=DBT_OK)return result;
+    const dbt_channel_t *channel=dbt_channels_find(&p->runtime->channels,current->handle,cid);
+    if(!channel || !channel->serial){dbt_runtime_abort(p->runtime,DBT_FAULT_BAD_RESPONSE);return DBT_INVALID;}
+    remember(key,channel);return DBT_PENDING;
+}
+dbt_result_t dbt_a2dp_acceptor_connect_status(const dbt_a2dp_acceptor_t *p,const dbt_a2dp_channel_t *key){
+    if(!p || !p->runtime || !key || !key->serial || !key->generation)return DBT_INVALID;
+    const dbt_channel_t *channel=live(p,key);
+    if(!channel || channel->psm!=0x19)return DBT_EMPTY;
+    if(p->runtime->host.state==DBT_HOST_FAILED)return DBT_INVALID;
+    if(channel->state!=DBT_CH_OPEN || p->draining)return DBT_PENDING;
+    return p->active && matches(&p->signaling,channel) && !p->sink.failed && !p->sink.signal.failed?DBT_OK:DBT_INVALID;
+}
+dbt_result_t dbt_a2dp_acceptor_connect_cancel(dbt_a2dp_acceptor_t *p,const dbt_a2dp_channel_t *key,uint32_t now){
+    if(!p || !p->runtime || !key || !key->serial || !key->generation)return DBT_INVALID;
+    const dbt_channel_t *channel=live(p,key);
+    if(!channel || channel->psm!=0x19)return DBT_EMPTY;
+    if(p->active && matches(&p->signaling,channel)){
+        dbt_result_t result=dbt_a2dp_acceptor_retire(p,now);return result==DBT_BUSY?DBT_PENDING:result;
+    }
+    dbt_result_t result=dbt_channels_request_close(&p->runtime->channels,channel);
+    return result==DBT_OK?DBT_PENDING:result;
+}
 static void close_all(dbt_a2dp_acceptor_t *p,uint32_t now){
     for(unsigned i=0;i<DBT_CHANNEL_LIMIT;++i){
         const dbt_channel_t *channel=&p->runtime->channels.channels[i];

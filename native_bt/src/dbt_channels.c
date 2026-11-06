@@ -142,7 +142,7 @@ static void finish(dbt_channels_t *manager, dbt_channel_t *channel, dbt_channel_
     zero(channel, sizeof(*channel));
 }
 static void maybe_open(dbt_channels_t *manager, dbt_channel_t *channel) {
-    if (channel->state != DBT_CH_CONFIGURING || !channel->connection_ready ||
+    if (channel->app_close_requested || channel->state != DBT_CH_CONFIGURING || !channel->connection_ready ||
         !channel->local_configured || !channel->peer_configured || channel->request_code != 0) return;
     if(channel->ertm && !channel->ertm->initialized){
         struct dbt_ertm_channel *e=channel->ertm;
@@ -541,11 +541,23 @@ dbt_result_t dbt_channels_open_ertm(dbt_channels_t *m,uint16_t handle,uint16_t p
     dbt_channel_t *c=find(m,handle,*cid);zero(e,sizeof(*e));e->manager=m;e->channel=c;e->local=local;c->ertm=e;
     m->ertm_enabled=true;return DBT_OK;
 }
+/* A Classic request already admitted, or borrowed by the transport, still
+ * owns its identifier/CID. Learn the remote CID before disconnecting. A pin
+ * with no ACL bytes sent can instead be retired by the runtime. */
+static bool connection_request_waiting(const dbt_channels_t *m,const dbt_channel_t *c){
+    if(c->connection_ready || c->le || c->request_code!=CONNECTION_REQUEST)return false;
+    if(c->request_sent)return true;
+    if(!m->tx_locked || !m->tx_count)return false;
+    const dbt_signal_tx_t *tx=&m->tx[m->tx_head];
+    return tx->effect==TX_REQUEST && tx->serial==c->serial && tx->generation==c->link_generation &&
+        tx->handle==c->handle && tx->local_cid==c->local_cid && tx->bytes[0]==CONNECTION_REQUEST;
+}
 dbt_result_t dbt_channels_close(dbt_channels_t *manager, uint16_t handle, uint16_t cid, uint32_t now) {
     if (!manager || manager->in_callback) return DBT_INVALID;
     dbt_channel_t *channel = find(manager, handle, cid);
     if (!channel) return DBT_INVALID;
     if (channel->state == DBT_CH_DISCONNECTING) return DBT_BUSY;
+    if(connection_request_waiting(manager,channel)){channel->app_close_requested=true;return DBT_BUSY;}
     if (!channel->connection_ready) { finish(manager, channel, DBT_CH_REASON_NORMAL, 0); return DBT_OK; }
     prune_tx(manager);
     if (manager->tx_count == DBT_SIGNAL_TX_SLOTS) return DBT_BUSY;
@@ -570,7 +582,8 @@ bool dbt_channels_close_ready(const dbt_channels_t *manager,uint16_t handle,uint
     if(!manager || manager->in_callback)return false;
     const dbt_channel_t *channel=dbt_channels_find(manager,handle,cid);
     if(!channel || channel->state==DBT_CH_FREE || channel->state==DBT_CH_DISCONNECTING)return false;
-    return !channel->connection_ready || manager->tx_count<DBT_SIGNAL_TX_SLOTS;
+    return !connection_request_waiting(manager,channel) &&
+        (!channel->connection_ready || manager->tx_count<DBT_SIGNAL_TX_SLOTS);
 }
 
 static bool command_shape(const uint8_t *command, uint16_t size) {
@@ -806,6 +819,9 @@ static void pending(dbt_channels_t *manager, dbt_channel_t *channel) {
         channel->pending_extended = true;
         channel->pending_limit = manager->now_ms + 300000u;
     }
+    /* A Pending received after the absolute limit must not turn a negative
+     * remainder into a large unsigned extension before this poll expires it. */
+    if(due(manager->now_ms,channel->pending_limit)){channel->deadline=channel->pending_limit;return;}
     channel->deadline = manager->now_ms + manager->ertx_ms;
     if ((uint32_t)(channel->pending_limit - manager->now_ms) < manager->ertx_ms) channel->deadline = channel->pending_limit;
 }
@@ -1314,7 +1330,7 @@ uint16_t dbt_channels_poll(dbt_channels_t *manager, uint32_t now, uint16_t budge
             (void)queue_request(manager,channel,DISCONNECT_REQUEST,false);
         if(channel->ertm && channel->state==DBT_CH_DISCONNECTING && !channel->request_code)
             (void)queue_request(manager,channel,DISCONNECT_REQUEST,false);
-        if(channel->ertm && channel->state==DBT_CH_CONFIGURING && channel->connection_ready){
+        if(!channel->app_close_requested && channel->ertm && channel->state==DBT_CH_CONFIGURING && channel->connection_ready){
             uint32_t features=0;
             if(!channel->ertm->feature_started){
                 dbt_result_t start=dbt_channels_discover_features(manager,channel->handle,now);
@@ -1357,6 +1373,7 @@ uint16_t dbt_channels_poll(dbt_channels_t *manager, uint32_t now, uint16_t budge
     prune_tx(manager);
     for (unsigned i = 0; i < DBT_CHANNEL_LIMIT && manager->tx_count < DBT_SIGNAL_TX_SLOTS; ++i) {
         dbt_channel_t *channel = &manager->channels[i];
+        if(channel->app_close_requested)continue;
         if(channel->ertm && channel->state==DBT_CH_OPEN && channel->reconfiguring &&
            channel->ertm->reconfig_started && !channel->local_configured && !channel->request_code && !channel->ertm->engine.tx_active){
             if(channel->response_more)(void)queue_request(manager,channel,CONFIG_REQUEST,true);
@@ -1451,15 +1468,25 @@ dbt_result_t dbt_channels_tx_commit(dbt_channels_t *manager, uint32_t now) {
     }
     return DBT_OK;
 }
+bool dbt_channels_tx_obsolete(const dbt_channels_t *manager){
+    if(!manager || !manager->tx_locked || !manager->tx_count)return false;
+    const dbt_signal_tx_t *tx=&manager->tx[manager->tx_head];
+    if(!tx_valid(manager,tx))return true;
+    if(tx->effect!=TX_REQUEST || tx->bytes[0]!=CONNECTION_REQUEST)return false;
+    const dbt_channel_t *c=dbt_channels_find(manager,tx->handle,tx->local_cid);
+    return c && c->app_close_requested && !c->connection_ready && !c->le;
+}
 dbt_result_t dbt_channels_tx_cancel(dbt_channels_t *manager) {
     if (!manager || manager->in_callback || !manager->tx_count || !manager->tx_locked) return DBT_INVALID;
     dbt_signal_tx_t *slot = &manager->tx[manager->tx_head];
-    if(slot->effect==TX_FEATURES) {
+    bool valid=tx_valid(manager,slot);
+    if(valid && slot->effect==TX_FEATURES) {
         dbt_signal_link_t *state=signal_link(manager,slot->handle,slot->generation);
         if(state && state->feature_id==slot->bytes[1])state->feature_state=FEATURES_UNAVAILABLE;
     }
     dbt_channel_t *channel = slot->serial ? find(manager, slot->handle, slot->local_cid) : 0;
-    if (channel && channel->serial == slot->serial) finish(manager, channel, DBT_CH_REASON_LOCAL_TIMEOUT, 0);
+    if (valid && channel && channel->serial == slot->serial)
+        finish(manager,channel,channel->app_close_requested?DBT_CH_REASON_NORMAL:DBT_CH_REASON_LOCAL_TIMEOUT,0);
     pop_tx(manager);
     return DBT_OK;
 }
