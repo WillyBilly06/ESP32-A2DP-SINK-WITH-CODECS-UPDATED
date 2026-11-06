@@ -2,7 +2,7 @@
 
 A fresh checkout of https://github.com/bluekitchen/btstack is at D:/BluetoothReferences/btstack-20261105, pinned to upstream HEAD 9edb5d82ea6ec4466a393415d65030929330acdf. This is the same pin as the earlier nine-file reference list. That earlier list was not an exhaustive code audit. BTstack code is not integrated into the owned host or its build dependencies.
 
-The machine-readable [coverage ledger](BTSTACK_FILE_COMPARISON_2026_11_05.json) inventories 281 owned implementation/build inputs (C/header/data/linker files, source generators, platform/product integration and fixed DSP), with source hashes and counterpart candidates. Mapping is many-to-many because the implementations divide responsibilities differently. Files, missing handlers and modules with no reachable product caller are all included. Unreviewed rows remain explicitly pending. This report does not claim that all 285 files have been compared.
+The machine-readable [coverage ledger](BTSTACK_FILE_COMPARISON_2026_11_05.json) inventories 287 owned implementation/build inputs (C/header/data/linker files, source generators, platform/product integration and fixed DSP), with source hashes and counterpart candidates. Mapping is many-to-many because the implementations divide responsibilities differently. Files, missing handlers and modules with no reachable product caller are all included. Unreviewed rows remain explicitly pending. This report does not claim that all 287 files have been compared.
 
 ## Confirmed first-layer defects
 
@@ -20,7 +20,7 @@ The machine-readable [coverage ledger](BTSTACK_FILE_COMPARISON_2026_11_05.json) 
 | BUILD-010 | Five standalone codec components | Working baseline decoder units use -O2 | Restore -O2 for SBC/AAC/LDAC/aptX/Opus; retain LHDC -O3 and the guarded arithmetic profiles. |
 | FIR-011 | coefficient_at | Reference resampler and owned FIR have different work | Use exact high-word interpolation under verified bounds; preserve the owned FIR response, precision and history. |
 | LDAC-012 | LDAC reset / SDK caller allocation | Working-buffer reset entered the general heap | Retain a configuration-sized bounded arena, preserve fresh SDK initialization, and detach ownership correctly at close. |
-| L2CAP-013 | Over-limit declaration / signaling scanner | Reference keeps recombination overruns local; Core requires a signaling MTU response | Drain signaling/dynamic excess without allocation and queue the required first-request rejection. Registered fixed-owner policy is unfinished. |
+| L2CAP-013 | Over-limit declaration / signaling scanner | Reference keeps recombination overruns local; Core requires a signaling MTU response | Drain signaling/dynamic excess without allocation and queue the required first-request rejection. Registered fixed owners now receive explicit errors and deferred teardown; wire qualification is open. |
 
 These defects can make an isolated peer/PDU problem terminate unrelated audio and BLE operation. Their presence is proven from code paths; they are not established as the cause of every reported crash or underrun. Initial Classic role knowledge still requires separate policy/review when no Role Change event has occurred.
 
@@ -28,7 +28,7 @@ The signaling change also checks the [Core 6.1 L2CAP specification, sections 4 a
 
 ## Missing or unwired integration confirmed
 
-- Automatic outgoing setup: product use of dbt_avdtp_command is limited to Delay Report. Generic command, paging and SDP discovery helpers do not provide a complete product peer-selection/outgoing stream procedure. The latest ELF has no reachable dbt_gap_connect, dbt_sdp_discovery_begin or probe_sdp_discover_audio_source symbol. Speaker-initiated automatic reconnect is an explicit master-goal requirement; the released app itself configured it off.
+- Automatic outgoing setup: explicit paging/SDP/signaling coordination, local stream procedures, exact matching, generation and ordered-request ranking now have source APIs. Poll/cancel coordination and SDP discovery are linked; the default dial/rank begin callers are absent. Complete durable peer-selection, reconnect/backoff/handover and queued/crossed policy remain unfinished. Speaker-initiated automatic reconnect is an explicit master-goal requirement; the released app itself configured it off.
 - AVRCP browsing: dbt_avrcp_browse.c is a compiled source unit but its engine is absent from linked ELF symbols. The product registers the control PSM and explicitly advertises no browsing. Its baseline product exposure is still being checked; the existence of a broader BTstack profile is not proof that a released app feature was lost.
 
 The source and linked-image distinction matters: a file compiling does not establish a usable product feature. BLE/client scope, remaining AVDTP states, all codec-specific framing and every other pending row remain part of this audit.
@@ -207,8 +207,16 @@ The owner adapters share current discovery/capability receipt fences. Known prof
 
 The ledger now has 285 inputs, 28 reviewed C bodies and 21 header contracts; 205 pending and 19 partial remain. Larger root/backend bodies retain partial scope. Ranking, durable peer/default/reconnect, crossed policy and full feature/security/lifecycle/audio qualification remain unfinished.
 
+## Asynchronous ordered-request capability ranking
+
+The [ranking review](A2DP_ORDERED_RANKING_2026_11_05.md) compares pinned A2DP discovery scheduling, available opposite-role SEP filtering, sequential capability completion and incoming configuration handoff. Caller buffers and one reused query drive complete assessment; explicit ordered requests retain strict format constraints and first-discovery tie order. A failed, rejected, malformed or truncated capability result, or unsupported requested vendor layout, cannot produce a successful partial lower proposal. Ranking does not transmit Set Configuration or override app preferences.
+
+Each owner step performs one query transition, at most four SEP skips or one generator evaluation. No heap/task/default instance is added. Cancellation/overall timeout waits for the accepted query callback fence; stale tokens retain storage and request matching signal retirement without an immediate polling spin. Incoming configuration returns conflict after that fence. Root terminal result acknowledgment detaches the caller route. These paths remain unqualified on wire.
+
+Strict Clang analysis, target C11 and ccache/source/workspace checks pass. Context/config/result is 384/24/224 bytes plus caller-supplied buffers. Begin/poll own frame is 96 bytes and result 64, excluding callees/full chain. Owner routing links poll/generator code despite no automatic begin: text grows 7372 bytes and aggregate data 112; BSS, DRAM data and IRAM remain unchanged. No speed/headroom improvement is claimed. The ledger now has 287 inputs, 29 reviewed C bodies and 22 header contracts; 19 partial and 205 pending remain. Complete peer/reconnect/default policy, queued/crossed controls and full feature/security/audio/lifecycle qualification are unfinished.
+
 ## Current COM6 deployment
 
-Image 7b94c38cde7ad4266754d3c8e7586e1e5a67947b2991ac2e25bfaa51923e2029 was flashed at 921600 baud to ota1 at 0x390000. Full image and selector readbacks at 230400 match; original application MD5 is unchanged. The owned host stays selected VALID. Ordinary startup is ready with no watchdog/backtrace. Decoder CPU0 priority21, host CPU1 priority22 and renderer CPU1 priority20 remain selected.
+Image e00fe22a099cdb2f2cf7ff3c9a0a0d3c0b559da01e349c224fd72388d4b0bb6e was flashed at 921600 baud to ota1 at 0x390000. Full image and selector readbacks at 230400 match; original application full-region MD5 is unchanged. The owned host stays selected VALID with automatic Bluedroid restoration disabled. Ordinary idle startup is ready with no watchdog/backtrace. Decoder CPU0 priority21, host CPU1 priority22 and renderer CPU1 priority20 remain selected.
 
-Retained RX remains 16384 bytes; encoded input remains 1800 bytes × 8. Idle heap is 138008 free/69636 minimum/110592 largest bytes. Text 873947, BSS 50316, IRAM 122255 and DRAM data 23893 are unchanged. Generator request/result is 28/36 bytes, own compiler frame 208 excluding callees. Its symbols are unlinked, so ordinary boot does not qualify it. UART source 111 is connected. The existing 37 startup codec cases pass (RF false); no separate generation/RF/playback/app/timing campaign ran. Archive: native_bt/_build/hardware/runs/1793938794107942700-7b94c38cde7a/.
+Retained RX remains 16384 bytes and encoded input 1800 bytes × 8. Idle heap is 138008 free/69636 minimum/110592 largest bytes. Text is 881319, aggregate BSS 50316, IRAM 122255 and DRAM data 23893. Ranking context/config/result is 384/24/224 plus caller buffers; no default begin runs. UART source 113 is connected. The existing 37 startup codec cases pass (RF false); no separate ranking/packet/RF/playback/app/timing campaign ran. This does not qualify audio continuity, runtime ranking or max LHDC headroom. Archive: native_bt/_build/hardware/runs/1793940441395118500-e00fe22a099c/.

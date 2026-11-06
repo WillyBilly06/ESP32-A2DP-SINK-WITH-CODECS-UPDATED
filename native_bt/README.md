@@ -7,7 +7,7 @@ Release COM6 in the viewer or through `serial_monitor_ctl.py` before flashing;
 the viewer remains open and follows the test capture while the port is free.
 
 The [BTstack code audit](docs/BTSTACK_CODE_AUDIT_2026_11_05.md) now tracks
-all 285 owned implementation/build inputs, confirmed layer defects, unwired modules and
+all 287 owned implementation/build inputs, confirmed layer defects, unwired modules and
 remaining review coverage against a fresh pinned upstream checkout. The
 comparison is in progress; file presence or compilation is not feature parity.
 The [codec build-profile review](docs/CODEC_BUILD_PROFILE_2026_11_05.md) restores
@@ -71,13 +71,16 @@ current audio Source discovery/capability receipts against an explicit codec
 CIE and both endpoint validators. It returns a proposal without changing app
 preferences or transmitting. [Requested-family generation](docs/A2DP_CANDIDATE_GENERATION_2026_11_05.md)
 now constructs supported candidates from strict rate/channel and codec-specific
-constraints. Automatic cross-family ranking/reconnect remain unfinished. Sustained performance remains unqualified.
+constraints. [Ordered-request ranking](docs/A2DP_ORDERED_RANKING_2026_11_05.md)
+now drives bounded asynchronous discovery/capability assessment with cancellation
+fences and explicit preference order. It returns a proposal without configuring
+a stream. Automatic peer/reconnect policy and sustained performance remain unqualified.
 
 ## Current development checkpoint — 2026-11-05
 
 The owned Classic+BLE host is selected on the local COM6 board in ota1 at
 0x390000, marked VALID, with automatic Bluedroid restoration disabled. The
-verified image is `7b94c38cde7ad4266754d3c8e7586e1e5a67947b2991ac2e25bfaa51923e2029`.
+verified image is `e00fe22a099cdb2f2cf7ff3c9a0a0d3c0b559da01e349c224fd72388d4b0bb6e`.
 This remains development firmware with incomplete feature/runtime qualification.
 
 Recent source corrections cover [codec payload boundaries and shared PCM

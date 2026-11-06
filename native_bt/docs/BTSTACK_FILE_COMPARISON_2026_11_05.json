@@ -609,7 +609,7 @@
     },
     {
       "owned": "native_bt/esp32_probe/components/native_bt/CMakeLists.txt",
-      "sha256": "cc9d9b9ac6d3c739d046d7512466afb9f75a8e2e3ed37e90ebbe087ce5442e53",
+      "sha256": "a4d1b1af40567140597592d0f43232d0e93adeab24bc2c4455ad8cbb69a289e9",
       "lines": 72,
       "reference_files": [],
       "status": "reviewed_build",
@@ -684,16 +684,16 @@
     },
     {
       "owned": "native_bt/esp32_probe/main/probe_audio.c",
-      "sha256": "fcf0063ef45ff1788ee036c21e603a6a7b0f20455f1b2e53d3a6f180d8a4abfb",
-      "lines": 1118,
+      "sha256": "fd8f98fd8d787fefc85c5766e209537c9aafc5dfca4c3fab9ed8f74e0c409d07",
+      "lines": 1156,
       "reference_files": [],
       "status": "partial_review",
       "mapping": "product/support code; no direct protocol counterpart assigned"
     },
     {
       "owned": "native_bt/esp32_probe/main/probe_audio.h",
-      "sha256": "71e81daa439e23b8cf7225a7e6ca2e3372151413e10102e2c30ddd945741dbfb",
-      "lines": 93,
+      "sha256": "471930b310e077a0af27d323914d1916080f00002fc70e1a2e750d6d6730ad99",
+      "lines": 100,
       "reference_files": [],
       "status": "partial_review",
       "mapping": "product/support code; no direct protocol counterpart assigned"
@@ -3054,6 +3054,34 @@
       "status": "reviewed_contract",
       "mapping": "Requested-family candidate generation separate from source encoder-quality and cross-family policy",
       "review_scope": "Complete authored body/contract read; strict field construction, numeric limits, exact validation, no-partial and ownership boundaries reviewed. No active generation/codec/extension/fuzz/runtime proof."
+    },
+    {
+      "owned": "native_bt/src/dbt_a2dp_rank.c",
+      "status": "reviewed_with_findings",
+      "reference_files": [
+        "src/classic/a2dp.c:322-419",
+        "src/classic/a2dp.c:559-582",
+        "src/classic/a2dp.c:803-852",
+        "Owned query/generator/signal completion contracts"
+      ],
+      "mapping": "Caller-owned asynchronous ordered-request ranking and query lifetime fences",
+      "review_scope": "Complete new body/contract read; bounded work, explicit strict request ordering, complete capability assessment, cancellation/fault retain and output/borrow ownership reviewed. No automatic begin or wire/performance qualification.",
+      "sha256": "617f71454f59908337e425c32c2371e45b1f8d919e4ff950c4cd1342267b1d27",
+      "lines": 188
+    },
+    {
+      "owned": "native_bt/include/dbt_a2dp_rank.h",
+      "status": "reviewed_contract",
+      "reference_files": [
+        "src/classic/a2dp.c:322-419",
+        "src/classic/a2dp.c:559-582",
+        "src/classic/a2dp.c:803-852",
+        "Owned query/generator/signal completion contracts"
+      ],
+      "mapping": "Caller-owned asynchronous ordered-request ranking and query lifetime fences",
+      "review_scope": "Complete new body/contract read; bounded work, explicit strict request ordering, complete capability assessment, cancellation/fault retain and output/borrow ownership reviewed. No automatic begin or wire/performance qualification.",
+      "sha256": "b0d67af8b8570ca947debdbacfc1ed7720ed21e24c8ed1814c7f7c47abcfba7e",
+      "lines": 70
     }
   ],
   "findings": [
@@ -3940,6 +3968,24 @@
       ],
       "outcome": "Added explicit-family parameter construction across current supported layouts with strict nonzero constraints, then exact local/peer validation. Preserved source-only preference ownership and bounded pure processing. Broad root/backend audit and runtime policy/quality qualification remain incomplete.",
       "full_layer_complete": false
+    },
+    {
+      "layer": "Ordered-request asynchronous ranking",
+      "owned": [
+        "native_bt/src/dbt_a2dp_rank.c",
+        "native_bt/include/dbt_a2dp_rank.h",
+        "native_bt/esp32_probe/main/probe_audio.c:rank routing only",
+        "native_bt/esp32_probe/main/probe_audio.h",
+        "native_bt/esp32_probe/components/native_bt/CMakeLists.txt"
+      ],
+      "reference": [
+        "src/classic/a2dp.c:322-419",
+        "src/classic/a2dp.c:559-582",
+        "src/classic/a2dp.c:803-852",
+        "Owned query/generator/signal completion contracts"
+      ],
+      "outcome": "Explicit proposal-only ranking sequentially assesses every eligible audio Source with caller-buffered queries and strict ordered format requests. Per-step bounded work; cancellation/timeout fences accepted query lifetime, unknown token retains storage and requests matching signal retirement. Incoming configuration receives handoff. No new task/default instance/begin caller; active wire/order/fault/timing and full-layer qualification incomplete.",
+      "full_layer_complete": false
     }
   ],
   "integration_gaps": [
@@ -3986,15 +4032,16 @@
     }
   ],
   "coverage": {
-    "owned_files": 285,
-    "reviewed_owned_c_bodies": 28,
+    "owned_files": 287,
+    "reviewed_owned_c_bodies": 29,
     "partial_files": 19,
     "pending_files": 205,
     "compiled_owned_units_missing": 0,
-    "reviewed_headers": 21,
+    "reviewed_headers": 22,
     "reviewed_build_files": 6,
     "reviewed_generators": 4,
-    "reviewed_static_data": 2
+    "reviewed_static_data": 2,
+    "compiled_owned_units": 106
   },
   "inventory_corrections": [
     {
@@ -4238,7 +4285,7 @@
         "Audio Source/availability and mandatory Transport+Codec checked; full vendor/codec identity, exact requested CIE validated against local descriptor and normalized peer offer by current codec validator. No quality/rate fallback.",
         "Source bridge requires current exact signaling plus terminal accepted complete Discover and Get[All]Capabilities objects/tokens; peer record comes from discovery rather than caller SEID guesses.",
         "Delay has explicit version+mutual capability policy; alias/partial-output handling bounded, no heap/decoder work. App codec controls are Android method-channel preferences, not a new firmware BLE mask.",
-        "Automatic candidate generation/ranking, existing-stream policy, durable reconnect/default caller and full capability/codec/extension/lifecycle/timing qualification remain incomplete."
+        "Requested-family generation and ordered-request proposal ranking now exist in separate modules. Existing-stream policy, durable reconnect/default caller and full capability/codec/extension/lifecycle/timing qualification remain incomplete."
       ]
     },
     {
@@ -4248,16 +4295,26 @@
         "All current advertised families construct candidates from exact rate/channels and active codec-specific constraints, then use existing exact matching/local+peer validation. No hidden family/rate/depth/bitrate-bound fallback.",
         "SBC defaults fit current frame parser policy; AAC object/VBR/max bitrate, LDAC mode/rate, aptX variants, Opus durations/location/raw field and LHDC numeric min/max/depth/features handled separately. Source-only quality/PCM depth absent from CIE is not invented.",
         "Current query fence shared by raw/generate adapter; output ownership protection now includes runtime, committed/pending config and signal storage. No heap/task/default instance.",
-        "Cross-family ranking, peer/reconnect/default policy, unknown extensions and full malformed/codec/quality/lifecycle/timing qualification remain unfinished."
+        "Explicit ordered-request cross-family proposal ranking now exists. Durable peer/reconnect/default caller, unknown extensions and full malformed/codec/quality/lifecycle/timing qualification remain unfinished."
+      ]
+    },
+    {
+      "id": "A2DP-ORDERED-RANKING",
+      "status": "implemented_caller_owned_proposal_no_automatic_begin_runtime_pending",
+      "notes": [
+        "All eligible available audio Sources assessed with serial Discover/Get[All]Capabilities. Exact lower request index wins, first discovery order breaks ties; only list authorizes lower format. Malformed/rejected/truncated/query/unsupported requested-layout errors prevent partial success.",
+        "One query transition, at most four SEP skips or one generator evaluation per owner iteration; BUSY waits on existing signaling deadlines/readiness, no allocation or added task.",
+        "Accepted cancellation/timeout query waits for callback fence. Unknown accepted token retains ownership and requests same-signaling retirement without spin. Incoming configuration ends assessment through explicit conflict handoff.",
+        "Root terminal result detaches context route. Durable peer/reconnect/backoff/handover/default caller, queued/crossed control policy and wire/security/audio/headroom qualification remain unfinished."
       ]
     }
   ],
   "next_review": [
-    "Complete cross-family preference/ranking and durable Classic peer/reconnect/backoff/handover/default caller from actual source policy and baseline storage, without overriding Android source preferences or claiming actual bitrate from nominal fields.",
-    "All basic local procedures, exact matcher and requested-family generator now exist; do not repeat source primitives. Complete queued/crossed state/backend policy before automatic integration.",
-    "Continue remaining file/feature/security/lifecycle/codec crash/audio underrun/LHDC headroom qualification. No new automatic RF under hold."
+    "Ordered cross-family request ranking now exists; do not repeat query/generator/rank primitives. Complete durable Classic peer/reconnect/backoff/handover/default caller policy from actual baseline/storage without overriding Android source preferences.",
+    "Complete queued/crossed control and backend policy before automatic integration; rank only returns a proposal, no peer acceptance or reservation.",
+    "Continue pending file/feature/security/lifecycle/codec crash/audio underrun/LHDC headroom work. Keep new automatic RF disabled under held campaigns."
   ],
-  "latest_build_image": "7b94c38cde7ad4266754d3c8e7586e1e5a67947b2991ac2e25bfaa51923e2029",
+  "latest_build_image": "e00fe22a099cdb2f2cf7ff3c9a0a0d3c0b559da01e349c224fd72388d4b0bb6e",
   "verification_source_contracts": [
     {
       "file": "native_bt/tools/test_ldac_target_component.py",

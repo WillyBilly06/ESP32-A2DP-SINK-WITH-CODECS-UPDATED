@@ -4,7 +4,7 @@ idf_component_register(
          "../../../src/dbt_avdtp_caps.c" "../../../src/dbt_avdtp_query.c"
          "../../../src/dbt_avdtp_sink.c"
          "../../../src/dbt_a2dp_sbc.c"
-         "../../../src/dbt_a2dp_acceptor.c" "../../../src/dbt_a2dp_connect.c" "../../../src/dbt_a2dp_select.c" "../../../src/dbt_a2dp_generate.c" "../../../src/dbt_sbc_media.c"
+         "../../../src/dbt_a2dp_acceptor.c" "../../../src/dbt_a2dp_connect.c" "../../../src/dbt_a2dp_select.c" "../../../src/dbt_a2dp_generate.c" "../../../src/dbt_a2dp_rank.c" "../../../src/dbt_sbc_media.c"
          "../../../src/dbt_credit.c"
          "../../../src/dbt_page.c"
          "../../../src/dbt_sdp_client.c"

@@ -5,6 +5,7 @@
 #include "dbt_avdtp_query.h"
 #include "dbt_a2dp_select.h"
 #include "dbt_a2dp_generate.h"
+#include "dbt_a2dp_rank.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 /* Host-owner control/data hooks; decoder and PCM work run on the separate
@@ -56,6 +57,12 @@ dbt_result_t probe_audio_match(const dbt_a2dp_channel_t *,const dbt_avdtp_query_
 /* Generated strict family/format proposal using the same current query fences. */
 dbt_result_t probe_audio_generate(const dbt_a2dp_channel_t *,const dbt_avdtp_query_t *,uint32_t,
     const dbt_avdtp_query_t *,uint32_t,const dbt_a2dp_generate_request_t *,uint8_t *,uint16_t,dbt_a2dp_generate_result_t *);
+/* Explicit asynchronous ranking on an idle exact signaling session. PENDING
+ * borrows context/inputs through terminal rank_result, which detaches owner
+ * routing. The copied proposal does not configure or start a stream. */
+dbt_result_t probe_audio_rank_begin(const dbt_a2dp_channel_t *,dbt_a2dp_rank_t *,dbt_a2dp_rank_config_t,uint32_t *);
+dbt_result_t probe_audio_rank_cancel(dbt_a2dp_rank_t *,uint32_t);
+dbt_result_t probe_audio_rank_result(dbt_a2dp_rank_t *,uint32_t,dbt_a2dp_rank_result_t *,const uint8_t **);
 dbt_result_t probe_audio_dial_begin(dbt_a2dp_connect_t *,dbt_gap_t *,dbt_a2dp_connect_config_t,uint32_t *);
 dbt_result_t probe_audio_dial_cancel(dbt_a2dp_connect_t *,uint32_t);
 dbt_result_t probe_audio_dial_result(dbt_a2dp_connect_t *,uint32_t,dbt_a2dp_connect_result_t *);
