@@ -7,6 +7,7 @@
 #endif
 #include "probe_security.h"
 #include "dbt_codec.h"
+#include "dbt_pcm_snapshot.h"
 #include "dbt_sbc_codec.h"
 #ifdef DBT_PROBE_OPUS_BUILD
 #include "dbt_opus.h"
@@ -667,6 +668,9 @@ static void log_loop(void *unused){
     uint32_t previous_codec_revision=0;
     for(;;){
         vTaskDelay(pdMS_TO_TICKS(100));log_media_trace();
+#ifdef DBT_APTX_SNAPSHOT
+        dbt_pcm_snapshot_log(!probe_output_running());
+#endif
 #if defined(DBT_PROBE_SCHEDULER_TRACE) && defined(DBT_PROBE_AUDIO_OUTPUT)
         log_first_starvation();
 #endif
@@ -1013,6 +1017,9 @@ dbt_result_t probe_audio_init(dbt_runtime_t *runtime,TaskHandle_t host_owner){
 #ifdef DBT_PROBE_LHDC_BUILD
     dbt_lhdcv5_quality_start();
 #endif
+    #ifdef DBT_APTX_SNAPSHOT
+    dbt_pcm_snapshot_arm();
+    #endif
     if(xTaskCreatePinnedToCore(decode_loop,"native_decoder",8192,0,DBT_PROBE_DECODER_PRIORITY,&decoder_task,DBT_PROBE_DECODER_CORE)!=pdPASS)return DBT_NO_SPACE;
 #ifdef DBT_PROBE_AUDIO_OUTPUT
     result=probe_audio_output_bootstrap();

@@ -33,3 +33,27 @@ size_t dbt_aptx_backend_recover32(struct aptx_context *ctx,const uint8_t *input,
     }
     *written=(packed/3u)*4u;return used;
 }
+
+#ifdef DBT_APTX_SNAPSHOT
+#include <stddef.h>
+uint32_t dbt_aptx_backend_snapshot_schema(void){
+    uint32_t h=2166136261u;
+#define H(v) h=(h^(uint32_t)(v))*16777619u
+#define T(t) H(sizeof(t))
+#define F(t,f) H(offsetof(t,f));H(sizeof(((t*)0)->f))
+    T(size_t);T(struct aptx_context);T(struct aptx_channel);T(struct aptx_QMF_analysis);T(struct aptx_filter_signal);
+    T(struct aptx_quantize);T(struct aptx_invert_quantize);T(struct aptx_prediction);
+    F(struct aptx_context,decode_sync_packets);F(struct aptx_context,decode_dropped);F(struct aptx_context,channels);F(struct aptx_context,hd);F(struct aptx_context,sync_idx);
+    F(struct aptx_context,encode_remaining);F(struct aptx_context,decode_skip_leading);F(struct aptx_context,decode_sync_buffer_len);F(struct aptx_context,decode_sync_buffer);
+    F(struct aptx_channel,codeword_history);F(struct aptx_channel,dither_parity);F(struct aptx_channel,dither);F(struct aptx_channel,qmf);F(struct aptx_channel,quantize);F(struct aptx_channel,invert_quantize);F(struct aptx_channel,prediction);
+    F(struct aptx_QMF_analysis,outer_filter_signal);F(struct aptx_QMF_analysis,inner_filter_signal);F(struct aptx_filter_signal,buffer);F(struct aptx_filter_signal,pos);
+    F(struct aptx_quantize,quantized_sample);F(struct aptx_quantize,quantized_sample_parity_change);F(struct aptx_quantize,error);
+    F(struct aptx_invert_quantize,quantization_factor);F(struct aptx_invert_quantize,factor_select);F(struct aptx_invert_quantize,reconstructed_difference);
+    F(struct aptx_prediction,prev_sign);F(struct aptx_prediction,s_weight);F(struct aptx_prediction,d_weight);F(struct aptx_prediction,pos);F(struct aptx_prediction,reconstructed_differences);
+    F(struct aptx_prediction,previous_reconstructed_sample);F(struct aptx_prediction,predicted_difference);F(struct aptx_prediction,predicted_sample);
+#undef F
+#undef T
+#undef H
+    return h;
+}
+#endif

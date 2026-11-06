@@ -1,6 +1,7 @@
-param([switch]$StayNative,[switch]$WordDsp,[switch]$PriorityOrder,[ValidateSet(5,6,21)][int]$DecoderPriority=5,[switch]$SchedulerTrace,[switch]$CodecAwareRender,[switch]$PcmCopied,[switch]$PcmHash,[ValidateSet(-1,0,1)][int]$LoggerCore=-1,[switch]$BlockDsp,[ValidateSet(16,32,64)][int]$PcmTargetMs=64,[switch]$PcmLoans,[switch]$DspInlineCheck,[ValidateSet(0,1)][int]$DecoderCore=0,[switch]$RfProtocolDiagnostic,[switch]$FirCompilerCheck,[switch]$DspStageProfile,[switch]$AudioStageProfile,[switch]$PipelineDiagnostic,[switch]$AsyncAudio,[switch]$DeferredCodecCheck,[switch]$LhdcStageProfile,[switch]$LhdcMaximumCheck,[switch]$CodecDiagnosticOnly,[switch]$WithProductIo,[switch]$WithProductSecurity,[switch]$WithRfcomm,[switch]$WithLhdc,[switch]$WithOpus,[switch]$WithAac,[switch]$WithAptx,[switch]$WithLdac,[switch]$WithSmp,[switch]$WithAvrcp,[switch]$WithSbc,[switch]$WithAudioProbe,[switch]$WithAudioOutput,[switch]$WithGatt,[switch]$WithClassicSecurity,[switch]$TraceIngress,[switch]$WithoutRxFlow,[switch]$KeepOwned=$true,[string]$TestPeer='',[string]$LhdcSourceDir='')
+param([switch]$AptxSnapshot,[switch]$StayNative,[switch]$WordDsp,[switch]$PriorityOrder,[ValidateSet(5,6,21)][int]$DecoderPriority=5,[switch]$SchedulerTrace,[switch]$CodecAwareRender,[switch]$PcmCopied,[switch]$PcmHash,[ValidateSet(-1,0,1)][int]$LoggerCore=-1,[switch]$BlockDsp,[ValidateSet(16,32,64)][int]$PcmTargetMs=64,[switch]$PcmLoans,[switch]$DspInlineCheck,[ValidateSet(0,1)][int]$DecoderCore=0,[switch]$RfProtocolDiagnostic,[switch]$FirCompilerCheck,[switch]$DspStageProfile,[switch]$AudioStageProfile,[switch]$PipelineDiagnostic,[switch]$AsyncAudio,[switch]$DeferredCodecCheck,[switch]$LhdcStageProfile,[switch]$LhdcMaximumCheck,[switch]$CodecDiagnosticOnly,[switch]$WithProductIo,[switch]$WithProductSecurity,[switch]$WithRfcomm,[switch]$WithLhdc,[switch]$WithOpus,[switch]$WithAac,[switch]$WithAptx,[switch]$WithLdac,[switch]$WithSmp,[switch]$WithAvrcp,[switch]$WithSbc,[switch]$WithAudioProbe,[switch]$WithAudioOutput,[switch]$WithGatt,[switch]$WithClassicSecurity,[switch]$TraceIngress,[switch]$WithoutRxFlow,[switch]$KeepOwned=$true,[string]$TestPeer='',[string]$LhdcSourceDir='')
 $ErrorActionPreference = 'Stop'
 if ($PriorityOrder) { $DecoderPriority=6; $KeepOwned=$false }
+if ($AptxSnapshot -and (-not $StayNative -or -not $WithAptx -or -not $PcmCopied -or -not $BlockDsp -or -not $WordDsp -or -not $CodecAwareRender)) { throw 'aptX capture requires complete stay-native aptX copied PCM, block/word DSP and codec-aware rendering' }
 if ($WordDsp -and -not $BlockDsp) { throw 'Word DSP requires -BlockDsp' }
 if ($LoggerCore -lt 0) { $LoggerCore=1-$DecoderCore }
 if ($PcmCopied -and $PcmLoans) { throw 'PCM input modes are mutually exclusive' }
@@ -147,6 +148,7 @@ $idfArguments += "-DDBT_PROBE_CODEC_DIAGNOSTIC_ONLY=$codecDiagnosticBuild"
 $idfArguments += "-DDBT_PROBE_DEFERRED_CODEC_CHECK=$deferredCodecBuild"
 $idfArguments += "-DDBT_PROBE_ASYNC_AUDIO=$asyncAudioBuild"
 $idfArguments += "-DDBT_PROBE_PCM_LOANS=$(if ($PcmLoans) { 'ON' } else { 'OFF' })"
+$idfArguments += "-DDBT_PROBE_APTX_SNAPSHOT=$(if ($AptxSnapshot) { 'ON' } else { 'OFF' })"
 $idfArguments += "-DDBT_PROBE_PCM_COPIED=$(if ($PcmCopied) { 'ON' } else { 'OFF' })"
 $idfArguments += "-DDBT_PROBE_PCM_TARGET_MS=$PcmTargetMs"
 $idfArguments += "-DDBT_PROBE_PCM_HASH=$(if ($PcmHash) { 'ON' } else { 'OFF' })"
@@ -185,6 +187,7 @@ $buildReceipt.fir_compiler_check=[bool]$FirCompilerCheck
 $buildReceipt.dsp_stage_profile=[bool]$DspStageProfile
 $buildReceipt.dsp_inline_check=[bool]$DspInlineCheck
 $buildReceipt.audio_stage_profile=[bool]$AudioStageProfile
+$buildReceipt.aptx_snapshot=[bool]$AptxSnapshot
 $buildReceipt.pipeline_diagnostic=[bool]$PipelineDiagnostic
 $buildReceipt.codec_diagnostic_only=[bool]$CodecDiagnosticOnly
 $buildReceipt.deferred_codec_check=[bool]$DeferredCodecCheck

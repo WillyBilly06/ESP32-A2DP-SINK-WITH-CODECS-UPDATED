@@ -39,7 +39,7 @@ idf_component_register(
          "../../../src/dbt_rfcomm_bearer.c"
          "../../../src/dbt_rfcomm_spp.c"
          "../../../src/dbt_ble_control.c"
-         "../../../src/dbt_audio.c"
+         "../../../src/dbt_audio.c" "../../../src/dbt_pcm_snapshot.c"
          "../../../src/dbt_resampler.c" "../../../../bt_audio_sink/main/dsp/fixed_dsp.c"
     REQUIRES partition_table
     INCLUDE_DIRS "../../../include" "../../../../bt_audio_sink/main/dsp"
@@ -69,3 +69,7 @@ foreach(audio_hot_source "../../../src/dbt_audio.c" "../../../src/dbt_resampler.
 endforeach()
 get_filename_component(fixed_dsp_source "${CMAKE_CURRENT_LIST_DIR}/../../../../bt_audio_sink/main/dsp/fixed_dsp.c" ABSOLUTE)
 set_property(SOURCE "${fixed_dsp_source}" APPEND PROPERTY COMPILE_OPTIONS "-Os")
+
+if(DBT_PROBE_APTX_SNAPSHOT)
+    target_compile_definitions(${COMPONENT_LIB} PRIVATE DBT_APTX_SNAPSHOT=1)
+endif()

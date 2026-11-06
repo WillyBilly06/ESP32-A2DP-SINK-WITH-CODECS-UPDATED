@@ -1,4 +1,5 @@
 #include "dbt_audio.h"
+#include "dbt_pcm_snapshot.h"
 #include <string.h>
 #if defined(DBT_AUDIO_BLOCK_DSP) && !defined(FIXED_DSP_BLOCK_API)
 #error "Block rendering requires the exact bounded DSP block API"
@@ -198,6 +199,9 @@ dbt_result_t dbt_audio_submit(dbt_audio_t *a,const void *pcm,uint32_t frames){
         uint32_t bytes=first*a->input.stride;
         memcpy(a->input.bytes+slot*a->input.stride,source,bytes);
         if(first<frames)memcpy(a->input.bytes,source+bytes,(frames-first)*a->input.stride);
+#ifdef DBT_APTX_SNAPSHOT
+        dbt_pcm_snapshot_handoff(pcm,frames,a->input.stride,a->input.bytes+slot*a->input.stride,bytes,a->input.bytes,(frames-first)*a->input.stride);
+#endif
     }
     atomic_store_explicit(&a->input.written,written+frames,memory_order_release);
     owned_add(&a->submitted_frames,frames);return DBT_OK;
@@ -312,7 +316,13 @@ static uint32_t render_dsp_block(dbt_audio_t *a,int32_t *pcm,unsigned frames,uin
     /* pcm is a naturally aligned, unpublished output-ring span. The caller
      * bounds it by one page/ring edge and FIXED_DSP_BLOCK_FRAMES. DSP mutates
      * only renderer-owned free slots; the whole render call publishes later. */
+#ifdef DBT_APTX_SNAPSHOT
+    bool capture=dbt_pcm_snapshot_dsp_begin(&a->dsp,pcm,frames,a->mix!=NULL);
+#endif
     (void)fixed_dsp_process_block(&a->dsp,pcm,(uint16_t)frames);
+#ifdef DBT_APTX_SNAPSHOT
+    if(capture)dbt_pcm_snapshot_dsp_end(pcm);
+#endif
 #ifdef DBT_AUDIO_STAGE_PROFILE
     uint32_t at=audio_cycles();*dsp_cycles+=at-began;
 #endif
@@ -415,6 +425,9 @@ uint32_t dbt_audio_render(dbt_audio_t *a,uint32_t budget){
     );
 #endif
     apply_mix(a,a->output_write_slot,produced);
+#ifdef DBT_APTX_SNAPSHOT
+    dbt_pcm_snapshot_final(&a->dsp);
+#endif
     a->output_write_slot=slot;
 #ifdef DBT_AUDIO_STAGE_PROFILE
     atomic_fetch_add(&a->profile_controls,control_cycles);atomic_fetch_add(&a->profile_frames,produced);

@@ -1,5 +1,9 @@
 #include "dbt_aptx.h"
 #include "freeaptx.h"
+#include "dbt_pcm_snapshot.h"
+#ifdef DBT_APTX_SNAPSHOT
+extern uint32_t dbt_aptx_backend_snapshot_schema(void);
+#endif
 
 extern size_t dbt_aptx_backend_size(void);
 extern struct aptx_context *dbt_aptx_backend_init(void *memory,int hd);
@@ -46,9 +50,16 @@ uint8_t dbt_a2dp_aptx_validate(const dbt_avdtp_endpoint_t *endpoint,const dbt_av
 }
 static uint8_t *workspace(aptx_state_t *s){return (uint8_t *)s+align8(sizeof(*s));}
 static uint8_t *pcm(aptx_state_t *s){return workspace(s)+s->workspace_bytes;}
-static void close_decoder(dbt_codec_decoder_t *d){if(d->state){dbt_codec_release(d,d->state);d->state=0;}atomic_store(&recovery_active,0);}
+static void close_decoder(dbt_codec_decoder_t *d){
+#ifdef DBT_APTX_SNAPSHOT
+    dbt_pcm_snapshot_retire();
+#endif
+    if(d->state){dbt_codec_release(d,d->state);d->state=0;}atomic_store(&recovery_active,0);}
 static dbt_result_t reset_decoder(dbt_codec_decoder_t *d){
     aptx_state_t *s=d->state;if(!s)return DBT_INVALID;
+    #ifdef DBT_APTX_SNAPSHOT
+    dbt_pcm_snapshot_retire();
+    #endif
     s->recovering=s->recovering || s->clock_valid;s->sync_run=0;
     aptx_reset(s->codec);s->clock_valid=false;s->batch=0;s->batch_size=s->batch_offset=0;
     atomic_store(&recovery_active,s->recovering);return DBT_OK;
@@ -80,7 +91,17 @@ static dbt_result_t resume(dbt_codec_decoder_t *d,uint32_t now){
             quality_add(&recovery_calls,1);quality_add(&recovery_consumed,(uint32_t)processed);
             quality_add(&recovery_discarded,(uint32_t)discarded);
             if(ready){s->recovering=false;atomic_store(&recovery_active,0);quality_add(&recovery_completed,1);}
-        }else processed=aptx_decode32(s->codec,s->batch+s->batch_offset,left,pcm(s),1024,&written);
+        }else {
+#ifdef DBT_APTX_SNAPSHOT
+            bool capture=false;
+            if(dbt_pcm_snapshot_wanted(hd(d->config.cie),now))
+                capture=dbt_pcm_snapshot_decode_begin(s->codec,dbt_aptx_backend_size(),dbt_aptx_backend_snapshot_schema(),s->batch+s->batch_offset,left,pcm(s),d->config.rate,now);
+#endif
+            processed=aptx_decode32(s->codec,s->batch+s->batch_offset,left,pcm(s),1024,&written);
+#ifdef DBT_APTX_SNAPSHOT
+            if(capture)dbt_pcm_snapshot_decode_end(processed,written);
+#endif
+        }
         if(!processed || processed>left || (!recovering && processed%quantum) || written>1024 || written%8){
             if(!recovering)quality_add(&parity_rejects,1);
             return batch_finish(s,DBT_INVALID);

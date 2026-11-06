@@ -212,3 +212,7 @@ endif()
 if(DBT_PROBE_LHDC_STAGE_PROFILE)
     target_compile_definitions(${COMPONENT_LIB} PRIVATE DBT_PROBE_LHDC_STAGE_PROFILE=1)
 endif()
+
+if(DBT_PROBE_APTX_SNAPSHOT)
+    target_compile_definitions(${COMPONENT_LIB} PRIVATE DBT_APTX_SNAPSHOT=1)
+endif()

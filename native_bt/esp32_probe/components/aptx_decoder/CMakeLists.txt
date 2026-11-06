@@ -18,3 +18,7 @@ target_compile_options(${COMPONENT_LIB} PRIVATE -O2 -std=c11 -fwrapv)
 # The existing compact adapter has two GCC indentation warnings; their control
 # flow is explicit and host-tested.
 set_source_files_properties("${owned}/dbt_aptx.c" PROPERTIES COMPILE_OPTIONS "-Wno-error=misleading-indentation")
+
+if(DBT_PROBE_APTX_SNAPSHOT)
+    target_compile_definitions(${COMPONENT_LIB} PRIVATE DBT_APTX_SNAPSHOT=1)
+endif()
