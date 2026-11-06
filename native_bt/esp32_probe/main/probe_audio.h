@@ -15,13 +15,15 @@ bool probe_audio_accept(void *context,const dbt_link_t *link,uint16_t psm);
 dbt_result_t probe_audio_connect_begin(const dbt_link_t *,dbt_a2dp_channel_t *);
 dbt_result_t probe_audio_connect_status(const dbt_a2dp_channel_t *);
 dbt_result_t probe_audio_connect_cancel(const dbt_a2dp_channel_t *);
-/* Explicit local configuration/Open on the exact signaling binding. Shared
+/* Explicit local configuration/Open/Start on exact signaling/media bindings. Shared
  * caller context remains borrowed through matching terminal local_result. */
 dbt_result_t probe_audio_configure_begin(const dbt_a2dp_channel_t *,dbt_avdtp_local_t *,
     uint8_t local_seid,uint8_t remote_seid,const uint8_t *,uint16_t,uint32_t *);
 dbt_result_t probe_audio_configure_cancel(dbt_avdtp_local_t *,uint32_t);
 dbt_result_t probe_audio_configure_result(const dbt_avdtp_local_t *,uint32_t,dbt_avdtp_local_result_t *);
 dbt_result_t probe_audio_open_begin(const dbt_a2dp_channel_t *,dbt_avdtp_local_t *,uint32_t *);
+dbt_result_t probe_audio_start_begin(const dbt_a2dp_channel_t *signaling,const dbt_a2dp_channel_t *media,
+    dbt_avdtp_local_t *,uint32_t *);
 dbt_result_t probe_audio_local_cancel(dbt_avdtp_local_t *,uint32_t);
 dbt_result_t probe_audio_local_result(const dbt_avdtp_local_t *,uint32_t,dbt_avdtp_local_result_t *);
 /* Media follows local Open acceptance. Keys are copied; no audio start/default caller. */

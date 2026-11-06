@@ -54,21 +54,23 @@ typedef enum {
     DBT_AVDTP_LOCAL_NONE,DBT_AVDTP_LOCAL_SUCCESS,DBT_AVDTP_LOCAL_PEER_REJECTED,
     DBT_AVDTP_LOCAL_WORKER_REJECTED,DBT_AVDTP_LOCAL_WORKER_FATAL,
     DBT_AVDTP_LOCAL_WORKER_TIMEOUT,DBT_AVDTP_LOCAL_CANCELLED,
-    DBT_AVDTP_LOCAL_REMOTE_ABORT,DBT_AVDTP_LOCAL_SIGNAL_ERROR,DBT_AVDTP_LOCAL_CLEANUP_ERROR
+    DBT_AVDTP_LOCAL_REMOTE_ABORT,DBT_AVDTP_LOCAL_SIGNAL_ERROR,DBT_AVDTP_LOCAL_CLEANUP_ERROR,DBT_AVDTP_LOCAL_ROLLBACK_ERROR
 } dbt_avdtp_local_outcome_t;
 typedef enum {DBT_AVDTP_LOCAL_PREPARING,DBT_AVDTP_LOCAL_WAIT_PEER,
-    DBT_AVDTP_LOCAL_CLEANUP,DBT_AVDTP_LOCAL_RETIRING,DBT_AVDTP_LOCAL_DONE} dbt_avdtp_local_phase_t;
+    DBT_AVDTP_LOCAL_CLEANUP,DBT_AVDTP_LOCAL_RETIRING,DBT_AVDTP_LOCAL_DONE,DBT_AVDTP_LOCAL_ROLLBACK,DBT_AVDTP_LOCAL_WAIT_MEDIA_CLOSE} dbt_avdtp_local_phase_t;
 typedef struct {
-    uint32_t token,binding,worker_token,drop_token;
+    uint32_t token,binding,worker_token,drop_token,rollback_token,media_binding,worker_deadline_ms,rollback_deadline_ms;
     dbt_avdtp_local_outcome_t outcome;dbt_avdtp_local_phase_t phase;
     dbt_sink_operation_t operation;
     dbt_avdtp_outcome_t transport_outcome;dbt_avdtp_type_t response_type;
-    dbt_sink_work_result_t worker_result,drop_result;
-    dbt_result_t worker_submit_result,drop_submit_result;uint16_t worker_busy,drop_busy;
+    dbt_sink_work_result_t worker_result,drop_result,rollback_result;
+    dbt_result_t worker_submit_result,drop_submit_result,rollback_submit_result;
+    uint16_t worker_busy,drop_busy,rollback_busy;
     uint16_t configuration_size;
-    uint8_t local_seid,remote_seid,label,command,peer_category,peer_error;
+    uint8_t local_seid,remote_seid,label,command,peer_category,peer_error,peer_seid;
     bool transport_done,response_seen,worker_accepted,worker_result_valid;
     bool drop_accepted,drop_result_valid,cancel_requested,remote_abort;
+    bool rollback_accepted,rollback_result_valid,rollback_timed_out,abort_response_admitted,media_closed;
     bool worker_timed_out,cleanup_timed_out,cleanup_complete,resources_transferred,profile_retired;
 } dbt_avdtp_local_result_t;
 
@@ -101,7 +103,7 @@ struct dbt_avdtp_local {
     dbt_avdtp_completion_t completion;dbt_avdtp_sink_t *sink;
     dbt_avdtp_local_result_t result;uint32_t serial;
     uint8_t endpoint,abort_label;
-    bool active,done,notifying,wire_released,cleaning,drop_started,cancel_attempted,abort_queued;
+    bool active,done,notifying,wire_released,cleaning,drop_started,rollback_started,cancel_attempted,abort_queued;
 };
 /* Local Set Configuration: caller supplies an exact supported
  * selection, local Sink SEID and remote Source SEID. The command is copied
@@ -112,7 +114,7 @@ struct dbt_avdtp_local {
  * only a fresh or terminal context. Begin returns PENDING only on acceptance.
  * Cancellation after wire release may retire signaling to avoid an uncertain
  * peer configuration. Local Open commits only signaling acceptance; the profile
- * must establish its media channel separately. Start/reconfigure remain unfinished. */
+ * must establish its media channel separately. Local reconfigure remains unfinished. */
 void dbt_avdtp_local_init(dbt_avdtp_local_t *);
 dbt_result_t dbt_avdtp_sink_local_configure_begin(dbt_avdtp_sink_t *,dbt_avdtp_local_t *,
     uint8_t local_seid,uint8_t remote_seid,const uint8_t *,uint16_t,uint32_t,uint32_t *token);
@@ -121,6 +123,13 @@ dbt_result_t dbt_avdtp_sink_local_configure_begin(dbt_avdtp_sink_t *,dbt_avdtp_l
  * post-wire cancellation retires resources before terminal completion. */
 dbt_result_t dbt_avdtp_sink_local_open_begin(dbt_avdtp_sink_t *,dbt_avdtp_local_t *,
     uint32_t now_ms,uint32_t *token);
+/* Start only the exact currently bound media lifetime. READY prepares the
+ * renderer before command release; Accept commits streaming. Rejection or
+ * pre-wire cancel after accepted preparation must acknowledge local SUSPEND
+ * rollback before reusing the configured Open stream. Abort supersedes with
+ * DROP; uncertain post-wire cancel/fatal rollback retires the profile. */
+dbt_result_t dbt_avdtp_sink_local_start_begin(dbt_avdtp_sink_t *,dbt_avdtp_local_t *,
+    uint32_t media_binding,uint32_t now_ms,uint32_t *token);
 dbt_result_t dbt_avdtp_local_cancel(dbt_avdtp_local_t *,uint32_t token);
 dbt_result_t dbt_avdtp_local_result(const dbt_avdtp_local_t *,uint32_t token,dbt_avdtp_local_result_t *);
 
