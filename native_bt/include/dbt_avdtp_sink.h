@@ -57,7 +57,7 @@ typedef enum {
     DBT_AVDTP_LOCAL_REMOTE_ABORT,DBT_AVDTP_LOCAL_SIGNAL_ERROR,DBT_AVDTP_LOCAL_CLEANUP_ERROR,DBT_AVDTP_LOCAL_ROLLBACK_ERROR
 } dbt_avdtp_local_outcome_t;
 typedef enum {DBT_AVDTP_LOCAL_PREPARING,DBT_AVDTP_LOCAL_WAIT_PEER,
-    DBT_AVDTP_LOCAL_CLEANUP,DBT_AVDTP_LOCAL_RETIRING,DBT_AVDTP_LOCAL_DONE,DBT_AVDTP_LOCAL_ROLLBACK,DBT_AVDTP_LOCAL_WAIT_MEDIA_CLOSE} dbt_avdtp_local_phase_t;
+    DBT_AVDTP_LOCAL_CLEANUP,DBT_AVDTP_LOCAL_RETIRING,DBT_AVDTP_LOCAL_DONE,DBT_AVDTP_LOCAL_ROLLBACK,DBT_AVDTP_LOCAL_WAIT_MEDIA_CLOSE,DBT_AVDTP_LOCAL_APPLYING} dbt_avdtp_local_phase_t;
 typedef struct {
     uint32_t token,binding,worker_token,drop_token,rollback_token,media_binding,worker_deadline_ms,rollback_deadline_ms;
     dbt_avdtp_local_outcome_t outcome;dbt_avdtp_local_phase_t phase;
@@ -70,7 +70,7 @@ typedef struct {
     uint8_t local_seid,remote_seid,label,command,peer_category,peer_error,peer_seid;
     bool transport_done,response_seen,worker_accepted,worker_result_valid;
     bool drop_accepted,drop_result_valid,cancel_requested,remote_abort;
-    bool rollback_accepted,rollback_result_valid,rollback_timed_out,abort_response_admitted,media_closed;
+    bool rollback_accepted,rollback_result_valid,rollback_timed_out,abort_response_admitted,media_closed,command_cancelled_unsent;
     bool worker_timed_out,cleanup_timed_out,cleanup_complete,resources_transferred,profile_retired;
 } dbt_avdtp_local_result_t;
 
@@ -112,7 +112,7 @@ struct dbt_avdtp_local {
  * terminal result; rejection waits for acknowledged DROP before reuse.
  * Call all methods on the signaling owner, outside borrowed callbacks; init
  * only a fresh or terminal context. Begin returns PENDING only on acceptance.
- * Cancellation after wire release may retire signaling to avoid an uncertain
+ * Submitted/borrowed cancellation may retire signaling to avoid an uncertain
  * peer configuration. Local Open commits only signaling acceptance; the profile
  * must establish its media channel separately. Local reconfigure remains unfinished. */
 void dbt_avdtp_local_init(dbt_avdtp_local_t *);
@@ -129,6 +129,12 @@ dbt_result_t dbt_avdtp_sink_local_open_begin(dbt_avdtp_sink_t *,dbt_avdtp_local_
  * rollback before reusing the configured Open stream. Abort supersedes with
  * DROP; uncertain post-wire cancel/fatal rollback retires the profile. */
 dbt_result_t dbt_avdtp_sink_local_start_begin(dbt_avdtp_sink_t *,dbt_avdtp_local_t *,
+    uint32_t media_binding,uint32_t now_ms,uint32_t *token);
+/* Suspend sends first and preserves current media admission until peer Accept.
+ * Only then is local SUSPEND enqueued; READY commits Open. Rejection or exact
+ * unsent cancel retains streaming. Failure after acceptance retires the profile.
+ * The caller must supply the exact bound media lifetime, as for Start. */
+dbt_result_t dbt_avdtp_sink_local_suspend_begin(dbt_avdtp_sink_t *,dbt_avdtp_local_t *,
     uint32_t media_binding,uint32_t now_ms,uint32_t *token);
 dbt_result_t dbt_avdtp_local_cancel(dbt_avdtp_local_t *,uint32_t token);
 dbt_result_t dbt_avdtp_local_result(const dbt_avdtp_local_t *,uint32_t token,dbt_avdtp_local_result_t *);

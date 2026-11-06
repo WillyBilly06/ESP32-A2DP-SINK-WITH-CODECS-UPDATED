@@ -684,16 +684,16 @@
     },
     {
       "owned": "native_bt/esp32_probe/main/probe_audio.c",
-      "sha256": "2acd727246e765e1d538be0171fe36226d675dc24636286b252228c9ab19d771",
-      "lines": 1028,
+      "sha256": "0ca96f5698f27041a898e3b194cbed9a6a872134fd482f103755473d05cec636",
+      "lines": 1033,
       "reference_files": [],
       "status": "partial_review",
       "mapping": "product/support code; no direct protocol counterpart assigned"
     },
     {
       "owned": "native_bt/esp32_probe/main/probe_audio.h",
-      "sha256": "7e27e89a2b225c80eb101baf4862b65aa9f06a14a08e74af629de14a787fb466",
-      "lines": 75,
+      "sha256": "4ebc47726ee6d54c3a767dd7d64a95c8aea3a2dbdeba80ba0a514d12ff8fda57",
+      "lines": 77,
       "reference_files": [],
       "status": "partial_review",
       "mapping": "product/support code; no direct protocol counterpart assigned"
@@ -1488,8 +1488,8 @@
     },
     {
       "owned": "native_bt/include/dbt_avdtp_sink.h",
-      "sha256": "f25d5ad3ac0c7abd085bc2b445b0a465441492f349d33010dc81befb224dad36",
-      "lines": 168,
+      "sha256": "992cdf0ff3edcb54755141b53a52a8b2b5167daa209913813b46e30b7fca3fe7",
+      "lines": 174,
       "reference_files": [
         "src/classic/avdtp.c",
         "src/classic/avdtp_acceptor.c",
@@ -2300,8 +2300,8 @@
     },
     {
       "owned": "native_bt/src/dbt_avdtp_sink.c",
-      "sha256": "3fbb8722f6f4012f694c5e747c5879d0ddd74fb20481575d8f40cb0ff7bd8eec",
-      "lines": 679,
+      "sha256": "5613adf823969077ccf30655a3ec23a86f5381420c39b36d22834ffb4f7dd6da",
+      "lines": 712,
       "reference_files": [
         "src/classic/avdtp.c",
         "src/classic/avdtp_acceptor.c",
@@ -3771,6 +3771,21 @@
       ],
       "outcome": "Added exact-media Start, explicit acceptance commits and serialized SUSPEND compensation before caller reuse. Kept late superseded receipts and separated rejection SEID/category. Full runtime and broader layer qualification remains incomplete.",
       "full_layer_complete": false
+    },
+    {
+      "layer": "Local Suspend media continuity and exact unsent cancellation",
+      "owned": [
+        "native_bt/include/dbt_avdtp_sink.h",
+        "native_bt/src/dbt_avdtp_sink.c",
+        "native_bt/esp32_probe/main/probe_audio.h",
+        "native_bt/esp32_probe/main/probe_audio.c"
+      ],
+      "reference": [
+        "src/classic/avdtp_initiator.c:341-348,631-639",
+        "Owned codec worker SUSPEND/gate_epoch/renderer acknowledgment contracts"
+      ],
+      "outcome": "Added wire-first local Suspend and preserved ingress while awaiting peer acceptance, then distinct backend acknowledgment before terminal Open. Refined unsent cancellation without releasing actual borrowed/submitted work. Full protocol/runtime/feature qualification remains incomplete.",
+      "full_layer_complete": false
     }
   ],
   "integration_gaps": [
@@ -4022,14 +4037,23 @@
         "Late preparation and rollback receipts remain metadata without completing new work. No new task/default context/caller; active wire/worker/rollback/fault/streaming and performance qualification remain unfinished.",
         "Abort response admission precedes requested media closure; early peer media close remains an expected Abort event. Context stays pending through media closure and superseded signaling outcome, using event/deadline wakeups."
       ]
+    },
+    {
+      "id": "AVDTP-LOCAL-SUSPEND",
+      "status": "implemented_source_api_no_automatic_caller_wire_pending",
+      "notes": [
+        "Wire-first Suspend keeps streaming ingress and worker state unchanged before peer acceptance; backend SUSPEND token/deadline begins only on Accept.",
+        "READY commits backend Open state; reject/unsent cancel retains streaming, post-acceptance failure retires through DROP. Separate peer/backend stages, stale-token and Abort cleanup retained.",
+        "General cancellation now tries exact unsent command cancellation before inferring uncertainty from transmission permission. No default caller; active wire/queue/cancel/collision/fault/audio qualification remains open."
+      ]
     }
   ],
   "next_review": [
-    "Implement local reconfigure/suspend/close/abort with operation-specific wire/worker ordering. Do not stop the decoder before peer Suspend/Close acceptance while media can still arrive.",
-    "Implement compatible remote codec/peer selection and persisted reconnect/backoff/handover/default caller. Explicit Configure/Open/media/Start source APIs exist; no automatic RF under hold.",
-    "Complete remaining file/feature/security/lifecycle/audio performance qualification."
+    "Implement local Close/reconfigure/Abort initiation with exact resource, reply and media closure identities. Close must preserve current streaming ingress and decoder work while awaiting peer acceptance, then coordinate backend and channel closure.",
+    "Implement compatible remote peer/codec selection, persisted reconnect/backoff/handover/default caller. Explicit Configure/Open/media/Start/Suspend source APIs exist; no automatic RF caller under hold.",
+    "Complete crossed peer/local command policy, remaining file/feature/security/lifecycle/audio qualification and maximum LHDC headroom/underrun diagnosis."
   ],
-  "latest_build_image": "9ab8a93c65e3f29ac09427c74be8527140bf3845a8e97e681da7630a7da76156",
+  "latest_build_image": "6fda754e0cff372de75b477a90253985b3a279a63780a4d8e9bab6a58861027f",
   "verification_source_contracts": [
     {
       "file": "native_bt/tools/test_ldac_target_component.py",
