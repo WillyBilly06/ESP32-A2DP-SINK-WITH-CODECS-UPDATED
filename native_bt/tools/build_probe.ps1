@@ -1,4 +1,4 @@
-param([switch]$StayNative,[switch]$WordDsp,[switch]$PriorityOrder,[ValidateSet(5,6,21)][int]$DecoderPriority=5,[switch]$SchedulerTrace,[switch]$PcmCopied,[switch]$PcmHash,[ValidateSet(-1,0,1)][int]$LoggerCore=-1,[switch]$BlockDsp,[ValidateSet(16,32,64)][int]$PcmTargetMs=64,[switch]$PcmLoans,[switch]$DspInlineCheck,[ValidateSet(0,1)][int]$DecoderCore=0,[switch]$RfProtocolDiagnostic,[switch]$FirCompilerCheck,[switch]$DspStageProfile,[switch]$AudioStageProfile,[switch]$PipelineDiagnostic,[switch]$AsyncAudio,[switch]$DeferredCodecCheck,[switch]$LhdcStageProfile,[switch]$LhdcMaximumCheck,[switch]$CodecDiagnosticOnly,[switch]$WithProductIo,[switch]$WithProductSecurity,[switch]$WithRfcomm,[switch]$WithLhdc,[switch]$WithOpus,[switch]$WithAac,[switch]$WithAptx,[switch]$WithLdac,[switch]$WithSmp,[switch]$WithAvrcp,[switch]$WithSbc,[switch]$WithAudioProbe,[switch]$WithAudioOutput,[switch]$WithGatt,[switch]$WithClassicSecurity,[switch]$TraceIngress,[switch]$WithoutRxFlow,[switch]$KeepOwned=$true,[string]$TestPeer='',[string]$LhdcSourceDir='')
+param([switch]$StayNative,[switch]$WordDsp,[switch]$PriorityOrder,[ValidateSet(5,6,21)][int]$DecoderPriority=5,[switch]$SchedulerTrace,[switch]$CodecAwareRender,[switch]$PcmCopied,[switch]$PcmHash,[ValidateSet(-1,0,1)][int]$LoggerCore=-1,[switch]$BlockDsp,[ValidateSet(16,32,64)][int]$PcmTargetMs=64,[switch]$PcmLoans,[switch]$DspInlineCheck,[ValidateSet(0,1)][int]$DecoderCore=0,[switch]$RfProtocolDiagnostic,[switch]$FirCompilerCheck,[switch]$DspStageProfile,[switch]$AudioStageProfile,[switch]$PipelineDiagnostic,[switch]$AsyncAudio,[switch]$DeferredCodecCheck,[switch]$LhdcStageProfile,[switch]$LhdcMaximumCheck,[switch]$CodecDiagnosticOnly,[switch]$WithProductIo,[switch]$WithProductSecurity,[switch]$WithRfcomm,[switch]$WithLhdc,[switch]$WithOpus,[switch]$WithAac,[switch]$WithAptx,[switch]$WithLdac,[switch]$WithSmp,[switch]$WithAvrcp,[switch]$WithSbc,[switch]$WithAudioProbe,[switch]$WithAudioOutput,[switch]$WithGatt,[switch]$WithClassicSecurity,[switch]$TraceIngress,[switch]$WithoutRxFlow,[switch]$KeepOwned=$true,[string]$TestPeer='',[string]$LhdcSourceDir='')
 $ErrorActionPreference = 'Stop'
 if ($PriorityOrder) { $DecoderPriority=6; $KeepOwned=$false }
 if ($WordDsp -and -not $BlockDsp) { throw 'Word DSP requires -BlockDsp' }
@@ -60,6 +60,7 @@ if ($StayNative) {
     $DecoderPriority=21
     $KeepOwned=$true
 }
+if ($CodecAwareRender -and (-not $StayNative -or -not $AsyncAudio -or -not $PcmCopied -or $PcmLoans)) { throw 'Codec-aware render requires complete stay-native async copied PCM' }
 $nativeRoot = Split-Path -Parent $PSScriptRoot
 $workspaceRoot = Split-Path -Parent $nativeRoot
 $idfRoot = Join-Path $workspaceRoot 'esp-idf'
@@ -158,6 +159,7 @@ $idfArguments += "-DDBT_PROBE_DECODER_PRIORITY=$DecoderPriority"
 $idfArguments += "-DDBT_PROBE_PRIORITY_ORDER=$(if ($PriorityOrder) { 'ON' } else { 'OFF' })"
 $idfArguments += "-DDBT_PROBE_LOGGER_CORE=$LoggerCore"
 $idfArguments += "-DDBT_PROBE_SCHEDULER_TRACE=$(if ($SchedulerTrace) { 'ON' } else { 'OFF' })"
+$idfArguments += "-DDBT_PROBE_CODEC_AWARE_RENDER=$(if ($CodecAwareRender) { 'ON' } else { 'OFF' })"
 $idfArguments += "-DDBT_PROBE_LHDC_MAX_CHECK=$lhdcMaxBuild"
 $idfArguments += "-DDBT_PROBE_LHDC_STAGE_PROFILE=$lhdcStageBuild"
 $sourceManifestPath=Join-Path $buildRoot 'local-build-sources.json'
@@ -206,6 +208,7 @@ $buildReceipt.renderer_priority=$(if ($StayNative) { 20 } elseif ($PriorityOrder
 $buildReceipt.owner_ready_yield=($DecoderPriority -eq $buildReceipt.host_priority)
 $buildReceipt.logger_core=$LoggerCore
 $buildReceipt.scheduler_trace=[bool]$SchedulerTrace
+$buildReceipt.codec_aware_render=[bool]$CodecAwareRender
 $buildReceipt.lhdc_maximum_check=[bool]$LhdcMaximumCheck
 $buildReceipt.lhdc_stage_profile=[bool]$LhdcStageProfile
 if ($buildReceipt.passed) {

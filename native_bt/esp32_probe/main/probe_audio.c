@@ -467,7 +467,22 @@ static bool async_stream_start;
 static dbt_result_t stream_begin(void *context,bool start,const dbt_codec_config_t *config,uint32_t *ticket){
     (void)context;
     if(!config)return DBT_INVALID;
+#ifdef DBT_PROBE_CODEC_AWARE_RENDER
+    bool share=config->ops==&dbt_sbc_codec;
+#ifdef DBT_PROBE_AAC_BUILD
+    share=share || config->ops==&dbt_aac_codec;
+#endif
+#ifdef DBT_PROBE_APTX_BUILD
+    share=share || config->ops==&dbt_aptx_codec;
+#endif
+#ifdef DBT_PROBE_LDAC_BUILD
+    share=share || config->ops==&dbt_ldac_codec;
+#endif
+    dbt_result_t result=probe_output_stream_begin_shared(start,config->rate,config->channels,
+        (dbt_pcm_format_t)config->sample_bytes,share,ticket);
+#else
     dbt_result_t result=probe_output_stream_begin(start,config->rate,config->channels,(dbt_pcm_format_t)config->sample_bytes,ticket);
+#endif
     if(result==DBT_PENDING)async_stream_start=start;
     return result;
 }
@@ -731,6 +746,14 @@ static void log_loop(void *unused){
                ",\"calls\":%" PRIu32 ",\"elapsed_us\":%" PRIu32 ",\"maximum_us\":%" PRIu32 ",\"core\":%" PRIu32
                ",\"application_callback_only\":true,\"elapsed_includes_preemption\":true}\n",
                stats.configured_irq_priority,stats.callback_calls,stats.callback_elapsed_us,stats.callback_max_us,stats.callback_core);
+        snapshot_log(output_snapshot_began,"{\"probe\":\"pcm_clock_policy\",\"adaptive_clock\":%" PRIu32
+               ",\"one_to_one_pcm\":%s}\n",stats.adaptive_clock,stats.adaptive_clock?"false":"true");
+#ifdef DBT_PROBE_CODEC_AWARE_RENDER
+        snapshot_log(output_snapshot_began,"{\"probe\":\"render_owner_policy\",\"collection_cycle_us\":%" PRIu32
+               ",\"core\":%" PRIu32 ",\"transfers\":%" PRIu32 ",\"auxiliary_stack_bytes\":%" PRIu32
+               ",\"allocation_failures\":%" PRIu32 ",\"single_owner\":true}\n",at,stats.render_core,
+               stats.render_owner_transfers,stats.auxiliary_render_stack_bytes,stats.auxiliary_render_allocation_failures);
+#endif
         snapshot_log(output_snapshot_began,"{\"probe\":\"render_work\",\"core\":%" PRIu32 ",\"collection_cycle_us\":%" PRIu32 ",\"calls\":%" PRIu32 ",\"elapsed_us\":%" PRIu32
                ",\"maximum_us\":%" PRIu32 ",\"wall_time_includes_preemption\":true,\"input_ready_frames\":%" PRIu32 ",\"render_stack_low_water_bytes\":%" PRIu32
                ",\"allocation_failed_bytes\":%" PRIu32 ",\"allocation_failure_free\":%" PRIu32 ",\"allocation_failure_largest\":%" PRIu32

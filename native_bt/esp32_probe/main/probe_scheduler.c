@@ -20,6 +20,10 @@ typedef struct {
 } sample_core_t;
 static DRAM_ATTR sample_core_t samples[2];
 static DRAM_ATTR TaskHandle_t tasks[5],idle_tasks[2];
+#ifdef DBT_PROBE_CODEC_AWARE_RENDER
+static DRAM_ATTR _Atomic(TaskHandle_t) renderer0;
+void probe_scheduler_bind_renderer0(TaskHandle_t task){atomic_store_explicit(&renderer0,task,memory_order_release);}
+#endif
 static DRAM_ATTR _Atomic bool enabled;
 static DRAM_ATTR _Atomic uint32_t host_phase;
 static uint32_t known_task_mask;
@@ -32,6 +36,9 @@ static void IRAM_ATTR sample_tick(unsigned core){
     unsigned role=PROBE_SAMPLE_OTHER;
     for(unsigned i=0;i<5;++i)if(tasks[i] && current==tasks[i]){role=i;break;}
     if(role==PROBE_SAMPLE_OTHER && current==idle_tasks[core])role=PROBE_SAMPLE_IDLE;
+#ifdef DBT_PROBE_CODEC_AWARE_RENDER
+    if(role==PROBE_SAMPLE_OTHER && current==atomic_load_explicit(&renderer0,memory_order_acquire))role=PROBE_SAMPLE_RENDERER;
+#endif
     sample_core_t *s=&samples[core];
     uint32_t sequence=atomic_load_explicit(&s->sequence,memory_order_relaxed);
     atomic_store_explicit(&s->sequence,sequence+1u,memory_order_seq_cst);

@@ -19,7 +19,7 @@
 #endif
 typedef struct {
     uint32_t running,failed,rate,requested_bytes,accepted_frames,rendered_frames,ready_frames,input_ready_frames;
-    uint32_t pcm_target_ms,block_dsp,word_dsp,pcm_input_mode,input_capacity_frames,input_ring_bytes;
+    uint32_t pcm_target_ms,block_dsp,word_dsp,pcm_input_mode,input_capacity_frames,input_ring_bytes,adaptive_clock;
     uint32_t dma_eofs,dma_source_frames,underrun_frames,descriptor_errors,max_eof_gap_us;
     uint32_t descriptor_shape_errors,descriptor_pool_errors,descriptor_order_errors;
     /* Recoveries preserve the error count. Missed EOFs are a lower bound;
@@ -31,6 +31,7 @@ typedef struct {
     uint32_t pcm_loan_mode,input_ring_bytes_avoided,pcm_loans_begun,pcm_loans_retired,pcm_loans_cancelled,pcm_loan_active,pcm_loan_max_us;
     uint32_t maximum_render_us,stop_fill_frames;
     uint32_t render_total_us,render_calls,render_stack_low_water_bytes;
+    uint32_t render_owner_transfers,auxiliary_render_stack_bytes,auxiliary_render_allocation_failures;
     uint32_t allocation_failed_bytes,allocation_failure_free,allocation_failure_largest;
     uint32_t allocation_failure_rate,allocation_failure_channels,allocation_failure_sample_bytes,allocation_failure_at_us;
     uint32_t allocation_failure_audio_requested,allocation_failure_audio_allocated,allocation_failure_pages;
@@ -52,6 +53,9 @@ dbt_result_t probe_output_init(void (*wake_decoder)(void *),void *context);
  * render owner has reclaimed any accepted side effect. A stale id is INVALID,
  * never evidence that a borrowed object can be freed. Clients receive wakeups
  * through their registered decoder/sound notifications. */
+/* Closed output can transfer to a lower-priority CPU0 owner for light codecs.
+ * Active I2S never migrates; the existing ticket retains request ownership. */
+dbt_result_t probe_output_stream_begin_shared(bool start,uint32_t rate,uint8_t channels,dbt_pcm_format_t format,bool share_decoder_core,uint32_t *ticket);
 dbt_result_t probe_output_stream_begin(bool,uint32_t,uint8_t,dbt_pcm_format_t,uint32_t *);
 dbt_result_t probe_output_request_poll(uint32_t);
 dbt_result_t probe_output_request_cancel(uint32_t);

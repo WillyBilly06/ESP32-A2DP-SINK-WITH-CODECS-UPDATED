@@ -581,12 +581,12 @@
     },
     {
       "owned": "native_bt/esp32_probe/CMakeLists.txt",
-      "sha256": "53259b1ccdeed6ce57fc31199c5603eadf24fde8560d5cd4893a34f40c5be486",
-      "lines": 186,
+      "sha256": "b815375b0b2627822b0be4ce4434d1d3ff0c9295be0a0c57e0cb4b0a892abc91",
+      "lines": 190,
       "reference_files": [],
       "status": "partial_review",
       "mapping": "Added through full filesystem/build-manifest cross-check; source generation/build inputs included",
-      "review_scope": "Product/diagnostic/profile gates, source selection and compile definitions reviewed. Stay-native retains complete async entry while allowing passive sampler/audio counters; benchmark sources excluded and actual compile commands verified. Broader component/build recipe review remains partial."
+      "review_scope": "Product/diagnostic/profile gates, source selection and compile definitions reviewed. Stay-native retains complete async entry while allowing passive sampler/audio counters; benchmark sources excluded and actual compile commands verified. Broader component/build recipe review remains partial. Follow-up: closed-channel codec-aware core ownership and one-to-one PCM selection checked against released Bluedroid; LDAC96k short playback has0 underruns/queue drops/rejects/WDT. All-mode lifecycle, fidelity, concurrency and sustained qualification remain open."
     },
     {
       "owned": "native_bt/esp32_probe/components/aac_decoder/CMakeLists.txt",
@@ -674,12 +674,12 @@
     },
     {
       "owned": "native_bt/esp32_probe/main/CMakeLists.txt",
-      "sha256": "283125c476e4409f54d51c8fde01774665974c24b4898d3e7b8ead6d7482cf3f",
-      "lines": 212,
+      "sha256": "678a28b98ccb7f9857649f2d2e59a50d19147717648d2818daa1781a71b7a1b3",
+      "lines": 215,
       "reference_files": [],
       "status": "partial_review",
       "mapping": "Added through full filesystem/build-manifest cross-check; source generation/build inputs included",
-      "review_scope": "Product/diagnostic/profile gates, source selection and compile definitions reviewed. Stay-native retains complete async entry while allowing passive sampler/audio counters; benchmark sources excluded and actual compile commands verified. Broader component/build recipe review remains partial."
+      "review_scope": "Product/diagnostic/profile gates, source selection and compile definitions reviewed. Stay-native retains complete async entry while allowing passive sampler/audio counters; benchmark sources excluded and actual compile commands verified. Broader component/build recipe review remains partial. Follow-up: closed-channel codec-aware core ownership and one-to-one PCM selection checked against released Bluedroid; LDAC96k short playback has0 underruns/queue drops/rejects/WDT. All-mode lifecycle, fidelity, concurrency and sustained qualification remain open."
     },
     {
       "owned": "native_bt/esp32_probe/main/Kconfig.projbuild",
@@ -715,12 +715,12 @@
     },
     {
       "owned": "native_bt/esp32_probe/main/probe_audio.c",
-      "sha256": "417c469fd8f484dd28b2e7d4d97c642786d0b04735066b6cfbe82a1ab1a24016",
-      "lines": 1195,
+      "sha256": "5d506edae4cc3f7eeb7d3183c44783ca0c718c83e62051c277e4e809490676d4",
+      "lines": 1218,
       "reference_files": [],
       "status": "partial_review",
       "mapping": "product/support code; no direct protocol counterpart assigned",
-      "review_scope": "Selected active decode/render/owner/telemetry and passive stage/scheduler integration reviewed; source remains partial. Trace shows output pressure/latched failure with decoder rejects0, but full profile/default peer/feature/security and shared throughput proof remain unfinished."
+      "review_scope": "Selected active decode/render/owner/telemetry and passive stage/scheduler integration reviewed; source remains partial. Trace shows output pressure/latched failure with decoder rejects0, but full profile/default peer/feature/security and shared throughput proof remain unfinished. Follow-up: closed-channel codec-aware core ownership and one-to-one PCM selection checked against released Bluedroid; LDAC96k short playback has0 underruns/queue drops/rejects/WDT. All-mode lifecycle, fidelity, concurrency and sustained qualification remain open."
     },
     {
       "owned": "native_bt/esp32_probe/main/probe_audio.h",
@@ -1084,23 +1084,23 @@
     },
     {
       "owned": "native_bt/esp32_probe/main/probe_output.c",
-      "sha256": "83a4533ef38166645179bec8a72549915317cc0ea08d833a723054aa38a22c85",
-      "lines": 1224,
+      "sha256": "3e6f3820856e2aec683519c9a5733b0e0db05b73248331e7992833772f738345",
+      "lines": 1341,
       "reference_files": [
         "port/esp32/components/btstack/btstack_audio_esp32_v5.c"
       ],
       "status": "reviewed_with_findings",
       "mapping": "reviewed_port_audio_boundaries",
-      "review_scope": "Authored output body previously reviewed; current callback lookup, descriptor-copy accounting, verified-pool recovery, stop streak, reset/stats and compiled mode reread against actual ESP32 SDK EOF ISR. Error visibility retained; renderer overload/IRQ-delay cause, all-mode lifecycle and active recovery proof remain incomplete."
+      "review_scope": "Authored output body previously reviewed; current callback lookup, descriptor-copy accounting, verified-pool recovery, stop streak, reset/stats and compiled mode reread against actual ESP32 SDK EOF ISR. Error visibility retained; renderer overload/IRQ-delay cause, all-mode lifecycle and active recovery proof remain incomplete. Follow-up: closed-channel codec-aware core ownership and one-to-one PCM selection checked against released Bluedroid; LDAC96k short playback has0 underruns/queue drops/rejects/WDT. All-mode lifecycle, fidelity, concurrency and sustained qualification remain open."
     },
     {
       "owned": "native_bt/esp32_probe/main/probe_output.h",
-      "sha256": "f7c9d2458d63e88aef77b5342b36047ec9c43a080220a6574497fe0c2ba0db2c",
-      "lines": 111,
+      "sha256": "9764797d94dcac4356a6fe99a6e64553210394b097173987e28be8cc458b4b80",
+      "lines": 115,
       "reference_files": [],
       "status": "reviewed_contract",
       "mapping": "product/support code; no direct protocol counterpart assigned",
-      "review_scope": "Complete output API/stats declaration reread for added recovery/minimum counters; copied DMA ownership and incomplete callback-count/replay inference explicit. No payload pool/task introduced."
+      "review_scope": "Complete output API/stats declaration reread for added recovery/minimum counters; copied DMA ownership and incomplete callback-count/replay inference explicit. No payload pool/task introduced. Follow-up: closed-channel codec-aware core ownership and one-to-one PCM selection checked against released Bluedroid; LDAC96k short playback has0 underruns/queue drops/rejects/WDT. All-mode lifecycle, fidelity, concurrency and sustained qualification remain open."
     },
     {
       "owned": "native_bt/esp32_probe/main/probe_pair_button.c",
@@ -1256,21 +1256,21 @@
     },
     {
       "owned": "native_bt/esp32_probe/main/probe_scheduler.c",
-      "sha256": "42528e1b51da8ab5cfc309ea4ad056f67a3f2e14f7fac4488ef4e605a85be91e",
-      "lines": 100,
+      "sha256": "e8b27e54cb2e58f951e68a602cd384aed52bc5d6fbbf2276071fe0016b61cda5",
+      "lines": 107,
       "reference_files": [],
       "status": "reviewed_no_change",
       "mapping": "product/support code; no direct protocol counterpart assigned",
-      "review_scope": "Complete passive sampler body and contract read: single-writer per-core counters, release/acquire initialization, bounded role lookup and non-spinning snapshot, startup rollback. Tick masking/aliasing/preemption bias explicit; not exact CPU usage or playback proof."
+      "review_scope": "Complete passive sampler body and contract read: single-writer per-core counters, release/acquire initialization, bounded role lookup and non-spinning snapshot, startup rollback. Tick masking/aliasing/preemption bias explicit; not exact CPU usage or playback proof. Follow-up: closed-channel codec-aware core ownership and one-to-one PCM selection checked against released Bluedroid; LDAC96k short playback has0 underruns/queue drops/rejects/WDT. All-mode lifecycle, fidelity, concurrency and sustained qualification remain open."
     },
     {
       "owned": "native_bt/esp32_probe/main/probe_scheduler.h",
-      "sha256": "55515a972a6a2382f0ab6a4f3492607d76464a7d18a95dee1fa8f40c8f534d9e",
-      "lines": 28,
+      "sha256": "c4e294abc75d6f82121f1bf8894bf80b13be5d26bcbee604fa4e462d17bd5d74",
+      "lines": 32,
       "reference_files": [],
       "status": "reviewed_contract",
       "mapping": "product/support code; no direct protocol counterpart assigned",
-      "review_scope": "Complete once-per-boot init/snapshot/host-phase contract read against implementation. No task/query/lock or logging in tick callbacks; passive sampled identity is not exact runtime."
+      "review_scope": "Complete once-per-boot init/snapshot/host-phase contract read against implementation. No task/query/lock or logging in tick callbacks; passive sampled identity is not exact runtime. Follow-up: closed-channel codec-aware core ownership and one-to-one PCM selection checked against released Bluedroid; LDAC96k short playback has0 underruns/queue drops/rejects/WDT. All-mode lifecycle, fidelity, concurrency and sustained qualification remain open."
     },
     {
       "owned": "native_bt/esp32_probe/main/probe_scheduler.lf",
@@ -4748,10 +4748,21 @@
         "Stay-native passive sampler/stage counters compile with product features and no benchmark units;10349 source hashes stable. ISR own64 frame unchanged. DRAM data+BSS+288, IRAM+688; no new pool/task/fidelity change.",
         "COM6 0d068bd01a5308bca8c77e217eb626ba427ec0df94dbb6754d6cdbe08386793f readbacks match, original preserved, owned VALID ready.37 existing cold checks pass RFfalse, idle137624/min67068/largest110592; source133. No new-image active recovery/throughput/all-codec qualification."
       ]
+    },
+    {
+      "id": "BLUEDROID-PCM-CORE-SHARING",
+      "status": "source_build_readback_cold_short_ldac_pass_aac_transport_open",
+      "notes": [
+        "Released and original AudioPipeline explicitly disable drift drop/insert, use one-to-one PCM through DSP and have no all-frame FIR. Source paths and hashes recorded in BLUEDROID_PCM_COMPARISON_2026_11_06.md.",
+        "Stay-native restores one-to-one PCM and corrects unused FIR delay; optional resampler diagnostics retained. Light SBC/AAC/aptX/LDAC owner20/Core0 below decoder21; LHDC/Opus owner20/Core1. Closed-only transfer, persistent handles, lazy6144-byte stack plus TCB, explicit failure.",
+        "Image6c4e683dc2aca9f188b4f3c53431be48b5b942025edb5c0a15bca71ab5587bba readbacks match, original preserved, owned ready,37 existing cold checks pass.10349 build source hashes stable.",
+        "LDAC96k stereo/S32 targeted10s command trace and flushed stream totals: accepted=rendered=DMA-source1234688;0 underruns/queue drops/rejects/descriptor errors/RTP breaks/WDT. Mean0.434ms/call vs1.333ms deadline, max2.352ms includes preemption. Queue high-water4. Short evidence only; individual worker trace records lost4501, aggregate snapshots intact.",
+        "Following AAC trace receives473 payloads but produces no PCM: prefix47fc announces version1, owned parser only accepts version0. Independent compatibility defect remains. No claim all codecs or BLE/OTA/lifecycle/full stress are qualified."
+      ]
     }
   ],
-  "next_review": "Prioritize shared all-codec media/PCM/render scheduling and sustained-throughput bottlenecks, comparing the actual baseline. Keep AAC live crash and all-feature/security qualification open. Do not repeat rejected FIR variants or add automatic RF/test callers under hold.",
-  "latest_build_image": "0d068bd01a5308bca8c77e217eb626ba427ec0df94dbb6754d6cdbe08386793f",
+  "next_review": "Fix observed AAC LATM version1 incompatibility against the actual working Bluedroid path; continue approved bounded codec playback diagnosis. Preserve one-to-one PCM baseline and measured core sharing. Full feature/security/long-duration gates remain open.",
+  "latest_build_image": "6c4e683dc2aca9f188b4f3c53431be48b5b942025edb5c0a15bca71ab5587bba",
   "verification_source_contracts": [
     {
       "file": "native_bt/tools/test_ldac_target_component.py",
@@ -4768,5 +4779,21 @@
       "sha256": "af2862d10c824b39ba8bb996c9f87a58ab201d0569e083a41b5497a4521fa6e3"
     }
   ],
-  "follow_up_schema_correction": "Preserved the existing array schema and upserted by id. Earlier dictionary-style assignments on this array were not serialized; verified open items recorded in source/docs/checkpoints are now explicit array rows."
+  "follow_up_schema_correction": "Preserved the existing array schema and upserted by id. Earlier dictionary-style assignments on this array were not serialized; verified open items recorded in source/docs/checkpoints are now explicit array rows.",
+  "build_orchestration_follow_up": {
+    "scope": "Separate orchestration tools; not added to layer-source coverage counts",
+    "files": [
+      {
+        "path": "native_bt/tools/build_probe.ps1",
+        "sha256": "a1bd418c5be3f385a78a40d13623fc7b378a2bd33d94a2410787497c47c636be",
+        "lines": 227
+      },
+      {
+        "path": "native_bt/tools/validate_local_image.py",
+        "sha256": "92d1ced1c6536bfd924bc818060e6038ed6119102accaf865aa18451e8c0501a",
+        "lines": 280
+      }
+    ],
+    "checks": "PowerShell/CMake/receipt/validator mode gates, full ccache product build; explicit opt-in and default off"
+  }
 }

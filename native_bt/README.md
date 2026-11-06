@@ -6,8 +6,16 @@ capture replay and export. `tools/start_serial_dashboard.ps1` prints its URL.
 Release COM6 in the viewer or through `serial_monitor_ctl.py` before flashing;
 the viewer remains open and follows the test capture while the port is free.
 
+The [Bluedroid PCM comparison](docs/BLUEDROID_PCM_COMPARISON_2026_11_06.md) identifies
+the added always-on FIR work absent from the working product. Stay-native now
+restores one-to-one PCM through integer DSP. The opt-in codec-aware core policy
+shares Core0 with lower-priority DSP for lighter codecs; LHDC/Opus retain Core1
+rendering. Read the measured hardware limits in that record before treating this
+development image as a replacement. COM6 runs the owned host without automatic
+Bluedroid fallback.
+
 The [BTstack code audit](docs/BTSTACK_CODE_AUDIT_2026_11_05.md) now tracks
-all 287 owned implementation/build inputs, confirmed layer defects, unwired modules and
+all 288 owned implementation/build inputs, confirmed layer defects, unwired modules and
 remaining review coverage against a fresh pinned upstream checkout. The
 comparison is in progress; file presence or compilation is not feature parity.
 The [codec build-profile review](docs/CODEC_BUILD_PROFILE_2026_11_05.md) restores
@@ -437,16 +445,18 @@ Product IO enables the owned product admission policy, so this command does not
 require a hardcoded Linux test address. Explicit diagnostic Classic builds
 retain the `-TestPeer` requirement. RFCOMM adds a bounded serial echo service;
 its current single-DLC/conformance limits are in `docs/RFCOMM.md`. This command
-never flashes. The ESP32 hold remains active, and future deployment still needs
-fresh identity/layout admission through the guarded workflow.
+never flashes. Only COM6 has been explicitly released for the current development
+work. Deployment still requires identity/layout admission through the guarded
+workflow; other boards remain excluded.
 
 ### ESP-IDF 6.1 maximum-rate pipeline checkpoint
 
 The [COM6 pipeline record](docs/IDF61_PIPELINE_2026_11_04.md) documents the SRAM-region allocation fix,
 179 portable tests and exact-bounds ASan/UBSan checks. The full-quality LHDC
 constructor now fits, but the render path misses its throughput budget before
-DMA starts. The released fallback remains selected; production parity and the
-master objective are incomplete.
+DMA starts. That historical checkpoint used the released fallback; current COM6
+development selection is described above. Production parity and the master
+objective remain incomplete.
 
 The [render-stage profile](docs/IDF61_RENDER_PROFILE_2026_11_04.md) records the exact O3/FIR checks and observed
 conversion improvement. DSP remains the main throughput bottleneck; the

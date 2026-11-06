@@ -1,6 +1,9 @@
 #include "probe_schedule_limits.h"
 #include "probe_output.h"
 #include "dbt_async_ticket.h"
+#if defined(DBT_PROBE_CODEC_AWARE_RENDER) && defined(DBT_PROBE_SCHEDULER_TRACE)
+#include "probe_scheduler.h"
+#endif
 #include "driver/i2s_std.h"
 #include "esp_attr.h"
 #include "esp_heap_caps.h"
@@ -25,6 +28,15 @@ extern void dbt_output_test_step(unsigned);
 #define DMA_FRAMES 128u
 #define DMA_DESCRIPTORS 3u
 #define DMA_IRQ_PRIORITY 2
+/* The working Bluedroid product consumes exactly one decoded source frame per
+ * output frame. Its drift drop/insert path is explicitly disabled. Preserve
+ * that PCM behavior: the added always-on FIR is not part of codec decoding or
+ * product DSP. Finite resampler diagnostics retain their existing mode. */
+#ifdef DBT_PROBE_STAY_NATIVE
+#define OUTPUT_ADAPTIVE_CLOCK 0
+#else
+#define OUTPUT_ADAPTIVE_CLOCK 1
+#endif
 #if defined(DBT_PROBE_PCM_LOANS) && !defined(DBT_PROBE_ASYNC_AUDIO)
 #error "PCM loans require the asynchronous audio client"
 #endif
@@ -37,6 +49,7 @@ typedef struct {
   bool start;
   uint8_t kind;
   bool legacy;
+  bool share_decoder_core;
   uint32_t rate;
   uint8_t channels;
   dbt_pcm_format_t format;
@@ -65,7 +78,12 @@ typedef struct {
   dbt_audio_fade_t fade;
   descriptor_t descriptors[DMA_DESCRIPTORS];
   i2s_chan_handle_t channel;
-  TaskHandle_t task;
+  _Atomic(TaskHandle_t) task;
+#ifdef DBT_PROBE_CODEC_AWARE_RENDER
+  TaskHandle_t workers[2]; /* Handles stay valid when a notification races handoff. */
+  _Atomic bool transfer_pending;
+  _Atomic uint32_t owner_transfers,auxiliary_stack_bytes,auxiliary_allocation_failures;
+#endif
   QueueHandle_t requests;
   void (*wake_decoder)(void *);
   void *wake_context;
@@ -120,6 +138,15 @@ typedef struct {
   _Atomic uint32_t first_underrun_accepted_frames, first_underrun_dma_frames;
 } output_t;
 static DRAM_ATTR output_t output;
+#ifdef DBT_PROBE_CODEC_AWARE_RENDER
+#define AUX_RENDER_STACK_BYTES 6144u
+_Static_assert(ATOMIC_POINTER_LOCK_FREE==2,"Output owner needs lock-free handles");
+_Static_assert(DBT_ESP32_RENDER_CORE==1,"Codec-aware output requires the CPU1 default");
+static void render_loop(void *unused);
+static bool owns_output(void){
+  return atomic_load_explicit(&output.task,memory_order_acquire)==xTaskGetCurrentTaskHandle();
+}
+#endif
 #ifdef DBT_PROBE_SOUND_BUILD
 static void notify_sound(void){
   void (*wake)(void *)=atomic_load_explicit(&output.wake_sound,memory_order_acquire);
@@ -482,7 +509,7 @@ static dbt_result_t start_output(uint32_t rate, uint8_t channels,
       target,
       format,
       channels,
-      true};
+      OUTPUT_ADAPTIVE_CLOCK};
   output.allocation_input_requested=avoided?0:input_frames*(uint32_t)format*channels;
   output.allocation_audio_requested=output.allocation_input_requested+config.output_frames*8u;
   dbt_result_t result =
@@ -574,7 +601,38 @@ static dbt_result_t enable_output(void) {
   atomic_store(&output.running, output.enabled);
   return output.enabled ? DBT_OK : DBT_INVALID;
 }
+#ifdef DBT_PROBE_CODEC_AWARE_RENDER
+/* Only a closed I2S object can move. Inflight remains held by its ticket. */
+static bool transfer_output_request(const request_t *request){
+  bool creates=(request->kind==REQ_CODEC && request->start) || request->kind==REQ_SOUND_RESERVE;
+  if(!creates || output.active || output.channel || output.stopping ||
+     atomic_load_explicit(&output.restart_hold,memory_order_acquire))return false;
+  unsigned core=request->kind==REQ_CODEC && request->share_decoder_core?0u:DBT_ESP32_RENDER_CORE;
+  if((unsigned)xPortGetCoreID()==core)return false;
+  if(!output.workers[core]){
+    TaskHandle_t worker=NULL;
+    if(core!=0 || xTaskCreatePinnedToCore(render_loop,"native_render0",AUX_RENDER_STACK_BYTES,0,
+         DBT_PROBE_RENDER_PRIORITY,&worker,0)!=pdPASS){
+      atomic_fetch_add(&output.auxiliary_allocation_failures,1);
+      report_done(request->id,DBT_NO_SPACE);return true;
+    }
+    output.workers[0]=worker;
+    atomic_store(&output.auxiliary_stack_bytes,AUX_RENDER_STACK_BYTES);
+#ifdef DBT_PROBE_SCHEDULER_TRACE
+    probe_scheduler_bind_renderer0(worker);
+#endif
+  }
+  TaskHandle_t target=output.workers[core];
+  atomic_store_explicit(&output.transfer_pending,true,memory_order_release);
+  atomic_fetch_add(&output.owner_transfers,1);
+  atomic_store_explicit(&output.task,target,memory_order_release);
+  xTaskNotifyGive(target);return true;
+}
+#endif
 static void codec_request(request_t request){
+#ifdef DBT_PROBE_CODEC_AWARE_RENDER
+  if(transfer_output_request(&request))return;
+#endif
   if (request.start && atomic_load_explicit(&output.restart_hold,memory_order_acquire))report_done(request.id,DBT_BUSY);
   else if (output.stopping)report_done(request.id, DBT_BUSY);
   else if (request.start){
@@ -611,6 +669,9 @@ static void reclaim_cancelled(const request_t *request,dbt_result_t result){
   }
 }
 static void handle_request(request_t request){
+#ifdef DBT_PROBE_CODEC_AWARE_RENDER
+  if(transfer_output_request(&request))return;
+#endif
 #ifdef DBT_PROBE_PCM_LOANS
   if(handle_pcm_loan(&request))return;
 #endif
@@ -677,13 +738,25 @@ static void reclaim_cancelled(const request_t *request,dbt_result_t result){
   if(result==DBT_OK && request->start)close_output();
 }
 static void handle_request(request_t request){
+#ifdef DBT_PROBE_CODEC_AWARE_RENDER
+  if(transfer_output_request(&request))return;
+#endif
 #ifdef DBT_PROBE_PCM_LOANS
   if(handle_pcm_loan(&request))return;
 #endif
   codec_request(request);
 }
 #endif
+static void consume_request(request_t request){
+  unsigned state=dbt_ticket_state(&output.ticket,request.id);
+  if(state==DBT_TICKET_CANCEL)report_done(request.id,DBT_BUSY);
+  else if(state==DBT_TICKET_WAITING)handle_request(request);
+  else atomic_fetch_add(&output.stale_receipts,1);
+}
 static bool render_step(void) {
+#ifdef DBT_PROBE_CODEC_AWARE_RENDER
+    if(!owns_output())return false;
+#endif
 #ifdef DBT_PROBE_SOUND_BUILD
     bool made_silence=false,blocked_sound=false;
 #endif
@@ -693,13 +766,10 @@ static bool render_step(void) {
       return true;
     }
     request_t request;
-    if (xQueueReceive(output.requests, &request, 0) == pdTRUE) {
-      unsigned state=dbt_ticket_state(&output.ticket,request.id);
-      if(state==DBT_TICKET_CANCEL)
-        report_done(request.id,DBT_BUSY);
-      else if(state==DBT_TICKET_WAITING)handle_request(request);
-      else atomic_fetch_add(&output.stale_receipts,1);
-    }
+    if(xQueueReceive(output.requests,&request,0)==pdTRUE)consume_request(request);
+#ifdef DBT_PROBE_CODEC_AWARE_RENDER
+    if(!owns_output())return false;
+#endif
 #ifdef DBT_PROBE_PCM_LOANS
     if(output.pcm_loan_id){
       unsigned state=dbt_ticket_state(&output.ticket,output.pcm_loan_id);
@@ -716,6 +786,9 @@ static bool render_step(void) {
           output.sound_standalone=false;
           OUTPUT_TEST_STEP(3);
           if(dbt_ticket_state(&output.ticket,output.stop_request)==DBT_TICKET_CANCEL){report_done(output.stop_request,DBT_BUSY);return true;}
+#ifdef DBT_PROBE_CODEC_AWARE_RENDER
+          if(transfer_output_request(&restart))return false;
+#endif
           report_done(output.stop_request,start_output(restart.rate,restart.channels,restart.format));return true;
         }
 #endif
@@ -877,6 +950,28 @@ static TickType_t render_wait_ticks(void){
 }
 static void render_loop(void *unused) {
   (void)unused;
+#ifdef DBT_PROBE_CODEC_AWARE_RENDER
+  for(;;){
+    if(!owns_output()){
+      (void)ulTaskNotifyTake(pdTRUE,portMAX_DELAY);
+      if(!owns_output()){
+        TaskHandle_t target=atomic_load_explicit(&output.task,memory_order_acquire);
+        if(target)xTaskNotifyGive(target);
+      }
+      continue;
+    }
+    atomic_store_explicit(&output.render_core,(uint32_t)xPortGetCoreID(),memory_order_relaxed);
+    if(atomic_exchange_explicit(&output.transfer_pending,false,memory_order_acq_rel)){
+      request_t transferred=output.inflight;consume_request(transferred);
+      if(!owns_output())continue;
+    }
+    bool again=render_step();
+    if(!owns_output())continue;
+    if(!again)ulTaskNotifyTake(pdTRUE,render_wait_ticks());
+  }
+#else
+
+
 #ifdef ESP_PLATFORM
   atomic_store(&output.render_core,(uint32_t)xPortGetCoreID());
 #else
@@ -885,7 +980,10 @@ static void render_loop(void *unused) {
   for (;;) {
     if(!render_step())ulTaskNotifyTake(pdTRUE,render_wait_ticks());
   }
+
+#endif
 }
+
 dbt_result_t probe_output_init(void (*wake_decoder)(void *), void *context) {
   if(output.task || output.requests)return DBT_BUSY;
   output.wake_decoder = wake_decoder;
@@ -899,11 +997,16 @@ dbt_result_t probe_output_init(void (*wake_decoder)(void *), void *context) {
   output.requests = xQueueCreate(2, sizeof(request_t));
   if (!output.requests)
     return DBT_NO_SPACE;
-  if(xTaskCreatePinnedToCore(render_loop, "native_render", 6144, 0, DBT_PROBE_RENDER_PRIORITY,
-                             &output.task, DBT_ESP32_RENDER_CORE)!=pdPASS){
+  TaskHandle_t base=NULL;
+  if(xTaskCreatePinnedToCore(render_loop,"native_render",6144,0,DBT_PROBE_RENDER_PRIORITY,
+                              &base,DBT_ESP32_RENDER_CORE)!=pdPASS){
     vQueueDelete(output.requests);output.requests=NULL;output.task=NULL;
     return DBT_NO_SPACE;
   }
+#ifdef DBT_PROBE_CODEC_AWARE_RENDER
+  output.workers[DBT_ESP32_RENDER_CORE]=base;
+#endif
+  atomic_store_explicit(&output.task,base,memory_order_release);xTaskNotifyGive(base);
   return DBT_OK;
 }
 /* One accepted request retains the gate until its own receipt arrives. This
@@ -1037,10 +1140,16 @@ void probe_output_sound_wake(void (*wake)(void *),void *context){
 }
 void probe_output_sound_data_ready(void){if(output.task)xTaskNotifyGive(output.task);}
 #endif
-dbt_result_t probe_output_stream_begin(bool start,uint32_t rate,uint8_t channels,dbt_pcm_format_t format,uint32_t *ticket){
+dbt_result_t probe_output_stream_begin_shared(bool start,uint32_t rate,uint8_t channels,dbt_pcm_format_t format,bool share_decoder_core,uint32_t *ticket){
   if(ticket)*ticket=0;
+#ifndef DBT_PROBE_CODEC_AWARE_RENDER
+  if(share_decoder_core)return DBT_UNSUPPORTED;
+#endif
   if(start && (format<DBT_PCM_S16_LE || format>DBT_PCM_S32_LE || channels<1 || channels>2 || rate<8000 || rate>192000))return DBT_INVALID;
-  request_t request={.start=start,.rate=rate,.channels=channels,.format=format};return request_begin(&request,ticket,false);
+  request_t request={.start=start,.share_decoder_core=share_decoder_core,.rate=rate,.channels=channels,.format=format};return request_begin(&request,ticket,false);
+}
+dbt_result_t probe_output_stream_begin(bool start,uint32_t rate,uint8_t channels,dbt_pcm_format_t format,uint32_t *ticket){
+  return probe_output_stream_begin_shared(start,rate,channels,format,false,ticket);
 }
 dbt_result_t probe_output_stream_format(bool start, uint32_t rate,
                                         uint8_t channels,
@@ -1091,6 +1200,7 @@ void probe_output_stats(probe_output_stats_t *s) {
   if (!s)
     return;
   s->pcm_target_ms=DBT_PROBE_PCM_TARGET_MS;
+  s->adaptive_clock=OUTPUT_ADAPTIVE_CLOCK;
 #if defined(DBT_PROBE_PCM_COPIED)
   s->pcm_input_mode=2;
 #elif defined(DBT_PROBE_PCM_LOANS)
@@ -1155,6 +1265,13 @@ void probe_output_stats(probe_output_stats_t *s) {
   PROFILE_LOAD(conversion);PROFILE_LOAD(dsp);PROFILE_LOAD(tail);PROFILE_LOAD(controls);PROFILE_LOAD(frames);
   PROFILE_LOAD(conversion_max);PROFILE_LOAD(dsp_max);PROFILE_LOAD(tail_max);
 #undef PROFILE_LOAD
+#ifdef DBT_PROBE_CODEC_AWARE_RENDER
+  s->render_owner_transfers=atomic_load(&output.owner_transfers);
+  s->auxiliary_render_stack_bytes=atomic_load(&output.auxiliary_stack_bytes);
+  s->auxiliary_render_allocation_failures=atomic_load(&output.auxiliary_allocation_failures);
+#else
+  s->render_owner_transfers=s->auxiliary_render_stack_bytes=s->auxiliary_render_allocation_failures=0;
+#endif
   s->render_stack_low_water_bytes=output.task?(uint32_t)uxTaskGetStackHighWaterMark(output.task):0;
   s->failed|=s->request_fault;
   dbt_audio_clock_stats_t clock = {0};
@@ -1176,7 +1293,7 @@ uint16_t probe_output_delay_100us(uint32_t rate) {
                     DMA_DESCRIPTORS * DMA_FRAMES + 80u;
   if (!atomic_load(&output.running))
     frames = (rate * DBT_PROBE_PCM_TARGET_MS + 999u) / 1000u + DMA_DESCRIPTORS * DMA_FRAMES + 80u;
-  frames += dbt_resampler_delay_frames(rate);
+  if(OUTPUT_ADAPTIVE_CLOCK)frames += dbt_resampler_delay_frames(rate);
   uint32_t value = (uint32_t)(((uint64_t)frames * 10000u + rate - 1u) / rate);
   return value > UINT16_MAX ? UINT16_MAX : (uint16_t)value;
 }

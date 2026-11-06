@@ -24,6 +24,11 @@ if stay_native:
     assert not build_status.get('rf_protocol_diagnostic')
     assert 'DBT_PROBE_KEEP_OWNED_ACTIVE:BOOL=ON' in cache and entry_name=='probe_main.c'
 
+codec_aware_render=build_status.get('codec_aware_render',False)
+assert type(codec_aware_render) is bool and ('DBT_PROBE_CODEC_AWARE_RENDER:BOOL=ON' in cache)==codec_aware_render
+assert re.findall(r'(?:^|\s)-DDBT_PROBE_CODEC_AWARE_RENDER=(\S+)',main_command)==(['1'] if codec_aware_render else [])
+if codec_aware_render:
+    assert stay_native and build_status.get('async_audio') and build_status.get('pcm_copied') and not build_status.get('pcm_loans')
 scheduler_trace=bool(build_status.get('scheduler_trace'))
 assert ('DBT_PROBE_SCHEDULER_TRACE:BOOL=ON' in cache)==scheduler_trace, 'Scheduler sampler receipt/cache mismatch'
 assert re.findall(r'(?:^|\s)-DDBT_PROBE_SCHEDULER_TRACE=(\S+)',main_command)==(['1'] if scheduler_trace else [])

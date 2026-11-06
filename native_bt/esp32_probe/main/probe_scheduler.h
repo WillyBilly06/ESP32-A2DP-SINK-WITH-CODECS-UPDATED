@@ -21,6 +21,10 @@ typedef struct {
  * No task/queue/allocation is added. Failed registration is rolled back. */
 esp_err_t probe_scheduler_start(TaskHandle_t host,TaskHandle_t decoder,TaskHandle_t logger);
 void probe_scheduler_snapshot(unsigned core,probe_scheduler_snapshot_t *out);
+#ifdef DBT_PROBE_CODEC_AWARE_RENDER
+/* Publish the optional permanent Core0 renderer handle after its lazy creation. */
+void probe_scheduler_bind_renderer0(TaskHandle_t task);
+#endif
 /* Host-owner task only; returns previous phase for nested controller calls.
  * One writer, atomic load/store only. No timer, lock, allocation or logging. */
 unsigned probe_scheduler_host_phase(unsigned phase);
