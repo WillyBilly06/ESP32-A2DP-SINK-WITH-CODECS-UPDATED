@@ -2,6 +2,7 @@
 #define PROBE_AUDIO_H
 #include "dbt_a2dp_acceptor.h"
 #include "dbt_a2dp_connect.h"
+#include "dbt_avdtp_query.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 /* Host-owner control/data hooks; decoder and PCM work run on the separate
@@ -14,6 +15,12 @@ bool probe_audio_accept(void *context,const dbt_link_t *link,uint16_t psm);
 dbt_result_t probe_audio_connect_begin(const dbt_link_t *,dbt_a2dp_channel_t *);
 dbt_result_t probe_audio_connect_status(const dbt_a2dp_channel_t *);
 dbt_result_t probe_audio_connect_cancel(const dbt_a2dp_channel_t *);
+/* Read-only AVDTP queries on an exact current signaling binding. Context and
+ * response stay caller-owned through terminal query_result; no default query. */
+dbt_result_t probe_audio_query_begin(const dbt_a2dp_channel_t *,dbt_avdtp_query_t *,uint8_t,uint8_t,
+    uint8_t *,uint16_t,uint32_t *);
+dbt_result_t probe_audio_query_cancel(dbt_avdtp_query_t *,uint32_t);
+dbt_result_t probe_audio_query_result(const dbt_avdtp_query_t *,uint32_t,dbt_avdtp_query_result_t *,const uint8_t **);
 /* Owner coordinator: init caller storage once; PENDING borrows context/buffers
  * through terminal dial_result, which also detaches SDP routing. No automatic
  * peer selection, endpoint negotiation or audio start. */

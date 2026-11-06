@@ -805,6 +805,20 @@ dbt_result_t probe_audio_connect_status(const dbt_a2dp_channel_t *key){
 dbt_result_t probe_audio_connect_cancel(const dbt_a2dp_channel_t *key){
     return initialized?dbt_a2dp_acceptor_connect_cancel(&profile,key,now_ms()):DBT_INVALID;
 }
+dbt_result_t probe_audio_query_begin(const dbt_a2dp_channel_t *key,dbt_avdtp_query_t *query,
+    uint8_t command,uint8_t seid,uint8_t *response,uint16_t capacity,uint32_t *token){
+    if(!initialized || restart_hold)return DBT_BUSY;
+    dbt_result_t ready=dbt_a2dp_acceptor_connect_status(&profile,key);
+    if(ready!=DBT_OK)return ready==DBT_PENDING?DBT_BUSY:ready;
+    return dbt_avdtp_query_begin(query,&profile.sink.signal,command,seid,response,capacity,now_ms(),token);
+}
+dbt_result_t probe_audio_query_cancel(dbt_avdtp_query_t *query,uint32_t token){
+    return dbt_avdtp_query_cancel(query,token,now_ms());
+}
+dbt_result_t probe_audio_query_result(const dbt_avdtp_query_t *query,uint32_t token,
+    dbt_avdtp_query_result_t *result,const uint8_t **body){
+    return dbt_avdtp_query_result(query,token,result,body);
+}
 dbt_result_t probe_audio_dial_begin(dbt_a2dp_connect_t *context,dbt_gap_t *gap,
                                     dbt_a2dp_connect_config_t config,uint32_t *token){
     if(!context || !token)return DBT_INVALID;

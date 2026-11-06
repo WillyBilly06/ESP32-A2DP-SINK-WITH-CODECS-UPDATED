@@ -27,14 +27,17 @@ static void drop_tx(dbt_avdtp_t *s, dbt_avdtp_tx_t *t) {
     if (t->data && t->data != t->small) s->hooks.release(s->hooks.context, t->data);
     zero(t, sizeof(*t));
 }
+static void complete(dbt_avdtp_t *s,dbt_avdtp_outcome_t outcome,const dbt_avdtp_message_t *message){
+    const dbt_avdtp_completion_t *local=s->local_completion;
+    s->local_completion=0; /* Detach before notification; never touch it afterward. */
+    void (*notify)(void *,dbt_avdtp_outcome_t,const dbt_avdtp_message_t *)=
+        local?local->complete:s->hooks.complete;
+    void *context=local?local->context:s->hooks.context;
+    if(notify){s->in_callback=true;notify(context,outcome,message);s->in_callback=false;}
+}
 static void finish(dbt_avdtp_t *s, dbt_avdtp_outcome_t outcome,
                    const dbt_avdtp_message_t *message) {
-    drop_tx(s, &s->tx[0]);
-    if (s->hooks.complete) {
-        s->in_callback = true;
-        s->hooks.complete(s->hooks.context, outcome, message);
-        s->in_callback = false;
-    }
+    drop_tx(s,&s->tx[0]);complete(s,outcome,message);
 }
 static bool reply_length(const dbt_avdtp_message_t *message);
 
@@ -82,18 +85,47 @@ static dbt_result_t queue(dbt_avdtp_t *s, unsigned slot, uint8_t label, uint8_t 
     return DBT_OK;
 }
 
-dbt_result_t dbt_avdtp_command(dbt_avdtp_t *s, uint8_t command,
-    const uint8_t *body, uint16_t size, uint32_t now, uint8_t *label) {
+static bool overlaps(const void *a,unsigned an,const void *b,unsigned bn){
+    uintptr_t x=(uintptr_t)a,y=(uintptr_t)b;return an && bn && (x<=y?y-x<an:x-y<bn);
+}
+static bool owns_storage(const dbt_avdtp_t *s,const void *p,unsigned n){
+    return overlaps(s,sizeof(*s),p,n) || overlaps(s->rx,s->rx_capacity,p,n) ||
+        overlaps(s->packet,s->packet_size,p,n) || overlaps(s->tx[0].data,s->tx[0].size,p,n) ||
+        overlaps(s->tx[1].data,s->tx[1].size,p,n);
+}
+static dbt_result_t command(dbt_avdtp_t *s, uint8_t command,
+    const uint8_t *body, uint16_t size, uint32_t now, uint8_t *label,
+    const dbt_avdtp_completion_t *completion) {
     if (!s || !s->binding || s->failed || s->in_callback || !label ||
         command < 1 || command > DBT_AVDTP_DELAY_REPORT) return DBT_INVALID;
     if (dbt_avdtp_poll(s, now) != DBT_OK) return DBT_INVALID;
     uint8_t next = s->next_label;
     dbt_result_t result = queue(s, 0, next, command, DBT_AVDTP_COMMAND, body, size, now);
     if (result == DBT_OK) {
+        s->local_completion=completion;
         *label = next;
         s->next_label = (uint8_t)((next + 1u) & 15u);
     }
     return result;
+}
+
+dbt_result_t dbt_avdtp_command(dbt_avdtp_t *s,uint8_t signal,const uint8_t *body,uint16_t size,
+    uint32_t now,uint8_t *label){return command(s,signal,body,size,now,label,0);}
+dbt_result_t dbt_avdtp_command_with_completion(dbt_avdtp_t *s,uint8_t signal,const uint8_t *body,uint16_t size,
+    uint32_t now,uint8_t *label,const dbt_avdtp_completion_t *completion){
+    if(!s || !completion || !completion->complete || !label ||
+       owns_storage(s,completion,sizeof(*completion)) || overlaps(completion,sizeof(*completion),label,sizeof(*label)))return DBT_INVALID;
+    return command(s,signal,body,size,now,label,completion);
+}
+dbt_result_t dbt_avdtp_command_cancel(dbt_avdtp_t *s,uint32_t binding,uint8_t label,
+    const dbt_avdtp_completion_t *completion,uint32_t now){
+    if(!s || !binding || !completion || s->in_callback)return DBT_INVALID;
+    dbt_avdtp_tx_t *t=&s->tx[0];
+    if(s->binding!=binding || !t->used || t->label!=label || s->local_completion!=completion)return DBT_EMPTY;
+    if(s->failed || t->waiting || t->index || due(now,t->deadline) ||
+       (s->pinned && s->selected==0))return DBT_PENDING;
+    if(s->selected_valid && s->selected==0){drop_packet(s);s->selected_valid=false;}
+    finish(s,DBT_AVDTP_CANCELLED,0);return DBT_OK;
 }
 
 dbt_result_t dbt_avdtp_respond(dbt_avdtp_t *s, uint8_t label, uint8_t command,
@@ -329,11 +361,7 @@ dbt_result_t dbt_avdtp_poll(dbt_avdtp_t *s, uint32_t now) {
         drop_rx(s);
         /* Preserve all TX storage until the runtime releases its borrow. The
          * notification is emitted once; clear later silently releases storage. */
-        if (s->tx[0].used && s->hooks.complete) {
-            s->in_callback = true;
-            s->hooks.complete(s->hooks.context, DBT_AVDTP_TIMEOUT, 0);
-            s->in_callback = false;
-        }
+        if(s->tx[0].used)complete(s,DBT_AVDTP_TIMEOUT,0);
         return DBT_INVALID;
     }
     return DBT_OK;
@@ -365,7 +393,7 @@ dbt_result_t dbt_avdtp_clear(dbt_avdtp_t *s) {
     drop_rx(s);
     drop_tx(s, &s->tx[1]);
     if (notify) finish(s, DBT_AVDTP_CANCELLED, 0);
-    else drop_tx(s, &s->tx[0]);
+    else {drop_tx(s,&s->tx[0]);s->local_completion=0;}
     s->remote_pending = s->selected_valid = false;
     s->binding = 0;
     return DBT_OK;

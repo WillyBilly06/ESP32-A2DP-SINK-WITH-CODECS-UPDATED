@@ -23,6 +23,12 @@ typedef struct {
     dbt_avdtp_type_t type;
 } dbt_avdtp_message_t;
 
+/* Caller-owned completion, immutable while borrowed by one local command. */
+typedef struct {
+    void *context;
+    void (*complete)(void *,dbt_avdtp_outcome_t,const dbt_avdtp_message_t *);
+} dbt_avdtp_completion_t;
+
 typedef struct {
     void *context;
     uint8_t *(*allocate)(void *context, uint16_t size);
@@ -56,6 +62,7 @@ typedef struct {
 typedef struct {
     dbt_avdtp_hooks_t hooks;
     dbt_avdtp_tx_t tx[2]; /* local command and remote response */
+    const dbt_avdtp_completion_t *local_completion;
     uint8_t *rx, *packet;
     uint32_t binding, now_ms, rx_deadline, remote_deadline, transmit_ms, response_ms;
     uint32_t discarded;
@@ -80,6 +87,19 @@ dbt_result_t dbt_avdtp_init(dbt_avdtp_t *signal, dbt_avdtp_hooks_t hooks,
  * it does not establish a stream. Small common controls allocate nothing. */
 dbt_result_t dbt_avdtp_command(dbt_avdtp_t *signal, uint8_t command,
     const uint8_t *body, uint16_t size, uint32_t now_ms, uint8_t *label);
+/* Like command(), but routes only this transaction to its own completion.
+ * The callback object/context must outlive the notification return. It must
+ * be separate from signal-owned storage. Incoming commands/default Delay
+ * Report completion keep their existing handlers. Timeout returns this
+ * callback borrow but still retains any transport-owned TX bytes. */
+dbt_result_t dbt_avdtp_command_with_completion(dbt_avdtp_t *,uint8_t,const uint8_t *,uint16_t,
+    uint32_t,uint8_t *,const dbt_avdtp_completion_t *);
+/* Exact current command only. Unsent/unborrowed work cancels immediately; a
+ * submitted/borrowed request remains pending through response/timeout/clear.
+ * This primitive uses wire label plus binding/completion identity. Higher
+ * layers must also validate their own non-repeating caller token. */
+dbt_result_t dbt_avdtp_command_cancel(dbt_avdtp_t *,uint32_t binding,uint8_t label,
+    const dbt_avdtp_completion_t *,uint32_t now_ms);
 dbt_result_t dbt_avdtp_respond(dbt_avdtp_t *signal, uint8_t label, uint8_t command,
     dbt_avdtp_type_t type, const uint8_t *body, uint16_t size, uint32_t now_ms);
 /* Invalid Abort SEIDs require no response. Retire that exact remote Abort only,

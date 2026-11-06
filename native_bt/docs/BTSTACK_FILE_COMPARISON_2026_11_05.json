@@ -609,7 +609,7 @@
     },
     {
       "owned": "native_bt/esp32_probe/components/native_bt/CMakeLists.txt",
-      "sha256": "9e54b7ebea026857f6094540597a1120651bcbee6de6f9e0ed1d1be3ab3026aa",
+      "sha256": "c1915939123777ed81e5d8897021e4a56bef661e97938d6026d17f334e3ba939",
       "lines": 72,
       "reference_files": [],
       "status": "reviewed_build",
@@ -684,16 +684,16 @@
     },
     {
       "owned": "native_bt/esp32_probe/main/probe_audio.c",
-      "sha256": "92405c89cad28753a43cedc5c62eab1e0a03f6e9b2cea9feaefb3b7500d5aed1",
-      "lines": 972,
+      "sha256": "00f565c7040431f8648e6ab6da8e8a2794acf4c9a754ab6c0d40f660e6fc4dd1",
+      "lines": 986,
       "reference_files": [],
       "status": "partial_review",
       "mapping": "product/support code; no direct protocol counterpart assigned"
     },
     {
       "owned": "native_bt/esp32_probe/main/probe_audio.h",
-      "sha256": "91540426563afefa52a60b24920e87bcfcf43b0f5f20b61576830d67ebf27898",
-      "lines": 54,
+      "sha256": "786dd1ff1444ad29ca481abfcaaa99ed1e459f4135f336eb7a791fc797ad8bbe",
+      "lines": 61,
       "reference_files": [],
       "status": "partial_review",
       "mapping": "product/support code; no direct protocol counterpart assigned"
@@ -1475,6 +1475,18 @@
       "review_scope": "Complete owned declaration and lifetime/callback contract read against the reviewed implementation."
     },
     {
+      "owned": "native_bt/include/dbt_avdtp_query.h",
+      "reference_files": [
+        "src/classic/avdtp_initiator.c",
+        "src/classic/avdtp.c"
+      ],
+      "status": "reviewed_contract",
+      "mapping": "read_only_query_and_local_transaction_reference_sections",
+      "review_scope": "New complete query body/contract reviewed with complete-message ownership, cancellation, capacity and reference parser boundaries; wire/runtime qualification remains incomplete.",
+      "sha256": "c1c1e8d8234a86cb7127d929a5d6f1d99ea0c0f7f41aa22efec4ee28f6146b55",
+      "lines": 55
+    },
+    {
       "owned": "native_bt/include/dbt_avdtp_sink.h",
       "sha256": "f54b09a78ef33b84f622184734372a968426650c78b117231ae9738490ce7dc7",
       "lines": 107,
@@ -1491,8 +1503,8 @@
     },
     {
       "owned": "native_bt/include/dbt_avdtp.h",
-      "sha256": "08843b317d38928251c802c68a6599550975b963154ac78db6a5da538271e62d",
-      "lines": 125,
+      "sha256": "2e48cd5121e77af90ab74df64da50ad5e09d193122200891508d49ced6161ba5",
+      "lines": 145,
       "reference_files": [
         "src/classic/avdtp.c",
         "src/classic/avdtp_acceptor.c",
@@ -2275,6 +2287,18 @@
       "review_scope": "Complete owned body read; mapped reference sections and ownership/state boundaries compared. Not protocol qualification."
     },
     {
+      "owned": "native_bt/src/dbt_avdtp_query.c",
+      "reference_files": [
+        "src/classic/avdtp_initiator.c",
+        "src/classic/avdtp.c"
+      ],
+      "status": "reviewed_with_findings",
+      "mapping": "read_only_query_and_local_transaction_reference_sections",
+      "review_scope": "New complete query body/contract reviewed with complete-message ownership, cancellation, capacity and reference parser boundaries; wire/runtime qualification remains incomplete.",
+      "sha256": "69be3642be689f4fa350bd1cae67bfc22979f03a497876502309993c1779516e",
+      "lines": 97
+    },
+    {
       "owned": "native_bt/src/dbt_avdtp_sink.c",
       "sha256": "7e2ce507a9edcf6993c3fb3089cd59135f3bb2f67b7dabce96f742a9049a5e38",
       "lines": 368,
@@ -2291,8 +2315,8 @@
     },
     {
       "owned": "native_bt/src/dbt_avdtp.c",
-      "sha256": "71bea970c12d72caf439a47b4d111e7d9376dc17d20ba1fa383b9110cb6b759f",
-      "lines": 399,
+      "sha256": "52d69b6406f52e6f4eff5d411769bdd4d70d6f4bfa32d60c2f0a68f19cb8ea71",
+      "lines": 427,
       "reference_files": [
         "src/classic/avdtp.c",
         "src/classic/avdtp_acceptor.c",
@@ -3372,6 +3396,27 @@
       "fix": "Caller-owned coordinator with stage-specific outcomes, exact identity, resource/deadline waits, cancellation/retirement and SDP route detach; current signaling metadata reaches it before observers.",
       "resource_change": "8 persistent BSS bytes; 428-byte caller context and separate SDP buffers only when used; no new task/heap default. Text +3504 flash bytes.",
       "limits": "No automatic peer policy/caller or local codec endpoint initiation. Wire/fault/resource/race/stack/performance qualification remains held; ownership-fault recovery is incomplete."
+    },
+    {
+      "id": "AVDTP-022",
+      "state": "implemented_static_analysis_build_passed_query_caller_and_wire_qualification_missing",
+      "owned": [
+        "native_bt/include/dbt_avdtp.h",
+        "native_bt/src/dbt_avdtp.c",
+        "native_bt/include/dbt_avdtp_query.h",
+        "native_bt/src/dbt_avdtp_query.c",
+        "native_bt/esp32_probe/main/probe_audio.c",
+        "native_bt/esp32_probe/main/probe_audio.h",
+        "native_bt/esp32_probe/components/native_bt/CMakeLists.txt"
+      ],
+      "reference": [
+        "src/classic/avdtp_initiator.c:167-260",
+        "Core 6.1 Vol1 PartE2.4.1"
+      ],
+      "issue": "Every local completion in the sink followed Delay Report handling, preventing isolated endpoint query operations.",
+      "fix": "Per-command completion ownership, unsent cancellation/borrowed retirement, complete-response caller buffering and read-only query/endpoint iteration with separate results.",
+      "resource_change": "Query context64/result36/callback8 target bytes plus caller response storage. One4-byte signal pointer; profile396→400, but aggregate BSS/data/IRAM unchanged. Flash text+104 bytes in default linked image.",
+      "limits": "No automatic query/selection/mutating endpoint procedure, no wire/malformed/fragment/cancel/capacity/stack/timing qualification. Capability structural success is not codec compatibility."
     }
   ],
   "sections_reviewed": [
@@ -3643,12 +3688,31 @@
       ],
       "outcome": "Implemented coordinator and normal owner/routing integration, reviewed no-spin readiness, cancellation ownership, stale-context tokens and metadata separation. Full connection/audio/feature qualification and broader layer bodies remain incomplete.",
       "full_layer_complete": false
+    },
+    {
+      "layer": "AVDTP local completion routing and peer endpoint/capability queries",
+      "owned": [
+        "native_bt/include/dbt_avdtp.h",
+        "native_bt/src/dbt_avdtp.c",
+        "native_bt/include/dbt_avdtp_query.h",
+        "native_bt/src/dbt_avdtp_query.c",
+        "native_bt/esp32_probe/main/probe_audio.c",
+        "native_bt/esp32_probe/main/probe_audio.h",
+        "native_bt/esp32_probe/components/native_bt/CMakeLists.txt"
+      ],
+      "reference": [
+        "avdtp_initiator.c:167-260",
+        "Owned tx pin/commit/cancel/clear/deadline paths",
+        "Core 6.1 RFU field rules"
+      ],
+      "outcome": "Implemented isolated borrowed completion and complete-data query result, preserving default/remote callbacks and all endpoint records. Larger product integration body remains partial; full profile/runtime qualification is not claimed.",
+      "full_layer_complete": false
     }
   ],
   "integration_gaps": [
     {
       "id": "OUTGOING-001",
-      "status": "owner_transport_coordinator_integrated_no_default_peer_or_endpoint_initiator",
+      "status": "owner_transport_and_read_only_endpoint_queries_present_policy_and_mutating_setup_missing",
       "owned": [
         "native_bt/src/dbt_gap.c",
         "native_bt/src/dbt_sdp_discovery.c",
@@ -3660,12 +3724,11 @@
         "src/classic/a2dp_sink.c"
       ],
       "evidence": [
-        "Caller-owned coordinator now chains existing/new ACL, GAP collision-safe paging, Source SDP discovery, SDP retirement and exact signaling setup/observation.",
-        "Product wrappers reserve and detach routing; existing owner poll/wait/event paths drive progress and cancellation. No task/default context or automatic begin caller.",
-        "Linked poll/wait/cancel/event, GAP readiness, SDP and signaling code now exist, but explicit begin is unlinked without a policy caller.",
-        "No durable remembered-peer/backoff/handover policy or local Discover/GetCaps/SetConfig/Open/Start endpoint initiation."
+        "Transport coordinator/product owner routing already present, with no default peer/begin caller.",
+        "Read-only Discover/Get[All]Capabilities/GetConfiguration now have isolated completions and product exact-signaling APIs; query functions compile but have no automatic caller and are unlinked.",
+        "Default enabled local command remains Delay Report. Codec selection and SetConfiguration/Open/Start/worker rollback/collision procedures remain absent."
       ],
-      "impact": "Transport coordination source/product polling is present; automatic reconnection and audio setup are still incomplete and unqualified.",
+      "impact": "Read-only peer endpoint information can be queried through source APIs; automatic reconnection and outgoing audio setup remain incomplete and unqualified.",
       "requirement": "Explicit master-goal automatic reconnection; released app disabled speaker-initiated auto reconnect."
     },
     {
@@ -3690,12 +3753,12 @@
     }
   ],
   "coverage": {
-    "owned_files": 279,
-    "reviewed_owned_c_bodies": 25,
+    "owned_files": 281,
+    "reviewed_owned_c_bodies": 26,
     "partial_files": 19,
     "pending_files": 205,
     "compiled_owned_units_missing": 0,
-    "reviewed_headers": 18,
+    "reviewed_headers": 19,
     "reviewed_build_files": 6,
     "reviewed_generators": 4,
     "reviewed_static_data": 2
@@ -3858,14 +3921,23 @@
         "Terminal product result detaches routing; only owned signaling closes. Separate stage/event metadata preserved.",
         "No automatic begin caller, durable peer policy or endpoint negotiation. Fault recovery and all held campaigns remain incomplete."
       ]
+    },
+    {
+      "id": "AVDTP-PEER-QUERY",
+      "status": "implemented_source_api_no_automatic_caller_wire_pending",
+      "notes": [
+        "Endpoint iteration and read-only capability/config queries preserve full caller-buffered response or explicit no-space.",
+        "Completion lifetime is separate from timeout-pinned TX; stale cancel never grants buffer release.",
+        "Selector must still require mandatory services and compatible exact codec fields; mutating SetConfig/Open/Start and worker rollback/collision policy are not implemented."
+      ]
     }
   ],
   "next_review": [
-    "Implement durable Classic peer policy and explicit owner begin caller/backoff/handover without enabling new RF campaigns under the hold. Coordinator now exists; do not rebuild these helpers again.",
-    "Implement local AVDTP endpoint discovery/selection/configuration/open/start with worker preparation/rollback, collision and lifetime rules; signaling-ready is not audio-ready.",
-    "Continue remaining protocol/backend/product file comparison and complete fault/lifecycle/security/audio/max-LHDC qualification."
+    "Implement local SetConfiguration/Open/Start procedures with reserved worker preparation, response correlation, rollback/drop and collision/abort lifetime rules; reuse the new per-command completion instead of Delay-only handling.",
+    "Implement peer codec selection from full discovery/capabilities; do not infer codec from SEID or accept structural success as a usable configuration.",
+    "Durable Classic reconnect/default caller policy and all remaining protocol/backend/product/feature/security/audio qualification remain open. No new RF campaign under the hold."
   ],
-  "latest_build_image": "ec84069a655f43ddf7c151b7eb5d8647d29bd0adfd1f898f887dfea775b79fdd",
+  "latest_build_image": "ca19e7a3cbe414814c93cdf1b636efb9981ae800e7223fd5c816e8bbb043dbb7",
   "verification_source_contracts": [
     {
       "file": "native_bt/tools/test_ldac_target_component.py",
