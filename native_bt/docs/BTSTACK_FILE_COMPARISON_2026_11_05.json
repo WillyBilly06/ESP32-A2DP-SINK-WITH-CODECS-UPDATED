@@ -221,7 +221,7 @@
     },
     {
       "owned": "native_bt/codecs/ldac/dbt_ldac_decoder.c",
-      "sha256": "013ba9a59f466e25bd0dc369968168437a22d50a45697fdfa940e8128945efcc",
+      "sha256": "215453199faf88b6e26e6961af2db8569f5105be977bf02caf08b75a4e1be5d4",
       "lines": 131,
       "reference_files": [
         "src/classic/avdtp.c",
@@ -231,7 +231,7 @@
       ],
       "status": "reviewed_with_findings",
       "mapping": "counterpart_candidates",
-      "review_scope": "Bounded retained LDAC workspace, SDK caller-memory init/free/handle contracts and generated allocation graph reviewed. Repeated gap/fault and long-playback qualification remain open."
+      "review_scope": "Bounded retained LDAC workspace, SDK caller-memory init/free/handle contracts and generated allocation graph reviewed. Repeated gap/fault and long-playback qualification remain open. Later packet-storage review replaces validated <=515-byte staging loop with memcpy, preserving padding/bit-limit checks; timing remains unmeasured."
     },
     {
       "owned": "native_bt/codecs/ldac/dbt_ldac_lib.c",
@@ -266,27 +266,26 @@
       "sha256": "eb3cabf27c506087f7bc1fd6c2e70becfacbbda57d60240b905e9463d009a4fe",
       "lines": 47,
       "reference_files": [
-        "src/classic/avdtp.c",
-        "example/a2dp_sink_demo.c",
-        "src/btstack_resample.c",
-        "src/btstack_sample_rate_compensation.c"
+        "Baseline a2dp_vendor_opus_decoder.c:31-50,180-274",
+        "src/classic/btstack_sbc_decoder_bluedroid.c:72-87",
+        "Selected SDK codec/frame/guarded decoder contracts"
       ],
-      "status": "partial_review",
-      "mapping": "counterpart_candidates",
-      "review_scope": "Complete wrapper body read. LDAC header/frame mask and LHDC emitted depth checked; full vendor backend/reference/state/performance review remains open."
+      "status": "reviewed_no_change",
+      "mapping": "Codec-owned bounded packet/scratch storage and validated frame delivery",
+      "review_scope": "Complete authored CIE/packet parser body read; exact current local rates/modes, low-nibble count, per-frame sync/size/role bounds and full-packet consumption checked against selected SDK frame headers. No new parser defect established; unsupported extension/fragment behavior and live quality remain unqualified."
     },
     {
       "owned": "native_bt/codecs/ldac/dbt_ldac.h",
       "sha256": "4d9ef9c9fbc9717f95d2248ba1fb6c36f404cc4c0fad8a7324c1de6eede776bd",
       "lines": 13,
       "reference_files": [
-        "src/classic/avdtp.c",
-        "example/a2dp_sink_demo.c",
-        "src/btstack_resample.c",
-        "src/btstack_sample_rate_compensation.c"
+        "Baseline a2dp_vendor_opus_decoder.c:31-50,180-274",
+        "src/classic/btstack_sbc_decoder_bluedroid.c:72-87",
+        "Selected SDK codec/frame/guarded decoder contracts"
       ],
-      "status": "pending",
-      "mapping": "counterpart_candidates"
+      "status": "reviewed_contract",
+      "mapping": "Codec-owned bounded packet/scratch storage and validated frame delivery",
+      "review_scope": "Complete public descriptor/frame-list interface read against parser/worker. Existing development/port dependency comment remains; no live qualification implied."
     },
     {
       "owned": "native_bt/codecs/ldac/prepare_port.py",
@@ -410,81 +409,81 @@
     },
     {
       "owned": "native_bt/codecs/opus/dbt_opus.c",
-      "sha256": "70c3316520a7967f88445f5d6b2175f83bf6b3892fdda1842129fc72818c5d3c",
-      "lines": 338,
+      "sha256": "fbe0ace5d3b879483811d4090a613976632189bc05c6bb18fcc7797813640357",
+      "lines": 326,
       "reference_files": [
-        "src/classic/avdtp.c",
-        "example/a2dp_sink_demo.c",
-        "src/btstack_resample.c",
-        "src/btstack_sample_rate_compensation.c"
+        "Baseline a2dp_vendor_opus_decoder.c:31-50,180-274",
+        "src/classic/btstack_sbc_decoder_bluedroid.c:72-87",
+        "Selected SDK codec/frame/guarded decoder contracts"
       ],
-      "status": "pending",
-      "mapping": "counterpart_candidates"
+      "status": "reviewed_with_findings",
+      "mapping": "Codec-owned bounded packet/scratch storage and validated frame delivery",
+      "review_scope": "Complete authored adapter body read: both CIE layouts, constructor/close/guarded decode, PCM continuation, FSL/count/sequence/timestamp/SSRC/expiry. Removed media/expiry/reset heap activity by reserving existing bounded pool at setup; active length replaces pointer predicate. Source/analysis/build/cold idle only; fragment/failure/concurrency/quality qualification incomplete."
     },
     {
       "owned": "native_bt/codecs/opus/dbt_opus.h",
-      "sha256": "cd9b7166fd14babacbfda42b909a63289983d1d4f686895bf342a9a1023dfc01",
-      "lines": 11,
+      "sha256": "36390d92410a9639edca9dcc2ed58a9640d43452931694cd04824ff999c52275",
+      "lines": 14,
       "reference_files": [
-        "src/classic/avdtp.c",
-        "example/a2dp_sink_demo.c",
-        "src/btstack_resample.c",
-        "src/btstack_sample_rate_compensation.c"
+        "Baseline a2dp_vendor_opus_decoder.c:31-50,180-274",
+        "src/classic/btstack_sbc_decoder_bluedroid.c:72-87",
+        "Selected SDK codec/frame/guarded decoder contracts"
       ],
-      "status": "pending",
-      "mapping": "counterpart_candidates"
+      "status": "reviewed_contract",
+      "mapping": "Codec-owned bounded packet/scratch storage and validated frame delivery",
+      "review_scope": "Complete format/6144-byte pool/input ownership contract read against implementation and matching baseline. No limit/codec feature changed; live proof missing."
     },
     {
       "owned": "native_bt/codecs/opus/scratch/dbt_opus_guarded_api.h",
       "sha256": "0b075488e76b4c6128853532d11834656f26e67b602fa6f308e4f206b798df50",
       "lines": 8,
       "reference_files": [
-        "src/classic/avdtp.c",
-        "example/a2dp_sink_demo.c",
-        "src/btstack_resample.c",
-        "src/btstack_sample_rate_compensation.c"
+        "Baseline a2dp_vendor_opus_decoder.c:31-50,180-274",
+        "src/classic/btstack_sbc_decoder_bluedroid.c:72-87",
+        "Selected SDK codec/frame/guarded decoder contracts"
       ],
-      "status": "pending",
-      "mapping": "Added through full filesystem/build-manifest cross-check; source generation/build inputs included"
+      "status": "reviewed_contract",
+      "mapping": "Codec-owned bounded packet/scratch storage and validated frame delivery",
+      "review_scope": "Complete guarded decoder symbol declaration read against adapter and actual linked symbol. Does not audit upstream decoder algorithm."
     },
     {
       "owned": "native_bt/codecs/opus/scratch/dbt_opus_scratch_override.h",
       "sha256": "ff0d3d0c58fd7e01fe0cca82f506e82c420e08614646b625eb7259552fc1d594",
       "lines": 21,
       "reference_files": [
-        "src/classic/avdtp.c",
-        "example/a2dp_sink_demo.c",
-        "src/btstack_resample.c",
-        "src/btstack_sample_rate_compensation.c"
+        "Baseline a2dp_vendor_opus_decoder.c:31-50,180-274",
+        "src/classic/btstack_sbc_decoder_bluedroid.c:72-87",
+        "Selected SDK codec/frame/guarded decoder contracts"
       ],
-      "status": "pending",
-      "mapping": "Added through full filesystem/build-manifest cross-check; source generation/build inputs included"
+      "status": "reviewed_contract",
+      "mapping": "Codec-owned bounded packet/scratch storage and validated frame delivery",
+      "review_scope": "Complete forced arena macro body read against helper, caller and selected compile entries. Allocation checks remain in bounded push; debug stubs are not bitstream validation. Compiled override census is build evidence, not runtime or full upstream coverage."
     },
     {
       "owned": "native_bt/codecs/opus/scratch/dbt_opus_scratch.c",
       "sha256": "747e43b06d320c46c4110c003bcd75fa1175c52820a570609f81679728387cf5",
       "lines": 91,
       "reference_files": [
-        "src/classic/avdtp.c",
-        "example/a2dp_sink_demo.c",
-        "src/btstack_resample.c",
-        "src/btstack_sample_rate_compensation.c"
+        "Baseline a2dp_vendor_opus_decoder.c:31-50,180-274",
+        "src/classic/btstack_sbc_decoder_bluedroid.c:72-87",
+        "Selected SDK codec/frame/guarded decoder contracts"
       ],
-      "status": "pending",
-      "mapping": "Added through full filesystem/build-manifest cross-check; source generation/build inputs included"
+      "status": "reviewed_no_change",
+      "mapping": "Codec-owned bounded packet/scratch storage and validated frame delivery",
+      "review_scope": "Complete authored arena/ownership/TLS/CAS/setjmp/bounds/reset body read; one nonblocking admission, explicit caller serialization, fixed capacities and recovery contracts reviewed. Strict Clang passes; no new defect established under those preconditions. Wrong-task/unserialized misuse, failures/concurrency/upstream algorithm proof missing."
     },
     {
       "owned": "native_bt/codecs/opus/scratch/dbt_opus_scratch.h",
       "sha256": "6146bc554a01c9fa72747a7524ab310259ca7efda1db081cd5d47341e6607a76",
       "lines": 40,
       "reference_files": [
-        "src/classic/avdtp.c",
-        "example/a2dp_sink_demo.c",
-        "src/btstack_resample.c",
-        "src/btstack_sample_rate_compensation.c"
+        "Baseline a2dp_vendor_opus_decoder.c:31-50,180-274",
+        "src/classic/btstack_sbc_decoder_bluedroid.c:72-87",
+        "Selected SDK codec/frame/guarded decoder contracts"
       ],
-      "status": "pending",
-      "mapping": "Added through full filesystem/build-manifest cross-check; source generation/build inputs included"
+      "status": "reviewed_contract",
+      "mapping": "Codec-owned bounded packet/scratch storage and validated frame delivery",
+      "review_scope": "Complete owner/borrowed storage/run/reset/capacity/allocator declarations read alongside full implementation and adapter. No active fault/concurrency guarantee."
     },
     {
       "owned": "native_bt/codecs/sbc/dbt_sbc_codec.c",
@@ -3599,6 +3598,23 @@
       "fix": "Snapshot validated24-byte configuration before close, then use the local copy through size/init/commit.",
       "resource_change": "Raw open own frame48→80 bytes, no persistent allocation. Raw adapter remains unlinked in product.",
       "limits": "Active alias/allocator/failure/lifecycle behavior not exercised; not a proven current product crash cause."
+    },
+    {
+      "id": "OPUS-PACKET-STORAGE",
+      "state": "implemented_source_analysis_build_readback_cold_idle_live_fragment_pending",
+      "owned": [
+        "native_bt/codecs/opus/dbt_opus.c",
+        "native_bt/codecs/opus/dbt_opus.h",
+        "native_bt/codecs/ldac/dbt_ldac_decoder.c"
+      ],
+      "reference": [
+        "Baseline Opus control block/fragment accumulation",
+        "Pinned BTstack retained codec frame storage"
+      ],
+      "issue": "Opus fragment ingress/reset/expiry grew and freed working buffers through general heap on decoder core; LDAC staging used a byte-copy loop.",
+      "fix": "Reserve existing6144 limit as separate codec-open allocation; clear only cursor/remaining fields in media/expiry/reset and release once at close. Active tests/deadline use length rather than allocated pointer. Use bounded SDK copies; preserve all framing/PCM/queue limits.",
+      "resource_change": "Configured Opus costs6152 accounted bytes (cold tracker6160). Main allocation unchanged, no boot/static pool. State136→132 but same136 rounded allocation. Media own frame48→64, open96 unchanged, text−84, BSS/data/IRAM unchanged. No speed claim.",
+      "limits": "No live fragment/order/expiry/failure/backpressure/concurrency/codec-switch/audio campaign. More configured Opus RAM can reject setup earlier under low memory; largest main block unchanged. No max LHDC or all-codec underrun proof."
     }
   ],
   "sections_reviewed": [
@@ -4157,6 +4173,27 @@
       ],
       "outcome": "Explicit S32 upper saturation before conversion, defined defensive NaN fallback, sticky nonfinite peak selecting existing frame/overlap concealment, flag256/nonfinite count. Reject unsafe finite-only compiler flags. Raw config copied before old workspace retirement. No format/precision/bitrate downgrade. Source/compiler/readback/idle only, no live boundary/fault/timing qualification.",
       "full_layer_complete": false
+    },
+    {
+      "layer": "Configured codec packet storage and full authored Opus/scratch/LDAC parser review",
+      "owned": [
+        "native_bt/codecs/ldac/dbt_ldac.c",
+        "native_bt/codecs/ldac/dbt_ldac.h",
+        "native_bt/codecs/opus/dbt_opus.c",
+        "native_bt/codecs/opus/dbt_opus.h",
+        "native_bt/codecs/opus/scratch/dbt_opus_scratch.c",
+        "native_bt/codecs/opus/scratch/dbt_opus_scratch.h",
+        "native_bt/codecs/opus/scratch/dbt_opus_guarded_api.h",
+        "native_bt/codecs/opus/scratch/dbt_opus_scratch_override.h",
+        "native_bt/codecs/ldac/dbt_ldac_decoder.c:staging copy"
+      ],
+      "reference": [
+        "Verified identical working IDF6.1 Opus buffer/header/accumulation source",
+        "Pinned BTstack SBC retained frame storage",
+        "Selected SDK guarded decoder/frame contracts"
+      ],
+      "outcome": "Opus reserves6144 bytes separately at setup and releases at close, removing hot allocator/free/growth copies; cursor-based active/expiry checks preserve protocol and PCM lifetimes. LDAC staged span uses memcpy. Full authored scratch/parser/wrapper bodies reviewed; no additional defect established in unchanged sections. Full upstream algorithm, memory-failure/fragment/audio/cross-codec/throughput qualification remains open.",
+      "full_layer_complete": false
     }
   ],
   "integration_gaps": [
@@ -4204,11 +4241,11 @@
   ],
   "coverage": {
     "owned_files": 287,
-    "reviewed_owned_c_bodies": 33,
-    "partial_files": 17,
-    "pending_files": 195,
+    "reviewed_owned_c_bodies": 36,
+    "partial_files": 16,
+    "pending_files": 188,
     "compiled_owned_units_missing": 0,
-    "reviewed_headers": 26,
+    "reviewed_headers": 31,
     "reviewed_build_files": 9,
     "reviewed_generators": 5,
     "reviewed_static_data": 2,
@@ -4507,6 +4544,16 @@
         "Raw config is copied before old workspace close/free; alternate adapter stays unlinked. No new queues/tasks or lowered negotiated format.",
         "Snapshot84, BSS50412, active state56. Live boundary/fault/alias/output equivalence and sustainable LHDC/codec switching remain unqualified under held campaigns."
       ]
+    },
+    {
+      "id": "OPUS-PACKET-STORAGE",
+      "status": "cold_reservation_source_build_readback_cold_idle_only",
+      "notes": [
+        "Existing6144 maximum reserved at codec setup, logical resets retain pool, close releases; no media/expiry/reset allocator relocations. Length-based deadline avoids idle pointer-triggered resets/spin.",
+        "Separate pool uses6152 accounted bytes during Opus; cold checker measures6160 including its8-byte tracking prefix. Idle heap unchanged after teardown, but live Opus RAM and memory-failure tradeoff need qualification.",
+        "LDAC staging remains515 max+two lookahead zeros in520 buffer, now memcpy; no format/quality/bitrate/queue cap changes.",
+        "Full owned Opus/scratch/LDAC parser and selected counterparts reviewed; upstream algorithms, active wire/fault/audio/headroom remain unfinished."
+      ]
     }
   ],
   "next_review": [
@@ -4515,7 +4562,7 @@
     "Complete queued/crossed control and backend policy before automatic integration; rank only returns a proposal, no peer acceptance or reservation.",
     "Continue pending file/feature/security/lifecycle/codec crash/audio underrun/LHDC headroom work. Keep new automatic RF disabled under held campaigns."
   ],
-  "latest_build_image": "aa791132c7472a621f37ad1f0d08eb6ff694dc6057994157812c83602ce9c0df",
+  "latest_build_image": "8a8929fb4626cce6460f6a011440b0332fabc2a464d1c70e5719ffcb6fe8d0de",
   "verification_source_contracts": [
     {
       "file": "native_bt/tools/test_ldac_target_component.py",

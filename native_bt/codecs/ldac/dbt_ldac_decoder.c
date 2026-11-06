@@ -104,7 +104,7 @@ static dbt_result_t resume(dbt_codec_decoder_t *d,uint32_t now){
         unsigned i=s->batch_index;
         uint16_t n=s->batch_frames[i].size;uint8_t *input=encoded(s);
         if(n>515u)return batch_finish(s,DBT_INVALID);
-        for(unsigned j=0;j<n;++j)input[j]=s->batch[s->batch_frames[i].offset+j];
+        memcpy(input,s->batch+s->batch_frames[i].offset,n);
         input[n]=input[n+1]=0;
         dbt_ldac_port_bit_limit=(uint32_t)(n-3u)*8u;dbt_ldac_port_overread=0;allocation_failed=false;
         int used=0,written=0;

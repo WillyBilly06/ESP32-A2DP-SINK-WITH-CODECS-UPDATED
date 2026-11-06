@@ -2,6 +2,9 @@
 #include "opus.h"
 #include "scratch/dbt_opus_guarded_api.h"
 #include "scratch/dbt_opus_scratch.h"
+#include <string.h>
+
+_Static_assert(DBT_OPUS_FRAGMENT_LIMIT<=UINT16_MAX,"Opus fragment size must fit its bounded cursor");
 
 typedef struct {
   OpusDecoder *codec;
@@ -10,17 +13,14 @@ typedef struct {
   bool usable,pending_pcm;
   uint8_t *fragment;
   uint32_t fragment_at, timestamp, ssrc, last_ssrc;
-  uint16_t fragment_size, fragment_capacity, next_sequence, last_sequence;
+  uint16_t fragment_size, next_sequence, last_sequence;
   uint8_t remaining;
   bool sequence_valid;
   uint32_t codec_bytes;
 } opus_state_t;
 static uint32_t align8(uint32_t n) { return (n + 7u) & ~7u; }
 static void copy(void *to, const void *from, unsigned n) {
-  uint8_t *d = to;
-  const uint8_t *s = from;
-  for (unsigned i = 0; i < n; ++i)
-    d[i] = s[i];
+  if(n)memcpy(to,from,n);
 }
 static uint32_t le32(const uint8_t *p) {
   return (uint32_t)p[0] | ((uint32_t)p[1] << 8) | ((uint32_t)p[2] << 16) |
@@ -131,17 +131,18 @@ static void clear_fragment(dbt_codec_decoder_t *d) {
   opus_state_t *s = d->state;
   if (!s)
     return;
-  if (s->fragment)
-    dbt_codec_release(d, s->fragment);
-  s->fragment = 0;
-  s->fragment_size = s->fragment_capacity = 0;
+  /* Storage belongs to this codec instance. Discard only the partial packet;
+   * expiry/reset/media never allocate, grow or release its working buffer. */
+  s->fragment_size = 0;
   s->remaining = 0;
 }
 static void close_decoder(dbt_codec_decoder_t *d) {
   if (!d->state)
     return;
   clear_fragment(d);
-  dbt_codec_release(d, ((opus_state_t *)d->state)->allocation);
+  opus_state_t *s=d->state;
+  if(s->fragment)dbt_codec_release(d,s->fragment);
+  dbt_codec_release(d,s->allocation);
   d->state = 0;
 }
 static dbt_result_t reset_decoder(dbt_codec_decoder_t *d) {
@@ -179,6 +180,10 @@ static dbt_result_t open_decoder(dbt_codec_decoder_t *d) {
   d->state = s;
   s->codec_bytes = codec_bytes;
   s->codec = (OpusDecoder *)workspace(s);
+  /* Separate cold allocation preserves the main workspace largest-block need.
+   * Reserving the existing maximum here removes allocator work from ingress. */
+  s->fragment = dbt_codec_allocate(d,DBT_OPUS_FRAGMENT_LIMIT);
+  if(!s->fragment)return DBT_NO_SPACE;
   if (dbt_opus_scratch_bind(&s->scratch, (uint8_t *)pcm(s) + pcm_bytes,
                             scratch_bytes) != DBT_OPUS_SCRATCH_OK)
     return DBT_INVALID;
@@ -234,7 +239,7 @@ static dbt_result_t decode(dbt_codec_decoder_t *d, const uint8_t *p,
 }
 static void expire(dbt_codec_decoder_t *d, uint32_t now) {
   opus_state_t *s = d->state;
-  if (s && !s->pending_pcm && s->fragment && now - s->fragment_at >= 100u)
+  if (s && !s->pending_pcm && s->fragment_size && now - s->fragment_at >= 100u)
     (void)reset_decoder(d);
 }
 static dbt_result_t media(dbt_codec_decoder_t *d, const dbt_avdtp_media_t *p,
@@ -263,7 +268,7 @@ static dbt_result_t media(dbt_codec_decoder_t *d, const dbt_avdtp_media_t *p,
     return DBT_INVALID;
   }
   if (!fragmented) {
-    if (s->fragment && reset_decoder(d) != DBT_OK)
+    if (s->fragment_size && reset_decoder(d) != DBT_OK)
       return DBT_INVALID;
     if (first || last || count != 1)
       return DBT_INVALID;
@@ -275,7 +280,7 @@ static dbt_result_t media(dbt_codec_decoder_t *d, const dbt_avdtp_media_t *p,
     return DBT_INVALID;
   }
   if (first) {
-    if (s->fragment && reset_decoder(d) != DBT_OK)
+    if (s->fragment_size && reset_decoder(d) != DBT_OK)
       return DBT_INVALID;
     s->timestamp = p->timestamp;
     s->ssrc = p->ssrc;
@@ -294,23 +299,6 @@ static dbt_result_t media(dbt_codec_decoder_t *d, const dbt_avdtp_media_t *p,
     clear_fragment(d);
     return DBT_INVALID;
   }
-  if (needed > s->fragment_capacity) {
-    uint32_t capacity = 256u;
-    while (capacity < needed && capacity < 4096u)
-      capacity <<= 1;
-    if (capacity < needed)
-      capacity = DBT_OPUS_FRAGMENT_LIMIT;
-    uint8_t *next = dbt_codec_allocate(d, capacity);
-    if (!next) {
-      clear_fragment(d);
-      return DBT_NO_SPACE;
-    }
-    copy(next, s->fragment, s->fragment_size);
-    if (s->fragment)
-      dbt_codec_release(d, s->fragment);
-    s->fragment = next;
-    s->fragment_capacity = (uint16_t)capacity;
-  }
   copy(s->fragment + s->fragment_size, data, size);
   s->fragment_size = (uint16_t)needed;
   --s->remaining;
@@ -328,7 +316,7 @@ static dbt_result_t resume(dbt_codec_decoder_t *d,uint32_t now){
 }
 static bool deadline(const dbt_codec_decoder_t *d,uint32_t *when){
   const opus_state_t *s=d->state;
-  if(!s || !when || !s->fragment || s->pending_pcm)return false;
+  if(!s || !when || !s->fragment_size || s->pending_pcm)return false;
   *when=s->fragment_at+100u;return true;
 }
 const dbt_codec_ops_t dbt_opus_codec = {"Opus",        dbt_opus_configure,
