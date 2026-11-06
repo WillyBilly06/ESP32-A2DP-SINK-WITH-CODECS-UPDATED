@@ -19,6 +19,7 @@
 #endif
 typedef struct {
     uint32_t running,failed,rate,requested_bytes,accepted_frames,rendered_frames,ready_frames,input_ready_frames;
+    uint32_t priming_ms,priming_remaining_ms;
     uint32_t pcm_target_ms,block_dsp,word_dsp,pcm_input_mode,input_capacity_frames,input_ring_bytes,adaptive_clock,pcm_target_frames;
     uint32_t dma_eofs,dma_source_frames,underrun_frames,descriptor_errors,max_eof_gap_us;
     uint32_t descriptor_shape_errors,descriptor_pool_errors,descriptor_order_errors;
@@ -55,6 +56,9 @@ dbt_result_t probe_output_init(void (*wake_decoder)(void *),void *context);
  * through their registered decoder/sound notifications. */
 /* Closed output can transfer to a lower-priority CPU0 owner for light codecs.
  * Active I2S never migrates; the existing ticket retains request ownership. */
+/* Minimum first-PCM startup guard, at most100ms, using existing storage.
+ * Starts return the existing async ticket; timer expiry is render-owner work. */
+dbt_result_t probe_output_stream_begin_primed(bool,uint32_t,uint8_t,dbt_pcm_format_t,bool,uint16_t,uint32_t *);
 dbt_result_t probe_output_stream_begin_shared(bool start,uint32_t rate,uint8_t channels,dbt_pcm_format_t format,bool share_decoder_core,uint32_t *ticket);
 dbt_result_t probe_output_stream_begin(bool,uint32_t,uint8_t,dbt_pcm_format_t,uint32_t *);
 dbt_result_t probe_output_request_poll(uint32_t);
@@ -77,11 +81,16 @@ dbt_result_t probe_output_pcm_format(const void *samples,uint16_t frames,uint8_t
 /* Decoder producer only. One bounded attempt; BUSY copies/publishes nothing.
  * Stream control must keep the producer quiescent through format/stop tickets. */
 dbt_result_t probe_output_try_pcm_format(const void *,uint16_t,uint8_t,uint32_t,dbt_pcm_format_t);
+/* Decoder-only bounded scheduling hint:0=let same-core render make progress,
+ *1=one media operation at a time on a shared core,2=existing separate-core
+ * quantum. A zero budget still permits worker control/loan retirement. The
+ * decoder waits on its existing notification; the render consumer wakes it. */
+uint16_t probe_output_decode_budget(void);
 void probe_output_stats(probe_output_stats_t *stats);
 #ifdef DBT_PROBE_SCHEDULER_TRACE
 /* Passive stage stamps. Each producer has one writer; snapshots never spin.
  * Phase0=between operations;1=decode;2=reset;3=PCM delivery;
- *4/5/6/7=waiting for PCM space/loan/control/encoded input. */
+ *4/5/6/7/8=waiting for PCM space/loan/control/encoded input/shared renderer. */
 typedef struct {
     uint32_t captured,coherent;
     uint32_t stream_serial,at_us,taken_frames,input_frames,output_frames,accepted_frames,rendered_frames,dma_source_frames,acl_us,host_poll_us,media_us,media_admit_us,media_epoch,media_sequence,media_timestamp,media_ssrc,media_result,media_gap_us,media_max_gap_us,media_coherent,decoder_phase,decoder_at_us,decoder_coherent,render_phase,render_at_us,render_coherent,decoder_queued;

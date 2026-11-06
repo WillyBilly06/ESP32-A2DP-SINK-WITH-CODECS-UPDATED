@@ -11,6 +11,10 @@
 /* Host-owner control/data hooks; decoder and PCM work run on the separate
  * generic codec worker. Optional Opus, AAC and aptX endpoints are present only
  * when their corresponding DBT_PROBE_*_BUILD components are enabled. */
+/* Host-owner RX-credit policy: window reserves enough encoded slots for all
+ * already authorized ACL packets. BLE completions are always eligible. */
+uint16_t probe_audio_rx_credit_window(void);
+bool probe_audio_rx_credit_ready(void *,const dbt_link_t *);
 dbt_result_t probe_audio_init(dbt_runtime_t *runtime,TaskHandle_t owner);
 bool probe_audio_accept(void *context,const dbt_link_t *link,uint16_t psm);
 /* Host-owner outgoing signaling entry points. No peer is automatically

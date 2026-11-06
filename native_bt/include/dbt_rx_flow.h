@@ -17,9 +17,15 @@ typedef struct {
     bool used;
 } dbt_rx_completed_t;
 
+/* Owner-only, bounded policy. False retains completions until downstream
+ * capacity returns; it never borrows an HCI payload or blocks this caller. */
+typedef bool (*dbt_rx_flow_ready_fn)(void *,const dbt_link_t *);
+
 typedef struct {
     dbt_host_t *host;
     dbt_acl_t *acl;
+    dbt_rx_flow_ready_fn completion_ready;
+    void *completion_context;
     dbt_rx_completed_t pending[DBT_MAX_LINKS];
     uint32_t acknowledged, commands_submitted, retired_on_disconnect;
     uint16_t packet_bytes, packet_count;
@@ -38,6 +44,9 @@ dbt_result_t dbt_rx_flow_init(dbt_rx_flow_t *flow, dbt_host_t *host, dbt_acl_t *
 /* Start before accepting any links. Capacity must fit the existing H4 FIFO plus
  * its event reserve. ACTIVE requires actual Host Buffer Size / Set Flow replies. */
 dbt_result_t dbt_rx_flow_start(dbt_rx_flow_t *flow, uint16_t packet_bytes, uint16_t packet_count);
+/* Configure before start, with no retained packet/active connection. Caller
+ * must wake its host owner when a withheld connection becomes ready again. */
+dbt_result_t dbt_rx_flow_set_gate(dbt_rx_flow_t *,dbt_rx_flow_ready_fn,void *);
 void dbt_rx_flow_poll(dbt_rx_flow_t *flow, uint32_t now_ms);
 /* Call after consuming the borrowed HCI packet, including profile callbacks.
  * Each packet is counted once, for its live connection generation. */

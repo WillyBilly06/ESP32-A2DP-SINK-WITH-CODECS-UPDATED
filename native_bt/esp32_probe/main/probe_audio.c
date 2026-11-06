@@ -105,7 +105,7 @@ static dbt_a2dp_rank_t *outgoing_rank;
 static dbt_codec_worker_t worker;
 static TaskHandle_t owner,decoder_task,logger_task;
 static _Atomic uint32_t decoder_run_core;
-static _Atomic uint32_t decoder_wait_calls[4],decoder_wait_elapsed[4],decoder_wait_maximum[4];
+static _Atomic uint32_t decoder_wait_calls[5],decoder_wait_elapsed[5],decoder_wait_maximum[5];
 static _Atomic uint32_t decoder_wait_kind,decoder_wait_began;
 static bool initialized,failed,restart_hold,restart_drained;
 /* Owner-only cursor; cumulative worker faults are diagnostics, not a permanent
@@ -148,6 +148,7 @@ static media_trace_ring_t media_trace_rings[2];
 static _Atomic uint32_t rx_packets,rx_acl,rx_events,rx_bytes,rx_isr,rx_rejected,rx_pending_us;
 static _Atomic uint32_t rx_callback_max_us,first_rx_to_poll_max_us,host_poll_max_us;
 static _Atomic uint32_t worker_steps,worker_elapsed_us,worker_step_max_us,worker_hist[8];
+static _Atomic uint32_t credit_window_status,credit_pending_classic,credit_pending_le,credit_acknowledged,credit_commands,credit_peak_blocked,credit_media_queued;
 static _Atomic uint32_t owner_iterations,owner_immediate[15];
 static _Atomic uint32_t owner_ready_yields;
 static _Atomic uint32_t snapshot_format_lost;
@@ -279,10 +280,10 @@ static void log_first_starvation(void){
         ",\"media_sequence\":%" PRIu32 ",\"media_timestamp\":%" PRIu32 ",\"media_ssrc\":%" PRIu32 ",\"media_result\":%" PRIu32
         ",\"last_media_gap_us\":%" PRIu32 ",\"max_media_gap_us\":%" PRIu32 "}\n",s.stream_serial,s.at_us,s.media_coherent?"true":"false",
         s.acl_us,s.host_poll_us,s.media_us,s.media_admit_us,s.media_epoch,s.media_sequence,s.media_timestamp,s.media_ssrc,s.media_result,s.media_gap_us,s.media_max_gap_us);
-    static const char *const phases[]={"between_operations","decode","reset","pcm_delivery","wait_pcm_space","wait_pcm_loan","wait_control","wait_encoded_input"};
+    static const char *const phases[]={"between_operations","decode","reset","pcm_delivery","wait_pcm_space","wait_pcm_loan","wait_control","wait_encoded_input","wait_shared_renderer"};
     PROBE_SNAPSHOT_LOG("{\"probe\":\"starvation_decoder\",\"stream_serial\":%" PRIu32 ",\"event_us\":%" PRIu32
         ",\"coherent\":%s,\"phase\":%" PRIu32 ",\"phase_name\":\"%s\",\"phase_since_us\":%" PRIu32 ",\"encoded_queued_at_phase_change\":%" PRIu32 "}\n",
-        s.stream_serial,s.at_us,s.decoder_coherent?"true":"false",s.decoder_phase,s.decoder_phase<8?phases[s.decoder_phase]:"unknown",s.decoder_at_us,s.decoder_queued);
+        s.stream_serial,s.at_us,s.decoder_coherent?"true":"false",s.decoder_phase,s.decoder_phase<9?phases[s.decoder_phase]:"unknown",s.decoder_at_us,s.decoder_queued);
     PROBE_SNAPSHOT_LOG("{\"probe\":\"starvation_renderer\",\"stream_serial\":%" PRIu32 ",\"event_us\":%" PRIu32
         ",\"coherent\":%s,\"inside_audio_render\":%s,\"phase_since_us\":%" PRIu32 "}\n",
         s.stream_serial,s.at_us,s.render_coherent?"true":"false",s.render_phase?"true":"false",s.render_at_us);
@@ -525,7 +526,17 @@ static dbt_result_t publish_stream(bool started,const dbt_codec_config_t *config
 static bool async_stream_start;
 static dbt_result_t stream_begin(void *context,bool start,const dbt_codec_config_t *config,uint32_t *ticket){
     (void)context;
-    if(!config)return DBT_INVALID;
+    if(!config || !config->rate)return DBT_INVALID;
+    uint16_t priming=0;
+#ifdef DBT_PROBE_AAC_BUILD
+    if(config->ops==&dbt_aac_codec){
+        uint32_t two_units=(2u*config->samples*1000u+config->rate-1u)/config->rate;
+        priming=(uint16_t)(two_units>40u?two_units:40u);
+    }
+#endif
+#ifdef DBT_PROBE_LDAC_BUILD
+    if(config->ops==&dbt_ldac_codec)priming=40;
+#endif
 #ifdef DBT_PROBE_CODEC_AWARE_RENDER
     bool share=config->ops==&dbt_sbc_codec;
 #ifdef DBT_PROBE_AAC_BUILD
@@ -537,10 +548,10 @@ static dbt_result_t stream_begin(void *context,bool start,const dbt_codec_config
 #ifdef DBT_PROBE_LDAC_BUILD
     share=share || config->ops==&dbt_ldac_codec;
 #endif
-    dbt_result_t result=probe_output_stream_begin_shared(start,config->rate,config->channels,
-        (dbt_pcm_format_t)config->sample_bytes,share,ticket);
+    dbt_result_t result=probe_output_stream_begin_primed(start,config->rate,config->channels,
+        (dbt_pcm_format_t)config->sample_bytes,share,priming,ticket);
 #else
-    dbt_result_t result=probe_output_stream_begin(start,config->rate,config->channels,(dbt_pcm_format_t)config->sample_bytes,ticket);
+    dbt_result_t result=probe_output_stream_begin_primed(start,config->rate,config->channels,(dbt_pcm_format_t)config->sample_bytes,false,priming,ticket);
 #endif
     if(result==DBT_PENDING)async_stream_start=start;
     return result;
@@ -577,7 +588,11 @@ static void decode_loop(void *unused){
     atomic_store(&decoder_wait_kind,UINT32_MAX);
     for(;;){
         uint32_t began=(uint32_t)esp_timer_get_time();
-        (void)dbt_codec_worker_step(&worker,now_ms(),2);
+        uint16_t budget=2;
+#if defined(DBT_PROBE_AUDIO_OUTPUT) && !defined(DBT_PROBE_RF_PROTOCOL_DIAGNOSTIC)
+        budget=probe_output_decode_budget();
+#endif
+        (void)dbt_codec_worker_step(&worker,now_ms(),budget);
         uint32_t elapsed=(uint32_t)esp_timer_get_time()-began;
         atomic_fetch_add(&worker_steps,1);atomic_fetch_add(&worker_elapsed_us,elapsed);maximum(&worker_step_max_us,elapsed);
         unsigned bucket=0;uint32_t bound=125;
@@ -585,12 +600,16 @@ static void decode_loop(void *unused){
         atomic_fetch_add(&worker_hist[bucket],1);
         uint32_t faults=atomic_load_explicit(&worker.faults,memory_order_acquire);
         if(faults!=seen_faults){seen_faults=faults;wake_owner(0);}
-        if(dbt_codec_worker_runnable(&worker)){taskYIELD();continue;}
+        bool render_handoff=false;
+#if defined(DBT_PROBE_AUDIO_OUTPUT) && !defined(DBT_PROBE_RF_PROTOCOL_DIAGNOSTIC)
+        render_handoff=budget==0 && probe_output_decode_budget()==0;
+#endif
+        if(dbt_codec_worker_runnable(&worker) && !render_handoff){taskYIELD();continue;}
         TickType_t wait=decoder_wait_ticks(now_ms());
         /* Notifications queued before this call remain pending. No fixed
          * media polling period and no wait while useful work is runnable. */
         if(!wait){(void)ulTaskNotifyTake(pdTRUE,0);continue;}
-        unsigned reason=worker.pcm_ticket?1u:worker.pending_pcm&&worker.output_blocked?0u:
+        unsigned reason=render_handoff?4u:worker.pcm_ticket?1u:worker.pending_pcm&&worker.output_blocked?0u:
             worker.control_phase||atomic_load(&worker.job_read)!=atomic_load(&worker.job_written)?2u:3u;
         uint32_t before=(uint32_t)esp_timer_get_time();
         atomic_store_explicit(&decoder_wait_began,before,memory_order_relaxed);
@@ -680,6 +699,17 @@ static void log_loop(void *unused){
                ",\"last_oversize_channel_mtu\":%" PRIu32 ",\"last_oversize_psm\":%" PRIu32 "}\n",
                at,(unsigned)PROBE_A2DP_RX_MTU,atomic_load(&media_sdu_max),atomic_load(&oversized_dynamic),
                atomic_load(&last_oversized_size),atomic_load(&last_oversized_mtu),atomic_load(&last_oversized_psm));
+        uint32_t credit_status=atomic_load(&credit_window_status);
+        PROBE_SNAPSHOT_LOG("{\"probe\":\"rx_credit_backpressure\",\"collection_cycle_us\":%" PRIu32
+            " ,\"host_packet_window\":%u,\"classic_gate_open\":%s,\"pending_completed_classic\":%" PRIu32
+            " ,\"pending_completed_le\":%" PRIu32
+            " ,\"peak_blocked_classic\":%" PRIu32
+            " ,\"acknowledged_acl\":%" PRIu32
+            " ,\"completion_commands\":%" PRIu32
+            " ,\"media_queued\":%" PRIu32 "}\n",
+            at,(unsigned)(credit_status&0xffffu),(credit_status&0x10000u)?"true":"false",atomic_load(&credit_pending_classic),
+            atomic_load(&credit_pending_le),atomic_load(&credit_peak_blocked),atomic_load(&credit_acknowledged),
+            atomic_load(&credit_commands),atomic_load(&credit_media_queued));
         PROBE_SNAPSHOT_LOG("{\"probe\":\"decoder_input_queue\",\"collection_cycle_us\":%" PRIu32
                ",\"packet_capacity_bytes\":%u,\"packet_slots\":%u,\"slot_stride_bytes\":%u"
                ",\"reserved_packet_bytes\":%u,\"max_seen_payload_bytes\":%" PRIu32
@@ -722,10 +752,10 @@ static void log_loop(void *unused){
                at,atomic_load(&worker_steps),atomic_load(&worker_elapsed_us),atomic_load(&worker_step_max_us),
                atomic_load(&worker_hist[0]),atomic_load(&worker_hist[1]),atomic_load(&worker_hist[2]),atomic_load(&worker_hist[3]),
                atomic_load(&worker_hist[4]),atomic_load(&worker_hist[5]),atomic_load(&worker_hist[6]),atomic_load(&worker_hist[7]));
-        static const char *const wait_names[]={"pcm_space","pcm_loan_retirement","control","encoded_input"};
+        static const char *const wait_names[]={"pcm_space","pcm_loan_retirement","control","encoded_input","shared_renderer"};
         uint32_t waiting=atomic_load_explicit(&decoder_wait_kind,memory_order_acquire);
         uint32_t wait_began=atomic_load_explicit(&decoder_wait_began,memory_order_relaxed);
-        for(unsigned reason=0;reason<4;++reason){
+        for(unsigned reason=0;reason<5;++reason){
             uint32_t stamp=(uint32_t)esp_timer_get_time();
             snapshot_log(stamp,"{\"probe\":\"decoder_wait\",\"reason\":\"%s\",\"core\":%" PRIu32
                 ",\"calls\":%" PRIu32 ",\"elapsed_us\":%" PRIu32 ",\"maximum_us\":%" PRIu32
@@ -814,6 +844,9 @@ static void log_loop(void *unused){
                ",\"calls\":%" PRIu32 ",\"elapsed_us\":%" PRIu32 ",\"maximum_us\":%" PRIu32 ",\"core\":%" PRIu32
                ",\"application_callback_only\":true,\"elapsed_includes_preemption\":true}\n",
                stats.configured_irq_priority,stats.callback_calls,stats.callback_elapsed_us,stats.callback_max_us,stats.callback_core);
+        snapshot_log(output_snapshot_began,"{\"probe\":\"pcm_startup_guard\",\"collection_cycle_us\":%" PRIu32
+               ",\"minimum_ms\":%" PRIu32 ",\"remaining_ms\":%" PRIu32 ",\"buffers_added\":0}\n",
+               at,stats.priming_ms,stats.priming_remaining_ms);
         snapshot_log(output_snapshot_began,"{\"probe\":\"pcm_clock_policy\",\"adaptive_clock\":%" PRIu32
                ",\"one_to_one_pcm\":%s,\"target_frames\":%" PRIu32 "}\n",stats.adaptive_clock,stats.adaptive_clock?"false":"true",stats.pcm_target_frames);
 #ifdef DBT_PROBE_CODEC_AWARE_RENDER
@@ -881,6 +914,20 @@ static void sink_event(void *context,dbt_sink_event_t event,dbt_stream_state_t s
         product_observer(product_context,PROBE_AUDIO_CONFIGURED,profile.signaling.handle,profile.signaling.generation,rate,now_ms());
     }else if(state==DBT_STREAM_STREAMING)
         product_observer(product_context,PROBE_AUDIO_STREAMING,profile.signaling.handle,profile.signaling.generation,0,now_ms());
+}
+_Static_assert(PROBE_A2DP_MEDIA_SLOTS>=2,"RX-credit policy needs a power-of-two media queue of at least two slots");
+uint16_t probe_audio_rx_credit_window(void){return PROBE_A2DP_MEDIA_SLOTS/2u;}
+bool probe_audio_rx_credit_ready(void *context,const dbt_link_t *link){
+    (void)context;
+    if(!initialized || !link || link->kind!=DBT_LINK_CLASSIC || restart_hold ||
+       !profile.active || profile.draining || profile.sink.failed || profile.sink.retiring ||
+       profile.sink.state!=DBT_STREAM_STREAMING || !profile.signaling.serial ||
+       profile.signaling.handle!=link->handle || profile.signaling.generation!=link->generation)return true;
+    uint32_t read=atomic_load_explicit(&worker.media_read,memory_order_acquire);
+    uint32_t written=atomic_load_explicit(&worker.media_written,memory_order_acquire);
+    /* At low-water4 with window4, at most7 slots can become occupied while
+     * the controller exhausts already issued credits; one slot stays spare. */
+    return written-read<PROBE_A2DP_MEDIA_SLOTS-probe_audio_rx_credit_window();
 }
 dbt_result_t probe_audio_init(dbt_runtime_t *runtime,TaskHandle_t host_owner){
     if(restart_hold)return DBT_BUSY;
@@ -1161,6 +1208,25 @@ void probe_audio_receive(const dbt_channel_t *channel,const uint8_t *data,uint16
 }
 void probe_audio_poll(uint32_t now){
     if(!initialized)return;
+    const dbt_rx_flow_t *flow=&profile.runtime->rx_flow;
+    uint32_t classic_pending=0,le_pending=0,blocked=0;
+    for(unsigned i=0;i<DBT_MAX_LINKS;++i){
+        const dbt_rx_completed_t *p=&flow->pending[i];if(!p->used)continue;
+        const dbt_link_t *link=dbt_acl_find(&profile.runtime->acl,p->handle);
+        if(!link || link->generation!=p->generation)continue;
+        if(link->kind==DBT_LINK_LE)le_pending+=p->packets;
+        else{classic_pending+=p->packets;if(!probe_audio_rx_credit_ready(NULL,link))blocked+=p->packets;}
+    }
+    bool gate=true;
+    if(profile.signaling.serial){
+        const dbt_link_t *link=dbt_acl_find(&profile.runtime->acl,profile.signaling.handle);
+        if(link && link->generation==profile.signaling.generation)gate=probe_audio_rx_credit_ready(NULL,link);
+    }
+    atomic_store(&credit_window_status,(uint32_t)flow->packet_count|(gate?0x10000u:0));
+    atomic_store(&credit_pending_classic,classic_pending);atomic_store(&credit_pending_le,le_pending);
+    atomic_store(&credit_acknowledged,flow->acknowledged);atomic_store(&credit_commands,flow->commands_submitted);
+    if(blocked>atomic_load(&credit_peak_blocked))atomic_store(&credit_peak_blocked,blocked);
+    atomic_store(&credit_media_queued,atomic_load(&worker.media_written)-atomic_load(&worker.media_read));
     dbt_codec_receipt_t receipt;
     for(unsigned i=0;i<DBT_CODEC_WORKER_JOBS && dbt_codec_worker_receipt(&worker,&receipt)==DBT_OK;++i)
         (void)dbt_a2dp_acceptor_complete(&profile,receipt.binding,receipt.token,receipt.result,now);

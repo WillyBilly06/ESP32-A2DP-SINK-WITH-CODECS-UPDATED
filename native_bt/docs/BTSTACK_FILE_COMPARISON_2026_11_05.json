@@ -179,17 +179,19 @@
     },
     {
       "owned": "native_bt/codecs/common/dbt_codec.c",
-      "sha256": "255df41728a544f00c4fda9cd37c907d2a1577a16be9e008595ea18fcde04fad",
-      "lines": 482,
+      "sha256": "dd62ebe573afdd988b688eb00472d7d1824a1222cb0104d2415c5ea3209f0eba",
+      "lines": 488,
       "reference_files": [
         "src/classic/avdtp.c",
         "example/a2dp_sink_demo.c",
         "src/btstack_resample.c",
-        "src/btstack_sample_rate_compensation.c"
+        "src/btstack_sample_rate_compensation.c",
+        "src/hci.c",
+        "port/esp32/components/btstack/hci_transport_esp32_vhci.c"
       ],
       "status": "reviewed_with_findings",
       "mapping": "counterpart_candidates",
-      "review_scope": "Complete owned body read; mapped reference sections and ownership/state boundaries compared. Not protocol qualification."
+      "review_scope": "Complete owned body read; mapped reference sections and ownership/state boundaries compared. Not protocol qualification. Follow-up: shared-core quantum/low-water notifications, codec startup deadlines and downstream RX-completion gate reviewed as applicable. See SCHEDULING_STARTUP_GUARD_2026_11_06.md and RX_CREDIT_BACKPRESSURE_2026_11_06.md. Existing status/coverage retained; complete layer qualification not claimed."
     },
     {
       "owned": "native_bt/codecs/common/dbt_codec.h",
@@ -717,20 +719,21 @@
     },
     {
       "owned": "native_bt/esp32_probe/main/probe_audio.c",
-      "sha256": "51e1c8dc8c92919cdd81c526a6171f482ee5e0dcf71e1f05e6bb6394961adc02",
-      "lines": 1286,
+      "sha256": "08e3f497d4aa8c51529e701e619e1a6fcfef6d8000a69bf36b9f62851884f328",
+      "lines": 1352,
       "reference_files": [],
       "status": "partial_review",
       "mapping": "product/support code; no direct protocol counterpart assigned",
-      "review_scope": "Selected active decode/render/owner/telemetry and passive stage/scheduler integration reviewed; source remains partial. Trace shows output pressure/latched failure with decoder rejects0, but full profile/default peer/feature/security and shared throughput proof remain unfinished. Follow-up: closed-channel codec-aware core ownership and one-to-one PCM selection checked against released Bluedroid; LDAC96k short playback has0 underruns/queue drops/rejects/WDT. All-mode lifecycle, fidelity, concurrency and sustained qualification remain open. AAC version1/ASC span bounds and baseline1023/1024-frame reserve follow-up; compiler/analysis/readback/cold/live PCM evidence recorded. AAC startup and aptX HD residual underruns remain unqualified. Follow-up2026-11-06: scoped Classic renewal, asynchronous VHCI ownership, first-starvation metadata and/or SMP consent/store renewal sections reviewed as applicable; see BLE_CLASSIC_COEX_2026_11_06.md and FIRST_STARVATION_2026_11_06.md. Status/coverage is not promoted by this selected-section follow-up."
+      "review_scope": "Selected active decode/render/owner/telemetry and passive stage/scheduler integration reviewed; source remains partial. Trace shows output pressure/latched failure with decoder rejects0, but full profile/default peer/feature/security and shared throughput proof remain unfinished. Follow-up: closed-channel codec-aware core ownership and one-to-one PCM selection checked against released Bluedroid; LDAC96k short playback has0 underruns/queue drops/rejects/WDT. All-mode lifecycle, fidelity, concurrency and sustained qualification remain open. AAC version1/ASC span bounds and baseline1023/1024-frame reserve follow-up; compiler/analysis/readback/cold/live PCM evidence recorded. AAC startup and aptX HD residual underruns remain unqualified. Follow-up2026-11-06: scoped Classic renewal, asynchronous VHCI ownership, first-starvation metadata and/or SMP consent/store renewal sections reviewed as applicable; see BLE_CLASSIC_COEX_2026_11_06.md and FIRST_STARVATION_2026_11_06.md. Status/coverage is not promoted by this selected-section follow-up. Follow-up: shared-core quantum/low-water notifications, codec startup deadlines and downstream RX-completion gate reviewed as applicable. See SCHEDULING_STARTUP_GUARD_2026_11_06.md and RX_CREDIT_BACKPRESSURE_2026_11_06.md. Existing status/coverage retained; complete layer qualification not claimed."
     },
     {
       "owned": "native_bt/esp32_probe/main/probe_audio.h",
-      "sha256": "471930b310e077a0af27d323914d1916080f00002fc70e1a2e750d6d6730ad99",
-      "lines": 100,
+      "sha256": "0e8b1271e769ce66eaef83536ac20f1cb3b47590c6374689f128ac017b5478e8",
+      "lines": 104,
       "reference_files": [],
       "status": "partial_review",
-      "mapping": "product/support code; no direct protocol counterpart assigned"
+      "mapping": "product/support code; no direct protocol counterpart assigned",
+      "review_scope": "Selected sections reviewed; full comparison remains unfinished. Follow-up: shared-core quantum/low-water notifications, codec startup deadlines and downstream RX-completion gate reviewed as applicable. See SCHEDULING_STARTUP_GUARD_2026_11_06.md and RX_CREDIT_BACKPRESSURE_2026_11_06.md. Existing status/coverage retained; complete layer qualification not claimed."
     },
     {
       "owned": "native_bt/esp32_probe/main/probe_avrcp.c",
@@ -1065,15 +1068,15 @@
     },
     {
       "owned": "native_bt/esp32_probe/main/probe_main.c",
-      "sha256": "c360042d9dd1490048d09fb1b80e6b81721c1922a1387554f31bab6197f5a4eb",
-      "lines": 1152,
+      "sha256": "7f789928787f34d0296fd9207e5e652049905141a0cd028656276b1242e09e60",
+      "lines": 1158,
       "reference_files": [
         "src/hci.c",
         "port/esp32/components/btstack/hci_transport_esp32_vhci.c"
       ],
       "status": "partial_review",
       "mapping": "product/support code; no direct protocol counterpart assigned",
-      "review_scope": "Selected sections only; whole-file comparison remains unfinished. Follow-up2026-11-06: scoped Classic renewal, asynchronous VHCI ownership, first-starvation metadata and/or SMP consent/store renewal sections reviewed as applicable; see BLE_CLASSIC_COEX_2026_11_06.md and FIRST_STARVATION_2026_11_06.md. Status/coverage is not promoted by this selected-section follow-up."
+      "review_scope": "Selected sections only; whole-file comparison remains unfinished. Follow-up2026-11-06: scoped Classic renewal, asynchronous VHCI ownership, first-starvation metadata and/or SMP consent/store renewal sections reviewed as applicable; see BLE_CLASSIC_COEX_2026_11_06.md and FIRST_STARVATION_2026_11_06.md. Status/coverage is not promoted by this selected-section follow-up. Follow-up: shared-core quantum/low-water notifications, codec startup deadlines and downstream RX-completion gate reviewed as applicable. See SCHEDULING_STARTUP_GUARD_2026_11_06.md and RX_CREDIT_BACKPRESSURE_2026_11_06.md. Existing status/coverage retained; complete layer qualification not claimed."
     },
     {
       "owned": "native_bt/esp32_probe/main/probe_opus_vectors.h",
@@ -1090,23 +1093,23 @@
     },
     {
       "owned": "native_bt/esp32_probe/main/probe_output.c",
-      "sha256": "93dd88b8690cded7572e7612770a53e7396795c6f5352d37b2f5843dce285456",
-      "lines": 1493,
+      "sha256": "7c81923ca25bab60f5e51ac401069728304d0bcf276617f78c15cf4ae545899f",
+      "lines": 1580,
       "reference_files": [
         "port/esp32/components/btstack/btstack_audio_esp32_v5.c"
       ],
       "status": "reviewed_with_findings",
       "mapping": "reviewed_port_audio_boundaries",
-      "review_scope": "Authored output body previously reviewed; current callback lookup, descriptor-copy accounting, verified-pool recovery, stop streak, reset/stats and compiled mode reread against actual ESP32 SDK EOF ISR. Error visibility retained; renderer overload/IRQ-delay cause, all-mode lifecycle and active recovery proof remain incomplete. Follow-up: closed-channel codec-aware core ownership and one-to-one PCM selection checked against released Bluedroid; LDAC96k short playback has0 underruns/queue drops/rejects/WDT. All-mode lifecycle, fidelity, concurrency and sustained qualification remain open. AAC version1/ASC span bounds and baseline1023/1024-frame reserve follow-up; compiler/analysis/readback/cold/live PCM evidence recorded. AAC startup and aptX HD residual underruns remain unqualified. Follow-up2026-11-06: scoped Classic renewal, asynchronous VHCI ownership, first-starvation metadata and/or SMP consent/store renewal sections reviewed as applicable; see BLE_CLASSIC_COEX_2026_11_06.md and FIRST_STARVATION_2026_11_06.md. Status/coverage is not promoted by this selected-section follow-up."
+      "review_scope": "Authored output body previously reviewed; current callback lookup, descriptor-copy accounting, verified-pool recovery, stop streak, reset/stats and compiled mode reread against actual ESP32 SDK EOF ISR. Error visibility retained; renderer overload/IRQ-delay cause, all-mode lifecycle and active recovery proof remain incomplete. Follow-up: closed-channel codec-aware core ownership and one-to-one PCM selection checked against released Bluedroid; LDAC96k short playback has0 underruns/queue drops/rejects/WDT. All-mode lifecycle, fidelity, concurrency and sustained qualification remain open. AAC version1/ASC span bounds and baseline1023/1024-frame reserve follow-up; compiler/analysis/readback/cold/live PCM evidence recorded. AAC startup and aptX HD residual underruns remain unqualified. Follow-up2026-11-06: scoped Classic renewal, asynchronous VHCI ownership, first-starvation metadata and/or SMP consent/store renewal sections reviewed as applicable; see BLE_CLASSIC_COEX_2026_11_06.md and FIRST_STARVATION_2026_11_06.md. Status/coverage is not promoted by this selected-section follow-up. Follow-up: shared-core quantum/low-water notifications, codec startup deadlines and downstream RX-completion gate reviewed as applicable. See SCHEDULING_STARTUP_GUARD_2026_11_06.md and RX_CREDIT_BACKPRESSURE_2026_11_06.md. Existing status/coverage retained; complete layer qualification not claimed."
     },
     {
       "owned": "native_bt/esp32_probe/main/probe_output.h",
-      "sha256": "a4654d1fddbfdf542bdc73fae8458641e1d5b4e15bd7c297b8cbbe4cbefc935b",
-      "lines": 130,
+      "sha256": "aaafc4c5b357a7f31d226cd7dfd69f0554cfafc000196003fe8494dcff6c6305",
+      "lines": 139,
       "reference_files": [],
       "status": "reviewed_contract",
       "mapping": "product/support code; no direct protocol counterpart assigned",
-      "review_scope": "Complete output API/stats declaration reread for added recovery/minimum counters; copied DMA ownership and incomplete callback-count/replay inference explicit. No payload pool/task introduced. Follow-up: closed-channel codec-aware core ownership and one-to-one PCM selection checked against released Bluedroid; LDAC96k short playback has0 underruns/queue drops/rejects/WDT. All-mode lifecycle, fidelity, concurrency and sustained qualification remain open. AAC version1/ASC span bounds and baseline1023/1024-frame reserve follow-up; compiler/analysis/readback/cold/live PCM evidence recorded. AAC startup and aptX HD residual underruns remain unqualified. Follow-up2026-11-06: scoped Classic renewal, asynchronous VHCI ownership, first-starvation metadata and/or SMP consent/store renewal sections reviewed as applicable; see BLE_CLASSIC_COEX_2026_11_06.md and FIRST_STARVATION_2026_11_06.md. Status/coverage is not promoted by this selected-section follow-up."
+      "review_scope": "Complete output API/stats declaration reread for added recovery/minimum counters; copied DMA ownership and incomplete callback-count/replay inference explicit. No payload pool/task introduced. Follow-up: closed-channel codec-aware core ownership and one-to-one PCM selection checked against released Bluedroid; LDAC96k short playback has0 underruns/queue drops/rejects/WDT. All-mode lifecycle, fidelity, concurrency and sustained qualification remain open. AAC version1/ASC span bounds and baseline1023/1024-frame reserve follow-up; compiler/analysis/readback/cold/live PCM evidence recorded. AAC startup and aptX HD residual underruns remain unqualified. Follow-up2026-11-06: scoped Classic renewal, asynchronous VHCI ownership, first-starvation metadata and/or SMP consent/store renewal sections reviewed as applicable; see BLE_CLASSIC_COEX_2026_11_06.md and FIRST_STARVATION_2026_11_06.md. Status/coverage is not promoted by this selected-section follow-up. Follow-up: shared-core quantum/low-water notifications, codec startup deadlines and downstream RX-completion gate reviewed as applicable. See SCHEDULING_STARTUP_GUARD_2026_11_06.md and RX_CREDIT_BACKPRESSURE_2026_11_06.md. Existing status/coverage retained; complete layer qualification not claimed."
     },
     {
       "owned": "native_bt/esp32_probe/main/probe_pair_button.c",
@@ -1941,16 +1944,18 @@
     },
     {
       "owned": "native_bt/include/dbt_rx_flow.h",
-      "sha256": "c60da405ece15d26528f449f38c68c15075523a70c08b3c1571930fd46ceb949",
-      "lines": 53,
+      "sha256": "e5d8bbc8b2c0ea04c5eb11351b3ba70994ed28b7cdd9ab71d0f63b6d224818df",
+      "lines": 62,
       "reference_files": [
         "src/hci.c:954-1025,1295-1374,4443-4477",
         "Owned RX active/expiry predicate",
-        "Selected channel/ERTM/credit provider contracts"
+        "Selected channel/ERTM/credit provider contracts",
+        "src/hci.c",
+        "port/esp32/components/btstack/hci_transport_esp32_vhci.c"
       ],
       "status": "reviewed_contract",
       "mapping": "Controller/ACL/L2CAP ownership and event-driven transport deadlines",
-      "review_scope": "Complete RX-flow state/ACK storage/owner/callback/credit independence/abort contract read alongside full body. Strict analysis/target compile passes; live flow/backpressure/fault qualification missing."
+      "review_scope": "Complete RX-flow state/ACK storage/owner/callback/credit independence/abort contract read alongside full body. Strict analysis/target compile passes; live flow/backpressure/fault qualification missing. Follow-up: shared-core quantum/low-water notifications, codec startup deadlines and downstream RX-completion gate reviewed as applicable. See SCHEDULING_STARTUP_GUARD_2026_11_06.md and RX_CREDIT_BACKPRESSURE_2026_11_06.md. Existing status/coverage retained; complete layer qualification not claimed."
     },
     {
       "owned": "native_bt/include/dbt_sbc_media.h",
@@ -2736,8 +2741,8 @@
     },
     {
       "owned": "native_bt/src/dbt_rx_flow.c",
-      "sha256": "38d9162660f4342d70db024d4b72a945f4452ca78874b654bd67df2ce257590b",
-      "lines": 219,
+      "sha256": "737270aceb17cafa5e3743c885b42cbc298e5131456071b54276edb4db872a03",
+      "lines": 232,
       "reference_files": [
         "src/hci.c",
         "src/hci.h",
@@ -2746,7 +2751,7 @@
       "status": "reviewed_no_change",
       "mapping": "counterpart_candidates",
       "review_note": "Complete owned C body inspected against corresponding HCI/ACL framing, credits, reassembly and transmission sections. See findings and remaining integration/qualification gaps.",
-      "review_scope": "undefined Later transport pass reread complete authored body/contract against selected HCI accounting/fragmentation references; no additional defect established in unchanged logic. No live controller/flow/recovery proof."
+      "review_scope": "undefined Later transport pass reread complete authored body/contract against selected HCI accounting/fragmentation references; no additional defect established in unchanged logic. No live controller/flow/recovery proof. Follow-up: shared-core quantum/low-water notifications, codec startup deadlines and downstream RX-completion gate reviewed as applicable. See SCHEDULING_STARTUP_GUARD_2026_11_06.md and RX_CREDIT_BACKPRESSURE_2026_11_06.md. Existing status/coverage retained; complete layer qualification not claimed."
     },
     {
       "owned": "native_bt/src/dbt_sbc_media.c",
@@ -4358,6 +4363,26 @@
       ],
       "outcome": "Selected sections compared; explicit TX lifetime, scoped trusted Classic SSP renewal and SMP consent/store renewal corrected. Full readback/cold plus short prompt-policy, durable LE re-pairing, stored-key reconnect and acknowledged app EQ during LDAC evidence; all-mode encrypted control/stress/security qualification remains open.",
       "full_layer_complete": false
+    },
+    {
+      "layer": "Downstream RX-credit lifetime, shared-core handoff and startup timing",
+      "owned": [
+        "native_bt/include/dbt_rx_flow.h",
+        "native_bt/src/dbt_rx_flow.c",
+        "native_bt/codecs/common/dbt_codec.c",
+        "native_bt/esp32_probe/main/probe_audio.h",
+        "native_bt/esp32_probe/main/probe_audio.c",
+        "native_bt/esp32_probe/main/probe_main.c",
+        "native_bt/esp32_probe/main/probe_output.h",
+        "native_bt/esp32_probe/main/probe_output.c"
+      ],
+      "reference": [
+        "src/hci.c:1289-1296,6611-6653,8518-8523",
+        "Working Bluedroid audio_pipeline.h/i2s_output.h",
+        "Actual IDF6.1 esp_driver_i2s/i2s_common.c callback/write sections"
+      ],
+      "outcome": "Existing3-packet HCI window now respects downstream queuepressure. Two maximum-mode LDAC/EQ paths retain packets; DMA-refill shortages remain. AAC/ABR short startup passes do not establishall-modecontinuity. Source/build/wire evidencekept distinct; fullcomparisoncoverageunchanged.",
+      "full_layer_complete": false
     }
   ],
   "integration_gaps": [
@@ -4814,10 +4839,32 @@
         "Authorized GPIO0/DTR3.3s gesture (no RTS/reset marker/UART TX) opens consent. Checked identity-proof renewal in516147fc reaches durable commit: stage12 result0/step4/flags3.10349 stable build hashes; full readbacks921600write/115200read,37 existing cold cases pass, owned active/no fallback. Normal bonded LE reconnect in window0 accepts LTK and resolves stored identity. Two12s LDAC96k runs acknowledge Deep Bass then Balanced through actual app, no route/focus loss or security disconnect; native640 then128 underrun frames. This is limited functional evidence, not full security/feature/fidelity/continuity qualification.",
         "AAC/Core1 trial rejected and restoredCore0. Broad codec/security/lifecycle/OTA/maxLHDC/long-duration/audio-fidelity qualification still open. No whole-stack-complete claim."
       ]
+    },
+    {
+      "id": "SHARED-CORE-QUANTUM-STARTUP-GUARD",
+      "status": "build_readback_cold_short_aac_abr_ldac_pass_maximum_continuity_open",
+      "notes": [
+        "Shared copied PCM on same core: one operation per quantum, control retirement allowed withzero media budget, notification handoff when decoded input exists and output<256 frames. New separate shared_renderer wait/phase8; separate-core LHDC/Opus quantum retained.",
+        "AAC47ms@44.1k/43ms@48k andLDAC40ms first-PCM startup guard, existing storage/steady target unchanged. Owner deadline retires without overdue polling, safely preloadable short stop drains, sound paths bypassguard, DelayReport floor includescomponent. Targetrequest-prefix padding assertion passes. Selected retained live state+20bytes, no new task/buffer.",
+        "9325024c handoff alone has0 plain/768 EQ ABR/1280 maximum native refill shortages; no isolated continuity gain.153107a5 guardedABRtwo0, AAC44.1k/S16 two0 with0 new queue/decode failures; AAC stop-tail counters differ and full lifecycle/acoustic/48k qualification remains open.",
+        "Maximum LDAC required explicit phone quality selection after reconnect.153107a5 988kbit/s trace drops4 encoded packets/resets4 andunderruns3072, motivating proper receivebackpressure. These results do not establish the full underrun problem solved."
+      ]
+    },
+    {
+      "id": "A2DP-DOWNSTREAM-RX-COMPLETIONS",
+      "status": "build_readback_cold_two_max_ldac_ble_eq_no_packet_loss_refill_open",
+      "notes": [
+        "Actual H4 FIFO4096/eventreserve520 advertises3x1024-byte ACL packets both before/after;4 isonly the new upperbound. Earlier assumption of15/larger-than8 window was incorrect and superseded by source/boot evidence.",
+        "Completion acknowledgments were replenished after HCI callback regardless of full downstream1800x8 encoded queue. Optionallive-generation Classicstream gate holds atqueue4; BLE/otherlinks/teardown remaineligible. Withactual3 outstanding atmost6 slots fill; conservativeupper4 gives7within8. No queue enlargement.",
+        "Only entries actually included inHostNumberCompleted command are cleared; transport-retained command storage, disconnect retirement, no normal commandcredit retained. Waitquery skipsheld entries; both codecconsumerpaths wakehost ondownward half-capacity crossing.",
+        "b6b6c263 full app/selectorreadbacks at921600write/115200read match; original preserved,ownedVALID/no fallback,37 existing cold cases pass,10349 hashes stable,workspace507.284MiB after verifiedlossless compressionofoldUARTcopies.",
+        "Two12s max-mode LDAC96k/S32 with actual app DeepBass/Balanced ACKs measured968.9/981.5kbit/s payload.0 queue drops/rejects/resets/RTP breaks/descriptor faults/WDT; peakqueue6,heldClassic3. Flushed accepted=rendered=DMA1437696/1434624; native refillunderruns256/2048 remain. No sustained/fullsecurity/allfeature proof.",
+        "IDF6.1 I2S source queues completedbuffer after on_sent; current callback immediately writeszero ifPCMnotready. Next work must establish safe post-EOF refill ownership/deadline/order, not merely relabel counters or blindly writeDMA buffers late."
+      ]
     }
   ],
   "next_review": "Add bounded passive per-stage arrival/first-starvation timing to locate AAC/aptX HD residual gaps; do not infer RF loss from diagnostic-ring loss. Preserve measured one-to-one LDAC fix, original bounded reserve and explicit core policy. Continue only approved targeted playback; all-feature qualification remains incomplete.",
-  "latest_build_image": "516147fc4e930190d3bf4bb13a336930606cd4b75e85572ef7a5fb6db2cd4c5f",
+  "latest_build_image": "b6b6c2633169812fa0cd0aed9e143cd2125fb15359ced18db39d9369d36d9210",
   "verification_source_contracts": [
     {
       "file": "native_bt/tools/test_ldac_target_component.py",

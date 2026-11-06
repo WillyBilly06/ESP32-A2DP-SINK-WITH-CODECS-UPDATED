@@ -21,6 +21,12 @@ have been compared; encrypted GATT/audio coexistence and all-feature parity are
 still being qualified. [First-starvation captures](docs/FIRST_STARVATION_2026_11_06.md)
 keep media, decoder, renderer and DMA evidence separate.
 
+The [receive-credit follow-up](docs/RX_CREDIT_BACKPRESSURE_2026_11_06.md) couples
+Classic completions to downstream encoded-queue capacity. Two explicitly selected
+maximum-quality LDAC/BLE EQ traces have no packet drops, but refill underruns
+remain. The [scheduling/startup record](docs/SCHEDULING_STARTUP_GUARD_2026_11_06.md)
+reports the40–47ms AAC/LDAC guard, unchanged buffers and limited passing AAC runs.
+
 The [BTstack code audit](docs/BTSTACK_CODE_AUDIT_2026_11_05.md) now tracks
 all 288 owned implementation/build inputs, confirmed layer defects, unwired modules and
 remaining review coverage against a fresh pinned upstream checkout. The

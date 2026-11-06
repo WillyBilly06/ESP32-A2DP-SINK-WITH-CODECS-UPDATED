@@ -290,6 +290,12 @@ static bool control_async(dbt_codec_worker_t *w,const dbt_codec_job_t *job,uint3
     if(polled==DBT_PENDING){w->control_blocked=true;return false;}
     *result=control(w,job,true,polled,true);w->control_phase=0;w->stream_ticket=0;w->cancel_requested=false;return true;
 }
+static void retire_slot(dbt_codec_worker_t *w,uint32_t read){
+    uint32_t queued=atomic_load_explicit(&w->media_written,memory_order_acquire)-read;
+    atomic_store_explicit(&w->media_read,read+1u,memory_order_release);
+    /* Wake credit release only when crossing below the half-capacity mark. */
+    if(queued==(w->depth+1u)/2u)wake_owner(w);
+}
 static void retire_media(dbt_codec_worker_t *w,uint32_t read,dbt_result_t result){
     if(result!=DBT_OK){
         const media_t *slot=(const media_t *)(w->packet_storage+(read&(w->depth-1u))*w->stride);
@@ -298,7 +304,7 @@ static void retire_media(dbt_codec_worker_t *w,uint32_t read,dbt_result_t result
         if(!reset(w,slot))fault(w);
     }
     w->media_active=false;atomic_fetch_add(&w->packets,1);
-    atomic_store_explicit(&w->media_read,read+1u,memory_order_release);
+    retire_slot(w,read);
 }
 static void fail_media(dbt_codec_worker_t *w,uint32_t read){
     /* Fatal output/decoder failure needs no replacement codec allocation.
@@ -474,7 +480,7 @@ uint16_t dbt_codec_worker_step(dbt_codec_worker_t *w,uint32_t now,uint16_t budge
             atomic_fetch_add(&w->media_drops,1);
             if(!reset(w,slot))fault(w);
         }
-        atomic_fetch_add(&w->packets,1);atomic_store_explicit(&w->media_read,read+1u,memory_order_release);++count;
+        atomic_fetch_add(&w->packets,1);retire_slot(w,read);++count;
     }
     if(w->configured && !w->media_active && !w->pending_pcm && w->decoder.config.ops->expire)w->decoder.config.ops->expire(&w->decoder,now);
     atomic_store(&w->resident_bytes,w->decoder.allocated_bytes);return count;

@@ -1,6 +1,7 @@
 #include "probe_schedule_limits.h"
 #include "probe_output.h"
 #include "dbt_async_ticket.h"
+#include <stddef.h>
 #if defined(DBT_PROBE_CODEC_AWARE_RENDER) && defined(DBT_PROBE_SCHEDULER_TRACE)
 #include "probe_scheduler.h"
 #endif
@@ -52,6 +53,7 @@ typedef struct {
   bool share_decoder_core;
   uint32_t rate;
   uint8_t channels;
+  uint16_t priming_ms; /* Fits existing request padding on ESP32. */
   dbt_pcm_format_t format;
   uint32_t id;
 #ifdef DBT_PROBE_PCM_LOANS
@@ -64,6 +66,7 @@ typedef struct {
   bool exclusive;
 #endif
 } request_t;
+_Static_assert(offsetof(request_t,format)==12 && offsetof(request_t,id)==16,"Priming must reuse the existing request prefix padding");
 typedef struct {
   uint32_t id;
   dbt_result_t result;
@@ -88,6 +91,7 @@ typedef struct {
   void (*wake_decoder)(void *);
   void *wake_context;
   bool active, enabled, stopping;
+  _Atomic uint32_t priming_state,priming_at_ms;
   uint8_t descriptor_order_seen; /* Complete repeat verifies discovered ring order. */
   uint32_t descriptor_count, next_descriptor, zero_completions, last_eof,
       clock_at;
@@ -319,6 +323,17 @@ static uint32_t pcm_target_frames(uint32_t rate){
   if(target<1024u)target=1024u;
 #endif
   return target;
+}
+#define PRIMING_ARMED 0x10000u
+#define PRIMING_DONE 0x20000u
+#define PRIMING_BUDGET 0xffffu
+/* Single producer arms before notifying; only render retires the deadline.
+ * DONE prevents an expired deadline from creating periodic one-tick work. */
+static bool priming_ready(uint32_t now){
+  uint32_t state=atomic_load(&output.priming_state),budget=state&PRIMING_BUDGET;
+  if(!budget || (state&PRIMING_DONE))return true;
+  if(!(state&PRIMING_ARMED) || now-atomic_load(&output.priming_at_ms)<budget)return false;
+  atomic_store(&output.priming_state,state|PRIMING_DONE);return true;
 }
 static uint32_t power2(uint32_t n) {
   uint32_t result = 2;
@@ -683,6 +698,7 @@ static dbt_result_t start_output(uint32_t rate, uint8_t channels,
   atomic_store(&output.failed, 0);
   atomic_store(&output.rate, rate);
   atomic_store(&output.accepted_frames, 0);
+  atomic_store(&output.priming_state,0);atomic_store(&output.priming_at_ms,0);
   atomic_store(&output.rendered_frames, 0);
   atomic_store(&output.dma_eofs, 0);
   atomic_store(&output.dma_source_frames, 0);
@@ -773,6 +789,11 @@ static bool transfer_output_request(const request_t *request){
   xTaskNotifyGive(target);return true;
 }
 #endif
+static dbt_result_t start_codec_output(request_t request){
+  dbt_result_t result=start_output(request.rate,request.channels,request.format);
+  if(result==DBT_OK)atomic_store(&output.priming_state,request.priming_ms);
+  return result;
+}
 static void codec_request(request_t request){
 #ifdef DBT_PROBE_CODEC_AWARE_RENDER
   if(transfer_output_request(&request))return;
@@ -783,10 +804,19 @@ static void codec_request(request_t request){
 #ifdef DBT_PROBE_SOUND_BUILD
     if(!output.active)output.sound_standalone=false;
 #endif
-    report_done(request.id,start_output(request.rate,request.channels,request.format));
+    report_done(request.id,start_codec_output(request));
   }
-  else if (!output.active || !output.enabled){close_output();report_done(request.id,DBT_OK);}
+  else if (!output.active){close_output();report_done(request.id,DBT_OK);}
   else {
+    if(!output.enabled){
+      /* A stop bypasses only the new guard, draining a safely preloadable
+       * accepted clip. The prior sub-DMA short-clip behavior is unchanged. */
+      if(!(atomic_load(&output.priming_state)&PRIMING_BUDGET) ||
+         dbt_audio_output_frames(&output.audio)<DMA_DESCRIPTORS*DMA_FRAMES){
+        close_output();report_done(request.id,DBT_OK);return;
+      }
+      if(enable_output()!=DBT_OK){close_output();atomic_store(&output.failed,1);report_done(request.id,DBT_INVALID);return;}
+    }
     dbt_audio_begin_drain(&output.audio);output.stopping=true;output.stop_request=request.id;
     output.stop_at=(uint32_t)(esp_timer_get_time()/1000);
     atomic_store_explicit(&output.stop_requested,1,memory_order_release);
@@ -933,7 +963,7 @@ static bool render_step(void) {
 #ifdef DBT_PROBE_CODEC_AWARE_RENDER
           if(transfer_output_request(&restart))return false;
 #endif
-          report_done(output.stop_request,start_output(restart.rate,restart.channels,restart.format));return true;
+          report_done(output.stop_request,start_codec_output(restart));return true;
         }
 #endif
         report_done(output.stop_request, DBT_OK);
@@ -1022,7 +1052,12 @@ static bool render_step(void) {
 #ifdef DBT_PROBE_PCM_LOANS
       (void)retire_pcm_loan(false);
 #endif
-      if (!output.enabled && available >= target) {
+      bool prime_complete=output.enabled;
+#ifdef DBT_PROBE_SOUND_BUILD
+      prime_complete=prime_complete || output.sound || output.sound_standalone || output.transition_sound;
+#endif
+      prime_complete=prime_complete || priming_ready((uint32_t)(esp_timer_get_time()/1000));
+      if (!output.enabled && prime_complete && available >= target) {
         if (enable_output() != DBT_OK)
           atomic_store(&output.failed, 1);
       }
@@ -1093,6 +1128,13 @@ static TickType_t render_wait_ticks(void){
     ){
       elapsed=now-output.clock_at;remaining=elapsed>=500u?1u:500u-elapsed;
       if(remaining<ms)ms=remaining;
+    }
+  }
+  if(output.active && !output.enabled){
+    uint32_t state=atomic_load(&output.priming_state),budget=state&PRIMING_BUDGET;
+    if(budget && (state&PRIMING_ARMED) && !(state&PRIMING_DONE)){
+      uint32_t elapsed=now-atomic_load(&output.priming_at_ms);
+      if(elapsed<budget && budget-elapsed<ms)ms=budget-elapsed;
     }
   }
   if(ms==UINT32_MAX)return portMAX_DELAY;
@@ -1290,13 +1332,17 @@ void probe_output_sound_wake(void (*wake)(void *),void *context){
 }
 void probe_output_sound_data_ready(void){if(output.task)xTaskNotifyGive(output.task);}
 #endif
-dbt_result_t probe_output_stream_begin_shared(bool start,uint32_t rate,uint8_t channels,dbt_pcm_format_t format,bool share_decoder_core,uint32_t *ticket){
+dbt_result_t probe_output_stream_begin_primed(bool start,uint32_t rate,uint8_t channels,dbt_pcm_format_t format,bool share_decoder_core,uint16_t priming_ms,uint32_t *ticket){
   if(ticket)*ticket=0;
 #ifndef DBT_PROBE_CODEC_AWARE_RENDER
   if(share_decoder_core)return DBT_UNSUPPORTED;
 #endif
   if(start && (format<DBT_PCM_S16_LE || format>DBT_PCM_S32_LE || channels<1 || channels>2 || rate<8000 || rate>192000))return DBT_INVALID;
-  request_t request={.start=start,.share_decoder_core=share_decoder_core,.rate=rate,.channels=channels,.format=format};return request_begin(&request,ticket,false);
+  if(priming_ms>100u)return DBT_INVALID;
+  request_t request={.start=start,.share_decoder_core=share_decoder_core,.priming_ms=priming_ms,.rate=rate,.channels=channels,.format=format};return request_begin(&request,ticket,false);
+}
+dbt_result_t probe_output_stream_begin_shared(bool start,uint32_t rate,uint8_t channels,dbt_pcm_format_t format,bool share_decoder_core,uint32_t *ticket){
+  return probe_output_stream_begin_primed(start,rate,channels,format,share_decoder_core,0,ticket);
 }
 dbt_result_t probe_output_stream_begin(bool start,uint32_t rate,uint8_t channels,dbt_pcm_format_t format,uint32_t *ticket){
   return probe_output_stream_begin_shared(start,rate,channels,format,false,ticket);
@@ -1313,6 +1359,31 @@ dbt_result_t probe_output_stream_format(bool start, uint32_t rate,
 dbt_result_t probe_output_stream(bool start, uint32_t rate, uint8_t channels) {
   return probe_output_stream_format(start, rate, channels, DBT_PCM_S16_LE);
 }
+uint16_t probe_output_decode_budget(void){
+#if defined(DBT_PROBE_CODEC_AWARE_RENDER) && defined(DBT_PROBE_PCM_COPIED)
+  /* Decoder-only. Same-core owners cannot close/reinitialize these atomic
+   * ring counters while this higher-priority observer runs. No buffer or
+   * mutable configuration is borrowed. Disabled/different-core output keeps
+   * the existing two-operation quantum, including LHDC/Opus on Core1. */
+  if(!atomic_load_explicit(&output.running,memory_order_acquire) ||
+     atomic_load(&output.failed) || atomic_load(&output.stop_requested) ||
+     atomic_load(&output.render_core)!=(uint32_t)xPortGetCoreID())return 2;
+  uint32_t input_read=atomic_load_explicit(&output.audio.input.read,memory_order_acquire);
+  uint32_t input_written=atomic_load_explicit(&output.audio.input.written,memory_order_acquire);
+  uint32_t output_read=atomic_load_explicit(&output.audio.output.read,memory_order_acquire);
+  uint32_t output_written=atomic_load_explicit(&output.audio.output.written,memory_order_acquire);
+  if(input_written!=input_read && output_written-output_read<2u*DMA_FRAMES){
+    TaskHandle_t render=atomic_load_explicit(&output.task,memory_order_acquire);
+    if(render)xTaskNotifyGive(render);
+    return 0; /* control retirement still runs; wait on existing notification */
+  }
+  /* Stop at each PCM/decode boundary so another decode cannot hide the need
+   * for this handoff inside the old two-operation quantum. */
+  return 1;
+#else
+  return 2;
+#endif
+}
 dbt_result_t probe_output_try_pcm_format(const void *samples, uint16_t frames,
                                      uint8_t channels, uint32_t rate,
                                      dbt_pcm_format_t format) {
@@ -1323,7 +1394,15 @@ dbt_result_t probe_output_try_pcm_format(const void *samples, uint16_t frames,
       output.audio.config.format != format)
     return DBT_INVALID;
   dbt_result_t result=dbt_audio_submit(&output.audio,samples,frames);
-  if(result==DBT_OK){atomic_fetch_add(&output.accepted_frames,frames);xTaskNotifyGive(output.task);}
+  if(result==DBT_OK){
+    uint32_t previous=atomic_fetch_add(&output.accepted_frames,frames);
+    uint32_t state=atomic_load(&output.priming_state);
+    if(!previous && (state&PRIMING_BUDGET)){
+      atomic_store(&output.priming_at_ms,(uint32_t)(esp_timer_get_time()/1000));
+      atomic_store(&output.priming_state,state|PRIMING_ARMED);
+    }
+    xTaskNotifyGive(output.task);
+  }
   else if(result==DBT_BUSY)xTaskNotifyGive(output.task);
   return result;
 }
@@ -1350,6 +1429,12 @@ void probe_output_stats(probe_output_stats_t *s) {
   if (!s)
     return;
   s->pcm_target_ms=DBT_PROBE_PCM_TARGET_MS;
+  uint32_t prime=atomic_load(&output.priming_state),guard=prime&PRIMING_BUDGET;
+  s->priming_ms=guard;s->priming_remaining_ms=0;
+  if(guard && atomic_load(&output.requested_bytes) && !atomic_load(&output.running) && !(prime&PRIMING_DONE)){
+    uint32_t elapsed=(uint32_t)(esp_timer_get_time()/1000)-atomic_load(&output.priming_at_ms);
+    s->priming_remaining_ms=!(prime&PRIMING_ARMED)?guard:elapsed<guard?guard-elapsed:0;
+  }
   s->adaptive_clock=OUTPUT_ADAPTIVE_CLOCK;
   uint32_t target_rate=atomic_load(&output.rate);
   s->pcm_target_frames=target_rate?pcm_target_frames(target_rate):0;
@@ -1447,6 +1532,8 @@ uint16_t probe_output_delay_100us(uint32_t rate) {
     frames = pcm_target_frames(rate) + DMA_DESCRIPTORS * DMA_FRAMES + 80u;
   if(OUTPUT_ADAPTIVE_CLOCK)frames += dbt_resampler_delay_frames(rate);
   uint32_t value = (uint32_t)(((uint64_t)frames * 10000u + rate - 1u) / rate);
+  uint32_t guard=(atomic_load(&output.priming_state)&PRIMING_BUDGET)*10u;
+  if(value<guard)value=guard; /* Minimum deliberate priming component. */
   return value > UINT16_MAX ? UINT16_MAX : (uint16_t)value;
 }
 dbt_result_t probe_output_controls(int8_t bass, int8_t mid, int8_t treble,
