@@ -3,7 +3,7 @@
   "scope": "exact host math/state and off-board target instruction/memory evidence; not playback qualification",
   "experiment": "D:/bt-owned61/native_bt/_build/experiments/limiter-word-div-1794058558429",
   "image_sha256": "389514bc25464678621e0bd2e31b9699aa7acb70e55c9a560a1f76723c2a8e2a",
-  "flashed": false,
+  "flashed": true,
   "instruction_sram_delta_bytes": 112,
   "data_delta": 0,
   "bss_delta": 0,
@@ -45,5 +45,28 @@
     "firmware-build-rerun.log": "4cacfdabc0829c1efa968c9ab5bb310b7acfc765c6ec9b46101cb8e5f0635eea",
     "baseline-fixed900-max.json": "b8c0161f861bdc580009d90f90900d2cf10cab94fa3a5131b5dbda6115d415a1",
     "baseline-fixed900-max-repeat.json": "1b9d11106dff9db04891c3b8e07ae49b05816a9355e8484608632932cb1efe31"
-  }
+  },
+  "archive": "D:/bt-owned61/native_bt/_build/hardware/runs/1794059345430995400-389514bc2546",
+  "readback_matches": true,
+  "cold37": {
+    "probe": "target_codec_selftest",
+    "passed": true,
+    "configurations": 37,
+    "selected": 37,
+    "callbacks": 173,
+    "stack_bytes": 8192,
+    "stack_low_water_bytes": 3464,
+    "tracked_peak_bytes": 56899,
+    "min_free_after_alloc_bytes": 103292,
+    "maximum_decode_us": 13921,
+    "rf_test": false
+  },
+  "candidate_helper_elapsed_cycles_per_frame": [
+    575.2856539207976
+  ],
+  "candidate_unfilled_including_startup_drain": [
+    15296
+  ],
+  "speed_conclusion": "One complete candidate run is within baseline timing variation; no whole-pipeline speed or continuity gain established",
+  "incomplete_repeat": "incomplete"
 }

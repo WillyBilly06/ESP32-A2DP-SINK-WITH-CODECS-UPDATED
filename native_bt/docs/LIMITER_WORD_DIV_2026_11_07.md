@@ -34,3 +34,9 @@ Reproduction (host tests only):
 
     python native_bt/tools/test_dsp_limiter_word.py
     python native_bt/tools/test_dsp_block.py --word-ramp --volume-ramp
+
+## Guarded candidate deployment and finite trace
+
+Candidate389514bc2546 is now flashed onCOM6 at921600 with full image readback at115200. Owned VALID, no automatic Bluedroid restore, preserved original app, all37 cold cases pass. Cold stack low3464 bytes versus3608 on8e85; task allocation is unchanged and the difference is not attributed to one function.
+
+One complete fixed900/192k/S24/max-volume native YouTube run records575.29 elapsed Core0 helper cycles/frame and15,296 unfilled frames including startup/drain. This lies within the earlier573.24–584.56 timing range; there is no demonstrated whole-pipeline speed gain or continuity fix. Its decoder has zero rejects/nonfinite/concealed frames; ordinary finite sample clipping remains. A second repeat is incomplete after the logging service stopped and is not a pass. Playback was independently verified paused and volume90/150. The logger was relaunched through its persistent launcher, is listening again and has fresh UART.
