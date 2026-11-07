@@ -1,3 +1,21 @@
+## 2026-11-07 — idle-decoder DSP admission and codec-switch checks
+
+ec89367eeef0 passes source/image admission, guarded921600 upload/full115200
+readback and37 cold codec cases. Existing Core0 DSP assistance now also runs
+while LHDC waits for encoded input; control/loan/handoff/awake states stay
+excluded. Actual admission4096 sanitizer cases and two-core lifecycle/fairness
+regressions pass. Added SRAM0, IRAM0, flash text16B.
+
+At192k/S24/fixed900 and constant phone90, unfilled frames are9984/12032 versus
+19328 in the preceding baseline; after LDAC switches13568. Maximum volume150
+records8064. These are short sequential observations including startup/drain,
+not a continuity pass or causal A/B proof. Fresh gaps still have raw PCM waiting
+for rendered output. Two LDAC96/S32 finite runs have zero shortages, but their
+variable packet frame counts do not prove fixed990 even after selector
+readback. Phone restored to LHDC192/S24/fixed900 and volume90, paused; logger
+listening. Full master-goal qualification stays open. See
+[idle DSP evidence](LHDC_IDLE_DSP_2026_11_07.md).
+
 ## 2026-11-07 — measured S32 decoder output improvement
 
 173206502d7a passes guarded readback and37 cold cases. At actual192k/S24/fixed900,

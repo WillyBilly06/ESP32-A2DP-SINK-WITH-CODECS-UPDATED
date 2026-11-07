@@ -1,0 +1,1439 @@
+{
+  "date": "2026-11-07",
+  "scope": "short targeted native YouTube diagnosis; full goal unqualified",
+  "baseline_image": "173206502d7a72c9f879b80a715046b998d98315de3fea80535aded262d3fa64",
+  "image": "ec89367eeef0acaaba286802a53d7aaced2e5b3b9991fa6d49fa9152f219c79f",
+  "archive": "runs/1794068539911754100-ec89367eeef0",
+  "readbacks": [
+    {
+      "offset": 3735552,
+      "bytes": 1340704,
+      "readback_sha256": "ec89367eeef0acaaba286802a53d7aaced2e5b3b9991fa6d49fa9152f219c79f",
+      "readback_matches": true,
+      "write_baud": 921600,
+      "verify_baud": 115200
+    },
+    {
+      "offset": 6361088,
+      "bytes": 4096,
+      "readback_sha256": "12315ef25ab06d7d38ef99a92aaecf40a2f9099325e11a3d5ad992e5888ef22f",
+      "readback_matches": true,
+      "write_baud": 921600,
+      "verify_baud": 115200
+    }
+  ],
+  "original_application_preserved": true,
+  "owned_boot": {
+    "probe": "boot_selection",
+    "host": "owned",
+    "kept_active": true,
+    "partition": 3735552,
+    "ota_state": 2,
+    "result": 0,
+    "production_ready": false
+  },
+  "automatic_bluedroid_restore": false,
+  "cold": {
+    "probe": "target_codec_selftest",
+    "passed": true,
+    "configurations": 37,
+    "selected": 37,
+    "callbacks": 173,
+    "stack_bytes": 8192,
+    "stack_low_water_bytes": 3584,
+    "tracked_peak_bytes": 56899,
+    "min_free_after_alloc_bytes": 102996,
+    "maximum_decode_us": 13017,
+    "rf_test": false
+  },
+  "section_deltas": [
+    {
+      "section": ".iram0.vectors",
+      "before": 1028,
+      "after": 1028,
+      "delta": 0
+    },
+    {
+      "section": ".iram0.text",
+      "before": 129851,
+      "after": 129851,
+      "delta": 0
+    },
+    {
+      "section": ".dram0.data",
+      "before": 25237,
+      "after": 25237,
+      "delta": 0
+    },
+    {
+      "section": ".dram0.bss",
+      "before": 51304,
+      "after": 51304,
+      "delta": 0
+    },
+    {
+      "section": ".flash.appdesc",
+      "before": 256,
+      "after": 256,
+      "delta": 0
+    },
+    {
+      "section": ".flash.rodata",
+      "before": 385368,
+      "after": 385368,
+      "delta": 0
+    },
+    {
+      "section": ".flash.tdata",
+      "before": 20,
+      "after": 20,
+      "delta": 0
+    },
+    {
+      "section": ".flash.text",
+      "before": 798776,
+      "after": 798792,
+      "delta": 16
+    },
+    {
+      "section": ".iram0.text_end",
+      "before": 1,
+      "after": 1,
+      "delta": 0
+    },
+    {
+      "section": ".iram0.data",
+      "before": 0,
+      "after": 0,
+      "delta": 0
+    },
+    {
+      "section": ".iram0.bss",
+      "before": 0,
+      "after": 0,
+      "delta": 0
+    },
+    {
+      "section": ".dram0.heap_start",
+      "before": 0,
+      "after": 0,
+      "delta": 0
+    }
+  ],
+  "readiness_tests": {
+    "cases": 4096,
+    "sanitizers": [
+      "address",
+      "undefined"
+    ],
+    "passed": true
+  },
+  "ownership_tests": {
+    "fair_share": true,
+    "early_input": true,
+    "rebalance": true,
+    "assist_blocks": 6,
+    "passed": true
+  },
+  "runs": [
+    {
+      "label": "baseline-constant90",
+      "failure": null,
+      "guard_ok": true,
+      "volume_before": 90,
+      "volume_during": 90,
+      "codec": {
+        "probe": "codec_configuration",
+        "collection_cycle_us": 2627428679,
+        "revision": 4,
+        "codec": 9,
+        "rate": 192000,
+        "channels": 2,
+        "pcm_container_bytes": 4,
+        "cie_size": 13,
+        "cie_hex": "00ff3a050000354c0102110000",
+        "snapshot_begin_us": 2629519312,
+        "at_us": 2629519352,
+        "snapshot_span_us": 40,
+        "record_crc32": "73be485f"
+      },
+      "dma_source_frames": 2623680,
+      "initial_shortage_frames": 33408,
+      "unfilled_frames": 19328,
+      "unfilled_per_million_pcm_frames": 7366.752042932065,
+      "refill_contract_errors": 0,
+      "descriptor_errors": 0,
+      "decoder_drops": 0,
+      "queue_full": 0,
+      "media_input": {
+        "probe": "media_input",
+        "collection_cycle_us": 2643511372,
+        "stream_epoch": 11,
+        "packets": 2733,
+        "payload_bytes": 1546878,
+        "rtp_first_timestamp": 8132160,
+        "rtp_last_timestamp": 10754880,
+        "rate": 192000,
+        "timestamp_origin": "wire_rtp",
+        "snapshot_begin_us": 2644840304,
+        "at_us": 2644840334,
+        "snapshot_span_us": 30,
+        "record_crc32": "b396496b"
+      },
+      "wire_size_counts": {
+        "566:4": 57
+      },
+      "first_starvation": {
+        "probe": "first_starvation",
+        "stream_serial": 4,
+        "captured": true,
+        "coherent": true,
+        "event_us": 2627892712,
+        "taken_frames": 0,
+        "input_frames": 1920,
+        "output_frames": 0,
+        "accepted_frames": 5760,
+        "rendered_frames": 3712,
+        "dma_source_frames": 3456,
+        "snapshot_begin_us": 2630959747,
+        "at_us": 2630959754,
+        "snapshot_span_us": 7,
+        "record_crc32": "9fc179fe"
+      },
+      "starvation_decoder": {
+        "probe": "starvation_decoder",
+        "stream_serial": 4,
+        "event_us": 2627892712,
+        "coherent": true,
+        "phase": 4,
+        "phase_name": "wait_pcm_space",
+        "phase_since_us": 2627892161,
+        "encoded_queued_at_phase_change": 4,
+        "snapshot_begin_us": 2631078322,
+        "at_us": 2631078334,
+        "snapshot_span_us": 12,
+        "record_crc32": "524281cb"
+      },
+      "starvation_renderer": {
+        "probe": "starvation_renderer",
+        "stream_serial": 4,
+        "event_us": 2627892712,
+        "coherent": true,
+        "inside_audio_render": true,
+        "phase_since_us": 2627892013,
+        "dsp_assist_state_at_gap": 0,
+        "snapshot_begin_us": 2631112447,
+        "at_us": 2631112456,
+        "snapshot_span_us": 9,
+        "record_crc32": "28320087"
+      },
+      "local_delay": {
+        "probe": "render_local_delay",
+        "core": 1,
+        "scope": "stream_max_wall",
+        "stream_serial": 4,
+        "rate": 192000,
+        "begin_us": 2627841624,
+        "end_us": 2627845179,
+        "wall_us": 3555,
+        "frames": 128,
+        "begin_tick_us": 2627841532,
+        "end_tick_us": 2627844528,
+        "markers_valid": true,
+        "sample_hz": 1000,
+        "ticks_not_cpu_time": true,
+        "known_task_mask": 415,
+        "begin_marker_cycles": 209,
+        "end_marker_cycles": 696,
+        "host": 3,
+        "decoder": 0,
+        "renderer": 0,
+        "logger": 0,
+        "controller": 0,
+        "idle": 0,
+        "other": 0,
+        "ipc": 0,
+        "timer": 0,
+        "host_other": 0,
+        "host_query": 0,
+        "host_submit": 0,
+        "host_runtime": 0,
+        "host_wait": 2,
+        "host_gatt": 0,
+        "host_security": 1,
+        "host_product": 0,
+        "host_io": 0,
+        "host_audio": 0,
+        "host_avrcp": 0,
+        "host_console": 0,
+        "snapshot_begin_us": 2633392505,
+        "at_us": 2633392531,
+        "snapshot_span_us": 26,
+        "record_crc32": "83b5ab68"
+      },
+      "playing_counters": [
+        {
+          "time": 1794068257.9925702,
+          "accepted": 383296,
+          "dma": 379904,
+          "shortage": 10112
+        },
+        {
+          "time": 1794068264.210867,
+          "accepted": 1568448,
+          "dma": 1565056,
+          "shortage": 22016
+        },
+        {
+          "time": 1794068269.337785,
+          "accepted": 2622720,
+          "dma": 2622720,
+          "shortage": 30848
+        }
+      ],
+      "signal_settings": [
+        {
+          "rate": 192000,
+          "volume": 76,
+          "gains": [
+            11,
+            8,
+            12
+          ]
+        },
+        {
+          "rate": 192000,
+          "volume": 76,
+          "gains": [
+            11,
+            8,
+            12
+          ]
+        },
+        {
+          "rate": 192000,
+          "volume": 76,
+          "gains": [
+            11,
+            8,
+            12
+          ]
+        }
+      ]
+    },
+    {
+      "label": "candidate-constant90",
+      "failure": null,
+      "guard_ok": true,
+      "volume_before": 90,
+      "volume_during": 90,
+      "codec": {
+        "probe": "codec_configuration",
+        "collection_cycle_us": 136509533,
+        "revision": 1,
+        "codec": 9,
+        "rate": 192000,
+        "channels": 2,
+        "pcm_container_bytes": 4,
+        "cie_size": 13,
+        "cie_hex": "00ff3a050000354c0102110000",
+        "snapshot_begin_us": 138336097,
+        "at_us": 138336137,
+        "snapshot_span_us": 40,
+        "record_crc32": "610c68dd"
+      },
+      "dma_source_frames": 2729088,
+      "initial_shortage_frames": 17792,
+      "unfilled_frames": 9984,
+      "unfilled_per_million_pcm_frames": 3658.364992261151,
+      "refill_contract_errors": 0,
+      "descriptor_errors": 0,
+      "decoder_drops": 0,
+      "queue_full": 0,
+      "media_input": {
+        "probe": "media_input",
+        "collection_cycle_us": 155356543,
+        "stream_epoch": 5,
+        "packets": 2844,
+        "payload_bytes": 1609704,
+        "rtp_first_timestamp": 0,
+        "rtp_last_timestamp": 2729280,
+        "rate": 192000,
+        "timestamp_origin": "wire_rtp",
+        "snapshot_begin_us": 156668466,
+        "at_us": 156668482,
+        "snapshot_span_us": 16,
+        "record_crc32": "2fa2df4e"
+      },
+      "wire_size_counts": {
+        "566:4": 65
+      },
+      "first_starvation": {
+        "probe": "first_starvation",
+        "stream_serial": 1,
+        "captured": true,
+        "coherent": true,
+        "event_us": 137396606,
+        "taken_frames": 0,
+        "input_frames": 1856,
+        "output_frames": 0,
+        "accepted_frames": 49472,
+        "rendered_frames": 47616,
+        "dma_source_frames": 47360,
+        "snapshot_begin_us": 139867389,
+        "at_us": 139867396,
+        "snapshot_span_us": 7,
+        "record_crc32": "70663fd7"
+      },
+      "starvation_decoder": {
+        "probe": "starvation_decoder",
+        "stream_serial": 1,
+        "event_us": 137396606,
+        "coherent": true,
+        "phase": 4,
+        "phase_name": "wait_pcm_space",
+        "phase_since_us": 137394947,
+        "encoded_queued_at_phase_change": 5,
+        "snapshot_begin_us": 140086353,
+        "at_us": 140086366,
+        "snapshot_span_us": 13,
+        "record_crc32": "a9628040"
+      },
+      "starvation_renderer": {
+        "probe": "starvation_renderer",
+        "stream_serial": 1,
+        "event_us": 137396606,
+        "coherent": true,
+        "inside_audio_render": false,
+        "phase_since_us": 137395513,
+        "dsp_assist_state_at_gap": 0,
+        "snapshot_begin_us": 140113599,
+        "at_us": 140113607,
+        "snapshot_span_us": 8,
+        "record_crc32": "28eea1f8"
+      },
+      "local_delay": {
+        "probe": "render_local_delay",
+        "core": 1,
+        "scope": "stream_max_wall",
+        "stream_serial": 1,
+        "rate": 192000,
+        "begin_us": 137129185,
+        "end_us": 137133672,
+        "wall_us": 4487,
+        "frames": 128,
+        "begin_tick_us": 137128521,
+        "end_tick_us": 137133521,
+        "markers_valid": true,
+        "sample_hz": 1000,
+        "ticks_not_cpu_time": true,
+        "known_task_mask": 415,
+        "begin_marker_cycles": 1183,
+        "end_marker_cycles": 1183,
+        "host": 2,
+        "decoder": 0,
+        "renderer": 3,
+        "logger": 0,
+        "controller": 0,
+        "idle": 0,
+        "other": 0,
+        "ipc": 0,
+        "timer": 0,
+        "host_other": 0,
+        "host_query": 0,
+        "host_submit": 0,
+        "host_runtime": 0,
+        "host_wait": 2,
+        "host_gatt": 0,
+        "host_security": 0,
+        "host_product": 0,
+        "host_io": 0,
+        "host_audio": 0,
+        "host_avrcp": 0,
+        "host_console": 0,
+        "snapshot_begin_us": 142115721,
+        "at_us": 142115742,
+        "snapshot_span_us": 21,
+        "record_crc32": "03c2a2be"
+      },
+      "playing_counters": [
+        {
+          "time": 1794068834.0612857,
+          "accepted": 306752,
+          "dma": 304256,
+          "shortage": 5120
+        },
+        {
+          "time": 1794068840.0780244,
+          "accepted": 1475072,
+          "dma": 1470848,
+          "shortage": 10496
+        },
+        {
+          "time": 1794068845.1194658,
+          "accepted": 2455488,
+          "dma": 2451328,
+          "shortage": 17280
+        }
+      ],
+      "signal_settings": [
+        {
+          "rate": 192000,
+          "volume": 76,
+          "gains": [
+            11,
+            8,
+            12
+          ]
+        },
+        {
+          "rate": 192000,
+          "volume": 76,
+          "gains": [
+            11,
+            8,
+            12
+          ]
+        },
+        {
+          "rate": 192000,
+          "volume": 76,
+          "gains": [
+            11,
+            8,
+            12
+          ]
+        }
+      ]
+    },
+    {
+      "label": "candidate-repeat-constant90",
+      "failure": null,
+      "guard_ok": true,
+      "volume_before": 90,
+      "volume_during": 90,
+      "codec": {
+        "probe": "codec_configuration",
+        "collection_cycle_us": 164162543,
+        "revision": 2,
+        "codec": 9,
+        "rate": 192000,
+        "channels": 2,
+        "pcm_container_bytes": 4,
+        "cie_size": 13,
+        "cie_hex": "00ff3a050000354c0102110000",
+        "snapshot_begin_us": 165910548,
+        "at_us": 165910588,
+        "snapshot_span_us": 40,
+        "record_crc32": "a11f66d8"
+      },
+      "dma_source_frames": 2730752,
+      "initial_shortage_frames": 21888,
+      "unfilled_frames": 12032,
+      "unfilled_per_million_pcm_frames": 4406.112308990344,
+      "refill_contract_errors": 0,
+      "descriptor_errors": 0,
+      "decoder_drops": 0,
+      "queue_full": 0,
+      "media_input": {
+        "probe": "media_input",
+        "collection_cycle_us": 182875352,
+        "stream_epoch": 7,
+        "packets": 2846,
+        "payload_bytes": 1610836,
+        "rtp_first_timestamp": 2736960,
+        "rtp_last_timestamp": 5468160,
+        "rate": 192000,
+        "timestamp_origin": "wire_rtp",
+        "snapshot_begin_us": 184191762,
+        "at_us": 184191777,
+        "snapshot_span_us": 15,
+        "record_crc32": "2f475283"
+      },
+      "wire_size_counts": {
+        "566:4": 75
+      },
+      "first_starvation": {
+        "probe": "first_starvation",
+        "stream_serial": 2,
+        "captured": true,
+        "coherent": true,
+        "event_us": 165132252,
+        "taken_frames": 0,
+        "input_frames": 2048,
+        "output_frames": 0,
+        "accepted_frames": 5760,
+        "rendered_frames": 3584,
+        "dma_source_frames": 3328,
+        "snapshot_begin_us": 167521651,
+        "at_us": 167521658,
+        "snapshot_span_us": 7,
+        "record_crc32": "cf294906"
+      },
+      "starvation_decoder": {
+        "probe": "starvation_decoder",
+        "stream_serial": 2,
+        "event_us": 165132252,
+        "coherent": true,
+        "phase": 1,
+        "phase_name": "decode",
+        "phase_since_us": 165131854,
+        "encoded_queued_at_phase_change": 4,
+        "snapshot_begin_us": 167612150,
+        "at_us": 167612162,
+        "snapshot_span_us": 12,
+        "record_crc32": "f8f32797"
+      },
+      "starvation_renderer": {
+        "probe": "starvation_renderer",
+        "stream_serial": 2,
+        "event_us": 165132252,
+        "coherent": true,
+        "inside_audio_render": true,
+        "phase_since_us": 165131750,
+        "dsp_assist_state_at_gap": 0,
+        "snapshot_begin_us": 167708064,
+        "at_us": 167708072,
+        "snapshot_span_us": 8,
+        "record_crc32": "8de43fc8"
+      },
+      "local_delay": {
+        "probe": "render_local_delay",
+        "core": 1,
+        "scope": "stream_max_wall",
+        "stream_serial": 2,
+        "rate": 192000,
+        "begin_us": 175736544,
+        "end_us": 175740561,
+        "wall_us": 4017,
+        "frames": 128,
+        "begin_tick_us": 175736522,
+        "end_tick_us": 175740521,
+        "markers_valid": true,
+        "sample_hz": 1000,
+        "ticks_not_cpu_time": true,
+        "known_task_mask": 415,
+        "begin_marker_cycles": 209,
+        "end_marker_cycles": 696,
+        "host": 2,
+        "decoder": 0,
+        "renderer": 2,
+        "logger": 0,
+        "controller": 0,
+        "idle": 0,
+        "other": 0,
+        "ipc": 0,
+        "timer": 0,
+        "host_other": 0,
+        "host_query": 0,
+        "host_submit": 0,
+        "host_runtime": 0,
+        "host_wait": 1,
+        "host_gatt": 1,
+        "host_security": 0,
+        "host_product": 0,
+        "host_io": 0,
+        "host_audio": 0,
+        "host_avrcp": 0,
+        "host_console": 0,
+        "snapshot_begin_us": 179454904,
+        "at_us": 179454927,
+        "snapshot_span_us": 23,
+        "record_crc32": "5955aae3"
+      },
+      "playing_counters": [
+        {
+          "time": 1794068861.7317836,
+          "accepted": 222272,
+          "dma": 219392,
+          "shortage": 5888
+        },
+        {
+          "time": 1794068867.9185834,
+          "accepted": 1440768,
+          "dma": 1437056,
+          "shortage": 12928
+        }
+      ],
+      "signal_settings": [
+        {
+          "rate": 192000,
+          "volume": 76,
+          "gains": [
+            11,
+            8,
+            12
+          ]
+        },
+        {
+          "rate": 192000,
+          "volume": 76,
+          "gains": [
+            11,
+            8,
+            12
+          ]
+        }
+      ]
+    },
+    {
+      "label": "candidate-constant150",
+      "failure": null,
+      "guard_ok": true,
+      "volume_before": 150,
+      "volume_during": 150,
+      "codec": {
+        "probe": "codec_configuration",
+        "collection_cycle_us": 217927239,
+        "revision": 3,
+        "codec": 9,
+        "rate": 192000,
+        "channels": 2,
+        "pcm_container_bytes": 4,
+        "cie_size": 13,
+        "cie_hex": "00ff3a050000354c0102110000",
+        "snapshot_begin_us": 221307104,
+        "at_us": 221307148,
+        "snapshot_span_us": 44,
+        "record_crc32": "6696fb9d"
+      },
+      "dma_source_frames": 2729792,
+      "initial_shortage_frames": 15360,
+      "unfilled_frames": 8064,
+      "unfilled_per_million_pcm_frames": 2954.0712259395586,
+      "refill_contract_errors": 0,
+      "descriptor_errors": 0,
+      "decoder_drops": 0,
+      "queue_full": 0,
+      "media_input": {
+        "probe": "media_input",
+        "collection_cycle_us": 232841543,
+        "stream_epoch": 9,
+        "packets": 2845,
+        "payload_bytes": 1610270,
+        "rtp_first_timestamp": 5477760,
+        "rtp_last_timestamp": 8208000,
+        "rate": 192000,
+        "timestamp_origin": "wire_rtp",
+        "snapshot_begin_us": 234157979,
+        "at_us": 234157995,
+        "snapshot_span_us": 16,
+        "record_crc32": "3d78eddb"
+      },
+      "wire_size_counts": {
+        "566:4": 60
+      },
+      "first_starvation": {
+        "probe": "first_starvation",
+        "stream_serial": 3,
+        "captured": true,
+        "coherent": true,
+        "event_us": 214816991,
+        "taken_frames": 0,
+        "input_frames": 1792,
+        "output_frames": 0,
+        "accepted_frames": 5760,
+        "rendered_frames": 3968,
+        "dma_source_frames": 3712,
+        "snapshot_begin_us": 215903087,
+        "at_us": 215921142,
+        "snapshot_span_us": 18055,
+        "record_crc32": "eab94930"
+      },
+      "starvation_decoder": {
+        "probe": "starvation_decoder",
+        "stream_serial": 3,
+        "event_us": 214816991,
+        "coherent": true,
+        "phase": 1,
+        "phase_name": "decode",
+        "phase_since_us": 214816106,
+        "encoded_queued_at_phase_change": 5,
+        "snapshot_begin_us": 216141938,
+        "at_us": 216141950,
+        "snapshot_span_us": 12,
+        "record_crc32": "8a2b3cca"
+      },
+      "starvation_renderer": {
+        "probe": "starvation_renderer",
+        "stream_serial": 3,
+        "event_us": 214816991,
+        "coherent": true,
+        "inside_audio_render": true,
+        "phase_since_us": 214816947,
+        "dsp_assist_state_at_gap": 0,
+        "snapshot_begin_us": 216248904,
+        "at_us": 216248913,
+        "snapshot_span_us": 9,
+        "record_crc32": "793c3345"
+      },
+      "local_delay": {
+        "probe": "render_local_delay",
+        "core": 1,
+        "scope": "stream_max_wall",
+        "stream_serial": 3,
+        "rate": 192000,
+        "begin_us": 214805433,
+        "end_us": 214808715,
+        "wall_us": 3282,
+        "frames": 128,
+        "begin_tick_us": 214804521,
+        "end_tick_us": 214808521,
+        "markers_valid": true,
+        "sample_hz": 1000,
+        "ticks_not_cpu_time": true,
+        "known_task_mask": 415,
+        "begin_marker_cycles": 209,
+        "end_marker_cycles": 1183,
+        "host": 2,
+        "decoder": 0,
+        "renderer": 1,
+        "logger": 0,
+        "controller": 1,
+        "idle": 0,
+        "other": 0,
+        "ipc": 0,
+        "timer": 0,
+        "host_other": 0,
+        "host_query": 0,
+        "host_submit": 0,
+        "host_runtime": 1,
+        "host_wait": 0,
+        "host_gatt": 0,
+        "host_security": 0,
+        "host_product": 1,
+        "host_io": 0,
+        "host_audio": 0,
+        "host_avrcp": 0,
+        "host_console": 0,
+        "snapshot_begin_us": 217927271,
+        "at_us": 217927292,
+        "snapshot_span_us": 21,
+        "record_crc32": "c3e436c1"
+      },
+      "playing_counters": [
+        {
+          "time": 1794068917.0241268,
+          "accepted": 1321728,
+          "dma": 1317376,
+          "shortage": 7360
+        },
+        {
+          "time": 1794068922.2504625,
+          "accepted": 2334016,
+          "dma": 2329728,
+          "shortage": 15360
+        }
+      ],
+      "signal_settings": [
+        {
+          "rate": 192000,
+          "volume": 127,
+          "gains": [
+            11,
+            8,
+            12
+          ]
+        },
+        {
+          "rate": 192000,
+          "volume": 127,
+          "gains": [
+            11,
+            8,
+            12
+          ]
+        }
+      ]
+    },
+    {
+      "label": "ldac96-constant90",
+      "failure": null,
+      "guard_ok": true,
+      "volume_before": 90,
+      "volume_during": 90,
+      "codec": {
+        "probe": "codec_configuration",
+        "collection_cycle_us": 315379330,
+        "revision": 4,
+        "codec": 8,
+        "rate": 96000,
+        "channels": 2,
+        "pcm_container_bytes": 4,
+        "cie_size": 10,
+        "cie_hex": "00ff2d010000aa000401",
+        "snapshot_begin_us": 316883908,
+        "at_us": 316883943,
+        "snapshot_span_us": 35,
+        "record_crc32": "118b814f"
+      },
+      "dma_source_frames": 1357312,
+      "initial_shortage_frames": 0,
+      "unfilled_frames": 0,
+      "unfilled_per_million_pcm_frames": 0,
+      "refill_contract_errors": 0,
+      "descriptor_errors": 0,
+      "decoder_drops": 0,
+      "queue_full": 0,
+      "media_input": {
+        "probe": "media_input",
+        "collection_cycle_us": 334059533,
+        "stream_epoch": 14,
+        "packets": 1442,
+        "payload_bytes": 949218,
+        "rtp_first_timestamp": 0,
+        "rtp_last_timestamp": 737792,
+        "rate": 96000,
+        "timestamp_origin": "wire_rtp",
+        "snapshot_begin_us": 335374352,
+        "at_us": 335374371,
+        "snapshot_span_us": 19,
+        "record_crc32": "df280513"
+      },
+      "wire_size_counts": {
+        "661:2": 17,
+        "657:4": 46,
+        "661:3": 14
+      },
+      "first_starvation": {
+        "probe": "first_starvation",
+        "stream_serial": 4,
+        "captured": false,
+        "coherent": true,
+        "event_us": 0,
+        "taken_frames": 0,
+        "input_frames": 0,
+        "output_frames": 0,
+        "accepted_frames": 0,
+        "rendered_frames": 0,
+        "dma_source_frames": 0,
+        "snapshot_begin_us": 315356597,
+        "at_us": 315356603,
+        "snapshot_span_us": 6,
+        "record_crc32": "f1b4f178"
+      },
+      "starvation_decoder": {
+        "probe": "starvation_decoder",
+        "stream_serial": 3,
+        "event_us": 214816991,
+        "coherent": true,
+        "phase": 1,
+        "phase_name": "decode",
+        "phase_since_us": 214816106,
+        "encoded_queued_at_phase_change": 5,
+        "snapshot_begin_us": 216141938,
+        "at_us": 216141950,
+        "snapshot_span_us": 12,
+        "record_crc32": "8a2b3cca"
+      },
+      "starvation_renderer": {
+        "probe": "starvation_renderer",
+        "stream_serial": 3,
+        "event_us": 214816991,
+        "coherent": true,
+        "inside_audio_render": true,
+        "phase_since_us": 214816947,
+        "dsp_assist_state_at_gap": 0,
+        "snapshot_begin_us": 216248904,
+        "at_us": 216248913,
+        "snapshot_span_us": 9,
+        "record_crc32": "793c3345"
+      },
+      "local_delay": {
+        "probe": "render_local_delay",
+        "core": 1,
+        "scope": "stream_max_wall",
+        "stream_serial": 3,
+        "rate": 192000,
+        "begin_us": 214805433,
+        "end_us": 214808715,
+        "wall_us": 3282,
+        "frames": 128,
+        "begin_tick_us": 214804521,
+        "end_tick_us": 214808521,
+        "markers_valid": true,
+        "sample_hz": 1000,
+        "ticks_not_cpu_time": true,
+        "known_task_mask": 415,
+        "begin_marker_cycles": 209,
+        "end_marker_cycles": 1183,
+        "host": 2,
+        "decoder": 0,
+        "renderer": 1,
+        "logger": 0,
+        "controller": 1,
+        "idle": 0,
+        "other": 0,
+        "ipc": 0,
+        "timer": 0,
+        "host_other": 0,
+        "host_query": 0,
+        "host_submit": 0,
+        "host_runtime": 1,
+        "host_wait": 0,
+        "host_gatt": 0,
+        "host_security": 0,
+        "host_product": 1,
+        "host_io": 0,
+        "host_audio": 0,
+        "host_avrcp": 0,
+        "host_console": 0,
+        "snapshot_begin_us": 217927271,
+        "at_us": 217927292,
+        "snapshot_span_us": 21,
+        "record_crc32": "c3e436c1"
+      },
+      "playing_counters": [
+        {
+          "time": 1794069012.1399505,
+          "accepted": 159744,
+          "dma": 157568,
+          "shortage": 0
+        },
+        {
+          "time": 1794069016.122133,
+          "accepted": 542208,
+          "dma": 539904,
+          "shortage": 0
+        },
+        {
+          "time": 1794069020.0472326,
+          "accepted": 916992,
+          "dma": 914688,
+          "shortage": 0
+        },
+        {
+          "time": 1794069024.151318,
+          "accepted": 1310208,
+          "dma": 1307904,
+          "shortage": 0
+        }
+      ],
+      "signal_settings": [
+        {
+          "rate": 96000,
+          "volume": 76,
+          "gains": [
+            11,
+            8,
+            12
+          ]
+        },
+        {
+          "rate": 96000,
+          "volume": 76,
+          "gains": [
+            11,
+            8,
+            12
+          ]
+        },
+        {
+          "rate": 96000,
+          "volume": 76,
+          "gains": [
+            11,
+            8,
+            12
+          ]
+        },
+        {
+          "rate": 96000,
+          "volume": 76,
+          "gains": [
+            11,
+            8,
+            12
+          ]
+        }
+      ]
+    },
+    {
+      "label": "ldac96-index0-constant90",
+      "failure": null,
+      "guard_ok": true,
+      "volume_before": 90,
+      "volume_during": 90,
+      "codec": {
+        "probe": "codec_configuration",
+        "collection_cycle_us": 568724161,
+        "revision": 5,
+        "codec": 8,
+        "rate": 96000,
+        "channels": 2,
+        "pcm_container_bytes": 4,
+        "cie_size": 10,
+        "cie_hex": "00ff2d010000aa000401",
+        "snapshot_begin_us": 570253544,
+        "at_us": 570253581,
+        "snapshot_span_us": 37,
+        "record_crc32": "b59b9954"
+      },
+      "dma_source_frames": 1356800,
+      "initial_shortage_frames": 0,
+      "unfilled_frames": 0,
+      "unfilled_per_million_pcm_frames": 0,
+      "refill_contract_errors": 0,
+      "descriptor_errors": 0,
+      "decoder_drops": 0,
+      "queue_full": 0,
+      "media_input": {
+        "probe": "media_input",
+        "collection_cycle_us": 583937260,
+        "stream_epoch": 22,
+        "packets": 1442,
+        "payload_bytes": 949210,
+        "rtp_first_timestamp": 0,
+        "rtp_last_timestamp": 737792,
+        "rate": 96000,
+        "timestamp_origin": "wire_rtp",
+        "snapshot_begin_us": 585181031,
+        "at_us": 585181047,
+        "snapshot_span_us": 16,
+        "record_crc32": "133cdef0"
+      },
+      "wire_size_counts": {
+        "661:2": 18,
+        "657:4": 53,
+        "661:3": 20
+      },
+      "first_starvation": {
+        "probe": "first_starvation",
+        "stream_serial": 5,
+        "captured": false,
+        "coherent": true,
+        "event_us": 0,
+        "taken_frames": 0,
+        "input_frames": 0,
+        "output_frames": 0,
+        "accepted_frames": 0,
+        "rendered_frames": 0,
+        "dma_source_frames": 0,
+        "snapshot_begin_us": 567738563,
+        "at_us": 567738574,
+        "snapshot_span_us": 11,
+        "record_crc32": "a7e8f94b"
+      },
+      "starvation_decoder": {
+        "probe": "starvation_decoder",
+        "stream_serial": 3,
+        "event_us": 214816991,
+        "coherent": true,
+        "phase": 1,
+        "phase_name": "decode",
+        "phase_since_us": 214816106,
+        "encoded_queued_at_phase_change": 5,
+        "snapshot_begin_us": 216141938,
+        "at_us": 216141950,
+        "snapshot_span_us": 12,
+        "record_crc32": "8a2b3cca"
+      },
+      "starvation_renderer": {
+        "probe": "starvation_renderer",
+        "stream_serial": 3,
+        "event_us": 214816991,
+        "coherent": true,
+        "inside_audio_render": true,
+        "phase_since_us": 214816947,
+        "dsp_assist_state_at_gap": 0,
+        "snapshot_begin_us": 216248904,
+        "at_us": 216248913,
+        "snapshot_span_us": 9,
+        "record_crc32": "793c3345"
+      },
+      "local_delay": {
+        "probe": "render_local_delay",
+        "core": 1,
+        "scope": "stream_max_wall",
+        "stream_serial": 3,
+        "rate": 192000,
+        "begin_us": 214805433,
+        "end_us": 214808715,
+        "wall_us": 3282,
+        "frames": 128,
+        "begin_tick_us": 214804521,
+        "end_tick_us": 214808521,
+        "markers_valid": true,
+        "sample_hz": 1000,
+        "ticks_not_cpu_time": true,
+        "known_task_mask": 415,
+        "begin_marker_cycles": 209,
+        "end_marker_cycles": 1183,
+        "host": 2,
+        "decoder": 0,
+        "renderer": 1,
+        "logger": 0,
+        "controller": 1,
+        "idle": 0,
+        "other": 0,
+        "ipc": 0,
+        "timer": 0,
+        "host_other": 0,
+        "host_query": 0,
+        "host_submit": 0,
+        "host_runtime": 1,
+        "host_wait": 0,
+        "host_gatt": 0,
+        "host_security": 0,
+        "host_product": 1,
+        "host_io": 0,
+        "host_audio": 0,
+        "host_avrcp": 0,
+        "host_console": 0,
+        "snapshot_begin_us": 217927271,
+        "at_us": 217927292,
+        "snapshot_span_us": 21,
+        "record_crc32": "c3e436c1"
+      },
+      "playing_counters": [
+        {
+          "time": 1794069265.5212905,
+          "accepted": 277248,
+          "dma": 274944,
+          "shortage": 0
+        },
+        {
+          "time": 1794069269.244079,
+          "accepted": 635648,
+          "dma": 633472,
+          "shortage": 0
+        },
+        {
+          "time": 1794069273.0193226,
+          "accepted": 995072,
+          "dma": 992768,
+          "shortage": 0
+        }
+      ],
+      "signal_settings": [
+        {
+          "rate": 96000,
+          "volume": 76,
+          "gains": [
+            11,
+            8,
+            12
+          ]
+        },
+        {
+          "rate": 96000,
+          "volume": 76,
+          "gains": [
+            11,
+            8,
+            12
+          ]
+        },
+        {
+          "rate": 96000,
+          "volume": 76,
+          "gains": [
+            11,
+            8,
+            12
+          ]
+        }
+      ]
+    },
+    {
+      "label": "lhdc-after-ldac-constant90",
+      "failure": null,
+      "guard_ok": true,
+      "volume_before": 90,
+      "volume_during": 90,
+      "codec": {
+        "probe": "codec_configuration",
+        "collection_cycle_us": 649945364,
+        "revision": 6,
+        "codec": 9,
+        "rate": 192000,
+        "channels": 2,
+        "pcm_container_bytes": 4,
+        "cie_size": 13,
+        "cie_hex": "00ff3a050000354c0102110000",
+        "snapshot_begin_us": 651741002,
+        "at_us": 651741041,
+        "snapshot_span_us": 39,
+        "record_crc32": "424d690a"
+      },
+      "dma_source_frames": 2723520,
+      "initial_shortage_frames": 24128,
+      "unfilled_frames": 13568,
+      "unfilled_per_million_pcm_frames": 4981.788273998355,
+      "refill_contract_errors": 0,
+      "descriptor_errors": 0,
+      "decoder_drops": 0,
+      "queue_full": 0,
+      "media_input": {
+        "probe": "media_input",
+        "collection_cycle_us": 668930379,
+        "stream_epoch": 27,
+        "packets": 2837,
+        "payload_bytes": 1605742,
+        "rtp_first_timestamp": 0,
+        "rtp_last_timestamp": 2722560,
+        "rate": 192000,
+        "timestamp_origin": "wire_rtp",
+        "snapshot_begin_us": 670254369,
+        "at_us": 670254386,
+        "snapshot_span_us": 17,
+        "record_crc32": "af99843b"
+      },
+      "wire_size_counts": {
+        "566:4": 64
+      },
+      "first_starvation": {
+        "probe": "first_starvation",
+        "stream_serial": 6,
+        "captured": true,
+        "coherent": true,
+        "event_us": 650766919,
+        "taken_frames": 0,
+        "input_frames": 1856,
+        "output_frames": 0,
+        "accepted_frames": 18240,
+        "rendered_frames": 16384,
+        "dma_source_frames": 16128,
+        "snapshot_begin_us": 653375688,
+        "at_us": 653375695,
+        "snapshot_span_us": 7,
+        "record_crc32": "10bf2b6b"
+      },
+      "starvation_decoder": {
+        "probe": "starvation_decoder",
+        "stream_serial": 6,
+        "event_us": 650766919,
+        "coherent": true,
+        "phase": 4,
+        "phase_name": "wait_pcm_space",
+        "phase_since_us": 650766343,
+        "encoded_queued_at_phase_change": 5,
+        "snapshot_begin_us": 653456239,
+        "at_us": 653456286,
+        "snapshot_span_us": 47,
+        "record_crc32": "6b23985e"
+      },
+      "starvation_renderer": {
+        "probe": "starvation_renderer",
+        "stream_serial": 6,
+        "event_us": 650766919,
+        "coherent": true,
+        "inside_audio_render": false,
+        "phase_since_us": 650766707,
+        "dsp_assist_state_at_gap": 2,
+        "snapshot_begin_us": 653486350,
+        "at_us": 653486359,
+        "snapshot_span_us": 9,
+        "record_crc32": "47cafc77"
+      },
+      "local_delay": {
+        "probe": "render_local_delay",
+        "core": 1,
+        "scope": "stream_max_wall",
+        "stream_serial": 6,
+        "rate": 192000,
+        "begin_us": 650658508,
+        "end_us": 650663156,
+        "wall_us": 4648,
+        "frames": 128,
+        "begin_tick_us": 650657521,
+        "end_tick_us": 650662521,
+        "markers_valid": true,
+        "sample_hz": 1000,
+        "ticks_not_cpu_time": true,
+        "known_task_mask": 415,
+        "begin_marker_cycles": 209,
+        "end_marker_cycles": 1183,
+        "host": 2,
+        "decoder": 0,
+        "renderer": 3,
+        "logger": 0,
+        "controller": 0,
+        "idle": 0,
+        "other": 0,
+        "ipc": 0,
+        "timer": 0,
+        "host_other": 0,
+        "host_query": 0,
+        "host_submit": 0,
+        "host_runtime": 1,
+        "host_wait": 0,
+        "host_gatt": 0,
+        "host_security": 0,
+        "host_product": 0,
+        "host_io": 0,
+        "host_audio": 1,
+        "host_avrcp": 0,
+        "host_console": 0,
+        "snapshot_begin_us": 655528518,
+        "at_us": 655528543,
+        "snapshot_span_us": 25,
+        "record_crc32": "7c2be2f8"
+      },
+      "playing_counters": [
+        {
+          "time": 1794069347.4999793,
+          "accepted": 284928,
+          "dma": 281728,
+          "shortage": 4352
+        },
+        {
+          "time": 1794069353.6646698,
+          "accepted": 1468352,
+          "dma": 1464320,
+          "shortage": 20672
+        },
+        {
+          "time": 1794069358.7152758,
+          "accepted": 2476800,
+          "dma": 2474752,
+          "shortage": 24128
+        }
+      ],
+      "signal_settings": [
+        {
+          "rate": 192000,
+          "volume": 76,
+          "gains": [
+            11,
+            8,
+            12
+          ]
+        },
+        {
+          "rate": 192000,
+          "volume": 76,
+          "gains": [
+            11,
+            8,
+            12
+          ]
+        },
+        {
+          "rate": 192000,
+          "volume": 76,
+          "gains": [
+            11,
+            8,
+            12
+          ]
+        }
+      ]
+    }
+  ],
+  "limits": [
+    "sequential, no reversed A/B",
+    "counters include startup and drain",
+    "LHDC underruns remain",
+    "LHDC fixed900 actual899200 coded bps, no live1Mbps proof",
+    "LDAC adaptive frame lengths despite radio0/radio1 readbacks, no fixed990 proof",
+    "no acoustic, long-duration, broad security/app/OTA or coexistence qualification"
+  ],
+  "final_state": {
+    "phone_volume": 90,
+    "phone_youtube": "paused",
+    "phone_codec_ui": "LHDC V5 /192k/S24/stereo/fixed900",
+    "uart_live": true,
+    "source_id": 14
+  }
+}

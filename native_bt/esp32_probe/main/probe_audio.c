@@ -681,7 +681,12 @@ bool probe_audio_owner_pressure(void){
 }
 bool probe_audio_dsp_assist_ready(void){
 #ifdef DBT_PROBE_LHDC_BUILD
-    return atomic_load_explicit(&decoder_wait_kind,memory_order_acquire)==0u &&
+    /* A packet-starved decoder leaves Core0 available just as a full PCM
+     * ring does. The renderer still validates real input/output space before
+     * lending a block; a newly runnable decoder preempts its lower-priority
+     * DSP helper. Never lend across control, PCM-loan or renderer handoff. */
+    unsigned reason=atomic_load_explicit(&decoder_wait_kind,memory_order_acquire);
+    return (reason==0u || reason==3u) &&
         atomic_load_explicit(&pcm_codec,memory_order_relaxed)==9u;
 #else
     return false;

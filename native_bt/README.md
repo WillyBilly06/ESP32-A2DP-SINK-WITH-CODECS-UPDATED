@@ -1,13 +1,19 @@
 # Independent ESP32 Bluetooth host
 
+The [idle-decoder DSP admission](docs/LHDC_IDLE_DSP_2026_11_07.md) lets the
+existing lower-priority Core0 helper work while LHDC waits for encoded input.
+Short matched-setting runs show fewer unfilled frames with no added SRAM;
+LHDC continuity still fails. LDAC96 codec-switch checks show zero shortages,
+but variable wire framing leaves fixed990kbps qualification open.
+
 The [S32 output specialization](docs/LHDC_S32_OUTPUT_2026_11_07.md) preserves PCM
 and reduces measured LHDC192k/S24/fixed900 decode time about9.8% in two short
 YouTube runs. Remaining refill shortages and full-feature qualification are open.
 
-The [LHDC entropy candidate](docs/LHDC_MODEL_TRAFFIC_2026_11_07.md) preserves
-complete model/history and PCM in host checks. It is flashed for finite checks,
-but measured decoder time remains within baseline variation; no speed or
-continuity improvement is claimed.
+The earlier [LHDC entropy candidate](docs/LHDC_MODEL_TRAFFIC_2026_11_07.md)
+preserved complete model/history and PCM in host checks. Its measured decoder
+time remained within baseline variation; the unproven candidate was restored
+to the original entropy path before the current output optimization.
 
 The [exact limiter division](docs/LIMITER_WORD_DIV_2026_11_07.md) replaces the
 clipped-sample wide division with a bounded word implementation. The complete
