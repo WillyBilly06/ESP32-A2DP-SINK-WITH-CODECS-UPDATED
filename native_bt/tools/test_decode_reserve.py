@@ -22,7 +22,7 @@ prefix='''#include <stdint.h>
 typedef void *TaskHandle_t;
 static unsigned observer_core,wakes;
 static struct {
-    _Atomic uint32_t running,failed,stop_requested,render_core,rate;
+    _Atomic uint32_t running,failed,stop_requested,render_core,rate,actual_target_frames;
     _Atomic(TaskHandle_t) task;
     struct {struct {_Atomic uint32_t read,written;} input,output;} audio;
 } output;
@@ -57,7 +57,11 @@ int main(void){
     atomic_store(&output.stop_requested,1);CHECK(probe_output_decode_budget()==2);atomic_store(&output.stop_requested,0);
     /* High rates remain bounded by the renderer's existing target. */
     for(uint32_t rate=96001;rate<=192000;rate+=997){atomic_store(&output.rate,rate);rings(1,pcm_target_frames(rate));CHECK(probe_output_decode_budget()==1);}
-    atomic_store(&output.rate,192000);atomic_store(&output.render_core,1);rings(0,1215);
+    atomic_store(&output.rate,192000);atomic_store(&output.actual_target_frames,1024);
+    rings(1,1023);CHECK(probe_output_decode_budget()==0);
+    rings(1,1024);CHECK(probe_output_decode_budget()==1);
+    atomic_store(&output.actual_target_frames,0);
+    atomic_store(&output.render_core,1);rings(0,1215);
     unsigned pressure_wakes=wakes;CHECK(probe_output_owner_needs_time() && wakes==pressure_wakes);
     rings(0,1216);CHECK(!probe_output_owner_needs_time());rings(0,0);
     atomic_store(&output.rate,96000);CHECK(!probe_output_owner_needs_time());atomic_store(&output.rate,192000);

@@ -1,3 +1,19 @@
+## 2026-11-07 — host-pressure handoff rejected, active load measured
+
+The public-API pending-hint handoff passes its actual-source model and executes
+172/106 times in finite traces, but unfilled15104 baseline vs20224/9216
+prototype and12416 reverse baseline shows no consistent continuity benefit.
+The prototype is removed; exact9283f7559e33 is restored with guarded readbacks,
+VALID owned boot and37 cold passes. Only the stale decode-reserve fixture's
+actual_target_frames repair/cap coverage is retained.
+
+Active interval accounting shows Core1 host29–32%, renderer40–43%, controller
+about13%, idle7–9%, while Core0 remains20–23% idle. IRQ time is included; tick
+phase counts are not exact function costs. Next measure individual host
+queries/polls before changing priorities or pruning quiescent work. Private
+remote-yield APIs were not used. Phone paused90; logging live. See
+[host-pressure evidence](OWNER_PRESSURE_HANDOFF_2026_11_07.md).
+
 ## 2026-11-07 — compact FPU scan/emission fusion retained
 
 9283f7559e33 passes guarded readbacks, VALID owned boot and37 cold codec cases.

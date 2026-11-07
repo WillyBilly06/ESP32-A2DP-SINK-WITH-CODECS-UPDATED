@@ -1,5 +1,11 @@
 # Independent ESP32 Bluetooth host
 
+A [host-pressure handoff experiment](docs/OWNER_PRESSURE_HANDOFF_2026_11_07.md)
+showed mixed results and is removed; exact9283 is restored. Active interval
+accounting shows Core 1 near saturation with roughly 30% charged to the host,
+while Core 0 still has about 20% charged idle time. These counters include IRQ
+time. Finer host attribution is next; continuity remains unqualified.
+
 The [stereo S32 scan/emission fusion](docs/LHDC_SCAN_EMIT_2026_11_07.md)
 preserves PCM and quality behavior and measures about1.8–1.9% lower whole LHDC
 decoder time in two short192k/S24/fixed900 runs. It costs92B instruction RAM,

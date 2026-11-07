@@ -1,0 +1,1436 @@
+{
+  "date": "2026-11-07",
+  "decision": "Rejected: the handoff executes but no consistent timing/continuity benefit is established",
+  "prototype_image": "d0e2ea1b47a8baa3b2a59549fe23de9495cad724026056b454b77958e36a48d5",
+  "prototype_archive": "runs/1794076318376677000-d0e2ea1b47a8",
+  "restored_image": "9283f7559e3333c7af43d5fe832060a813bfd2eb0a8595c4a53c3b9425101f2e",
+  "restore_archive": "runs/1794078186890866000-9283f7559e33",
+  "restoration": {
+    "writes": [
+      {
+        "offset": 3735552,
+        "bytes": 1341088,
+        "readback_sha256": "9283f7559e3333c7af43d5fe832060a813bfd2eb0a8595c4a53c3b9425101f2e",
+        "readback_matches": true,
+        "write_baud": 921600,
+        "verify_baud": 115200
+      },
+      {
+        "offset": 6361088,
+        "bytes": 4096,
+        "readback_sha256": "229b601bc753d046d96d697362877581449d00350e29cc823ebe294ccaf660fc",
+        "readback_matches": true,
+        "write_baud": 921600,
+        "verify_baud": 115200
+      }
+    ],
+    "owned": {
+      "probe": "boot_selection",
+      "host": "owned",
+      "kept_active": true,
+      "partition": 3735552,
+      "ota_state": 2,
+      "result": 0,
+      "production_ready": false
+    },
+    "original_preserved": true,
+    "automatic_bluedroid_restore": false,
+    "cold": {
+      "probe": "target_codec_selftest",
+      "passed": true,
+      "configurations": 37,
+      "selected": 37,
+      "callbacks": 173,
+      "stack_bytes": 8192,
+      "stack_low_water_bytes": 3472,
+      "tracked_peak_bytes": 56899,
+      "min_free_after_alloc_bytes": 102996,
+      "maximum_decode_us": 12723,
+      "rf_test": false
+    }
+  },
+  "prototype_section_deltas": [
+    {
+      "section": ".iram0.vectors",
+      "before": 1028,
+      "after": 1028,
+      "delta": 0
+    },
+    {
+      "section": ".iram0.text",
+      "before": 129943,
+      "after": 129943,
+      "delta": 0
+    },
+    {
+      "section": ".dram0.data",
+      "before": 25237,
+      "after": 25237,
+      "delta": 0
+    },
+    {
+      "section": ".dram0.bss",
+      "before": 51304,
+      "after": 51304,
+      "delta": 0
+    },
+    {
+      "section": ".flash.appdesc",
+      "before": 256,
+      "after": 256,
+      "delta": 0
+    },
+    {
+      "section": ".flash.rodata",
+      "before": 385368,
+      "after": 385384,
+      "delta": 16
+    },
+    {
+      "section": ".flash.tdata",
+      "before": 20,
+      "after": 20,
+      "delta": 0
+    },
+    {
+      "section": ".flash.text",
+      "before": 799080,
+      "after": 799448,
+      "delta": 368
+    },
+    {
+      "section": ".iram0.text_end",
+      "before": 1,
+      "after": 1,
+      "delta": 0
+    },
+    {
+      "section": ".iram0.data",
+      "before": 0,
+      "after": 0,
+      "delta": 0
+    },
+    {
+      "section": ".iram0.bss",
+      "before": 0,
+      "after": 0,
+      "delta": 0
+    },
+    {
+      "section": ".dram0.heap_start",
+      "before": 0,
+      "after": 0,
+      "delta": 0
+    }
+  ],
+  "runs": [
+    {
+      "label": "baseline-constant90",
+      "image": "9283f7559e3333c7af43d5fe832060a813bfd2eb0a8595c4a53c3b9425101f2e",
+      "source_id": 22,
+      "guard_ok": true,
+      "failure": null,
+      "phone_volume": 90,
+      "codec": {
+        "probe": "codec_configuration",
+        "collection_cycle_us": 2070743292,
+        "revision": 6,
+        "codec": 9,
+        "rate": 192000,
+        "channels": 2,
+        "pcm_container_bytes": 4,
+        "cie_size": 13,
+        "cie_hex": "00ff3a050000354c0102110000",
+        "snapshot_begin_us": 2073014638,
+        "at_us": 2073014677,
+        "snapshot_span_us": 39,
+        "record_crc32": "932386a8"
+      },
+      "dma_source_frames": 2738688,
+      "unfilled_frames": 15104,
+      "initial_shortage_frames": 26560,
+      "pressure_handoffs": null,
+      "hci": {
+        "probe": "vhci_timing",
+        "collection_cycle_us": 2085602481,
+        "packets": 15953,
+        "acl": 15811,
+        "events": 142,
+        "bytes": 9335381,
+        "isr_callbacks": 0,
+        "rejected": 0,
+        "callback_max_us": 161,
+        "first_rx_to_poll_max_us": 27890,
+        "host_poll_max_us": 4079,
+        "ingress_high_water_bytes": 1777,
+        "ingress_rejected": 0,
+        "logger_stack_low_water_bytes": 1480,
+        "watchdog_events": 0,
+        "watchdog_hook_at_us": 0,
+        "watchdog_isr_core": 0,
+        "snapshot_begin_us": 2086562892,
+        "at_us": 2086563003,
+        "snapshot_span_us": 111,
+        "record_crc32": "7d435f3b"
+      },
+      "drops": {
+        "probe": "media_drop_reasons",
+        "collection_cycle_us": 2085602481,
+        "queue_full": 0,
+        "decode_reject": 0,
+        "reset_failed": 0,
+        "pcm_failed": 0,
+        "pcm_timeout": 0,
+        "pcm_busy": 64707,
+        "input_sequence_breaks": 0,
+        "input_ssrc_changes": 0,
+        "queue_high_water": 6,
+        "host_trace_scope": "media_and_host_state",
+        "host_trace_lost": 0,
+        "worker_trace_lost": 26866,
+        "snapshot_records_lost": 0,
+        "snapshot_uart_lost": 0,
+        "snapshot_begin_us": 2086596929,
+        "at_us": 2086597012,
+        "snapshot_span_us": 83,
+        "record_crc32": "ffde7eb5"
+      },
+      "first_starvation": {
+        "probe": "first_starvation",
+        "stream_serial": 6,
+        "captured": true,
+        "coherent": true,
+        "event_us": 2068974219,
+        "taken_frames": 0,
+        "input_frames": 1856,
+        "output_frames": 0,
+        "accepted_frames": 5312,
+        "rendered_frames": 3456,
+        "dma_source_frames": 3200,
+        "snapshot_begin_us": 2069222121,
+        "at_us": 2069222138,
+        "snapshot_span_us": 17,
+        "record_crc32": "dd289901"
+      },
+      "starvation_decoder": {
+        "probe": "starvation_decoder",
+        "stream_serial": 6,
+        "event_us": 2068974219,
+        "coherent": true,
+        "phase": 8,
+        "phase_name": "wait_shared_renderer",
+        "phase_since_us": 2068973660,
+        "encoded_queued_at_phase_change": 4,
+        "snapshot_begin_us": 2069382841,
+        "at_us": 2069382851,
+        "snapshot_span_us": 10,
+        "record_crc32": "d19a7b20"
+      },
+      "starvation_renderer": {
+        "probe": "starvation_renderer",
+        "stream_serial": 6,
+        "event_us": 2068974219,
+        "coherent": true,
+        "inside_audio_render": false,
+        "phase_since_us": 2068972549,
+        "dsp_assist_state_at_gap": 2,
+        "snapshot_begin_us": 2069427169,
+        "at_us": 2069427177,
+        "snapshot_span_us": 8,
+        "record_crc32": "230924ea"
+      },
+      "local_render": {
+        "probe": "render_local_delay",
+        "core": 1,
+        "scope": "stream_max_wall",
+        "stream_serial": 6,
+        "rate": 192000,
+        "begin_us": 2068935802,
+        "end_us": 2068941044,
+        "wall_us": 5242,
+        "frames": 128,
+        "begin_tick_us": 2068935529,
+        "end_tick_us": 2068940529,
+        "markers_valid": true,
+        "sample_hz": 1000,
+        "ticks_not_cpu_time": true,
+        "known_task_mask": 415,
+        "begin_marker_cycles": 209,
+        "end_marker_cycles": 3132,
+        "host": 2,
+        "decoder": 0,
+        "renderer": 3,
+        "logger": 0,
+        "controller": 0,
+        "idle": 0,
+        "other": 0,
+        "ipc": 0,
+        "timer": 0,
+        "host_other": 0,
+        "host_query": 0,
+        "host_submit": 0,
+        "host_runtime": 0,
+        "host_wait": 2,
+        "host_gatt": 0,
+        "host_security": 0,
+        "host_product": 0,
+        "host_io": 0,
+        "host_audio": 0,
+        "host_avrcp": 0,
+        "host_console": 0,
+        "snapshot_begin_us": 2070743338,
+        "at_us": 2070765363,
+        "snapshot_span_us": 22025,
+        "record_crc32": "a3549859"
+      }
+    },
+    {
+      "label": "candidate-constant90",
+      "image": "d0e2ea1b47a8baa3b2a59549fe23de9495cad724026056b454b77958e36a48d5",
+      "source_id": 24,
+      "guard_ok": true,
+      "failure": null,
+      "phone_volume": 90,
+      "codec": {
+        "probe": "codec_configuration",
+        "collection_cycle_us": 72981771,
+        "revision": 1,
+        "codec": 9,
+        "rate": 192000,
+        "channels": 2,
+        "pcm_container_bytes": 4,
+        "cie_size": 13,
+        "cie_hex": "00ff3a050000354c0102110000",
+        "snapshot_begin_us": 75305581,
+        "at_us": 75305713,
+        "snapshot_span_us": 132,
+        "record_crc32": "c6ea4386"
+      },
+      "dma_source_frames": 2696640,
+      "unfilled_frames": 20224,
+      "initial_shortage_frames": 34176,
+      "pressure_handoffs": 172,
+      "hci": {
+        "probe": "vhci_timing",
+        "collection_cycle_us": 87871539,
+        "packets": 2944,
+        "acl": 2864,
+        "events": 80,
+        "bytes": 1650815,
+        "isr_callbacks": 0,
+        "rejected": 0,
+        "callback_max_us": 153,
+        "first_rx_to_poll_max_us": 27910,
+        "host_poll_max_us": 4054,
+        "ingress_high_water_bytes": 1767,
+        "ingress_rejected": 0,
+        "logger_stack_low_water_bytes": 1480,
+        "watchdog_events": 0,
+        "watchdog_hook_at_us": 0,
+        "watchdog_isr_core": 0,
+        "snapshot_begin_us": 88811081,
+        "at_us": 88811191,
+        "snapshot_span_us": 110,
+        "record_crc32": "9ec9e41e"
+      },
+      "drops": {
+        "probe": "media_drop_reasons",
+        "collection_cycle_us": 87871539,
+        "queue_full": 0,
+        "decode_reject": 0,
+        "reset_failed": 0,
+        "pcm_failed": 0,
+        "pcm_timeout": 0,
+        "pcm_busy": 9135,
+        "input_sequence_breaks": 0,
+        "input_ssrc_changes": 0,
+        "queue_high_water": 6,
+        "host_trace_scope": "media_and_host_state",
+        "host_trace_lost": 0,
+        "worker_trace_lost": 3854,
+        "snapshot_records_lost": 0,
+        "snapshot_uart_lost": 0,
+        "snapshot_begin_us": 88858352,
+        "at_us": 88858369,
+        "snapshot_span_us": 17,
+        "record_crc32": "4e12b24f"
+      },
+      "first_starvation": {
+        "probe": "first_starvation",
+        "stream_serial": 1,
+        "captured": true,
+        "coherent": true,
+        "event_us": 71126965,
+        "taken_frames": 0,
+        "input_frames": 1856,
+        "output_frames": 0,
+        "accepted_frames": 9152,
+        "rendered_frames": 7168,
+        "dma_source_frames": 6912,
+        "snapshot_begin_us": 71387381,
+        "at_us": 71387394,
+        "snapshot_span_us": 13,
+        "record_crc32": "a303a068"
+      },
+      "starvation_decoder": {
+        "probe": "starvation_decoder",
+        "stream_serial": 1,
+        "event_us": 71126965,
+        "coherent": true,
+        "phase": 4,
+        "phase_name": "wait_pcm_space",
+        "phase_since_us": 71126591,
+        "encoded_queued_at_phase_change": 5,
+        "snapshot_begin_us": 71474279,
+        "at_us": 71474332,
+        "snapshot_span_us": 53,
+        "record_crc32": "59cff04e"
+      },
+      "starvation_renderer": {
+        "probe": "starvation_renderer",
+        "stream_serial": 1,
+        "event_us": 71126965,
+        "coherent": true,
+        "inside_audio_render": true,
+        "phase_since_us": 71125572,
+        "dsp_assist_state_at_gap": 0,
+        "snapshot_begin_us": 71561817,
+        "at_us": 71561832,
+        "snapshot_span_us": 15,
+        "record_crc32": "88bb1b43"
+      },
+      "local_render": {
+        "probe": "render_local_delay",
+        "core": 1,
+        "scope": "stream_max_wall",
+        "stream_serial": 1,
+        "rate": 192000,
+        "begin_us": 71067889,
+        "end_us": 71072262,
+        "wall_us": 4373,
+        "frames": 128,
+        "begin_tick_us": 71067529,
+        "end_tick_us": 71071528,
+        "markers_valid": true,
+        "sample_hz": 1000,
+        "ticks_not_cpu_time": true,
+        "known_task_mask": 415,
+        "begin_marker_cycles": 209,
+        "end_marker_cycles": 2645,
+        "host": 2,
+        "decoder": 0,
+        "renderer": 1,
+        "logger": 0,
+        "controller": 1,
+        "idle": 0,
+        "other": 0,
+        "ipc": 0,
+        "timer": 0,
+        "host_other": 1,
+        "host_query": 0,
+        "host_submit": 0,
+        "host_runtime": 0,
+        "host_wait": 0,
+        "host_gatt": 0,
+        "host_security": 0,
+        "host_product": 0,
+        "host_io": 0,
+        "host_audio": 1,
+        "host_avrcp": 0,
+        "host_console": 0,
+        "snapshot_begin_us": 72981804,
+        "at_us": 72981831,
+        "snapshot_span_us": 27,
+        "record_crc32": "a9921cd1"
+      }
+    },
+    {
+      "label": "candidate-repeat-constant90",
+      "image": "d0e2ea1b47a8baa3b2a59549fe23de9495cad724026056b454b77958e36a48d5",
+      "source_id": 24,
+      "guard_ok": true,
+      "failure": null,
+      "phone_volume": 90,
+      "codec": {
+        "probe": "codec_configuration",
+        "collection_cycle_us": 100682848,
+        "revision": 2,
+        "codec": 9,
+        "rate": 192000,
+        "channels": 2,
+        "pcm_container_bytes": 4,
+        "cie_size": 13,
+        "cie_hex": "00ff3a050000354c0102110000",
+        "snapshot_begin_us": 103258255,
+        "at_us": 103258299,
+        "snapshot_span_us": 44,
+        "record_crc32": "8ddb94b1"
+      },
+      "dma_source_frames": 2723520,
+      "unfilled_frames": 9216,
+      "initial_shortage_frames": 16640,
+      "pressure_handoffs": 106,
+      "hci": {
+        "probe": "vhci_timing",
+        "collection_cycle_us": 115594386,
+        "packets": 5791,
+        "acl": 5707,
+        "events": 84,
+        "bytes": 3316274,
+        "isr_callbacks": 0,
+        "rejected": 0,
+        "callback_max_us": 153,
+        "first_rx_to_poll_max_us": 27910,
+        "host_poll_max_us": 4461,
+        "ingress_high_water_bytes": 1767,
+        "ingress_rejected": 0,
+        "logger_stack_low_water_bytes": 1480,
+        "watchdog_events": 0,
+        "watchdog_hook_at_us": 0,
+        "watchdog_isr_core": 0,
+        "snapshot_begin_us": 116544160,
+        "at_us": 116544270,
+        "snapshot_span_us": 110,
+        "record_crc32": "06bde34e"
+      },
+      "drops": {
+        "probe": "media_drop_reasons",
+        "collection_cycle_us": 115594386,
+        "queue_full": 0,
+        "decode_reject": 0,
+        "reset_failed": 0,
+        "pcm_failed": 0,
+        "pcm_timeout": 0,
+        "pcm_busy": 18749,
+        "input_sequence_breaks": 0,
+        "input_ssrc_changes": 0,
+        "queue_high_water": 6,
+        "host_trace_scope": "media_and_host_state",
+        "host_trace_lost": 0,
+        "worker_trace_lost": 7923,
+        "snapshot_records_lost": 0,
+        "snapshot_uart_lost": 0,
+        "snapshot_begin_us": 116589125,
+        "at_us": 116589142,
+        "snapshot_span_us": 17,
+        "record_crc32": "19afaf8a"
+      },
+      "first_starvation": {
+        "probe": "first_starvation",
+        "stream_serial": 2,
+        "captured": true,
+        "coherent": true,
+        "event_us": 99147349,
+        "taken_frames": 0,
+        "input_frames": 2048,
+        "output_frames": 0,
+        "accepted_frames": 6272,
+        "rendered_frames": 4096,
+        "dma_source_frames": 3840,
+        "snapshot_begin_us": 99446340,
+        "at_us": 99446353,
+        "snapshot_span_us": 13,
+        "record_crc32": "2d383700"
+      },
+      "starvation_decoder": {
+        "probe": "starvation_decoder",
+        "stream_serial": 2,
+        "event_us": 99147349,
+        "coherent": true,
+        "phase": 4,
+        "phase_name": "wait_pcm_space",
+        "phase_since_us": 99147048,
+        "encoded_queued_at_phase_change": 5,
+        "snapshot_begin_us": 99652305,
+        "at_us": 99652323,
+        "snapshot_span_us": 18,
+        "record_crc32": "ee781c33"
+      },
+      "starvation_renderer": {
+        "probe": "starvation_renderer",
+        "stream_serial": 2,
+        "event_us": 99147349,
+        "coherent": true,
+        "inside_audio_render": true,
+        "phase_since_us": 99146983,
+        "dsp_assist_state_at_gap": 0,
+        "snapshot_begin_us": 99681630,
+        "at_us": 99681645,
+        "snapshot_span_us": 15,
+        "record_crc32": "016515dc"
+      },
+      "local_render": {
+        "probe": "render_local_delay",
+        "core": 1,
+        "scope": "stream_max_wall",
+        "stream_serial": 2,
+        "rate": 192000,
+        "begin_us": 99134656,
+        "end_us": 99138491,
+        "wall_us": 3835,
+        "frames": 128,
+        "begin_tick_us": 99134528,
+        "end_tick_us": 99137528,
+        "markers_valid": true,
+        "sample_hz": 1000,
+        "ticks_not_cpu_time": true,
+        "known_task_mask": 415,
+        "begin_marker_cycles": 209,
+        "end_marker_cycles": 2645,
+        "host": 1,
+        "decoder": 0,
+        "renderer": 2,
+        "logger": 0,
+        "controller": 0,
+        "idle": 0,
+        "other": 0,
+        "ipc": 0,
+        "timer": 0,
+        "host_other": 1,
+        "host_query": 0,
+        "host_submit": 0,
+        "host_runtime": 0,
+        "host_wait": 0,
+        "host_gatt": 0,
+        "host_security": 0,
+        "host_product": 0,
+        "host_io": 0,
+        "host_audio": 0,
+        "host_avrcp": 0,
+        "host_console": 0,
+        "snapshot_begin_us": 100682879,
+        "at_us": 100682906,
+        "snapshot_span_us": 27,
+        "record_crc32": "1d190da9"
+      }
+    },
+    {
+      "label": "restored-constant90",
+      "image": "9283f7559e3333c7af43d5fe832060a813bfd2eb0a8595c4a53c3b9425101f2e",
+      "source_id": 26,
+      "guard_ok": true,
+      "failure": null,
+      "phone_volume": 90,
+      "codec": {
+        "probe": "codec_configuration",
+        "collection_cycle_us": 155875303,
+        "revision": 1,
+        "codec": 9,
+        "rate": 192000,
+        "channels": 2,
+        "pcm_container_bytes": 4,
+        "cie_size": 13,
+        "cie_hex": "00ff3a050000354c0102110000",
+        "snapshot_begin_us": 158135538,
+        "at_us": 158135608,
+        "snapshot_span_us": 70,
+        "record_crc32": "52d1b13b"
+      },
+      "dma_source_frames": 2732160,
+      "unfilled_frames": 12416,
+      "initial_shortage_frames": 24512,
+      "pressure_handoffs": null,
+      "hci": {
+        "probe": "vhci_timing",
+        "collection_cycle_us": 173551363,
+        "packets": 2964,
+        "acl": 2891,
+        "events": 73,
+        "bytes": 1672298,
+        "isr_callbacks": 0,
+        "rejected": 0,
+        "callback_max_us": 164,
+        "first_rx_to_poll_max_us": 27911,
+        "host_poll_max_us": 3778,
+        "ingress_high_water_bytes": 1767,
+        "ingress_rejected": 0,
+        "logger_stack_low_water_bytes": 1480,
+        "watchdog_events": 0,
+        "watchdog_hook_at_us": 0,
+        "watchdog_isr_core": 0,
+        "snapshot_begin_us": 174498593,
+        "at_us": 174498705,
+        "snapshot_span_us": 112,
+        "record_crc32": "effc8ee1"
+      },
+      "drops": {
+        "probe": "media_drop_reasons",
+        "collection_cycle_us": 173551363,
+        "queue_full": 0,
+        "decode_reject": 0,
+        "reset_failed": 0,
+        "pcm_failed": 0,
+        "pcm_timeout": 0,
+        "pcm_busy": 10967,
+        "input_sequence_breaks": 0,
+        "input_ssrc_changes": 0,
+        "queue_high_water": 6,
+        "host_trace_scope": "media_and_host_state",
+        "host_trace_lost": 0,
+        "worker_trace_lost": 4506,
+        "snapshot_records_lost": 0,
+        "snapshot_uart_lost": 0,
+        "snapshot_begin_us": 174532451,
+        "at_us": 174532470,
+        "snapshot_span_us": 19,
+        "record_crc32": "069554cb"
+      },
+      "first_starvation": {
+        "probe": "first_starvation",
+        "stream_serial": 1,
+        "captured": true,
+        "coherent": true,
+        "event_us": 154463064,
+        "taken_frames": 0,
+        "input_frames": 1984,
+        "output_frames": 0,
+        "accepted_frames": 6976,
+        "rendered_frames": 4992,
+        "dma_source_frames": 4736,
+        "snapshot_begin_us": 154744745,
+        "at_us": 154744752,
+        "snapshot_span_us": 7,
+        "record_crc32": "ce2b390c"
+      },
+      "starvation_decoder": {
+        "probe": "starvation_decoder",
+        "stream_serial": 1,
+        "event_us": 154463064,
+        "coherent": true,
+        "phase": 4,
+        "phase_name": "wait_pcm_space",
+        "phase_since_us": 154461929,
+        "encoded_queued_at_phase_change": 5,
+        "snapshot_begin_us": 154852994,
+        "at_us": 154853004,
+        "snapshot_span_us": 10,
+        "record_crc32": "3ec8548e"
+      },
+      "starvation_renderer": {
+        "probe": "starvation_renderer",
+        "stream_serial": 1,
+        "event_us": 154463064,
+        "coherent": true,
+        "inside_audio_render": false,
+        "phase_since_us": 154462950,
+        "dsp_assist_state_at_gap": 0,
+        "snapshot_begin_us": 154926589,
+        "at_us": 154926598,
+        "snapshot_span_us": 9,
+        "record_crc32": "8585c14e"
+      },
+      "local_render": {
+        "probe": "render_local_delay",
+        "core": 1,
+        "scope": "stream_max_wall",
+        "stream_serial": 1,
+        "rate": 192000,
+        "begin_us": 154413424,
+        "end_us": 154417970,
+        "wall_us": 4546,
+        "frames": 128,
+        "begin_tick_us": 154412529,
+        "end_tick_us": 154417529,
+        "markers_valid": true,
+        "sample_hz": 1000,
+        "ticks_not_cpu_time": true,
+        "known_task_mask": 415,
+        "begin_marker_cycles": 209,
+        "end_marker_cycles": 3600,
+        "host": 2,
+        "decoder": 0,
+        "renderer": 3,
+        "logger": 0,
+        "controller": 0,
+        "idle": 0,
+        "other": 0,
+        "ipc": 0,
+        "timer": 0,
+        "host_other": 0,
+        "host_query": 0,
+        "host_submit": 0,
+        "host_runtime": 0,
+        "host_wait": 0,
+        "host_gatt": 0,
+        "host_security": 0,
+        "host_product": 0,
+        "host_io": 0,
+        "host_audio": 2,
+        "host_avrcp": 0,
+        "host_console": 0,
+        "snapshot_begin_us": 155875336,
+        "at_us": 155875357,
+        "snapshot_span_us": 21,
+        "record_crc32": "497b9e5f"
+      }
+    }
+  ],
+  "active_runtime_intervals": {
+    "baseline": [
+      {
+        "begin_us": 2070960039,
+        "end_us": 2076307348,
+        "host_end": 1794075563.671549,
+        "seconds": 5.347309,
+        "roles": [
+          {
+            "role": "host",
+            "core": 1,
+            "priority": 22,
+            "percent": 29.3763087190211
+          },
+          {
+            "role": "decoder",
+            "core": 0,
+            "priority": 21,
+            "percent": 48.89378938078948
+          },
+          {
+            "role": "renderer1",
+            "core": 1,
+            "priority": 22,
+            "percent": 42.87532289605856
+          },
+          {
+            "role": "logger",
+            "core": 1,
+            "priority": 1,
+            "percent": 2.9681284548919837
+          },
+          {
+            "role": "controller",
+            "core": 1,
+            "priority": 23,
+            "percent": 12.923247936485435
+          },
+          {
+            "role": "idle0",
+            "core": 0,
+            "priority": 0,
+            "percent": 20.684048743021958
+          },
+          {
+            "role": "idle1",
+            "core": 1,
+            "priority": 0,
+            "percent": 8.136372893356265
+          },
+          {
+            "role": "ipc0",
+            "core": 0,
+            "priority": 24,
+            "percent": 0
+          },
+          {
+            "role": "ipc1",
+            "core": 1,
+            "priority": 22,
+            "percent": 0
+          },
+          {
+            "role": "timer",
+            "core": 0,
+            "priority": 22,
+            "percent": 0
+          },
+          {
+            "role": "renderer0",
+            "core": 0,
+            "priority": 20,
+            "percent": 30.448100156546033
+          }
+        ]
+      },
+      {
+        "begin_us": 2076307348,
+        "end_us": 2081677065,
+        "host_end": 1794075568.96794,
+        "seconds": 5.369717,
+        "roles": [
+          {
+            "role": "host",
+            "core": 1,
+            "priority": 22,
+            "percent": 29.506471197644125
+          },
+          {
+            "role": "decoder",
+            "core": 0,
+            "priority": 21,
+            "percent": 45.82142783316141
+          },
+          {
+            "role": "renderer1",
+            "core": 1,
+            "priority": 22,
+            "percent": 41.53447937759103
+          },
+          {
+            "role": "logger",
+            "core": 1,
+            "priority": 1,
+            "percent": 2.9432649802587365
+          },
+          {
+            "role": "controller",
+            "core": 1,
+            "priority": 23,
+            "percent": 13.302377015399507
+          },
+          {
+            "role": "idle0",
+            "core": 0,
+            "priority": 0,
+            "percent": 22.262439528936067
+          },
+          {
+            "role": "idle1",
+            "core": 1,
+            "priority": 0,
+            "percent": 8.926448079107335
+          },
+          {
+            "role": "ipc0",
+            "core": 0,
+            "priority": 24,
+            "percent": 0
+          },
+          {
+            "role": "ipc1",
+            "core": 1,
+            "priority": 22,
+            "percent": 0
+          },
+          {
+            "role": "timer",
+            "core": 0,
+            "priority": 22,
+            "percent": 0
+          },
+          {
+            "role": "renderer0",
+            "core": 0,
+            "priority": 20,
+            "percent": 31.87702443164137
+          }
+        ]
+      }
+    ],
+    "candidate": [
+      {
+        "begin_us": 73170459,
+        "end_us": 78709570,
+        "host_end": 1794076552.129473,
+        "seconds": 5.539111,
+        "roles": [
+          {
+            "role": "host",
+            "core": 1,
+            "priority": 22,
+            "percent": 30.19702981218466
+          },
+          {
+            "role": "decoder",
+            "core": 0,
+            "priority": 21,
+            "percent": 48.97069222840994
+          },
+          {
+            "role": "renderer1",
+            "core": 1,
+            "priority": 22,
+            "percent": 42.08473164737085
+          },
+          {
+            "role": "logger",
+            "core": 1,
+            "priority": 1,
+            "percent": 2.832223438021011
+          },
+          {
+            "role": "controller",
+            "core": 1,
+            "priority": 23,
+            "percent": 12.722510886674776
+          },
+          {
+            "role": "idle0",
+            "core": 0,
+            "priority": 0,
+            "percent": 20.564906534640667
+          },
+          {
+            "role": "idle1",
+            "core": 1,
+            "priority": 0,
+            "percent": 8.51490428698757
+          },
+          {
+            "role": "ipc0",
+            "core": 0,
+            "priority": 24,
+            "percent": 0
+          },
+          {
+            "role": "ipc1",
+            "core": 1,
+            "priority": 22,
+            "percent": 0
+          },
+          {
+            "role": "timer",
+            "core": 0,
+            "priority": 22,
+            "percent": 0
+          },
+          {
+            "role": "renderer0",
+            "core": 0,
+            "priority": 20,
+            "percent": 30.451511081832443
+          }
+        ]
+      },
+      {
+        "begin_us": 78709570,
+        "end_us": 84171015,
+        "host_end": 1794076557.292864,
+        "seconds": 5.461445,
+        "roles": [
+          {
+            "role": "host",
+            "core": 1,
+            "priority": 22,
+            "percent": 32.27096491862502
+          },
+          {
+            "role": "decoder",
+            "core": 0,
+            "priority": 21,
+            "percent": 44.29463264758686
+          },
+          {
+            "role": "renderer1",
+            "core": 1,
+            "priority": 22,
+            "percent": 39.62218790082112
+          },
+          {
+            "role": "logger",
+            "core": 1,
+            "priority": 1,
+            "percent": 2.8223666081046317
+          },
+          {
+            "role": "controller",
+            "core": 1,
+            "priority": 23,
+            "percent": 13.301552977279824
+          },
+          {
+            "role": "idle0",
+            "core": 0,
+            "priority": 0,
+            "percent": 22.857595379977276
+          },
+          {
+            "role": "idle1",
+            "core": 1,
+            "priority": 0,
+            "percent": 8.386553375526073
+          },
+          {
+            "role": "ipc0",
+            "core": 0,
+            "priority": 24,
+            "percent": 0
+          },
+          {
+            "role": "ipc1",
+            "core": 1,
+            "priority": 22,
+            "percent": 0
+          },
+          {
+            "role": "timer",
+            "core": 0,
+            "priority": 22,
+            "percent": 0
+          },
+          {
+            "role": "renderer0",
+            "core": 0,
+            "priority": 20,
+            "percent": 32.868059643555874
+          }
+        ]
+      }
+    ],
+    "repeat": [
+      {
+        "begin_us": 100988855,
+        "end_us": 106519641,
+        "host_end": 1794076579.7779515,
+        "seconds": 5.530786,
+        "roles": [
+          {
+            "role": "host",
+            "core": 1,
+            "priority": 22,
+            "percent": 31.150527248749093
+          },
+          {
+            "role": "decoder",
+            "core": 0,
+            "priority": 21,
+            "percent": 49.40335785908188
+          },
+          {
+            "role": "renderer1",
+            "core": 1,
+            "priority": 22,
+            "percent": 42.085555289971445
+          },
+          {
+            "role": "logger",
+            "core": 1,
+            "priority": 1,
+            "percent": 2.813361428194835
+          },
+          {
+            "role": "controller",
+            "core": 1,
+            "priority": 23,
+            "percent": 13.164656886019454
+          },
+          {
+            "role": "idle0",
+            "core": 0,
+            "priority": 0,
+            "percent": 20.067111618493286
+          },
+          {
+            "role": "idle1",
+            "core": 1,
+            "priority": 0,
+            "percent": 7.097074448369545
+          },
+          {
+            "role": "ipc0",
+            "core": 0,
+            "priority": 24,
+            "percent": 0
+          },
+          {
+            "role": "ipc1",
+            "core": 1,
+            "priority": 22,
+            "percent": 0
+          },
+          {
+            "role": "timer",
+            "core": 0,
+            "priority": 22,
+            "percent": 0
+          },
+          {
+            "role": "renderer0",
+            "core": 0,
+            "priority": 20,
+            "percent": 30.523455436532892
+          }
+        ]
+      },
+      {
+        "begin_us": 106519641,
+        "end_us": 111698893,
+        "host_end": 1794076584.9241474,
+        "seconds": 5.179252,
+        "roles": [
+          {
+            "role": "host",
+            "core": 1,
+            "priority": 22,
+            "percent": 30.036229169772007
+          },
+          {
+            "role": "decoder",
+            "core": 0,
+            "priority": 21,
+            "percent": 45.85418898327403
+          },
+          {
+            "role": "renderer1",
+            "core": 1,
+            "priority": 22,
+            "percent": 41.544068525725336
+          },
+          {
+            "role": "logger",
+            "core": 1,
+            "priority": 1,
+            "percent": 3.0423891326392303
+          },
+          {
+            "role": "controller",
+            "core": 1,
+            "priority": 23,
+            "percent": 12.7113722213169
+          },
+          {
+            "role": "idle0",
+            "core": 0,
+            "priority": 0,
+            "percent": 22.497862625722785
+          },
+          {
+            "role": "idle1",
+            "core": 1,
+            "priority": 0,
+            "percent": 8.92184817421512
+          },
+          {
+            "role": "ipc0",
+            "core": 0,
+            "priority": 24,
+            "percent": 0
+          },
+          {
+            "role": "ipc1",
+            "core": 1,
+            "priority": 22,
+            "percent": 0
+          },
+          {
+            "role": "timer",
+            "core": 0,
+            "priority": 22,
+            "percent": 0
+          },
+          {
+            "role": "renderer0",
+            "core": 0,
+            "priority": 20,
+            "percent": 31.65271741942659
+          }
+        ]
+      }
+    ],
+    "reverse_baseline": [
+      {
+        "begin_us": 156131001,
+        "end_us": 161429666,
+        "host_end": 1794078503.0316343,
+        "seconds": 5.298665,
+        "roles": [
+          {
+            "role": "host",
+            "core": 1,
+            "priority": 22,
+            "percent": 29.340163984701807
+          },
+          {
+            "role": "decoder",
+            "core": 0,
+            "priority": 21,
+            "percent": 48.44308896674917
+          },
+          {
+            "role": "renderer1",
+            "core": 1,
+            "priority": 22,
+            "percent": 42.17632177161606
+          },
+          {
+            "role": "logger",
+            "core": 1,
+            "priority": 1,
+            "percent": 2.9167913049796503
+          },
+          {
+            "role": "controller",
+            "core": 1,
+            "priority": 23,
+            "percent": 13.307861508512051
+          },
+          {
+            "role": "idle0",
+            "core": 0,
+            "priority": 0,
+            "percent": 20.750415434831226
+          },
+          {
+            "role": "idle1",
+            "core": 1,
+            "priority": 0,
+            "percent": 8.489666736810122
+          },
+          {
+            "role": "ipc0",
+            "core": 0,
+            "priority": 24,
+            "percent": 0
+          },
+          {
+            "role": "ipc1",
+            "core": 1,
+            "priority": 22,
+            "percent": 0
+          },
+          {
+            "role": "timer",
+            "core": 0,
+            "priority": 22,
+            "percent": 0
+          },
+          {
+            "role": "renderer0",
+            "core": 0,
+            "priority": 20,
+            "percent": 30.79052931257213
+          }
+        ]
+      },
+      {
+        "begin_us": 161429666,
+        "end_us": 166649958,
+        "host_end": 1794078508.112736,
+        "seconds": 5.220292,
+        "roles": [
+          {
+            "role": "host",
+            "core": 1,
+            "priority": 22,
+            "percent": 29.416496241972673
+          },
+          {
+            "role": "decoder",
+            "core": 0,
+            "priority": 21,
+            "percent": 46.76970177147179
+          },
+          {
+            "role": "renderer1",
+            "core": 1,
+            "priority": 22,
+            "percent": 41.83557165001498
+          },
+          {
+            "role": "logger",
+            "core": 1,
+            "priority": 1,
+            "percent": 2.9955412455854957
+          },
+          {
+            "role": "controller",
+            "core": 1,
+            "priority": 23,
+            "percent": 12.840929204726478
+          },
+          {
+            "role": "idle0",
+            "core": 0,
+            "priority": 0,
+            "percent": 21.695721235517095
+          },
+          {
+            "role": "idle1",
+            "core": 1,
+            "priority": 0,
+            "percent": 9.101693928232367
+          },
+          {
+            "role": "ipc0",
+            "core": 0,
+            "priority": 24,
+            "percent": 0
+          },
+          {
+            "role": "ipc1",
+            "core": 1,
+            "priority": 22,
+            "percent": 0
+          },
+          {
+            "role": "timer",
+            "core": 0,
+            "priority": 22,
+            "percent": 0
+          },
+          {
+            "role": "renderer0",
+            "core": 0,
+            "priority": 20,
+            "percent": 31.549997586341917
+          }
+        ]
+      }
+    ]
+  },
+  "runtime_limits": [
+    "roughly5-second active task intervals",
+    "interrupt time included and current running tail excluded",
+    "CPU charge is not pure application-instruction time",
+    "tick-phase categories are samples, not exact per-call duration"
+  ],
+  "host_phase_samples": {
+    "baseline": [
+      {
+        "seconds": 5.373,
+        "host_ticks": 1652,
+        "breakdown": "other:214 (13.0%), controller_query:30 (1.8%), controller_submit:47 (2.8%), runtime_poll:453 (27.4%), wait_calculation:349 (21.1%), gatt_poll:144 (8.7%), security_poll:97 (5.9%), product_poll:33 (2.0%), io_poll:56 (3.4%), audio_poll:140 (8.5%), avrcp_poll:89 (5.4%), console_log:0 (0.0%)"
+      },
+      {
+        "seconds": 5.253,
+        "host_ticks": 1713,
+        "breakdown": "other:233 (13.6%), controller_query:18 (1.1%), controller_submit:62 (3.6%), runtime_poll:522 (30.5%), wait_calculation:369 (21.5%), gatt_poll:115 (6.7%), security_poll:79 (4.6%), product_poll:29 (1.7%), io_poll:55 (3.2%), audio_poll:145 (8.5%), avrcp_poll:86 (5.0%), console_log:0 (0.0%)"
+      }
+    ],
+    "candidate": [
+      {
+        "seconds": 5.739126,
+        "host_ticks": 1793,
+        "breakdown": "other:296 (16.5%), controller_query:15 (0.8%), controller_submit:65 (3.6%), runtime_poll:435 (24.3%), wait_calculation:348 (19.4%), gatt_poll:117 (6.5%), security_poll:159 (8.9%), product_poll:41 (2.3%), io_poll:113 (6.3%), audio_poll:146 (8.1%), avrcp_poll:58 (3.2%), console_log:0 (0.0%)"
+      },
+      {
+        "seconds": 5.13789,
+        "host_ticks": 1458,
+        "breakdown": "other:273 (18.7%), controller_query:6 (0.4%), controller_submit:40 (2.7%), runtime_poll:356 (24.4%), wait_calculation:272 (18.7%), gatt_poll:91 (6.2%), security_poll:121 (8.3%), product_poll:26 (1.8%), io_poll:79 (5.4%), audio_poll:123 (8.4%), avrcp_poll:71 (4.9%), console_log:0 (0.0%)"
+      }
+    ],
+    "repeat": [
+      {
+        "seconds": 5.397983,
+        "host_ticks": 1568,
+        "breakdown": "other:245 (15.6%), controller_query:13 (0.8%), controller_submit:66 (4.2%), runtime_poll:416 (26.5%), wait_calculation:331 (21.1%), gatt_poll:102 (6.5%), security_poll:109 (7.0%), product_poll:31 (2.0%), io_poll:77 (4.9%), audio_poll:126 (8.0%), avrcp_poll:52 (3.3%), console_log:0 (0.0%)"
+      },
+      {
+        "seconds": 5.103008,
+        "host_ticks": 1683,
+        "breakdown": "other:291 (17.3%), controller_query:19 (1.1%), controller_submit:37 (2.2%), runtime_poll:444 (26.4%), wait_calculation:354 (21.0%), gatt_poll:105 (6.2%), security_poll:120 (7.1%), product_poll:39 (2.3%), io_poll:64 (3.8%), audio_poll:141 (8.4%), avrcp_poll:69 (4.1%), console_log:0 (0.0%)"
+      }
+    ]
+  },
+  "retained_source_change": "Fix test_decode_reserve.py fixture for existing actual_target_frames field; add measured-target cap boundary coverage. Production source restored byte-for-byte.",
+  "source_restore": [
+    {
+      "file": "probe_main.c",
+      "equal": true
+    },
+    {
+      "file": "probe_audio.c",
+      "equal": true
+    },
+    {
+      "file": "probe_audio.h",
+      "equal": true
+    },
+    {
+      "file": "probe_output.c",
+      "equal": true
+    }
+  ],
+  "next": "Bounded optional per-query/poll timing and work-ready/quiescent-state audit; no unsupported IRQ calls, no unmeasured priority change",
+  "local_evidence": "D:/bt-owned61/native_bt/_build/experiments/owner-pressure-handoff-1794075555279",
+  "qualification": "Full master goal remains active; audio continuity,1Mbps,coexistence,security/product/OTA/lifecycle/stress/acoustics open"
+}
