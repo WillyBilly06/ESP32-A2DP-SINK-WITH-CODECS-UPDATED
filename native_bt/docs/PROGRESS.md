@@ -1,3 +1,9 @@
+Update:8e85 is now flashed/readback-verified onCOM6; all37 target cold checks
+pass. Native YouTube max-volume auto-rate checks include actual192k/S24.
+Decoder frame muting stays zero, but sample clipping and refill shortages remain;
+automatic bitrate exercised about400kbps, not1Mbps. Phone is paused at restored
+90/150 and the UART dashboard is live. Full audio qualification remains open.
+
 ## 2026-11-07 — LHDC PCM level correction
 
 Independent known-input C99 encoder tests reproduce +1.35 dB excess gain at
