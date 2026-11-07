@@ -331,6 +331,49 @@ static void DSP_BLOCK_HOT analysis(fixed_dsp_t *dsp, int32_t mono) {
     dsp->window_count = 0;
 }
 
+#ifndef FIXED_DSP_FORCE_WIDE_LIMITER
+/* floor(C*e/(C+e)) = C-ceil(C*C/(C+e)). For this limiter C is
+ * constant and C+e is in [C+1, 2^31-CLIP_THRESHOLD+C], strictly below
+ * 2^31. The normalized divisor therefore needs 1..7 leading-zero shifts;
+ * the quotient fits uint32_t and each base-2^16 estimate needs at most
+ * two corrections. There is no retry loop or run-time 64-bit division.
+ * Narrow-division correction follows the CC0/public-domain divlu method:
+ * https://github.com/ridiculousfish/libdivide/blob/master/doc/divlu.c
+ * All multiplies below intentionally use unsigned word modular arithmetic. */
+#define LIMIT_SQUARED ((uint64_t)CLIP_RANGE * (uint64_t)CLIP_RANGE)
+_Static_assert(CLIP_RANGE >= (1u<<24) && CLIP_RANGE < (1u<<25), "limiter normalization bounds");
+_Static_assert(2147483648u-CLIP_THRESHOLD+CLIP_RANGE < 2147483648u, "limiter divisor needs a nonzero shift");
+_Static_assert((LIMIT_SQUARED>>32) < CLIP_RANGE+1u, "limiter quotient fits a word");
+/* Keep the quotient opaque to GCC on LX6 so q*d is a multiply/subtract,
+ * not an additional REMU instruction after each QUOU. The portable path
+ * retains ordinary unsigned C division for independent host validation. */
+static inline uint32_t limiter_quotient(uint32_t numerator,uint32_t denominator) {
+#if defined(CONFIG_IDF_TARGET_ESP32) && CONFIG_IDF_TARGET_ESP32 && defined(__XTENSA__)
+    uint32_t quotient;
+    __asm__("quou %0, %1, %2" : "=a"(quotient) : "a"(numerator), "a"(denominator));
+    return quotient;
+#else
+    return numerator/denominator;
+#endif
+}
+static uint32_t DSP_BLOCK_HOT __attribute__((noinline)) limiter_tail_ceil(uint32_t divisor) {
+    const uint32_t low=(uint32_t)LIMIT_SQUARED,high=(uint32_t)(LIMIT_SQUARED>>32);
+    unsigned shift=(unsigned)__builtin_clz(divisor);
+    uint32_t normalized=divisor<<shift,top=normalized>>16,bottom=normalized&65535u;
+    uint32_t upper=(high<<shift)|(low>>(32u-shift)),lower=low<<shift;
+    uint32_t q_hi=limiter_quotient(upper,top),estimate_rem=upper-q_hi*top;
+    uint32_t product=q_hi*bottom,trial=(estimate_rem<<16)|(lower>>16);
+    if(product>trial)q_hi-=product-trial>normalized?2u:1u;
+    uint32_t remainder=(upper<<16)+(lower>>16)-q_hi*normalized;
+    uint32_t q_lo=limiter_quotient(remainder,top);estimate_rem=remainder-q_lo*top;
+    product=q_lo*bottom;trial=(estimate_rem<<16)|(lower&65535u);
+    if(product>trial)q_lo-=product-trial>normalized?2u:1u;
+    uint32_t quotient=(q_hi<<16)|q_lo;
+    /* The true remainder is below divisor<2^31, so its low word is exact. */
+    return quotient+(low-quotient*divisor!=0);
+}
+#endif
+
 static inline int32_t DSP_BLOCK_HOT limit(fixed_dsp_t *dsp, int32_t value) {
     uint32_t magnitude = (uint32_t)(value < 0 ? -(int64_t)value : value);
     if (magnitude > dsp->peak_q27) dsp->peak_q27 = magnitude;
@@ -338,7 +381,11 @@ static inline int32_t DSP_BLOCK_HOT limit(fixed_dsp_t *dsp, int32_t value) {
     ++dsp->limited;
     if (magnitude >= AUDIO_ONE) ++dsp->over_full_scale;
     uint32_t excess = magnitude - CLIP_THRESHOLD;
+#ifdef FIXED_DSP_FORCE_WIDE_LIMITER
     int32_t output = CLIP_THRESHOLD + (int32_t)((uint64_t)CLIP_RANGE * excess / (CLIP_RANGE + excess));
+#else
+    int32_t output = AUDIO_ONE - (int32_t)limiter_tail_ceil(CLIP_RANGE + excess);
+#endif
     return value < 0 ? -output : output;
 }
 

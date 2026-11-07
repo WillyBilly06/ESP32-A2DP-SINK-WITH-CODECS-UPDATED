@@ -1,5 +1,10 @@
 # Independent ESP32 Bluetooth host
 
+The [exact limiter division](docs/LIMITER_WORD_DIV_2026_11_07.md) replaces the
+clipped-sample wide division with a bounded word implementation. The complete
+integer curve and DSP state pass exhaustive/regression checks; candidate timing
+and remaining audio continuity still need device evidence.
+
 The [LHDC PCM-level investigation](docs/LHDC_PCM_LEVEL_2026_11_07.md) confirms
 and corrects a rate/depth gain mismatch before decoder saturation. Independent
 level/bitrate-transition checks and80 sanitized host codec cases pass; device

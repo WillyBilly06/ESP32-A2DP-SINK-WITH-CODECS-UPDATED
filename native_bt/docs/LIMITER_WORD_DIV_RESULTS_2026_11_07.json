@@ -1,0 +1,49 @@
+{
+  "passed": true,
+  "scope": "exact host math/state and off-board target instruction/memory evidence; not playback qualification",
+  "experiment": "D:/bt-owned61/native_bt/_build/experiments/limiter-word-div-1794058558429",
+  "image_sha256": "389514bc25464678621e0bd2e31b9699aa7acb70e55c9a560a1f76723c2a8e2a",
+  "flashed": false,
+  "instruction_sram_delta_bytes": 112,
+  "data_delta": 0,
+  "bss_delta": 0,
+  "exhaustive": [
+    {
+      "sanitized": false,
+      "exhaustive_magnitudes": 2033398579,
+      "signed_state_cases": 1000304,
+      "binary_sha256": "0869001a06e9114713ef39275c3487bf1db114516022e0ba8b3fa33a0eaf0975"
+    },
+    {
+      "sanitized": true,
+      "exhaustive_magnitudes": 0,
+      "signed_state_cases": 1000304,
+      "binary_sha256": "d0dc656cdfcd7f58458fd976e8543e126f287c81124f417f865678cbe6f0c265"
+    }
+  ],
+  "helper": {
+    "quou": 2,
+    "remu": 0,
+    "calls": 0,
+    "backward_branches": 0
+  },
+  "baseline_helper_elapsed_cycles_per_frame": [
+    584.5551366032155,
+    573.2415271842356
+  ],
+  "baseline_unfilled_including_startup_drain": [
+    13440,
+    6144
+  ],
+  "full_goal_qualified": false,
+  "receipts_sha256": {
+    "word-limiter-instruction-test.log": "234a952d7d35eaa323a65be31990b2c730a69581406e5c98c267205855ce5098",
+    "dsp-block-final-test.log": "ebf29afcccd2d2e4604c9d1c4fd97392e859d0f180efcf313875c6fda94c67ff",
+    "target-objects.json": "2c40b16cc70a42c6db91b543b6faee01e4abea9b83cbe4d51ac5befdf8195a25",
+    "linked-word-helper.txt": "570b745fb800f2bd05697550b270f3d13e09c8ee997bb90ee96a04e91b08516c",
+    "official-rom-wide-divider.txt": "6525d54c4fcd6ff0611aa767e1844da8ad61e376cfc9e9b8dce487defc1df903",
+    "firmware-build-rerun.log": "4cacfdabc0829c1efa968c9ab5bb310b7acfc765c6ec9b46101cb8e5f0635eea",
+    "baseline-fixed900-max.json": "b8c0161f861bdc580009d90f90900d2cf10cab94fa3a5131b5dbda6115d415a1",
+    "baseline-fixed900-max-repeat.json": "1b9d11106dff9db04891c3b8e07ae49b05816a9355e8484608632932cb1efe31"
+  }
+}

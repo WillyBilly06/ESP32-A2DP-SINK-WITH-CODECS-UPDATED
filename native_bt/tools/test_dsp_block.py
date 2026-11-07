@@ -20,7 +20,7 @@ if not cache:
     matches=sorted((pathlib.Path.home()/'.espressif/tools/ccache').glob('*/ccache-*/ccache.exe'))
     if matches:cache=str(matches[-1])
 assert cache,'ccache required';env.pop('CCACHE_DISABLE',None)
-reference=OUT/'reference.c';reference.write_text('#undef FIXED_DSP_MATCHED_FEEDBACK_COMPARE\n#undef FIXED_DSP_MATCHED_FEEDBACK\n#undef FIXED_DSP_BLOCK_API\n#undef FIXED_DSP_WORD_QUANT\n#undef FIXED_DSP_WORD_RAMP\n#undef FIXED_DSP_VOLUME_RAMP_BLOCK\n#undef FIXED_DSP_VOLUME_RAMP_COMPARE\n'+''.join('#define fixed_dsp_'+n+' reference_'+n+'\n' for n in ['init','controls','process','zero_analysis','level_db_q8'])+'#include "'+(DSP/'fixed_dsp.c').as_posix()+'"\n')
+reference=OUT/'reference.c';reference.write_text('#define FIXED_DSP_FORCE_WIDE_LIMITER 1\n#undef FIXED_DSP_MATCHED_FEEDBACK_COMPARE\n#undef FIXED_DSP_MATCHED_FEEDBACK\n#undef FIXED_DSP_BLOCK_API\n#undef FIXED_DSP_WORD_QUANT\n#undef FIXED_DSP_WORD_RAMP\n#undef FIXED_DSP_VOLUME_RAMP_BLOCK\n#undef FIXED_DSP_VOLUME_RAMP_COMPARE\n'+''.join('#define fixed_dsp_'+n+' reference_'+n+'\n' for n in ['init','controls','process','zero_analysis','level_db_q8'])+'#include "'+(DSP/'fixed_dsp.c').as_posix()+'"\n')
 sources=[DSP/'fixed_dsp.c',reference,ROOT/'tests/test_fixed_dsp_block.c']
 tracked=sources+[pathlib.Path(__file__).resolve(),DSP/'fixed_dsp.h',DSP/'fixed_dsp_tables.inc']
 before={str(p):hashlib.sha256(p.read_bytes()).hexdigest() for p in tracked};results=[]
