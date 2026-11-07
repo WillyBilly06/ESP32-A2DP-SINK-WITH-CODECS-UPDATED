@@ -4,7 +4,9 @@ No RF, target timing, DAC or acoustic qualification is implied.
 """
 import argparse,ctypes,hashlib,json,math,os,pathlib,re,shutil,struct,subprocess,sys
 ROOT=pathlib.Path(__file__).resolve().parents[1]
-p=argparse.ArgumentParser();p.add_argument('--encoder',type=pathlib.Path,required=True);p.add_argument('--decoder',type=pathlib.Path,required=True);p.add_argument('--out',type=pathlib.Path,required=True);p.add_argument('--refresh-points',action='store_true');a=p.parse_args()
+p=argparse.ArgumentParser();p.add_argument('--encoder',type=pathlib.Path,required=True);p.add_argument('--decoder',type=pathlib.Path,required=True);p.add_argument('--out',type=pathlib.Path,required=True);p.add_argument('--refresh-points',action='store_true');p.add_argument('--pattern',choices=('tone','noise'),default='tone');p.add_argument('--noise-peak',type=float,default=0.25);a=p.parse_args()
+if not 0<a.noise_peak<=0.95:p.error('Noise peak must be in(0,0.95]')
+if a.refresh_points and a.pattern!='tone':p.error('Only original tone fixtures may refresh existing checkpoints')
 out=a.out.resolve();out.relative_to((ROOT/'_build').resolve());out.mkdir(parents=True,exist_ok=True)
 enc=a.encoder.resolve();dec=a.decoder.resolve();port=out/'port'
 def run(args,**kw):
@@ -40,7 +42,7 @@ generator=out/'generate.exe';run([cc,*enc_objects,'-o',generator],env=env)
 names=['lhdc_dec.c','lhdc_imdct.c','lhdc_entropy_dec.c','lhdc_sns_synth.c']
 dec_sources=[ROOT/'tests/codecs/lhdcv5_level_probe.c',ROOT/'codecs/lhdcv5/dbt_lhdcv5_codec.c',ROOT/'codecs/common/dbt_codec.c',ROOT/'src/dbt_avdtp_caps.c',*[port/n for n in names],*[dec/n for n in ['lhdc_bit_reader.c','lhdc_diag_config.c','lhdc_tables.c']]]
 reference_sources=[ROOT/'tests/codecs/lhdcv5_reference_probe.c',*[dec/n for n in ['lhdc_dec.c','lhdc_imdct.c','lhdc_entropy_dec.c','lhdc_sns_synth.c','lhdc_bit_reader.c','lhdc_diag_config.c','lhdc_tables.c']]]
-inputs=[*reference_sources,*files,*enc_sources,*dec_sources,ROOT/'tests/codecs/lhdcv5_target_math_check.c',ROOT/'codecs/lhdcv5/prepare_port.py',pathlib.Path(__file__).resolve(),*dec.glob('*.h'),*port.glob('*.h')]
+inputs=[*reference_sources,*files,*enc_sources,*dec_sources,ROOT/'tests/codecs/lhdcv5_target_math_check.c',ROOT/'codecs/lhdcv5/prepare_port.py',pathlib.Path(__file__).resolve(),*dec.glob('*.h'),*port.glob('*.h'),*(ROOT/'codecs/lhdcv5').glob('*.h')]
 before={str(f):hashlib.sha256(f.read_bytes()).hexdigest() for f in inputs}
 flags=['-DLHDC_HOST_BUILD','-DCONFIG_IDF_TARGET_ESP32=1','-DDBT_LHDC_TARGET_MATH=1','-DDBT_LHDC_NO_HOST_WINFILE','-DDBT_LHDC_QUALITY=1','-DDBT_LHDC_MATH_SELFTEST=1']
 objects=build(dec_sources,[port,dec,ROOT/'include',ROOT/'codecs/common',ROOT/'codecs/lhdcv5'],'native_',flags)
@@ -70,8 +72,8 @@ lib.level_quality_start();rows=[]
 for rate in (44100,48000,96000,192000):
  for depth in (16,24):
   for index in (5,8,9):
-   for amplitude in (0.1,0.95):
-    path=out/f'{rate}_{depth}_{index}_{amplitude}.packets';run([generator,rate,depth,index,path,amplitude],env=env)
+   for amplitude in ((0.1,0.95) if a.pattern=='tone' else (0.1,a.noise_peak)):
+    path=out/f'{rate}_{depth}_{index}_{amplitude}.packets';run([generator,rate,depth,index,path,amplitude]+([1] if a.pattern=='noise' else []),env=env)
     config=bytes([0,255,58,5,0,0,53,76,{44100:32,48000:16,96000:4,192000:1}[rate],{16:4,24:2}[depth],17,64,0]);assert lib.math_open(buf(config),len(config))==0
     reference_level(depth)
     assert ref.reference_open(rate,depth)==0
@@ -95,16 +97,18 @@ for rate in (44100,48000,96000,192000):
     values=[x[0] for x in struct.iter_unpack('<h' if depth==16 else '<i',pcm)];scale=float(2**(15 if depth==16 else 31));channels=[]
     for ch,freq in enumerate((997,1300)):
      pts=[(i,values[2*i+ch]/scale) for i in range(samples*6,min(samples*90,len(values)//2))]
+     if a.pattern=='noise':
+      power=sum(v*v for _,v in pts);channels.append(dict(fundamental_gain_db=None,peak=max(abs(v) for _,v in pts),rms=math.sqrt(power/len(pts)),residual_to_signal_db=None));continue
      ss=ccv=sc=ys=yc=power=peak=0.0
      for i,v in pts:
       angle=2*math.pi*freq*i/rate;s=math.sin(angle);c=math.cos(angle);ss+=s*s;ccv+=c*c;sc+=s*c;ys+=v*s;yc+=v*c;power+=v*v;peak=max(peak,abs(v))
      det=ss*ccv-sc*sc;coef_s=(ys*ccv-yc*sc)/det;coef_c=(yc*ss-ys*sc)/det;fund=math.hypot(coef_s,coef_c);fit_power=coef_s*ys+coef_c*yc
      channels.append(dict(fundamental_gain_db=20*math.log10(fund/amplitude) if fund else None,peak=peak,rms=math.sqrt(power/len(pts)),residual_to_signal_db=10*math.log10(max(1e-30,power-fit_power)/max(1e-30,fit_power))))
-    row=dict(rate=rate,depth=depth,quality_index=index,input_peak=amplitude,expected_gain_db=(-10*math.log10(2) if depth==24 else 0.0),frames=frames,packets=seq,encoded_bps=(len(raw)-4*seq)*8*rate//(frames*samples),quality_delta={f:(q1[f]-q0[f])&0xffffffff for f in fields[1:9]},channels=channels,encoded_sha256=hashlib.sha256(raw).hexdigest(),pcm_sha256=hashlib.sha256(pcm).hexdigest())
+    row=dict(pattern=a.pattern,rate=rate,depth=depth,quality_index=index,input_peak=amplitude,expected_gain_db=(-10*math.log10(2) if depth==24 else 0.0),frames=frames,packets=seq,encoded_bps=(len(raw)-4*seq)*8*rate//(frames*samples),quality_delta={f:(q1[f]-q0[f])&0xffffffff for f in fields[1:9]},channels=channels,encoded_sha256=hashlib.sha256(raw).hexdigest(),pcm_sha256=hashlib.sha256(pcm).hexdigest())
     rows.append(row);print(json.dumps(row),flush=True)
 assert all(hashlib.sha256(pathlib.Path(f).read_bytes()).hexdigest()==h for f,h in before.items()),'source changed during measurement'
-failures=[dict(rate=r['rate'],depth=r['depth'],quality_index=r['quality_index'],input_peak=r['input_peak']) for r in rows if any(abs(c['fundamental_gain_db']-r['expected_gain_db'])>0.02 or c['residual_to_signal_db']>-45 for c in r['channels']) or any(r['quality_delta'][f] for f in ['rejected','channel0_errors','channel1_silenced','peak_concealed','nonfinite_frames','clipped_frames','clipped_samples'])]
-report=dict(passed=not failures,failures=failures,independent_reference_pcm_equal=True,measurement_complete=True,scope='host generated encoder tone through actual native worker with target selector/math; no RF, target timing or acoustics',ccache=True,rows=rows,source_sha256=before)
+failures=[dict(rate=r['rate'],depth=r['depth'],quality_index=r['quality_index'],input_peak=r['input_peak']) for r in rows if any(a.pattern=='tone' and (abs(c['fundamental_gain_db']-r['expected_gain_db'])>0.02 or c['residual_to_signal_db']>-45) for c in r['channels']) or any(r['quality_delta'][f] for f in ['rejected','channel0_errors','channel1_silenced','peak_concealed','nonfinite_frames','clipped_frames','clipped_samples'])]
+report=dict(passed=not failures,failures=failures,independent_reference_pcm_equal=True,measurement_complete=True,scope='host generated encoder '+a.pattern+' through actual native worker with target selector/math; no RF, target timing or acoustics',ccache=True,rows=rows,source_sha256=before)
 (out/'levels.json').write_text(json.dumps(report,indent=2)+'\n');print('COMPLETE',len(rows),'level cases')
 if failures:raise SystemExit('PCM unity/clipping gate failed; see levels.json')
 

@@ -1,5 +1,11 @@
 # Independent ESP32 Bluetooth host
 
+The [LX6 Rice-reader checkpoint](docs/LHDC_RICE_CURSOR_2026_11_07.md) preserves
+valid PCM and adds checked malformed-magnitude rejection. Actual ESP32 linking
+uses 496 B less instruction RAM with no persistent data/BSS increase. All 37
+existing target cases and 96 clean full-PCM cases pass. A short 192 kHz/S24/900 kbps
+music check still has 4,928 unfilled frames; continuity qualification remains open.
+
 The [integrated audio checkpoint](docs/INTEGRATED_AUDIO_2026_11_07.md) corrects
 LHDC24 output level against the real phone: measured48k/192k levels match LDAC
 within0.014dB. The192k decoded-input ring is8KiB smaller. Fresh-stream EQ policy

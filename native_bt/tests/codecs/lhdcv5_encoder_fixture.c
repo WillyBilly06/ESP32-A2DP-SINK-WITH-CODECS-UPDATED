@@ -6,11 +6,12 @@
 #include <stdlib.h>
 
 int main(int argc,char **argv){
-    if(argc!=5 && argc!=6)return 2;
+    if(argc!=5 && argc!=6 && argc!=7)return 2;
     unsigned rate=(unsigned)strtoul(argv[1],0,10),depth=(unsigned)strtoul(argv[2],0,10),quality=(unsigned)strtoul(argv[3],0,10);
     if((rate!=44100 && rate!=48000 && rate!=96000 && rate!=192000) || (depth!=16 && depth!=24) || quality>9)return 2;
-    double amplitude=argc==6?strtod(argv[5],0):0.0;
-    if(argc==6 && !(amplitude>0.0 && amplitude<=1.0))return 2;
+    double amplitude=argc>=6?strtod(argv[5],0):0.0;
+    unsigned pattern=argc==7?(unsigned)strtoul(argv[6],0,10):0u;
+    if(pattern>1u || (argc>=6 && !(amplitude>0.0 && amplitude<=1.0)))return 2;
     FILE *out=fopen(argv[4],"wb");if(!out)return 3;
     lhdcv5_enc_t *enc=lhdcv5_enc_new(LHDC_VERSION_1);if(!enc){fclose(out);return 4;}
     if(lhdcv5_enc_init_encoder(enc,rate,depth,quality==9?5:quality,LHDC_MTU_3MBPS,LHDC_ENC_INTERVAL_20MS)!=0){lhdcv5_enc_free(enc);fclose(out);return 5;}
@@ -22,8 +23,14 @@ int main(int argc,char **argv){
         unsigned width=depth/8;
         for(unsigned i=0;i<samples;++i)for(unsigned ch=0;ch<2;++ch){
             double a=2.0*3.14159265358979323846*(ch?1300.0:997.0)*(double)(frame*samples+i)/(double)rate;
-            double level=argc==6?(depth==16?32767.0:8388607.0)*amplitude:(depth==16?18000.0:4608000.0);
-            int32_t v=(int32_t)(sin(a)*level);
+            double level=argc>=6?(depth==16?32767.0:8388607.0)*amplitude:(depth==16?18000.0:4608000.0);
+            double unit=sin(a);
+            if(pattern){
+                uint32_t bits=(frame*samples+i)*747796405u+ch*2891336453u+0x632be59bu;
+                bits^=bits>>16;bits*=2246822519u;bits^=bits>>13;
+                unit=((double)(bits&65535u)-32768.0)/32768.0;
+            }
+            int32_t v=(int32_t)(unit*level);
             unsigned at=(i*2+ch)*width;
             for(unsigned j=0;j<width;++j)input[at+j]=(uint8_t)((uint32_t)v>>(8*j));
         }

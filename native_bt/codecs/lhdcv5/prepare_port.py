@@ -446,6 +446,19 @@ void lhdc_entropy_alloc_internal(void) {
             text=text[:start]+replacement+text[end:]
             text=once(text,'    const int slot = LHDC_DEC_SLOT();       /* this core\'s private model set */',
                       '    if (!s_fac_state) return LHDC_DEC_ERROR;\n    const int slot = LHDC_DEC_SLOT();       /* this core\'s private model set */')
+            text=once(text,'    int          eos;        /* stream exhausted; no more symbols will be produced */',
+                      '    int          eos;        /* stream exhausted; no more symbols will be produced */\n    int          error;      /* invalid Rice coefficient magnitude */')
+            rice_start=text.index('static LHDC_HOT int rice_read_quotient(')
+            rice_end=text.index('\n/*\n * Decode `count` quantized',rice_start)
+            text=text[:rice_start]+'#include "dbt_lhdc_rice.h"\n'+text[rice_end:]
+            text=once(text,'                coeff[i] = q + 2;',
+                      '                if (z->error) break;\n                if (q > INT32_MAX-2) { z->error=1; break; }\n                coeff[i] = q + 2;')
+            text=once(text,'            coeff[i] = (q << 1) | s;',
+                      '            if (z->error) break;\n            if (q > (INT32_MAX-s)/2) { z->error=1; break; }\n            coeff[i] = (int32_t)(((uint32_t)q << 1) | (uint32_t)s);')
+            text=once(text,'    z.cur_idx = -1; z.cur_val = 0; z.produced = 0; z.eos = 0;',
+                      '    z.cur_idx = -1; z.cur_val = 0; z.produced = 0; z.eos = 0; z.error = 0;')
+            text=once(text,'    rice_decode_coeffs_used(s1, &z, count, split, quant_spectrum, &s2_used);',
+                      '    rice_decode_coeffs_used(s1, &z, count, split, quant_spectrum, &s2_used);\n    if (z.error) return LHDC_DEC_BITSTREAM_ERROR;')
         if name=="lhdc_sns_synth.c":
             match=re.search(r'static const int32_t LHDC_POW2_MANT\[161\] = \{(.*?)\};',text,re.S)
             if not match:raise RuntimeError("LHDC mantissa table changed")
