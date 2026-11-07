@@ -1,5 +1,18 @@
 # Current project progress
 
+Latest: [idle DSP ramp-call guard](DSP_IDLE_RAMP_2026_11_07.md).
+One per-segment predicate skips three no-op calls per idle sample; active ramps
+retain canonical advancement. Independent scalar/full-state comparisons pass
+8806258 frames plus the volume diagnostic and actual two-core lifecycle cases.
+CCache image950428ba68dd passes source/image admission, full readbacks/owned boot
+and37 existing cold cases. IRAM+8, data RAM unchanged, task stacks unchanged.
+LHDC192/fixed900 helper elapsed833.9 ->778.9 cycles/frame; unfilled
+47744/30592/34048 improves but still fails. Run2 has25472 unfilled before the
+observed RTP jump; downstream deadlines remain open. LDAC96 volume80 ->0 ->80
+has1443584 source frames and zero shortages; audible pops are not qualified.
+Phone paused/UART listening; full1000k/coexistence/acoustic/parity gates remain open.
+The following entries are historical.
+
 Latest: [bounded six-block assistance](ASSIST_SIX_BLOCKS_2026_11_07.md).
 The retained explicit cap is768 frames; default4, admission values4/5/6.
 Actual21 CMake/54 image/10 header/3 CLI checks and sanitizer-backed two-core

@@ -610,8 +610,14 @@ bool DSP_BLOCK_HOT fixed_dsp_process_block(fixed_dsp_t *dsp,int32_t *pcm,uint16_
             filter_steady_block(dsp->filters[4].value,&dsp->boost_history[0],pcm,count);
             filter_steady_block(dsp->filters[4].value,&dsp->boost_history[1],pcm+1,count);
         }
+        /* Controls are applied between blocks. An idle segment cannot start
+         * a ramp; active segments keep canonical advancement even when a ramp
+         * finishes inside this segment. Avoid three no-op calls per idle frame. */
+        bool advance_ramps=dsp->volume.remaining || dsp->bypass.remaining || dsp->flip.remaining;
         for(unsigned i=0;i<count;++i){
-            ramp_advance(&dsp->volume);ramp_advance(&dsp->bypass);ramp_advance(&dsp->flip);
+            if(advance_ramps){
+                ramp_advance(&dsp->volume);ramp_advance(&dsp->bypass);ramp_advance(&dsp->flip);
+            }
             int32_t l=pcm[2u*i],r=pcm[2u*i+1u];
             if(divided){
                 int32_t lp=clamp32(((int64_t)split_pcm[2u*i]*189246996)>>27);

@@ -50,10 +50,18 @@ one live HD decoder call, its copied input, and an independent DSP/final block
 against desktop replay. It also records a 440-frame payload versus 336-tick RTP
 discrepancy. It is not a causal diagnosis of that sound report; capture is off by default.
 
+[Idle DSP ramp-call guard](docs/DSP_IDLE_RAMP_2026_11_07.md) preserves exact PCM
+and complete DSP state while skipping three no-op calls per idle sample frame.
+COM6 image950428ba68dd passes full readbacks/owned boot/37 existing cold cases.
+Repeated LHDC192/fixed900 helper cost is778–779 versus833–834 elapsed cycles/frame;
+unfilled47744/30592/34048 still fails continuity. IRAM+8 bytes, data RAM unchanged.
+LDAC96 with real80 ->0 ->80 volume keys has1443584 source frames/zero shortages.
+The full maximum-rate/coexistence/acoustic/feature gates remain open.
+
 [Six-block DSP development selection](docs/ASSIST_SIX_BLOCKS_2026_11_07.md)
 retains an explicit 768-frame cap with unchanged memory, arithmetic and priorities.
 Fresh LHDC192/fixed900 unfilled totals are116608 with five blocks and
-107648/74368/72320 with six; continuity still fails. COM6 imagef2637213bb69
+107648/74368/72320 with six; continuity still fails. Previous imagef2637213bb69
 passes full readbacks/owned boot/37 existing cold cases. LDAC96 has1451264
 source frames and zero shortages. Default4 remains; the retained build explicitly
 uses `-DspAssistBlocks 6`. Full maximum-rate/coexistence/feature gates stay open.

@@ -1,0 +1,2313 @@
+{
+  "scope": "Idle ramp-call elimination with exact PCM/state oracle; full continuity goal unqualified",
+  "image": "950428ba68dd7846609cecf42a4bbfea712c246527e664f7190ef3a6d8b756fb",
+  "archive": "runs/1794046921031039500-950428ba68dd",
+  "readbacks": [
+    true,
+    true
+  ],
+  "boot": {
+    "probe": "boot_selection",
+    "host": "owned",
+    "kept_active": true,
+    "partition": 3735552,
+    "ota_state": 2,
+    "result": 0,
+    "production_ready": false
+  },
+  "cold_check": {
+    "probe": "target_codec_selftest",
+    "passed": true,
+    "configurations": 37,
+    "selected": 37,
+    "callbacks": 173,
+    "stack_bytes": 8192,
+    "stack_low_water_bytes": 3456,
+    "tracked_peak_bytes": 56899,
+    "min_free_after_alloc_bytes": 103608,
+    "maximum_decode_us": 13959,
+    "rf_test": false
+  },
+  "footprint_delta": {
+    ".iram0.vectors": 0,
+    ".iram0.text": 8,
+    ".dram0.data": 0,
+    ".dram0.bss": 0,
+    ".flash.rodata": 0,
+    ".flash.text": 0
+  },
+  "compiler_function_stack_bytes": {
+    "before": 1120,
+    "after": 1104,
+    "allocated_task_stacks_unchanged": true
+  },
+  "baseline_image": "f2637213bb695ca5123f591a6575d35ac75be0c7065a1c456cac127d92003dc8",
+  "baseline": [
+    {
+      "command_s": 12.086,
+      "source_frames": 2779200,
+      "accepted_frames": 2779200,
+      "rendered_frames": 2779200,
+      "initial_shortage": 186944,
+      "recovered": 79296,
+      "unfilled": 107648,
+      "descriptor_errors": 0,
+      "contract_errors": 0,
+      "copy_max_us": 6,
+      "mask_max_us": 9,
+      "media": {
+        "probe": "media_input",
+        "collection_cycle_us": 154854526,
+        "stream_epoch": 5,
+        "packets": 2895,
+        "payload_bytes": 1638570,
+        "rtp_first_timestamp": 0,
+        "rtp_last_timestamp": 2858880,
+        "rate": 192000,
+        "timestamp_origin": "wire_rtp",
+        "snapshot_begin_us": 156154010,
+        "at_us": 156154031,
+        "snapshot_span_us": 21,
+        "record_crc32": "1c82977d"
+      },
+      "clock": {
+        "probe": "rtp_input_clock",
+        "collection_cycle_us": 154854526,
+        "stream_epoch": 5,
+        "coherent": true,
+        "observed": true,
+        "revision": 6,
+        "max_forward_step_ticks": 27840,
+        "previous_sequence": 903,
+        "sequence": 904,
+        "previous_rtp_timestamp": 865920,
+        "rtp_timestamp": 893760,
+        "ssrc": 255,
+        "scope": "input_epoch_adjacent_wire_sequence_same_ssrc_forward_half_range",
+        "before_queue_and_decode": true,
+        "loss_count": false,
+        "snapshot_begin_us": 156187745,
+        "at_us": 156187749,
+        "snapshot_span_us": 4,
+        "record_crc32": "7c6905b8"
+      },
+      "first_gap": {
+        "probe": "first_starvation",
+        "stream_serial": 1,
+        "captured": true,
+        "coherent": true,
+        "event_us": 137561097,
+        "taken_frames": 0,
+        "input_frames": 1088,
+        "output_frames": 0,
+        "accepted_frames": 4800,
+        "rendered_frames": 3584,
+        "dma_source_frames": 3328,
+        "snapshot_begin_us": 138058931,
+        "at_us": 138058944,
+        "snapshot_span_us": 13,
+        "record_crc32": "5dc2def4"
+      },
+      "helper_blocks_per_job": 6,
+      "helper_max_frames": 768,
+      "helper_frames": 1548032,
+      "helper_cycles_per_frame": 833.6170440921118,
+      "helper_failures": 0,
+      "local_dsp_cycles_per_frame": 1354.817194728908,
+      "pcm_busy": 5129,
+      "worker_detail_lost": 2138,
+      "queue_full": 0,
+      "decode_reject": 0,
+      "input_sequence_breaks": 0,
+      "host_detail_lost": 0,
+      "snapshot_records_lost": 0,
+      "snapshot_uart_lost": 0,
+      "runtime_windows": [
+        {
+          "begin": 140343312,
+          "end": 145926987,
+          "duration_us": 5583675,
+          "roles": {
+            "host": {
+              "core": 1,
+              "us": 1599043,
+              "pct": 28.637823655567345
+            },
+            "decoder": {
+              "core": 0,
+              "us": 3007123,
+              "pct": 53.85562376033705
+            },
+            "renderer1": {
+              "core": 1,
+              "us": 2348793,
+              "pct": 42.06536017945171
+            },
+            "logger": {
+              "core": 1,
+              "us": 158262,
+              "pct": 2.834369837069672
+            },
+            "controller": {
+              "core": 1,
+              "us": 666410,
+              "pct": 11.934971143556886
+            },
+            "idle0": {
+              "core": 0,
+              "us": 625472,
+              "pct": 11.201798098922305
+            },
+            "idle1": {
+              "core": 1,
+              "us": 602023,
+              "pct": 10.781841708193976
+            },
+            "ipc0": {
+              "core": 0,
+              "us": 0,
+              "pct": 0
+            },
+            "ipc1": {
+              "core": 1,
+              "us": 0,
+              "pct": 0
+            },
+            "timer": {
+              "core": 0,
+              "us": 0,
+              "pct": 0
+            },
+            "renderer0": {
+              "core": 0,
+              "us": 1951095,
+              "pct": 34.94284678101788
+            }
+          }
+        },
+        {
+          "begin": 145926987,
+          "end": 150931276,
+          "duration_us": 5004289,
+          "roles": {
+            "host": {
+              "core": 1,
+              "us": 1446569,
+              "pct": 28.90658393230287
+            },
+            "decoder": {
+              "core": 0,
+              "us": 2519725,
+              "pct": 50.351308647442224
+            },
+            "renderer1": {
+              "core": 1,
+              "us": 2007588,
+              "pct": 40.117347339452216
+            },
+            "logger": {
+              "core": 1,
+              "us": 151564,
+              "pct": 3.0286819965833307
+            },
+            "controller": {
+              "core": 1,
+              "us": 599116,
+              "pct": 11.972050375188164
+            },
+            "idle0": {
+              "core": 0,
+              "us": 642440,
+              "pct": 12.837787745671763
+            },
+            "idle1": {
+              "core": 1,
+              "us": 612198,
+              "pct": 12.233466132751326
+            },
+            "ipc0": {
+              "core": 0,
+              "us": 0,
+              "pct": 0
+            },
+            "ipc1": {
+              "core": 1,
+              "us": 0,
+              "pct": 0
+            },
+            "timer": {
+              "core": 0,
+              "us": 0,
+              "pct": 0
+            },
+            "renderer0": {
+              "core": 0,
+              "us": 1840956,
+              "pct": 36.78756362791997
+            }
+          }
+        },
+        {
+          "begin": 150931276,
+          "end": 154910819,
+          "duration_us": 3979543,
+          "roles": {
+            "host": {
+              "core": 1,
+              "us": 550165,
+              "pct": 13.824828629820058
+            },
+            "decoder": {
+              "core": 0,
+              "us": 675063,
+              "pct": 16.963329708964068
+            },
+            "renderer1": {
+              "core": 1,
+              "us": 558489,
+              "pct": 14.033998376195457
+            },
+            "logger": {
+              "core": 1,
+              "us": 110479,
+              "pct": 2.7761730429850866
+            },
+            "controller": {
+              "core": 1,
+              "us": 312625,
+              "pct": 7.855801532990094
+            },
+            "idle0": {
+              "core": 0,
+              "us": 2586039,
+              "pct": 64.98331592346156
+            },
+            "idle1": {
+              "core": 1,
+              "us": 2313732,
+              "pct": 58.14064579777125
+            },
+            "ipc0": {
+              "core": 0,
+              "us": 0,
+              "pct": 0
+            },
+            "ipc1": {
+              "core": 1,
+              "us": 0,
+              "pct": 0
+            },
+            "timer": {
+              "core": 0,
+              "us": 0,
+              "pct": 0
+            },
+            "renderer0": {
+              "core": 0,
+              "us": 719153,
+              "pct": 18.071245869186487
+            }
+          }
+        },
+        {
+          "begin": 154910819,
+          "end": 157791688,
+          "duration_us": 2880869,
+          "roles": {
+            "host": {
+              "core": 1,
+              "us": 0,
+              "pct": 0
+            },
+            "decoder": {
+              "core": 0,
+              "us": 0,
+              "pct": 0
+            },
+            "renderer1": {
+              "core": 1,
+              "us": 64,
+              "pct": 0.0022215518997913478
+            },
+            "logger": {
+              "core": 1,
+              "us": 29183,
+              "pct": 1.0129929545564202
+            },
+            "controller": {
+              "core": 1,
+              "us": 124722,
+              "pct": 4.329318688215257
+            },
+            "idle0": {
+              "core": 0,
+              "us": 2881000,
+              "pct": 100.00454723904488
+            },
+            "idle1": {
+              "core": 1,
+              "us": 2635033,
+              "pct": 91.46660261192022
+            },
+            "ipc0": {
+              "core": 0,
+              "us": 0,
+              "pct": 0
+            },
+            "ipc1": {
+              "core": 1,
+              "us": 0,
+              "pct": 0
+            },
+            "timer": {
+              "core": 0,
+              "us": 0,
+              "pct": 0
+            },
+            "renderer0": {
+              "core": 0,
+              "us": 0,
+              "pct": 0
+            }
+          }
+        }
+      ],
+      "scope": "Whole stream including startup/drain; verified final aggregates, separate detail losses and elapsed-cycle/preemption caveats",
+      "local_dsp_frames": 1231168
+    },
+    {
+      "command_s": 12.251,
+      "source_frames": 2825280,
+      "accepted_frames": 2825280,
+      "rendered_frames": 2825280,
+      "initial_shortage": 125504,
+      "recovered": 51136,
+      "unfilled": 74368,
+      "descriptor_errors": 0,
+      "contract_errors": 0,
+      "copy_max_us": 4,
+      "mask_max_us": 7,
+      "media": {
+        "probe": "media_input",
+        "collection_cycle_us": 185604526,
+        "stream_epoch": 7,
+        "packets": 2943,
+        "payload_bytes": 1665738,
+        "rtp_first_timestamp": 2887680,
+        "rtp_last_timestamp": 5765760,
+        "rate": 192000,
+        "timestamp_origin": "wire_rtp",
+        "snapshot_begin_us": 186919719,
+        "at_us": 186919740,
+        "snapshot_span_us": 21,
+        "record_crc32": "c1dc4e0e"
+      },
+      "clock": {
+        "probe": "rtp_input_clock",
+        "collection_cycle_us": 185604526,
+        "stream_epoch": 7,
+        "coherent": true,
+        "observed": true,
+        "revision": 12,
+        "max_forward_step_ticks": 27840,
+        "previous_sequence": 4225,
+        "sequence": 4226,
+        "previous_rtp_timestamp": 4159680,
+        "rtp_timestamp": 4187520,
+        "ssrc": 255,
+        "scope": "input_epoch_adjacent_wire_sequence_same_ssrc_forward_half_range",
+        "before_queue_and_decode": true,
+        "loss_count": false,
+        "snapshot_begin_us": 186942416,
+        "at_us": 186942421,
+        "snapshot_span_us": 5,
+        "record_crc32": "96a457b5"
+      },
+      "first_gap": {
+        "probe": "first_starvation",
+        "stream_serial": 2,
+        "captured": true,
+        "coherent": true,
+        "event_us": 168067526,
+        "taken_frames": 0,
+        "input_frames": 1728,
+        "output_frames": 0,
+        "accepted_frames": 5312,
+        "rendered_frames": 3584,
+        "dma_source_frames": 3328,
+        "snapshot_begin_us": 168767119,
+        "at_us": 168767132,
+        "snapshot_span_us": 13,
+        "record_crc32": "91d20c8c"
+      },
+      "helper_blocks_per_job": 6,
+      "helper_max_frames": 768,
+      "helper_frames": 1564352,
+      "helper_cycles_per_frame": 834.4147595937487,
+      "helper_failures": 0,
+      "local_dsp_cycles_per_frame": 1320.7194447264237,
+      "pcm_busy": 5250,
+      "worker_detail_lost": 2209,
+      "queue_full": 0,
+      "decode_reject": 0,
+      "input_sequence_breaks": 0,
+      "host_detail_lost": 0,
+      "snapshot_records_lost": 0,
+      "snapshot_uart_lost": 0,
+      "runtime_windows": [
+        {
+          "begin": 171164826,
+          "end": 176883093,
+          "duration_us": 5718267,
+          "roles": {
+            "host": {
+              "core": 1,
+              "us": 1693755,
+              "pct": 29.620075452930056
+            },
+            "decoder": {
+              "core": 0,
+              "us": 3119894,
+              "pct": 54.560131592316345
+            },
+            "renderer1": {
+              "core": 1,
+              "us": 2425026,
+              "pct": 42.40840800193485
+            },
+            "logger": {
+              "core": 1,
+              "us": 160470,
+              "pct": 2.8062698016724297
+            },
+            "controller": {
+              "core": 1,
+              "us": 704626,
+              "pct": 12.322369696972876
+            },
+            "idle0": {
+              "core": 0,
+              "us": 569676,
+              "pct": 9.962388954555637
+            },
+            "idle1": {
+              "core": 1,
+              "us": 527389,
+              "pct": 9.222881687756098
+            },
+            "ipc0": {
+              "core": 0,
+              "us": 0,
+              "pct": 0
+            },
+            "ipc1": {
+              "core": 1,
+              "us": 0,
+              "pct": 0
+            },
+            "timer": {
+              "core": 0,
+              "us": 0,
+              "pct": 0
+            },
+            "renderer0": {
+              "core": 0,
+              "us": 2028429,
+              "pct": 35.47279271849321
+            }
+          }
+        },
+        {
+          "begin": 176883093,
+          "end": 181975751,
+          "duration_us": 5092658,
+          "roles": {
+            "host": {
+              "core": 1,
+              "us": 1503954,
+              "pct": 29.53180834055615
+            },
+            "decoder": {
+              "core": 0,
+              "us": 2577395,
+              "pct": 50.61001543791081
+            },
+            "renderer1": {
+              "core": 1,
+              "us": 2025221,
+              "pct": 39.76746524113734
+            },
+            "logger": {
+              "core": 1,
+              "us": 152158,
+              "pct": 2.98779144407498
+            },
+            "controller": {
+              "core": 1,
+              "us": 624625,
+              "pct": 12.265206106516478
+            },
+            "idle0": {
+              "core": 0,
+              "us": 567846,
+              "pct": 11.150287335218662
+            },
+            "idle1": {
+              "core": 1,
+              "us": 596708,
+              "pct": 11.717024783521689
+            },
+            "ipc0": {
+              "core": 0,
+              "us": 0,
+              "pct": 0
+            },
+            "ipc1": {
+              "core": 1,
+              "us": 0,
+              "pct": 0
+            },
+            "timer": {
+              "core": 0,
+              "us": 0,
+              "pct": 0
+            },
+            "renderer0": {
+              "core": 0,
+              "us": 1947988,
+              "pct": 38.25090944650122
+            }
+          }
+        },
+        {
+          "begin": 181975751,
+          "end": 185660812,
+          "duration_us": 3685061,
+          "roles": {
+            "host": {
+              "core": 1,
+              "us": 342892,
+              "pct": 9.30492059697248
+            },
+            "decoder": {
+              "core": 0,
+              "us": 497932,
+              "pct": 13.512177953092229
+            },
+            "renderer1": {
+              "core": 1,
+              "us": 437180,
+              "pct": 11.863575664012075
+            },
+            "logger": {
+              "core": 1,
+              "us": 109109,
+              "pct": 2.960846509732132
+            },
+            "controller": {
+              "core": 1,
+              "us": 254367,
+              "pct": 6.902653714551808
+            },
+            "idle0": {
+              "core": 0,
+              "us": 2678108,
+              "pct": 72.67472641565499
+            },
+            "idle1": {
+              "core": 1,
+              "us": 2416038,
+              "pct": 65.56303952634705
+            },
+            "ipc0": {
+              "core": 0,
+              "us": 0,
+              "pct": 0
+            },
+            "ipc1": {
+              "core": 1,
+              "us": 0,
+              "pct": 0
+            },
+            "timer": {
+              "core": 0,
+              "us": 0,
+              "pct": 0
+            },
+            "renderer0": {
+              "core": 0,
+              "us": 508615,
+              "pct": 13.802078174553962
+            }
+          }
+        }
+      ],
+      "scope": "Whole stream including startup/drain; verified final aggregates, separate detail losses and elapsed-cycle/preemption caveats",
+      "local_dsp_frames": 1260928
+    },
+    {
+      "command_s": 12.211,
+      "source_frames": 2844288,
+      "accepted_frames": 2844288,
+      "rendered_frames": 2844288,
+      "initial_shortage": 129280,
+      "recovered": 56960,
+      "unfilled": 72320,
+      "descriptor_errors": 0,
+      "contract_errors": 0,
+      "copy_max_us": 4,
+      "mask_max_us": 9,
+      "media": {
+        "probe": "media_input",
+        "collection_cycle_us": 230542323,
+        "stream_epoch": 9,
+        "packets": 2963,
+        "payload_bytes": 1677058,
+        "rtp_first_timestamp": 5787840,
+        "rtp_last_timestamp": 8685120,
+        "rate": 192000,
+        "timestamp_origin": "wire_rtp",
+        "snapshot_begin_us": 231791071,
+        "at_us": 231791101,
+        "snapshot_span_us": 30,
+        "record_crc32": "24f33f92"
+      },
+      "clock": {
+        "probe": "rtp_input_clock",
+        "collection_cycle_us": 230542323,
+        "stream_epoch": 9,
+        "coherent": true,
+        "observed": true,
+        "revision": 18,
+        "max_forward_step_ticks": 27840,
+        "previous_sequence": 6716,
+        "sequence": 6717,
+        "previous_rtp_timestamp": 6622080,
+        "rtp_timestamp": 6649920,
+        "ssrc": 255,
+        "scope": "input_epoch_adjacent_wire_sequence_same_ssrc_forward_half_range",
+        "before_queue_and_decode": true,
+        "loss_count": false,
+        "snapshot_begin_us": 231813633,
+        "at_us": 231813640,
+        "snapshot_span_us": 7,
+        "record_crc32": "9f808818"
+      },
+      "first_gap": {
+        "probe": "first_starvation",
+        "stream_serial": 3,
+        "captured": true,
+        "coherent": true,
+        "event_us": 213293356,
+        "taken_frames": 0,
+        "input_frames": 1984,
+        "output_frames": 0,
+        "accepted_frames": 6720,
+        "rendered_frames": 4736,
+        "dma_source_frames": 4480,
+        "snapshot_begin_us": 213725943,
+        "at_us": 213725956,
+        "snapshot_span_us": 13,
+        "record_crc32": "b2074030"
+      },
+      "helper_blocks_per_job": 6,
+      "helper_max_frames": 768,
+      "helper_frames": 1590272,
+      "helper_cycles_per_frame": 833.5664106517627,
+      "helper_failures": 0,
+      "local_dsp_cycles_per_frame": 1336.9701016573952,
+      "pcm_busy": 5620,
+      "worker_detail_lost": 2373,
+      "queue_full": 0,
+      "decode_reject": 0,
+      "input_sequence_breaks": 0,
+      "host_detail_lost": 0,
+      "snapshot_records_lost": 0,
+      "snapshot_uart_lost": 0,
+      "runtime_windows": [
+        {
+          "begin": 215974843,
+          "end": 221468315,
+          "duration_us": 5493472,
+          "roles": {
+            "host": {
+              "core": 1,
+              "us": 1594201,
+              "pct": 29.019916730257293
+            },
+            "decoder": {
+              "core": 0,
+              "us": 3007914,
+              "pct": 54.75433387118383
+            },
+            "renderer1": {
+              "core": 1,
+              "us": 2301859,
+              "pct": 41.901715345049546
+            },
+            "logger": {
+              "core": 1,
+              "us": 157068,
+              "pct": 2.859175399455936
+            },
+            "controller": {
+              "core": 1,
+              "us": 692997,
+              "pct": 12.614918215656692
+            },
+            "idle0": {
+              "core": 0,
+              "us": 515796,
+              "pct": 9.389253280985141
+            },
+            "idle1": {
+              "core": 1,
+              "us": 544960,
+              "pct": 9.920137938265636
+            },
+            "ipc0": {
+              "core": 0,
+              "us": 0,
+              "pct": 0
+            },
+            "ipc1": {
+              "core": 1,
+              "us": 0,
+              "pct": 0
+            },
+            "timer": {
+              "core": 0,
+              "us": 0,
+              "pct": 0
+            },
+            "renderer0": {
+              "core": 0,
+              "us": 1969809,
+              "pct": 35.857268408758614
+            }
+          }
+        },
+        {
+          "begin": 221468315,
+          "end": 226752859,
+          "duration_us": 5284544,
+          "roles": {
+            "host": {
+              "core": 1,
+              "us": 1604290,
+              "pct": 30.358153891802207
+            },
+            "decoder": {
+              "core": 0,
+              "us": 2728557,
+              "pct": 51.63278042533093
+            },
+            "renderer1": {
+              "core": 1,
+              "us": 2176691,
+              "pct": 41.18976017609088
+            },
+            "logger": {
+              "core": 1,
+              "us": 151272,
+              "pct": 2.862536483753376
+            },
+            "controller": {
+              "core": 1,
+              "us": 635811,
+              "pct": 12.031520600452943
+            },
+            "idle0": {
+              "core": 0,
+              "us": 598312,
+              "pct": 11.321922951157186
+            },
+            "idle1": {
+              "core": 1,
+              "us": 530960,
+              "pct": 10.047413740901769
+            },
+            "ipc0": {
+              "core": 0,
+              "us": 0,
+              "pct": 0
+            },
+            "ipc1": {
+              "core": 1,
+              "us": 0,
+              "pct": 0
+            },
+            "timer": {
+              "core": 0,
+              "us": 0,
+              "pct": 0
+            },
+            "renderer0": {
+              "core": 0,
+              "us": 1957418,
+              "pct": 37.040433384602345
+            }
+          }
+        },
+        {
+          "begin": 226752859,
+          "end": 230542368,
+          "duration_us": 3789509,
+          "roles": {
+            "host": {
+              "core": 1,
+              "us": 529490,
+              "pct": 13.972522561630015
+            },
+            "decoder": {
+              "core": 0,
+              "us": 719879,
+              "pct": 18.9966299064074
+            },
+            "renderer1": {
+              "core": 1,
+              "us": 579708,
+              "pct": 15.297707433865442
+            },
+            "logger": {
+              "core": 1,
+              "us": 109970,
+              "pct": 2.901959066464811
+            },
+            "controller": {
+              "core": 1,
+              "us": 303683,
+              "pct": 8.013782260445879
+            },
+            "idle0": {
+              "core": 0,
+              "us": 2298005,
+              "pct": 60.64123346850476
+            },
+            "idle1": {
+              "core": 1,
+              "us": 2138441,
+              "pct": 56.43055604301243
+            },
+            "ipc0": {
+              "core": 0,
+              "us": 0,
+              "pct": 0
+            },
+            "ipc1": {
+              "core": 1,
+              "us": 0,
+              "pct": 0
+            },
+            "timer": {
+              "core": 0,
+              "us": 0,
+              "pct": 0
+            },
+            "renderer0": {
+              "core": 0,
+              "us": 771958,
+              "pct": 20.370924043193988
+            }
+          }
+        },
+        {
+          "begin": 230542368,
+          "end": 233415478,
+          "duration_us": 2873110,
+          "roles": {
+            "host": {
+              "core": 1,
+              "us": 0,
+              "pct": 0
+            },
+            "decoder": {
+              "core": 0,
+              "us": 0,
+              "pct": 0
+            },
+            "renderer1": {
+              "core": 1,
+              "us": 66,
+              "pct": 0.002297162308439287
+            },
+            "logger": {
+              "core": 1,
+              "us": 28540,
+              "pct": 0.9933486709523827
+            },
+            "controller": {
+              "core": 1,
+              "us": 127794,
+              "pct": 4.447932727949852
+            },
+            "idle0": {
+              "core": 0,
+              "us": 2872998,
+              "pct": 99.99610178517355
+            },
+            "idle1": {
+              "core": 1,
+              "us": 2625829,
+              "pct": 91.39326374555795
+            },
+            "ipc0": {
+              "core": 0,
+              "us": 0,
+              "pct": 0
+            },
+            "ipc1": {
+              "core": 1,
+              "us": 0,
+              "pct": 0
+            },
+            "timer": {
+              "core": 0,
+              "us": 0,
+              "pct": 0
+            },
+            "renderer0": {
+              "core": 0,
+              "us": 0,
+              "pct": 0
+            }
+          }
+        }
+      ],
+      "scope": "Whole stream including startup/drain; verified final aggregates, separate detail losses and elapsed-cycle/preemption caveats",
+      "local_dsp_frames": 1254016
+    }
+  ],
+  "candidate": [
+    {
+      "command_s": 12.219,
+      "source_frames": 2801792,
+      "accepted_frames": 2801792,
+      "rendered_frames": 2801792,
+      "initial_shortage": 82944,
+      "recovered": 35200,
+      "unfilled": 47744,
+      "descriptor_errors": 0,
+      "contract_errors": 0,
+      "copy_max_us": 4,
+      "mask_max_us": 7,
+      "media": {
+        "probe": "media_input",
+        "collection_cycle_us": 130956526,
+        "stream_epoch": 7,
+        "packets": 2922,
+        "payload_bytes": 1653852,
+        "rtp_first_timestamp": 0,
+        "rtp_last_timestamp": 2831040,
+        "rate": 192000,
+        "timestamp_origin": "wire_rtp",
+        "snapshot_begin_us": 132199670,
+        "at_us": 132199692,
+        "snapshot_span_us": 22,
+        "record_crc32": "8330b7b9"
+      },
+      "clock": {
+        "probe": "rtp_input_clock",
+        "collection_cycle_us": 130956526,
+        "stream_epoch": 7,
+        "coherent": true,
+        "observed": true,
+        "revision": 6,
+        "max_forward_step_ticks": 27840,
+        "previous_sequence": 1214,
+        "sequence": 1215,
+        "previous_rtp_timestamp": 1164480,
+        "rtp_timestamp": 1192320,
+        "ssrc": 255,
+        "scope": "input_epoch_adjacent_wire_sequence_same_ssrc_forward_half_range",
+        "before_queue_and_decode": true,
+        "loss_count": false,
+        "snapshot_begin_us": 132222257,
+        "at_us": 132222262,
+        "snapshot_span_us": 5,
+        "record_crc32": "2a9130c1"
+      },
+      "first_gap": {
+        "probe": "first_starvation",
+        "stream_serial": 1,
+        "captured": true,
+        "coherent": true,
+        "event_us": 113503913,
+        "taken_frames": 0,
+        "input_frames": 1984,
+        "output_frames": 0,
+        "accepted_frames": 10816,
+        "rendered_frames": 8704,
+        "dma_source_frames": 8448,
+        "snapshot_begin_us": 113949839,
+        "at_us": 113949852,
+        "snapshot_span_us": 13,
+        "record_crc32": "1aaffc28"
+      },
+      "helper_blocks_per_job": 6,
+      "helper_max_frames": 768,
+      "helper_frames": 1452800,
+      "helper_cycles_per_frame": 779.3431711178414,
+      "helper_failures": 0,
+      "local_dsp_cycles_per_frame": 1275.5611108145933,
+      "pcm_busy": 6409,
+      "worker_detail_lost": 2778,
+      "queue_full": 0,
+      "decode_reject": 0,
+      "input_sequence_breaks": 0,
+      "host_detail_lost": 0,
+      "snapshot_records_lost": 0,
+      "snapshot_uart_lost": 0,
+      "runtime_windows": [
+        {
+          "begin": 116471939,
+          "end": 122108878,
+          "duration_us": 5636939,
+          "roles": {
+            "host": {
+              "core": 1,
+              "us": 1699399,
+              "pct": 30.147549938007135
+            },
+            "decoder": {
+              "core": 0,
+              "us": 3106427,
+              "pct": 55.108401918133225
+            },
+            "renderer1": {
+              "core": 1,
+              "us": 2410431,
+              "pct": 42.7613461845161
+            },
+            "logger": {
+              "core": 1,
+              "us": 159331,
+              "pct": 2.826551786350713
+            },
+            "controller": {
+              "core": 1,
+              "us": 712996,
+              "pct": 12.648637851145809
+            },
+            "idle0": {
+              "core": 0,
+              "us": 734007,
+              "pct": 13.021375608286696
+            },
+            "idle1": {
+              "core": 1,
+              "us": 450766,
+              "pct": 7.9966449876431165
+            },
+            "ipc0": {
+              "core": 0,
+              "us": 0,
+              "pct": 0
+            },
+            "ipc1": {
+              "core": 1,
+              "us": 0,
+              "pct": 0
+            },
+            "timer": {
+              "core": 0,
+              "us": 0,
+              "pct": 0
+            },
+            "renderer0": {
+              "core": 0,
+              "us": 1796265,
+              "pct": 31.865964843685553
+            }
+          }
+        },
+        {
+          "begin": 122108878,
+          "end": 127398728,
+          "duration_us": 5289850,
+          "roles": {
+            "host": {
+              "core": 1,
+              "us": 1600987,
+              "pct": 30.265262720114936
+            },
+            "decoder": {
+              "core": 0,
+              "us": 2713550,
+              "pct": 51.29729576453018
+            },
+            "renderer1": {
+              "core": 1,
+              "us": 2175883,
+              "pct": 41.13317012769738
+            },
+            "logger": {
+              "core": 1,
+              "us": 151416,
+              "pct": 2.86238740228929
+            },
+            "controller": {
+              "core": 1,
+              "us": 718308,
+              "pct": 13.578986171630575
+            },
+            "idle0": {
+              "core": 0,
+              "us": 762985,
+              "pct": 14.423565885611124
+            },
+            "idle1": {
+              "core": 1,
+              "us": 455546,
+              "pct": 8.61169976464361
+            },
+            "ipc0": {
+              "core": 0,
+              "us": 0,
+              "pct": 0
+            },
+            "ipc1": {
+              "core": 1,
+              "us": 0,
+              "pct": 0
+            },
+            "timer": {
+              "core": 0,
+              "us": 0,
+              "pct": 0
+            },
+            "renderer0": {
+              "core": 0,
+              "us": 1813059,
+              "pct": 34.27429889316332
+            }
+          }
+        },
+        {
+          "begin": 127398728,
+          "end": 130956570,
+          "duration_us": 3557842,
+          "roles": {
+            "host": {
+              "core": 1,
+              "us": 248822,
+              "pct": 6.993621414329248
+            },
+            "decoder": {
+              "core": 0,
+              "us": 385670,
+              "pct": 10.839997953815825
+            },
+            "renderer1": {
+              "core": 1,
+              "us": 366253,
+              "pct": 10.294245781572087
+            },
+            "logger": {
+              "core": 1,
+              "us": 104194,
+              "pct": 2.928572994528706
+            },
+            "controller": {
+              "core": 1,
+              "us": 308015,
+              "pct": 8.65735465487225
+            },
+            "idle0": {
+              "core": 0,
+              "us": 2850364,
+              "pct": 80.11496856802522
+            },
+            "idle1": {
+              "core": 1,
+              "us": 2414693,
+              "pct": 67.86959623277257
+            },
+            "ipc0": {
+              "core": 0,
+              "us": 0,
+              "pct": 0
+            },
+            "ipc1": {
+              "core": 1,
+              "us": 0,
+              "pct": 0
+            },
+            "timer": {
+              "core": 0,
+              "us": 0,
+              "pct": 0
+            },
+            "renderer0": {
+              "core": 0,
+              "us": 322229,
+              "pct": 9.056866493790338
+            }
+          }
+        }
+      ],
+      "scope": "Whole stream including startup/drain; verified final aggregates, separate detail losses and elapsed-cycle/preemption caveats",
+      "local_dsp_frames": 1348992
+    },
+    {
+      "command_s": 12.229,
+      "source_frames": 2886720,
+      "accepted_frames": 2886720,
+      "rendered_frames": 2886720,
+      "initial_shortage": 55872,
+      "recovered": 25280,
+      "unfilled": 30592,
+      "descriptor_errors": 0,
+      "contract_errors": 0,
+      "copy_max_us": 4,
+      "mask_max_us": 7,
+      "media": {
+        "probe": "media_input",
+        "collection_cycle_us": 167677415,
+        "stream_epoch": 9,
+        "packets": 3008,
+        "payload_bytes": 1702528,
+        "rtp_first_timestamp": 2851200,
+        "rtp_last_timestamp": 5764800,
+        "rate": 192000,
+        "timestamp_origin": "wire_rtp",
+        "snapshot_begin_us": 168920379,
+        "at_us": 168920463,
+        "snapshot_span_us": 84,
+        "record_crc32": "c1207e6c"
+      },
+      "clock": {
+        "probe": "rtp_input_clock",
+        "collection_cycle_us": 167677415,
+        "stream_epoch": 9,
+        "coherent": true,
+        "observed": true,
+        "revision": 12,
+        "max_forward_step_ticks": 27840,
+        "previous_sequence": 5834,
+        "sequence": 5835,
+        "previous_rtp_timestamp": 5643840,
+        "rtp_timestamp": 5671680,
+        "ssrc": 255,
+        "scope": "input_epoch_adjacent_wire_sequence_same_ssrc_forward_half_range",
+        "before_queue_and_decode": true,
+        "loss_count": false,
+        "snapshot_begin_us": 168943065,
+        "at_us": 168943070,
+        "snapshot_span_us": 5,
+        "record_crc32": "34d616d1"
+      },
+      "first_gap": {
+        "probe": "first_starvation",
+        "stream_serial": 2,
+        "captured": true,
+        "coherent": true,
+        "event_us": 148559231,
+        "taken_frames": 0,
+        "input_frames": 1984,
+        "output_frames": 0,
+        "accepted_frames": 18496,
+        "rendered_frames": 16384,
+        "dma_source_frames": 16128,
+        "snapshot_begin_us": 151603363,
+        "at_us": 151603376,
+        "snapshot_span_us": 13,
+        "record_crc32": "09b72853"
+      },
+      "helper_blocks_per_job": 6,
+      "helper_max_frames": 768,
+      "helper_frames": 1462464,
+      "helper_cycles_per_frame": 778.2807405857511,
+      "helper_failures": 0,
+      "local_dsp_cycles_per_frame": 1231.654182955873,
+      "pcm_busy": 7377,
+      "worker_detail_lost": 3201,
+      "queue_full": 0,
+      "decode_reject": 0,
+      "input_sequence_breaks": 0,
+      "host_detail_lost": 0,
+      "snapshot_records_lost": 0,
+      "snapshot_uart_lost": 0,
+      "runtime_windows": [
+        {
+          "begin": 154140146,
+          "end": 160130536,
+          "duration_us": 5990390,
+          "roles": {
+            "host": {
+              "core": 1,
+              "us": 1791091,
+              "pct": 29.899405547885863
+            },
+            "decoder": {
+              "core": 0,
+              "us": 3365939,
+              "pct": 56.18897934858999
+            },
+            "renderer1": {
+              "core": 1,
+              "us": 2715383,
+              "pct": 45.328985258054985
+            },
+            "logger": {
+              "core": 1,
+              "us": 158545,
+              "pct": 2.646655726922621
+            },
+            "controller": {
+              "core": 1,
+              "us": 718039,
+              "pct": 11.986515068301062
+            },
+            "idle0": {
+              "core": 0,
+              "us": 802196,
+              "pct": 13.39138186328436
+            },
+            "idle1": {
+              "core": 1,
+              "us": 394688,
+              "pct": 6.588686212416888
+            },
+            "ipc0": {
+              "core": 0,
+              "us": 0,
+              "pct": 0
+            },
+            "ipc1": {
+              "core": 1,
+              "us": 0,
+              "pct": 0
+            },
+            "timer": {
+              "core": 0,
+              "us": 0,
+              "pct": 0
+            },
+            "renderer0": {
+              "core": 0,
+              "us": 1822869,
+              "pct": 30.429888538141924
+            }
+          }
+        },
+        {
+          "begin": 160130536,
+          "end": 164712872,
+          "duration_us": 4582336,
+          "roles": {
+            "host": {
+              "core": 1,
+              "us": 1191279,
+              "pct": 25.99719880864258
+            },
+            "decoder": {
+              "core": 0,
+              "us": 1600199,
+              "pct": 34.921031543736646
+            },
+            "renderer1": {
+              "core": 1,
+              "us": 1373593,
+              "pct": 29.975824557605552
+            },
+            "logger": {
+              "core": 1,
+              "us": 146888,
+              "pct": 3.2055266135001887
+            },
+            "controller": {
+              "core": 1,
+              "us": 497684,
+              "pct": 10.860923336918113
+            },
+            "idle0": {
+              "core": 0,
+              "us": 1668351,
+              "pct": 36.40830790234501
+            },
+            "idle1": {
+              "core": 1,
+              "us": 1216837,
+              "pct": 26.554949266051203
+            },
+            "ipc0": {
+              "core": 0,
+              "us": 0,
+              "pct": 0
+            },
+            "ipc1": {
+              "core": 1,
+              "us": 0,
+              "pct": 0
+            },
+            "timer": {
+              "core": 0,
+              "us": 0,
+              "pct": 0
+            },
+            "renderer0": {
+              "core": 0,
+              "us": 1313286,
+              "pct": 28.659749088674424
+            }
+          }
+        },
+        {
+          "begin": 164712872,
+          "end": 167677458,
+          "duration_us": 2964586,
+          "roles": {
+            "host": {
+              "core": 1,
+              "us": 0,
+              "pct": 0
+            },
+            "decoder": {
+              "core": 0,
+              "us": 0,
+              "pct": 0
+            },
+            "renderer1": {
+              "core": 1,
+              "us": 90,
+              "pct": 0.003035837044363024
+            },
+            "logger": {
+              "core": 1,
+              "us": 38358,
+              "pct": 1.2938737483075209
+            },
+            "controller": {
+              "core": 1,
+              "us": 137316,
+              "pct": 4.631877773152811
+            },
+            "idle0": {
+              "core": 0,
+              "us": 2965001,
+              "pct": 100.01399858192678
+            },
+            "idle1": {
+              "core": 1,
+              "us": 2695292,
+              "pct": 90.91630332194782
+            },
+            "ipc0": {
+              "core": 0,
+              "us": 0,
+              "pct": 0
+            },
+            "ipc1": {
+              "core": 1,
+              "us": 0,
+              "pct": 0
+            },
+            "timer": {
+              "core": 0,
+              "us": 0,
+              "pct": 0
+            },
+            "renderer0": {
+              "core": 0,
+              "us": 0,
+              "pct": 0
+            }
+          }
+        }
+      ],
+      "scope": "Whole stream including startup/drain; verified final aggregates, separate detail losses and elapsed-cycle/preemption caveats",
+      "local_dsp_frames": 1424256
+    },
+    {
+      "command_s": 12.178,
+      "source_frames": 2866816,
+      "accepted_frames": 2866816,
+      "rendered_frames": 2866816,
+      "initial_shortage": 63936,
+      "recovered": 29888,
+      "unfilled": 34048,
+      "descriptor_errors": 0,
+      "contract_errors": 0,
+      "copy_max_us": 4,
+      "mask_max_us": 7,
+      "media": {
+        "probe": "media_input",
+        "collection_cycle_us": 215991438,
+        "stream_epoch": 11,
+        "packets": 2990,
+        "payload_bytes": 1692340,
+        "rtp_first_timestamp": 5772480,
+        "rtp_last_timestamp": 8668800,
+        "rate": 192000,
+        "timestamp_origin": "wire_rtp",
+        "snapshot_begin_us": 217238949,
+        "at_us": 217238970,
+        "snapshot_span_us": 21,
+        "record_crc32": "2e1ad10b"
+      },
+      "clock": {
+        "probe": "rtp_input_clock",
+        "collection_cycle_us": 215991438,
+        "stream_epoch": 11,
+        "coherent": true,
+        "observed": true,
+        "revision": 18,
+        "max_forward_step_ticks": 27840,
+        "previous_sequence": 8484,
+        "sequence": 8485,
+        "previous_rtp_timestamp": 8218560,
+        "rtp_timestamp": 8246400,
+        "ssrc": 255,
+        "scope": "input_epoch_adjacent_wire_sequence_same_ssrc_forward_half_range",
+        "before_queue_and_decode": true,
+        "loss_count": false,
+        "snapshot_begin_us": 217261577,
+        "at_us": 217261582,
+        "snapshot_span_us": 5,
+        "record_crc32": "a71dfd01"
+      },
+      "first_gap": {
+        "probe": "first_starvation",
+        "stream_serial": 3,
+        "captured": true,
+        "coherent": true,
+        "event_us": 197633965,
+        "taken_frames": 0,
+        "input_frames": 1728,
+        "output_frames": 0,
+        "accepted_frames": 8640,
+        "rendered_frames": 6784,
+        "dma_source_frames": 6528,
+        "snapshot_begin_us": 199135260,
+        "at_us": 199135273,
+        "snapshot_span_us": 13,
+        "record_crc32": "0c2caf58"
+      },
+      "helper_blocks_per_job": 6,
+      "helper_max_frames": 768,
+      "helper_frames": 1456128,
+      "helper_cycles_per_frame": 778.9666203795271,
+      "helper_failures": 0,
+      "local_dsp_cycles_per_frame": 1239.8780346894564,
+      "pcm_busy": 6795,
+      "worker_detail_lost": 2925,
+      "queue_full": 0,
+      "decode_reject": 0,
+      "input_sequence_breaks": 0,
+      "host_detail_lost": 0,
+      "snapshot_records_lost": 0,
+      "snapshot_uart_lost": 0,
+      "runtime_windows": [
+        {
+          "begin": 201665567,
+          "end": 207358250,
+          "duration_us": 5692683,
+          "roles": {
+            "host": {
+              "core": 1,
+              "us": 1652288,
+              "pct": 29.024767407565115
+            },
+            "decoder": {
+              "core": 0,
+              "us": 3178988,
+              "pct": 55.84340459498623
+            },
+            "renderer1": {
+              "core": 1,
+              "us": 2594465,
+              "pct": 45.57543428994729
+            },
+            "logger": {
+              "core": 1,
+              "us": 154234,
+              "pct": 2.7093375829990887
+            },
+            "controller": {
+              "core": 1,
+              "us": 671190,
+              "pct": 11.790398306036012
+            },
+            "idle0": {
+              "core": 0,
+              "us": 795991,
+              "pct": 13.982703762004665
+            },
+            "idle1": {
+              "core": 1,
+              "us": 374802,
+              "pct": 6.583925365245175
+            },
+            "ipc0": {
+              "core": 0,
+              "us": 0,
+              "pct": 0
+            },
+            "ipc1": {
+              "core": 1,
+              "us": 0,
+              "pct": 0
+            },
+            "timer": {
+              "core": 0,
+              "us": 0,
+              "pct": 0
+            },
+            "renderer0": {
+              "core": 0,
+              "us": 1675010,
+              "pct": 29.423911361303624
+            }
+          }
+        },
+        {
+          "begin": 207358250,
+          "end": 212651213,
+          "duration_us": 5292963,
+          "roles": {
+            "host": {
+              "core": 1,
+              "us": 1721811,
+              "pct": 32.53019150143313
+            },
+            "decoder": {
+              "core": 0,
+              "us": 2607991,
+              "pct": 49.272798619601154
+            },
+            "renderer1": {
+              "core": 1,
+              "us": 2117032,
+              "pct": 39.997105590951605
+            },
+            "logger": {
+              "core": 1,
+              "us": 158955,
+              "pct": 3.003138317800446
+            },
+            "controller": {
+              "core": 1,
+              "us": 690310,
+              "pct": 13.042033356363913
+            },
+            "idle0": {
+              "core": 0,
+              "us": 797861,
+              "pct": 15.073995416178047
+            },
+            "idle1": {
+              "core": 1,
+              "us": 417130,
+              "pct": 7.880841033651661
+            },
+            "ipc0": {
+              "core": 0,
+              "us": 0,
+              "pct": 0
+            },
+            "ipc1": {
+              "core": 1,
+              "us": 0,
+              "pct": 0
+            },
+            "timer": {
+              "core": 0,
+              "us": 0,
+              "pct": 0
+            },
+            "renderer0": {
+              "core": 0,
+              "us": 1888589,
+              "pct": 35.68112983219418
+            }
+          }
+        },
+        {
+          "begin": 212651213,
+          "end": 215991482,
+          "duration_us": 3340269,
+          "roles": {
+            "host": {
+              "core": 1,
+              "us": 19231,
+              "pct": 0.5757320742730601
+            },
+            "decoder": {
+              "core": 0,
+              "us": 17790,
+              "pct": 0.5325918361664884
+            },
+            "renderer1": {
+              "core": 1,
+              "us": 19981,
+              "pct": 0.5981853557303319
+            },
+            "logger": {
+              "core": 1,
+              "us": 98831,
+              "pct": 2.958773679604846
+            },
+            "controller": {
+              "core": 1,
+              "us": 159270,
+              "pct": 4.768178850266251
+            },
+            "idle0": {
+              "core": 0,
+              "us": 3304755,
+              "pct": 98.93679221643526
+            },
+            "idle1": {
+              "core": 1,
+              "us": 2936223,
+              "pct": 87.90378858708685
+            },
+            "ipc0": {
+              "core": 0,
+              "us": 0,
+              "pct": 0
+            },
+            "ipc1": {
+              "core": 1,
+              "us": 0,
+              "pct": 0
+            },
+            "timer": {
+              "core": 0,
+              "us": 0,
+              "pct": 0
+            },
+            "renderer0": {
+              "core": 0,
+              "us": 17925,
+              "pct": 0.5366334268287973
+            }
+          }
+        }
+      ],
+      "scope": "Whole stream including startup/drain; verified final aggregates, separate detail losses and elapsed-cycle/preemption caveats",
+      "local_dsp_frames": 1410688
+    }
+  ],
+  "ldac": {
+    "command_s": 12.234,
+    "source_frames": 1443584,
+    "accepted_frames": 1443584,
+    "rendered_frames": 1443584,
+    "initial_shortage": 0,
+    "recovered": 0,
+    "unfilled": 0,
+    "descriptor_errors": 0,
+    "contract_errors": 0,
+    "copy_max_us": 0,
+    "mask_max_us": 0,
+    "media": {
+      "probe": "media_input",
+      "collection_cycle_us": 412703516,
+      "stream_epoch": 16,
+      "packets": 1556,
+      "payload_bytes": 1024564,
+      "rtp_first_timestamp": 0,
+      "rtp_last_timestamp": 796160,
+      "rate": 96000,
+      "timestamp_origin": "wire_rtp",
+      "snapshot_begin_us": 413947446,
+      "at_us": 413947478,
+      "snapshot_span_us": 32,
+      "record_crc32": "d51c72b6"
+    },
+    "clock": {
+      "probe": "rtp_input_clock",
+      "collection_cycle_us": 412703516,
+      "stream_epoch": 16,
+      "coherent": true,
+      "observed": true,
+      "revision": 22,
+      "max_forward_step_ticks": 512,
+      "previous_sequence": 1,
+      "sequence": 2,
+      "previous_rtp_timestamp": 0,
+      "rtp_timestamp": 512,
+      "ssrc": 255,
+      "scope": "input_epoch_adjacent_wire_sequence_same_ssrc_forward_half_range",
+      "before_queue_and_decode": true,
+      "loss_count": false,
+      "snapshot_begin_us": 413970129,
+      "at_us": 413970135,
+      "snapshot_span_us": 6,
+      "record_crc32": "3fac47b7"
+    },
+    "helper_blocks_per_job": 6,
+    "helper_max_frames": 768,
+    "helper_frames": 0,
+    "helper_cycles_per_frame": null,
+    "helper_failures": 0,
+    "local_dsp_cycles_per_frame": 804.027093677957,
+    "pcm_busy": 12752,
+    "worker_detail_lost": 5535,
+    "queue_full": 0,
+    "decode_reject": 0,
+    "input_sequence_breaks": 0,
+    "host_detail_lost": 0,
+    "snapshot_records_lost": 0,
+    "snapshot_uart_lost": 0,
+    "runtime_windows": [
+      {
+        "begin": 397488569,
+        "end": 401292808,
+        "duration_us": 3804239,
+        "roles": {
+          "host": {
+            "core": 1,
+            "us": 1496832,
+            "pct": 39.34642381827219
+          },
+          "decoder": {
+            "core": 0,
+            "us": 1531887,
+            "pct": 40.26789589192477
+          },
+          "renderer1": {
+            "core": 1,
+            "us": 0,
+            "pct": 0
+          },
+          "logger": {
+            "core": 1,
+            "us": 151084,
+            "pct": 3.971464463720602
+          },
+          "controller": {
+            "core": 1,
+            "us": 471072,
+            "pct": 12.382818219360034
+          },
+          "idle0": {
+            "core": 0,
+            "us": 703080,
+            "pct": 18.481488676184647
+          },
+          "idle1": {
+            "core": 1,
+            "us": 1549767,
+            "pct": 40.737897908096734
+          },
+          "ipc0": {
+            "core": 0,
+            "us": 0,
+            "pct": 0
+          },
+          "ipc1": {
+            "core": 1,
+            "us": 0,
+            "pct": 0
+          },
+          "timer": {
+            "core": 0,
+            "us": 0,
+            "pct": 0
+          },
+          "renderer0": {
+            "core": 0,
+            "us": 1568881,
+            "pct": 41.2403374235951
+          }
+        }
+      },
+      {
+        "begin": 401292808,
+        "end": 405057773,
+        "duration_us": 3764965,
+        "roles": {
+          "host": {
+            "core": 1,
+            "us": 1465213,
+            "pct": 38.917041725487486
+          },
+          "decoder": {
+            "core": 0,
+            "us": 1510654,
+            "pct": 40.123985216330034
+          },
+          "renderer1": {
+            "core": 1,
+            "us": 0,
+            "pct": 0
+          },
+          "logger": {
+            "core": 1,
+            "us": 147573,
+            "pct": 3.9196380311636365
+          },
+          "controller": {
+            "core": 1,
+            "us": 462661,
+            "pct": 12.288587012097057
+          },
+          "idle0": {
+            "core": 0,
+            "us": 702123,
+            "pct": 18.64885862152769
+          },
+          "idle1": {
+            "core": 1,
+            "us": 1583658,
+            "pct": 42.06302050616672
+          },
+          "ipc0": {
+            "core": 0,
+            "us": 0,
+            "pct": 0
+          },
+          "ipc1": {
+            "core": 1,
+            "us": 0,
+            "pct": 0
+          },
+          "timer": {
+            "core": 0,
+            "us": 0,
+            "pct": 0
+          },
+          "renderer0": {
+            "core": 0,
+            "us": 1552544,
+            "pct": 41.23661176133111
+          }
+        }
+      },
+      {
+        "begin": 405057773,
+        "end": 408938486,
+        "duration_us": 3880713,
+        "roles": {
+          "host": {
+            "core": 1,
+            "us": 1736415,
+            "pct": 44.74474149466863
+          },
+          "decoder": {
+            "core": 0,
+            "us": 1618248,
+            "pct": 41.69975981217885
+          },
+          "renderer1": {
+            "core": 1,
+            "us": 0,
+            "pct": 0
+          },
+          "logger": {
+            "core": 1,
+            "us": 149204,
+            "pct": 3.844757393808818
+          },
+          "controller": {
+            "core": 1,
+            "us": 512041,
+            "pct": 13.19450832875299
+          },
+          "idle0": {
+            "core": 0,
+            "us": 670463,
+            "pct": 17.276799392276626
+          },
+          "idle1": {
+            "core": 1,
+            "us": 1341248,
+            "pct": 34.5618962288631
+          },
+          "ipc0": {
+            "core": 0,
+            "us": 0,
+            "pct": 0
+          },
+          "ipc1": {
+            "core": 1,
+            "us": 0,
+            "pct": 0
+          },
+          "timer": {
+            "core": 0,
+            "us": 0,
+            "pct": 0
+          },
+          "renderer0": {
+            "core": 0,
+            "us": 1598751,
+            "pct": 41.19735213606366
+          }
+        }
+      },
+      {
+        "begin": 408938486,
+        "end": 412703561,
+        "duration_us": 3765075,
+        "roles": {
+          "host": {
+            "core": 1,
+            "us": 1115023,
+            "pct": 29.614894789612425
+          },
+          "decoder": {
+            "core": 0,
+            "us": 953173,
+            "pct": 25.31617564059149
+          },
+          "renderer1": {
+            "core": 1,
+            "us": 0,
+            "pct": 0
+          },
+          "logger": {
+            "core": 1,
+            "us": 118581,
+            "pct": 3.1494990139638652
+          },
+          "controller": {
+            "core": 1,
+            "us": 394319,
+            "pct": 10.473071585559385
+          },
+          "idle0": {
+            "core": 0,
+            "us": 1877841,
+            "pct": 49.87526144897512
+          },
+          "idle1": {
+            "core": 1,
+            "us": 1988601,
+            "pct": 52.81703551722077
+          },
+          "ipc0": {
+            "core": 0,
+            "us": 0,
+            "pct": 0
+          },
+          "ipc1": {
+            "core": 1,
+            "us": 0,
+            "pct": 0
+          },
+          "timer": {
+            "core": 0,
+            "us": 0,
+            "pct": 0
+          },
+          "renderer0": {
+            "core": 0,
+            "us": 926997,
+            "pct": 24.620943805900282
+          }
+        }
+      },
+      {
+        "begin": 412703561,
+        "end": 415593557,
+        "duration_us": 2889996,
+        "roles": {
+          "host": {
+            "core": 1,
+            "us": 0,
+            "pct": 0
+          },
+          "decoder": {
+            "core": 0,
+            "us": 0,
+            "pct": 0
+          },
+          "renderer1": {
+            "core": 1,
+            "us": 0,
+            "pct": 0
+          },
+          "logger": {
+            "core": 1,
+            "us": 29289,
+            "pct": 1.0134616103274883
+          },
+          "controller": {
+            "core": 1,
+            "us": 133052,
+            "pct": 4.603881804680698
+          },
+          "idle0": {
+            "core": 0,
+            "us": 2889982,
+            "pct": 99.99951557026377
+          },
+          "idle1": {
+            "core": 1,
+            "us": 2637178,
+            "pct": 91.25196021032555
+          },
+          "ipc0": {
+            "core": 0,
+            "us": 0,
+            "pct": 0
+          },
+          "ipc1": {
+            "core": 1,
+            "us": 0,
+            "pct": 0
+          },
+          "timer": {
+            "core": 0,
+            "us": 0,
+            "pct": 0
+          },
+          "renderer0": {
+            "core": 0,
+            "us": 18,
+            "pct": 0.0006228382323020516
+          }
+        }
+      }
+    ],
+    "scope": "Whole stream including startup/drain; verified final aggregates, separate detail losses and elapsed-cycle/preemption caveats",
+    "local_dsp_frames": 1443584
+  },
+  "volume_actions": [
+    {
+      "action": "eight_volume_down",
+      "time": 1794047475864,
+      "readback": "[V] will control stream=3 (STREAM_MUSIC)\r\n[V] will get volume\r\n[V] Connecting to AudioService\r\n[V] volume is 0 in range [0..150]\r\n"
+    },
+    {
+      "action": "eight_volume_up",
+      "time": 1794047478970,
+      "readback": "[V] will control stream=3 (STREAM_MUSIC)\r\n[V] will get volume\r\n[V] Connecting to AudioService\r\n[V] volume is 80 in range [0..150]\r\n"
+    }
+  ],
+  "active_memory": [
+    {
+      "label": "baseline1",
+      "records": [
+        {
+          "resident": 60704,
+          "free": 19588,
+          "min": 19588,
+          "largest": 18432,
+          "decoder_stack_low": 5952
+        },
+        {
+          "resident": 60704,
+          "free": 19588,
+          "min": 19588,
+          "largest": 18432,
+          "decoder_stack_low": 5952
+        }
+      ]
+    },
+    {
+      "label": "baseline2",
+      "records": [
+        {
+          "resident": 60704,
+          "free": 19588,
+          "min": 19588,
+          "largest": 18432,
+          "decoder_stack_low": 5952
+        },
+        {
+          "resident": 60704,
+          "free": 19588,
+          "min": 19588,
+          "largest": 18432,
+          "decoder_stack_low": 5952
+        }
+      ]
+    },
+    {
+      "label": "baseline3",
+      "records": [
+        {
+          "resident": 60704,
+          "free": 19588,
+          "min": 19588,
+          "largest": 18432,
+          "decoder_stack_low": 5952
+        },
+        {
+          "resident": 60704,
+          "free": 19588,
+          "min": 19588,
+          "largest": 18432,
+          "decoder_stack_low": 5952
+        }
+      ]
+    },
+    {
+      "label": "candidate1",
+      "records": [
+        {
+          "resident": 60704,
+          "free": 19580,
+          "min": 19580,
+          "largest": 17408,
+          "decoder_stack_low": 5952
+        },
+        {
+          "resident": 60704,
+          "free": 19580,
+          "min": 19580,
+          "largest": 17408,
+          "decoder_stack_low": 5952
+        }
+      ]
+    },
+    {
+      "label": "candidate2",
+      "records": [
+        {
+          "resident": 60704,
+          "free": 19588,
+          "min": 19580,
+          "largest": 17408,
+          "decoder_stack_low": 5952
+        },
+        {
+          "resident": 60704,
+          "free": 19588,
+          "min": 19580,
+          "largest": 17408,
+          "decoder_stack_low": 5952
+        },
+        {
+          "resident": 60704,
+          "free": 19588,
+          "min": 19580,
+          "largest": 17408,
+          "decoder_stack_low": 5952
+        }
+      ]
+    },
+    {
+      "label": "candidate3",
+      "records": [
+        {
+          "resident": 60704,
+          "free": 19588,
+          "min": 19580,
+          "largest": 17408,
+          "decoder_stack_low": 5952
+        },
+        {
+          "resident": 60704,
+          "free": 19588,
+          "min": 19580,
+          "largest": 17408,
+          "decoder_stack_low": 5952
+        },
+        {
+          "resident": 60704,
+          "free": 19588,
+          "min": 19580,
+          "largest": 17408,
+          "decoder_stack_low": 5952
+        }
+      ]
+    }
+  ],
+  "full_goal_qualified": false
+}
