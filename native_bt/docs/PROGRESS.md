@@ -1,5 +1,18 @@
 # Current project progress
 
+Latest experimental candidate: [full-range finalizer](DSP_FULL_OUTPUT_2026_11_07.md).
+Exact-state8.8M frames plus independent1.85M wide-oracle samples and lifecycle
+checks pass. Ccache b309817ce3d6 passes admission/readbacks/owned VALID/37 existing
+cold cases. Helper778.9 ->717.0 elapsed cycles/sample; LHDC unfilled
+32832/17280/22528 still fails. IRAM+288, observed8-bit free heap-324.
+Runs2/3 have normal960 RTP maximum/zero span excess but still consumer gaps.
+LDAC regression aborted before play/volume actions due stale UART. Independent
+UART capture0 bytes and one ROM read-MAC attempt no data; cause unproven.
+PhysicalCOM6 replug requested, COM7 untouched; current runtime unobserved.
+Off-board smaller compiler objects are measured for size only, not selected.
+Full master goal and all remaining qualification gates stay open.
+The following entries are historical.
+
 Latest: [idle DSP ramp-call guard](DSP_IDLE_RAMP_2026_11_07.md).
 One per-segment predicate skips three no-op calls per idle sample; active ramps
 retain canonical advancement. Independent scalar/full-state comparisons pass

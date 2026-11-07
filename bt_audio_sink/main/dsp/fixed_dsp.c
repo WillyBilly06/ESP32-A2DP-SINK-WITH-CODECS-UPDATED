@@ -549,6 +549,20 @@ static BLOCK_KERNEL DSP_BLOCK_HOT void filter_volume_ramp_block(fdsp_coefficient
     }
 }
 #endif
+/* Steady full-range output has one immutable gain and no routing crossfade.
+ * Keep this small loop separate from the block/split workspace. limit() bounds
+ * every result to abs(value)<AUDIO_ONE: below the knee this is immediate; above
+ * it, range*excess/(range+excess)<range. Multiplication by16 therefore fits
+ * int32_t exactly, including INT32_MIN input to the limiter. */
+static BLOCK_KERNEL DSP_BLOCK_HOT void finish_full_block(fixed_dsp_t *dsp,
+    int32_t *pcm,unsigned frames){
+    int32_t volume=dsp->volume.value;
+    for(unsigned i=0;i<2u*frames;++i){
+        int32_t value=pcm[i];
+        if(volume!=UNITY_GAIN)value=clamp32(((int64_t)value*volume)>>31);
+        pcm[i]=limit(dsp,value)*16;
+    }
+}
 #if defined(FIXED_DSP_VOLUME_RAMP_COMPARE) || defined(FIXED_DSP_MATCHED_FEEDBACK_COMPARE)
 static bool DSP_BLOCK_HOT volume_block_impl(fixed_dsp_t *dsp,int32_t *pcm,uint16_t frames,bool reuse_volume){
 #else
@@ -614,7 +628,8 @@ bool DSP_BLOCK_HOT fixed_dsp_process_block(fixed_dsp_t *dsp,int32_t *pcm,uint16_
          * a ramp; active segments keep canonical advancement even when a ramp
          * finishes inside this segment. Avoid three no-op calls per idle frame. */
         bool advance_ramps=dsp->volume.remaining || dsp->bypass.remaining || dsp->flip.remaining;
-        for(unsigned i=0;i<count;++i){
+        if(!advance_ramps && !divided)finish_full_block(dsp,pcm,count);
+        else for(unsigned i=0;i<count;++i){
             if(advance_ramps){
                 ramp_advance(&dsp->volume);ramp_advance(&dsp->bypass);ramp_advance(&dsp->flip);
             }

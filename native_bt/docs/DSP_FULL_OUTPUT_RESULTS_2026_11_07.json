@@ -1,0 +1,2745 @@
+{
+  "scope": "Experimental exact full-range finalizer; lower scoped LHDC DSP cost, incomplete LDAC/UART recovery gate",
+  "image": "b309817ce3d69f8d7140f0d7cf79684a8ddc5734064f6516ddf3d74c73f39df1",
+  "archive": "runs/1794048391333768300-b309817ce3d6",
+  "boot": {
+    "probe": "boot_selection",
+    "host": "owned",
+    "kept_active": true,
+    "partition": 3735552,
+    "ota_state": 2,
+    "result": 0,
+    "production_ready": false
+  },
+  "readbacks": [
+    true,
+    true
+  ],
+  "cold_check": {
+    "probe": "target_codec_selftest",
+    "passed": true,
+    "configurations": 37,
+    "selected": 37,
+    "callbacks": 173,
+    "stack_bytes": 8192,
+    "stack_low_water_bytes": 3600,
+    "tracked_peak_bytes": 56899,
+    "min_free_after_alloc_bytes": 103284,
+    "maximum_decode_us": 13961,
+    "rf_test": false
+  },
+  "footprint_delta": {
+    ".iram0.vectors": 0,
+    ".iram0.text": 288,
+    ".dram0.data": 0,
+    ".dram0.bss": 0,
+    ".flash.rodata": 0,
+    ".flash.text": 0
+  },
+  "baseline_image": "950428ba68dd7846609cecf42a4bbfea712c246527e664f7190ef3a6d8b756fb",
+  "baseline": [
+    {
+      "command_s": 12.219,
+      "source_frames": 2801792,
+      "accepted_frames": 2801792,
+      "rendered_frames": 2801792,
+      "initial_shortage": 82944,
+      "recovered": 35200,
+      "unfilled": 47744,
+      "descriptor_errors": 0,
+      "contract_errors": 0,
+      "copy_max_us": 4,
+      "mask_max_us": 7,
+      "media": {
+        "probe": "media_input",
+        "collection_cycle_us": 130956526,
+        "stream_epoch": 7,
+        "packets": 2922,
+        "payload_bytes": 1653852,
+        "rtp_first_timestamp": 0,
+        "rtp_last_timestamp": 2831040,
+        "rate": 192000,
+        "timestamp_origin": "wire_rtp",
+        "snapshot_begin_us": 132199670,
+        "at_us": 132199692,
+        "snapshot_span_us": 22,
+        "record_crc32": "8330b7b9"
+      },
+      "clock": {
+        "probe": "rtp_input_clock",
+        "collection_cycle_us": 130956526,
+        "stream_epoch": 7,
+        "coherent": true,
+        "observed": true,
+        "revision": 6,
+        "max_forward_step_ticks": 27840,
+        "previous_sequence": 1214,
+        "sequence": 1215,
+        "previous_rtp_timestamp": 1164480,
+        "rtp_timestamp": 1192320,
+        "ssrc": 255,
+        "scope": "input_epoch_adjacent_wire_sequence_same_ssrc_forward_half_range",
+        "before_queue_and_decode": true,
+        "loss_count": false,
+        "snapshot_begin_us": 132222257,
+        "at_us": 132222262,
+        "snapshot_span_us": 5,
+        "record_crc32": "2a9130c1"
+      },
+      "first_gap": {
+        "probe": "first_starvation",
+        "stream_serial": 1,
+        "captured": true,
+        "coherent": true,
+        "event_us": 113503913,
+        "taken_frames": 0,
+        "input_frames": 1984,
+        "output_frames": 0,
+        "accepted_frames": 10816,
+        "rendered_frames": 8704,
+        "dma_source_frames": 8448,
+        "snapshot_begin_us": 113949839,
+        "at_us": 113949852,
+        "snapshot_span_us": 13,
+        "record_crc32": "1aaffc28"
+      },
+      "helper_blocks_per_job": 6,
+      "helper_max_frames": 768,
+      "helper_frames": 1452800,
+      "helper_cycles_per_frame": 779.3431711178414,
+      "helper_failures": 0,
+      "local_dsp_cycles_per_frame": 1275.5611108145933,
+      "pcm_busy": 6409,
+      "worker_detail_lost": 2778,
+      "queue_full": 0,
+      "decode_reject": 0,
+      "input_sequence_breaks": 0,
+      "host_detail_lost": 0,
+      "snapshot_records_lost": 0,
+      "snapshot_uart_lost": 0,
+      "runtime_windows": [
+        {
+          "begin": 116471939,
+          "end": 122108878,
+          "duration_us": 5636939,
+          "roles": {
+            "host": {
+              "core": 1,
+              "us": 1699399,
+              "pct": 30.147549938007135
+            },
+            "decoder": {
+              "core": 0,
+              "us": 3106427,
+              "pct": 55.108401918133225
+            },
+            "renderer1": {
+              "core": 1,
+              "us": 2410431,
+              "pct": 42.7613461845161
+            },
+            "logger": {
+              "core": 1,
+              "us": 159331,
+              "pct": 2.826551786350713
+            },
+            "controller": {
+              "core": 1,
+              "us": 712996,
+              "pct": 12.648637851145809
+            },
+            "idle0": {
+              "core": 0,
+              "us": 734007,
+              "pct": 13.021375608286696
+            },
+            "idle1": {
+              "core": 1,
+              "us": 450766,
+              "pct": 7.9966449876431165
+            },
+            "ipc0": {
+              "core": 0,
+              "us": 0,
+              "pct": 0
+            },
+            "ipc1": {
+              "core": 1,
+              "us": 0,
+              "pct": 0
+            },
+            "timer": {
+              "core": 0,
+              "us": 0,
+              "pct": 0
+            },
+            "renderer0": {
+              "core": 0,
+              "us": 1796265,
+              "pct": 31.865964843685553
+            }
+          }
+        },
+        {
+          "begin": 122108878,
+          "end": 127398728,
+          "duration_us": 5289850,
+          "roles": {
+            "host": {
+              "core": 1,
+              "us": 1600987,
+              "pct": 30.265262720114936
+            },
+            "decoder": {
+              "core": 0,
+              "us": 2713550,
+              "pct": 51.29729576453018
+            },
+            "renderer1": {
+              "core": 1,
+              "us": 2175883,
+              "pct": 41.13317012769738
+            },
+            "logger": {
+              "core": 1,
+              "us": 151416,
+              "pct": 2.86238740228929
+            },
+            "controller": {
+              "core": 1,
+              "us": 718308,
+              "pct": 13.578986171630575
+            },
+            "idle0": {
+              "core": 0,
+              "us": 762985,
+              "pct": 14.423565885611124
+            },
+            "idle1": {
+              "core": 1,
+              "us": 455546,
+              "pct": 8.61169976464361
+            },
+            "ipc0": {
+              "core": 0,
+              "us": 0,
+              "pct": 0
+            },
+            "ipc1": {
+              "core": 1,
+              "us": 0,
+              "pct": 0
+            },
+            "timer": {
+              "core": 0,
+              "us": 0,
+              "pct": 0
+            },
+            "renderer0": {
+              "core": 0,
+              "us": 1813059,
+              "pct": 34.27429889316332
+            }
+          }
+        },
+        {
+          "begin": 127398728,
+          "end": 130956570,
+          "duration_us": 3557842,
+          "roles": {
+            "host": {
+              "core": 1,
+              "us": 248822,
+              "pct": 6.993621414329248
+            },
+            "decoder": {
+              "core": 0,
+              "us": 385670,
+              "pct": 10.839997953815825
+            },
+            "renderer1": {
+              "core": 1,
+              "us": 366253,
+              "pct": 10.294245781572087
+            },
+            "logger": {
+              "core": 1,
+              "us": 104194,
+              "pct": 2.928572994528706
+            },
+            "controller": {
+              "core": 1,
+              "us": 308015,
+              "pct": 8.65735465487225
+            },
+            "idle0": {
+              "core": 0,
+              "us": 2850364,
+              "pct": 80.11496856802522
+            },
+            "idle1": {
+              "core": 1,
+              "us": 2414693,
+              "pct": 67.86959623277257
+            },
+            "ipc0": {
+              "core": 0,
+              "us": 0,
+              "pct": 0
+            },
+            "ipc1": {
+              "core": 1,
+              "us": 0,
+              "pct": 0
+            },
+            "timer": {
+              "core": 0,
+              "us": 0,
+              "pct": 0
+            },
+            "renderer0": {
+              "core": 0,
+              "us": 322229,
+              "pct": 9.056866493790338
+            }
+          }
+        }
+      ],
+      "scope": "Whole stream including startup/drain; verified final aggregates, separate detail losses and elapsed-cycle/preemption caveats",
+      "local_dsp_frames": 1348992
+    },
+    {
+      "command_s": 12.229,
+      "source_frames": 2886720,
+      "accepted_frames": 2886720,
+      "rendered_frames": 2886720,
+      "initial_shortage": 55872,
+      "recovered": 25280,
+      "unfilled": 30592,
+      "descriptor_errors": 0,
+      "contract_errors": 0,
+      "copy_max_us": 4,
+      "mask_max_us": 7,
+      "media": {
+        "probe": "media_input",
+        "collection_cycle_us": 167677415,
+        "stream_epoch": 9,
+        "packets": 3008,
+        "payload_bytes": 1702528,
+        "rtp_first_timestamp": 2851200,
+        "rtp_last_timestamp": 5764800,
+        "rate": 192000,
+        "timestamp_origin": "wire_rtp",
+        "snapshot_begin_us": 168920379,
+        "at_us": 168920463,
+        "snapshot_span_us": 84,
+        "record_crc32": "c1207e6c"
+      },
+      "clock": {
+        "probe": "rtp_input_clock",
+        "collection_cycle_us": 167677415,
+        "stream_epoch": 9,
+        "coherent": true,
+        "observed": true,
+        "revision": 12,
+        "max_forward_step_ticks": 27840,
+        "previous_sequence": 5834,
+        "sequence": 5835,
+        "previous_rtp_timestamp": 5643840,
+        "rtp_timestamp": 5671680,
+        "ssrc": 255,
+        "scope": "input_epoch_adjacent_wire_sequence_same_ssrc_forward_half_range",
+        "before_queue_and_decode": true,
+        "loss_count": false,
+        "snapshot_begin_us": 168943065,
+        "at_us": 168943070,
+        "snapshot_span_us": 5,
+        "record_crc32": "34d616d1"
+      },
+      "first_gap": {
+        "probe": "first_starvation",
+        "stream_serial": 2,
+        "captured": true,
+        "coherent": true,
+        "event_us": 148559231,
+        "taken_frames": 0,
+        "input_frames": 1984,
+        "output_frames": 0,
+        "accepted_frames": 18496,
+        "rendered_frames": 16384,
+        "dma_source_frames": 16128,
+        "snapshot_begin_us": 151603363,
+        "at_us": 151603376,
+        "snapshot_span_us": 13,
+        "record_crc32": "09b72853"
+      },
+      "helper_blocks_per_job": 6,
+      "helper_max_frames": 768,
+      "helper_frames": 1462464,
+      "helper_cycles_per_frame": 778.2807405857511,
+      "helper_failures": 0,
+      "local_dsp_cycles_per_frame": 1231.654182955873,
+      "pcm_busy": 7377,
+      "worker_detail_lost": 3201,
+      "queue_full": 0,
+      "decode_reject": 0,
+      "input_sequence_breaks": 0,
+      "host_detail_lost": 0,
+      "snapshot_records_lost": 0,
+      "snapshot_uart_lost": 0,
+      "runtime_windows": [
+        {
+          "begin": 154140146,
+          "end": 160130536,
+          "duration_us": 5990390,
+          "roles": {
+            "host": {
+              "core": 1,
+              "us": 1791091,
+              "pct": 29.899405547885863
+            },
+            "decoder": {
+              "core": 0,
+              "us": 3365939,
+              "pct": 56.18897934858999
+            },
+            "renderer1": {
+              "core": 1,
+              "us": 2715383,
+              "pct": 45.328985258054985
+            },
+            "logger": {
+              "core": 1,
+              "us": 158545,
+              "pct": 2.646655726922621
+            },
+            "controller": {
+              "core": 1,
+              "us": 718039,
+              "pct": 11.986515068301062
+            },
+            "idle0": {
+              "core": 0,
+              "us": 802196,
+              "pct": 13.39138186328436
+            },
+            "idle1": {
+              "core": 1,
+              "us": 394688,
+              "pct": 6.588686212416888
+            },
+            "ipc0": {
+              "core": 0,
+              "us": 0,
+              "pct": 0
+            },
+            "ipc1": {
+              "core": 1,
+              "us": 0,
+              "pct": 0
+            },
+            "timer": {
+              "core": 0,
+              "us": 0,
+              "pct": 0
+            },
+            "renderer0": {
+              "core": 0,
+              "us": 1822869,
+              "pct": 30.429888538141924
+            }
+          }
+        },
+        {
+          "begin": 160130536,
+          "end": 164712872,
+          "duration_us": 4582336,
+          "roles": {
+            "host": {
+              "core": 1,
+              "us": 1191279,
+              "pct": 25.99719880864258
+            },
+            "decoder": {
+              "core": 0,
+              "us": 1600199,
+              "pct": 34.921031543736646
+            },
+            "renderer1": {
+              "core": 1,
+              "us": 1373593,
+              "pct": 29.975824557605552
+            },
+            "logger": {
+              "core": 1,
+              "us": 146888,
+              "pct": 3.2055266135001887
+            },
+            "controller": {
+              "core": 1,
+              "us": 497684,
+              "pct": 10.860923336918113
+            },
+            "idle0": {
+              "core": 0,
+              "us": 1668351,
+              "pct": 36.40830790234501
+            },
+            "idle1": {
+              "core": 1,
+              "us": 1216837,
+              "pct": 26.554949266051203
+            },
+            "ipc0": {
+              "core": 0,
+              "us": 0,
+              "pct": 0
+            },
+            "ipc1": {
+              "core": 1,
+              "us": 0,
+              "pct": 0
+            },
+            "timer": {
+              "core": 0,
+              "us": 0,
+              "pct": 0
+            },
+            "renderer0": {
+              "core": 0,
+              "us": 1313286,
+              "pct": 28.659749088674424
+            }
+          }
+        },
+        {
+          "begin": 164712872,
+          "end": 167677458,
+          "duration_us": 2964586,
+          "roles": {
+            "host": {
+              "core": 1,
+              "us": 0,
+              "pct": 0
+            },
+            "decoder": {
+              "core": 0,
+              "us": 0,
+              "pct": 0
+            },
+            "renderer1": {
+              "core": 1,
+              "us": 90,
+              "pct": 0.003035837044363024
+            },
+            "logger": {
+              "core": 1,
+              "us": 38358,
+              "pct": 1.2938737483075209
+            },
+            "controller": {
+              "core": 1,
+              "us": 137316,
+              "pct": 4.631877773152811
+            },
+            "idle0": {
+              "core": 0,
+              "us": 2965001,
+              "pct": 100.01399858192678
+            },
+            "idle1": {
+              "core": 1,
+              "us": 2695292,
+              "pct": 90.91630332194782
+            },
+            "ipc0": {
+              "core": 0,
+              "us": 0,
+              "pct": 0
+            },
+            "ipc1": {
+              "core": 1,
+              "us": 0,
+              "pct": 0
+            },
+            "timer": {
+              "core": 0,
+              "us": 0,
+              "pct": 0
+            },
+            "renderer0": {
+              "core": 0,
+              "us": 0,
+              "pct": 0
+            }
+          }
+        }
+      ],
+      "scope": "Whole stream including startup/drain; verified final aggregates, separate detail losses and elapsed-cycle/preemption caveats",
+      "local_dsp_frames": 1424256
+    },
+    {
+      "command_s": 12.178,
+      "source_frames": 2866816,
+      "accepted_frames": 2866816,
+      "rendered_frames": 2866816,
+      "initial_shortage": 63936,
+      "recovered": 29888,
+      "unfilled": 34048,
+      "descriptor_errors": 0,
+      "contract_errors": 0,
+      "copy_max_us": 4,
+      "mask_max_us": 7,
+      "media": {
+        "probe": "media_input",
+        "collection_cycle_us": 215991438,
+        "stream_epoch": 11,
+        "packets": 2990,
+        "payload_bytes": 1692340,
+        "rtp_first_timestamp": 5772480,
+        "rtp_last_timestamp": 8668800,
+        "rate": 192000,
+        "timestamp_origin": "wire_rtp",
+        "snapshot_begin_us": 217238949,
+        "at_us": 217238970,
+        "snapshot_span_us": 21,
+        "record_crc32": "2e1ad10b"
+      },
+      "clock": {
+        "probe": "rtp_input_clock",
+        "collection_cycle_us": 215991438,
+        "stream_epoch": 11,
+        "coherent": true,
+        "observed": true,
+        "revision": 18,
+        "max_forward_step_ticks": 27840,
+        "previous_sequence": 8484,
+        "sequence": 8485,
+        "previous_rtp_timestamp": 8218560,
+        "rtp_timestamp": 8246400,
+        "ssrc": 255,
+        "scope": "input_epoch_adjacent_wire_sequence_same_ssrc_forward_half_range",
+        "before_queue_and_decode": true,
+        "loss_count": false,
+        "snapshot_begin_us": 217261577,
+        "at_us": 217261582,
+        "snapshot_span_us": 5,
+        "record_crc32": "a71dfd01"
+      },
+      "first_gap": {
+        "probe": "first_starvation",
+        "stream_serial": 3,
+        "captured": true,
+        "coherent": true,
+        "event_us": 197633965,
+        "taken_frames": 0,
+        "input_frames": 1728,
+        "output_frames": 0,
+        "accepted_frames": 8640,
+        "rendered_frames": 6784,
+        "dma_source_frames": 6528,
+        "snapshot_begin_us": 199135260,
+        "at_us": 199135273,
+        "snapshot_span_us": 13,
+        "record_crc32": "0c2caf58"
+      },
+      "helper_blocks_per_job": 6,
+      "helper_max_frames": 768,
+      "helper_frames": 1456128,
+      "helper_cycles_per_frame": 778.9666203795271,
+      "helper_failures": 0,
+      "local_dsp_cycles_per_frame": 1239.8780346894564,
+      "pcm_busy": 6795,
+      "worker_detail_lost": 2925,
+      "queue_full": 0,
+      "decode_reject": 0,
+      "input_sequence_breaks": 0,
+      "host_detail_lost": 0,
+      "snapshot_records_lost": 0,
+      "snapshot_uart_lost": 0,
+      "runtime_windows": [
+        {
+          "begin": 201665567,
+          "end": 207358250,
+          "duration_us": 5692683,
+          "roles": {
+            "host": {
+              "core": 1,
+              "us": 1652288,
+              "pct": 29.024767407565115
+            },
+            "decoder": {
+              "core": 0,
+              "us": 3178988,
+              "pct": 55.84340459498623
+            },
+            "renderer1": {
+              "core": 1,
+              "us": 2594465,
+              "pct": 45.57543428994729
+            },
+            "logger": {
+              "core": 1,
+              "us": 154234,
+              "pct": 2.7093375829990887
+            },
+            "controller": {
+              "core": 1,
+              "us": 671190,
+              "pct": 11.790398306036012
+            },
+            "idle0": {
+              "core": 0,
+              "us": 795991,
+              "pct": 13.982703762004665
+            },
+            "idle1": {
+              "core": 1,
+              "us": 374802,
+              "pct": 6.583925365245175
+            },
+            "ipc0": {
+              "core": 0,
+              "us": 0,
+              "pct": 0
+            },
+            "ipc1": {
+              "core": 1,
+              "us": 0,
+              "pct": 0
+            },
+            "timer": {
+              "core": 0,
+              "us": 0,
+              "pct": 0
+            },
+            "renderer0": {
+              "core": 0,
+              "us": 1675010,
+              "pct": 29.423911361303624
+            }
+          }
+        },
+        {
+          "begin": 207358250,
+          "end": 212651213,
+          "duration_us": 5292963,
+          "roles": {
+            "host": {
+              "core": 1,
+              "us": 1721811,
+              "pct": 32.53019150143313
+            },
+            "decoder": {
+              "core": 0,
+              "us": 2607991,
+              "pct": 49.272798619601154
+            },
+            "renderer1": {
+              "core": 1,
+              "us": 2117032,
+              "pct": 39.997105590951605
+            },
+            "logger": {
+              "core": 1,
+              "us": 158955,
+              "pct": 3.003138317800446
+            },
+            "controller": {
+              "core": 1,
+              "us": 690310,
+              "pct": 13.042033356363913
+            },
+            "idle0": {
+              "core": 0,
+              "us": 797861,
+              "pct": 15.073995416178047
+            },
+            "idle1": {
+              "core": 1,
+              "us": 417130,
+              "pct": 7.880841033651661
+            },
+            "ipc0": {
+              "core": 0,
+              "us": 0,
+              "pct": 0
+            },
+            "ipc1": {
+              "core": 1,
+              "us": 0,
+              "pct": 0
+            },
+            "timer": {
+              "core": 0,
+              "us": 0,
+              "pct": 0
+            },
+            "renderer0": {
+              "core": 0,
+              "us": 1888589,
+              "pct": 35.68112983219418
+            }
+          }
+        },
+        {
+          "begin": 212651213,
+          "end": 215991482,
+          "duration_us": 3340269,
+          "roles": {
+            "host": {
+              "core": 1,
+              "us": 19231,
+              "pct": 0.5757320742730601
+            },
+            "decoder": {
+              "core": 0,
+              "us": 17790,
+              "pct": 0.5325918361664884
+            },
+            "renderer1": {
+              "core": 1,
+              "us": 19981,
+              "pct": 0.5981853557303319
+            },
+            "logger": {
+              "core": 1,
+              "us": 98831,
+              "pct": 2.958773679604846
+            },
+            "controller": {
+              "core": 1,
+              "us": 159270,
+              "pct": 4.768178850266251
+            },
+            "idle0": {
+              "core": 0,
+              "us": 3304755,
+              "pct": 98.93679221643526
+            },
+            "idle1": {
+              "core": 1,
+              "us": 2936223,
+              "pct": 87.90378858708685
+            },
+            "ipc0": {
+              "core": 0,
+              "us": 0,
+              "pct": 0
+            },
+            "ipc1": {
+              "core": 1,
+              "us": 0,
+              "pct": 0
+            },
+            "timer": {
+              "core": 0,
+              "us": 0,
+              "pct": 0
+            },
+            "renderer0": {
+              "core": 0,
+              "us": 17925,
+              "pct": 0.5366334268287973
+            }
+          }
+        }
+      ],
+      "scope": "Whole stream including startup/drain; verified final aggregates, separate detail losses and elapsed-cycle/preemption caveats",
+      "local_dsp_frames": 1410688
+    }
+  ],
+  "lhdc": [
+    {
+      "command_s": 12.241,
+      "source_frames": 2871360,
+      "accepted_frames": 2871360,
+      "rendered_frames": 2871360,
+      "initial_shortage": 53568,
+      "recovered": 20736,
+      "unfilled": 32832,
+      "descriptor_errors": 0,
+      "contract_errors": 0,
+      "copy_max_us": 6,
+      "mask_max_us": 9,
+      "media": {
+        "probe": "media_input",
+        "collection_cycle_us": 209562524,
+        "stream_epoch": 7,
+        "packets": 2992,
+        "payload_bytes": 1693472,
+        "rtp_first_timestamp": 0,
+        "rtp_last_timestamp": 2898240,
+        "rate": 192000,
+        "timestamp_origin": "wire_rtp",
+        "snapshot_begin_us": 210806083,
+        "at_us": 210806113,
+        "snapshot_span_us": 30,
+        "record_crc32": "94f497ac"
+      },
+      "clock": {
+        "probe": "rtp_input_clock",
+        "collection_cycle_us": 209562524,
+        "stream_epoch": 7,
+        "coherent": true,
+        "observed": true,
+        "revision": 6,
+        "max_forward_step_ticks": 27840,
+        "previous_sequence": 2791,
+        "sequence": 2792,
+        "previous_rtp_timestamp": 2678400,
+        "rtp_timestamp": 2706240,
+        "ssrc": 255,
+        "scope": "input_epoch_adjacent_wire_sequence_same_ssrc_forward_half_range",
+        "before_queue_and_decode": true,
+        "loss_count": false,
+        "snapshot_begin_us": 210828666,
+        "at_us": 210828673,
+        "snapshot_span_us": 7,
+        "record_crc32": "755a57be"
+      },
+      "first_gap": {
+        "probe": "first_starvation",
+        "stream_serial": 1,
+        "captured": true,
+        "coherent": true,
+        "event_us": 192938519,
+        "taken_frames": 0,
+        "input_frames": 2048,
+        "output_frames": 0,
+        "accepted_frames": 10112,
+        "rendered_frames": 8064,
+        "dma_source_frames": 7808,
+        "snapshot_begin_us": 196272862,
+        "at_us": 196272875,
+        "snapshot_span_us": 13,
+        "record_crc32": "8b63bbe3"
+      },
+      "helper_blocks_per_job": 6,
+      "helper_max_frames": 768,
+      "helper_frames": 1361728,
+      "helper_cycles_per_frame": 717.0839888729614,
+      "helper_failures": 0,
+      "local_dsp_cycles_per_frame": 1139.6870594952943,
+      "pcm_busy": 7966,
+      "worker_detail_lost": 3397,
+      "queue_full": 0,
+      "decode_reject": 0,
+      "input_sequence_breaks": 0,
+      "host_detail_lost": 0,
+      "snapshot_records_lost": 0,
+      "snapshot_uart_lost": 0,
+      "runtime_windows": [
+        {
+          "begin": 198932846,
+          "end": 204918394,
+          "duration_us": 5985548,
+          "roles": {
+            "host": {
+              "core": 1,
+              "us": 1766982,
+              "pct": 29.520805780857494
+            },
+            "decoder": {
+              "core": 0,
+              "us": 3392770,
+              "pct": 56.68269638803331
+            },
+            "renderer1": {
+              "core": 1,
+              "us": 2768652,
+              "pct": 46.255614356446564
+            },
+            "logger": {
+              "core": 1,
+              "us": 158451,
+              "pct": 2.647226285713522
+            },
+            "controller": {
+              "core": 1,
+              "us": 740579,
+              "pct": 12.372785248735788
+            },
+            "idle0": {
+              "core": 0,
+              "us": 1070436,
+              "pct": 17.883675813810196
+            },
+            "idle1": {
+              "core": 1,
+              "us": 332676,
+              "pct": 5.557987338836812
+            },
+            "ipc0": {
+              "core": 0,
+              "us": 0,
+              "pct": 0
+            },
+            "ipc1": {
+              "core": 1,
+              "us": 0,
+              "pct": 0
+            },
+            "timer": {
+              "core": 0,
+              "us": 0,
+              "pct": 0
+            },
+            "renderer0": {
+              "core": 0,
+              "us": 1524278,
+              "pct": 25.465972372120312
+            }
+          }
+        },
+        {
+          "begin": 204918394,
+          "end": 209562603,
+          "duration_us": 4644209,
+          "roles": {
+            "host": {
+              "core": 1,
+              "us": 1115034,
+              "pct": 24.009126204268586
+            },
+            "decoder": {
+              "core": 0,
+              "us": 1349647,
+              "pct": 29.060858372222267
+            },
+            "renderer1": {
+              "core": 1,
+              "us": 1123659,
+              "pct": 24.194841360498636
+            },
+            "logger": {
+              "core": 1,
+              "us": 122730,
+              "pct": 2.6426459274334984
+            },
+            "controller": {
+              "core": 1,
+              "us": 487590,
+              "pct": 10.498881510285175
+            },
+            "idle0": {
+              "core": 0,
+              "us": 2194251,
+              "pct": 47.247033886717844
+            },
+            "idle1": {
+              "core": 1,
+              "us": 1638235,
+              "pct": 35.274790604815585
+            },
+            "ipc0": {
+              "core": 0,
+              "us": 0,
+              "pct": 0
+            },
+            "ipc1": {
+              "core": 1,
+              "us": 0,
+              "pct": 0
+            },
+            "timer": {
+              "core": 0,
+              "us": 0,
+              "pct": 0
+            },
+            "renderer0": {
+              "core": 0,
+              "us": 1100196,
+              "pct": 23.68963153897682
+            }
+          }
+        },
+        {
+          "begin": 209562603,
+          "end": 212454561,
+          "duration_us": 2891958,
+          "roles": {
+            "host": {
+              "core": 1,
+              "us": 0,
+              "pct": 0
+            },
+            "decoder": {
+              "core": 0,
+              "us": 0,
+              "pct": 0
+            },
+            "renderer1": {
+              "core": 1,
+              "us": 90,
+              "pct": 0.003112078391179955
+            },
+            "logger": {
+              "core": 1,
+              "us": 29018,
+              "pct": 1.0034032306139993
+            },
+            "controller": {
+              "core": 1,
+              "us": 126204,
+              "pct": 4.363963792005278
+            },
+            "idle0": {
+              "core": 0,
+              "us": 2891999,
+              "pct": 100.00141772460043
+            },
+            "idle1": {
+              "core": 1,
+              "us": 2646077,
+              "pct": 91.49776725664758
+            },
+            "ipc0": {
+              "core": 0,
+              "us": 0,
+              "pct": 0
+            },
+            "ipc1": {
+              "core": 1,
+              "us": 0,
+              "pct": 0
+            },
+            "timer": {
+              "core": 0,
+              "us": 0,
+              "pct": 0
+            },
+            "renderer0": {
+              "core": 0,
+              "us": 0,
+              "pct": 0
+            }
+          }
+        }
+      ],
+      "scope": "Whole stream including startup/drain; verified final aggregates, separate detail losses and elapsed-cycle/preemption caveats",
+      "local_dsp_frames": 1509632
+    },
+    {
+      "command_s": 12.197,
+      "source_frames": 2896320,
+      "accepted_frames": 2896320,
+      "rendered_frames": 2896320,
+      "initial_shortage": 32896,
+      "recovered": 15616,
+      "unfilled": 17280,
+      "descriptor_errors": 0,
+      "contract_errors": 0,
+      "copy_max_us": 7,
+      "mask_max_us": 9,
+      "media": {
+        "probe": "media_input",
+        "collection_cycle_us": 266804404,
+        "stream_epoch": 9,
+        "packets": 3020,
+        "payload_bytes": 1709320,
+        "rtp_first_timestamp": 2904960,
+        "rtp_last_timestamp": 5803200,
+        "rate": 192000,
+        "timestamp_origin": "wire_rtp",
+        "snapshot_begin_us": 268044781,
+        "at_us": 268044813,
+        "snapshot_span_us": 32,
+        "record_crc32": "5ec11054"
+      },
+      "clock": {
+        "probe": "rtp_input_clock",
+        "collection_cycle_us": 266804404,
+        "stream_epoch": 9,
+        "coherent": true,
+        "observed": true,
+        "revision": 10,
+        "max_forward_step_ticks": 960,
+        "previous_sequence": 2996,
+        "sequence": 2997,
+        "previous_rtp_timestamp": 2904960,
+        "rtp_timestamp": 2905920,
+        "ssrc": 255,
+        "scope": "input_epoch_adjacent_wire_sequence_same_ssrc_forward_half_range",
+        "before_queue_and_decode": true,
+        "loss_count": false,
+        "snapshot_begin_us": 268067377,
+        "at_us": 268067383,
+        "snapshot_span_us": 6,
+        "record_crc32": "d8362f20"
+      },
+      "first_gap": {
+        "probe": "first_starvation",
+        "stream_serial": 2,
+        "captured": true,
+        "coherent": true,
+        "event_us": 247460160,
+        "taken_frames": 0,
+        "input_frames": 2048,
+        "output_frames": 0,
+        "accepted_frames": 6272,
+        "rendered_frames": 4096,
+        "dma_source_frames": 3840,
+        "snapshot_begin_us": 250431572,
+        "at_us": 250431636,
+        "snapshot_span_us": 64,
+        "record_crc32": "5fde9072"
+      },
+      "helper_blocks_per_job": 6,
+      "helper_max_frames": 768,
+      "helper_frames": 1380480,
+      "helper_cycles_per_frame": 716.6358252202133,
+      "helper_failures": 0,
+      "local_dsp_cycles_per_frame": 1112.202241001689,
+      "pcm_busy": 8819,
+      "worker_detail_lost": 3714,
+      "queue_full": 0,
+      "decode_reject": 0,
+      "input_sequence_breaks": 0,
+      "host_detail_lost": 0,
+      "snapshot_records_lost": 0,
+      "snapshot_uart_lost": 0,
+      "runtime_windows": [
+        {
+          "begin": 253179707,
+          "end": 259234934,
+          "duration_us": 6055227,
+          "roles": {
+            "host": {
+              "core": 1,
+              "us": 1833035,
+              "pct": 30.271945213614618
+            },
+            "decoder": {
+              "core": 0,
+              "us": 3439503,
+              "pct": 56.802214021043305
+            },
+            "renderer1": {
+              "core": 1,
+              "us": 2749145,
+              "pct": 45.401188097489985
+            },
+            "logger": {
+              "core": 1,
+              "us": 161068,
+              "pct": 2.659982854482582
+            },
+            "controller": {
+              "core": 1,
+              "us": 726898,
+              "pct": 12.004471508665159
+            },
+            "idle0": {
+              "core": 0,
+              "us": 1002280,
+              "pct": 16.5523109207962
+            },
+            "idle1": {
+              "core": 1,
+              "us": 367030,
+              "pct": 6.061374742846139
+            },
+            "ipc0": {
+              "core": 0,
+              "us": 0,
+              "pct": 0
+            },
+            "ipc1": {
+              "core": 1,
+              "us": 0,
+              "pct": 0
+            },
+            "timer": {
+              "core": 0,
+              "us": 0,
+              "pct": 0
+            },
+            "renderer0": {
+              "core": 0,
+              "us": 1614717,
+              "pct": 26.66649821716015
+            }
+          }
+        },
+        {
+          "begin": 259234934,
+          "end": 263903240,
+          "duration_us": 4668306,
+          "roles": {
+            "host": {
+              "core": 1,
+              "us": 1120363,
+              "pct": 23.999347943343903
+            },
+            "decoder": {
+              "core": 0,
+              "us": 1530334,
+              "pct": 32.78135580658166
+            },
+            "renderer1": {
+              "core": 1,
+              "us": 1300609,
+              "pct": 27.860405894557896
+            },
+            "logger": {
+              "core": 1,
+              "us": 139305,
+              "pct": 2.984058885600044
+            },
+            "controller": {
+              "core": 1,
+              "us": 488472,
+              "pct": 10.463581436178348
+            },
+            "idle0": {
+              "core": 0,
+              "us": 1987868,
+              "pct": 42.582212905495055
+            },
+            "idle1": {
+              "core": 1,
+              "us": 1457824,
+              "pct": 31.22811572334804
+            },
+            "ipc0": {
+              "core": 0,
+              "us": 0,
+              "pct": 0
+            },
+            "ipc1": {
+              "core": 1,
+              "us": 0,
+              "pct": 0
+            },
+            "timer": {
+              "core": 0,
+              "us": 0,
+              "pct": 0
+            },
+            "renderer0": {
+              "core": 0,
+              "us": 1150140,
+              "pct": 24.63720244559804
+            }
+          }
+        },
+        {
+          "begin": 263903240,
+          "end": 266804491,
+          "duration_us": 2901251,
+          "roles": {
+            "host": {
+              "core": 1,
+              "us": 0,
+              "pct": 0
+            },
+            "decoder": {
+              "core": 0,
+              "us": 0,
+              "pct": 0
+            },
+            "renderer1": {
+              "core": 1,
+              "us": 91,
+              "pct": 0.00313657797963706
+            },
+            "logger": {
+              "core": 1,
+              "us": 28605,
+              "pct": 0.9859539901925066
+            },
+            "controller": {
+              "core": 1,
+              "us": 126612,
+              "pct": 4.364048474261621
+            },
+            "idle0": {
+              "core": 0,
+              "us": 2901003,
+              "pct": 99.99145196330824
+            },
+            "idle1": {
+              "core": 1,
+              "us": 2655083,
+              "pct": 91.51510848251323
+            },
+            "ipc0": {
+              "core": 0,
+              "us": 0,
+              "pct": 0
+            },
+            "ipc1": {
+              "core": 1,
+              "us": 0,
+              "pct": 0
+            },
+            "timer": {
+              "core": 0,
+              "us": 0,
+              "pct": 0
+            },
+            "renderer0": {
+              "core": 0,
+              "us": 0,
+              "pct": 0
+            }
+          }
+        }
+      ],
+      "scope": "Whole stream including startup/drain; verified final aggregates, separate detail losses and elapsed-cycle/preemption caveats",
+      "local_dsp_frames": 1515840
+    },
+    {
+      "command_s": 12.141,
+      "source_frames": 2880512,
+      "accepted_frames": 2880512,
+      "rendered_frames": 2880512,
+      "initial_shortage": 44096,
+      "recovered": 21568,
+      "unfilled": 22528,
+      "descriptor_errors": 0,
+      "contract_errors": 0,
+      "copy_max_us": 5,
+      "mask_max_us": 8,
+      "media": {
+        "probe": "media_input",
+        "collection_cycle_us": 332393526,
+        "stream_epoch": 11,
+        "packets": 3003,
+        "payload_bytes": 1699698,
+        "rtp_first_timestamp": 5817600,
+        "rtp_last_timestamp": 8699520,
+        "rate": 192000,
+        "timestamp_origin": "wire_rtp",
+        "snapshot_begin_us": 333640267,
+        "at_us": 333640297,
+        "snapshot_span_us": 30,
+        "record_crc32": "831f5e29"
+      },
+      "clock": {
+        "probe": "rtp_input_clock",
+        "collection_cycle_us": 332393526,
+        "stream_epoch": 11,
+        "coherent": true,
+        "observed": true,
+        "revision": 14,
+        "max_forward_step_ticks": 960,
+        "previous_sequence": 6018,
+        "sequence": 6019,
+        "previous_rtp_timestamp": 5817600,
+        "rtp_timestamp": 5818560,
+        "ssrc": 255,
+        "scope": "input_epoch_adjacent_wire_sequence_same_ssrc_forward_half_range",
+        "before_queue_and_decode": true,
+        "loss_count": false,
+        "snapshot_begin_us": 333662863,
+        "at_us": 333662872,
+        "snapshot_span_us": 9,
+        "record_crc32": "0bd1c05d"
+      },
+      "first_gap": {
+        "probe": "first_starvation",
+        "stream_serial": 3,
+        "captured": true,
+        "coherent": true,
+        "event_us": 315561321,
+        "taken_frames": 0,
+        "input_frames": 1152,
+        "output_frames": 0,
+        "accepted_frames": 7680,
+        "rendered_frames": 6400,
+        "dma_source_frames": 6144,
+        "snapshot_begin_us": 315934018,
+        "at_us": 315934031,
+        "snapshot_span_us": 13,
+        "record_crc32": "2371968e"
+      },
+      "helper_blocks_per_job": 6,
+      "helper_max_frames": 768,
+      "helper_frames": 1359168,
+      "helper_cycles_per_frame": 717.165329819419,
+      "helper_failures": 0,
+      "local_dsp_cycles_per_frame": 1132.8299391853518,
+      "pcm_busy": 8726,
+      "worker_detail_lost": 3716,
+      "queue_full": 0,
+      "decode_reject": 0,
+      "input_sequence_breaks": 0,
+      "host_detail_lost": 0,
+      "snapshot_records_lost": 0,
+      "snapshot_uart_lost": 0,
+      "runtime_windows": [
+        {
+          "begin": 316325416,
+          "end": 322477150,
+          "duration_us": 6151734,
+          "roles": {
+            "host": {
+              "core": 1,
+              "us": 1830691,
+              "pct": 29.758942763129877
+            },
+            "decoder": {
+              "core": 0,
+              "us": 3484103,
+              "pct": 56.63611267977451
+            },
+            "renderer1": {
+              "core": 1,
+              "us": 2808377,
+              "pct": 45.65179508736886
+            },
+            "logger": {
+              "core": 1,
+              "us": 160534,
+              "pct": 2.6095731707515313
+            },
+            "controller": {
+              "core": 1,
+              "us": 774208,
+              "pct": 12.585199555117304
+            },
+            "idle0": {
+              "core": 0,
+              "us": 1038485,
+              "pct": 16.881175291389386
+            },
+            "idle1": {
+              "core": 1,
+              "us": 357163,
+              "pct": 5.805891477102229
+            },
+            "ipc0": {
+              "core": 0,
+              "us": 0,
+              "pct": 0
+            },
+            "ipc1": {
+              "core": 1,
+              "us": 0,
+              "pct": 0
+            },
+            "timer": {
+              "core": 0,
+              "us": 0,
+              "pct": 0
+            },
+            "renderer0": {
+              "core": 0,
+              "us": 1628389,
+              "pct": 26.47040655528994
+            }
+          }
+        },
+        {
+          "begin": 322477150,
+          "end": 328300158,
+          "duration_us": 5823008,
+          "roles": {
+            "host": {
+              "core": 1,
+              "us": 1727654,
+              "pct": 29.669442322593408
+            },
+            "decoder": {
+              "core": 0,
+              "us": 3217274,
+              "pct": 55.25106611565706
+            },
+            "renderer1": {
+              "core": 1,
+              "us": 2570683,
+              "pct": 44.14699413086844
+            },
+            "logger": {
+              "core": 1,
+              "us": 156008,
+              "pct": 2.6791651325225727
+            },
+            "controller": {
+              "core": 1,
+              "us": 796480,
+              "pct": 13.678153971280823
+            },
+            "idle0": {
+              "core": 0,
+              "us": 994228,
+              "pct": 17.074130758535794
+            },
+            "idle1": {
+              "core": 1,
+              "us": 360133,
+              "pct": 6.184655765542482
+            },
+            "ipc0": {
+              "core": 0,
+              "us": 0,
+              "pct": 0
+            },
+            "ipc1": {
+              "core": 1,
+              "us": 0,
+              "pct": 0
+            },
+            "timer": {
+              "core": 0,
+              "us": 0,
+              "pct": 0
+            },
+            "renderer0": {
+              "core": 0,
+              "us": 1613775,
+              "pct": 27.71376924091466
+            }
+          }
+        },
+        {
+          "begin": 328300158,
+          "end": 332393570,
+          "duration_us": 4093412,
+          "roles": {
+            "host": {
+              "core": 1,
+              "us": 748025,
+              "pct": 18.27387519262659
+            },
+            "decoder": {
+              "core": 0,
+              "us": 1004981,
+              "pct": 24.551181263943135
+            },
+            "renderer1": {
+              "core": 1,
+              "us": 907339,
+              "pct": 22.165836226600206
+            },
+            "logger": {
+              "core": 1,
+              "us": 115112,
+              "pct": 2.8121283662626677
+            },
+            "controller": {
+              "core": 1,
+              "us": 413671,
+              "pct": 10.105774840157794
+            },
+            "idle0": {
+              "core": 0,
+              "us": 2307812,
+              "pct": 56.37868848774568
+            },
+            "idle1": {
+              "core": 1,
+              "us": 1771703,
+              "pct": 43.28181477945538
+            },
+            "ipc0": {
+              "core": 0,
+              "us": 0,
+              "pct": 0
+            },
+            "ipc1": {
+              "core": 1,
+              "us": 0,
+              "pct": 0
+            },
+            "timer": {
+              "core": 0,
+              "us": 0,
+              "pct": 0
+            },
+            "renderer0": {
+              "core": 0,
+              "us": 780548,
+              "pct": 19.068395753957823
+            }
+          }
+        },
+        {
+          "begin": 332393570,
+          "end": 335298566,
+          "duration_us": 2904996,
+          "roles": {
+            "host": {
+              "core": 1,
+              "us": 0,
+              "pct": 0
+            },
+            "decoder": {
+              "core": 0,
+              "us": 0,
+              "pct": 0
+            },
+            "renderer1": {
+              "core": 1,
+              "us": 87,
+              "pct": 0.0029948406125171944
+            },
+            "logger": {
+              "core": 1,
+              "us": 29092,
+              "pct": 1.0014471620614969
+            },
+            "controller": {
+              "core": 1,
+              "us": 128034,
+              "pct": 4.407372677965822
+            },
+            "idle0": {
+              "core": 0,
+              "us": 2905000,
+              "pct": 100.00013769382126
+            },
+            "idle1": {
+              "core": 1,
+              "us": 2655834,
+              "pct": 91.42298302648265
+            },
+            "ipc0": {
+              "core": 0,
+              "us": 0,
+              "pct": 0
+            },
+            "ipc1": {
+              "core": 1,
+              "us": 0,
+              "pct": 0
+            },
+            "timer": {
+              "core": 0,
+              "us": 0,
+              "pct": 0
+            },
+            "renderer0": {
+              "core": 0,
+              "us": 0,
+              "pct": 0
+            }
+          }
+        }
+      ],
+      "scope": "Whole stream including startup/drain; verified final aggregates, separate detail losses and elapsed-cycle/preemption caveats",
+      "local_dsp_frames": 1521344
+    }
+  ],
+  "active_memory": [
+    {
+      "label": "candidate1",
+      "records": [
+        {
+          "free": 19256,
+          "min": 19256,
+          "largest": 16384,
+          "resident": 60704,
+          "stack": 5952
+        },
+        {
+          "free": 19256,
+          "min": 19256,
+          "largest": 16384,
+          "resident": 60704,
+          "stack": 5952
+        },
+        {
+          "free": 19256,
+          "min": 19256,
+          "largest": 16384,
+          "resident": 60704,
+          "stack": 5952
+        }
+      ]
+    },
+    {
+      "label": "candidate2",
+      "records": [
+        {
+          "free": 19264,
+          "min": 19256,
+          "largest": 16384,
+          "resident": 60704,
+          "stack": 5952
+        },
+        {
+          "free": 19264,
+          "min": 19256,
+          "largest": 16384,
+          "resident": 60704,
+          "stack": 5952
+        },
+        {
+          "free": 19264,
+          "min": 19256,
+          "largest": 16384,
+          "resident": 60704,
+          "stack": 5952
+        }
+      ]
+    },
+    {
+      "label": "candidate3",
+      "records": [
+        {
+          "free": 19264,
+          "min": 19256,
+          "largest": 16384,
+          "resident": 60704,
+          "stack": 5952
+        },
+        {
+          "free": 19264,
+          "min": 19256,
+          "largest": 16384,
+          "resident": 60704,
+          "stack": 5952
+        },
+        {
+          "free": 19264,
+          "min": 19256,
+          "largest": 16384,
+          "resident": 60704,
+          "stack": 5952
+        }
+      ]
+    }
+  ],
+  "boot_memory_phases": [
+    {
+      "archive": "runs/1794046921031039500-950428ba68dd",
+      "records": [
+        {
+          "probe": "boot_memory",
+          "host": "owned",
+          "phase": "before_controller",
+          "internal_free": 162576,
+          "internal_largest": 110592,
+          "internal_minimum": 67192,
+          "internal_total": 217248,
+          "owner_stack_low": 2088
+        },
+        {
+          "probe": "boot_memory",
+          "host": "owned",
+          "phase": "controller_initialized",
+          "internal_free": 144884,
+          "internal_largest": 110592,
+          "internal_minimum": 67192,
+          "internal_total": 217248,
+          "owner_stack_low": 2088
+        },
+        {
+          "probe": "boot_memory",
+          "host": "owned",
+          "phase": "controller_enabled",
+          "internal_free": 144788,
+          "internal_largest": 110592,
+          "internal_minimum": 67192,
+          "internal_total": 217248,
+          "owner_stack_low": 1928
+        },
+        {
+          "probe": "boot_memory",
+          "host": "owned",
+          "phase": "services_ready",
+          "internal_free": 127316,
+          "internal_largest": 110592,
+          "internal_minimum": 67192,
+          "internal_total": 217248,
+          "owner_stack_low": 1928
+        }
+      ]
+    },
+    {
+      "archive": "runs/1794048391333768300-b309817ce3d6",
+      "records": [
+        {
+          "probe": "boot_memory",
+          "host": "owned",
+          "phase": "before_controller",
+          "internal_free": 162252,
+          "internal_largest": 110592,
+          "internal_minimum": 66868,
+          "internal_total": 217248,
+          "owner_stack_low": 2088
+        },
+        {
+          "probe": "boot_memory",
+          "host": "owned",
+          "phase": "controller_initialized",
+          "internal_free": 144560,
+          "internal_largest": 110592,
+          "internal_minimum": 66868,
+          "internal_total": 217248,
+          "owner_stack_low": 2088
+        },
+        {
+          "probe": "boot_memory",
+          "host": "owned",
+          "phase": "controller_enabled",
+          "internal_free": 144464,
+          "internal_largest": 110592,
+          "internal_minimum": 66868,
+          "internal_total": 217248,
+          "owner_stack_low": 1928
+        },
+        {
+          "probe": "boot_memory",
+          "host": "owned",
+          "phase": "services_ready",
+          "internal_free": 126992,
+          "internal_largest": 110592,
+          "internal_minimum": 66868,
+          "internal_total": 217248,
+          "owner_stack_low": 1928
+        }
+      ]
+    }
+  ],
+  "compiler_variants": {
+    "passed": true,
+    "hardware_accessed": false,
+    "results": [
+      {
+        "variant": "selected_o3",
+        "object_iram_section_bytes": 5146,
+        "helper_symbol_bytes": 295,
+        "command": [
+          "C:\\Users\\ngocv\\.espressif\\tools\\ccache\\4.12.1\\ccache-4.12.1-windows-x86_64\\ccache.exe",
+          "C:\\Users\\ngocv\\.espressif\\tools\\xtensa-esp-elf\\esp-15.2.0_20251204\\xtensa-esp-elf\\bin\\xtensa-esp32-elf-gcc.exe",
+          "-DDBT_AUDIO_BLOCK_DSP=1",
+          "-DDBT_AUDIO_STAGE_PROFILE=1",
+          "-DDBT_AUDIO_UNITY_COPY=1",
+          "-DESP_PLATFORM",
+          "-DFIXED_DSP_BLOCK_API=1",
+          "-DFIXED_DSP_BLOCK_IRAM=1",
+          "-DFIXED_DSP_VOLUME_RAMP_BLOCK=1",
+          "-DFIXED_DSP_WORD_QUANT=1",
+          "-DIDF_VER=\"v6.1\"",
+          "-DSOC_MMU_PAGE_SIZE=CONFIG_MMU_PAGE_SIZE",
+          "-DSOC_XTAL_FREQ_MHZ=CONFIG_XTAL_FREQ",
+          "-D_GLIBCXX_HAVE_POSIX_SEMAPHORE",
+          "-D_GLIBCXX_USE_POSIX_SEMAPHORE",
+          "-D_GNU_SOURCE",
+          "-D_POSIX_READER_WRITER_LOCKS",
+          "-ID:/bt-owned61/native_bt/_build/esp32/config",
+          "-ID:/bt-owned61/native_bt/include",
+          "-ID:/bt-owned61/bt_audio_sink/main/dsp",
+          "-ID:/bt-owned61/esp-idf/components/esp_libc/platform_include",
+          "-ID:/bt-owned61/esp-idf/components/freertos/config/include",
+          "-ID:/bt-owned61/esp-idf/components/freertos/config/include/freertos",
+          "-ID:/bt-owned61/esp-idf/components/freertos/config/xtensa/include",
+          "-ID:/bt-owned61/esp-idf/components/freertos/FreeRTOS-Kernel/include",
+          "-ID:/bt-owned61/esp-idf/components/freertos/FreeRTOS-Kernel/portable/xtensa/include",
+          "-ID:/bt-owned61/esp-idf/components/freertos/FreeRTOS-Kernel/portable/xtensa/include/freertos",
+          "-ID:/bt-owned61/esp-idf/components/freertos/esp_additions/include",
+          "-ID:/bt-owned61/esp-idf/components/esp_hw_support/include",
+          "-ID:/bt-owned61/esp-idf/components/esp_hw_support/include/soc",
+          "-ID:/bt-owned61/esp-idf/components/esp_hw_support/ldo/include",
+          "-ID:/bt-owned61/esp-idf/components/esp_hw_support/debug_probe/include",
+          "-ID:/bt-owned61/esp-idf/components/esp_hw_support/etm/include",
+          "-ID:/bt-owned61/esp-idf/components/esp_hw_support/mspi/mspi_timing_tuning/include",
+          "-ID:/bt-owned61/esp-idf/components/esp_hw_support/mspi/mspi_timing_tuning/tuning_scheme_impl/include",
+          "-ID:/bt-owned61/esp-idf/components/esp_hw_support/mspi/mspi_intr/include",
+          "-ID:/bt-owned61/esp-idf/components/esp_hw_support/power_supply/include",
+          "-ID:/bt-owned61/esp-idf/components/esp_hw_support/modem/include",
+          "-ID:/bt-owned61/esp-idf/components/esp_hw_support/port/esp32/.",
+          "-ID:/bt-owned61/esp-idf/components/esp_hw_support/port/esp32/include",
+          "-ID:/bt-owned61/esp-idf/components/heap/include",
+          "-ID:/bt-owned61/esp-idf/components/heap/tlsf",
+          "-ID:/bt-owned61/esp-idf/components/log/include",
+          "-ID:/bt-owned61/esp-idf/components/soc/include",
+          "-ID:/bt-owned61/esp-idf/components/soc/esp32",
+          "-ID:/bt-owned61/esp-idf/components/soc/esp32/include",
+          "-ID:/bt-owned61/esp-idf/components/soc/esp32/register",
+          "-ID:/bt-owned61/esp-idf/components/hal/platform_port/include",
+          "-ID:/bt-owned61/esp-idf/components/hal/esp32/include",
+          "-ID:/bt-owned61/esp-idf/components/hal/include",
+          "-ID:/bt-owned61/esp-idf/components/esp_rom/include",
+          "-ID:/bt-owned61/esp-idf/components/esp_rom/esp32/include",
+          "-ID:/bt-owned61/esp-idf/components/esp_rom/esp32/include/esp32",
+          "-ID:/bt-owned61/esp-idf/components/esp_rom/esp32",
+          "-ID:/bt-owned61/esp-idf/components/esp_common/include",
+          "-ID:/bt-owned61/esp-idf/components/esp_system/include",
+          "-ID:/bt-owned61/esp-idf/components/esp_system/port/soc",
+          "-ID:/bt-owned61/esp-idf/components/esp_system/port/include/private",
+          "-ID:/bt-owned61/esp-idf/components/esp_stdio/include",
+          "-ID:/bt-owned61/esp-idf/components/xtensa/esp32/include",
+          "-ID:/bt-owned61/esp-idf/components/xtensa/include",
+          "-ID:/bt-owned61/esp-idf/components/xtensa/deprecated_include",
+          "-ID:/bt-owned61/esp-idf/components/esp_hal_gpio/include",
+          "-ID:/bt-owned61/esp-idf/components/esp_hal_gpio/esp32/include",
+          "-ID:/bt-owned61/esp-idf/components/esp_hal_usb/include",
+          "-ID:/bt-owned61/esp-idf/components/esp_hal_pmu/include",
+          "-ID:/bt-owned61/esp-idf/components/esp_hal_pmu/esp32/include",
+          "-ID:/bt-owned61/esp-idf/components/esp_hal_regi2c/include",
+          "-ID:/bt-owned61/esp-idf/components/esp_hal_regi2c/esp32/include",
+          "-ID:/bt-owned61/esp-idf/components/esp_hal_uart/include",
+          "-ID:/bt-owned61/esp-idf/components/esp_hal_uart/esp32/include",
+          "-ID:/bt-owned61/esp-idf/components/esp_hal_ana_conv/include",
+          "-ID:/bt-owned61/esp-idf/components/esp_hal_ana_conv/esp32/include",
+          "-ID:/bt-owned61/esp-idf/components/esp_hal_dma/include",
+          "-ID:/bt-owned61/esp-idf/components/esp_hal_i2s/include",
+          "-ID:/bt-owned61/esp-idf/components/esp_hal_i2s/esp32/include",
+          "-ID:/bt-owned61/esp-idf/components/esp_timer/include",
+          "-ID:/bt-owned61/esp-idf/components/lwip/include",
+          "-ID:/bt-owned61/esp-idf/components/lwip/include/apps",
+          "-ID:/bt-owned61/esp-idf/components/lwip/lwip/src/include",
+          "-ID:/bt-owned61/esp-idf/components/lwip/port/include",
+          "-ID:/bt-owned61/esp-idf/components/lwip/port/freertos/include",
+          "-ID:/bt-owned61/esp-idf/components/lwip/port/esp32xx/include",
+          "-ID:/bt-owned61/esp-idf/components/lwip/port/esp32xx/include/arch",
+          "-ID:/bt-owned61/esp-idf/components/lwip/port/esp32xx/include/sys",
+          "@D:/bt-owned61/native_bt/_build/esp32/toolchain/cflags",
+          "-fdiagnostics-color=always",
+          "-ffunction-sections",
+          "-fdata-sections",
+          "-Wall",
+          "-Werror",
+          "-Wno-error=unused-function",
+          "-Wno-error=unused-variable",
+          "-Wno-error=unused-but-set-variable",
+          "-Wno-error=deprecated-declarations",
+          "-Wextra",
+          "-Wno-error=extra",
+          "-Wno-unused-parameter",
+          "-Wno-sign-compare",
+          "-Wno-enum-conversion",
+          "-gdwarf-4",
+          "-ggdb",
+          "-Os",
+          "-freorder-blocks",
+          "-mno-target-align",
+          "-fmacro-prefix-map=D:/bt-owned61/native_bt/esp32_probe=.",
+          "-fmacro-prefix-map=D:/bt-owned61/esp-idf=/IDF",
+          "-fstrict-volatile-bitfields",
+          "-fno-jump-tables",
+          "-fno-tree-switch-conversion",
+          "-std=gnu23",
+          "-Wno-old-style-declaration",
+          "-fzero-init-padding-bits=all",
+          "-fno-malloc-dce",
+          "-std=c11",
+          "-Os",
+          "-o",
+          "D:\\bt-owned61\\native_bt\\_build\\experiments\\finish-block-1794048105456\\selected_o3.obj",
+          "-c",
+          "D:\\bt-owned61\\native_bt\\_build\\experiments\\finish-block-1794048105456\\selected_o3.c",
+          "-ID:\\bt-owned61\\bt_audio_sink\\main\\dsp"
+        ],
+        "scope": "same selected Xtensa compile flags except this helper policy; object-size evidence only, not linked image or target timing"
+      },
+      {
+        "variant": "o3_no_unswitch",
+        "object_iram_section_bytes": 5035,
+        "helper_symbol_bytes": 188,
+        "command": [
+          "C:\\Users\\ngocv\\.espressif\\tools\\ccache\\4.12.1\\ccache-4.12.1-windows-x86_64\\ccache.exe",
+          "C:\\Users\\ngocv\\.espressif\\tools\\xtensa-esp-elf\\esp-15.2.0_20251204\\xtensa-esp-elf\\bin\\xtensa-esp32-elf-gcc.exe",
+          "-DDBT_AUDIO_BLOCK_DSP=1",
+          "-DDBT_AUDIO_STAGE_PROFILE=1",
+          "-DDBT_AUDIO_UNITY_COPY=1",
+          "-DESP_PLATFORM",
+          "-DFIXED_DSP_BLOCK_API=1",
+          "-DFIXED_DSP_BLOCK_IRAM=1",
+          "-DFIXED_DSP_VOLUME_RAMP_BLOCK=1",
+          "-DFIXED_DSP_WORD_QUANT=1",
+          "-DIDF_VER=\"v6.1\"",
+          "-DSOC_MMU_PAGE_SIZE=CONFIG_MMU_PAGE_SIZE",
+          "-DSOC_XTAL_FREQ_MHZ=CONFIG_XTAL_FREQ",
+          "-D_GLIBCXX_HAVE_POSIX_SEMAPHORE",
+          "-D_GLIBCXX_USE_POSIX_SEMAPHORE",
+          "-D_GNU_SOURCE",
+          "-D_POSIX_READER_WRITER_LOCKS",
+          "-ID:/bt-owned61/native_bt/_build/esp32/config",
+          "-ID:/bt-owned61/native_bt/include",
+          "-ID:/bt-owned61/bt_audio_sink/main/dsp",
+          "-ID:/bt-owned61/esp-idf/components/esp_libc/platform_include",
+          "-ID:/bt-owned61/esp-idf/components/freertos/config/include",
+          "-ID:/bt-owned61/esp-idf/components/freertos/config/include/freertos",
+          "-ID:/bt-owned61/esp-idf/components/freertos/config/xtensa/include",
+          "-ID:/bt-owned61/esp-idf/components/freertos/FreeRTOS-Kernel/include",
+          "-ID:/bt-owned61/esp-idf/components/freertos/FreeRTOS-Kernel/portable/xtensa/include",
+          "-ID:/bt-owned61/esp-idf/components/freertos/FreeRTOS-Kernel/portable/xtensa/include/freertos",
+          "-ID:/bt-owned61/esp-idf/components/freertos/esp_additions/include",
+          "-ID:/bt-owned61/esp-idf/components/esp_hw_support/include",
+          "-ID:/bt-owned61/esp-idf/components/esp_hw_support/include/soc",
+          "-ID:/bt-owned61/esp-idf/components/esp_hw_support/ldo/include",
+          "-ID:/bt-owned61/esp-idf/components/esp_hw_support/debug_probe/include",
+          "-ID:/bt-owned61/esp-idf/components/esp_hw_support/etm/include",
+          "-ID:/bt-owned61/esp-idf/components/esp_hw_support/mspi/mspi_timing_tuning/include",
+          "-ID:/bt-owned61/esp-idf/components/esp_hw_support/mspi/mspi_timing_tuning/tuning_scheme_impl/include",
+          "-ID:/bt-owned61/esp-idf/components/esp_hw_support/mspi/mspi_intr/include",
+          "-ID:/bt-owned61/esp-idf/components/esp_hw_support/power_supply/include",
+          "-ID:/bt-owned61/esp-idf/components/esp_hw_support/modem/include",
+          "-ID:/bt-owned61/esp-idf/components/esp_hw_support/port/esp32/.",
+          "-ID:/bt-owned61/esp-idf/components/esp_hw_support/port/esp32/include",
+          "-ID:/bt-owned61/esp-idf/components/heap/include",
+          "-ID:/bt-owned61/esp-idf/components/heap/tlsf",
+          "-ID:/bt-owned61/esp-idf/components/log/include",
+          "-ID:/bt-owned61/esp-idf/components/soc/include",
+          "-ID:/bt-owned61/esp-idf/components/soc/esp32",
+          "-ID:/bt-owned61/esp-idf/components/soc/esp32/include",
+          "-ID:/bt-owned61/esp-idf/components/soc/esp32/register",
+          "-ID:/bt-owned61/esp-idf/components/hal/platform_port/include",
+          "-ID:/bt-owned61/esp-idf/components/hal/esp32/include",
+          "-ID:/bt-owned61/esp-idf/components/hal/include",
+          "-ID:/bt-owned61/esp-idf/components/esp_rom/include",
+          "-ID:/bt-owned61/esp-idf/components/esp_rom/esp32/include",
+          "-ID:/bt-owned61/esp-idf/components/esp_rom/esp32/include/esp32",
+          "-ID:/bt-owned61/esp-idf/components/esp_rom/esp32",
+          "-ID:/bt-owned61/esp-idf/components/esp_common/include",
+          "-ID:/bt-owned61/esp-idf/components/esp_system/include",
+          "-ID:/bt-owned61/esp-idf/components/esp_system/port/soc",
+          "-ID:/bt-owned61/esp-idf/components/esp_system/port/include/private",
+          "-ID:/bt-owned61/esp-idf/components/esp_stdio/include",
+          "-ID:/bt-owned61/esp-idf/components/xtensa/esp32/include",
+          "-ID:/bt-owned61/esp-idf/components/xtensa/include",
+          "-ID:/bt-owned61/esp-idf/components/xtensa/deprecated_include",
+          "-ID:/bt-owned61/esp-idf/components/esp_hal_gpio/include",
+          "-ID:/bt-owned61/esp-idf/components/esp_hal_gpio/esp32/include",
+          "-ID:/bt-owned61/esp-idf/components/esp_hal_usb/include",
+          "-ID:/bt-owned61/esp-idf/components/esp_hal_pmu/include",
+          "-ID:/bt-owned61/esp-idf/components/esp_hal_pmu/esp32/include",
+          "-ID:/bt-owned61/esp-idf/components/esp_hal_regi2c/include",
+          "-ID:/bt-owned61/esp-idf/components/esp_hal_regi2c/esp32/include",
+          "-ID:/bt-owned61/esp-idf/components/esp_hal_uart/include",
+          "-ID:/bt-owned61/esp-idf/components/esp_hal_uart/esp32/include",
+          "-ID:/bt-owned61/esp-idf/components/esp_hal_ana_conv/include",
+          "-ID:/bt-owned61/esp-idf/components/esp_hal_ana_conv/esp32/include",
+          "-ID:/bt-owned61/esp-idf/components/esp_hal_dma/include",
+          "-ID:/bt-owned61/esp-idf/components/esp_hal_i2s/include",
+          "-ID:/bt-owned61/esp-idf/components/esp_hal_i2s/esp32/include",
+          "-ID:/bt-owned61/esp-idf/components/esp_timer/include",
+          "-ID:/bt-owned61/esp-idf/components/lwip/include",
+          "-ID:/bt-owned61/esp-idf/components/lwip/include/apps",
+          "-ID:/bt-owned61/esp-idf/components/lwip/lwip/src/include",
+          "-ID:/bt-owned61/esp-idf/components/lwip/port/include",
+          "-ID:/bt-owned61/esp-idf/components/lwip/port/freertos/include",
+          "-ID:/bt-owned61/esp-idf/components/lwip/port/esp32xx/include",
+          "-ID:/bt-owned61/esp-idf/components/lwip/port/esp32xx/include/arch",
+          "-ID:/bt-owned61/esp-idf/components/lwip/port/esp32xx/include/sys",
+          "@D:/bt-owned61/native_bt/_build/esp32/toolchain/cflags",
+          "-fdiagnostics-color=always",
+          "-ffunction-sections",
+          "-fdata-sections",
+          "-Wall",
+          "-Werror",
+          "-Wno-error=unused-function",
+          "-Wno-error=unused-variable",
+          "-Wno-error=unused-but-set-variable",
+          "-Wno-error=deprecated-declarations",
+          "-Wextra",
+          "-Wno-error=extra",
+          "-Wno-unused-parameter",
+          "-Wno-sign-compare",
+          "-Wno-enum-conversion",
+          "-gdwarf-4",
+          "-ggdb",
+          "-Os",
+          "-freorder-blocks",
+          "-mno-target-align",
+          "-fmacro-prefix-map=D:/bt-owned61/native_bt/esp32_probe=.",
+          "-fmacro-prefix-map=D:/bt-owned61/esp-idf=/IDF",
+          "-fstrict-volatile-bitfields",
+          "-fno-jump-tables",
+          "-fno-tree-switch-conversion",
+          "-std=gnu23",
+          "-Wno-old-style-declaration",
+          "-fzero-init-padding-bits=all",
+          "-fno-malloc-dce",
+          "-std=c11",
+          "-Os",
+          "-o",
+          "D:\\bt-owned61\\native_bt\\_build\\experiments\\finish-block-1794048105456\\o3_no_unswitch.obj",
+          "-c",
+          "D:\\bt-owned61\\native_bt\\_build\\experiments\\finish-block-1794048105456\\o3_no_unswitch.c",
+          "-ID:\\bt-owned61\\bt_audio_sink\\main\\dsp"
+        ],
+        "scope": "same selected Xtensa compile flags except this helper policy; object-size evidence only, not linked image or target timing"
+      },
+      {
+        "variant": "o2",
+        "object_iram_section_bytes": 5035,
+        "helper_symbol_bytes": 188,
+        "command": [
+          "C:\\Users\\ngocv\\.espressif\\tools\\ccache\\4.12.1\\ccache-4.12.1-windows-x86_64\\ccache.exe",
+          "C:\\Users\\ngocv\\.espressif\\tools\\xtensa-esp-elf\\esp-15.2.0_20251204\\xtensa-esp-elf\\bin\\xtensa-esp32-elf-gcc.exe",
+          "-DDBT_AUDIO_BLOCK_DSP=1",
+          "-DDBT_AUDIO_STAGE_PROFILE=1",
+          "-DDBT_AUDIO_UNITY_COPY=1",
+          "-DESP_PLATFORM",
+          "-DFIXED_DSP_BLOCK_API=1",
+          "-DFIXED_DSP_BLOCK_IRAM=1",
+          "-DFIXED_DSP_VOLUME_RAMP_BLOCK=1",
+          "-DFIXED_DSP_WORD_QUANT=1",
+          "-DIDF_VER=\"v6.1\"",
+          "-DSOC_MMU_PAGE_SIZE=CONFIG_MMU_PAGE_SIZE",
+          "-DSOC_XTAL_FREQ_MHZ=CONFIG_XTAL_FREQ",
+          "-D_GLIBCXX_HAVE_POSIX_SEMAPHORE",
+          "-D_GLIBCXX_USE_POSIX_SEMAPHORE",
+          "-D_GNU_SOURCE",
+          "-D_POSIX_READER_WRITER_LOCKS",
+          "-ID:/bt-owned61/native_bt/_build/esp32/config",
+          "-ID:/bt-owned61/native_bt/include",
+          "-ID:/bt-owned61/bt_audio_sink/main/dsp",
+          "-ID:/bt-owned61/esp-idf/components/esp_libc/platform_include",
+          "-ID:/bt-owned61/esp-idf/components/freertos/config/include",
+          "-ID:/bt-owned61/esp-idf/components/freertos/config/include/freertos",
+          "-ID:/bt-owned61/esp-idf/components/freertos/config/xtensa/include",
+          "-ID:/bt-owned61/esp-idf/components/freertos/FreeRTOS-Kernel/include",
+          "-ID:/bt-owned61/esp-idf/components/freertos/FreeRTOS-Kernel/portable/xtensa/include",
+          "-ID:/bt-owned61/esp-idf/components/freertos/FreeRTOS-Kernel/portable/xtensa/include/freertos",
+          "-ID:/bt-owned61/esp-idf/components/freertos/esp_additions/include",
+          "-ID:/bt-owned61/esp-idf/components/esp_hw_support/include",
+          "-ID:/bt-owned61/esp-idf/components/esp_hw_support/include/soc",
+          "-ID:/bt-owned61/esp-idf/components/esp_hw_support/ldo/include",
+          "-ID:/bt-owned61/esp-idf/components/esp_hw_support/debug_probe/include",
+          "-ID:/bt-owned61/esp-idf/components/esp_hw_support/etm/include",
+          "-ID:/bt-owned61/esp-idf/components/esp_hw_support/mspi/mspi_timing_tuning/include",
+          "-ID:/bt-owned61/esp-idf/components/esp_hw_support/mspi/mspi_timing_tuning/tuning_scheme_impl/include",
+          "-ID:/bt-owned61/esp-idf/components/esp_hw_support/mspi/mspi_intr/include",
+          "-ID:/bt-owned61/esp-idf/components/esp_hw_support/power_supply/include",
+          "-ID:/bt-owned61/esp-idf/components/esp_hw_support/modem/include",
+          "-ID:/bt-owned61/esp-idf/components/esp_hw_support/port/esp32/.",
+          "-ID:/bt-owned61/esp-idf/components/esp_hw_support/port/esp32/include",
+          "-ID:/bt-owned61/esp-idf/components/heap/include",
+          "-ID:/bt-owned61/esp-idf/components/heap/tlsf",
+          "-ID:/bt-owned61/esp-idf/components/log/include",
+          "-ID:/bt-owned61/esp-idf/components/soc/include",
+          "-ID:/bt-owned61/esp-idf/components/soc/esp32",
+          "-ID:/bt-owned61/esp-idf/components/soc/esp32/include",
+          "-ID:/bt-owned61/esp-idf/components/soc/esp32/register",
+          "-ID:/bt-owned61/esp-idf/components/hal/platform_port/include",
+          "-ID:/bt-owned61/esp-idf/components/hal/esp32/include",
+          "-ID:/bt-owned61/esp-idf/components/hal/include",
+          "-ID:/bt-owned61/esp-idf/components/esp_rom/include",
+          "-ID:/bt-owned61/esp-idf/components/esp_rom/esp32/include",
+          "-ID:/bt-owned61/esp-idf/components/esp_rom/esp32/include/esp32",
+          "-ID:/bt-owned61/esp-idf/components/esp_rom/esp32",
+          "-ID:/bt-owned61/esp-idf/components/esp_common/include",
+          "-ID:/bt-owned61/esp-idf/components/esp_system/include",
+          "-ID:/bt-owned61/esp-idf/components/esp_system/port/soc",
+          "-ID:/bt-owned61/esp-idf/components/esp_system/port/include/private",
+          "-ID:/bt-owned61/esp-idf/components/esp_stdio/include",
+          "-ID:/bt-owned61/esp-idf/components/xtensa/esp32/include",
+          "-ID:/bt-owned61/esp-idf/components/xtensa/include",
+          "-ID:/bt-owned61/esp-idf/components/xtensa/deprecated_include",
+          "-ID:/bt-owned61/esp-idf/components/esp_hal_gpio/include",
+          "-ID:/bt-owned61/esp-idf/components/esp_hal_gpio/esp32/include",
+          "-ID:/bt-owned61/esp-idf/components/esp_hal_usb/include",
+          "-ID:/bt-owned61/esp-idf/components/esp_hal_pmu/include",
+          "-ID:/bt-owned61/esp-idf/components/esp_hal_pmu/esp32/include",
+          "-ID:/bt-owned61/esp-idf/components/esp_hal_regi2c/include",
+          "-ID:/bt-owned61/esp-idf/components/esp_hal_regi2c/esp32/include",
+          "-ID:/bt-owned61/esp-idf/components/esp_hal_uart/include",
+          "-ID:/bt-owned61/esp-idf/components/esp_hal_uart/esp32/include",
+          "-ID:/bt-owned61/esp-idf/components/esp_hal_ana_conv/include",
+          "-ID:/bt-owned61/esp-idf/components/esp_hal_ana_conv/esp32/include",
+          "-ID:/bt-owned61/esp-idf/components/esp_hal_dma/include",
+          "-ID:/bt-owned61/esp-idf/components/esp_hal_i2s/include",
+          "-ID:/bt-owned61/esp-idf/components/esp_hal_i2s/esp32/include",
+          "-ID:/bt-owned61/esp-idf/components/esp_timer/include",
+          "-ID:/bt-owned61/esp-idf/components/lwip/include",
+          "-ID:/bt-owned61/esp-idf/components/lwip/include/apps",
+          "-ID:/bt-owned61/esp-idf/components/lwip/lwip/src/include",
+          "-ID:/bt-owned61/esp-idf/components/lwip/port/include",
+          "-ID:/bt-owned61/esp-idf/components/lwip/port/freertos/include",
+          "-ID:/bt-owned61/esp-idf/components/lwip/port/esp32xx/include",
+          "-ID:/bt-owned61/esp-idf/components/lwip/port/esp32xx/include/arch",
+          "-ID:/bt-owned61/esp-idf/components/lwip/port/esp32xx/include/sys",
+          "@D:/bt-owned61/native_bt/_build/esp32/toolchain/cflags",
+          "-fdiagnostics-color=always",
+          "-ffunction-sections",
+          "-fdata-sections",
+          "-Wall",
+          "-Werror",
+          "-Wno-error=unused-function",
+          "-Wno-error=unused-variable",
+          "-Wno-error=unused-but-set-variable",
+          "-Wno-error=deprecated-declarations",
+          "-Wextra",
+          "-Wno-error=extra",
+          "-Wno-unused-parameter",
+          "-Wno-sign-compare",
+          "-Wno-enum-conversion",
+          "-gdwarf-4",
+          "-ggdb",
+          "-Os",
+          "-freorder-blocks",
+          "-mno-target-align",
+          "-fmacro-prefix-map=D:/bt-owned61/native_bt/esp32_probe=.",
+          "-fmacro-prefix-map=D:/bt-owned61/esp-idf=/IDF",
+          "-fstrict-volatile-bitfields",
+          "-fno-jump-tables",
+          "-fno-tree-switch-conversion",
+          "-std=gnu23",
+          "-Wno-old-style-declaration",
+          "-fzero-init-padding-bits=all",
+          "-fno-malloc-dce",
+          "-std=c11",
+          "-Os",
+          "-o",
+          "D:\\bt-owned61\\native_bt\\_build\\experiments\\finish-block-1794048105456\\o2.obj",
+          "-c",
+          "D:\\bt-owned61\\native_bt\\_build\\experiments\\finish-block-1794048105456\\o2.c",
+          "-ID:\\bt-owned61\\bt_audio_sink\\main\\dsp"
+        ],
+        "scope": "same selected Xtensa compile flags except this helper policy; object-size evidence only, not linked image or target timing"
+      },
+      {
+        "variant": "os",
+        "object_iram_section_bytes": 4890,
+        "helper_symbol_bytes": 71,
+        "command": [
+          "C:\\Users\\ngocv\\.espressif\\tools\\ccache\\4.12.1\\ccache-4.12.1-windows-x86_64\\ccache.exe",
+          "C:\\Users\\ngocv\\.espressif\\tools\\xtensa-esp-elf\\esp-15.2.0_20251204\\xtensa-esp-elf\\bin\\xtensa-esp32-elf-gcc.exe",
+          "-DDBT_AUDIO_BLOCK_DSP=1",
+          "-DDBT_AUDIO_STAGE_PROFILE=1",
+          "-DDBT_AUDIO_UNITY_COPY=1",
+          "-DESP_PLATFORM",
+          "-DFIXED_DSP_BLOCK_API=1",
+          "-DFIXED_DSP_BLOCK_IRAM=1",
+          "-DFIXED_DSP_VOLUME_RAMP_BLOCK=1",
+          "-DFIXED_DSP_WORD_QUANT=1",
+          "-DIDF_VER=\"v6.1\"",
+          "-DSOC_MMU_PAGE_SIZE=CONFIG_MMU_PAGE_SIZE",
+          "-DSOC_XTAL_FREQ_MHZ=CONFIG_XTAL_FREQ",
+          "-D_GLIBCXX_HAVE_POSIX_SEMAPHORE",
+          "-D_GLIBCXX_USE_POSIX_SEMAPHORE",
+          "-D_GNU_SOURCE",
+          "-D_POSIX_READER_WRITER_LOCKS",
+          "-ID:/bt-owned61/native_bt/_build/esp32/config",
+          "-ID:/bt-owned61/native_bt/include",
+          "-ID:/bt-owned61/bt_audio_sink/main/dsp",
+          "-ID:/bt-owned61/esp-idf/components/esp_libc/platform_include",
+          "-ID:/bt-owned61/esp-idf/components/freertos/config/include",
+          "-ID:/bt-owned61/esp-idf/components/freertos/config/include/freertos",
+          "-ID:/bt-owned61/esp-idf/components/freertos/config/xtensa/include",
+          "-ID:/bt-owned61/esp-idf/components/freertos/FreeRTOS-Kernel/include",
+          "-ID:/bt-owned61/esp-idf/components/freertos/FreeRTOS-Kernel/portable/xtensa/include",
+          "-ID:/bt-owned61/esp-idf/components/freertos/FreeRTOS-Kernel/portable/xtensa/include/freertos",
+          "-ID:/bt-owned61/esp-idf/components/freertos/esp_additions/include",
+          "-ID:/bt-owned61/esp-idf/components/esp_hw_support/include",
+          "-ID:/bt-owned61/esp-idf/components/esp_hw_support/include/soc",
+          "-ID:/bt-owned61/esp-idf/components/esp_hw_support/ldo/include",
+          "-ID:/bt-owned61/esp-idf/components/esp_hw_support/debug_probe/include",
+          "-ID:/bt-owned61/esp-idf/components/esp_hw_support/etm/include",
+          "-ID:/bt-owned61/esp-idf/components/esp_hw_support/mspi/mspi_timing_tuning/include",
+          "-ID:/bt-owned61/esp-idf/components/esp_hw_support/mspi/mspi_timing_tuning/tuning_scheme_impl/include",
+          "-ID:/bt-owned61/esp-idf/components/esp_hw_support/mspi/mspi_intr/include",
+          "-ID:/bt-owned61/esp-idf/components/esp_hw_support/power_supply/include",
+          "-ID:/bt-owned61/esp-idf/components/esp_hw_support/modem/include",
+          "-ID:/bt-owned61/esp-idf/components/esp_hw_support/port/esp32/.",
+          "-ID:/bt-owned61/esp-idf/components/esp_hw_support/port/esp32/include",
+          "-ID:/bt-owned61/esp-idf/components/heap/include",
+          "-ID:/bt-owned61/esp-idf/components/heap/tlsf",
+          "-ID:/bt-owned61/esp-idf/components/log/include",
+          "-ID:/bt-owned61/esp-idf/components/soc/include",
+          "-ID:/bt-owned61/esp-idf/components/soc/esp32",
+          "-ID:/bt-owned61/esp-idf/components/soc/esp32/include",
+          "-ID:/bt-owned61/esp-idf/components/soc/esp32/register",
+          "-ID:/bt-owned61/esp-idf/components/hal/platform_port/include",
+          "-ID:/bt-owned61/esp-idf/components/hal/esp32/include",
+          "-ID:/bt-owned61/esp-idf/components/hal/include",
+          "-ID:/bt-owned61/esp-idf/components/esp_rom/include",
+          "-ID:/bt-owned61/esp-idf/components/esp_rom/esp32/include",
+          "-ID:/bt-owned61/esp-idf/components/esp_rom/esp32/include/esp32",
+          "-ID:/bt-owned61/esp-idf/components/esp_rom/esp32",
+          "-ID:/bt-owned61/esp-idf/components/esp_common/include",
+          "-ID:/bt-owned61/esp-idf/components/esp_system/include",
+          "-ID:/bt-owned61/esp-idf/components/esp_system/port/soc",
+          "-ID:/bt-owned61/esp-idf/components/esp_system/port/include/private",
+          "-ID:/bt-owned61/esp-idf/components/esp_stdio/include",
+          "-ID:/bt-owned61/esp-idf/components/xtensa/esp32/include",
+          "-ID:/bt-owned61/esp-idf/components/xtensa/include",
+          "-ID:/bt-owned61/esp-idf/components/xtensa/deprecated_include",
+          "-ID:/bt-owned61/esp-idf/components/esp_hal_gpio/include",
+          "-ID:/bt-owned61/esp-idf/components/esp_hal_gpio/esp32/include",
+          "-ID:/bt-owned61/esp-idf/components/esp_hal_usb/include",
+          "-ID:/bt-owned61/esp-idf/components/esp_hal_pmu/include",
+          "-ID:/bt-owned61/esp-idf/components/esp_hal_pmu/esp32/include",
+          "-ID:/bt-owned61/esp-idf/components/esp_hal_regi2c/include",
+          "-ID:/bt-owned61/esp-idf/components/esp_hal_regi2c/esp32/include",
+          "-ID:/bt-owned61/esp-idf/components/esp_hal_uart/include",
+          "-ID:/bt-owned61/esp-idf/components/esp_hal_uart/esp32/include",
+          "-ID:/bt-owned61/esp-idf/components/esp_hal_ana_conv/include",
+          "-ID:/bt-owned61/esp-idf/components/esp_hal_ana_conv/esp32/include",
+          "-ID:/bt-owned61/esp-idf/components/esp_hal_dma/include",
+          "-ID:/bt-owned61/esp-idf/components/esp_hal_i2s/include",
+          "-ID:/bt-owned61/esp-idf/components/esp_hal_i2s/esp32/include",
+          "-ID:/bt-owned61/esp-idf/components/esp_timer/include",
+          "-ID:/bt-owned61/esp-idf/components/lwip/include",
+          "-ID:/bt-owned61/esp-idf/components/lwip/include/apps",
+          "-ID:/bt-owned61/esp-idf/components/lwip/lwip/src/include",
+          "-ID:/bt-owned61/esp-idf/components/lwip/port/include",
+          "-ID:/bt-owned61/esp-idf/components/lwip/port/freertos/include",
+          "-ID:/bt-owned61/esp-idf/components/lwip/port/esp32xx/include",
+          "-ID:/bt-owned61/esp-idf/components/lwip/port/esp32xx/include/arch",
+          "-ID:/bt-owned61/esp-idf/components/lwip/port/esp32xx/include/sys",
+          "@D:/bt-owned61/native_bt/_build/esp32/toolchain/cflags",
+          "-fdiagnostics-color=always",
+          "-ffunction-sections",
+          "-fdata-sections",
+          "-Wall",
+          "-Werror",
+          "-Wno-error=unused-function",
+          "-Wno-error=unused-variable",
+          "-Wno-error=unused-but-set-variable",
+          "-Wno-error=deprecated-declarations",
+          "-Wextra",
+          "-Wno-error=extra",
+          "-Wno-unused-parameter",
+          "-Wno-sign-compare",
+          "-Wno-enum-conversion",
+          "-gdwarf-4",
+          "-ggdb",
+          "-Os",
+          "-freorder-blocks",
+          "-mno-target-align",
+          "-fmacro-prefix-map=D:/bt-owned61/native_bt/esp32_probe=.",
+          "-fmacro-prefix-map=D:/bt-owned61/esp-idf=/IDF",
+          "-fstrict-volatile-bitfields",
+          "-fno-jump-tables",
+          "-fno-tree-switch-conversion",
+          "-std=gnu23",
+          "-Wno-old-style-declaration",
+          "-fzero-init-padding-bits=all",
+          "-fno-malloc-dce",
+          "-std=c11",
+          "-Os",
+          "-o",
+          "D:\\bt-owned61\\native_bt\\_build\\experiments\\finish-block-1794048105456\\os.obj",
+          "-c",
+          "D:\\bt-owned61\\native_bt\\_build\\experiments\\finish-block-1794048105456\\os.c",
+          "-ID:\\bt-owned61\\bt_audio_sink\\main\\dsp"
+        ],
+        "scope": "same selected Xtensa compile flags except this helper policy; object-size evidence only, not linked image or target timing"
+      }
+    ]
+  },
+  "selected_tests": {
+    "passed": true,
+    "transposed": false,
+    "word_quant": true,
+    "word_ramp": true,
+    "volume_ramp": true,
+    "volume_compare": false,
+    "matched_feedback": false,
+    "matched_compare": false,
+    "word_oracle": {
+      "cases": 2001042,
+      "command": [
+        "C:\\Users\\ngocv\\.espressif\\tools\\ccache\\4.12.1\\ccache-4.12.1-windows-x86_64\\ccache.exe",
+        "C:\\Program Files\\LLVM\\bin\\clang.exe",
+        "-std=c11",
+        "-O3",
+        "-g",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-fsanitize=address,undefined",
+        "-fno-sanitize-recover=all",
+        "-fno-omit-frame-pointer",
+        "-ID:\\bt-owned61\\bt_audio_sink\\main\\dsp",
+        "-DFIXED_DSP_BLOCK_API=1",
+        "-DFIXED_DSP_WORD_QUANT=1",
+        "-DFIXED_DSP_WORD_RAMP=1",
+        "-DFIXED_DSP_VOLUME_RAMP_BLOCK=1",
+        "-fms-runtime-lib=dll",
+        "-D_DLL",
+        "D:\\bt-owned61\\native_bt\\tests\\test_dsp_word_quant.c",
+        "-o",
+        "D:\\bt-owned61\\native_bt\\_build\\dsp_block_word_ramp\\oracle.exe",
+        "-Wl,/NODEFAULTLIB:libcmt"
+      ],
+      "oracle": "signed division/remainder with floor correction and explicit range clamps"
+    },
+    "full_output_oracle": {
+      "channel_samples": 1848830,
+      "command": [
+        "C:\\Users\\ngocv\\.espressif\\tools\\ccache\\4.12.1\\ccache-4.12.1-windows-x86_64\\ccache.exe",
+        "C:\\Program Files\\LLVM\\bin\\clang.exe",
+        "-std=c11",
+        "-O3",
+        "-g",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-fsanitize=address,undefined",
+        "-fno-sanitize-recover=all",
+        "-fno-omit-frame-pointer",
+        "-ID:\\bt-owned61\\bt_audio_sink\\main\\dsp",
+        "-DFIXED_DSP_BLOCK_API=1",
+        "-DFIXED_DSP_WORD_QUANT=1",
+        "-DFIXED_DSP_WORD_RAMP=1",
+        "-DFIXED_DSP_VOLUME_RAMP_BLOCK=1",
+        "-fms-runtime-lib=dll",
+        "-D_DLL",
+        "D:\\bt-owned61\\native_bt\\tests\\test_dsp_full_output.c",
+        "-o",
+        "D:\\bt-owned61\\native_bt\\_build\\dsp_block_word_ramp\\full-output-oracle.exe",
+        "-Wl,/NODEFAULTLIB:libcmt"
+      ],
+      "scope": "independent signed wide division with floor correction, explicit gain clamp and rational limiter, numeric boundaries, arbitrary signed gains, counter wraps and complete DSP state"
+    },
+    "matched_oracle": null,
+    "scope": "host exact PCM/state comparison to the existing per-frame implementation; no hardware timing",
+    "sanitizers": [
+      "address",
+      "undefined"
+    ],
+    "signed_overflow_wrapping": false,
+    "maximum_block_frames": 128,
+    "modes": [
+      {
+        "mode": "proven",
+        "blocks": 75941,
+        "frames": 4403129,
+        "commands": [
+          [
+            "C:\\Users\\ngocv\\.espressif\\tools\\ccache\\4.12.1\\ccache-4.12.1-windows-x86_64\\ccache.exe",
+            "C:\\Program Files\\LLVM\\bin\\clang.exe",
+            "-std=c11",
+            "-O3",
+            "-g",
+            "-Wall",
+            "-Wextra",
+            "-Werror",
+            "-fsanitize=address,undefined",
+            "-fno-sanitize-recover=all",
+            "-fno-omit-frame-pointer",
+            "-ID:\\bt-owned61\\bt_audio_sink\\main\\dsp",
+            "-DFIXED_DSP_BLOCK_API=1",
+            "-DFIXED_DSP_WORD_QUANT=1",
+            "-DFIXED_DSP_WORD_RAMP=1",
+            "-DFIXED_DSP_VOLUME_RAMP_BLOCK=1",
+            "-fms-runtime-lib=dll",
+            "-D_DLL",
+            "-c",
+            "D:\\bt-owned61\\bt_audio_sink\\main\\dsp\\fixed_dsp.c",
+            "-o",
+            "D:\\bt-owned61\\native_bt\\_build\\dsp_block_word_ramp\\proven_0.obj"
+          ],
+          [
+            "C:\\Users\\ngocv\\.espressif\\tools\\ccache\\4.12.1\\ccache-4.12.1-windows-x86_64\\ccache.exe",
+            "C:\\Program Files\\LLVM\\bin\\clang.exe",
+            "-std=c11",
+            "-O3",
+            "-g",
+            "-Wall",
+            "-Wextra",
+            "-Werror",
+            "-fsanitize=address,undefined",
+            "-fno-sanitize-recover=all",
+            "-fno-omit-frame-pointer",
+            "-ID:\\bt-owned61\\bt_audio_sink\\main\\dsp",
+            "-DFIXED_DSP_BLOCK_API=1",
+            "-DFIXED_DSP_WORD_QUANT=1",
+            "-DFIXED_DSP_WORD_RAMP=1",
+            "-DFIXED_DSP_VOLUME_RAMP_BLOCK=1",
+            "-fms-runtime-lib=dll",
+            "-D_DLL",
+            "-c",
+            "D:\\bt-owned61\\native_bt\\_build\\dsp_block_word_ramp\\reference.c",
+            "-o",
+            "D:\\bt-owned61\\native_bt\\_build\\dsp_block_word_ramp\\proven_1.obj"
+          ],
+          [
+            "C:\\Users\\ngocv\\.espressif\\tools\\ccache\\4.12.1\\ccache-4.12.1-windows-x86_64\\ccache.exe",
+            "C:\\Program Files\\LLVM\\bin\\clang.exe",
+            "-std=c11",
+            "-O3",
+            "-g",
+            "-Wall",
+            "-Wextra",
+            "-Werror",
+            "-fsanitize=address,undefined",
+            "-fno-sanitize-recover=all",
+            "-fno-omit-frame-pointer",
+            "-ID:\\bt-owned61\\bt_audio_sink\\main\\dsp",
+            "-DFIXED_DSP_BLOCK_API=1",
+            "-DFIXED_DSP_WORD_QUANT=1",
+            "-DFIXED_DSP_WORD_RAMP=1",
+            "-DFIXED_DSP_VOLUME_RAMP_BLOCK=1",
+            "-fms-runtime-lib=dll",
+            "-D_DLL",
+            "-c",
+            "D:\\bt-owned61\\native_bt\\tests\\test_fixed_dsp_block.c",
+            "-o",
+            "D:\\bt-owned61\\native_bt\\_build\\dsp_block_word_ramp\\proven_2.obj"
+          ],
+          [
+            "C:\\Users\\ngocv\\.espressif\\tools\\ccache\\4.12.1\\ccache-4.12.1-windows-x86_64\\ccache.exe",
+            "C:\\Program Files\\LLVM\\bin\\clang.exe",
+            "-std=c11",
+            "-O3",
+            "-g",
+            "-Wall",
+            "-Wextra",
+            "-Werror",
+            "-fsanitize=address,undefined",
+            "-fno-sanitize-recover=all",
+            "-fno-omit-frame-pointer",
+            "-ID:\\bt-owned61\\bt_audio_sink\\main\\dsp",
+            "-DFIXED_DSP_BLOCK_API=1",
+            "-DFIXED_DSP_WORD_QUANT=1",
+            "-DFIXED_DSP_WORD_RAMP=1",
+            "-DFIXED_DSP_VOLUME_RAMP_BLOCK=1",
+            "-fms-runtime-lib=dll",
+            "-D_DLL",
+            "D:\\bt-owned61\\native_bt\\_build\\dsp_block_word_ramp\\proven_0.obj",
+            "D:\\bt-owned61\\native_bt\\_build\\dsp_block_word_ramp\\proven_1.obj",
+            "D:\\bt-owned61\\native_bt\\_build\\dsp_block_word_ramp\\proven_2.obj",
+            "-o",
+            "D:\\bt-owned61\\native_bt\\_build\\dsp_block_word_ramp\\proven.exe",
+            "-Wl,/NODEFAULTLIB:libcmt"
+          ]
+        ]
+      },
+      {
+        "mode": "split_fallback",
+        "blocks": 75941,
+        "frames": 4403129,
+        "commands": [
+          [
+            "C:\\Users\\ngocv\\.espressif\\tools\\ccache\\4.12.1\\ccache-4.12.1-windows-x86_64\\ccache.exe",
+            "C:\\Program Files\\LLVM\\bin\\clang.exe",
+            "-std=c11",
+            "-O3",
+            "-g",
+            "-Wall",
+            "-Wextra",
+            "-Werror",
+            "-fsanitize=address,undefined",
+            "-fno-sanitize-recover=all",
+            "-fno-omit-frame-pointer",
+            "-ID:\\bt-owned61\\bt_audio_sink\\main\\dsp",
+            "-DFIXED_DSP_BLOCK_API=1",
+            "-DFIXED_DSP_WORD_QUANT=1",
+            "-DFIXED_DSP_WORD_RAMP=1",
+            "-DFIXED_DSP_VOLUME_RAMP_BLOCK=1",
+            "-fms-runtime-lib=dll",
+            "-D_DLL",
+            "-DFIXED_DSP_FORCE_SPLIT_SUM=1",
+            "-c",
+            "D:\\bt-owned61\\bt_audio_sink\\main\\dsp\\fixed_dsp.c",
+            "-o",
+            "D:\\bt-owned61\\native_bt\\_build\\dsp_block_word_ramp\\split_fallback_0.obj"
+          ],
+          [
+            "C:\\Users\\ngocv\\.espressif\\tools\\ccache\\4.12.1\\ccache-4.12.1-windows-x86_64\\ccache.exe",
+            "C:\\Program Files\\LLVM\\bin\\clang.exe",
+            "-std=c11",
+            "-O3",
+            "-g",
+            "-Wall",
+            "-Wextra",
+            "-Werror",
+            "-fsanitize=address,undefined",
+            "-fno-sanitize-recover=all",
+            "-fno-omit-frame-pointer",
+            "-ID:\\bt-owned61\\bt_audio_sink\\main\\dsp",
+            "-DFIXED_DSP_BLOCK_API=1",
+            "-DFIXED_DSP_WORD_QUANT=1",
+            "-DFIXED_DSP_WORD_RAMP=1",
+            "-DFIXED_DSP_VOLUME_RAMP_BLOCK=1",
+            "-fms-runtime-lib=dll",
+            "-D_DLL",
+            "-c",
+            "D:\\bt-owned61\\native_bt\\_build\\dsp_block_word_ramp\\reference.c",
+            "-o",
+            "D:\\bt-owned61\\native_bt\\_build\\dsp_block_word_ramp\\split_fallback_1.obj"
+          ],
+          [
+            "C:\\Users\\ngocv\\.espressif\\tools\\ccache\\4.12.1\\ccache-4.12.1-windows-x86_64\\ccache.exe",
+            "C:\\Program Files\\LLVM\\bin\\clang.exe",
+            "-std=c11",
+            "-O3",
+            "-g",
+            "-Wall",
+            "-Wextra",
+            "-Werror",
+            "-fsanitize=address,undefined",
+            "-fno-sanitize-recover=all",
+            "-fno-omit-frame-pointer",
+            "-ID:\\bt-owned61\\bt_audio_sink\\main\\dsp",
+            "-DFIXED_DSP_BLOCK_API=1",
+            "-DFIXED_DSP_WORD_QUANT=1",
+            "-DFIXED_DSP_WORD_RAMP=1",
+            "-DFIXED_DSP_VOLUME_RAMP_BLOCK=1",
+            "-fms-runtime-lib=dll",
+            "-D_DLL",
+            "-c",
+            "D:\\bt-owned61\\native_bt\\tests\\test_fixed_dsp_block.c",
+            "-o",
+            "D:\\bt-owned61\\native_bt\\_build\\dsp_block_word_ramp\\split_fallback_2.obj"
+          ],
+          [
+            "C:\\Users\\ngocv\\.espressif\\tools\\ccache\\4.12.1\\ccache-4.12.1-windows-x86_64\\ccache.exe",
+            "C:\\Program Files\\LLVM\\bin\\clang.exe",
+            "-std=c11",
+            "-O3",
+            "-g",
+            "-Wall",
+            "-Wextra",
+            "-Werror",
+            "-fsanitize=address,undefined",
+            "-fno-sanitize-recover=all",
+            "-fno-omit-frame-pointer",
+            "-ID:\\bt-owned61\\bt_audio_sink\\main\\dsp",
+            "-DFIXED_DSP_BLOCK_API=1",
+            "-DFIXED_DSP_WORD_QUANT=1",
+            "-DFIXED_DSP_WORD_RAMP=1",
+            "-DFIXED_DSP_VOLUME_RAMP_BLOCK=1",
+            "-fms-runtime-lib=dll",
+            "-D_DLL",
+            "D:\\bt-owned61\\native_bt\\_build\\dsp_block_word_ramp\\split_fallback_0.obj",
+            "D:\\bt-owned61\\native_bt\\_build\\dsp_block_word_ramp\\split_fallback_1.obj",
+            "D:\\bt-owned61\\native_bt\\_build\\dsp_block_word_ramp\\split_fallback_2.obj",
+            "-o",
+            "D:\\bt-owned61\\native_bt\\_build\\dsp_block_word_ramp\\split_fallback.exe",
+            "-Wl,/NODEFAULTLIB:libcmt"
+          ]
+        ]
+      }
+    ],
+    "sources": {
+      "D:\\bt-owned61\\bt_audio_sink\\main\\dsp\\fixed_dsp.c": "245b187318e692b6814850e59adf90c1f85d28198b8b571aa71c5988fca8c1ab",
+      "D:\\bt-owned61\\native_bt\\_build\\dsp_block_word_ramp\\reference.c": "f83888895a6dfc75ca8358280042fbaf697578c6b97f68afbff6cceae7a6c5d5",
+      "D:\\bt-owned61\\native_bt\\tests\\test_fixed_dsp_block.c": "77ebd9a40fdf429bab1dd414f0ac2f39d4b97d4e373fe1c7631132f34b0430de",
+      "D:\\bt-owned61\\native_bt\\tools\\test_dsp_block.py": "c08e847ac2729e1f607b2809b62bfb245fdd59657a714a7331e4a56588b8df9c",
+      "D:\\bt-owned61\\bt_audio_sink\\main\\dsp\\fixed_dsp.h": "9a35e1e8dbc8aeeabdc8eb7984a42771c8c4075b4f56886e4d275649e489ebb1",
+      "D:\\bt-owned61\\bt_audio_sink\\main\\dsp\\fixed_dsp_tables.inc": "c6a20053d23c40c1597a0d49d46ac952218544de3493ab52d8bb9923eb23a742",
+      "D:\\bt-owned61\\native_bt\\tests\\test_dsp_word_quant.c": "fae9a8b0ec3cde43fd05149ee7295d408318a02bd6a9fa83b97691a48382b519",
+      "D:\\bt-owned61\\native_bt\\tests\\test_dsp_full_output.c": "419b2cae6c165cf4afba75af97c6302d5bed3d3837e0fb35e17b915f355688a4"
+    },
+    "hardware_accessed": false
+  },
+  "recovery": {
+    "at_utc": "2026-11-07T11:02:09.185Z",
+    "image": "b309817ce3d69f8d7140f0d7cf79684a8ddc5734064f6516ddf3d74c73f39df1",
+    "archive": "runs/1794048391333768300-b309817ce3d6",
+    "first_failed_gate": "UART stale before LDAC playback; no volume actions sent",
+    "independent_capture_bytes": 0,
+    "controlled_rom_attempts": 1,
+    "rom_result": "No serial data received",
+    "phone_paused": true,
+    "phone_bluetooth_pid": 8879,
+    "reader_reopen_did_not_restore_uart": true,
+    "cause_proven": false,
+    "ldac_regression_completed": false,
+    "user_power_cycle_requested": true,
+    "phone_volume_80_before_rom_attempt": true,
+    "current_system_media_volume": "0/150",
+    "android_bdk_connected": false,
+    "current_volume_scope": "Read after connection loss; no volume commands were sent during the aborted attempt or recovery"
+  },
+  "ldac_regression_completed": false,
+  "runtime_currently_observable": false,
+  "full_goal_qualified": false,
+  "playback_precheck_regression": {
+    "passed": true,
+    "error": "Error: UART unavailable, stale or wrong source",
+    "phone_calls": []
+  }
+}

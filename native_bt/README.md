@@ -50,9 +50,18 @@ one live HD decoder call, its copied input, and an independent DSP/final block
 against desktop replay. It also records a 440-frame payload versus 336-tick RTP
 discrepancy. It is not a causal diagnosis of that sound report; capture is off by default.
 
+[Experimental full-range finalizer](docs/DSP_FULL_OUTPUT_2026_11_07.md) preserves
+exact PCM/state and measures716–717 versus778–779 helper elapsed cycles/sample.
+LHDC192/fixed900 still has32832/17280/22528 unfilled frames. IRAM+288 bytes;
+8-bit free heap is324 bytes lower in this boot despite unchanged DRAM sections.
+Last verified COM6 imageb309817ce3d6 passed readbacks/owned boot/37 cold cases.
+The subsequent LDAC regression aborted before play because UART became silent;
+reader reopen and one ROM attempt did not recover it. Physical COM6 replug is
+pending. Current runtime and LDAC regression are unverified; this is not a release.
+
 [Idle DSP ramp-call guard](docs/DSP_IDLE_RAMP_2026_11_07.md) preserves exact PCM
 and complete DSP state while skipping three no-op calls per idle sample frame.
-COM6 image950428ba68dd passes full readbacks/owned boot/37 existing cold cases.
+Previous image950428ba68dd passes full readbacks/owned boot/37 existing cold cases.
 Repeated LHDC192/fixed900 helper cost is778–779 versus833–834 elapsed cycles/frame;
 unfilled47744/30592/34048 still fails continuity. IRAM+8 bytes, data RAM unchanged.
 LDAC96 with real80 ->0 ->80 volume keys has1443584 source frames/zero shortages.
