@@ -9,7 +9,7 @@ for change,valid in cases:
 tree=ast.parse((ROOT/'tools/validate_local_image.py').read_text());start=next(i for i,n in enumerate(tree.body) if isinstance(n,ast.Assign) and any(isinstance(t,ast.Name) and t.id=='decoder_priority' for t in n.targets));nodes=tree.body[start:start+5];assert isinstance(nodes[-1],ast.If);actual=compile(ast.Module(body=nodes,type_ignores=[]),'<actual priority admission>','exec');count=0
 def check(change,valid):
     global count
-    state={'build_status':{'decoder_priority':6,'async_audio':True},'cache':'DBT_PROBE_DECODER_PRIORITY:STRING=6\nDBT_PROBE_KEEP_OWNED_ACTIVE:BOOL=OFF','commands':[{'file':'probe_audio.c','command':'cc -DDBT_PROBE_DECODER_PRIORITY=6'}],'diagnostic':False,'pipeline':False,'Path':pathlib.Path,'re':re};state.update(change)
+    state={'build_status':{'decoder_priority':6,'async_audio':True},'cache':'DBT_PROBE_DECODER_PRIORITY:STRING=6\nDBT_PROBE_KEEP_OWNED_ACTIVE:BOOL=OFF','commands':[{'file':'probe_audio.c','command':'cc -DDBT_PROBE_DECODER_PRIORITY=6'}],'diagnostic':False,'pipeline':False,'stay_native':False,'Path':pathlib.Path,'re':re};state.update(change)
     try:exec(actual,state)
     except (AssertionError,StopIteration):assert not valid
     else:assert valid
@@ -22,7 +22,7 @@ check({'build_status':{'decoder_priority':5},'cache':'DBT_PROBE_DECODER_PRIORITY
 yield_start=next(i for i,n in enumerate(tree.body) if isinstance(n,ast.Assign) and any(isinstance(t,ast.Name) and t.id=='owner_ready_yield' for t in n.targets));yield_nodes=tree.body[yield_start:yield_start+3];assert isinstance(yield_nodes[-1],ast.If);yield_code=compile(ast.Module(body=yield_nodes,type_ignores=[]),'<actual owner yield admission>','exec');yield_cases=0
 def check_yield(change,valid):
     global yield_cases
-    state={'decoder_priority':6,'host_priority':6,'build_status':{'owner_ready_yield':True},'main_command':'cc -DDBT_PROBE_DECODER_PRIORITY=6','re':re};state.update(change)
+    state={'decoder_priority':6,'host_priority':6,'build_status':{'owner_ready_yield':True},'main_command':'cc -DDBT_PROBE_DECODER_PRIORITY=6','render_fair_share':False,'re':re};state.update(change)
     try:exec(yield_code,state)
     except AssertionError:assert not valid
     else:assert valid

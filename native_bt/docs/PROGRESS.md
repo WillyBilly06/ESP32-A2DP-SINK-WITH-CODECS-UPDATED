@@ -1,5 +1,15 @@
 # Current project progress
 
+Latest measured scheduling experiment: [Core1 fair sharing](RENDER_FAIR_SHARE_2026_11_06.md).
+COM6 image7a1c4cbfc441 improves one LHDC192/fixed900 comparison from506112 to318848
+unfilled frames; continuity still fails. Local render/retirement maxima fall to4130/1787us;
+host poll wall maximum increases to4481us and control latency is not qualified.
+LDAC96 with real phone volume110->10->110 has1432832 source/DMA frames and zero
+recorded gaps. Native YouTube metronome search remained blank, so that case is pending.
+Controller23 stays highest; host/main-renderer22 share Core1 after bounded batches.
+Decoder21/helper20 remain on Core0. No extra SRAM/task/buffer. DefaultOFF; no main release.
+The preceding entries are historical; the master goal remains active and incomplete.
+
 Latest arithmetic update: [exact volume-ramp reuse](VOLUME_RAMP_BLOCK_2026_11_06.md).
 COM6 image24f9ec682af8 selects the exact faster volume path, comparison and
 OwnerPacer OFF. One LDAC96 rapid-key stream delivers1440000 frames with zero

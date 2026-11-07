@@ -50,10 +50,17 @@ one live HD decoder call, its copied input, and an independent DSP/final block
 against desktop replay. It also records a 440-frame payload versus 336-tick RTP
 discrepancy. It is not a causal diagnosis of that sound report; capture is off by default.
 
+[Core1 fair-sharing measurements](docs/RENDER_FAIR_SHARE_2026_11_06.md) record
+COM6 image7a1c4cbfc441: controller23, host/main-renderer22, decoder21/Core0
+and helper20/Core0. One LHDC192/fixed900 comparison reduces unfilled frames
+from506112 to318848; continuity still fails. LDAC96 real-key volume regression
+has zero recorded gaps. The explicit scheduling option defaults OFF; maximum
+LHDC, metronome reproduction, acoustics and all-feature qualification remain open.
+
 [Exact volume-ramp reuse](docs/VOLUME_RAMP_BLOCK_2026_11_06.md) keeps stable EQ
 sections on the block path while only compensation coefficients ramp. Host
 PCM/state remains exact; real-audio192k measurements observe29.4% fewer Core0
-elapsed cycles in that scoped case. COM6 image24f9ec682af8 selects the faster
+elapsed cycles in that scoped case. Earlier image24f9ec682af8 selects the faster
 path without A/B instrumentation or the experimental host budget. One LDAC96
 rapid-key regression has zero recorded gaps; full LHDC continuity remains open.
 Use -VolumeRampBlock with the existing full native/block/word build recipe.

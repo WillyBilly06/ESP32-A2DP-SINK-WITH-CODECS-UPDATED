@@ -980,8 +980,9 @@ static void log_loop(void *unused){
 #ifdef DBT_PROBE_CODEC_AWARE_RENDER
         snapshot_log(output_snapshot_began,"{\"probe\":\"render_owner_policy\",\"collection_cycle_us\":%" PRIu32
                ",\"core\":%" PRIu32 ",\"transfers\":%" PRIu32 ",\"auxiliary_stack_bytes\":%" PRIu32
-               ",\"allocation_failures\":%" PRIu32 ",\"single_owner\":true}\n",at,stats.render_core,
-               stats.render_owner_transfers,stats.auxiliary_render_stack_bytes,stats.auxiliary_render_allocation_failures);
+               ",\"allocation_failures\":%" PRIu32 ",\"main_priority\":%" PRIu32 ",\"auxiliary_priority\":%" PRIu32 ",\"single_owner\":true}\n",at,stats.render_core,
+               stats.render_owner_transfers,stats.auxiliary_render_stack_bytes,stats.auxiliary_render_allocation_failures,
+               stats.main_render_priority,stats.auxiliary_render_priority);
 #endif
         snapshot_log(output_snapshot_began,"{\"probe\":\"render_work\",\"core\":%" PRIu32 ",\"collection_cycle_us\":%" PRIu32 ",\"calls\":%" PRIu32 ",\"elapsed_us\":%" PRIu32
                ",\"maximum_us\":%" PRIu32 ",\"wall_time_includes_preemption\":true,\"input_ready_frames\":%" PRIu32 ",\"render_stack_low_water_bytes\":%" PRIu32

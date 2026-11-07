@@ -1,4 +1,6 @@
 /* Actual output task/lifecycle with two mocked FreeRTOS cores. No hardware. */
+#include "../../esp32_probe/main/probe_schedule_limits.h"
+#define taskYIELD prior_task_yield
 #define main prior_sound_main
 #define xTaskCreatePinnedToCore prior_task_create
 #define xTaskNotifyGive prior_task_notify
@@ -12,12 +14,14 @@
 #undef vTaskNotifyGiveFromISR
 #undef ulTaskNotifyTake
 #undef dbt_output_test_step
+#undef taskYIELD
 
-typedef struct {void (*fn)(void *);void *arg;int core;HANDLE thread,event;_Atomic unsigned notifications;} mock_task_t;
+typedef struct {void (*fn)(void *);void *arg;int core;unsigned priority;HANDLE thread,event;_Atomic unsigned notifications;} mock_task_t;
 static mock_task_t mock_tasks[2];
 static _Thread_local mock_task_t *current_task;
 static _Atomic bool mock_shutdown,decoder_hint;
-static _Atomic unsigned mock_errors,pending_timed_waits;
+static _Atomic unsigned mock_errors,pending_timed_waits,yields[2];
+void taskYIELD(void){if(current_task)atomic_fetch_add(&yields[current_task->core],1);SwitchToThread();}
 static HANDLE hook_release,commit_release;
 extern uint32_t dbt_output_test_ready_pcm(void);
 int xPortGetCoreID(void){return current_task?current_task->core:0;}
@@ -25,9 +29,9 @@ TaskHandle_t xTaskGetCurrentTaskHandle(void){return current_task;}
 bool probe_audio_dsp_assist_ready(void){return atomic_load_explicit(&decoder_hint,memory_order_acquire);}
 static DWORD WINAPI mock_entry(void *pointer){current_task=pointer;current_task->fn(current_task->arg);return 0;}
 int xTaskCreatePinnedToCore(void (*fn)(void *),const char *name,unsigned stack,void *arg,unsigned priority,TaskHandle_t *task,int core){
-    (void)name;(void)stack;(void)priority;
+    (void)name;(void)stack;
     if(core<0 || core>1 || mock_tasks[core].thread)return pdFALSE;
-    mock_task_t *t=&mock_tasks[core];t->fn=fn;t->arg=arg;t->core=core;t->event=CreateEventA(NULL,FALSE,FALSE,NULL);
+    mock_task_t *t=&mock_tasks[core];t->fn=fn;t->arg=arg;t->core=core;t->priority=priority;t->event=CreateEventA(NULL,FALSE,FALSE,NULL);
     if(!t->event)return pdFALSE;
     t->thread=CreateThread(NULL,0,mock_entry,t,0,NULL);if(!t->thread)return pdFALSE;*task=t;return pdPASS;
 }
@@ -93,6 +97,11 @@ int main(void){
     CHECK(cancelled!=DBT_PENDING && cancelled!=DBT_INVALID && cancelled!=DBT_OK && atomic_load(&live)==allocations);
     CHECK(!stop_stream());probe_output_dsp_assist_snapshot(&stats);
     CHECK(stats.jobs==2 && stats.blocks==5 && stats.frames==640 && stats.max_job_frames==512 && !stats.failures && !stats.state);
+#ifdef DBT_PROBE_RENDER_FAIR_SHARE
+    CHECK(mock_tasks[1].priority==22 && mock_tasks[0].priority==20 && atomic_load(&yields[1]) && !atomic_load(&yields[0]));
+#else
+    CHECK(mock_tasks[1].priority==20 && mock_tasks[0].priority==20);
+#endif
     printf("main waits=%u blocking sends=%u mock errors=%u timed waits while held=%u\n",atomic_load(&main_waits),atomic_load(&blocking_sends),atomic_load(&mock_errors),atomic_load(&pending_timed_waits));
     CHECK(!atomic_load(&main_waits) && !atomic_load(&blocking_sends) && !atomic_load(&mock_errors) && !atomic_load(&pending_timed_waits));
     probe_output_restart_hold(true);CHECK(probe_output_restart_quiescent());

@@ -35,11 +35,11 @@ for flags,host,decoder,render,yield_ready,valid in header_cases:
                               [('DBT_PROBE_HOST_PRIORITY',host),('DBT_PROBE_DECODER_PRIORITY',decoder),
                                ('DBT_PROBE_RENDER_PRIORITY',render),('DBT_PROBE_OWNER_READY_YIELD',yield_ready)]))
     run=subprocess.run([r'C:\Program Files\LLVM\bin\clang.exe','-std=c11','-Werror','-fsyntax-only',
-                        '-I'+str(ROOT/'esp32_probe/main'),*flags,str(source)],capture_output=True,text=True)
+                        '-I'+str(ROOT/'esp32_probe/main'),'-I'+str(ROOT/'include'),*flags,str(source)],capture_output=True,text=True)
     assert (run.returncode==0)==valid,run.stdout+run.stderr
 
 tree=ast.parse((ROOT/'tools/validate_local_image.py').read_text())
-start=next(i for i,n in enumerate(tree.body) if isinstance(n,ast.Assign) and any(isinstance(t,ast.Name) and t.id=='priority_order' for t in n.targets))
+start=next(i for i,n in enumerate(tree.body) if isinstance(n,ast.Assign) and any(isinstance(t,ast.Name) and t.id=='render_fair_share' for t in n.targets))
 end=next(i for i,n in enumerate(tree.body) if isinstance(n,ast.Assign) and any(isinstance(t,ast.Name) and t.id=='owner_ready_yield' for t in n.targets))
 actual=compile(ast.Module(body=tree.body[start:end],type_ignores=[]),'<actual ordered priority admission>','exec')
 units=['probe_main.c','probe_audio.c','probe_output.c']
@@ -49,7 +49,7 @@ def check(change,valid):
     state={'build_status':{'priority_order':True,'host_priority':7,'renderer_priority':5,'async_audio':True},
            'cache':'DBT_PROBE_PRIORITY_ORDER:BOOL=ON','decoder_priority':6,'diagnostic':False,'pipeline':False,
            'entry_name':'probe_main.c','commands':[{'file':n,'command':'cc -DDBT_PROBE_PRIORITY_ORDER=1'} for n in units],
-           'Path':pathlib.Path,'re':re}
+           'Path':pathlib.Path,'re':re,'stay_native':False}
     state.update(change)
     try:exec(actual,state)
     except (AssertionError,StopIteration):assert not valid

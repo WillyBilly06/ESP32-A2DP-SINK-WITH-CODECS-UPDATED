@@ -1178,9 +1178,9 @@ void app_main(void) {
 #endif
         if (wait == 0) {
 #if DBT_PROBE_OWNER_READY_YIELD
-            /* The decoder also yields after a bounded batch. Return to the
-             * scheduler here so a ready equal-priority decoder need not wait
-             * for the host's entire run of immediate protocol work. No delay. */
+            /* Return after a bounded protocol batch so a ready equal-priority
+             * decoder or admitted Core1 renderer gets service. No delay and
+             * no wait for another subsystem. */
             probe_audio_owner_ready_yield();
             taskYIELD();
 #endif

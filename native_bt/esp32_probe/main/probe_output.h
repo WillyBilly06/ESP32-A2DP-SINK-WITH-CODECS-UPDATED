@@ -36,6 +36,7 @@ typedef struct {
     uint32_t maximum_render_us,stop_fill_frames;
     uint32_t render_total_us,render_calls,render_stack_low_water_bytes;
     uint32_t render_owner_transfers,auxiliary_render_stack_bytes,auxiliary_render_allocation_failures;
+    uint32_t main_render_priority,auxiliary_render_priority;
     uint32_t allocation_failed_bytes,allocation_failure_free,allocation_failure_largest;
     uint32_t allocation_failure_rate,allocation_failure_channels,allocation_failure_sample_bytes,allocation_failure_at_us;
     uint32_t allocation_failure_audio_requested,allocation_failure_audio_allocated,allocation_failure_pages;

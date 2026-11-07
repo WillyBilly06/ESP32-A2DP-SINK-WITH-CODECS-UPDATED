@@ -106,12 +106,23 @@ if decoder_priority!=5:
     assert priority_option and build_status.get('async_audio') and not diagnostic and not pipeline and not build_status.get('rf_protocol_diagnostic')
     assert ('DBT_PROBE_KEEP_OWNED_ACTIVE:BOOL=ON' not in cache or (build_status.get('stay_native') is True and 'DBT_PROBE_STAY_NATIVE:BOOL=ON' in cache))
     assert any(Path(e['file']).name=='probe_audio.c' for e in commands), 'Priority experiment has no decoder task unit'
+render_fair_share=build_status.get('render_fair_share',False)
+assert type(render_fair_share) is bool and ('DBT_PROBE_RENDER_FAIR_SHARE:BOOL=ON' in cache)==render_fair_share, 'Renderer sharing receipt/cache mismatch'
+if render_fair_share:
+    assert stay_native and build_status.get('priority_order') and build_status.get('codec_aware_render') and build_status.get('async_audio') and build_status.get('pcm_copied') and not build_status.get('owner_pacer')
+    assert type(build_status.get('auxiliary_renderer_priority')) is int and build_status['auxiliary_renderer_priority']==20
+for unit in (entry_name,'probe_audio.c','probe_output.c'):
+    compiled=[e['command'] for e in commands if Path(e['file']).name==unit]
+    if render_fair_share: assert len(compiled)==1, 'Missing fair-sharing unit'
+    for command in compiled:
+        assert re.findall(r'(?:^|\s)-DDBT_PROBE_RENDER_FAIR_SHARE=(\S+)',command)==(['1'] if render_fair_share else [])
+        assert not re.search(r'(?:^|\s)-UDBT_PROBE_RENDER_FAIR_SHARE(?:\s|$)',command)
 priority_order=build_status.get('priority_order',False)
 assert type(priority_order) is bool and ('DBT_PROBE_PRIORITY_ORDER:BOOL=ON' in cache)==priority_order, 'Priority order receipt/cache mismatch'
 host_priority=build_status.get('host_priority',6)
 renderer_priority=build_status.get('renderer_priority',6)
 assert type(host_priority) is int and host_priority==(22 if stay_native else 7 if priority_order else 6), 'Invalid host priority receipt'
-assert type(renderer_priority) is int and renderer_priority==(20 if stay_native else 5 if priority_order else 6), 'Invalid renderer priority receipt'
+assert type(renderer_priority) is int and renderer_priority==(22 if render_fair_share else 20 if stay_native else 5 if priority_order else 6), 'Invalid renderer priority receipt'
 schedule_units=[e for e in commands if Path(e['file']).name in (entry_name,'probe_audio.c','probe_output.c')]
 for entry in schedule_units:
     assert re.findall(r'(?:^|\s)-DDBT_PROBE_PRIORITY_ORDER=(\S+)',entry['command'])==(['1'] if priority_order else []), 'Scheduling mode not actually compiled'
@@ -121,8 +132,8 @@ if priority_order:
     assert not build_status.get('rf_protocol_diagnostic') and ('DBT_PROBE_KEEP_OWNED_ACTIVE:BOOL=ON' not in cache or (build_status.get('stay_native') is True and 'DBT_PROBE_STAY_NATIVE:BOOL=ON' in cache))
     assert {Path(e['file']).name for e in schedule_units}=={entry_name,'probe_audio.c','probe_output.c'}, 'Missing ordered task unit'
 owner_ready_yield=build_status.get('owner_ready_yield',False)
-assert type(owner_ready_yield) is bool and owner_ready_yield==(decoder_priority==host_priority), 'Owner ready-yield receipt mismatch'
-if owner_ready_yield:
+assert type(owner_ready_yield) is bool and owner_ready_yield==(render_fair_share or decoder_priority==host_priority), 'Owner ready-yield receipt mismatch'
+if owner_ready_yield and not render_fair_share:
     assert re.findall(r'(?:^|\s)-DDBT_PROBE_DECODER_PRIORITY=(\S+)',main_command)==['6'], 'Owner yield not actually compiled'
     assert not re.search(r'(?:^|\s)-UDBT_PROBE_DECODER_PRIORITY(?:\s|$)',main_command)
 logger_core=build_status.get('logger_core',1-decoder_core)
@@ -297,7 +308,7 @@ assert hashlib.sha256(original).hexdigest()==receipt['sha256']
 assert table==original[0x8000:0x8000+len(table)]
 assert image.flash_mode==2 and image.flash_size_freq==0x3f
 assert image.min_rev_full<=301<=image.max_rev_full
-report={'passed':True,'scheduler_trace':scheduler_trace,'stay_native':stay_native,'priority_order':priority_order,'host_priority':host_priority,'decoder_priority':decoder_priority,'renderer_priority':renderer_priority,'owner_ready_yield':owner_ready_yield,'scope':'offline image checksum/digest, ESP32 revision and admitted OTA capacity; no device access or runtime qualification',
+report={'passed':True,'scheduler_trace':scheduler_trace,'stay_native':stay_native,'priority_order':priority_order,'host_priority':host_priority,'decoder_priority':decoder_priority,'renderer_priority':renderer_priority,'render_fair_share':render_fair_share,'auxiliary_renderer_priority':build_status.get('auxiliary_renderer_priority',renderer_priority),'owner_ready_yield':owner_ready_yield,'scope':'offline image checksum/digest, ESP32 revision and admitted OTA capacity; no device access or runtime qualification',
  'image_sha256':hashlib.sha256(blob).hexdigest(),'image_bytes':len(blob),'project':project,'chip_id':image.chip_id,'codec_diagnostic_only':diagnostic,'pipeline_diagnostic':pipeline,
  'rf_protocol_diagnostic':rf_diagnostic,'pcm_target_ms':pcm_target_ms,'pcm_copied':pcm_copied,'logger_core':logger_core,'block_dsp':block_dsp,'word_dsp':word_dsp,'experimental_short_pcm_target':pcm_target_ms!=64,'revision_range':[image.min_rev_full,image.max_rev_full],'checksum_verified':True,'digest_verified':bool(image.append_digest),
  'latest_local_build_completed':True,'build_sources_match':True,'build_source_units':source_count,'product_io':bool(build_status.get('product_io')),'product_security':product_security,'rfcomm_profile':rfcomm,'controller_only_dual_mode':True,'anti_rollback_fuse_updates':False,'partition_offset':slot['offset'],'partition_bytes':slot['size'],

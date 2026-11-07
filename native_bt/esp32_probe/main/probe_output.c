@@ -1478,6 +1478,9 @@ static void render_loop(void *unused) {
     bool again=render_step();
     if(!owns_output())continue;
     if(!again)ulTaskNotifyTake(pdTRUE,render_wait_ticks());
+#ifdef DBT_PROBE_RENDER_FAIR_SHARE
+    else if((unsigned)xPortGetCoreID()==1u)taskYIELD(); /* one bounded step before equal-host service */
+#endif
   }
 #else
 
@@ -1512,7 +1515,7 @@ dbt_result_t probe_output_init(void (*wake_decoder)(void *), void *context) {
   if (!output.requests)
     return DBT_NO_SPACE;
   TaskHandle_t base=NULL;
-  if(xTaskCreatePinnedToCore(render_loop,"native_render",6144,0,DBT_PROBE_RENDER_PRIORITY,
+  if(xTaskCreatePinnedToCore(render_loop,"native_render",6144,0,DBT_PROBE_RENDER_CORE1_PRIORITY,
                               &base,DBT_ESP32_RENDER_CORE)!=pdPASS){
     vQueueDelete(output.requests);output.requests=NULL;output.task=NULL;
     return DBT_NO_SPACE;
@@ -1792,6 +1795,7 @@ void probe_output_stats(probe_output_stats_t *s) {
   atomic_store_explicit(&output.dsp_requested,1,memory_order_release);
   TaskHandle_t dsp_owner=atomic_load_explicit(&output.task,memory_order_acquire);
   if(dsp_owner)xTaskNotifyGive(dsp_owner);
+  s->main_render_priority=DBT_PROBE_RENDER_CORE1_PRIORITY;s->auxiliary_render_priority=DBT_PROBE_RENDER_PRIORITY;
   s->pcm_target_ms=DBT_PROBE_PCM_TARGET_MS;
   uint32_t prime=atomic_load(&output.priming_state),guard=prime&PRIMING_BUDGET;
   s->priming_ms=guard;s->priming_remaining_ms=0;
