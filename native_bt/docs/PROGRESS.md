@@ -1,5 +1,15 @@
 # Current project progress
 
+Latest: [exact analyzer accumulation](DSP_ANALYSIS_BLOCK_2026_11_06.md).
+COM6 image b31d1013ab8b preserves full PCM/DSP state in 8.8 million comparisons
+and adds no static RAM. Guarded readbacks and 37 existing cold codec cases pass.
+Repeated native YouTube LHDC 192/fixed900 metronome runs measure about 3.2%
+lower Core 0 elapsed DSP cost, with no improvement in Core 1 local elapsed cost.
+Continuity still fails with 360064/359552 unfilled frames. The helper performs
+about 60% of DSP frames; bounded lease scheduling is the next unimplemented
+investigation. All master-goal/maximum-rate/full-feature gates remain open.
+The following entries are historical.
+
 Latest: [decoded-PCM consumer handoff](DSP_RETIREMENT_HANDOFF_2026_11_06.md).
 The first-gap snapshot has decoded PCM waiting while processed output is empty.
 A bookkeeping-only fair yield is removed after helper retirement; deterministic

@@ -50,6 +50,15 @@ one live HD decoder call, its copied input, and an independent DSP/final block
 against desktop replay. It also records a 440-frame payload versus 336-tick RTP
 discrepancy. It is not a causal diagnosis of that sound report; capture is off by default.
 
+[Exact block analysis](docs/DSP_ANALYSIS_BLOCK_2026_11_06.md) reduces repeated
+analyzer bookkeeping while preserving every PCM sample and meter/Goertzel state.
+Two arithmetic modes pass 8.8 million frame comparisons. COM6 image b31d1013ab8b
+adds no static RAM and passes full readbacks/37 cold codec cases. Two native
+YouTube LHDC 192/fixed900 metronome runs repeat about 3.2% lower Core 0 elapsed
+DSP cost, but Core 1 local elapsed cost does not improve and continuity still
+fails (360064/359552 unfilled frames). This is a scoped optimization, with the
+shared DSP work split and full qualification still unresolved.
+
 [DSP consumer handoff](docs/DSP_RETIREMENT_HANDOFF_2026_11_06.md) records a
 first gap with 1792 decoded frames waiting and zero processed output. A bounded
 retirement change processes one local block before the next fair yield; the

@@ -427,6 +427,45 @@ static BLOCK_KERNEL DSP_BLOCK_HOT void filter_matched_feedback_block(const int32
     h->x1=x1;h->x2=x2;h->y1=y1;h->y2=y2;h->fraction=fraction;
 }
 #endif
+/* Preserve every analyzer input, signed average and decimation/window boundary,
+ * but accumulate intervening samples without per-frame analyzer calls. Scaling
+ * remains fused with that read, before any in-place filter mutation. Each pass
+ * consumes at least one of the caller's at-most-128 frames. */
+static void DSP_BLOCK_HOT analysis_scale_block(fixed_dsp_t *dsp,int32_t *pcm,unsigned frames){
+    if(!(dsp->flags & FDSP_ANALYSIS)){
+        for(unsigned i=0;i<2u*frames;++i)pcm[i]>>=4;
+        return;
+    }
+    if(!dsp->decimation || dsp->analysis_count>=dsp->decimation){
+        /* Keep canonical behavior outside the initialized partial-window
+         * contract; this is not a new repair of invalid DSP state. */
+        for(unsigned i=0;i<frames;++i){
+            analysis(dsp,(int32_t)(((int64_t)pcm[2u*i]+pcm[2u*i+1u])/2));
+            pcm[2u*i]>>=4;pcm[2u*i+1u]>>=4;
+        }
+        return;
+    }
+    while(frames){
+        unsigned need=dsp->decimation-dsp->analysis_count;
+        unsigned run=frames<need?frames:need;
+        unsigned partial=run-(run==need);
+        int64_t sum=dsp->analysis_sum;
+        for(unsigned i=0;i<partial;++i){
+            sum+=(int32_t)(((int64_t)pcm[0]+pcm[1])/2);
+            pcm[0]>>=4;pcm[1]>>=4;pcm+=2;
+        }
+        dsp->analysis_sum=sum;
+        dsp->analysis_count=(uint16_t)(dsp->analysis_count+partial);
+        if(run==need){
+            /* The original analyzer owns the exact completed-window step,
+             * including averaging, meter/Goertzel update and window reset. */
+            analysis(dsp,(int32_t)(((int64_t)pcm[0]+pcm[1])/2));
+            pcm[0]>>=4;pcm[1]>>=4;pcm+=2;
+        }
+        frames-=run;
+    }
+}
+
 /* One channel at a time keeps coefficient/history reuse within LX6's register
  * budget. It changes neither arithmetic nor the carried Q28 fraction. */
 static BLOCK_KERNEL DSP_BLOCK_HOT void filter_steady_block(const int32_t c[5],fdsp_history_t *h,
@@ -545,10 +584,7 @@ bool DSP_BLOCK_HOT fixed_dsp_process_block(fixed_dsp_t *dsp,int32_t *pcm,uint16_
         if(dsp->bypass.remaining && count>dsp->bypass.remaining)count=dsp->bypass.remaining;
         bool full=dsp->bypass.value!=0 || dsp->bypass.remaining!=0;
         bool divided=dsp->bypass.value!=UNITY_GAIN || dsp->bypass.remaining!=0;
-        for(unsigned i=0;i<count;++i){
-            analysis(dsp,(int32_t)(((int64_t)pcm[2u*i]+pcm[2u*i+1u])/2));
-            pcm[2u*i]>>=4;pcm[2u*i+1u]>>=4;
-        }
+        analysis_scale_block(dsp,pcm,count);
         for(unsigned f=0;f<4;++f){
 #ifdef FIXED_DSP_VOLUME_RAMP_BLOCK
             if(f==3u && dsp->filters[f].remaining

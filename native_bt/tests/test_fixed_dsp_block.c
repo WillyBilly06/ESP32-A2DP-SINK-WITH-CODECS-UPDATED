@@ -53,6 +53,31 @@ int main(void){
             total_frames+=frames;++total_blocks;
         }
     }
+    uint32_t boundary_blocks=0;
+    for(unsigned ri=0;ri<13;++ri){
+        fixed_dsp_t initial;CHECK(fixed_dsp_init(&initial,rates[ri],90,500,512));
+        fixed_dsp_controls(&initial,0,0,0,127,12,true);
+        for(unsigned offset=0;offset<initial.decimation;++offset)for(unsigned frames=0;frames<=128;++frames){
+            fixed_dsp_t a=initial,b=initial;
+            /* Complete the next Goertzel window at the first decimation edge.
+             * Odd signed inputs exercise truncation toward zero, not shifting. */
+            a.window_count=b.window_count=(uint16_t)(initial.window_frames-1u);
+            for(unsigned i=0;i<offset;++i){
+                int32_t l=(i&1u)?INT32_MIN:INT32_MAX,r=(i&1u)?-3:2;
+                int32_t el=l,er=r;fixed_dsp_process(&a,&l,&r);reference_process(&b,&el,&er);
+            }
+            int32_t actual[256],expected[256];
+            for(unsigned i=0;i<2u*frames;++i){
+                int32_t value=i%4u==0?INT32_MIN:i%4u==1?INT32_MAX:i%4u==2?-3:2;
+                actual[i]=expected[i]=value;
+            }
+            CHECK(fixed_dsp_process_block(&a,actual,(uint16_t)frames));
+            for(unsigned i=0;i<frames;++i)reference_process(&b,&expected[2u*i],&expected[2u*i+1u]);
+            CHECK(!memcmp(actual,expected,2u*frames*sizeof(int32_t)) && !memcmp(&a,&b,sizeof a));
+            ++boundary_blocks;++total_blocks;total_frames+=frames;
+        }
+    }
+    printf("analysis boundaries=%u: every valid decimation offset, 0..128 frames, signed odd/rail PCM, Goertzel rollover\n",boundary_blocks);
     uint32_t volume_blocks=0;
     for(unsigned rate=0;rate<13;++rate)for(unsigned flags=0;flags<16;++flags){
         fixed_dsp_t a,b;CHECK(fixed_dsp_init(&a,rates[rate],90,500,512));CHECK(reference_init(&b,rates[rate],90,500,512));
