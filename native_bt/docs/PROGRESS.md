@@ -1,3 +1,14 @@
+## 2026-11-07 — measured live LHDC stages
+
+The FAC batching candidate preserved PCM but did not speed up the measured
+workload; the original entropy implementation is restored. Live stage reporting
+now separates cold and runtime data with bounded lock-free snapshots. Flashed
+70b00966ad90 passes readback and37 cold cases. At actual192k/S24/fixed900 the
+IMDCT averages854us per stereo unit, entropy483us, and about640us of the
+2469.94us whole-decoder mean remains outside channel markers. Next split output
+scan/interleave/wrapper cost and inspect the transform; no speed gain claimed.
+See [live stage evidence](LHDC_LIVE_STAGES_2026_11_07.md).
+
 ## 2026-11-07 — decoder entropy candidate measured
 
 Image9316b00a1045 is flashed/readback-verified onCOM6 and passes all37 cold

@@ -16,3 +16,13 @@ Experiment: native_bt/_build/experiments/lhdc-live-stages-1794062555568.
     python native_bt/tools/test_codec_diagnostic.py
 
 The live build uses the normal full-product flags with -LhdcStageProfile. It does not use -LhdcMaximumCheck or -CodecDiagnosticOnly. New validation checks the real decoder/main compilation definitions and linked source recipe before admitting that mode.
+
+## Verified COM6 live profile
+
+70b00966ad90 is flashed at921600, full written-image readback at115200 matches, original app preserved, owned VALID and no automatic Bluedroid return. All37 cold configurations pass; tracked peak56899, minimum free103116, cold stack low3464 bytes. No live-stage row appears before playback.
+
+Native YouTube metronome at actual192k/S24/fixed900, phone max150/150, produces5632 published channel calls in configuration generation7. Per-stereo-unit means at nominal240MHz are: preamble41.88us, entropy483.35us, mantissa140.00us, dequant/SNS211.00us, IMDCT853.96us, overlap99.49us. These sum to1829.69us. The whole codec execution counter records2469.94us per actual decoded unit across2824 units, leaving about640.26us outside the channel marks. That remainder includes frame output and wrapper work and is not attributed solely to a limiter or conversion. Maxima are per-channel, may include preemption, and must not be summed as if simultaneous.
+
+This instrumented live workload differs from the historical isolated1000kbps fixture: IMDCT is now the largest measured channel stage. The next measurement should split the frame output/safety scan/interleave and wrapper remainder before changing their math. Linked-object inspection places lhdc_dec_decode_frame (0x8ed bytes) in flash text; its channel/FFT kernels use IRAM. Software-float division and float-to-double diagnostic helpers are referenced, but there are no undefined soft-float multiply/comparison/conversion helpers in this decoder unit. This is compiled dependency evidence, not an instruction-latency claim.
+
+The run has zero decoder rejects/nonfinite/concealed frames; finite sample clipping and refill total7680 (including startup/drain) remain. Playback is paused and90/150 volume restored. Stage instrumentation is not a throughput optimization and has no production-readiness claim. Raw records, analysis, build and readback receipts are retained in the experiment.

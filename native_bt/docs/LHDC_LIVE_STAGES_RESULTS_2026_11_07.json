@@ -1,0 +1,56 @@
+{
+  "image": "70b00966ad9067fbeba01225efc0a1fd9e2486a913ec097b8e13da05a5def623",
+  "archive": "D:/bt-owned61/native_bt/_build/hardware/runs/1794063184679260000-70b00966ad90",
+  "readback": true,
+  "cold37": {
+    "probe": "target_codec_selftest",
+    "passed": true,
+    "configurations": 37,
+    "selected": 37,
+    "callbacks": 173,
+    "stack_bytes": 8192,
+    "stack_low_water_bytes": 3464,
+    "tracked_peak_bytes": 56899,
+    "min_free_after_alloc_bytes": 103116,
+    "maximum_decode_us": 14065,
+    "rf_test": false
+  },
+  "stages": [
+    {
+      "stage": "preamble",
+      "mean_us_per_stereo_unit": 41.88303296638257,
+      "max_channel_us": 84.59583333333333
+    },
+    {
+      "stage": "entropy",
+      "mean_us_per_stereo_unit": 483.3528986150568,
+      "max_channel_us": 984.6958333333333
+    },
+    {
+      "stage": "mantissa",
+      "mean_us_per_stereo_unit": 139.9987733783144,
+      "max_channel_us": 365.5875
+    },
+    {
+      "stage": "dequant_sns",
+      "mean_us_per_stereo_unit": 210.99904563210228,
+      "max_channel_us": 338.56666666666666
+    },
+    {
+      "stage": "imdct",
+      "mean_us_per_stereo_unit": 853.9648422703598,
+      "max_channel_us": 457.975
+    },
+    {
+      "stage": "overlap",
+      "mean_us_per_stereo_unit": 99.48734167850378,
+      "max_channel_us": 62.71666666666667
+    }
+  ],
+  "decoder_mean_us": 2469.942280453258,
+  "decoded_units": 2824,
+  "unassigned_us": 640.2563459125383,
+  "scope": "finite instrumented live192k/S24/fixed900 nominal240MHz; elapsed cycles include preemption and profiling",
+  "experiment": "D:/bt-owned61/native_bt/_build/experiments/lhdc-live-stages-1794062555568",
+  "full_goal_qualified": false
+}
