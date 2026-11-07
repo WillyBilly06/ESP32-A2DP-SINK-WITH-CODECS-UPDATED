@@ -1,15 +1,20 @@
 # Independent ESP32 Bluetooth host
 
-[Per-query host timings](docs/OWNER_QUERY_COST_2026_11_07.md) now separate all15
-deadline queries and host poll categories. Two guarded LHDC192k/S24/fixed900
-traces measure about0.77ms per deadline collection and1.33ms per runtime poll,
-including interrupts/preemption. This is diagnostics, not a speedup; continuity
-still fails. The counters add480B internal data and report after pause.
+The [integrated audio checkpoint](docs/INTEGRATED_AUDIO_2026_11_07.md) corrects
+LHDC24 output level against the real phone: measured48k/192k levels match LDAC
+within0.014dB. The192k decoded-input ring is8KiB smaller. Fresh-stream EQ policy
+is applied before DSP starts; live controls retain integer ramps.
 
-A [host-pressure handoff experiment](docs/OWNER_PRESSURE_HANDOFF_2026_11_07.md)
-showed mixed results and is removed. Active interval accounting shows Core1
-near saturation with roughly30% charged to the host, while Core0 still has
-about20% charged idle time. These counters include IRQ time.
+The current image still has2432/6080 unfilled frames in two short192k/S24/fixed900
+traces. Startup buffering, credit reserve and bounded owner checkpoints are
+integrated, but uninterrupted playback and the complete feature/1Mbps/coexistence
+qualification remain open. This is development firmware.
+
+[Per-query host timings](docs/OWNER_QUERY_COST_2026_11_07.md) separate the15
+deadline getters and host poll categories. Their elapsed cycles include
+interrupts/preemption; they are not pure CPU costs. The earlier
+[host-pressure handoff](docs/OWNER_PRESSURE_HANDOFF_2026_11_07.md) and AVRCP bitmap
+experiments are not retained as proven performance fixes.
 
 The [stereo S32 scan/emission fusion](docs/LHDC_SCAN_EMIT_2026_11_07.md)
 preserves PCM and quality behavior and measures about1.8–1.9% lower whole LHDC

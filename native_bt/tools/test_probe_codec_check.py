@@ -201,7 +201,23 @@ def main():
     print(f'PASS host self-test: 48 Opus frames and {selected-16} additional codec cases; stack/time are stubs')
 
 
+
+def release_completed_host_objects(directory):
+    """Keep passing executables/results; reclaim only typed host intermediates."""
+    base=directory.resolve();items=[]
+    for path in sorted(directory.glob('*.obj')):
+        if path.is_symlink() or path.resolve().parent!=base:raise RuntimeError('Compiler object escapes completed output folder')
+        data=path.read_bytes()
+        if data[:2]!=b'\x64\x86':continue  # AMD64 COFF only; never Xtensa/ELF
+        items.append({'path':str(path.resolve()),'bytes':len(data),'sha256':hashlib.sha256(data).hexdigest()})
+    (directory/'completed-object-cleanup.json').write_text(json.dumps({'kind':'completed passing host compiler intermediates','files':items},indent=2)+'\n')
+    for item in items:Path(item['path']).unlink()
+
 if __name__=='__main__':
     subprocess.run(CHECK,check=True)
-    try:main()
-    finally:subprocess.run(CHECK,check=True)
+    completed=False
+    try:
+        main();completed=True
+    finally:
+        if completed:release_completed_host_objects(OUT)
+        subprocess.run(CHECK,check=True)

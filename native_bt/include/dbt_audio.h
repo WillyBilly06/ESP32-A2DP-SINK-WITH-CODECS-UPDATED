@@ -79,7 +79,7 @@ typedef struct {
     _Atomic uint32_t clock_pub_state,clock_pub_target,clock_pub_updates,clock_pub_disturbances,clock_pub_observed_valid;
     uint32_t allocated_bytes;
     uint16_t drain_remaining;
-    bool opened,draining_input;
+    bool opened,draining_input,dsp_started;
     /* Render-owner reservation; only one externally computed DSP block.
      * Serial survives close/open, preventing stale job completion reuse. */
     uint32_t render_serial,render_pending,render_pending_frames;

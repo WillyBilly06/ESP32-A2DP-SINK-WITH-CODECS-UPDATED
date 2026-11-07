@@ -9,6 +9,7 @@
 #include "probe_audio_limits.h"
 #ifdef DBT_PROBE_SCHEDULER_TRACE
 #include "probe_scheduler.h"
+#include "probe_pcm_level.h"
 #endif
 #include "probe_security.h"
 #include "dbt_codec.h"
@@ -137,6 +138,36 @@ static uint32_t delay_report_wait_ms(uint32_t now){
 #endif
 static probe_audio_product_event_fn product_observer;
 static void *product_context;
+#ifdef DBT_PROBE_SCHEDULER_TRACE
+static probe_pcm_level_t pcm_level;
+static _Atomic uint32_t level_sequence,level_epoch,level_codec,level_rate,level_channels,level_width,level_frames,level_count,level_peak,level_lo,level_hi;
+static uint32_t level_serial;
+static void pcm_level_begin(uint32_t codec,uint32_t rate,uint32_t channels,uint32_t width){
+    probe_pcm_level_start(&pcm_level,rate,channels,width);
+    uint32_t seq=atomic_load_explicit(&level_sequence,memory_order_relaxed);
+    atomic_store_explicit(&level_sequence,seq+1u,memory_order_seq_cst);
+    atomic_store_explicit(&level_epoch,0,memory_order_relaxed);
+    atomic_store_explicit(&level_codec,codec,memory_order_relaxed);
+    if(!++level_serial)++level_serial;
+    atomic_store_explicit(&level_sequence,seq+2u,memory_order_release);
+}
+static void pcm_level_observe(const void *samples,uint32_t frames){
+    if(!probe_pcm_level_observe(&pcm_level,samples,frames))return;
+    uint32_t seq=atomic_load_explicit(&level_sequence,memory_order_relaxed);
+    atomic_store_explicit(&level_sequence,seq+1u,memory_order_seq_cst);
+    atomic_store_explicit(&level_rate,pcm_level.rate,memory_order_relaxed);
+    atomic_store_explicit(&level_channels,pcm_level.channels,memory_order_relaxed);
+    atomic_store_explicit(&level_width,pcm_level.width,memory_order_relaxed);
+    atomic_store_explicit(&level_frames,pcm_level.frames,memory_order_relaxed);
+    atomic_store_explicit(&level_count,pcm_level.count,memory_order_relaxed);
+    atomic_store_explicit(&level_peak,pcm_level.peak,memory_order_relaxed);
+    atomic_store_explicit(&level_lo,(uint32_t)pcm_level.squares,memory_order_relaxed);
+    atomic_store_explicit(&level_hi,(uint32_t)(pcm_level.squares>>32),memory_order_relaxed);
+    atomic_store_explicit(&level_epoch,level_serial,memory_order_relaxed);
+    atomic_store_explicit(&level_sequence,seq+2u,memory_order_release);
+}
+static void log_pcm_level(void);
+#endif
 static _Atomic uint32_t pcm_generation,pcm_frames,pcm_bytes,pcm_hash,pcm_rate,pcm_channels,pcm_codec,pcm_sample_bytes;
 static _Atomic uint32_t codec_revision,codec_cie_size,codec_cie_words[(DBT_CODEC_CIE_BYTES+3u)/4u];
 static _Atomic uint32_t profile_snapshot,event_errors,last_channel_event,last_channel_result;
@@ -154,7 +185,7 @@ static _Atomic uint32_t rx_callback_max_us,first_rx_to_poll_max_us,host_poll_max
 static _Atomic uint32_t worker_steps,worker_elapsed_us,worker_step_max_us,worker_hist[8];
 static _Atomic uint32_t credit_window_status,credit_pending_classic,credit_pending_le,credit_acknowledged,credit_commands,credit_peak_blocked,credit_media_queued;
 static _Atomic uint32_t owner_iterations,owner_immediate[15];
-static _Atomic uint32_t owner_ready_yields;
+static _Atomic uint32_t owner_ready_yields,owner_service_yields;
 static _Atomic uint32_t snapshot_format_lost;
 static DRAM_ATTR _Atomic uint32_t watchdog_events,watchdog_hook_us,watchdog_isr_core;
 static void IRAM_ATTR record_watchdog(unsigned core){
@@ -448,6 +479,7 @@ void probe_audio_owner_wait(uint32_t immediate_mask){
     for(unsigned i=0;i<15;++i)if(immediate_mask&(1u<<i))atomic_fetch_add_explicit(&owner_immediate[i],1,memory_order_relaxed);
 }
 void probe_audio_owner_ready_yield(void){atomic_fetch_add_explicit(&owner_ready_yields,1,memory_order_relaxed);}
+void probe_audio_owner_service_yield(void){atomic_fetch_add_explicit(&owner_service_yields,1,memory_order_relaxed);}
 /* Each endpoint is validated independently before an asynchronous worker job.
  * Opus 05 offers forward mono/stereo only; reverse audio is not supported. */
 static const uint8_t sbc_capabilities[]={1,0,7,6,0,0,0x3f,0xff,2,53,8,0};
@@ -550,6 +582,9 @@ static dbt_result_t pcm(void *context,const void *samples,uint16_t count,const d
         return result;
     }
 #endif
+#ifdef DBT_PROBE_SCHEDULER_TRACE
+    pcm_level_observe(samples,count);
+#endif
     atomic_fetch_add_explicit(&pcm_generation,1,memory_order_acq_rel);
 #if AUDIO_PCM_HASH_ENABLED
     uint32_t hash=atomic_load_explicit(&pcm_hash,memory_order_relaxed);const uint8_t *p=samples;
@@ -602,6 +637,9 @@ static dbt_result_t publish_stream(bool started,const dbt_codec_config_t *config
         atomic_store_explicit(&pcm_bytes,0,memory_order_relaxed);
         atomic_store_explicit(&pcm_hash,AUDIO_PCM_HASH_ENABLED?2166136261u:0u,memory_order_relaxed);
         atomic_store_explicit(&pcm_codec,codec,memory_order_relaxed);
+#ifdef DBT_PROBE_SCHEDULER_TRACE
+        pcm_level_begin(codec,config->rate,config->channels,config->sample_bytes);
+#endif
         atomic_store_explicit(&pcm_rate,config->rate,memory_order_relaxed);
         atomic_store_explicit(&pcm_channels,config->channels,memory_order_relaxed);
         atomic_store_explicit(&pcm_sample_bytes,config->sample_bytes,memory_order_relaxed);
@@ -633,6 +671,12 @@ static dbt_result_t stream_begin(void *context,bool start,const dbt_codec_config
 #endif
 #ifdef DBT_PROBE_LDAC_BUILD
     if(config->ops==&dbt_ldac_codec)priming=40;
+#endif
+#ifdef DBT_PROBE_LHDC_BUILD
+    /* Use the existing event/deadline startup guard. It lets the retained
+     * encoded queue absorb observed 10-27ms arrival gaps before DMA starts;
+     * no additional PCM storage or blocking wait is needed. */
+    if(config->ops==&dbt_lhdcv5_codec)priming=40;
 #endif
 #ifdef DBT_PROBE_CODEC_AWARE_RENDER
     bool share=config->ops==&dbt_sbc_codec;
@@ -809,6 +853,28 @@ static void log_render_delays(void){
 }
 #endif
 #ifdef DBT_PROBE_SCHEDULER_TRACE
+static void log_pcm_level(void){
+    static uint32_t reported;
+    uint32_t seq=atomic_load_explicit(&level_sequence,memory_order_acquire);
+    if(seq&1u)return;
+    uint32_t epoch=atomic_load_explicit(&level_epoch,memory_order_acquire);if(!epoch || epoch==reported)return;
+    uint32_t codec=atomic_load(&level_codec),rate=atomic_load(&level_rate),channels=atomic_load(&level_channels),width=atomic_load(&level_width);
+    uint32_t frames=atomic_load(&level_frames),count=atomic_load(&level_count),peak=atomic_load(&level_peak),lo=atomic_load(&level_lo),hi=atomic_load(&level_hi);
+    atomic_thread_fence(memory_order_seq_cst);
+    if(seq!=atomic_load_explicit(&level_sequence,memory_order_acquire) || epoch!=atomic_load_explicit(&level_epoch,memory_order_acquire))return;
+    PROBE_SNAPSHOT_LOG("{\"probe\":\"decoder_pcm_level\",\"epoch\":%" PRIu32
+        ",\"codec\":%" PRIu32
+        ",\"rate\":%" PRIu32
+        ",\"channels\":%" PRIu32
+        ",\"pcm_container_bytes\":%" PRIu32
+        ",\"frames\":%" PRIu32
+        ",\"sampled_channels\":%" PRIu32
+        ",\"peak_q15\":%" PRIu32
+        ",\"squares_lo\":%" PRIu32
+        ",\"squares_hi\":%" PRIu32
+        ",\"stride_frames\":1,\"skip_seconds\":1,\"window_seconds\":4,\"domain\":\"decoder_before_dsp_top16\",\"decimated\":false,\"coherent\":true}\n",
+        epoch,codec,rate,channels,width,frames,count,peak,lo,hi);reported=epoch;
+}
 static void log_owner_costs(void){
     static uint32_t reported_epoch;
     static const char *const names[PROBE_COST_SLOTS]={
@@ -950,6 +1016,7 @@ static void log_loop(void *unused){
 #ifdef DBT_PROBE_SCHEDULER_TRACE
         log_render_delays();
         log_owner_costs();
+        log_pcm_level();
 #endif
 #ifdef DBT_PROBE_TASK_RUNTIME_STATS
         log_task_runtime();
@@ -1024,6 +1091,7 @@ static void log_loop(void *unused){
                atomic_load(&owner_immediate[6]),atomic_load(&owner_immediate[7]),atomic_load(&owner_immediate[8]),
                atomic_load(&owner_immediate[9]),atomic_load(&owner_immediate[10]),atomic_load(&owner_immediate[11]),
                atomic_load(&owner_immediate[12]),atomic_load(&owner_immediate[13]),atomic_load(&owner_immediate[14]),atomic_load(&owner_ready_yields));
+        PROBE_SNAPSHOT_LOG("{\"probe\":\"owner_render_service\",\"yield_count\":%" PRIu32 "}\n",atomic_load(&owner_service_yields));
         PROBE_SNAPSHOT_LOG("{\"probe\":\"vhci_timing\",\"collection_cycle_us\":%" PRIu32 ",\"packets\":%" PRIu32 ",\"acl\":%" PRIu32
                ",\"events\":%" PRIu32 ",\"bytes\":%" PRIu32 ",\"isr_callbacks\":%" PRIu32 ",\"rejected\":%" PRIu32
                ",\"callback_max_us\":%" PRIu32 ",\"first_rx_to_poll_max_us\":%" PRIu32 ",\"host_poll_max_us\":%" PRIu32
@@ -1290,6 +1358,12 @@ static dbt_codec_queue_t codec_queue_policy(void *context,const dbt_codec_config
     if(config->ops==&dbt_lhdcv5_codec)depth=8;
 #endif
     uint8_t low=(uint8_t)(depth/2u);
+#ifdef DBT_PROBE_LHDC_BUILD
+    /* At192k the peer currently sends one5ms unit per packet. Use the
+     * already allocated spare slot before applying backpressure; retain all
+     * three controller-credit slots, so previously credited ACLs still fit. */
+    if(config->ops==&dbt_lhdcv5_codec && config->rate==192000u)low=(uint8_t)(depth-3u);
+#endif
     if(low>depth-3u)low=(uint8_t)(depth-3u);
     return (dbt_codec_queue_t){depth,low};
 }

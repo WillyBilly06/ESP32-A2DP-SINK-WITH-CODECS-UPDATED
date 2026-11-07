@@ -51,14 +51,18 @@ ref_dll=out/'level_reference.dll';run([cc,'-shared',*ref_objects,'-o',ref_dll],e
 # public host calibration hook. exp2f rounds the exact 15/16 ratio to binary32.
 os.environ['LHDC_LEVELDB']=str(20*math.log10(15/16))
 ref=ctypes.CDLL(str(ref_dll))
+ref.reference_level_db.argtypes=[ctypes.c_char_p]
+def reference_level(depth):
+ assert ref.reference_level_db(str(20*math.log10(normalization(depth))).encode())==0
 lib=ctypes.CDLL(str(dll));u8=ctypes.c_uint8;u=ctypes.c_uint32;ptr=ctypes.POINTER(u8)
 fields='revision attempts rejected channel0_errors channel1_silenced peak_concealed nonfinite_frames clipped_frames clipped_samples event_attempt generation frame_index rtp_timestamp ssrc sequence frame_bytes flags peak_f32_bits result channel0_result channel1_result'.split()
 class Quality(ctypes.Structure):_fields_=[(f,u) for f in fields]
 lib.level_quality.argtypes=[ctypes.POINTER(Quality)];lib.math_open.argtypes=[ptr,ctypes.c_uint8];lib.math_packet.argtypes=[ptr,ctypes.c_uint16,ctypes.c_uint16,ptr,u,ctypes.POINTER(u)]
 ref.reference_frame.argtypes=[ptr,u,ptr,u,ctypes.POINTER(u),ctypes.POINTER(u)]
 lib.dbt_lhdc_test_level.argtypes=[u,ctypes.c_int];lib.dbt_lhdc_test_level.restype=ctypes.c_float
+def normalization(depth):return struct.unpack('<f',struct.pack('<f',0.6629126073623883 if depth==24 else 0.9375))[0]
 for rate in (44100,48000,96000,192000):
- for depth in (16,24,32):assert lib.dbt_lhdc_test_level(rate,depth)==0.9375
+ for depth in (16,24,32):assert lib.dbt_lhdc_test_level(rate,depth)==normalization(depth)
 def buf(b):return (u8*len(b)).from_buffer_copy(b)
 def quality():
  q=Quality();assert lib.level_quality(ctypes.byref(q));return {f:getattr(q,f) for f in fields}
@@ -69,6 +73,7 @@ for rate in (44100,48000,96000,192000):
    for amplitude in (0.1,0.95):
     path=out/f'{rate}_{depth}_{index}_{amplitude}.packets';run([generator,rate,depth,index,path,amplitude],env=env)
     config=bytes([0,255,58,5,0,0,53,76,{44100:32,48000:16,96000:4,192000:1}[rate],{16:4,24:2}[depth],17,64,0]);assert lib.math_open(buf(config),len(config))==0
+    reference_level(depth)
     assert ref.reference_open(rate,depth)==0
     q0=quality();reference_pcm=bytearray();raw=path.read_bytes();pos=seq=frames=0;pcm=bytearray()
     while pos<len(raw):
@@ -95,10 +100,10 @@ for rate in (44100,48000,96000,192000):
       angle=2*math.pi*freq*i/rate;s=math.sin(angle);c=math.cos(angle);ss+=s*s;ccv+=c*c;sc+=s*c;ys+=v*s;yc+=v*c;power+=v*v;peak=max(peak,abs(v))
      det=ss*ccv-sc*sc;coef_s=(ys*ccv-yc*sc)/det;coef_c=(yc*ss-ys*sc)/det;fund=math.hypot(coef_s,coef_c);fit_power=coef_s*ys+coef_c*yc
      channels.append(dict(fundamental_gain_db=20*math.log10(fund/amplitude) if fund else None,peak=peak,rms=math.sqrt(power/len(pts)),residual_to_signal_db=10*math.log10(max(1e-30,power-fit_power)/max(1e-30,fit_power))))
-    row=dict(rate=rate,depth=depth,quality_index=index,input_peak=amplitude,frames=frames,packets=seq,encoded_bps=(len(raw)-4*seq)*8*rate//(frames*samples),quality_delta={f:(q1[f]-q0[f])&0xffffffff for f in fields[1:9]},channels=channels,encoded_sha256=hashlib.sha256(raw).hexdigest(),pcm_sha256=hashlib.sha256(pcm).hexdigest())
+    row=dict(rate=rate,depth=depth,quality_index=index,input_peak=amplitude,expected_gain_db=(-10*math.log10(2) if depth==24 else 0.0),frames=frames,packets=seq,encoded_bps=(len(raw)-4*seq)*8*rate//(frames*samples),quality_delta={f:(q1[f]-q0[f])&0xffffffff for f in fields[1:9]},channels=channels,encoded_sha256=hashlib.sha256(raw).hexdigest(),pcm_sha256=hashlib.sha256(pcm).hexdigest())
     rows.append(row);print(json.dumps(row),flush=True)
 assert all(hashlib.sha256(pathlib.Path(f).read_bytes()).hexdigest()==h for f,h in before.items()),'source changed during measurement'
-failures=[dict(rate=r['rate'],depth=r['depth'],quality_index=r['quality_index'],input_peak=r['input_peak']) for r in rows if any(abs(c['fundamental_gain_db'])>0.02 or c['residual_to_signal_db']>-45 for c in r['channels']) or any(r['quality_delta'][f] for f in ['rejected','channel0_errors','channel1_silenced','peak_concealed','nonfinite_frames','clipped_frames','clipped_samples'])]
+failures=[dict(rate=r['rate'],depth=r['depth'],quality_index=r['quality_index'],input_peak=r['input_peak']) for r in rows if any(abs(c['fundamental_gain_db']-r['expected_gain_db'])>0.02 or c['residual_to_signal_db']>-45 for c in r['channels']) or any(r['quality_delta'][f] for f in ['rejected','channel0_errors','channel1_silenced','peak_concealed','nonfinite_frames','clipped_frames','clipped_samples'])]
 report=dict(passed=not failures,failures=failures,independent_reference_pcm_equal=True,measurement_complete=True,scope='host generated encoder tone through actual native worker with target selector/math; no RF, target timing or acoustics',ccache=True,rows=rows,source_sha256=before)
 (out/'levels.json').write_text(json.dumps(report,indent=2)+'\n');print('COMPLETE',len(rows),'level cases')
 if failures:raise SystemExit('PCM unity/clipping gate failed; see levels.json')
@@ -109,6 +114,7 @@ if a.refresh_points:
   return bytes(int(v) for v in m[1].split(','))
  def decode_packets(config,packets,rate,depth):
   samples=240 if rate==44100 else rate//200;width=2 if depth==16 else 4
+  reference_level(depth)
   assert lib.math_open(buf(config),len(config))==0 and ref.reference_open(rate,depth)==0
   actual=bytearray();expected=bytearray()
   for seq,packet in enumerate(packets):

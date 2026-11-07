@@ -114,7 +114,7 @@ int main(void){
     unsigned music_only_wakes=atomic_load(&sound_progress_wakes);
     probe_output_stats_t geometry;probe_output_stats(&geometry);
 #ifdef DBT_PROBE_HIGH_RATE_PCM_REBALANCE
-    CHECK(geometry.input_capacity_frames==2048 && geometry.input_ring_bytes==16384 && geometry.pcm_target_frames==2048 && geometry.requested_bytes==39936);
+    CHECK(geometry.input_capacity_frames==1024 && geometry.input_ring_bytes==8192 && geometry.pcm_target_frames==2048 && geometry.requested_bytes==31744);
 #else
     CHECK(geometry.input_capacity_frames==1024 && geometry.input_ring_bytes==8192 && geometry.pcm_target_frames==3072 && geometry.requested_bytes==39936);
 #endif
@@ -143,7 +143,7 @@ int main(void){
       CHECK(g.input_capacity_frames==unaffected[i].input && g.pcm_target_frames==unaffected[i].target && g.requested_bytes==unaffected[i].bytes);
       CHECK(!stop_stream());
     }
-    puts("PASS PCM rebalance: same39936-byte192k stereo payload allocation; five other formats/rates unchanged");
+    puts("PASS compact192k stereo input:31744-byte payload allocation,8192 bytes saved; five other formats/rates unchanged");
 #endif
     /* Idle music skips sound-space signals, but a live reserve receives them.
      * Failed reserve and release receipts must still wake with no live token. */

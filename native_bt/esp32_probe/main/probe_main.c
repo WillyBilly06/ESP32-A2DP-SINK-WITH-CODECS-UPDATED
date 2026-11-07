@@ -382,6 +382,16 @@ static bool product_startup(void){
 #endif
 
 
+static void owner_render_checkpoint(void){
+#ifdef DBT_PROBE_RENDER_FAIR_SHARE
+    if(probe_audio_owner_pressure()){probe_audio_owner_service_yield();taskYIELD();}
+#endif
+}
+/* Only owner-loop call sites use this wrapper. Never yield inside VHCI
+ * readiness/submission, a protocol callback, or a borrowed packet operation. */
+#define HOST_POLL(phase,expression) do{owner_render_checkpoint();HOST_CALL(phase,expression);owner_render_checkpoint();}while(0)
+#define HOST_WAIT_VALUE(slot,destination,expression) do{owner_render_checkpoint();HOST_COST_VALUE(slot,destination,expression);owner_render_checkpoint();}while(0)
+
 static uint32_t now_ms(void) {
     return (uint32_t)(esp_timer_get_time() / 1000);
 }
@@ -795,19 +805,19 @@ void app_main(void) {
 #endif
         uint32_t now = now_ms();
 #ifdef DBT_PROBE_SMP
-        if(smp_initialized)HOST_CALL(PROBE_HOST_SECURITY,probe_smp_security_request_preflight(now));
+        if(smp_initialized)HOST_POLL(PROBE_HOST_SECURITY,probe_smp_security_request_preflight(now));
 #endif
 #ifdef DBT_PROBE_AUDIO_TEST
         uint32_t poll_began_us=(uint32_t)esp_timer_get_time();
         probe_audio_transport_poll_begin(poll_began_us);
 #endif
-        HOST_CALL(PROBE_HOST_RUNTIME,dbt_runtime_poll(&runtime,now,8,8));
+        HOST_POLL(PROBE_HOST_RUNTIME,dbt_runtime_poll(&runtime,now,8,8));
 #ifdef DBT_PROBE_GATT_TEST
         bool parameter_hold=false;
 #ifdef DBT_PROBE_PRODUCT_SECURITY
         parameter_hold=probe_restart_active(&product_restart);
 #endif
-        HOST_CALL(PROBE_HOST_GATT,probe_ble_parameters_poll(&runtime,now,parameter_hold));
+        HOST_POLL(PROBE_HOST_GATT,probe_ble_parameters_poll(&runtime,now,parameter_hold));
 #endif
 #ifdef DBT_PROBE_AUDIO_TEST
         probe_audio_transport_poll_end(poll_began_us);
@@ -867,14 +877,14 @@ void app_main(void) {
 #endif
             }
         }
-        HOST_CALL(PROBE_HOST_SECURITY,probe_security_poll(now));
+        HOST_POLL(PROBE_HOST_SECURITY,probe_security_poll(now));
         if(echo_initialized) {
-            HOST_CALL(PROBE_HOST_OTHER,probe_echo_poll());
+            HOST_POLL(PROBE_HOST_OTHER,probe_echo_poll());
 #ifdef DBT_PROBE_AVRCP
-            HOST_CALL(PROBE_HOST_AVRCP,probe_avrcp_poll(now));
+            HOST_POLL(PROBE_HOST_AVRCP,probe_avrcp_poll(now));
 #endif
 #ifdef DBT_PROBE_AUDIO_TEST
-            HOST_CALL(PROBE_HOST_AUDIO,probe_audio_poll(now));
+            HOST_POLL(PROBE_HOST_AUDIO,probe_audio_poll(now));
 #endif
             if(probe_sdp_poll()!=DBT_OK)dbt_runtime_abort(&runtime,DBT_FAULT_BAD_RESPONSE);
         }
@@ -895,7 +905,7 @@ void app_main(void) {
             else dbt_runtime_abort(&runtime,DBT_FAULT_BAD_RESPONSE);
         }
         if(smp_initialized){
-            HOST_CALL(PROBE_HOST_SECURITY,probe_smp_poll(now));
+            HOST_POLL(PROBE_HOST_SECURITY,probe_smp_poll(now));
 #ifdef DBT_PROBE_RF_PROTOCOL_DIAGNOSTIC
             for(unsigned i=0;i<DBT_MAX_LINKS;++i){
                 const dbt_link_t *l=&runtime.acl.links[i];dbt_smp_session_security_t state;
@@ -979,10 +989,10 @@ void app_main(void) {
             } else gatt_initialized = true;
         }
         if (gatt_initialized){
-            HOST_CALL(PROBE_HOST_GATT,probe_gatt_poll(now));
-            HOST_CALL(PROBE_HOST_GATT,probe_gatt_retry_eq_publication());HOST_CALL(PROBE_HOST_GATT,probe_gatt_retry_control_publication());
+            HOST_POLL(PROBE_HOST_GATT,probe_gatt_poll(now));
+            HOST_POLL(PROBE_HOST_GATT,probe_gatt_retry_eq_publication());HOST_POLL(PROBE_HOST_GATT,probe_gatt_retry_control_publication());
 #ifdef DBT_PROBE_PRODUCT_IO
-            if(product_io_ready){product_io_owner.gap=&gap;product_io_owner.sound_enabled=product_io_sound;HOST_CALL(PROBE_HOST_IO,probe_product_io_owner_poll(&product_io_owner,now));}
+            if(product_io_ready){product_io_owner.gap=&gap;product_io_owner.sound_enabled=product_io_sound;HOST_POLL(PROBE_HOST_IO,probe_product_io_owner_poll(&product_io_owner,now));}
 #endif
 #ifdef DBT_PROBE_AUDIO_OUTPUT
             static bool analysis;static uint32_t meter_at;
@@ -1003,12 +1013,12 @@ void app_main(void) {
         }
 #endif
 #ifdef DBT_PROBE_RFCOMM
-        if(echo_initialized)HOST_CALL(PROBE_HOST_OTHER,probe_rfcomm_poll(now));
+        if(echo_initialized)HOST_POLL(PROBE_HOST_OTHER,probe_rfcomm_poll(now));
 #endif
         if (runtime.ready && receive_flow_ready && gap.state == DBT_GAP_IDLE) (void)dbt_gap_start(&gap);
         dbt_gap_poll(&gap, now);
 #ifdef DBT_PROBE_PRODUCT_RUNTIME
-        if(product_runtime_ready && gatt_initialized && smp_initialized)HOST_CALL(PROBE_HOST_PRODUCT,probe_product_runtime_poll(&product_runtime));
+        if(product_runtime_ready && gatt_initialized && smp_initialized)HOST_POLL(PROBE_HOST_PRODUCT,probe_product_runtime_poll(&product_runtime));
 #ifdef DBT_PROBE_PRODUCT_SECURITY
         if(gatt_initialized)product_restart_step(now);
 #endif
@@ -1163,59 +1173,61 @@ void app_main(void) {
         probe_scheduler_owner_cost_end(PROBE_COST_CLOCK_FLOOR,floor_mark);
         probe_owner_cost_mark_t wait_mark=probe_scheduler_owner_cost_begin();
 #endif
-        uint32_t wait;HOST_COST_VALUE(PROBE_COST_RUNTIME_WAIT,wait,dbt_runtime_wait_ms(&runtime, now_ms()));
+        uint32_t deadline_now=now_ms();
+        uint32_t wait;HOST_WAIT_VALUE(PROBE_COST_RUNTIME_WAIT,wait,dbt_runtime_wait_ms(&runtime, deadline_now));
 #ifdef DBT_PROBE_GATT_TEST
-        {uint32_t parameter_wait;HOST_COST_VALUE(PROBE_COST_PARAMETERS_WAIT,parameter_wait,probe_ble_parameters_wait_ms(now_ms()));if(parameter_wait<wait)wait=parameter_wait;}
+        {uint32_t parameter_wait;HOST_WAIT_VALUE(PROBE_COST_PARAMETERS_WAIT,parameter_wait,probe_ble_parameters_wait_ms(deadline_now));if(parameter_wait<wait)wait=parameter_wait;}
 #endif
 #ifdef DBT_PROBE_AUDIO_TEST
         uint32_t wait_zeros=wait==0?1u:0;
 #endif
 #ifdef DBT_PROBE_PRODUCT_SECURITY
-        {uint32_t admission_wait;HOST_COST_VALUE(PROBE_COST_ADMISSION_WAIT,admission_wait,probe_admission_wait_ms(now_ms()));WAIT_TRACE(admission_wait,1);if(admission_wait<wait)wait=admission_wait;}
+        {uint32_t admission_wait;HOST_WAIT_VALUE(PROBE_COST_ADMISSION_WAIT,admission_wait,probe_admission_wait_ms(deadline_now));WAIT_TRACE(admission_wait,1);if(admission_wait<wait)wait=admission_wait;}
 #endif
 #ifdef DBT_PROBE_SMP
-        if(smp_initialized){uint32_t smp_wait;HOST_COST_VALUE(PROBE_COST_SMP_WAIT,smp_wait,probe_smp_wait_ms(now_ms()));WAIT_TRACE(smp_wait,2);if(smp_wait<wait)wait=smp_wait;}
+        if(smp_initialized){uint32_t smp_wait;HOST_WAIT_VALUE(PROBE_COST_SMP_WAIT,smp_wait,probe_smp_wait_ms(deadline_now));WAIT_TRACE(smp_wait,2);if(smp_wait<wait)wait=smp_wait;}
 #endif
 #ifdef DBT_PROBE_AVRCP
-        if(echo_initialized){uint32_t avrcp_wait;HOST_COST_VALUE(PROBE_COST_AVRCP_WAIT,avrcp_wait,probe_avrcp_wait_ms(now_ms()));WAIT_TRACE(avrcp_wait,3);if(avrcp_wait<wait)wait=avrcp_wait;}
+        if(echo_initialized){uint32_t avrcp_wait;HOST_WAIT_VALUE(PROBE_COST_AVRCP_WAIT,avrcp_wait,probe_avrcp_wait_ms(deadline_now));WAIT_TRACE(avrcp_wait,3);if(avrcp_wait<wait)wait=avrcp_wait;}
 #endif
 #ifdef DBT_PROBE_PRODUCT_SECURITY
         if(probe_restart_active(&product_restart) && wait>10)wait=10;
-        {uint32_t button_wait;HOST_COST_VALUE(PROBE_COST_BUTTON_WAIT,button_wait,probe_pair_button_wait_ms(now_ms()));WAIT_TRACE(button_wait,5);if(button_wait<wait)wait=button_wait;}
+        {uint32_t button_wait;HOST_WAIT_VALUE(PROBE_COST_BUTTON_WAIT,button_wait,probe_pair_button_wait_ms(deadline_now));WAIT_TRACE(button_wait,5);if(button_wait<wait)wait=button_wait;}
 #endif
 #ifdef DBT_PROBE_RFCOMM
-        {uint32_t rfcomm_wait;HOST_COST_VALUE(PROBE_COST_RFCOMM_WAIT,rfcomm_wait,probe_rfcomm_wait_ms(now_ms()));WAIT_TRACE(rfcomm_wait,6);if(rfcomm_wait<wait)wait=rfcomm_wait;}
+        {uint32_t rfcomm_wait;HOST_WAIT_VALUE(PROBE_COST_RFCOMM_WAIT,rfcomm_wait,probe_rfcomm_wait_ms(deadline_now));WAIT_TRACE(rfcomm_wait,6);if(rfcomm_wait<wait)wait=rfcomm_wait;}
 #endif
-        uint32_t gap_wait;HOST_COST_VALUE(PROBE_COST_GAP_WAIT,gap_wait,dbt_gap_wait_ms(&gap));
+        uint32_t gap_wait;HOST_WAIT_VALUE(PROBE_COST_GAP_WAIT,gap_wait,dbt_gap_wait_ms(&gap));
         WAIT_TRACE(gap_wait,7);
         if (gap_wait < wait) wait = gap_wait;
 #ifdef DBT_PROBE_PRODUCT_RUNTIME
-        if(product_runtime_ready){uint32_t product_wait;HOST_COST_VALUE(PROBE_COST_PRODUCT_WAIT,product_wait,probe_product_runtime_wait_ms(&product_runtime,now_ms()));WAIT_TRACE(product_wait,8);if(product_wait<wait)wait=product_wait;}
+        if(product_runtime_ready){uint32_t product_wait;HOST_WAIT_VALUE(PROBE_COST_PRODUCT_WAIT,product_wait,probe_product_runtime_wait_ms(&product_runtime,deadline_now));WAIT_TRACE(product_wait,8);if(product_wait<wait)wait=product_wait;}
 #endif
 #ifdef DBT_PROBE_PRODUCT_IO
-        if(product_io_ready){uint32_t io_wait;HOST_COST_VALUE(PROBE_COST_IO_WAIT,io_wait,probe_product_io_owner_wait_ms(&product_io_owner,now_ms()));WAIT_TRACE(io_wait,9);if(io_wait<wait)wait=io_wait;}
+        if(product_io_ready){uint32_t io_wait;HOST_WAIT_VALUE(PROBE_COST_IO_WAIT,io_wait,probe_product_io_owner_wait_ms(&product_io_owner,deadline_now));WAIT_TRACE(io_wait,9);if(io_wait<wait)wait=io_wait;}
 #endif
 #ifdef DBT_PROBE_GATT_TEST
-        uint32_t att_wait;HOST_COST_VALUE(PROBE_COST_ATT_WAIT,att_wait,probe_gatt_wait_ms(now_ms()));
+        uint32_t att_wait;HOST_WAIT_VALUE(PROBE_COST_ATT_WAIT,att_wait,probe_gatt_wait_ms(deadline_now));
         WAIT_TRACE(att_wait,10);
         if (att_wait < wait) wait = att_wait;
 #endif
 #ifdef DBT_PROBE_CLASSIC_SECURITY_TEST
-        uint32_t security_wait;HOST_COST_VALUE(PROBE_COST_SECURITY_WAIT,security_wait,probe_security_wait_ms(now_ms()));
+        uint32_t security_wait;HOST_WAIT_VALUE(PROBE_COST_SECURITY_WAIT,security_wait,probe_security_wait_ms(deadline_now));
         WAIT_TRACE(security_wait,11);
         if(security_wait<wait)wait=security_wait;
-        uint32_t echo_wait;HOST_COST_VALUE(PROBE_COST_ECHO_WAIT,echo_wait,probe_echo_wait_ms());
+        uint32_t echo_wait;HOST_WAIT_VALUE(PROBE_COST_ECHO_WAIT,echo_wait,probe_echo_wait_ms());
         WAIT_TRACE(echo_wait,12);
         if(echo_wait<wait)wait=echo_wait;
-        uint32_t sdp_wait;HOST_COST_VALUE(PROBE_COST_SDP_WAIT,sdp_wait,probe_sdp_wait_ms());
+        uint32_t sdp_wait;HOST_WAIT_VALUE(PROBE_COST_SDP_WAIT,sdp_wait,probe_sdp_wait_ms());
         WAIT_TRACE(sdp_wait,13);
         if(sdp_wait<wait)wait=sdp_wait;
 #ifdef DBT_PROBE_AUDIO_TEST
-        uint32_t audio_wait;HOST_COST_VALUE(PROBE_COST_AUDIO_WAIT,audio_wait,probe_audio_wait_ms(now_ms()));
+        uint32_t audio_wait;HOST_WAIT_VALUE(PROBE_COST_AUDIO_WAIT,audio_wait,probe_audio_wait_ms(deadline_now));
         WAIT_TRACE(audio_wait,14);
         if(audio_wait<wait)wait=audio_wait;
 #endif
 #endif
+        if(wait && wait!=UINT32_MAX)wait=probe_wait_remaining(wait,deadline_now,now_ms());
 #ifdef DBT_PROBE_AUDIO_TEST
         probe_audio_owner_wait(wait_zeros);
 #endif

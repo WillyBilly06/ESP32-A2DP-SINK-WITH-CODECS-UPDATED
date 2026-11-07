@@ -7,6 +7,15 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
+/* Relative waits collected against one clock epoch must be charged for the
+ * collection's own elapsed time before sleeping. UINT32_MAX means no deadline.
+ * Unsigned subtraction preserves the normal millisecond counter wrap. */
+static inline uint32_t probe_wait_remaining(uint32_t wait,uint32_t began,uint32_t now){
+    if(wait==UINT32_MAX)return UINT32_MAX;
+    uint32_t elapsed=now-began;
+    return elapsed>=wait?0:wait-elapsed;
+}
+
 /* Startup owner only. The producer publishes the flag then notifies the owner.
  * A notification arriving between the check and wait stays pending. Unrelated
  * notifications recheck the condition without extending the absolute deadline.

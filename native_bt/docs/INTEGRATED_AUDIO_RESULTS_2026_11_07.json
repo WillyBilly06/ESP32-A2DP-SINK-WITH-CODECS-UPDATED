@@ -1,0 +1,175 @@
+{
+  "goal_complete": false,
+  "development_branch": "codex/owned-bt-idf61",
+  "experiment": "D:/bt-owned61/native_bt/_build/experiments/integrated-audio-1794081627190",
+  "verified_level_image": "b2b8dc5937b747da24c8024575ae212b6928a81047098f54c56d1e79f1b63c23",
+  "level_measurements": {
+    "method": "full four-second pre-DSP top16 energy after one-second skip; same nativeYouTube120BPM, Redmagic volume150",
+    "ldac48_dbfs": -23.300023354506457,
+    "lhdc48_dbfs": -23.31334885797835,
+    "lhdc192_dbfs": -23.3088638487121,
+    "s24_product_trim_db": -3.010299956639812,
+    "decoder_clip_samples": 0
+  },
+  "memory": {
+    "input_frames_before": 2048,
+    "input_frames_after": 1024,
+    "input_bytes_saved": 8192,
+    "audio_requested_before": 39936,
+    "audio_requested_after": 31744,
+    "encoded_packet_slots": 8,
+    "encoded_payload_capacity": 1800,
+    "encoded_allocation_bytes": 14536,
+    "diagnostic_data_delta": 104,
+    "initial_policy_data_delta": 8
+  },
+  "physical_runs": [
+    {
+      "stage": "integrated before gain trim",
+      "image": "87b81000a2c0d5c254119cdb0d0c30ddf3eed49c8548f95583ba5b833057e7c4",
+      "frames": 2706240,
+      "unfilled": 5248
+    },
+    {
+      "stage": "gain corrected",
+      "image": "b2b8dc5937b747da24c8024575ae212b6928a81047098f54c56d1e79f1b63c23",
+      "frames": 2712960,
+      "unfilled": 16256
+    },
+    {
+      "stage": "40ms startup guard",
+      "image": "a03204917bfe9f8cc62a9334aa806e45ab921053936f15d4e06abb65b4546bc4",
+      "frames": 2709120,
+      "unfilled": 13184
+    },
+    {
+      "stage": "credit5 trial1",
+      "image": "266d26a7f31377a3a1e458d361aa127c1091ee5bb7d8737d098e6e786e40a40b",
+      "frames": 2714880,
+      "unfilled": 4864
+    },
+    {
+      "stage": "credit5 trial2",
+      "image": "266d26a7f31377a3a1e458d361aa127c1091ee5bb7d8737d098e6e786e40a40b",
+      "frames": 2731200,
+      "unfilled": 9984
+    },
+    {
+      "stage": "initial EQ policy",
+      "image": "741ed428b0550199602d724255df5feadc4012d1f2626c86e2d38b2bc842f933",
+      "frames": 2719232,
+      "unfilled": 4416
+    },
+    {
+      "stage": "query checkpoints trial1",
+      "image": "19aae19b7154566ba6a80d6e000a5cb65e82efdd4ea7f172dc147285bc5b63a9",
+      "frames": 2720640,
+      "unfilled": 2432
+    },
+    {
+      "stage": "query checkpoints trial2",
+      "image": "19aae19b7154566ba6a80d6e000a5cb65e82efdd4ea7f172dc147285bc5b63a9",
+      "frames": 2733120,
+      "unfilled": 6080
+    }
+  ],
+  "tests": {
+    "codec_level_cases": 28,
+    "lhdc_calibrated_cases": 48,
+    "all_codec_deferred_sanitized": 80,
+    "cold_codec_configs": 37,
+    "deadline_cases": 1000000,
+    "pcm_measurement_cases": 120,
+    "audio_block_pairs": 108,
+    "audio_unity_pairs": 192,
+    "concurrent_control_publications": 4000
+  },
+  "pending_image": null,
+  "pending_test": "query-boundary renderer checkpoints",
+  "limitations": [
+    "900kbps setting sampled899200 codedbps, notlive1Mbps",
+    "short traces, notlongduration/stress qualification",
+    "gain verified on same nativeYouTube metronome at48/192; notallpeer/allcontent conformance",
+    "all-feature BLE/security/OTA/coexistence/physical acoustic qualification remainsopen"
+  ],
+  "current_image": "19aae19b7154566ba6a80d6e000a5cb65e82efdd4ea7f172dc147285bc5b63a9",
+  "current_archive": "runs/1794087288687406100-19aae19b7154",
+  "last_starvation": {
+    "first": {
+      "probe": "first_starvation",
+      "stream_serial": 2,
+      "captured": true,
+      "coherent": true,
+      "event_us": 189689118,
+      "taken_frames": 64,
+      "input_frames": 0,
+      "output_frames": 0,
+      "accepted_frames": 734400,
+      "rendered_frames": 734400,
+      "dma_source_frames": 734080,
+      "snapshot_begin_us": 192010777,
+      "at_us": 192010790,
+      "snapshot_span_us": 13,
+      "record_crc32": "f365c1b8"
+    },
+    "media": {
+      "probe": "starvation_media",
+      "stream_serial": 2,
+      "event_us": 189689118,
+      "coherent": true,
+      "last_acl_any_link_us": 189688045,
+      "last_host_poll_us": 189688468,
+      "media_begin_us": 189688891,
+      "media_admitted_us": 189688986,
+      "media_epoch": 7,
+      "media_sequence": 3602,
+      "media_timestamp": 3458880,
+      "media_ssrc": 255,
+      "media_result": 0,
+      "last_media_gap_us": 9519,
+      "max_media_gap_us": 36876,
+      "snapshot_begin_us": 192039094,
+      "at_us": 192039553,
+      "snapshot_span_us": 459,
+      "record_crc32": "d7f8a6d0"
+    },
+    "decoder": {
+      "probe": "starvation_decoder",
+      "stream_serial": 2,
+      "event_us": 189689118,
+      "coherent": true,
+      "phase": 1,
+      "phase_name": "decode",
+      "phase_since_us": 189689005,
+      "encoded_queued_at_phase_change": 1,
+      "snapshot_begin_us": 192096180,
+      "at_us": 192096197,
+      "snapshot_span_us": 17,
+      "record_crc32": "73414ef7"
+    },
+    "renderer": {
+      "probe": "starvation_renderer",
+      "stream_serial": 2,
+      "event_us": 189689118,
+      "coherent": true,
+      "inside_audio_render": false,
+      "phase_since_us": 189688601,
+      "dsp_assist_state_at_gap": 0,
+      "snapshot_begin_us": 192127749,
+      "at_us": 192127761,
+      "snapshot_span_us": 12,
+      "record_crc32": "a8184630"
+    }
+  },
+  "dma_rate_observations": {
+    "query_checkpoint": 192014.25610589984,
+    "credit5": 192005.10210926144,
+    "scope": "rates inferred from two active DMA EOF counter snapshots; approximate, IRQ/snapshot timing error included, not an independent physical clock measurement"
+  },
+  "limits_met": {
+    "s24_level_matched_for_recorded48_192_tests": true,
+    "smaller_input_allocation_verified": true,
+    "zero_underruns": false,
+    "full_goal_complete": false
+  }
+}

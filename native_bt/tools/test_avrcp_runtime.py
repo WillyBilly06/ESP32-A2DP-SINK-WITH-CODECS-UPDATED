@@ -13,7 +13,7 @@ compiler=args.cc or os.environ.get('CC') or shutil.which('clang') or shutil.whic
 if not compiler and os.name=='nt': compiler=r'C:\Program Files\LLVM\bin\clang.exe'
 if not compiler: raise SystemExit('C11 compiler not found')
 if args.sanitize and os.name=='nt': raise SystemExit('--sanitize requires Linux')
-src=['dbt_queue','dbt_hci','dbt_host','dbt_acl','dbt_l2cap','dbt_channels','dbt_runtime',
+src=['dbt_queue','dbt_hci','dbt_host','dbt_acl','dbt_l2cap','dbt_channels','dbt_runtime','dbt_ertm','dbt_ertm_engine',
      'dbt_rx_flow','dbt_credit','dbt_att','dbt_att_bearer',
      'dbt_avctp','dbt_avctp_bearer','dbt_avrcp','dbt_avrcp_bearer']
 paths=[root/'src'/(name+'.c') for name in src]+[root/'tests/avrcp/runtime_pair.c']
@@ -21,7 +21,12 @@ headers=[root/'include'/(name+'.h') for name in src]
 tracked=paths+headers+[root/'tests/avrcp/runtime_main.c',root/'tests/avrcp/runtime_freestanding.c',root/'tools/check_workspace.py',pathlib.Path(__file__).resolve()]
 if args.list_inputs:
     print(json.dumps([p.relative_to(root).as_posix() for p in tracked],indent=2)); sys.exit(0)
-common=[compiler,'-std=c11','-O1','-g','-Wall','-Wextra','-Werror','-I',str(root/'include')]
+cache=shutil.which('ccache')
+if not cache:
+    candidates=sorted((pathlib.Path.home()/'.espressif/tools/ccache').glob('*/ccache-*/ccache.exe'))
+    if candidates:cache=str(candidates[-1])
+assert cache,'ccache required'
+common=[cache,compiler,'-std=c11','-O1','-g','-Wall','-Wextra','-Werror','-I',str(root/'include')]
 check=[sys.executable,str(root/'tools/check_workspace.py')]
 subprocess.run(check,check=True)
 try:

@@ -333,7 +333,10 @@ extern void dbt_lhdc_stage_record(uint32_t,uint32_t,uint32_t,uint32_t,uint32_t,u
 static float lhdc_dec_level_cal(uint32_t sample_rate, int bit_depth)
 {
     (void)sample_rate; (void)bit_depth;
-    return 0.9375f; /* exact 15/16; inverse of the measured 16/15 transform gain */
+    /* Real Redmagic LHDC24 output is sqrt(2) above the matched LDAC path.
+     * Apply the product level trim before quality scanning and saturation.
+     * C99 self-roundtrip amplitude alone cannot calibrate an external peer. */
+    return bit_depth == 24 ? 0.6629126073623883f : 0.9375f;
 }
 #endif
 '''+text[level_end:]

@@ -23,7 +23,7 @@ static int fixture(void){
 static int rendered(int8_t bass,int8_t mid,int8_t treble,uint8_t volume,uint8_t flags){
     int32_t input[128],output[128];
     for(unsigned i=0;i<64;i++){input[2*i]=(int32_t)((int)i-32)*1000000;input[2*i+1]=(int32_t)(31-(int)i)*700000;}
-    fixed_dsp_controls(&reference,bass,mid,treble,volume,flags,false);
+    fixed_dsp_controls(&reference,bass,mid,treble,volume,flags,!audio.dsp_started);
     CHECK(dbt_audio_submit(&audio,input,64)==DBT_OK && dbt_audio_render(&audio,64)==64 && dbt_audio_take(&audio,output,64)==64);
     for(unsigned i=0;i<64;i++){int32_t l=input[2*i],r=input[2*i+1];fixed_dsp_process(&reference,&l,&r);CHECK(output[2*i]==l && output[2*i+1]==r);}
     CHECK(audio.dsp.gains[0]==bass && audio.dsp.gains[1]==mid && audio.dsp.gains[2]==treble && audio.dsp.requested_volume==volume && audio.dsp.flags==flags);
@@ -43,6 +43,23 @@ EX int control_fields_rendered(void){
     r=rendered(-4,5,-6,64,FDSP_CHANNEL_FLIP|FDSP_BYPASS);if(r)return r;
     CHECK(dbt_audio_analysis(&audio,true)==DBT_OK);
     r=rendered(-4,5,-6,64,FDSP_ANALYSIS|FDSP_CHANNEL_FLIP|FDSP_BYPASS);if(r)return r;
+    dbt_audio_close(&audio);CHECK(!in_use[0] && !in_use[1] && !failures);return 0;
+}
+EX int control_initial_policy(void){
+    int r=fixture();if(r)return r;
+    CHECK(!audio.dsp_started && dbt_audio_render(&audio,0)==0 && !audio.dsp_started);
+    CHECK(dbt_audio_controls(&audio,11,8,12,127,FDSP_ANALYSIS|FDSP_BYPASS)==DBT_OK);
+    r=rendered(11,8,12,127,FDSP_ANALYSIS|FDSP_BYPASS);if(r)return r;
+    CHECK(audio.dsp_started && !audio.dsp.volume.remaining && !audio.dsp.bypass.remaining);
+    for(unsigned i=0;i<5;++i)CHECK(!audio.dsp.filters[i].remaining);
+    CHECK(dbt_audio_eq(&audio,10,7,11)==DBT_OK);
+    r=rendered(10,7,11,127,FDSP_ANALYSIS|FDSP_BYPASS);if(r)return r;
+    CHECK(audio.dsp.filters[0].remaining && audio.dsp.filters[1].remaining && audio.dsp.filters[2].remaining);
+    /* An accounting wrap must never make an audible stream look fresh. */
+    atomic_store(&audio.rendered_frames,0);
+    CHECK(dbt_audio_volume(&audio,90)==DBT_OK);
+    r=rendered(10,7,11,90,FDSP_ANALYSIS|FDSP_BYPASS);if(r)return r;
+    CHECK(audio.dsp.volume.remaining && audio.dsp_started);
     dbt_audio_close(&audio);CHECK(!in_use[0] && !in_use[1] && !failures);return 0;
 }
 EX int control_invalid_busy_generation(void){

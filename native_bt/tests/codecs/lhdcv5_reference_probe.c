@@ -1,4 +1,7 @@
 /* Test-only raw reference using the unmodified sibling LHDC decoder. */
+#if !defined(_WIN32)
+#define _POSIX_C_SOURCE 200809L
+#endif
 #include "lhdc_dec.h"
 #include "lhdc_entropy_dec.h"
 #include "lhdc_imdct.h"
@@ -12,6 +15,15 @@ int g_nzc_formula=0;
 int g_pkframe=0;
 static void *workspace;
 static lhdc_decoder_t *decoder;
+/* Set the public host calibration in the same C runtime as this DLL. Python's
+ * environment updates do not refresh a statically linked Windows CRT copy. */
+EXPORT int reference_level_db(const char *value){
+#if defined(_WIN32)
+    return _putenv_s("LHDC_LEVELDB",value);
+#else
+    return setenv("LHDC_LEVELDB",value,1);
+#endif
+}
 EXPORT int reference_open(unsigned rate,unsigned depth){
     size_t size=lhdc_dec_get_workspace_size(rate,5);
     workspace=calloc(1,size);if(!workspace)return -1;

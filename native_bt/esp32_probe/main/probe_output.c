@@ -806,11 +806,11 @@ static dbt_result_t start_output(uint32_t rate, uint8_t channels,
     input_frames=power2(PROBE_PCM_TRANSFER_FRAMES+1u);
 #endif
 #ifdef DBT_PROBE_HIGH_RATE_PCM_REBALANCE
-  /* Match the baseline two-frame decoded reserve without adding PCM bytes.
-   * S32 stereo uses8 bytes per frame on both sides; move1024 frames from
-   * the processed reserve into the decoded ring. Page rounding stays exact. */
+  /* One complete960-frame LHDC unit fits the1024-frame input ring. Keep
+   * the existing processed reserve and DMA pages; do not reserve a second
+   * decoded unit. This saves8192 bytes while preserving asynchronous copying. */
   if(rate==192000u && channels==2u && format==DBT_PCM_S32_LE && input_frames==1024u && target>=2048u){
-    input_frames=2048u;target-=1024u;
+    target-=1024u;
   }
 #endif
   atomic_store(&output.input_ring_bytes_avoided,0);
@@ -1835,7 +1835,25 @@ bool probe_output_owner_needs_time(void){
   uint32_t rate=atomic_load(&output.rate);if(rate<=96000u)return false;
   uint32_t read=atomic_load_explicit(&output.audio.output.read,memory_order_acquire);
   uint32_t written=atomic_load_explicit(&output.audio.output.written,memory_order_acquire);
-  return written-read<(rate+199u)/200u+2u*DMA_FRAMES;
+#ifdef DBT_PROBE_RENDER_FAIR_SHARE
+    /* A real pending DMA copy stays urgent even above the normal reserve.
+     * These are only scheduling hints over retained atomic metadata; no PCM
+     * pointer is borrowed and the render owner still validates its operation. */
+    if(written!=read && atomic_load_explicit(&output.refill_pending_index,memory_order_acquire)<DMA_DESCRIPTORS)return true;
+#endif
+    if(written-read>=(rate+199u)/200u+2u*DMA_FRAMES)return false;
+#ifdef DBT_PROBE_RENDER_FAIR_SHARE
+#ifdef DBT_PROBE_DSP_ASSIST
+    dbt_dsp_job_state_t state=dbt_dsp_job_state(&assist.lane);
+    if(state==DBT_DSP_JOB_DONE)return true;
+    if(state!=DBT_DSP_JOB_IDLE)return false; /* borrowed job without a ready DMA copy */
+#endif
+    uint32_t input_read=atomic_load_explicit(&output.audio.input.read,memory_order_acquire);
+    uint32_t input_written=atomic_load_explicit(&output.audio.input.written,memory_order_acquire);
+    return input_written-input_read>1u;
+#else
+    return true; /* Preserve the separate, nonsharing pacer's pressure policy. */
+#endif
 }
 void probe_output_stats(probe_output_stats_t *s) {
   if (!s)

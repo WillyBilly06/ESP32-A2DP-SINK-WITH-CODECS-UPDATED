@@ -1,5 +1,10 @@
 # LHDC V5 PCM level normalization — 2026-11-07
 
+Later real-phone measurements exposed a further24-bit level mismatch that the
+C99 self-roundtrip did not prove. The [integrated checkpoint](INTEGRATED_AUDIO_2026_11_07.md)
+adds a measured-3.0103dB product trim and verifies matching LDAC at48k/192k.
+The15/16-only results below describe the earlier implementation.
+
 The native decoder inherited subjective per-rate/depth output trims from the sibling decoder. The 192 kHz/S24 trim adds +0.79 dB; its untrimmed encoder/decoder round trip already has about +0.5606 dB gain. This makes the selected mode about +1.3506 dB too loud before DSP or phone volume, and causes irreversible saturation before a downstream volume reduction can help. The S16 trim instead removes 5.60 dB, introducing a separate depth-dependent level mismatch.
 
 The owned source-pinned port now replaces those trims with the exactly representable constant 15/16 (0.9375), the inverse of the measured 16/15 reconstruction gain. This is constant normalization before the existing frame-safety scan and PCM conversion. It adds no frame-adaptive gain, buffers, tasks, allocations, waits or reduced-quality codec mode. Corruption/nonfinite protection, overlap handling, PCM saturation, integer DSP and the DSP soft limiter remain enabled. The unmodified sibling repository is unchanged. A host-only legacy comparison define is rejected in firmware builds.

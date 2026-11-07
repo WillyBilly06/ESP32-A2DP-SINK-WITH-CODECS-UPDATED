@@ -132,7 +132,7 @@ static dbt_result_t audio_open(dbt_audio_t *a,dbt_audio_config_t config,bool bor
     fixed_dsp_controls(&a->dsp,0,0,0,0,0,true);
     a->fraction=0;a->step_adjust=a->filtered_error_q8=a->integral_ppm=0;
     dbt_resampler_init(&a->resampler,config.rate);a->draining_input=false;a->drain_remaining=0;
-    a->applied_generation=UINT32_MAX;a->opened=true;
+    a->applied_generation=UINT32_MAX;a->opened=true;a->dsp_started=false;
     atomic_store(&a->submitted_frames,0);atomic_store(&a->rendered_frames,0);
     atomic_store(&a->taken_frames,0);atomic_store(&a->zero_frames,0);atomic_store(&a->producer_backpressure,0);
     atomic_store(&a->profile_conversion,0);atomic_store(&a->profile_dsp,0);atomic_store(&a->profile_tail,0);
@@ -258,7 +258,10 @@ static void controls(dbt_audio_t *a){
         uint32_t gains=atomic_load_explicit(&a->controls_gains,memory_order_seq_cst);
         uint32_t options=atomic_load_explicit(&a->controls_options,memory_order_seq_cst);
         if(generation!=atomic_load_explicit(&a->controls_generation,memory_order_seq_cst))continue;
-        fixed_dsp_controls(&a->dsp,(int8_t)gains,(int8_t)(gains>>8),(int8_t)(gains>>16),(uint8_t)options,(uint8_t)(options>>8),false);
+        /* A fresh stream has no audible history to crossfade. Restore its
+         * first policy before DSP begins; live changes keep the normal ramps.
+         * The persistent flag also remains correct across counter wrap. */
+        fixed_dsp_controls(&a->dsp,(int8_t)gains,(int8_t)(gains>>8),(int8_t)(gains>>16),(uint8_t)options,(uint8_t)(options>>8),!a->dsp_started);
         a->applied_generation=generation;return;
     }
 }
@@ -336,6 +339,7 @@ static uint32_t render_dsp_block(dbt_audio_t *a,int32_t *pcm,unsigned frames,uin
 }
 #endif
 static uint32_t render_publish(dbt_audio_t *a,uint32_t in,uint32_t out,uint32_t slot,uint32_t frames){
+    if(frames)a->dsp_started=true;
     a->output_write_slot=slot;
     if(a->borrowed_input && a->input_carry_valid && in!=a->input_carry_index)a->input_carry_valid=false;
     atomic_store_explicit(&a->input.read,in,memory_order_release);
@@ -582,6 +586,7 @@ uint32_t dbt_audio_render_silence(dbt_audio_t *a,uint32_t budget){
     uint32_t slot=a->output_write_slot;
     for(uint32_t i=0;i<count;++i){int32_t *destination=output_frame(a,slot);destination[0]=destination[1]=0;slot=output_advance(a,slot,1);}
     apply_mix(a,a->output_write_slot,count);
+    if(count)a->dsp_started=true;
     a->output_write_slot=slot;
     atomic_store_explicit(&a->output.written,out+count,memory_order_release);
     owned_add(&a->rendered_frames,count);return count;

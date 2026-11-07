@@ -118,7 +118,7 @@ for mode in ['enabled','disabled']:
         expanded=subprocess.check_output([cache,cc,'-E',str(source)],text=True,env=env)
         assert 'owner_cost_cell_t' not in expanded and 'esp_cpu_get_cycle_count' not in expanded
 # Wiring guards protect each actual getter and freeze reporting outside playback.
-assert main.count('HOST_COST_VALUE(PROBE_COST_')==15
+assert main.count('HOST_WAIT_VALUE(PROBE_COST_')==15
 assert 'probe_scheduler_owner_cost_end(PROBE_COST_WAIT_TOTAL,wait_mark)' in main
 assert 'probe_scheduler_owner_capture(started)' in texts['probe_audio.c']
 assert 'probe_scheduler_owner_cost_finished_epoch(&seen)' in texts['probe_audio.c']
