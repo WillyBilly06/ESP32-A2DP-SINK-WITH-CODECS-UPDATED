@@ -283,6 +283,10 @@ dbt_result_t probe_audio_host_failure(const probe_host_failure_t *failure){
     if(!initialized || !logger_task || xTaskGetCurrentTaskHandle()!=owner)return DBT_UNSUPPORTED;
     return probe_audio_trace_failure(&media_trace_rings[0],failure,trace_clock,NULL);
 }
+dbt_result_t probe_audio_host_controller(const probe_host_controller_t *controller){
+    if(!initialized || !logger_task || xTaskGetCurrentTaskHandle()!=owner)return DBT_UNSUPPORTED;
+    return probe_audio_trace_controller(&media_trace_rings[0],controller,trace_clock,NULL);
+}
 static void media_trace(void *context,const dbt_codec_trace_t *event){
     (void)context;
     if(event->kind>=DBT_CODEC_DECODE_BEGIN && event->kind!=DBT_CODEC_INPUT_CLOCK_MAX){
@@ -320,6 +324,17 @@ static void log_first_starvation(void){
 static void log_media_trace(void){
     for(unsigned i=0;i<2;++i)for(unsigned budget=0;budget<2;++budget){
         media_trace_t record;if(!probe_audio_trace_pop(&media_trace_rings[i],&record))break;
+        if(record.codec==PROBE_AUDIO_TRACE_CONTROLLER){
+            const probe_host_controller_t *c=&record.controller;
+            PROBE_SNAPSHOT_LOG("{\"probe\":\"controller_identified\",\"profiles_ready\":false,\"hci_version\":%" PRIu32 ",\"manufacturer\":%" PRIu32
+                ",\"host_bytes\":%" PRIu32 ",\"runtime_bytes\":%" PRIu32 ",\"classic_acl_bytes\":%" PRIu32 ",\"classic_acl_packets\":%" PRIu32
+                ",\"le_acl_bytes\":%" PRIu32 ",\"le_acl_packets\":%" PRIu32 ",\"shared_acl_pool\":%s,\"internal_free\":%u,\"internal_largest\":%u"
+                ",\"address\":\"%02X:%02X:%02X:%02X:%02X:%02X\",\"collection_context\":\"background_logger\",\"event_us\":%" PRIu32 ",\"host_log_ordinal\":%" PRIu32 "}\n",
+                c->hci_version,c->manufacturer,c->host_bytes,c->runtime_bytes,c->classic_acl_bytes,c->classic_acl_packets,c->le_acl_bytes,c->le_acl_packets,c->shared_acl_pool?"true":"false",
+                (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT),(unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT),
+                c->address[0],c->address[1],c->address[2],c->address[3],c->address[4],c->address[5],record.at_us,record.ordinal);
+            continue;
+        }
         if(record.codec==PROBE_AUDIO_TRACE_FAILURE){
             const probe_host_failure_t *f=&record.failure;
             PROBE_SNAPSHOT_LOG("{\"probe\":\"failed\",\"fault\":%" PRIu32 ",\"controller_status\":%" PRIu32
@@ -344,6 +359,12 @@ static void log_media_trace(void){
             }else if(state->kind==PROBE_HOST_GAP_STATE){
                 PROBE_SNAPSHOT_LOG("{\"probe\":\"gap_state\",\"state\":%" PRIu32 ",\"controller_status\":%" PRIu32 ",\"profiles_ready\":false,\"advertising\":%s,\"classic_scan\":%" PRIu32 ",\"event_us\":%" PRIu32 ",\"host_log_ordinal\":%" PRIu32 "}\n",
                     state->value[0],state->value[1],state->value[2]?"true":"false",state->value[3],record.at_us,record.ordinal);
+            }else if(state->kind==PROBE_HOST_MEMORY_SERVICES){
+                PROBE_SNAPSHOT_LOG("{\"probe\":\"boot_memory\",\"host\":\"owned\",\"phase\":\"services_ready\",\"internal_free\":%u,\"internal_largest\":%u,\"internal_minimum\":%u,\"internal_total\":%u,\"owner_stack_low\":%u"
+                    ",\"collection_context\":\"background_logger\",\"event_us\":%" PRIu32 ",\"host_log_ordinal\":%" PRIu32 "}\n",
+                    (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT),(unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT),
+                    (unsigned)heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT),(unsigned)heap_caps_get_total_size(MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT),
+                    (unsigned)uxTaskGetStackHighWaterMark(owner),record.at_us,record.ordinal);
             }else atomic_fetch_add_explicit(&snapshot_format_lost,1,memory_order_relaxed);
             continue;
         }

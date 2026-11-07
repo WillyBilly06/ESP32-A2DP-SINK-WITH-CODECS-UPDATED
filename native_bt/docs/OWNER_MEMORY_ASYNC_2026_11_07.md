@@ -1,0 +1,7 @@
+# Owner memory diagnostics — 2026-11-07
+
+Services-ready and controller-identified diagnostics now copy immutable metadata into the existing bounded SPSC trace storage. The background logger collects heap free/largest/minimum/total values and the fixed owner task's stack watermark. Successful/full owner publications do not query the allocator, scan the stack, format JSON or wait for UART. The controller record uses two existing44-byte slots; failure records still use three. Ring/slot storage is unchanged.
+
+The old measurement keys remain, with collection_context=background_logger, publication event_us and host_log_ordinal. Heap/stack values are collected later, so they must not be compared as though they were exact services-ready-instant values. Pre-audio initialization retains the unsupported-path direct diagnostics; a full queue never falls back to synchronous output. Startup heap phases outside this scope remain synchronous.
+
+The actual-source host regression passes all2-slot occupancy/wrap/partial-publication cases, immutable controller properties, stalled background heap collection, and full-ring accounting without owner heap/UART fallback. The existing failure/state/media tests still pass under the instrumented host runner. Compiler input/output receipts remain under native_bt/_build/experiments/owner-memory-async-1794056219853 and the subsequent LHDC level experiment. This turn's firmware build combines this change with the separately documented LHDC level correction; no isolated hardware timing or heap improvement is claimed.

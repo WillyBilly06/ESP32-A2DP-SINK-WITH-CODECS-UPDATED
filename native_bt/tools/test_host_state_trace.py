@@ -17,6 +17,12 @@ for kind,name,parameters in [('PROBE_HOST_CLASSIC_VISIBILITY','fixture_visibilit
     blocks.append('static void '+name+'('+parameters+'){\n'+block+'\n}\n')
 begin=main.index('                const dbt_runtime_failure_t *f=&runtime.failure;',main.index('else if (host->state == DBT_HOST_FAILED)'));finish=main.index('\n            }',begin)
 blocks.append('static void fixture_failure(test_host_t *host,test_runtime_t runtime){\n'+main[begin:finish]+'\n}\n')
+memory_begin=main.index('static void boot_memory(');memory_end=main.index('\nvoid app_main(',memory_begin)
+blocks.append(main[memory_begin:memory_end])
+marker=main.index('.kind=PROBE_HOST_MEMORY_SERVICES');begin=main.rfind('#ifdef DBT_PROBE_AUDIO_TEST',0,marker);statement=main.index('boot_memory(',marker);finish=main.index(');',statement)+2
+blocks.append('static void fixture_memory(void){\n'+main[begin:finish]+'\n}\n')
+marker=main.index('const probe_host_controller_t controller_record=');begin=main.rfind('#ifdef DBT_PROBE_AUDIO_TEST',0,marker);statement=main.index('HOST_PRINTF(',marker);finish=main.index(');',statement)+2
+blocks.append('static void fixture_controller(dbt_host_t *host,dbt_runtime_t runtime){\n'+main[begin:finish]+'\n}\n')
 (OUT/'actual_main_records.inc').write_text(''.join(blocks))
 env=os.environ.copy()
 if os.name=='nt':
@@ -56,5 +62,14 @@ assert parsed==[expected_failed,expected_parser],parsed
 stalled=[json.loads(line[len('FAILURE_STALLED_JSON '):]) for line in run.stdout.splitlines() if line.startswith('FAILURE_STALLED_JSON ')]
 assert stalled==[expected_failed|{'controller_status':99,'event_us':0xffffffff,'host_log_ordinal':2},expected_parser|{'handle':0,'event_us':0xffffffff,'host_log_ordinal':2}],stalled
 
+extra={}
+for line in run.stdout.splitlines():
+    for key in ['MEMORY_LEGACY_JSON','CONTROLLER_LEGACY_JSON','MEMORY_DEFERRED_JSON','CONTROLLER_DEFERRED_JSON']:
+        if line.startswith(key+' '):extra[key]=json.loads(line[len(key)+1:])
+assert len(extra)==4
+expected_memory=extra['MEMORY_LEGACY_JSON']|{'internal_free':222222,'internal_largest':22222,'internal_minimum':33333,'internal_total':44444,'owner_stack_low':444,'collection_context':'background_logger','event_us':1420000,'host_log_ordinal':1}
+expected_controller=extra['CONTROLLER_LEGACY_JSON']|{'internal_free':222222,'internal_largest':22222,'collection_context':'background_logger','event_us':1420001,'host_log_ordinal':2}
+assert extra['MEMORY_DEFERRED_JSON']==expected_memory,extra
+assert extra['CONTROLLER_DEFERRED_JSON']==expected_controller,extra
 assert all(hashlib.sha256(pathlib.Path(p).read_bytes()).hexdigest()==value for p,value in before.items())
-(OUT/'results.json').write_text(json.dumps({'passed':True,'hardware_accessed':False,'sanitizers':['address','undefined'],'signed_overflow_wrapping':False,'sanitizer_runtime_sha256':runtime_sha256 if os.name=='nt' else None,'scope':'actual queue plus exact main/producer/logger spans,24-field failure group and atomic publication: owner validation, immutable copies, mixed media/state, full/drop/no-clock, uint32 wrap, real JSON fields, stalled logger after slot release; no UART or MCU timing','failure_json':parsed,'stalled_failure_json':stalled,'sources':before,'commands':commands,'stdout':run.stdout},indent=2)+'\n')
+(OUT/'results.json').write_text(json.dumps({'passed':True,'hardware_accessed':False,'sanitizers':['address','undefined'],'signed_overflow_wrapping':False,'sanitizer_runtime_sha256':runtime_sha256 if os.name=='nt' else None,'scope':'actual queue plus exact main/producer/logger spans,24-field failure group and atomic publication: owner validation, immutable copies, mixed media/state, full/drop/no-clock, uint32 wrap, real JSON fields, stalled logger after slot release; no UART or MCU timing','deferred_heap_json':extra,'failure_json':parsed,'stalled_failure_json':stalled,'sources':before,'commands':commands,'stdout':run.stdout},indent=2)+'\n')

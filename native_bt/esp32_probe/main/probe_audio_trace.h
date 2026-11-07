@@ -8,6 +8,8 @@
 #define PROBE_AUDIO_TRACE_FAILURE (UINT32_MAX-1u)
 #define PROBE_AUDIO_TRACE_CONTINUATION (UINT32_MAX-2u)
 #define PROBE_AUDIO_TRACE_CORRUPT (UINT32_MAX-3u)
+#define PROBE_AUDIO_TRACE_CONTROLLER (UINT32_MAX-4u)
+#define PROBE_AUDIO_TRACE_CONTROLLER_PARTS 2u
 #define PROBE_AUDIO_TRACE_FAILURE_PARTS 3u
 #define PROBE_AUDIO_TRACE_PART_WORDS 8u
 _Static_assert(PROBE_AUDIO_TRACE_SLOTS && !(PROBE_AUDIO_TRACE_SLOTS&(PROBE_AUDIO_TRACE_SLOTS-1u)),"Trace capacity must be a power of two");
@@ -17,7 +19,7 @@ typedef struct {
 } probe_audio_trace_t;
 /* Consumer-local copy only. No new queue/global storage is allocated. */
 typedef struct {
-    union {dbt_codec_trace_t event;probe_host_record_t host;probe_host_failure_t failure;};
+    union {dbt_codec_trace_t event;probe_host_record_t host;probe_host_failure_t failure;probe_host_controller_t controller;};
     uint32_t at_us,ordinal,codec;
 } probe_audio_trace_record_t;
 typedef struct {
@@ -31,6 +33,7 @@ _Static_assert(sizeof(probe_host_record_t)<=sizeof(dbt_codec_trace_t),"Host reco
 _Static_assert(sizeof(probe_audio_trace_t)==sizeof(probe_audio_trace_legacy_t),"Trace slot size must not grow");
 _Static_assert(PROBE_AUDIO_TRACE_FAILURE_PARTS && PROBE_AUDIO_TRACE_FAILURE_PARTS<=PROBE_AUDIO_TRACE_SLOTS,"Failure group must fit the ring");
 _Static_assert(sizeof(probe_host_failure_t)==PROBE_AUDIO_TRACE_FAILURE_PARTS*PROBE_AUDIO_TRACE_PART_WORDS*sizeof(uint32_t),"Failure snapshot must fit three existing slots");
+_Static_assert(sizeof(probe_host_controller_t)==PROBE_AUDIO_TRACE_CONTROLLER_PARTS*PROBE_AUDIO_TRACE_PART_WORDS*sizeof(uint32_t),"Controller snapshot must fit two slots");
 /* Before concurrent use only. Each ring has one producer and one consumer. */
 void probe_audio_trace_init(probe_audio_trace_ring_t *);
 /* Bounded copies with release publication. Full queues count one lost logical
@@ -39,6 +42,7 @@ void probe_audio_trace_init(probe_audio_trace_ring_t *);
 bool probe_audio_trace_media(probe_audio_trace_ring_t *,const dbt_codec_trace_t *,uint32_t codec,probe_audio_trace_clock_t,void *);
 dbt_result_t probe_audio_trace_host(probe_audio_trace_ring_t *,const probe_host_record_t *,probe_audio_trace_clock_t,void *);
 dbt_result_t probe_audio_trace_failure(probe_audio_trace_ring_t *,const probe_host_failure_t *,probe_audio_trace_clock_t,void *);
+dbt_result_t probe_audio_trace_controller(probe_audio_trace_ring_t *,const probe_host_controller_t *,probe_audio_trace_clock_t,void *);
 /* Complete local copy precedes slot release. Incomplete/malformed private
  * groups produce CORRUPT; the background logger owns that diagnostic count. */
 bool probe_audio_trace_pop(probe_audio_trace_ring_t *,probe_audio_trace_record_t *);

@@ -1082,11 +1082,24 @@ void app_main(void) {
             && gatt_reported
 #endif
         ){
-            memory_services_reported=true;boot_memory("services_ready");
+            memory_services_reported=true;
+#ifdef DBT_PROBE_AUDIO_TEST
+            const probe_host_record_t host_record={.kind=PROBE_HOST_MEMORY_SERVICES,.value={0}};
+            if(probe_audio_host_record(&host_record)==DBT_UNSUPPORTED)
+#endif
+            boot_memory("services_ready");
         }
         if (host->state != previous) {
             previous = host->state;
             if (host->state == DBT_HOST_IDENTIFIED) {
+#ifdef DBT_PROBE_AUDIO_TEST
+                const probe_host_controller_t controller_record={
+                    .hci_version=host->controller.hci_version,.manufacturer=host->controller.manufacturer,.host_bytes=sizeof(*host),.runtime_bytes=sizeof(runtime),
+                    .classic_acl_bytes=host->controller.classic_acl_bytes,.classic_acl_packets=host->controller.classic_acl_packets,
+                    .le_acl_bytes=host->controller.le_acl_bytes,.le_acl_packets=host->controller.le_acl_packets,.shared_acl_pool=host->controller.shared_acl_pool,
+                    .address={host->controller.address_le[5],host->controller.address_le[4],host->controller.address_le[3],host->controller.address_le[2],host->controller.address_le[1],host->controller.address_le[0]}};
+                if(probe_audio_host_controller(&controller_record)==DBT_UNSUPPORTED)
+#endif
                 HOST_PRINTF("{\"probe\":\"controller_identified\",\"profiles_ready\":false,"
                        "\"hci_version\":%u,\"manufacturer\":%u,\"host_bytes\":%u,\"runtime_bytes\":%u,"
                        "\"classic_acl_bytes\":%u,\"classic_acl_packets\":%u,"

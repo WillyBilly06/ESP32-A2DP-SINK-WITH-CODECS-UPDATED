@@ -33,6 +33,16 @@ static _Atomic uint32_t pcm_codec;static unsigned timing_calls,timing_kind;
 static void timing_event(unsigned kind){++timing_calls;timing_kind=kind;}
 static int64_t esp_timer_get_time(void){++clock_calls;return clock_value++;}
 static void *xTaskGetCurrentTaskHandle(void){return current_task;}
+#define MALLOC_CAP_INTERNAL 1u
+#define MALLOC_CAP_8BIT 2u
+static uint32_t memory_values[4]={123456,54321,111111,217248};
+static _Atomic uint32_t memory_reads[4],stack_reads;static void *last_stack_task;
+static _Atomic bool hold_heap;static HANDLE heap_entered,heap_release;
+static size_t heap_caps_get_free_size(unsigned caps){assert(caps==3);atomic_fetch_add(&memory_reads[0],1);if(atomic_load(&hold_heap)){SetEvent(heap_entered);assert(WaitForSingleObject(heap_release,3000)==WAIT_OBJECT_0);}return memory_values[0];}
+static size_t heap_caps_get_largest_free_block(unsigned caps){assert(caps==3);atomic_fetch_add(&memory_reads[1],1);return memory_values[1];}
+static size_t heap_caps_get_minimum_free_size(unsigned caps){assert(caps==3);atomic_fetch_add(&memory_reads[2],1);return memory_values[2];}
+static size_t heap_caps_get_total_size(unsigned caps){assert(caps==3);atomic_fetch_add(&memory_reads[3],1);return memory_values[3];}
+static unsigned uxTaskGetStackHighWaterMark(void *task){last_stack_task=task;atomic_fetch_add(&stack_reads,1);assert(!task || task==owner);return task?444u:333u;}
 #define PROBE_SNAPSHOT_LOG(...) capture_snapshot(__VA_ARGS__)
 #define printf capture_printf
 #include "actual_trace_logger.inc"
@@ -41,13 +51,16 @@ typedef struct {uint32_t state,last_status;uint8_t classic_scan;bool classic_pen
 typedef struct {uint32_t fault,controller_status,pending_opcode;struct {_Atomic uint32_t rejected;} ingress;uint32_t fault_stage,fault_packet_size,fault_packet_type,fault_event;} test_host_t;
 typedef struct {struct {uint32_t failed_opcode;} rx_flow;dbt_runtime_failure_t failure;} test_runtime_t;
 static unsigned startup_lines;
-static int capture_startup(const char *format,...){(void)format;++startup_lines;return 0;}
+static char startup_text[16][1024];
+static int capture_startup(const char *format,...){assert(startup_lines<16);va_list args;va_start(args,format);int count=vsnprintf(startup_text[startup_lines],sizeof(startup_text[0]),format,args);va_end(args);assert(count>0 && count<1024);++startup_lines;return count;}
 #define HOST_PRINTF capture_startup
 #define DBT_PROBE_AUDIO_TEST 1
 #include "actual_main_records.inc"
 static DWORD WINAPI logger_thread(void *context){(void)context;log_media_trace();return 0;}
+static probe_host_controller_t partial_controller;
 static probe_host_failure_t partial_failure;static dbt_result_t partial_result;
 static DWORD WINAPI failure_thread(void *context){(void)context;partial_result=probe_audio_host_failure(&partial_failure);return 0;}
+static DWORD WINAPI controller_thread(void *context){(void)context;partial_result=probe_audio_host_controller(&partial_controller);return 0;}
 int main(void){
     probe_audio_trace_ring_t ring;probe_audio_trace_init(&ring);probe_audio_trace_record_t out;
     probe_host_record_t state={.kind=PROBE_HOST_CLASSIC_VISIBILITY,.value={2,3,1,1,3}};
@@ -179,6 +192,51 @@ int main(void){
     assert(strstr(lines[stalled_failure_lines],"\"controller_status\":99") && strstr(lines[stalled_failure_lines+1],"\"handle\":0"));
     printf("FAILURE_STALLED_JSON %s",lines[stalled_failure_lines]);printf("FAILURE_STALLED_JSON %s",lines[stalled_failure_lines+1]);
     CloseHandle(writer_entered);CloseHandle(writer_release);
+    probe_host_controller_t controller_copy={.hci_version=8,.manufacturer=96,.host_bytes=6696,.runtime_bytes=11168,
+        .classic_acl_bytes=1021,.classic_acl_packets=9,.le_acl_bytes=251,.le_acl_packets=10,.shared_acl_pool=0,.address={0x6c,0xc8,0x40,0x42,0xbf,0x66}};
+    for(unsigned used=0;used<=16;++used){
+        probe_audio_trace_init(&ring);atomic_store(&ring.read,UINT32_MAX-1u);atomic_store(&ring.written,UINT32_MAX-1u);
+        for(unsigned i=0;i<used;++i)assert(probe_audio_trace_host(&ring,&state,clock_now,&clock_calls)==DBT_OK);
+        unsigned before_clock=clock_calls,before_parts=part_calls;uint32_t before_write=atomic_load(&ring.written);
+        assert(probe_audio_trace_controller(&ring,&controller_copy,clock_now,&clock_calls)==(used<=14?DBT_OK:DBT_NO_SPACE));
+        assert(clock_calls==before_clock+(used<=14?1u:0u) && part_calls==before_parts+(used<=14?2u:0u));
+        assert(atomic_load(&ring.written)==before_write+(used<=14?2u:0u));
+        for(unsigned i=0;i<used;++i)assert(probe_audio_trace_pop(&ring,&out) && out.codec==PROBE_AUDIO_TRACE_HOST);
+        if(used<=14){assert(probe_audio_trace_pop(&ring,&out) && out.codec==PROBE_AUDIO_TRACE_CONTROLLER);assert(!memcmp(&out.controller,&controller_copy,sizeof(controller_copy)));}
+        assert(!probe_audio_trace_pop(&ring,&out) && atomic_load(&ring.lost)==(used<=14?0u:1u));
+    }
+    assert(!probe_audio_trace_media(&ring,&event,PROBE_AUDIO_TRACE_CONTROLLER,clock_now,&clock_calls));
+    probe_audio_trace_init(&media_trace_rings[0]);partial_controller=controller_copy;
+    part_entered=CreateEventA(NULL,TRUE,FALSE,NULL);part_release=CreateEventA(NULL,TRUE,FALSE,NULL);assert(part_entered && part_release);
+    atomic_store(&hold_part,true);partial=CreateThread(NULL,0,controller_thread,NULL,0,NULL);assert(partial);
+    assert(WaitForSingleObject(part_entered,3000)==WAIT_OBJECT_0);assert(!atomic_load(&media_trace_rings[0].written) && !probe_audio_trace_pop(&media_trace_rings[0],&out));
+    atomic_store(&hold_part,false);SetEvent(part_release);assert(WaitForSingleObject(partial,3000)==WAIT_OBJECT_0);assert(partial_result==DBT_OK);
+    memset(&partial_controller,0,sizeof(partial_controller));assert(probe_audio_trace_pop(&media_trace_rings[0],&out) && !memcmp(&out.controller,&controller_copy,sizeof(controller_copy)));
+    CloseHandle(partial);CloseHandle(part_entered);CloseHandle(part_release);
+    static dbt_host_t real_host;static dbt_runtime_t real_runtime;
+    real_host.controller.hci_version=8;real_host.controller.manufacturer=96;real_host.controller.classic_acl_bytes=1021;real_host.controller.classic_acl_packets=9;
+    real_host.controller.le_acl_bytes=251;real_host.controller.le_acl_packets=10;real_host.controller.shared_acl_pool=false;
+    const uint8_t controller_le[]={0x66,0xbf,0x42,0x40,0xc8,0x6c};memcpy(real_host.controller.address_le,controller_le,6);
+    unsigned memory_boot=startup_lines;initialized=false;fixture_memory();fixture_controller(&real_host,real_runtime);initialized=true;
+    printf("MEMORY_LEGACY_JSON %s",startup_text[memory_boot]);printf("CONTROLLER_LEGACY_JSON %s",startup_text[memory_boot+1]);
+    for(unsigned i=0;i<4;++i)atomic_store(&memory_reads[i],0);atomic_store(&stack_reads,0);
+    probe_audio_trace_init(&media_trace_rings[0]);probe_audio_trace_init(&media_trace_rings[1]);clock_value=1420000;unsigned memory_line=line_count;
+    fixture_memory();fixture_controller(&real_host,real_runtime);
+    for(unsigned i=0;i<4;++i)assert(!atomic_load(&memory_reads[i]));assert(!atomic_load(&stack_reads));
+    real_host.controller.manufacturer=7;memset(real_host.controller.address_le,0,6);
+    memory_values[0]=222222;memory_values[1]=22222;memory_values[2]=33333;memory_values[3]=44444;
+    log_media_trace();assert(line_count==memory_line+2 && last_stack_task==owner);
+    printf("MEMORY_DEFERRED_JSON %s",lines[memory_line]);printf("CONTROLLER_DEFERRED_JSON %s",lines[memory_line+1]);
+    /* A blocked background heap read cannot make owner publication query it. */
+    heap_entered=CreateEventA(NULL,TRUE,FALSE,NULL);heap_release=CreateEventA(NULL,TRUE,FALSE,NULL);assert(heap_entered && heap_release);
+    fixture_memory();atomic_store(&hold_heap,true);thread=CreateThread(NULL,0,logger_thread,NULL,0,NULL);assert(thread);
+    assert(WaitForSingleObject(heap_entered,3000)==WAIT_OBJECT_0);uint32_t memory_before=atomic_load(&memory_reads[0]);
+    for(unsigned i=0;i<16;++i)assert(probe_audio_host_record(&state)==DBT_OK);
+    direct_before=startup_lines;fixture_memory();fixture_controller(&real_host,real_runtime);
+    assert(startup_lines==direct_before && atomic_load(&memory_reads[0])==memory_before && atomic_load(&media_trace_rings[0].lost)==2);
+    atomic_store(&hold_heap,false);SetEvent(heap_release);assert(WaitForSingleObject(thread,3000)==WAIT_OBJECT_0);CloseHandle(thread);
+    for(unsigned i=0;i<8;++i)log_media_trace();CloseHandle(heap_entered);CloseHandle(heap_release);
+    printf("PASS deferred heap collection: owner/full never query allocator, background uses fixed owner handle, controller properties immutable\n");
     printf("PASS atomic failure group:24 fields,3 existing slots,all space/wrap boundaries,partial publication,malformed groups,startup/full policy,blocked UART\n");
     printf("PASS bounded shared trace: full/drop/wrap/copy, actual JSON logger, blocked UART consumer, unchanged slot size=%zu ring=%zu\n",sizeof(probe_audio_trace_t),sizeof(probe_audio_trace_ring_t));
     return 0;
