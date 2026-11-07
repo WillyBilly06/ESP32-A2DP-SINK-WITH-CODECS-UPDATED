@@ -50,6 +50,14 @@ one live HD decoder call, its copied input, and an independent DSP/final block
 against desktop replay. It also records a 440-frame payload versus 336-tick RTP
 discrepancy. It is not a causal diagnosis of that sound report; capture is off by default.
 
+[Exact volume-ramp reuse](docs/VOLUME_RAMP_BLOCK_2026_11_06.md) keeps stable EQ
+sections on the block path while only compensation coefficients ramp. Host
+PCM/state remains exact; real-audio192k measurements observe29.4% fewer Core0
+elapsed cycles in that scoped case. COM6 image24f9ec682af8 selects the faster
+path without A/B instrumentation or the experimental host budget. One LDAC96
+rapid-key regression has zero recorded gaps; full LHDC continuity remains open.
+Use -VolumeRampBlock with the existing full native/block/word build recipe.
+
 The [audio scheduling/volume follow-up](docs/AUDIO_SCHEDULING_VOLUME_2026_11_06.md)
 adds stream-bound delay attribution on both cores, immediate renderer wakeups
 for accepted controls, and an opt-in host work budget. One real-key LDAC96

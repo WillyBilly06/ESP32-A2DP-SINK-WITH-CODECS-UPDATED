@@ -21,6 +21,7 @@ static dbt_service_t service;
 static uint8_t *allocate(void *ctx,uint16_t n) { (void)ctx; if(n>sizeof(memory) || allocations!=releases)return 0; allocations++; return memory; }
 static void release(void *ctx,uint8_t *p) { (void)ctx; if(p==memory) releases++; }
 static dbt_result_t set_volume(void *ctx,uint8_t v) { (void)ctx;(void)v; volume_calls++; if(volume_busy) {volume_busy--;return DBT_BUSY;} return DBT_OK; }
+void dbt_runtime_abort(dbt_runtime_t *r,dbt_fault_t fault){r->host.state=DBT_HOST_FAILED;r->host.fault=fault;}
 dbt_result_t dbt_channels_register(dbt_channels_t *m,dbt_service_t x) {(void)m; service=x;return DBT_OK;}
 const dbt_channel_t *dbt_channels_find(const dbt_channels_t *m,uint16_t h,uint16_t cid) {(void)m;return channel.handle==h && channel.local_cid==cid && channel.state!=DBT_CH_FREE?&channel:0;}
 const dbt_link_t *dbt_acl_find(const dbt_acl_t *a,uint16_t h) {(void)a;return link.used && link.handle==h?&link:0;}
@@ -36,6 +37,10 @@ dbt_result_t dbt_channels_close(dbt_channels_t *m,uint16_t h,uint16_t cid,uint32
     }
     if(channel.handle==h && channel.local_cid==cid) {channel.state=DBT_CH_DISCONNECTING; return DBT_OK;}
     return DBT_INVALID;
+}
+bool dbt_channels_close_ready(const dbt_channels_t *m,uint16_t h,uint16_t cid){
+    const dbt_channel_t *ch=dbt_channels_find(m,h,cid);
+    return !close_busy && ch && ch->state!=DBT_CH_FREE && ch->state!=DBT_CH_DISCONNECTING;
 }
 dbt_result_t dbt_channels_open(dbt_channels_t *m,uint16_t h,uint16_t psm,uint16_t rx,uint16_t min,dbt_security_t sec,uint32_t now,uint16_t *cid) {(void)m;(void)h;(void)psm;(void)rx;(void)min;(void)sec;(void)now;(void)cid;return DBT_BUSY;}
 dbt_result_t dbt_sdp_bearer_init(dbt_sdp_bearer_t *b,dbt_runtime_t *r,const dbt_sdp_t *d,uint16_t mtu) {(void)b;(void)r;(void)d;(void)mtu;return DBT_OK;}
@@ -112,7 +117,8 @@ EX int probe_test_exchange(void) {
     rt.channels.channels[0]=staged;
     rt.channels.channels[1]=(dbt_channel_t){.state=DBT_CH_CONFIGURING,.serial=89,.link_generation=14,.handle=2,.local_cid=67,.psm=0x17};
     rt.channels.channels[2]=(dbt_channel_t){.state=DBT_CH_OPEN,.serial=90,.link_generation=15,.handle=3,.local_cid=68,.psm=0x19};
-    close_busy=true;step(28);CHECK(!probe_avrcp_restart_quiescent() && probe_avrcp_wait_ms(28)==20);
+    /* Full signaling capacity waits for runtime progress, not an old20ms poll. */
+    close_busy=true;step(28);CHECK(!probe_avrcp_restart_quiescent() && probe_avrcp_wait_ms(28)==UINT32_MAX);
     close_busy=false;step(48);CHECK(rt.channels.channels[0].state==DBT_CH_DISCONNECTING &&
         rt.channels.channels[1].state==DBT_CH_DISCONNECTING && rt.channels.channels[2].state==DBT_CH_OPEN);
     rt.channels.channels[0].state=rt.channels.channels[1].state=DBT_CH_FREE;step(49);
@@ -196,4 +202,30 @@ EX int probe_test_wait_backpressure(void) {
     probe_avrcp_event(DBT_CH_EVENT_CLOSED,&channel);channel.state=DBT_CH_FREE;step(551);
     CHECK(!s.storage && allocations==releases);
     return 0;
+}
+
+EX int probe_test_volume_burst(void) {
+    CHECK(!s.storage && !done && allocations==releases);
+    memset(&s,0,sizeof(s));memset(&rt,0,sizeof(rt));volume_calls=volume_busy=0;close_busy=false;
+    rt.ready=true;rt.host.state=DBT_HOST_IDENTIFIED;rt.hooks.allocate=allocate;rt.hooks.release=release;
+    link=(dbt_link_t){.used=true,.encrypted=true,.handle=1,.generation=19,.kind=DBT_LINK_CLASSIC};
+    channel=(dbt_channel_t){.state=DBT_CH_OPEN,.serial=21,.link_generation=19,.handle=1,.local_cid=64,.remote_cid=65,.psm=0x17,.rx_mtu=48,.tx_mtu=48};
+    CHECK(probe_avrcp_init(&rt,set_volume,0,55)==DBT_OK);
+    probe_avrcp_event(DBT_CH_EVENT_OPEN,&channel);CHECK(s.bearer.attached);
+    s.cap_need=s.meta_need=s.status_need=false;s.reg_wanted=s.reg_sent=0;rt.now_ms=100;
+    for(unsigned i=0;i<16;++i){uint8_t value=(uint8_t)(16u+i);feed((uint8_t)i,false,0,0x50,&value,1);}
+    CHECK(s.work_count==16 && !s.closing && !volume_calls);
+    for(unsigned i=0;i<16;++i){
+        step(100u+i);CHECK(done && label()==i && pdu()==0x50 && wire[3]==9 && wire[13]==16u+i);
+        if(!i){
+            uint8_t saved[1024];uint16_t length=wire_n;memcpy(saved,loan,length);
+            for(unsigned retry=0;retry<8;++retry)step(100);
+            CHECK(!s.closing && !memcmp(saved,loan,length) && volume_calls==2);
+        }
+        finish();
+    }
+    CHECK(!s.work_count && !s.closing && volume_calls==16 && s.view.volume==31);
+    probe_avrcp_snapshot_t view;CHECK(probe_avrcp_snapshot(&view)==DBT_OK && view.connected && view.volume==31);
+    probe_avrcp_event(DBT_CH_EVENT_CLOSED,&channel);channel.state=DBT_CH_FREE;step(116);
+    CHECK(!s.storage && !done && allocations==releases);return 0;
 }

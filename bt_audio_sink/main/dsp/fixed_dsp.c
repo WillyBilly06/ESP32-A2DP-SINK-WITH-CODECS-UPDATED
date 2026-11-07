@@ -1,4 +1,12 @@
 #include "fixed_dsp.h"
+#ifdef FIXED_DSP_VOLUME_RAMP_COMPARE
+#include <stdatomic.h>
+#ifdef ESP_PLATFORM
+#include "esp_cpu.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#endif
+#endif
 #ifndef FIXED_DSP_STAGE_MARK
 #define FIXED_DSP_STAGE_MARK(stage) ((void)0)
 #endif
@@ -433,14 +441,44 @@ static BLOCK_KERNEL DSP_BLOCK_HOT void filter_steady_block(const int32_t c[5],fd
     for(unsigned i=0;i<frames;++i)pcm[2u*i]=filter(c,h,pcm[2u*i]);
 #endif
 }
+#ifdef FIXED_DSP_VOLUME_RAMP_BLOCK
+/* Only compensation coefficients vary on a volume-only change. Advance that
+ * section once per stereo frame, preserving canonical per-channel histories;
+ * all other stable sections keep their existing block reuse. No coefficient
+ * array, PCM copy or persistent scratch is added. */
+static BLOCK_KERNEL DSP_BLOCK_HOT void filter_volume_ramp_block(fdsp_coefficients_t *state,
+    fdsp_history_t history[2],int32_t *pcm,unsigned frames){
+    unsigned ramp=state->remaining;if(ramp>frames)ramp=frames;
+    for(unsigned i=0;i<ramp;++i){
+        coefficients_advance(state);
+        pcm[2u*i]=filter(state->value,&history[0],pcm[2u*i]);
+        pcm[2u*i+1u]=filter(state->value,&history[1],pcm[2u*i+1u]);
+    }
+    if(ramp<frames){
+        filter_steady_block(state->value,&history[0],pcm+2u*ramp,frames-ramp);
+        filter_steady_block(state->value,&history[1],pcm+2u*ramp+1u,frames-ramp);
+    }
+}
+#endif
+#ifdef FIXED_DSP_VOLUME_RAMP_COMPARE
+static bool DSP_BLOCK_HOT volume_block_impl(fixed_dsp_t *dsp,int32_t *pcm,uint16_t frames,bool reuse_volume){
+#else
 bool DSP_BLOCK_HOT fixed_dsp_process_block(fixed_dsp_t *dsp,int32_t *pcm,uint16_t frames){
+#endif
     if(!dsp || frames>FIXED_DSP_BLOCK_FRAMES || (frames && (!pcm || (uintptr_t)pcm%4u)))return false;
     if(!frames)return true;
     /* Target measurements favor the canonical kernel during coefficient
      * ramps. Process exactly that prefix, then use block reuse only once all
      * coefficients are stable. Volume/flip/bypass still advance per sample. */
     uint32_t prefix=0;
-    for(unsigned f=0;f<5;++f)if(dsp->filters[f].remaining>prefix)prefix=dsp->filters[f].remaining;
+    for(unsigned f=0;f<5;++f){
+#ifdef FIXED_DSP_VOLUME_RAMP_COMPARE
+        if(f==3u && reuse_volume)continue;
+#elif defined(FIXED_DSP_VOLUME_RAMP_BLOCK)
+        if(f==3u)continue;
+#endif
+        if(dsp->filters[f].remaining>prefix)prefix=dsp->filters[f].remaining;
+    }
     if(prefix>frames)prefix=frames;
     for(unsigned i=0;i<prefix;++i)fixed_dsp_process(dsp,&pcm[2u*i],&pcm[2u*i+1u]);
     pcm+=2u*prefix;frames=(uint16_t)(frames-prefix);
@@ -459,6 +497,15 @@ bool DSP_BLOCK_HOT fixed_dsp_process_block(fixed_dsp_t *dsp,int32_t *pcm,uint16_
             pcm[2u*i]>>=4;pcm[2u*i+1u]>>=4;
         }
         for(unsigned f=0;f<4;++f){
+#ifdef FIXED_DSP_VOLUME_RAMP_BLOCK
+            if(f==3u && dsp->filters[f].remaining
+#ifdef FIXED_DSP_VOLUME_RAMP_COMPARE
+               && reuse_volume
+#endif
+              ){
+                filter_volume_ramp_block(&dsp->filters[f],dsp->channel_history[f],pcm,count);continue;
+            }
+#endif
             filter_steady_block(dsp->filters[f].value,&dsp->channel_history[f][0],pcm,count);
             filter_steady_block(dsp->filters[f].value,&dsp->channel_history[f][1],pcm+1,count);
         }
@@ -492,6 +539,70 @@ bool DSP_BLOCK_HOT fixed_dsp_process_block(fixed_dsp_t *dsp,int32_t *pcm,uint16_
     }
     return true;
 }
+#ifdef FIXED_DSP_VOLUME_RAMP_COMPARE
+#ifndef FIXED_DSP_VOLUME_RAMP_BLOCK
+#error Volume comparison requires the volume-ramp block candidate
+#endif
+typedef struct {
+    _Atomic uint32_t sequence,rate,policy,calls,cycles,minimum,maximum,clipped;
+} volume_profile_t;
+static volume_profile_t volume_profiles[2][2];
+static _Atomic uint32_t volume_serial[2];
+static unsigned volume_core(void){
+#ifdef ESP_PLATFORM
+    return (unsigned)xPortGetCoreID();
+#else
+    return 0;
+#endif
+}
+static uint32_t volume_cycles(void){
+#ifdef ESP_PLATFORM
+    return esp_cpu_get_cycle_count();
+#else
+    return 0;
+#endif
+}
+static void volume_record(unsigned core,unsigned mode,uint32_t rate,uint32_t policy,uint32_t cycles,bool clipped){
+    volume_profile_t *s=&volume_profiles[core][mode];uint32_t sequence=atomic_load(&s->sequence);
+    atomic_store_explicit(&s->sequence,sequence+1u,memory_order_seq_cst);
+    if(atomic_load(&s->rate)!=rate || atomic_load(&s->policy)!=policy){
+        atomic_store(&s->rate,rate);atomic_store(&s->policy,policy);atomic_store(&s->calls,0);atomic_store(&s->cycles,0);
+        atomic_store(&s->minimum,0);atomic_store(&s->maximum,0);atomic_store(&s->clipped,0);
+    }
+    if(clipped)atomic_store(&s->clipped,atomic_load(&s->clipped)+1u);
+    else{
+        uint32_t calls=atomic_load(&s->calls);atomic_store(&s->calls,calls+1u);atomic_store(&s->cycles,atomic_load(&s->cycles)+cycles);
+        if(!calls || cycles<atomic_load(&s->minimum))atomic_store(&s->minimum,cycles);
+        if(cycles>atomic_load(&s->maximum))atomic_store(&s->maximum,cycles);
+    }
+    uint32_t next=sequence+2u;atomic_store_explicit(&s->sequence,next?next:2u,memory_order_release);
+}
+void fixed_dsp_volume_stats(unsigned core,unsigned mode,fixed_dsp_volume_stats_t *out){
+    if(!out)return;
+    *out=(fixed_dsp_volume_stats_t){0};
+    if(core>1 || mode>1)return;
+    volume_profile_t *s=&volume_profiles[core][mode];uint32_t before=atomic_load_explicit(&s->sequence,memory_order_acquire);
+    out->revision=before;out->rate=atomic_load(&s->rate);out->policy=atomic_load(&s->policy);out->calls=atomic_load(&s->calls);
+    out->cycles=atomic_load(&s->cycles);out->minimum=atomic_load(&s->minimum);out->maximum=atomic_load(&s->maximum);out->clipped=atomic_load(&s->clipped);
+    atomic_thread_fence(memory_order_seq_cst);out->coherent=before && !(before&1u) && before==atomic_load_explicit(&s->sequence,memory_order_acquire);
+}
+bool DSP_BLOCK_HOT fixed_dsp_process_block(fixed_dsp_t *dsp,int32_t *pcm,uint16_t frames){
+    if(!dsp || frames>FIXED_DSP_BLOCK_FRAMES || (frames && (!pcm || (uintptr_t)pcm%4u)))return false;
+    /* ABBA timing only on full128-frame volume-only ramps with stable routing.
+     * Both paths execute once on real audio; clipped blocks are counted but
+     * excluded from timing to separate the content-dependent limiter divide. */
+    bool eligible=frames==128u && dsp->filters[3].remaining>=128u && !dsp->bypass.remaining && !dsp->flip.remaining;
+    for(unsigned f=0;f<5;++f)if(f!=3u && dsp->filters[f].remaining)eligible=false;
+    unsigned core=volume_core();if(!eligible || core>1)return volume_block_impl(dsp,pcm,frames,true);
+    uint32_t serial=atomic_load(&volume_serial[core]);atomic_store(&volume_serial[core],serial+1u);
+    unsigned phase=serial&3u,mode=phase==1u || phase==2u;
+    uint32_t policy=(uint8_t)dsp->gains[0]|((uint32_t)(uint8_t)dsp->gains[1]<<8)|((uint32_t)(uint8_t)dsp->gains[2]<<16)|((uint32_t)dsp->flags<<24);
+    uint32_t limited=dsp->limited,began=volume_cycles();bool result=volume_block_impl(dsp,pcm,frames,mode!=0);
+    uint32_t elapsed=volume_cycles()-began;
+    if(result)volume_record(core,mode,dsp->sample_rate,policy,elapsed,dsp->limited!=limited);
+    return result;
+}
+#endif
 #undef BLOCK_KERNEL
 #endif
 

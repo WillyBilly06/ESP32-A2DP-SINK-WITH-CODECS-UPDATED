@@ -15,7 +15,7 @@ subprocess.run(check,check=True)
 try:
     flags=['-ffreestanding','-fno-builtin','-fno-stack-protector','-fuse-ld=lld','-nostdlib','-shared','-Wl,/noentry'] if os.name=='nt' else ['-shared','-fPIC']
     extra=[root/'tests/avrcp/runtime_freestanding.c'] if os.name=='nt' else []
-    src=[root/'tests/avrcp/probe_integration.c']+[root/'src'/(n+'.c') for n in ('dbt_avctp','dbt_avctp_bearer','dbt_avrcp','dbt_avrcp_bearer','dbt_sdp')]+extra
+    src=[root/'tests/avrcp/probe_integration.c']+[root/'src'/(n+'.c') for n in ('dbt_avctp','dbt_avctp_bearer','dbt_avrcp','dbt_avrcp_bearer','dbt_sdp','dbt_sdp_client','dbt_sdp_client_bearer','dbt_sdp_discovery')]+extra
     pending=src+[pathlib.Path(__file__).resolve()];tracked=set()
     while pending:
         source=pending.pop().resolve()
@@ -31,7 +31,7 @@ try:
         command=[cache,cc,'-std=c11','-O1','-Wall','-Wextra','-Werror','-I',str(root/'include'),'-I',str(root/'esp32_probe/main')]+define+flags+[str(x) for x in src]+['-o',str(artifact)]
         subprocess.run(command,check=True);result['commands'].append(command)
         dll=ctypes.CDLL(str(artifact))
-        for n in ('exchange','sdp','wait_backpressure'):
+        for n in ('exchange','sdp','wait_backpressure','volume_burst'):
             line=getattr(dll,'probe_test_'+n)()
             if line: raise SystemExit('FAIL '+n+' output='+str(output)+' line '+str(line))
             result['groups'].append({'group':n,'audio_output':output,'passed':True})

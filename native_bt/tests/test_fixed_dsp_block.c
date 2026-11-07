@@ -53,6 +53,61 @@ int main(void){
             total_frames+=frames;++total_blocks;
         }
     }
+    uint32_t volume_blocks=0;
+    for(unsigned rate=0;rate<13;++rate)for(unsigned flags=0;flags<16;++flags){
+        fixed_dsp_t a,b;CHECK(fixed_dsp_init(&a,rates[rate],90,500,512));CHECK(reference_init(&b,rates[rate],90,500,512));
+        fixed_dsp_controls(&a,12,-3,9,127,(uint8_t)flags,true);reference_controls(&b,12,-3,9,127,(uint8_t)flags,true);
+        int32_t actual[256],expected[256];
+        for(unsigned block=0;block<192;++block){
+            if(block<64?block%3u==0:block==64){
+                uint8_t v=(uint8_t)(block==64?35:random32()%128u);
+                fixed_dsp_controls(&a,12,-3,9,v,(uint8_t)flags,false);reference_controls(&b,12,-3,9,v,(uint8_t)flags,false);
+            }
+            unsigned frames=block%5u==0?128u:block%5u==1?1u:block%5u==2?2u:random32()%129u;
+            for(unsigned f=0;f<5;++f)if(f!=3u)CHECK(!a.filters[f].remaining);
+            if(a.filters[3].remaining && frames)++volume_blocks;
+            for(unsigned i=0;i<2u*frames;++i){
+                int32_t value=block%4u==0?0:block%4u==1?(i&1u?INT32_MIN:INT32_MAX):block%4u==2?(int32_t)random32():(i<2u?INT32_MAX/4:0);
+                actual[i]=expected[i]=value;
+            }
+            CHECK(fixed_dsp_process_block(&a,actual,(uint16_t)frames));
+            for(unsigned i=0;i<frames;++i)reference_process(&b,&expected[2u*i],&expected[2u*i+1u]);
+            if(memcmp(actual,expected,frames*2u*sizeof(int32_t)) || memcmp(&a,&b,sizeof(a))){
+                printf("Mismatch volume-only rate=%u flags=%u block=%u frames=%u\n",rates[rate],flags,block,frames);return 3;
+            }
+            total_frames+=frames;++total_blocks;
+        }
+    }
+    CHECK(volume_blocks>1000u);printf("volume-only ramp blocks=%u\n",volume_blocks);
+    const uint32_t stagger_rates[]={48000,96000,192000};
+    for(unsigned ri=0;ri<3;++ri){
+        fixed_dsp_t a,b;uint8_t flags=12,volume=127;int8_t bass=0,mid=0,treble=0;
+        CHECK(fixed_dsp_init(&a,stagger_rates[ri],90,500,512));CHECK(reference_init(&b,stagger_rates[ri],90,500,512));
+        fixed_dsp_controls(&a,bass,mid,treble,volume,flags,true);reference_controls(&b,bass,mid,treble,volume,flags,true);
+        for(unsigned block=0;block<160;++block){
+            bool change=false;
+            if(!block){bass=12;mid=8;treble=12;change=true;}
+            if(block==1){volume=90;change=true;}
+            if(block==34){volume=30;change=true;}
+            if(block==35){bass=-12;mid=12;treble=5;change=true;}
+            if(block==68){flags=13;volume=80;change=true;}
+            if(block==76){volume=50;change=true;}
+            if(block==100){flags=15;volume=110;change=true;}
+            if(block==132){volume=60;change=true;}
+            if(change){fixed_dsp_controls(&a,bass,mid,treble,volume,flags,false);reference_controls(&b,bass,mid,treble,volume,flags,false);}
+            int32_t actual[256],expected[256];
+            for(unsigned i=0;i<256;++i){int32_t value=(int32_t)(random32()>>6);if(i&1u)value=-value;actual[i]=expected[i]=value;}
+            CHECK(fixed_dsp_process_block(&a,actual,128));
+            for(unsigned i=0;i<128;++i)reference_process(&b,&expected[2u*i],&expected[2u*i+1u]);
+            CHECK(!memcmp(actual,expected,sizeof(actual)) && !memcmp(&a,&b,sizeof(a)));
+            ++total_blocks;total_frames+=128;
+        }
+    }
+#ifdef FIXED_DSP_VOLUME_RAMP_COMPARE
+    fixed_dsp_volume_stats_t profile0,profile1;fixed_dsp_volume_stats(0,0,&profile0);fixed_dsp_volume_stats(0,1,&profile1);
+    CHECK(profile0.coherent && profile1.coherent && profile0.calls>10 && profile1.calls>10 && profile0.rate==192000 && profile1.rate==192000);
+    printf("ABBA modes exercised: canonical=%u candidate=%u (host timing stub)\n",profile0.calls,profile1.calls);
+#endif
     printf("PASS exact block DSP: %u blocks, %u frames, 13 rates, full PCM/state equality\n",total_blocks,total_frames);
     return 0;
 }

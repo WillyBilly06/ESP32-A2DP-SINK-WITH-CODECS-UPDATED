@@ -1,7 +1,14 @@
 # Current project progress
 
+Latest arithmetic update: [exact volume-ramp reuse](VOLUME_RAMP_BLOCK_2026_11_06.md).
+COM6 image24f9ec682af8 selects the exact faster volume path, comparison and
+OwnerPacer OFF. One LDAC96 rapid-key stream delivers1440000 frames with zero
+recorded gaps. The scoped192k/Core0 volume-ramp mean drops29.4%; maximum LHDC
+continuity, all-codec rapid-control acoustics and the master goal remain open.
+
+
 [Scheduling/volume update2026-11-06](AUDIO_SCHEDULING_VOLUME_2026_11_06.md):
-COM6 runs owned image8f125b7c69bc. Accepted controls now wake the renderer;
+The earlier owner-budget experiment used image8f125b7c69bc. Accepted controls now wake the renderer;
 one LDAC96 real-key volume trace has no in-play gaps, with a separate
 post-pause source-empty tail. Two-core/IPC/timer attribution is available.
 The corrected opt-in owner budget still has470656 unfilled LHDC192/fixed900
@@ -10,7 +17,7 @@ frames. Maximum-rate and all-feature qualification remain incomplete.
 
 Latest focused update2026-11-06: [bounded LHDC DSP assistance](LHDC_DSP_ASSIST_2026_11_06.md)
 is implemented with worker-side PCM publication, a four-block maximum, no new
-PCM storage and tested stop/cancel fences. COM6 runs image2fd4bbc8dba4.
+PCM storage and tested stop/cancel fences. The earlier batch experiment used image2fd4bbc8dba4.
 The fixed900 trace still has262528 unfilled frames; high-rate LHDC and the
 master goal remain incomplete. The dated measurements below remain historical.
 

@@ -1,7 +1,9 @@
-param([switch]$OwnerPacer,[switch]$DspAssist,[switch]$DspBlockIram,[switch]$UnityPcmCopy,[switch]$LhdcCore0Render,[switch]$LhdcFastMantissa,[switch]$AptxSnapshot,[switch]$StayNative,[switch]$WordDsp,[switch]$PriorityOrder,[ValidateSet(5,6,21)][int]$DecoderPriority=5,[switch]$SchedulerTrace,[switch]$CodecAwareRender,[switch]$PcmCopied,[switch]$PcmHash,[ValidateSet(-1,0,1)][int]$LoggerCore=-1,[switch]$BlockDsp,[ValidateSet(16,32,64)][int]$PcmTargetMs=64,[switch]$PcmLoans,[switch]$DspInlineCheck,[ValidateSet(0,1)][int]$DecoderCore=0,[switch]$RfProtocolDiagnostic,[switch]$FirCompilerCheck,[switch]$DspStageProfile,[switch]$AudioStageProfile,[switch]$PipelineDiagnostic,[switch]$AsyncAudio,[switch]$DeferredCodecCheck,[switch]$LhdcStageProfile,[switch]$LhdcMaximumCheck,[switch]$CodecDiagnosticOnly,[switch]$WithProductIo,[switch]$WithProductSecurity,[switch]$WithRfcomm,[switch]$WithLhdc,[switch]$WithOpus,[switch]$WithAac,[switch]$WithAptx,[switch]$WithLdac,[switch]$WithSmp,[switch]$WithAvrcp,[switch]$WithSbc,[switch]$WithAudioProbe,[switch]$WithAudioOutput,[switch]$WithGatt,[switch]$WithClassicSecurity,[switch]$TraceIngress,[switch]$WithoutRxFlow,[switch]$KeepOwned=$true,[string]$TestPeer='',[string]$LhdcSourceDir='')
+param([switch]$VolumeRampBlock,[switch]$VolumeRampCompare,[switch]$OwnerPacer,[switch]$DspAssist,[switch]$DspBlockIram,[switch]$UnityPcmCopy,[switch]$LhdcCore0Render,[switch]$LhdcFastMantissa,[switch]$AptxSnapshot,[switch]$StayNative,[switch]$WordDsp,[switch]$PriorityOrder,[ValidateSet(5,6,21)][int]$DecoderPriority=5,[switch]$SchedulerTrace,[switch]$CodecAwareRender,[switch]$PcmCopied,[switch]$PcmHash,[ValidateSet(-1,0,1)][int]$LoggerCore=-1,[switch]$BlockDsp,[ValidateSet(16,32,64)][int]$PcmTargetMs=64,[switch]$PcmLoans,[switch]$DspInlineCheck,[ValidateSet(0,1)][int]$DecoderCore=0,[switch]$RfProtocolDiagnostic,[switch]$FirCompilerCheck,[switch]$DspStageProfile,[switch]$AudioStageProfile,[switch]$PipelineDiagnostic,[switch]$AsyncAudio,[switch]$DeferredCodecCheck,[switch]$LhdcStageProfile,[switch]$LhdcMaximumCheck,[switch]$CodecDiagnosticOnly,[switch]$WithProductIo,[switch]$WithProductSecurity,[switch]$WithRfcomm,[switch]$WithLhdc,[switch]$WithOpus,[switch]$WithAac,[switch]$WithAptx,[switch]$WithLdac,[switch]$WithSmp,[switch]$WithAvrcp,[switch]$WithSbc,[switch]$WithAudioProbe,[switch]$WithAudioOutput,[switch]$WithGatt,[switch]$WithClassicSecurity,[switch]$TraceIngress,[switch]$WithoutRxFlow,[switch]$KeepOwned=$true,[string]$TestPeer='',[string]$LhdcSourceDir='')
 $ErrorActionPreference = 'Stop'
 if ($PriorityOrder) { $DecoderPriority=6; $KeepOwned=$false }
 if ($AptxSnapshot -and (-not $StayNative -or -not $WithAptx -or -not $PcmCopied -or -not $BlockDsp -or -not $WordDsp -or -not $CodecAwareRender)) { throw 'aptX capture requires complete stay-native aptX copied PCM, block/word DSP and codec-aware rendering' }
+if ($VolumeRampBlock -and (-not $StayNative -or -not $BlockDsp)) { throw 'Volume-ramp block requires full native block DSP' }
+if ($VolumeRampCompare -and -not $VolumeRampBlock) { throw 'Volume-ramp comparison requires -VolumeRampBlock' }
 if ($OwnerPacer -and (-not $StayNative -or -not $PriorityOrder -or -not $AsyncAudio -or -not $PcmCopied -or -not $CodecAwareRender)) { throw 'Host CPU budget requires native priority-ordered asynchronous copied codec-aware audio' }
 if ($DspAssist -and (-not $StayNative -or -not $CodecAwareRender -or -not $AsyncAudio -or -not $PcmCopied -or -not $BlockDsp -or -not $UnityPcmCopy -or -not $WithLhdc -or $LhdcCore0Render -or $AptxSnapshot)) { throw 'DSP assistance requires full native LHDC copied/block/unity output on Core1' }
 if ($DspBlockIram -and -not $BlockDsp) { throw 'Block DSP IRAM placement requires -BlockDsp' }
@@ -168,6 +170,8 @@ $idfArguments += "-DDBT_PROBE_PRIORITY_ORDER=$(if ($PriorityOrder) { 'ON' } else
 $idfArguments += "-DDBT_PROBE_LOGGER_CORE=$LoggerCore"
 $idfArguments += "-DDBT_PROBE_SCHEDULER_TRACE=$(if ($SchedulerTrace) { 'ON' } else { 'OFF' })"
 $idfArguments += "-DDBT_PROBE_CODEC_AWARE_RENDER=$(if ($CodecAwareRender) { 'ON' } else { 'OFF' })"
+$idfArguments += "-DDBT_PROBE_VOLUME_RAMP_BLOCK=$(if ($VolumeRampBlock) { 'ON' } else { 'OFF' })"
+$idfArguments += "-DDBT_PROBE_VOLUME_RAMP_COMPARE=$(if ($VolumeRampCompare) { 'ON' } else { 'OFF' })"
 $idfArguments += "-DDBT_PROBE_OWNER_PACER=$(if ($OwnerPacer) { 'ON' } else { 'OFF' })"
 $idfArguments += "-DDBT_PROBE_DSP_ASSIST=$(if ($DspAssist) { 'ON' } else { 'OFF' })"
 $idfArguments += "-DDBT_PROBE_DSP_BLOCK_IRAM=$(if ($DspBlockIram) { 'ON' } else { 'OFF' })"
@@ -224,6 +228,8 @@ $buildReceipt.owner_ready_yield=($DecoderPriority -eq $buildReceipt.host_priorit
 $buildReceipt.logger_core=$LoggerCore
 $buildReceipt.scheduler_trace=[bool]$SchedulerTrace
 $buildReceipt.codec_aware_render=[bool]$CodecAwareRender
+$buildReceipt.volume_ramp_block=[bool]$VolumeRampBlock
+$buildReceipt.volume_ramp_compare=[bool]$VolumeRampCompare
 $buildReceipt.owner_pacer=[bool]$OwnerPacer
 $buildReceipt.dsp_assist=[bool]$DspAssist
 $buildReceipt.dsp_block_iram=[bool]$DspBlockIram

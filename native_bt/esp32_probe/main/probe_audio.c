@@ -727,6 +727,23 @@ static void log_owner_pacer(void){
         s.pauses,s.releases,s.wait_checks,s.max_slice_us,s.max_pause_us,s.arm_failures);
 }
 #endif
+#ifdef DBT_PROBE_VOLUME_RAMP_COMPARE
+static void log_volume_kernels(void){
+    static uint32_t seen[2][2];
+    if(probe_output_running())return; /* No extra UART load during timing. */
+    for(unsigned core=0;core<2;++core)for(unsigned mode=0;mode<2;++mode){
+        fixed_dsp_volume_stats_t s;fixed_dsp_volume_stats(core,mode,&s);
+        if(!s.coherent || s.revision==seen[core][mode])continue;
+        seen[core][mode]=s.revision;
+        PROBE_SNAPSHOT_LOG("{\"probe\":\"dsp_volume_kernel\",\"core\":%u,\"mode\":\"%s\",\"order\":\"ABBA\",\"rate\":%" PRIu32
+            ",\"gains_db\":[%d,%d,%d],\"flags\":%u,\"timed_calls\":%" PRIu32 ",\"frames_per_call\":128,\"cycles\":%" PRIu32
+            ",\"minimum_cycles\":%" PRIu32 ",\"maximum_cycles\":%" PRIu32 ",\"clipped_calls_untimed\":%" PRIu32
+            ",\"cycles_include_preemption\":true,\"counts_wrap_uint32\":true,\"scope\":\"full_volume_only_ramps_latest_policy\"}\n",
+            core,mode?"stable_other_filters":"canonical_prefix",s.rate,(int)(int8_t)s.policy,(int)(int8_t)(s.policy>>8),
+            (int)(int8_t)(s.policy>>16),(unsigned)(s.policy>>24),s.calls,s.cycles,s.minimum,s.maximum,s.clipped);
+    }
+}
+#endif
 static void log_loop(void *unused){
     (void)unused;
     uint32_t previous=UINT32_MAX,previous_errors=UINT32_MAX,previous_ignored=UINT32_MAX,previous_oversized=UINT32_MAX;
@@ -743,6 +760,9 @@ static void log_loop(void *unused){
         if(++ticks<10)continue;
         ticks=0;
         uint32_t at=(uint32_t)esp_timer_get_time();
+#ifdef DBT_PROBE_VOLUME_RAMP_COMPARE
+        log_volume_kernels();
+#endif
 #ifdef DBT_PROBE_OWNER_PACER
         log_owner_pacer();
 #endif

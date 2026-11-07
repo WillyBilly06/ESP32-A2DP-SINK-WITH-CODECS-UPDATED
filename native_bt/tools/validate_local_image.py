@@ -41,6 +41,20 @@ if scheduler_trace:
         command=next(e['command'] for e in commands if Path(e['file']).name==unit)
         assert re.findall(r'(?:^|\s)-DDBT_PROBE_SCHEDULER_TRACE=(\S+)',command)==['1']
         assert not re.search(r'(?:^|\s)-UDBT_PROBE_SCHEDULER_TRACE(?:\s|$)',command)
+volume_ramp=bool(build_status.get('volume_ramp_block'))
+volume_compare=bool(build_status.get('volume_ramp_compare'))
+assert ('DBT_PROBE_VOLUME_RAMP_BLOCK:BOOL=ON' in cache)==volume_ramp
+assert ('DBT_PROBE_VOLUME_RAMP_COMPARE:BOOL=ON' in cache)==volume_compare
+assert not volume_compare or volume_ramp
+if volume_ramp:
+    assert build_status.get('stay_native') and build_status.get('block_dsp') and not diagnostic and not pipeline
+for macro,expected in [('DBT_PROBE_VOLUME_RAMP_BLOCK',volume_ramp),('DBT_PROBE_VOLUME_RAMP_COMPARE',volume_compare)]:
+    assert re.findall(r'(?:^|\s)-D'+macro+r'=(\S+)',main_command)==(['1'] if expected else [])
+    assert not re.search(r'(?:^|\s)-U'+macro+r'(?:\s|$)',main_command)
+fixed_volume_unit=next(e for e in commands if Path(e['file']).name=='fixed_dsp.c')
+for macro,expected in [('FIXED_DSP_VOLUME_RAMP_BLOCK',volume_ramp),('FIXED_DSP_VOLUME_RAMP_COMPARE',volume_compare)]:
+    assert re.findall(r'(?:^|\s)-D'+macro+r'=(\S+)',fixed_volume_unit['command'])==(['1'] if expected else [])
+    assert not re.search(r'(?:^|\s)-U'+macro+r'(?:\s|$)',fixed_volume_unit['command'])
 owner_pacer=bool(build_status.get('owner_pacer'))
 assert ('DBT_PROBE_OWNER_PACER:BOOL=ON' in cache)==owner_pacer, 'Owner budget receipt/cache mismatch'
 assert re.findall(r'(?:^|\s)-DDBT_PROBE_OWNER_PACER=(\S+)',main_command)==(['1'] if owner_pacer else [])
