@@ -183,6 +183,84 @@ unsigned probe_scheduler_host_phase(unsigned phase){
     return previous;
 }
 
+/* OWNER_COST_IMPLEMENTATION_BEGIN: actual implementation used by host tests. */
+#ifdef DBT_PROBE_SCHEDULER_TRACE
+_Static_assert(PROBE_COST_SLOTS<=32,"owner cost seen mask capacity");
+typedef struct {_Atomic uint32_t calls,cycles,min_cycles,max_cycles;} owner_cost_cell_t;
+static DRAM_ATTR owner_cost_cell_t owner_cost[PROBE_COST_SLOTS];
+static DRAM_ATTR _Atomic uint32_t owner_cost_capture,owner_cost_epoch,owner_cost_sequence,owner_cost_seen;
+void probe_scheduler_owner_capture(bool active){
+    uint32_t epoch=atomic_load_explicit(&owner_cost_capture,memory_order_relaxed);
+    /* Every start gets a new epoch. Stop retains the completed host snapshot. */
+    atomic_store_explicit(&owner_cost_capture,active?((epoch+2u)|1u):(epoch&~1u),memory_order_release);
+}
+probe_owner_cost_mark_t probe_scheduler_owner_cost_begin(void){
+    uint32_t epoch=atomic_load_explicit(&owner_cost_capture,memory_order_acquire);
+    if(!(epoch&1u) || !probe_scheduler_host_context())return (probe_owner_cost_mark_t){0};
+    atomic_signal_fence(memory_order_seq_cst);
+    uint32_t cycles=esp_cpu_get_cycle_count();
+    atomic_signal_fence(memory_order_seq_cst);
+    return (probe_owner_cost_mark_t){epoch,cycles};
+}
+void probe_scheduler_owner_cost_end(unsigned slot,probe_owner_cost_mark_t mark){
+    if(!mark.epoch)return;
+    atomic_signal_fence(memory_order_seq_cst);
+    uint32_t elapsed=esp_cpu_get_cycle_count()-mark.cycles;
+    atomic_signal_fence(memory_order_seq_cst);
+    if(slot>=PROBE_COST_SLOTS ||
+       mark.epoch!=atomic_load_explicit(&owner_cost_capture,memory_order_acquire))return;
+    /* Begin checked host ownership; callers end synchronously on that task.
+     * One host writer, atomic publication for the background reader. */
+    uint32_t sequence=atomic_load_explicit(&owner_cost_sequence,memory_order_relaxed);
+    atomic_store_explicit(&owner_cost_sequence,sequence+1u,memory_order_seq_cst);
+    if(mark.epoch!=atomic_load_explicit(&owner_cost_epoch,memory_order_relaxed)){
+        for(unsigned i=0;i<PROBE_COST_SLOTS;++i){
+            atomic_store_explicit(&owner_cost[i].calls,0,memory_order_relaxed);
+            atomic_store_explicit(&owner_cost[i].cycles,0,memory_order_relaxed);
+            atomic_store_explicit(&owner_cost[i].min_cycles,UINT32_MAX,memory_order_relaxed);
+            atomic_store_explicit(&owner_cost[i].max_cycles,0,memory_order_relaxed);
+        }
+        atomic_store_explicit(&owner_cost_seen,0,memory_order_relaxed);
+        atomic_store_explicit(&owner_cost_epoch,mark.epoch,memory_order_relaxed);
+    }
+    owner_cost_cell_t *cell=&owner_cost[slot];
+    atomic_store_explicit(&cell->calls,atomic_load_explicit(&cell->calls,memory_order_relaxed)+1u,memory_order_relaxed);
+    atomic_store_explicit(&cell->cycles,atomic_load_explicit(&cell->cycles,memory_order_relaxed)+elapsed,memory_order_relaxed);
+    if(elapsed<atomic_load_explicit(&cell->min_cycles,memory_order_relaxed))atomic_store_explicit(&cell->min_cycles,elapsed,memory_order_relaxed);
+    if(elapsed>atomic_load_explicit(&cell->max_cycles,memory_order_relaxed))atomic_store_explicit(&cell->max_cycles,elapsed,memory_order_relaxed);
+    atomic_store_explicit(&owner_cost_seen,atomic_load_explicit(&owner_cost_seen,memory_order_relaxed)|(1u<<slot),memory_order_relaxed);
+    atomic_store_explicit(&owner_cost_sequence,sequence+2u,memory_order_release);
+}
+bool probe_scheduler_owner_cost_snapshot(unsigned slot,probe_owner_cost_t *out){
+    if(!out || slot>=PROBE_COST_SLOTS)return false;
+    uint32_t before=atomic_load_explicit(&owner_cost_sequence,memory_order_acquire);
+    if(before&1u)return false;
+    probe_owner_cost_t value={.epoch=atomic_load_explicit(&owner_cost_epoch,memory_order_relaxed)};
+    uint32_t seen=atomic_load_explicit(&owner_cost_seen,memory_order_relaxed);
+    value.calls=atomic_load_explicit(&owner_cost[slot].calls,memory_order_relaxed);
+    value.cycles=atomic_load_explicit(&owner_cost[slot].cycles,memory_order_relaxed);
+    value.min_cycles=atomic_load_explicit(&owner_cost[slot].min_cycles,memory_order_relaxed);
+    value.max_cycles=atomic_load_explicit(&owner_cost[slot].max_cycles,memory_order_relaxed);
+    atomic_thread_fence(memory_order_seq_cst);
+    if(!(seen&(1u<<slot)) || before!=atomic_load_explicit(&owner_cost_sequence,memory_order_acquire))return false;
+    *out=value;return true;
+}
+uint32_t probe_scheduler_owner_cost_finished_epoch(uint32_t *seen_mask){
+    uint32_t before=atomic_load_explicit(&owner_cost_sequence,memory_order_acquire);
+    if(before&1u)return 0;
+    uint32_t capture=atomic_load_explicit(&owner_cost_capture,memory_order_acquire);
+    uint32_t epoch=atomic_load_explicit(&owner_cost_epoch,memory_order_acquire);
+    uint32_t seen=atomic_load_explicit(&owner_cost_seen,memory_order_relaxed);
+    atomic_thread_fence(memory_order_seq_cst);
+    if((capture&1u) || !epoch || epoch!=(capture|1u) ||
+       capture!=atomic_load_explicit(&owner_cost_capture,memory_order_acquire) ||
+       before!=atomic_load_explicit(&owner_cost_sequence,memory_order_acquire))return 0;
+    if(seen_mask)*seen_mask=seen;
+    return epoch;
+}
+#endif
+/* OWNER_COST_IMPLEMENTATION_END */
+
 /* Each kind has one render/lifecycle writer on its respective core. Public cells remain
  * atomic so the background logger can make one nonblocking read attempt. */
 typedef struct {

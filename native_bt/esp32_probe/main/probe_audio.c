@@ -614,6 +614,9 @@ static dbt_result_t publish_stream(bool started,const dbt_codec_config_t *config
         atomic_fetch_add_explicit(&codec_revision,1,memory_order_release);
         atomic_fetch_add_explicit(&pcm_generation,1,memory_order_release);
     }
+#ifdef DBT_PROBE_SCHEDULER_TRACE
+    probe_scheduler_owner_capture(started);
+#endif
     return DBT_OK;
 }
 #ifdef DBT_PROBE_ASYNC_AUDIO
@@ -805,6 +808,30 @@ static void log_render_delays(void){
     }
 }
 #endif
+#ifdef DBT_PROBE_SCHEDULER_TRACE
+static void log_owner_costs(void){
+    static uint32_t reported_epoch;
+    static const char *const names[PROBE_COST_SLOTS]={
+        "runtime_wait","parameters_wait","admission_wait","smp_wait","avrcp_wait",
+        "button_wait","rfcomm_wait","gap_wait","product_wait","io_wait","att_wait",
+        "security_wait","echo_wait","sdp_wait","audio_wait","clock_floor","wait_total",
+        "poll_other","controller_query","controller_submit","runtime_poll","poll_wait",
+        "gatt_poll","security_poll","product_poll","io_poll","audio_poll","avrcp_poll","console_poll"};
+    uint32_t seen=0,epoch=probe_scheduler_owner_cost_finished_epoch(&seen);bool incomplete=false;
+    if(!epoch || epoch==reported_epoch)return;
+    for(unsigned slot=0;slot<PROBE_COST_SLOTS;++slot){
+        if(!(seen&(1u<<slot)))continue;
+        probe_owner_cost_t s;
+        if(!probe_scheduler_owner_cost_snapshot(slot,&s) || s.epoch!=epoch){incomplete=true;continue;}
+        PROBE_SNAPSHOT_LOG("{\"probe\":\"owner_cost_%u\",\"slot\":%u,\"name\":\"%s\",\"epoch\":%" PRIu32
+            ",\"calls\":%" PRIu32 ",\"cycles\":%" PRIu32 ",\"min_cycles\":%" PRIu32 ",\"max_cycles\":%" PRIu32
+            ",\"cpu_mhz\":240,\"coherent\":true,\"cycles_include_preemption\":true,\"irq_time_included\":true"
+            ",\"nested_categories_inclusive\":true,\"counters_wrap_u32\":true,\"reported_after_pause\":true}\n",
+            slot,slot,names[slot],s.epoch,s.calls,s.cycles,s.min_cycles,s.max_cycles);
+    }
+    if(!incomplete && probe_scheduler_owner_cost_finished_epoch(NULL)==epoch)reported_epoch=epoch;
+}
+#endif
 #ifdef DBT_PROBE_TASK_RUNTIME_STATS
 static void log_task_runtime(void){
     static const char *const roles[PROBE_RUNTIME_TASKS]={"host","decoder","renderer1","logger","controller","idle0","idle1","ipc0","ipc1","timer","renderer0"};
@@ -922,6 +949,7 @@ static void log_loop(void *unused){
 #endif
 #ifdef DBT_PROBE_SCHEDULER_TRACE
         log_render_delays();
+        log_owner_costs();
 #endif
 #ifdef DBT_PROBE_TASK_RUNTIME_STATS
         log_task_runtime();

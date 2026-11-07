@@ -89,4 +89,32 @@ void probe_scheduler_task_runtime(probe_task_runtime_snapshot_t *);
  * One writer. No timer, kernel lock, allocation or logging. The optional
  * task-cycle diagnostic adds one own-core interrupt-masked counter mark. */
 unsigned probe_scheduler_host_phase(unsigned phase);
+/* Optional task-context wall-cycle diagnostics. Nested categories are inclusive;
+ * IRQ/preemption time and the small marker floor are included. No ISR hook.
+ * A stream lifecycle has one logical publisher; only the host writes counters. */
+#ifdef DBT_PROBE_SCHEDULER_TRACE
+enum { PROBE_COST_RUNTIME_WAIT,PROBE_COST_PARAMETERS_WAIT,PROBE_COST_ADMISSION_WAIT,
+       PROBE_COST_SMP_WAIT,PROBE_COST_AVRCP_WAIT,PROBE_COST_BUTTON_WAIT,
+       PROBE_COST_RFCOMM_WAIT,PROBE_COST_GAP_WAIT,PROBE_COST_PRODUCT_WAIT,
+       PROBE_COST_IO_WAIT,PROBE_COST_ATT_WAIT,PROBE_COST_SECURITY_WAIT,
+       PROBE_COST_ECHO_WAIT,PROBE_COST_SDP_WAIT,PROBE_COST_AUDIO_WAIT,
+       PROBE_COST_CLOCK_FLOOR,PROBE_COST_WAIT_TOTAL,PROBE_COST_POLL_BASE,
+       PROBE_COST_SLOTS=PROBE_COST_POLL_BASE+PROBE_HOST_PHASES };
+typedef struct {uint32_t epoch,cycles;} probe_owner_cost_mark_t;
+typedef struct {uint32_t epoch,calls,cycles,min_cycles,max_cycles;} probe_owner_cost_t;
+void probe_scheduler_owner_capture(bool active);
+probe_owner_cost_mark_t probe_scheduler_owner_cost_begin(void);
+void probe_scheduler_owner_cost_end(unsigned slot,probe_owner_cost_mark_t mark);
+/* One attempt; false leaves output unchanged, never waits for the host. */
+bool probe_scheduler_owner_cost_snapshot(unsigned slot,probe_owner_cost_t *out);
+/* Completed epoch only: report after pause so diagnostics add no active UART load. */
+uint32_t probe_scheduler_owner_cost_finished_epoch(uint32_t *seen_mask);
+#define HOST_COST_VALUE(slot,destination,expression) do { \
+    probe_owner_cost_mark_t probe_cost_value_mark=probe_scheduler_owner_cost_begin(); \
+    (destination)=(expression); \
+    probe_scheduler_owner_cost_end((slot),probe_cost_value_mark); \
+} while(0)
+#else
+#define HOST_COST_VALUE(slot,destination,expression) do {(destination)=(expression);}while(0)
+#endif
 #endif
