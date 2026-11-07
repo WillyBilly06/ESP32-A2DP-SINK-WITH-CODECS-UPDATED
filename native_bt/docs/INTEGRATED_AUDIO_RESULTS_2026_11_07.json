@@ -171,5 +171,22 @@
     "smaller_input_allocation_verified": true,
     "zero_underruns": false,
     "full_goal_complete": false
+  },
+  "passive_music": {
+    "controlled_qualification": false,
+    "phone_actions": false,
+    "observation_path": "D:/bt-owned61/native_bt/_build/hardware/runs/1794087288687406100-19aae19b7154/traces/user-music-passive-1794088478863",
+    "frame_mean_us": 2661.0086835488505,
+    "frame_count": 1856,
+    "entropy_us": 882.8613730244252,
+    "imdct_us": 860.2181326329023,
+    "quiet_same_image": {
+      "frames": 2848,
+      "frame_mean_us": 2089.655854985955,
+      "entropy_us": 465.24430887172286,
+      "imdct_us": 860.5843091643259
+    },
+    "scope": "coherent frame sum/count deltas; wall cycles include preemption; earlier5396us cross-record ratio is invalid because windows differ",
+    "bitrate_reverified": false
   }
 }

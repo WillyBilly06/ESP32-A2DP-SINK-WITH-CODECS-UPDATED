@@ -86,3 +86,13 @@ The rejected AVRCP bitmap experiment is archived and removed from production cod
 Passing typed host compiler intermediates and hash-verified reproducible generated tone inputs were reclaimed with manifests. Tested binaries, source, failed receipts, raw phone/UART evidence and Xtensa objects remain. Two accumulated SDK configure logs were losslessly gzipped with decompressed byte equality/SHA verification, recovering57930600 bytes without deleting their contents or changing the storage limit.
 
 Zero software-induced gaps is not achieved. Next work must measure actual startup reserve/enable timing and packet/PCM occupancy across the remaining empty-pipeline events, preserving memory bounds and mandatory credit accounting. Maximum1Mbps, sustained encrypted BLE/control coexistence, live rapid EQ qualification, full codec/product/security/OTA/lifecycle parity, long-duration playback, acoustic checks and comparative whole-host RAM qualification remain open. Do not publish this host as a stable production replacement.
+
+## Subsequent passive music observation
+
+After the controlled tests ended paused, the phone was independently started on a different YouTube music track. A14-second UART-only observation made no phone play/pause/navigation changes. It is diagnostic evidence, not a controlled continuity or acoustic qualification. The stream remains configured192k/S24; its bitrate setting was not re-read during this passive interval.
+
+Using same-record coherent frame-stage sum/count differences over1856 units, decoder-body elapsed time averages2661.01us per5ms unit. The same-image metronome interval averages2089.66us over2848 units. Entropy changes from465.24 to882.86us per stereo unit, while IMDCT remains860.58/860.22us. These wall cycles include preemption and omit adapter/resume time outside the decoder body's measured stages. They do not alone prove complete-pipeline headroom.
+
+An initial approximate5396us ratio combined elapsed and attempt counters whose observation windows differed by roughly ten seconds; that cross-record ratio is invalid and excluded. The aligned frame-stage analysis is retained beside the raw observation. This changes the next optimization priority: busy-content entropy work is approximately as expensive as the transform, rather than relying exclusively on sparse metronome measurements.
+
+Evidence:hardware/runs/1794087288687406100-19aae19b7154/traces/user-music-passive-1794088478863-analysis.json and adjacent raw files. Playback was left under its existing external control.
