@@ -46,10 +46,11 @@ void fixed_dsp_process(fixed_dsp_t *dsp, int32_t *left_q31, int32_t *right_q31);
  * whole call. Caller storage must not overlap dsp. No heap/persistent scratch.
  * The canonical per-frame path remains available for exact comparisons. */
 bool fixed_dsp_process_block(fixed_dsp_t *dsp,int32_t *pcm,uint16_t frames);
-#ifdef FIXED_DSP_VOLUME_RAMP_COMPARE
+#if defined(FIXED_DSP_VOLUME_RAMP_COMPARE) || defined(FIXED_DSP_MATCHED_FEEDBACK_COMPARE)
 typedef struct {uint32_t revision,rate,policy,calls,cycles,minimum,maximum,clipped;bool coherent;} fixed_dsp_volume_stats_t;
 /* Optional task-context, independent per-core/mode counters; one read attempt.
- * Calls are full128-frame, nonclipped, volume-only blocks. Cycles include
+ * Calls are full128-frame, nonclipped blocks in the admitted volume-ramp or
+ * matched-feedback steady comparison. Cycles include
  * preemption and wrap modulo uint32. No allocation or new DSP state. */
 void fixed_dsp_volume_stats(unsigned core,unsigned mode,fixed_dsp_volume_stats_t *);
 #endif

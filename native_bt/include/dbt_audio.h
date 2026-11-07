@@ -128,6 +128,12 @@ dbt_result_t dbt_audio_analysis(dbt_audio_t *,bool);
  * complete render call to DMA. No extra PCM block or intermediate output copy.
  * The caller controls output watermarks; this function performs bounded work. */
 uint32_t dbt_audio_render(dbt_audio_t *audio,uint32_t budget);
+/* Optional producer notification. Copied native S32 stereo source slots are
+ * released immediately after the bounded copy, before DSP. Output remains
+ * unpublished until all processing/mixing completes. Other paths notify after
+ * their normal final release. Hook must only notify the producer; it must not
+ * wait or reenter render/lifecycle/DSP APIs. No persistent hook/buffer state. */
+uint32_t dbt_audio_render_with_input_wake(dbt_audio_t *,uint32_t,void (*)(void *),void *);
 /* Optional copied S32 stereo unity path, at most128 frames and one output
  * page span. OK transfers exclusive DSP/span ownership through job; no input
  * read or output write is published yet. EMPTY/UNSUPPORTED/BUSY transfer none.

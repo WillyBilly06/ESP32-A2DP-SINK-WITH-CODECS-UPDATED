@@ -416,7 +416,10 @@ dbt_result_t dbt_audio_render_finish(dbt_audio_t *a,const dbt_audio_render_job_t
     return DBT_OK;
 }
 
-uint32_t dbt_audio_render(dbt_audio_t *a,uint32_t budget){
+/* Inline the implementation into both public entries. The ordinary entry
+ * passes a constant NULL hook and retains its original publication timing. */
+static inline __attribute__((always_inline)) uint32_t audio_render(dbt_audio_t *a,uint32_t budget,
+    void (*input_ready)(void *),void *wake_context){
     if(!a || !a->opened || a->render_pending || a->render_failed)return 0;
 #ifdef DBT_AUDIO_BLOCK_DSP
     int32_t *pcm_block;unsigned block_frames=0,block_capacity;
@@ -432,7 +435,7 @@ uint32_t dbt_audio_render(dbt_audio_t *a,uint32_t budget){
     uint32_t end=atomic_load_explicit(&a->input.written,memory_order_acquire);
     uint32_t out=atomic_load_explicit(&a->output.written,memory_order_relaxed);
     uint32_t free=a->output.frames-(out-atomic_load_explicit(&a->output.read,memory_order_acquire));
-    uint32_t produced=0;
+    uint32_t produced=0,initial_in=in;bool input_notified=false;
     uint32_t slot=a->output_write_slot;
 #ifdef DBT_AUDIO_BLOCK_DSP
     pcm_block=output_frame(a,slot);block_capacity=output_span(a,slot,FIXED_DSP_BLOCK_FRAMES);
@@ -462,6 +465,13 @@ uint32_t dbt_audio_render(dbt_audio_t *a,uint32_t budget){
             if(first>count)first=count;
             memcpy(pcm_block,a->input.bytes+source_slot*8u,first*8u);
             if(first<count)memcpy(pcm_block+2u*first,a->input.bytes,(count-first)*8u);
+            if(input_ready){
+                /* The complete source span is now copied into unpublished
+                 * output storage. The SPSC producer may reuse it during DSP;
+                 * DMA still cannot see this output until final publication. */
+                atomic_store_explicit(&a->input.read,in+count,memory_order_release);
+                input_ready(wake_context);input_notified=true;
+            }
 #ifdef DBT_AUDIO_STAGE_PROFILE
             conversion+=audio_cycles()-stage;
 #endif
@@ -557,8 +567,13 @@ uint32_t dbt_audio_render(dbt_audio_t *a,uint32_t budget){
     PROFILE_PUBLISH(conversion,conversion);PROFILE_PUBLISH(dsp,dsp);PROFILE_PUBLISH(tail,tail);
 #undef PROFILE_PUBLISH
 #endif
-    return render_publish(a,in,out+produced,slot,produced);
+    uint32_t made=render_publish(a,in,out+produced,slot,produced);
+    if(input_ready && !input_notified && in!=initial_in)input_ready(wake_context);
+    return made;
 }
+uint32_t dbt_audio_render(dbt_audio_t *a,uint32_t budget){return audio_render(a,budget,NULL,NULL);}
+uint32_t dbt_audio_render_with_input_wake(dbt_audio_t *a,uint32_t budget,
+    void (*input_ready)(void *),void *context){return audio_render(a,budget,input_ready,context);}
 uint32_t dbt_audio_render_silence(dbt_audio_t *a,uint32_t budget){
     if(!a || !a->opened || !a->mix || a->render_pending || a->render_failed)return 0;
     controls(a);uint32_t out=atomic_load_explicit(&a->output.written,memory_order_relaxed);

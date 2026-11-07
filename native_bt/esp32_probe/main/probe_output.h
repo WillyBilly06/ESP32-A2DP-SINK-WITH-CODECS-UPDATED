@@ -1,6 +1,8 @@
 #ifndef PROBE_OUTPUT_H
 #define PROBE_OUTPUT_H
 #include "dbt_audio.h"
+#define PROBE_OUTPUT_DMA_FRAMES 128u
+#define PROBE_OUTPUT_DMA_DESCRIPTORS 3u
 #ifndef DBT_PROBE_PCM_TARGET_MS
 #define DBT_PROBE_PCM_TARGET_MS 64
 #endif

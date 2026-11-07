@@ -22,7 +22,7 @@ static _Thread_local mock_task_t *current_task;
 static _Atomic bool mock_shutdown,decoder_hint;
 static _Atomic unsigned mock_errors,pending_timed_waits,yields[2];
 void taskYIELD(void){if(current_task)atomic_fetch_add(&yields[current_task->core],1);SwitchToThread();}
-static HANDLE hook_release,commit_release;
+static HANDLE hook_release,commit_release,input_release;
 extern uint32_t dbt_output_test_ready_pcm(void);
 int xPortGetCoreID(void){return current_task?current_task->core:0;}
 TaskHandle_t xTaskGetCurrentTaskHandle(void){return current_task;}
@@ -51,9 +51,9 @@ unsigned ulTaskNotifyTake(int clear,unsigned ticks){
     (void)clear;return count;
 }
 void dbt_output_test_step(unsigned stage){
-    if((stage==4 || stage==8) && atomic_load(&hold_hook)==stage){
+    if((stage==4 || stage==8 || stage==10) && atomic_load(&hold_hook)==stage){
         atomic_store_explicit(&hook_reached,stage,memory_order_release);
-        if(WaitForSingleObject(stage==4?hook_release:commit_release,3000)!=WAIT_OBJECT_0)atomic_fetch_add(&mock_errors,2);
+        if(WaitForSingleObject(stage==4?hook_release:stage==8?commit_release:input_release,3000)!=WAIT_OBJECT_0)atomic_fetch_add(&mock_errors,2);
     }
 }
 static bool hook_ready(unsigned stage){for(unsigned i=0;i<2000;++i){if(atomic_load_explicit(&hook_reached,memory_order_acquire)==stage)return true;Sleep(1);}return false;}
@@ -75,6 +75,40 @@ static int stop_stream(void){uint32_t token=0;CHECK(probe_output_stream_begin(fa
 int main(void){
     main_id=GetCurrentThreadId();hook_release=CreateEventA(NULL,TRUE,FALSE,NULL);commit_release=CreateEventA(NULL,TRUE,FALSE,NULL);CHECK(hook_release && commit_release);
     CHECK(probe_output_init(external_wake,&render_wakes)==DBT_OK);
+#ifdef DBT_PROBE_EARLY_INPUT_RELEASE
+    input_release=CreateEventA(NULL,TRUE,FALSE,NULL);CHECK(input_release);
+    CHECK(!start_stream());
+    probe_output_stats_t geometry;probe_output_stats(&geometry);
+#ifdef DBT_PROBE_HIGH_RATE_PCM_REBALANCE
+    CHECK(geometry.input_capacity_frames==2048 && geometry.input_ring_bytes==16384 && geometry.pcm_target_frames==2048 && geometry.requested_bytes==39936);
+#else
+    CHECK(geometry.input_capacity_frames==1024 && geometry.input_ring_bytes==8192 && geometry.pcm_target_frames==3072 && geometry.requested_bytes==39936);
+#endif
+    uint32_t capacity=geometry.input_capacity_frames;
+    int32_t first[256],replacement[4096];for(unsigned i=0;i<256;i++)first[i]=(int32_t)(i*65536u);
+    for(unsigned i=0;i<4096;i++)replacement[i]=(int32_t)(0x12340000u+i);
+    atomic_store(&decoder_hint,false);atomic_store(&hook_reached,0);atomic_store(&hold_hook,10);
+    CHECK(probe_output_try_pcm_format(first,128,2,192000,DBT_PCM_S32_LE)==DBT_OK && hook_ready(10));
+    CHECK(!dbt_output_test_ready_pcm()); /* copied output is still unpublished */
+    CHECK(probe_output_try_pcm_format(replacement,(uint16_t)capacity,2,192000,DBT_PCM_S32_LE)==DBT_OK);
+    atomic_store(&hold_hook,0);SetEvent(input_release);
+    for(unsigned i=0;i<2000 && dbt_output_test_ready_pcm()!=capacity+128u;i++)Sleep(1);
+    CHECK(dbt_output_test_ready_pcm()==capacity+128u && !stop_stream());CloseHandle(input_release);
+    puts("PASS early local input: full measured-capacity ring reused before DSP, output unpublished until processing");
+#endif
+#ifdef DBT_PROBE_HIGH_RATE_PCM_REBALANCE
+    struct {uint32_t rate;uint8_t channels;dbt_pcm_format_t format;uint32_t input,target,bytes;} unaffected[]={
+      {48000,2,DBT_PCM_S16_LE,512,1024,17408},{48000,2,DBT_PCM_S32_LE,512,1024,19456},
+      {96000,2,DBT_PCM_S32_LE,512,1536,23552},{192000,1,DBT_PCM_S32_LE,1024,3072,35840},
+      {192000,2,DBT_PCM_S16_LE,1024,3072,35840}};
+    for(unsigned i=0;i<sizeof unaffected/sizeof unaffected[0];i++){
+      uint32_t ticket=0;CHECK(probe_output_stream_begin_primed(true,unaffected[i].rate,unaffected[i].channels,unaffected[i].format,false,0,&ticket)==DBT_PENDING);
+      CHECK(ticket_result(ticket)==DBT_OK);probe_output_stats_t g;probe_output_stats(&g);
+      CHECK(g.input_capacity_frames==unaffected[i].input && g.pcm_target_frames==unaffected[i].target && g.requested_bytes==unaffected[i].bytes);
+      CHECK(!stop_stream());
+    }
+    puts("PASS PCM rebalance: same39936-byte192k stereo payload allocation; five other formats/rates unchanged");
+#endif
     CHECK(!start_stream() && !lend_block(512));unsigned allocations=atomic_load(&live);CHECK(allocations>0);
     uint32_t stop=0;CHECK(probe_output_stream_begin(false,0,0,DBT_PCM_S16_LE,&stop)==DBT_PENDING);
     Sleep(20);CHECK(probe_output_request_poll(stop)==DBT_PENDING && atomic_load(&live)==allocations);

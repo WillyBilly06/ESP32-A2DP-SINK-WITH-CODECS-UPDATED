@@ -105,6 +105,21 @@ static uint32_t random32(void){rng^=rng<<13;rng^=rng>>17;rng^=rng<<5;return rng;
 static void mix(void *context,int32_t *pcm,uint32_t frames){
     uint32_t *index=context;for(uint32_t i=0;i<frames;++i){uint32_t bits=(++*index&0xffffu)<<8;pcm[2*i]=(int32_t)((uint32_t)pcm[2*i]^bits);pcm[2*i+1]=(int32_t)((uint32_t)pcm[2*i+1]^bits);}
 }
+#ifdef DBT_TEST_EARLY_INPUT
+extern uint32_t fast_dbt_audio_render_with_input_wake(dbt_audio_t *,uint32_t,void (*)(void *),void *);
+typedef struct {dbt_audio_t *audio;uint32_t read,output;bool native;unsigned errors,calls;} input_wake_test_t;
+static uint64_t input_wake_calls,early_input_wake_calls;
+static void input_wake_test(void *context){
+    input_wake_test_t *s=context;dbt_audio_t *a=s->audio;
+    uint32_t now=atomic_load(&a->input.read),count=now-s->read;
+    if(!count || count>a->input.frames){++s->errors;return;}
+    if(s->native && atomic_load(&a->output.written)!=s->output)++s->errors;
+    uint32_t slot=s->read&a->input.mask,first=a->input.frames-slot;if(first>count)first=count;
+    POISON(a->input.bytes+slot*a->input.stride,first*a->input.stride);
+    if(first<count)POISON(a->input.bytes,(count-first)*a->input.stride);
+    s->read=now;++s->calls;++input_wake_calls;if(s->native)++early_input_wake_calls;
+}
+#endif
 static int step(dbt_audio_t *a,dbt_audio_t *b,unsigned budget){
     int32_t actual[600],expected[600];uint64_t before=copied_bytes;
     bool eligible=!a->config.adaptive_clock && !a->fraction && !a->step_adjust && !a->drain_remaining &&
@@ -152,7 +167,15 @@ static int step(dbt_audio_t *a,dbt_audio_t *b,unsigned budget){
         made=fast_dbt_audio_render(a,budget);reference=dbt_audio_render(b,budget);
     }
 #else
+#ifdef DBT_TEST_EARLY_INPUT
+    input_wake_test_t notification={a,atomic_load(&a->input.read),atomic_load(&a->output.written),eligible,0,0};
+    made=fast_dbt_audio_render_with_input_wake(a,budget,input_wake_test,&notification);
+    UNPOISON(a->input.bytes,a->input.frames*a->input.stride);
+    STEP_CHECK(!notification.errors);
+    reference=dbt_audio_render(b,budget);
+#else
     made=fast_dbt_audio_render(a,budget);reference=dbt_audio_render(b,budget);
+#endif
 #endif
     STEP_CHECK(made==reference && made<=300);
     STEP_CHECK(dbt_audio_input_frames(a)==dbt_audio_input_frames(b));
@@ -237,5 +260,9 @@ int main(void){
 #ifdef DBT_TEST_PREPARED_DSP
     CHECK(prepared_jobs>0);printf("prepared DSP jobs=%u\n",prepared_jobs);
 #endif
+    #ifdef DBT_TEST_EARLY_INPUT
+    CHECK(input_wake_calls && early_input_wake_calls);
+    printf("input callbacks=%llu early copied-input callbacks=%llu\n",(unsigned long long)input_wake_calls,(unsigned long long)early_input_wake_calls);
+    #endif
     printf("PASS %u unity/general stream pairs, %llu exact frames, %llu fast-copy bytes; DSP state, mixer, formats, phase fallbacks, page/ring/counter wraps\n",cases,(unsigned long long)compared_frames,(unsigned long long)copied_bytes);return 0;
 }

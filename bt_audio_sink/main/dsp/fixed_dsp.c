@@ -1,11 +1,17 @@
 #include "fixed_dsp.h"
-#ifdef FIXED_DSP_VOLUME_RAMP_COMPARE
+#if defined(FIXED_DSP_VOLUME_RAMP_COMPARE) || defined(FIXED_DSP_MATCHED_FEEDBACK_COMPARE)
 #include <stdatomic.h>
 #ifdef ESP_PLATFORM
 #include "esp_cpu.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #endif
+#endif
+#if defined(FIXED_DSP_VOLUME_RAMP_COMPARE) && defined(FIXED_DSP_MATCHED_FEEDBACK_COMPARE)
+#error Select one DSP kernel comparison
+#endif
+#if defined(FIXED_DSP_MATCHED_FEEDBACK) && defined(FIXED_DSP_TRANSPOSED_BLOCK)
+#error Matched feedback excludes the transposed experiment
 #endif
 #ifndef FIXED_DSP_STAGE_MARK
 #define FIXED_DSP_STAGE_MARK(stage) ((void)0)
@@ -385,6 +391,42 @@ void DSP_HOT fixed_dsp_process(fixed_dsp_t *dsp, int32_t *left, int32_t *right) 
 #else
 #define BLOCK_KERNEL
 #endif
+#ifdef FIXED_DSP_MATCHED_FEEDBACK_COMPARE
+static _Atomic uint32_t matched_feedback_mode[2];
+static unsigned volume_core(void);
+#endif
+#if defined(FIXED_DSP_MATCHED_FEEDBACK) && FDSP_PROVEN_SUM_ENABLED
+/* For c1==c3, combine their two products before the exact Q28 quantizer.
+ * The difference is signed33, not signed32: arbitrary int32 histories remain
+ * valid, including opposite rails. Its product is bounded by the same two
+ * absolute products in the generated coefficient-box proof. No precision,
+ * saturation, history or fractional carry changes. */
+static BLOCK_KERNEL DSP_BLOCK_HOT void filter_matched_feedback_block(const int32_t c[5],
+    fdsp_history_t *h,int32_t *pcm,unsigned frames){
+    int32_t c0=c[0],c1=c[1],c2=c[2],c4=c[4];
+    int32_t x1=h->x1,x2=h->x2,y1=h->y1,y2=h->y2;uint32_t fraction=h->fraction;
+    for(unsigned i=0;i<frames;++i){
+        int32_t input=pcm[2u*i];int64_t sum=fraction;
+        sum+=(int64_t)c0*input;
+        uint32_t difference=(uint32_t)x1-(uint32_t)y1;
+        if(((uint32_t)x1^(uint32_t)y1)&UINT32_C(0x80000000)){
+            /* Opposite signs retain the original products, including every
+             * signed33 difference. Same-sign subtraction always fits int32. */
+            sum+=(int64_t)c1*x1;sum-=(int64_t)c1*y1;
+        }else sum+=(int64_t)c1*(int32_t)difference;
+        sum+=(int64_t)c2*x2;
+        sum-=(int64_t)c4*y2;
+#ifdef FIXED_DSP_WORD_QUANT
+        int32_t output=block_word_quantize(sum,&fraction);
+#else
+        int64_t integer=sum>>28;int32_t output=clamp32(integer);
+        fraction=(int64_t)output==integer?(uint32_t)((uint64_t)sum&0x0fffffffu):0;
+#endif
+        x2=x1;x1=input;y2=y1;y1=output;pcm[2u*i]=output;
+    }
+    h->x1=x1;h->x2=x2;h->y1=y1;h->y2=y2;h->fraction=fraction;
+}
+#endif
 /* One channel at a time keeps coefficient/history reuse within LX6's register
  * budget. It changes neither arithmetic nor the carried Q28 fraction. */
 static BLOCK_KERNEL DSP_BLOCK_HOT void filter_steady_block(const int32_t c[5],fdsp_history_t *h,
@@ -399,6 +441,14 @@ static BLOCK_KERNEL DSP_BLOCK_HOT void filter_steady_block(const int32_t c[5],fd
         h->x1=h->y1=last;h->fraction=0;return;
     }
 #if FDSP_PROVEN_SUM_ENABLED
+#ifdef FIXED_DSP_MATCHED_FEEDBACK
+    bool matched=c[1]==c[3];
+#ifdef FIXED_DSP_MATCHED_FEEDBACK_COMPARE
+    unsigned core=volume_core();
+    matched=matched && core<2u && atomic_load_explicit(&matched_feedback_mode[core],memory_order_relaxed);
+#endif
+    if(matched){filter_matched_feedback_block(c,h,pcm,frames);return;}
+#endif
     int32_t c0=c[0],c1=c[1],c2=c[2],c3=c[3],c4=c[4];
 #ifdef FIXED_DSP_TRANSPOSED_BLOCK
     /* Exact product-domain state, rebuilt from canonical history for each
@@ -460,12 +510,15 @@ static BLOCK_KERNEL DSP_BLOCK_HOT void filter_volume_ramp_block(fdsp_coefficient
     }
 }
 #endif
-#ifdef FIXED_DSP_VOLUME_RAMP_COMPARE
+#if defined(FIXED_DSP_VOLUME_RAMP_COMPARE) || defined(FIXED_DSP_MATCHED_FEEDBACK_COMPARE)
 static bool DSP_BLOCK_HOT volume_block_impl(fixed_dsp_t *dsp,int32_t *pcm,uint16_t frames,bool reuse_volume){
 #else
 bool DSP_BLOCK_HOT fixed_dsp_process_block(fixed_dsp_t *dsp,int32_t *pcm,uint16_t frames){
 #endif
     if(!dsp || frames>FIXED_DSP_BLOCK_FRAMES || (frames && (!pcm || (uintptr_t)pcm%4u)))return false;
+#ifdef FIXED_DSP_MATCHED_FEEDBACK_COMPARE
+    (void)reuse_volume;
+#endif
     if(!frames)return true;
     /* Target measurements favor the canonical kernel during coefficient
      * ramps. Process exactly that prefix, then use block reuse only once all
@@ -499,7 +552,7 @@ bool DSP_BLOCK_HOT fixed_dsp_process_block(fixed_dsp_t *dsp,int32_t *pcm,uint16_
         for(unsigned f=0;f<4;++f){
 #ifdef FIXED_DSP_VOLUME_RAMP_BLOCK
             if(f==3u && dsp->filters[f].remaining
-#ifdef FIXED_DSP_VOLUME_RAMP_COMPARE
+#if defined(FIXED_DSP_VOLUME_RAMP_COMPARE) || defined(FIXED_DSP_MATCHED_FEEDBACK_COMPARE)
                && reuse_volume
 #endif
               ){
@@ -539,8 +592,12 @@ bool DSP_BLOCK_HOT fixed_dsp_process_block(fixed_dsp_t *dsp,int32_t *pcm,uint16_
     }
     return true;
 }
-#ifdef FIXED_DSP_VOLUME_RAMP_COMPARE
-#ifndef FIXED_DSP_VOLUME_RAMP_BLOCK
+#if defined(FIXED_DSP_VOLUME_RAMP_COMPARE) || defined(FIXED_DSP_MATCHED_FEEDBACK_COMPARE)
+#ifdef FIXED_DSP_MATCHED_FEEDBACK_COMPARE
+#ifndef FIXED_DSP_MATCHED_FEEDBACK
+#error Matched-feedback comparison requires its exact candidate
+#endif
+#elif !defined(FIXED_DSP_VOLUME_RAMP_BLOCK)
 #error Volume comparison requires the volume-ramp block candidate
 #endif
 typedef struct {
@@ -588,16 +645,31 @@ void fixed_dsp_volume_stats(unsigned core,unsigned mode,fixed_dsp_volume_stats_t
 }
 bool DSP_BLOCK_HOT fixed_dsp_process_block(fixed_dsp_t *dsp,int32_t *pcm,uint16_t frames){
     if(!dsp || frames>FIXED_DSP_BLOCK_FRAMES || (frames && (!pcm || (uintptr_t)pcm%4u)))return false;
-    /* ABBA timing only on full128-frame volume-only ramps with stable routing.
-     * Both paths execute once on real audio; clipped blocks are counted but
-     * excluded from timing to separate the content-dependent limiter divide. */
+    /* ABBA timing on admitted full128-frame blocks: volume-only ramps or
+     * matched-feedback steady coefficients. One path executes on real audio;
+     * clipped blocks are counted separately from the limiter-free timing. */
+#ifdef FIXED_DSP_MATCHED_FEEDBACK_COMPARE
+    bool eligible=frames==128u && !dsp->volume.remaining && !dsp->bypass.remaining && !dsp->flip.remaining;
+    for(unsigned f=0;f<5;++f)if(dsp->filters[f].remaining)eligible=false;
+#else
     bool eligible=frames==128u && dsp->filters[3].remaining>=128u && !dsp->bypass.remaining && !dsp->flip.remaining;
     for(unsigned f=0;f<5;++f)if(f!=3u && dsp->filters[f].remaining)eligible=false;
-    unsigned core=volume_core();if(!eligible || core>1)return volume_block_impl(dsp,pcm,frames,true);
+#endif
+    unsigned core=volume_core();
+#ifdef FIXED_DSP_MATCHED_FEEDBACK_COMPARE
+    if(core<2u)atomic_store_explicit(&matched_feedback_mode[core],1,memory_order_relaxed);
+#endif
+    if(!eligible || core>1)return volume_block_impl(dsp,pcm,frames,true);
     uint32_t serial=atomic_load(&volume_serial[core]);atomic_store(&volume_serial[core],serial+1u);
     unsigned phase=serial&3u,mode=phase==1u || phase==2u;
     uint32_t policy=(uint8_t)dsp->gains[0]|((uint32_t)(uint8_t)dsp->gains[1]<<8)|((uint32_t)(uint8_t)dsp->gains[2]<<16)|((uint32_t)dsp->flags<<24);
-    uint32_t limited=dsp->limited,began=volume_cycles();bool result=volume_block_impl(dsp,pcm,frames,mode!=0);
+    uint32_t limited=dsp->limited;
+#ifdef FIXED_DSP_MATCHED_FEEDBACK_COMPARE
+    atomic_store_explicit(&matched_feedback_mode[core],mode,memory_order_relaxed);
+    uint32_t began=volume_cycles();bool result=volume_block_impl(dsp,pcm,frames,true);
+#else
+    uint32_t began=volume_cycles();bool result=volume_block_impl(dsp,pcm,frames,mode!=0);
+#endif
     uint32_t elapsed=volume_cycles()-began;
     if(result)volume_record(core,mode,dsp->sample_rate,policy,elapsed,dsp->limited!=limited);
     return result;

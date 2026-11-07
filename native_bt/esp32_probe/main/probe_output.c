@@ -36,8 +36,8 @@ extern void dbt_output_test_step(unsigned);
 #if !CONFIG_I2S_ISR_IRAM_SAFE
 #error "Native output requires an IRAM-safe I2S ISR for immediate NVS commits"
 #endif
-#define DMA_FRAMES 128u
-#define DMA_DESCRIPTORS 3u
+#define DMA_FRAMES PROBE_OUTPUT_DMA_FRAMES
+#define DMA_DESCRIPTORS PROBE_OUTPUT_DMA_DESCRIPTORS
 #define DMA_IRQ_PRIORITY 2
 #define REFILL_GUARD_US 64u
 #define REFILL_COPY_BUDGET_US 32u
@@ -141,7 +141,7 @@ typedef struct {
   _Atomic uint32_t descriptor_fault_at_us,descriptor_fault_gap_us,descriptor_fault_stopping;
   _Atomic uint32_t callback_calls,callback_elapsed_us,callback_max_us,callback_core,render_core;
   _Atomic uint32_t input_ring_bytes_avoided,pcm_loans_begun,pcm_loans_retired,pcm_loans_cancelled,pcm_loan_active,pcm_loan_max_us;
-  _Atomic uint32_t input_capacity_frames,input_ring_bytes;
+  _Atomic uint32_t input_capacity_frames,input_ring_bytes,actual_target_frames;
   _Atomic uint32_t maximum_render_us, stop_fill_frames;
   _Atomic uint32_t render_total_us,render_calls;
   _Atomic uint32_t allocation_failed_bytes,allocation_failure_free,allocation_failure_largest;
@@ -728,7 +728,7 @@ static void close_output(void) {
     output.meter_db[i] = -60 * 256;
   atomic_store(&output.running, 0);
   atomic_store(&output.requested_bytes, 0);
-  atomic_store(&output.input_capacity_frames,0);atomic_store(&output.input_ring_bytes,0);
+  atomic_store(&output.input_capacity_frames,0);atomic_store(&output.input_ring_bytes,0);atomic_store(&output.actual_target_frames,0);
   atomic_store(&output.ready_frames, 0);
   atomic_store(&output.input_ready_frames, 0);
 }
@@ -791,6 +791,14 @@ static dbt_result_t start_output(uint32_t rate, uint8_t channels,
    * capacity==chunk would leave 255 free for a 256-frame submission forever. */
   if(input_frames<=PROBE_PCM_TRANSFER_FRAMES)
     input_frames=power2(PROBE_PCM_TRANSFER_FRAMES+1u);
+#endif
+#ifdef DBT_PROBE_HIGH_RATE_PCM_REBALANCE
+  /* Match the baseline two-frame decoded reserve without adding PCM bytes.
+   * S32 stereo uses8 bytes per frame on both sides; move1024 frames from
+   * the processed reserve into the decoded ring. Page rounding stays exact. */
+  if(rate==192000u && channels==2u && format==DBT_PCM_S32_LE && input_frames==1024u && target>=2048u){
+    input_frames=2048u;target-=1024u;
+  }
 #endif
   atomic_store(&output.input_ring_bytes_avoided,0);
 #ifdef DBT_PROBE_PCM_LOANS
@@ -869,6 +877,7 @@ static dbt_result_t start_output(uint32_t rate, uint8_t channels,
   atomic_store(&output.render_calls,0);
   atomic_store(&output.input_ring_bytes_avoided,avoided);
   atomic_store(&output.input_capacity_frames,config.input_frames);
+  atomic_store(&output.actual_target_frames,config.target_frames);
   atomic_store(&output.input_ring_bytes,output.audio.borrowed_input?0:config.input_frames*(uint32_t)format*channels);
   atomic_store(&output.pcm_loans_begun,0);atomic_store(&output.pcm_loans_retired,0);atomic_store(&output.pcm_loans_cancelled,0);
   atomic_store(&output.pcm_loan_active,0);atomic_store(&output.pcm_loan_max_us,0);
@@ -1087,12 +1096,23 @@ static void publish_dsp_quality(void){
     atomic_store_explicit(&output.dsp_frames,open?atomic_load(&output.audio.rendered_frames):0,memory_order_relaxed);
     atomic_store_explicit(&output.dsp_generation,generation+2u,memory_order_release);
 }
-static void render_completed(uint32_t began){
+#ifdef DBT_PROBE_EARLY_INPUT_RELEASE
+static void copied_input_ready(void *context){
+  (void)context;
+  if(output.wake_decoder)output.wake_decoder(output.wake_context);
+  OUTPUT_TEST_STEP(10); /* test-only hold after input release, before DSP */
+}
+#endif
+static void render_completed(uint32_t began,bool input_wake_owned){
   uint32_t elapsed=(uint32_t)esp_timer_get_time()-began;
   if(elapsed>atomic_load(&output.maximum_render_us))atomic_store(&output.maximum_render_us,elapsed);
   atomic_fetch_add(&output.render_total_us,elapsed);atomic_fetch_add(&output.render_calls,1);
   atomic_store(&output.rendered_frames,atomic_load(&output.audio.rendered_frames));
-  (void)service_refill_window();notify_clients();
+  (void)service_refill_window();
+  if(!input_wake_owned)notify_clients();
+#ifdef DBT_PROBE_SOUND_BUILD
+  else notify_sound(); /* Mixer space is released only after DSP/mixing. */
+#endif
 }
 #ifdef DBT_PROBE_DSP_ASSIST
 static void assist_add(_Atomic uint32_t *value,uint32_t n){atomic_store(value,atomic_load(value)+n);}
@@ -1183,7 +1203,7 @@ static int dsp_assist_complete(void){
   if(output.sound_silence){output.clock_at=(uint32_t)(esp_timer_get_time()/1000);dbt_audio_clock_reset(&output.audio,output.clock_at);output.sound_silence=false;}
 #endif
   /* Include dispatch/wait/retirement in the existing render wall record. */
-  render_completed(assist.began_us);return 1;
+  render_completed(assist.began_us,false);return 1;
 }
 static bool dsp_assist_submit(uint32_t budget,uint32_t began){
   if(!budget || (unsigned)xPortGetCoreID()!=1u || !output.workers[0] ||
@@ -1326,7 +1346,15 @@ static bool render_step(void) {
         if(mark_local)probe_scheduler_mark(local_core,&local_mark);
         uint32_t local_began=(uint32_t)esp_timer_get_time();
 #endif
-        uint32_t made = budget?dbt_audio_render(&output.audio, budget):0;
+#ifdef DBT_PROBE_EARLY_INPUT_RELEASE
+        bool input_wake_owned=(unsigned)xPortGetCoreID()==1u;
+        uint32_t made=budget?(input_wake_owned?
+            dbt_audio_render_with_input_wake(&output.audio,budget,copied_input_ready,NULL):
+            dbt_audio_render(&output.audio,budget)):0;
+#else
+        const bool input_wake_owned=false;
+        uint32_t made=budget?dbt_audio_render(&output.audio,budget):0;
+#endif
 #ifdef DBT_PROBE_SCHEDULER_TRACE
         uint32_t local_end=(uint32_t)esp_timer_get_time();
         if(mark_local && made){
@@ -1355,7 +1383,7 @@ static bool render_step(void) {
 #ifdef DBT_PROBE_SCHEDULER_TRACE
         trace_render(0,(uint32_t)esp_timer_get_time());
 #endif
-        if(made)render_completed(began);
+        if(made)render_completed(began,input_wake_owned);
       }
       available = dbt_audio_output_frames(&output.audio);
       atomic_store(&output.ready_frames, available);
@@ -1715,7 +1743,7 @@ uint16_t probe_output_decode_budget(void){
      * one frame interval plus the original DMA margin before another decode.
      * This is admission within existing storage, never a larger buffer. */
     reserve+=(rate+199u)/200u;
-    uint32_t target=pcm_target_frames(rate);
+    uint32_t target=atomic_load(&output.actual_target_frames);if(!target)target=pcm_target_frames(rate);
     if(reserve>target)reserve=target; /* renderer never fills beyond target */
   }
   if(input_written!=input_read && output_written-output_read<reserve){
@@ -1804,8 +1832,7 @@ void probe_output_stats(probe_output_stats_t *s) {
     s->priming_remaining_ms=!(prime&PRIMING_ARMED)?guard:elapsed<guard?guard-elapsed:0;
   }
   s->adaptive_clock=OUTPUT_ADAPTIVE_CLOCK;
-  uint32_t target_rate=atomic_load(&output.rate);
-  s->pcm_target_frames=target_rate?pcm_target_frames(target_rate):0;
+  s->pcm_target_frames=atomic_load(&output.actual_target_frames);
 #if defined(DBT_PROBE_PCM_COPIED)
   s->pcm_input_mode=2;
 #elif defined(DBT_PROBE_PCM_LOANS)
@@ -1898,8 +1925,11 @@ uint16_t probe_output_delay_100us(uint32_t rate) {
   uint32_t frames = atomic_load(&output.ready_frames) +
                     atomic_load(&output.input_ready_frames) +
                     DMA_DESCRIPTORS * DMA_FRAMES + 80u;
-  if (!atomic_load(&output.running))
-    frames = pcm_target_frames(rate) + DMA_DESCRIPTORS * DMA_FRAMES + 80u;
+  if (!atomic_load(&output.running)){
+    uint32_t target=atomic_load(&output.actual_target_frames);
+    if(!target || atomic_load(&output.rate)!=rate)target=pcm_target_frames(rate);
+    frames=target+DMA_DESCRIPTORS*DMA_FRAMES+80u;
+  }
   if(OUTPUT_ADAPTIVE_CLOCK)frames += dbt_resampler_delay_frames(rate);
   uint32_t value = (uint32_t)(((uint64_t)frames * 10000u + rate - 1u) / rate);
   uint32_t guard=(atomic_load(&output.priming_state)&PRIMING_BUDGET)*10u;

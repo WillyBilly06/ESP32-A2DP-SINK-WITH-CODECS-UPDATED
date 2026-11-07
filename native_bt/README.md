@@ -50,10 +50,21 @@ one live HD decoder call, its copied input, and an independent DSP/final block
 against desktop replay. It also records a 440-frame payload versus 336-tick RTP
 discrepancy. It is not a causal diagnosis of that sound report; capture is off by default.
 
+[PCM buffer handoff and sizing](docs/PCM_BUFFER_HANDOFF_2026_11_06.md) records
+the 256-frame decoder transfer versus 128-frame render/DMA units. Optional
+Core1 early input release permits producer reuse during DSP; a fixed-memory
+192k layout moves 8 KiB from processed output into decoded input. Host ownership
+and allocation checks pass, but the live LHDC result still has 393856 unfilled
+frames. COM6 image ae24c89e42eb remains development-only. A representative native
+YouTube LDAC 96 metronome/key-volume trace has no recorded in-play shortage;
+640 source-empty tail frames occur after pause. Remote-gain/acoustics remain open.
+The [matched-feedback measurement](docs/DSP_MATCHED_FEEDBACK_2026_11_06.md) shows
+no speed benefit; that arithmetic candidate and its recorder are disabled.
+
 [Core1 fair-sharing measurements](docs/RENDER_FAIR_SHARE_2026_11_06.md) record
-COM6 image7a1c4cbfc441: controller23, host/main-renderer22, decoder21/Core0
+Earlier image7a1c4cbfc441: controller23, host/main-renderer22, decoder21/Core0
 and helper20/Core0. One LHDC192/fixed900 comparison reduces unfilled frames
-from506112 to318848; continuity still fails. LDAC96 real-key volume regression
+from506112 to318848; continuity still fails. LDAC 96 real-key volume regression
 has zero recorded gaps. The explicit scheduling option defaults OFF; maximum
 LHDC, metronome reproduction, acoustics and all-feature qualification remain open.
 
@@ -61,13 +72,13 @@ LHDC, metronome reproduction, acoustics and all-feature qualification remain ope
 sections on the block path while only compensation coefficients ramp. Host
 PCM/state remains exact; real-audio192k measurements observe29.4% fewer Core0
 elapsed cycles in that scoped case. Earlier image24f9ec682af8 selects the faster
-path without A/B instrumentation or the experimental host budget. One LDAC96
+path without A/B instrumentation or the experimental host budget. One LDAC 96
 rapid-key regression has zero recorded gaps; full LHDC continuity remains open.
 Use -VolumeRampBlock with the existing full native/block/word build recipe.
 
 The [audio scheduling/volume follow-up](docs/AUDIO_SCHEDULING_VOLUME_2026_11_06.md)
 adds stream-bound delay attribution on both cores, immediate renderer wakeups
-for accepted controls, and an opt-in host work budget. One real-key LDAC96
+for accepted controls, and an opt-in host work budget. One real-key LDAC 96
 volume trace has no in-play gaps; its source-empty gap occurs after pause.
 LHDC192/fixed900 still fails, including with the corrected budget. These are
 scoped results, not all-codec or maximum-rate qualification.
@@ -119,7 +130,7 @@ wake for oversized PDUs even without a payload buffer. TX fragment assembly uses
 at most three source-span copies with unchanged admission/commit timing.
 Live timeout/prefix/credit/backpressure behavior remains unqualified.
 [Shared output recovery](docs/SHARED_OUTPUT_RECOVERY_2026_11_06.md) follows a
-failed LDAC96k attempt with PCM backpressure, renderer over-budget timing and a
+failed LDAC 96k attempt with PCM backpressure, renderer over-budget timing and a
 latched DMA order fault. Verified-pool EOF gaps now have bounded recovery and
 separate accounting; passive role/stage counters retain the complete product.
 Throughput, starvation and active recovery qualification remain unfinished.
@@ -301,23 +312,23 @@ Android confirmed LHDC V5 at 192 kHz/S24/stereo with the 1000 kbps target, but
 the full product could not allocate another 4096-byte PCM page (7540 bytes free,
 largest block 3072). No maximum-rate DAC playback pass is claimed.
 The [priority2 I2S test](docs/I2S_IRQ_PRIORITY_2026_11_04.md) avoided the prior
-descriptor-order fault during a finite LDAC96 overload test; renderer overruns,
+descriptor-order fault during a finite LDAC 96 overload test; renderer overruns,
 queue drops, underruns and core0 watchdog warnings remain unresolved. COM6
 returned to released 1.0.4-idf6.1 ota0 and phone playback was paused.
 
 The later [page-sized output ring](docs/OUTPUT_CAPACITY_2026_11_04.md) removes
 28 KiB of required allocation at 192 kHz while retaining the 64 ms target and
-prefill margin. LDAC96 DMA ran without descriptor errors, but underruns and
+prefill margin. LDAC 96 DMA ran without descriptor errors, but underruns and
 watchdog warnings remain. Maximum LHDC still fails memory admission. Separate
 [CRC-validated records](docs/CAPTURE_CRC_2026_11_04.json) now identify its exact
 requested format and allocation failure; damaged records are excluded.
 
 The [core1 logger follow-up](docs/RF_LOGGER_CORE1_2026_11_04.json) retains live
-snapshots during overloaded LDAC96 playback; the longest observed reporting
+snapshots during overloaded LDAC 96 playback; the longest observed reporting
 gap fell from 32.057 s to 2.492 s. Audio still underruns. The
 [optional PCM-loan bridge](docs/PCM_RENDER_LOAN_BRIDGE_2026_11_04.md) now connects
 the worker, renderer and sound paths behind `-PcmLoans`. Its first COM6 trial
-removes 32 KiB of input allocation at LDAC96 and retires 4882 loans without
+removes 32 KiB of input allocation at LDAC 96 and retires 4882 loans without
 request/stale-ticket/descriptor errors. Underruns and watchdog warnings remain;
 maximum LHDC still fails output-page allocation. The copied path remains the
 default and no maximum-rate output/headroom or full feature-parity pass is claimed.

@@ -727,7 +727,18 @@ static void log_owner_pacer(void){
         s.pauses,s.releases,s.wait_checks,s.max_slice_us,s.max_pause_us,s.arm_failures);
 }
 #endif
-#ifdef DBT_PROBE_VOLUME_RAMP_COMPARE
+#if defined(DBT_PROBE_VOLUME_RAMP_COMPARE) || defined(DBT_PROBE_MATCHED_FEEDBACK_COMPARE)
+#ifdef DBT_PROBE_MATCHED_FEEDBACK_COMPARE
+#define DSP_KERNEL_PROBE "dsp_matched_feedback_kernel"
+#define DSP_KERNEL_REFERENCE "five_products"
+#define DSP_KERNEL_CANDIDATE "same_sign_four_products"
+#define DSP_KERNEL_SCOPE "full_steady_blocks_latest_policy"
+#else
+#define DSP_KERNEL_PROBE "dsp_volume_kernel"
+#define DSP_KERNEL_REFERENCE "canonical_prefix"
+#define DSP_KERNEL_CANDIDATE "stable_other_filters"
+#define DSP_KERNEL_SCOPE "full_volume_only_ramps_latest_policy"
+#endif
 static void log_volume_kernels(void){
     static uint32_t seen[2][2];
     if(probe_output_running())return; /* No extra UART load during timing. */
@@ -735,12 +746,12 @@ static void log_volume_kernels(void){
         fixed_dsp_volume_stats_t s;fixed_dsp_volume_stats(core,mode,&s);
         if(!s.coherent || s.revision==seen[core][mode])continue;
         seen[core][mode]=s.revision;
-        PROBE_SNAPSHOT_LOG("{\"probe\":\"dsp_volume_kernel\",\"core\":%u,\"mode\":\"%s\",\"order\":\"ABBA\",\"rate\":%" PRIu32
+        PROBE_SNAPSHOT_LOG("{\"probe\":\"%s\",\"core\":%u,\"mode\":\"%s\",\"order\":\"ABBA\",\"rate\":%" PRIu32
             ",\"gains_db\":[%d,%d,%d],\"flags\":%u,\"timed_calls\":%" PRIu32 ",\"frames_per_call\":128,\"cycles\":%" PRIu32
             ",\"minimum_cycles\":%" PRIu32 ",\"maximum_cycles\":%" PRIu32 ",\"clipped_calls_untimed\":%" PRIu32
-            ",\"cycles_include_preemption\":true,\"counts_wrap_uint32\":true,\"scope\":\"full_volume_only_ramps_latest_policy\"}\n",
-            core,mode?"stable_other_filters":"canonical_prefix",s.rate,(int)(int8_t)s.policy,(int)(int8_t)(s.policy>>8),
-            (int)(int8_t)(s.policy>>16),(unsigned)(s.policy>>24),s.calls,s.cycles,s.minimum,s.maximum,s.clipped);
+            ",\"cycles_include_preemption\":true,\"counts_wrap_uint32\":true,\"scope\":\"%s\"}\n",
+            DSP_KERNEL_PROBE,core,mode?DSP_KERNEL_CANDIDATE:DSP_KERNEL_REFERENCE,s.rate,(int)(int8_t)s.policy,(int)(int8_t)(s.policy>>8),
+            (int)(int8_t)(s.policy>>16),(unsigned)(s.policy>>24),s.calls,s.cycles,s.minimum,s.maximum,s.clipped,DSP_KERNEL_SCOPE);
     }
 }
 #endif
@@ -760,7 +771,7 @@ static void log_loop(void *unused){
         if(++ticks<10)continue;
         ticks=0;
         uint32_t at=(uint32_t)esp_timer_get_time();
-#ifdef DBT_PROBE_VOLUME_RAMP_COMPARE
+#if defined(DBT_PROBE_VOLUME_RAMP_COMPARE) || defined(DBT_PROBE_MATCHED_FEEDBACK_COMPARE)
         log_volume_kernels();
 #endif
 #ifdef DBT_PROBE_OWNER_PACER
@@ -972,6 +983,22 @@ static void log_loop(void *unused){
                ",\"calls\":%" PRIu32 ",\"elapsed_us\":%" PRIu32 ",\"maximum_us\":%" PRIu32 ",\"core\":%" PRIu32
                ",\"application_callback_only\":true,\"elapsed_includes_preemption\":true}\n",
                stats.configured_irq_priority,stats.callback_calls,stats.callback_elapsed_us,stats.callback_max_us,stats.callback_core);
+        uint32_t dma_bytes=PROBE_OUTPUT_DMA_DESCRIPTORS*PROBE_OUTPUT_DMA_FRAMES*8u;
+        uint32_t output_capacity=stats.input_capacity_frames && stats.requested_bytes>=stats.input_ring_bytes+dma_bytes?
+            (stats.requested_bytes-stats.input_ring_bytes-dma_bytes)/8u:0;
+#ifdef DBT_PROBE_EARLY_INPUT_RELEASE
+        const char *early_input="true";
+#else
+        const char *early_input="false";
+#endif
+        snapshot_log(output_snapshot_began,"{\"probe\":\"pcm_buffer_geometry\",\"configured_target_ms\":%u,\"rate\":%" PRIu32
+            ",\"decoder_transfer_limit_frames\":%u,\"input_capacity_frames\":%" PRIu32 ",\"input_bytes\":%" PRIu32
+            ",\"output_capacity_frames\":%" PRIu32 ",\"output_target_frames\":%" PRIu32
+            ",\"output_frame_bytes\":8,\"render_block_limit_frames\":%u,\"dma_descriptors\":%u,\"dma_frames_per_descriptor\":%u"
+            ",\"dma_bytes\":%" PRIu32 ",\"configured_early_input_release\":%s,\"output_capacity_from_allocation_receipt\":true}\n",
+            (unsigned)DBT_PROBE_PCM_TARGET_MS,stats.rate,(unsigned)DBT_CODEC_PCM_CHUNK_FRAMES,stats.input_capacity_frames,stats.input_ring_bytes,
+            output_capacity,stats.pcm_target_frames,(unsigned)FIXED_DSP_BLOCK_FRAMES,(unsigned)PROBE_OUTPUT_DMA_DESCRIPTORS,
+            (unsigned)PROBE_OUTPUT_DMA_FRAMES,dma_bytes,early_input);
         snapshot_log(output_snapshot_began,"{\"probe\":\"pcm_startup_guard\",\"collection_cycle_us\":%" PRIu32
                ",\"minimum_ms\":%" PRIu32 ",\"remaining_ms\":%" PRIu32 ",\"buffers_added\":0}\n",
                at,stats.priming_ms,stats.priming_remaining_ms);

@@ -1,5 +1,10 @@
-param([switch]$RenderFairShare,[switch]$VolumeRampBlock,[switch]$VolumeRampCompare,[switch]$OwnerPacer,[switch]$DspAssist,[switch]$DspBlockIram,[switch]$UnityPcmCopy,[switch]$LhdcCore0Render,[switch]$LhdcFastMantissa,[switch]$AptxSnapshot,[switch]$StayNative,[switch]$WordDsp,[switch]$PriorityOrder,[ValidateSet(5,6,21)][int]$DecoderPriority=5,[switch]$SchedulerTrace,[switch]$CodecAwareRender,[switch]$PcmCopied,[switch]$PcmHash,[ValidateSet(-1,0,1)][int]$LoggerCore=-1,[switch]$BlockDsp,[ValidateSet(16,32,64)][int]$PcmTargetMs=64,[switch]$PcmLoans,[switch]$DspInlineCheck,[ValidateSet(0,1)][int]$DecoderCore=0,[switch]$RfProtocolDiagnostic,[switch]$FirCompilerCheck,[switch]$DspStageProfile,[switch]$AudioStageProfile,[switch]$PipelineDiagnostic,[switch]$AsyncAudio,[switch]$DeferredCodecCheck,[switch]$LhdcStageProfile,[switch]$LhdcMaximumCheck,[switch]$CodecDiagnosticOnly,[switch]$WithProductIo,[switch]$WithProductSecurity,[switch]$WithRfcomm,[switch]$WithLhdc,[switch]$WithOpus,[switch]$WithAac,[switch]$WithAptx,[switch]$WithLdac,[switch]$WithSmp,[switch]$WithAvrcp,[switch]$WithSbc,[switch]$WithAudioProbe,[switch]$WithAudioOutput,[switch]$WithGatt,[switch]$WithClassicSecurity,[switch]$TraceIngress,[switch]$WithoutRxFlow,[switch]$KeepOwned=$true,[string]$TestPeer='',[string]$LhdcSourceDir='')
+param([switch]$HighRatePcmRebalance,[switch]$EarlyInputRelease,[switch]$MatchedFeedback,[switch]$MatchedFeedbackCompare,[switch]$RenderFairShare,[switch]$VolumeRampBlock,[switch]$VolumeRampCompare,[switch]$OwnerPacer,[switch]$DspAssist,[switch]$DspBlockIram,[switch]$UnityPcmCopy,[switch]$LhdcCore0Render,[switch]$LhdcFastMantissa,[switch]$AptxSnapshot,[switch]$StayNative,[switch]$WordDsp,[switch]$PriorityOrder,[ValidateSet(5,6,21)][int]$DecoderPriority=5,[switch]$SchedulerTrace,[switch]$CodecAwareRender,[switch]$PcmCopied,[switch]$PcmHash,[ValidateSet(-1,0,1)][int]$LoggerCore=-1,[switch]$BlockDsp,[ValidateSet(16,32,64)][int]$PcmTargetMs=64,[switch]$PcmLoans,[switch]$DspInlineCheck,[ValidateSet(0,1)][int]$DecoderCore=0,[switch]$RfProtocolDiagnostic,[switch]$FirCompilerCheck,[switch]$DspStageProfile,[switch]$AudioStageProfile,[switch]$PipelineDiagnostic,[switch]$AsyncAudio,[switch]$DeferredCodecCheck,[switch]$LhdcStageProfile,[switch]$LhdcMaximumCheck,[switch]$CodecDiagnosticOnly,[switch]$WithProductIo,[switch]$WithProductSecurity,[switch]$WithRfcomm,[switch]$WithLhdc,[switch]$WithOpus,[switch]$WithAac,[switch]$WithAptx,[switch]$WithLdac,[switch]$WithSmp,[switch]$WithAvrcp,[switch]$WithSbc,[switch]$WithAudioProbe,[switch]$WithAudioOutput,[switch]$WithGatt,[switch]$WithClassicSecurity,[switch]$TraceIngress,[switch]$WithoutRxFlow,[switch]$KeepOwned=$true,[string]$TestPeer='',[string]$LhdcSourceDir='')
 $ErrorActionPreference = 'Stop'
+if ($HighRatePcmRebalance -and (-not $EarlyInputRelease -or -not $WithLhdc -or $PcmTargetMs -ne 16 -or $LhdcCore0Render)) { throw 'High-rate PCM rebalance requires Core1 LHDC early release and configured16ms reserve' }
+if ($EarlyInputRelease -and (-not $StayNative -or -not $CodecAwareRender -or -not $AsyncAudio -or -not $PcmCopied -or -not $UnityPcmCopy -or -not $BlockDsp -or $MatchedFeedbackCompare -or $VolumeRampCompare -or $OwnerPacer)) { throw 'Early input release requires full native copied/unity/block output without kernel comparisons or pacing' }
+if ($MatchedFeedbackCompare) { $MatchedFeedback=$true }
+if ($MatchedFeedback -and (-not $StayNative -or -not $BlockDsp -or -not $WordDsp)) { throw 'Matched feedback requires native word/block DSP' }
+if ($MatchedFeedbackCompare -and ($VolumeRampCompare -or $OwnerPacer)) { throw 'Matched comparison excludes volume comparison/owner pacing' }
 if ($PriorityOrder) { $DecoderPriority=6; $KeepOwned=$false }
 if ($AptxSnapshot -and (-not $StayNative -or -not $WithAptx -or -not $PcmCopied -or -not $BlockDsp -or -not $WordDsp -or -not $CodecAwareRender)) { throw 'aptX capture requires complete stay-native aptX copied PCM, block/word DSP and codec-aware rendering' }
 if ($RenderFairShare -and (-not $StayNative -or -not $PriorityOrder -or -not $CodecAwareRender -or -not $AsyncAudio -or -not $PcmCopied -or $OwnerPacer)) { throw 'Core1 fair sharing requires complete native ordered output, excluding owner pacing' }
@@ -171,6 +176,10 @@ $idfArguments += "-DDBT_PROBE_PRIORITY_ORDER=$(if ($PriorityOrder) { 'ON' } else
 $idfArguments += "-DDBT_PROBE_LOGGER_CORE=$LoggerCore"
 $idfArguments += "-DDBT_PROBE_SCHEDULER_TRACE=$(if ($SchedulerTrace) { 'ON' } else { 'OFF' })"
 $idfArguments += "-DDBT_PROBE_CODEC_AWARE_RENDER=$(if ($CodecAwareRender) { 'ON' } else { 'OFF' })"
+$idfArguments += "-DDBT_PROBE_HIGH_RATE_PCM_REBALANCE=$(if ($HighRatePcmRebalance) { 'ON' } else { 'OFF' })"
+$idfArguments += "-DDBT_PROBE_EARLY_INPUT_RELEASE=$(if ($EarlyInputRelease) { 'ON' } else { 'OFF' })"
+$idfArguments += "-DDBT_PROBE_MATCHED_FEEDBACK=$(if ($MatchedFeedback) { 'ON' } else { 'OFF' })"
+$idfArguments += "-DDBT_PROBE_MATCHED_FEEDBACK_COMPARE=$(if ($MatchedFeedbackCompare) { 'ON' } else { 'OFF' })"
 $idfArguments += "-DDBT_PROBE_RENDER_FAIR_SHARE=$(if ($RenderFairShare) { 'ON' } else { 'OFF' })"
 $idfArguments += "-DDBT_PROBE_VOLUME_RAMP_BLOCK=$(if ($VolumeRampBlock) { 'ON' } else { 'OFF' })"
 $idfArguments += "-DDBT_PROBE_VOLUME_RAMP_COMPARE=$(if ($VolumeRampCompare) { 'ON' } else { 'OFF' })"
@@ -231,6 +240,10 @@ $buildReceipt.owner_ready_yield=($RenderFairShare -or $DecoderPriority -eq $buil
 $buildReceipt.logger_core=$LoggerCore
 $buildReceipt.scheduler_trace=[bool]$SchedulerTrace
 $buildReceipt.codec_aware_render=[bool]$CodecAwareRender
+$buildReceipt.high_rate_pcm_rebalance=[bool]$HighRatePcmRebalance
+$buildReceipt.early_input_release=[bool]$EarlyInputRelease
+$buildReceipt.matched_feedback=[bool]$MatchedFeedback
+$buildReceipt.matched_feedback_compare=[bool]$MatchedFeedbackCompare
 $buildReceipt.render_fair_share=[bool]$RenderFairShare
 $buildReceipt.volume_ramp_block=[bool]$VolumeRampBlock
 $buildReceipt.volume_ramp_compare=[bool]$VolumeRampCompare

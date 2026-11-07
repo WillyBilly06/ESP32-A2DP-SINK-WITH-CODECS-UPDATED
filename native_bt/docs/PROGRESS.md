@@ -1,10 +1,21 @@
 # Current project progress
 
+Latest: [PCM sizing and input handoff](PCM_BUFFER_HANDOFF_2026_11_06.md).
+COM6 image ae24c89e42eb uses early copied-input release and an explicit
+2048-input/2560-processed-frame layout at 192k, with the same 39936-byte
+ring/DMA payload. Actual allocation, poisoned reuse, lifecycle and admission
+checks pass. All 37 cold codec cases and guarded full readbacks pass. LHDC still
+fails with 393856 unfilled frames; sizing alone is insufficient. LDAC 96 native
+YouTube metronome with real 80→0→80 volume keys has no recorded in-play
+shortage; 640 source-empty tail frames occur after pause. Arithmetic prototype
+shows no benefit and is OFF. Full master goal, remote gain and acoustics remain open.
+The following entries are historical.
+
 Latest measured scheduling experiment: [Core1 fair sharing](RENDER_FAIR_SHARE_2026_11_06.md).
 COM6 image7a1c4cbfc441 improves one LHDC192/fixed900 comparison from506112 to318848
 unfilled frames; continuity still fails. Local render/retirement maxima fall to4130/1787us;
 host poll wall maximum increases to4481us and control latency is not qualified.
-LDAC96 with real phone volume110->10->110 has1432832 source/DMA frames and zero
+LDAC 96 with real phone volume110->10->110 has1432832 source/DMA frames and zero
 recorded gaps. Native YouTube metronome search remained blank, so that case is pending.
 Controller23 stays highest; host/main-renderer22 share Core1 after bounded batches.
 Decoder21/helper20 remain on Core0. No extra SRAM/task/buffer. DefaultOFF; no main release.
@@ -12,14 +23,14 @@ The preceding entries are historical; the master goal remains active and incompl
 
 Latest arithmetic update: [exact volume-ramp reuse](VOLUME_RAMP_BLOCK_2026_11_06.md).
 COM6 image24f9ec682af8 selects the exact faster volume path, comparison and
-OwnerPacer OFF. One LDAC96 rapid-key stream delivers1440000 frames with zero
+OwnerPacer OFF. One LDAC 96 rapid-key stream delivers1440000 frames with zero
 recorded gaps. The scoped192k/Core0 volume-ramp mean drops29.4%; maximum LHDC
 continuity, all-codec rapid-control acoustics and the master goal remain open.
 
 
 [Scheduling/volume update2026-11-06](AUDIO_SCHEDULING_VOLUME_2026_11_06.md):
 The earlier owner-budget experiment used image8f125b7c69bc. Accepted controls now wake the renderer;
-one LDAC96 real-key volume trace has no in-play gaps, with a separate
+one LDAC 96 real-key volume trace has no in-play gaps, with a separate
 post-pause source-empty tail. Two-core/IPC/timer attribution is available.
 The corrected opt-in owner budget still has470656 unfilled LHDC192/fixed900
 frames. Maximum-rate and all-feature qualification remain incomplete.
@@ -143,7 +154,7 @@ Released main/recovery artifacts remain preserved. Latest measured evidence:
   The input ring is now omitted, but output pages still do not fit. Requested
   rate/format have their own CRC-valid failure record. No LHDC I2S start follows.
 - [I2S priority2 with live logging](RF_LOGGER_CORE1_2026_11_04.json): 28465
-  LDAC96 callbacks, maximum callback 46 us and EOF gap 1374 us, with zero
+  LDAC 96 callbacks, maximum callback 46 us and EOF gap 1374 us, with zero
   descriptor errors. Seven core0 watchdog warnings, 1804 queue drops and
   1837952 underrun frames still fail continuity. CPU and SRAM work remain.
 - [Separate telemetry and capture integrity](LOG_CAPTURE_WINDOWS_2026_11_04.md):
@@ -153,13 +164,13 @@ Released main/recovery artifacts remain preserved. Latest measured evidence:
   I2S-running snapshots and reduces the longest observed reporting gap from
   32.057 s to 2.492 s. Transport latency remains unqualified.
 - [Page-sized output capacity](OUTPUT_CAPACITY_2026_11_04.md) saves 28 KiB of
-  required memory at 192 kHz without changing target/prefill. Its LDAC96 DMA
+  required memory at 192 kHz without changing target/prefill. Its LDAC 96 DMA
   trial has zero descriptor errors; throughput still fails. All 184 host groups,
   ASan/UBSan boundaries/formats and the non-power-of-two concurrent case pass.
 - [Optional PCM loan bridge](PCM_RENDER_LOAN_BRIDGE_2026_11_04.md): worker,
   renderer and sound/lifecycle integration checks pass. Eighty real-codec cases
   pass both copied and async-loan provider-mock paths. COM6 confirms 32768 bytes
-  removed at LDAC96 (56320-byte PCM/DMA payload), with all 4882 loans retired,
+  removed at LDAC 96 (56320-byte PCM/DMA payload), with all 4882 loans retired,
   no stale/request/PCM/descriptor faults, and a 15359 us maximum renderer hold.
   Queue drops, underruns and watchdog warnings still fail audio continuity.
   `-PcmLoans` is finite and optional; copied input remains the default.
