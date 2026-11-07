@@ -50,6 +50,13 @@ one live HD decoder call, its copied input, and an independent DSP/final block
 against desktop replay. It also records a 440-frame payload versus 336-tick RTP
 discrepancy. It is not a causal diagnosis of that sound report; capture is off by default.
 
+The [audio scheduling/volume follow-up](docs/AUDIO_SCHEDULING_VOLUME_2026_11_06.md)
+adds stream-bound delay attribution on both cores, immediate renderer wakeups
+for accepted controls, and an opt-in host work budget. One real-key LDAC96
+volume trace has no in-play gaps; its source-empty gap occurs after pause.
+LHDC192/fixed900 still fails, including with the corrected budget. These are
+scoped results, not all-codec or maximum-rate qualification.
+
 The [LHDC throughput work](docs/LHDC_V5_THROUGHPUT_2026_11_06.md) adds an exact
 bounded S32 PCM-copy path and records high-rate scheduling/IRAM experiments.
 [Bounded DSP assistance](docs/LHDC_DSP_ASSIST_2026_11_06.md) now uses the existing

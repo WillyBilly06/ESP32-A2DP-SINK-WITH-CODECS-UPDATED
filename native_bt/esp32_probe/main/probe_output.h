@@ -115,6 +115,8 @@ void probe_output_first_starvation(probe_output_starvation_t *snapshot);
 /* Cheap failure fence for hot-path monitoring; no stack scanning/snapshot. */
 bool probe_output_failed(void);
 bool probe_output_running(void);
+/* Atomic low-output hint only; no buffer pointers, stack scan or full stats. */
+bool probe_output_owner_needs_time(void);
 uint16_t probe_output_delay_100us(uint32_t rate);
 dbt_result_t probe_output_controls(int8_t bass,int8_t mid,int8_t treble,uint8_t volume,uint8_t flags);
 dbt_result_t probe_output_volume(uint8_t volume);

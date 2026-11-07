@@ -89,6 +89,7 @@ void probe_audio_product_observer(probe_audio_product_event_fn,void *);
 bool probe_audio_sound_memory_ok(void);
 /* Atomic scheduling hint only; no borrowed decoder or codec state. */
 bool probe_audio_dsp_assist_ready(void);
+bool probe_audio_owner_pressure(void);
 /* Bounded scalar diagnostics only; receive may run in controller/ISR context.
  * first_rx_to_poll_us is a wake/service indicator, not per-packet latency. */
 void probe_audio_transport_received(uint32_t began_us,uint16_t bytes,uint8_t type,dbt_result_t result,bool isr);

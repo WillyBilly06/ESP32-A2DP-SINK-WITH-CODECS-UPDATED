@@ -51,6 +51,14 @@ This changes the stalled path without curing it and has no demonstrated overall 
 
 The existing DBT_PROBE_OWNER_READY_YIELD option only taskYIELDs to equal-priority tasks. With host22 and renderer20 it is not a lower-priority renderer scheduling guarantee. Core1 runnable-work streak duration and DSP preemption need measurement before changing that policy; per-call host maxima do not prove the duration or cause of the entire observed16ms rendering span.
 
+## Scheduling/volume follow-up
+
+[The later investigation](AUDIO_SCHEDULING_VOLUME_2026_11_06.md) records measured
+host/controller interference, control wakeups, Core0 volume tracing, the
+rejected first budget integration and corrected real-work-only budgeting.
+The corrected budget still fails LHDC continuity; current COM6 image is8f125b7c69bc.
+The2fd4 image above remains the earlier scoped batch comparison.
+
 ## Remaining work
 
 This experiment shifts roughly36% of rendered frames into the batch helper but still misses continuous output deadlines. Investigate the long Core1 local-render and completed-job retirement intervals using separate scheduler evidence. Reduce dependency on a delayed Core1 dispatch without transferring all DSP to the already busy decoder core. Any continuation scheme needs a bounded work quantum, immediate producer/control progress, one DSP owner and explicit lifecycle fences; merely enlarging a batch risks starving decode or leaving Core1 idle. Full1000kbps, BLE/control/storage coexistence, sustained headroom, acoustic continuity and complete feature parity remain open. No unchecked fixed-point transform rewrite or quality reduction has been adopted.

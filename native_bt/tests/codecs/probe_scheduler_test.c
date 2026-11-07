@@ -7,12 +7,12 @@ static int fail_core=-1;
 static unsigned registrations,deregistrations;
 static uint32_t clock_us,cycles;
 static TaskHandle_t running;
-static bool missing_controller;
+static bool missing_controller,have_system_tasks;
 static TaskHandle_t task(unsigned n){return (TaskHandle_t)(uintptr_t)n;}
 uint32_t esp_cpu_get_cycle_count(void){uint32_t before=cycles;cycles+=16;return before;}
 int64_t esp_timer_get_time(void){return clock_us;}
 TaskHandle_t xTaskGetCurrentTaskHandle(void){return running;}
-TaskHandle_t xTaskGetHandle(const char *name){return !strcmp(name,"native_render")?task(3):!strcmp(name,"btController")&&!missing_controller?task(5):0;}
+TaskHandle_t xTaskGetHandle(const char *name){return !strcmp(name,"native_render")?task(3):!strcmp(name,"btController")&&!missing_controller?task(5):have_system_tasks&&!strcmp(name,"ipc0")?task(11):have_system_tasks&&!strcmp(name,"ipc1")?task(12):have_system_tasks&&!strcmp(name,"esp_timer")?task(13):0;}
 TaskHandle_t xTaskGetIdleTaskHandleForCore(unsigned core){return task(6+core);}
 esp_err_t esp_register_freertos_tick_hook_for_cpu(esp_freertos_tick_cb_t hook,unsigned core){
     ++registrations;if((int)core==fail_core)return ESP_ERR_NO_MEM;hooks[core]=hook;return ESP_OK;
@@ -21,9 +21,9 @@ void esp_deregister_freertos_tick_hook_for_cpu(esp_freertos_tick_cb_t hook,unsig
     ++deregistrations;if(hooks[core]==hook)hooks[core]=0;
 }
 static void fixture(void){
-    memset(samples,0,sizeof(samples));memset(tasks,0,sizeof(tasks));memset(idle_tasks,0,sizeof(idle_tasks));
+    memset(samples,0,sizeof(samples));memset(intervals,0,sizeof(intervals));memset(tasks,0,sizeof(tasks));memset(idle_tasks,0,sizeof(idle_tasks));
     memset(hooks,0,sizeof(hooks));atomic_store(&enabled,false);atomic_store(&host_phase,PROBE_HOST_OTHER);attempted=false;known_task_mask=0;
-    fail_core=-1;registrations=deregistrations=clock_us=cycles=0;missing_controller=false;running=0;
+    fail_core=-1;registrations=deregistrations=clock_us=cycles=0;missing_controller=have_system_tasks=false;running=timer_task=0;ipc_tasks[0]=ipc_tasks[1]=0;
 }
 static void tick(unsigned core,unsigned identity,uint32_t at){running=task(identity);clock_us=at;hooks[core]();}
 int main(void){
@@ -67,6 +67,39 @@ int main(void){
     uint32_t total=0;for(unsigned i=0;i<PROBE_HOST_PHASES;++i)total+=a.host_phases[i];CHECK(total==a.counts[PROBE_SAMPLE_HOST]);
     for(unsigned phase=0;phase<PROBE_HOST_PHASES;++phase){probe_scheduler_host_phase(phase);tick(0,1,1000u*(phase+1u));}
     probe_scheduler_snapshot(0,&b);for(unsigned phase=0;phase<PROBE_HOST_PHASES;++phase)CHECK(b.host_phases[phase]==1);
+    /* Task-context interval attribution reuses the existing tick writer. */
+    fixture();CHECK(probe_scheduler_start(task(1),task(2),task(4))==ESP_OK);
+    probe_scheduler_mark_t begin,end;probe_scheduler_interval_t interval;
+    probe_scheduler_interval_snapshot(PROBE_DELAY_LOCAL_RENDER,&interval);CHECK(!interval.coherent);
+    probe_scheduler_mark(1,&begin);CHECK(begin.coherent && begin.core==1 && begin.read_cycles==16);
+    tick(1,5,1000);probe_scheduler_host_phase(PROBE_HOST_QUERY);tick(1,1,2000);tick(0,2,2500);
+    probe_scheduler_mark(1,&end);CHECK(end.coherent && end.read_cycles==16);
+    probe_scheduler_interval_observe(PROBE_DELAY_LOCAL_RENDER,&begin,&end,100,4100,128,1,192000);
+    probe_scheduler_interval_snapshot(PROBE_DELAY_LOCAL_RENDER,&interval);
+    CHECK(interval.coherent && interval.markers_valid && interval.revision==2 && interval.wall_us==4000 && interval.frames==128);
+    CHECK(interval.counts[PROBE_SAMPLE_CONTROLLER]==1 && interval.counts[PROBE_SAMPLE_HOST]==1 && !interval.counts[PROBE_SAMPLE_DECODER]);
+    CHECK(interval.host_phases[PROBE_HOST_QUERY]==1 && interval.known_task_mask==31 && interval.end_tick_us==2000);
+    probe_scheduler_interval_observe(PROBE_DELAY_LOCAL_RENDER,&begin,&end,100,200,64,1,192000);
+    probe_scheduler_interval_snapshot(PROBE_DELAY_LOCAL_RENDER,&interval);CHECK(interval.revision==2 && interval.wall_us==4000 && interval.frames==128);
+    begin.coherent=false;probe_scheduler_interval_observe(PROBE_DELAY_ASSIST_RETIRE,&begin,&end,0,5000,512,1,192000);
+    probe_scheduler_interval_snapshot(PROBE_DELAY_ASSIST_RETIRE,&interval);CHECK(interval.coherent && !interval.markers_valid && !interval.counts[0]);
+    begin.coherent=true;begin.core=0;probe_scheduler_interval_observe(PROBE_DELAY_ASSIST_RETIRE,&begin,&end,0,6000,512,1,192000);
+    probe_scheduler_interval_snapshot(PROBE_DELAY_ASSIST_RETIRE,&interval);CHECK(!interval.markers_valid && !interval.counts[PROBE_SAMPLE_CONTROLLER]);
+    begin.core=1;begin.known_task_mask=15;probe_scheduler_interval_observe(PROBE_DELAY_ASSIST_RETIRE,&begin,&end,0,7000,512,1,192000);
+    probe_scheduler_interval_snapshot(PROBE_DELAY_ASSIST_RETIRE,&interval);CHECK(!interval.markers_valid);
+    begin.known_task_mask=31;begin.counts[PROBE_SAMPLE_HOST]=UINT32_MAX-1u;end.counts[PROBE_SAMPLE_HOST]=1;
+    begin.host_phases[PROBE_HOST_QUERY]=UINT32_MAX;end.host_phases[PROBE_HOST_QUERY]=1;
+    atomic_store(&intervals[PROBE_DELAY_LOCAL_RENDER].wall_us,0);atomic_store(&intervals[PROBE_DELAY_LOCAL_RENDER].sequence,UINT32_MAX-1u);
+    probe_scheduler_interval_observe(PROBE_DELAY_LOCAL_RENDER,&begin,&end,UINT32_MAX-99u,101,128,1,192000);
+    probe_scheduler_interval_snapshot(PROBE_DELAY_LOCAL_RENDER,&interval);
+    CHECK(interval.coherent && interval.revision==2 && interval.wall_us==201 && interval.markers_valid);
+    CHECK(interval.counts[PROBE_SAMPLE_HOST]==3 && interval.host_phases[PROBE_HOST_QUERY]==2);
+    atomic_store(&intervals[PROBE_DELAY_LOCAL_RENDER].sequence,3);probe_scheduler_interval_snapshot(PROBE_DELAY_LOCAL_RENDER,&interval);CHECK(!interval.coherent);
+    atomic_store(&samples[1].sequence,3);probe_scheduler_mark(1,&begin);CHECK(!begin.coherent);
+    probe_scheduler_mark(2,&begin);CHECK(!begin.coherent);probe_scheduler_mark(1,NULL);
+    probe_scheduler_interval_snapshot(PROBE_DELAY_KINDS,&interval);CHECK(!interval.coherent);
+    probe_scheduler_interval_observe(PROBE_DELAY_KINDS,&begin,&end,0,9999,1,1,192000);
+    probe_scheduler_interval_observe(0,NULL,&end,0,9999,1,1,192000);probe_scheduler_interval_snapshot(0,NULL);
     for(int core=0;core<2;++core){
         fixture();fail_core=core;CHECK(probe_scheduler_start(task(1),task(2),task(4))==ESP_ERR_NO_MEM);
         CHECK(!hooks[0] && !hooks[1] && deregistrations==(unsigned)core);
@@ -75,5 +108,17 @@ int main(void){
     fixture();CHECK(probe_scheduler_start(0,task(2),task(4))==ESP_ERR_INVALID_ARG && !registrations);
     fixture();missing_controller=true;CHECK(probe_scheduler_start(task(1),task(2),task(4))==ESP_OK);
     tick(1,5,1000);probe_scheduler_snapshot(1,&a);CHECK(a.known_task_mask==15 && a.counts[PROBE_SAMPLE_OTHER]==1);
-    puts("PASS sampler: per-core identities, tick gaps, sequence/counter/time wrap, nonspinning snapshots, missing tasks and registration rollback");return 0;
+    fixture();have_system_tasks=true;CHECK(probe_scheduler_start(task(1),task(2),task(4))==ESP_OK);
+    tick(0,11,1000);tick(1,12,1000);tick(0,13,2000);
+    probe_scheduler_mark(0,&begin);CHECK(begin.coherent && begin.core==0 && begin.known_task_mask==415);
+    tick(0,11,3000);probe_scheduler_mark(0,&end);
+    probe_scheduler_interval_observe(PROBE_DELAY_LOCAL_RENDER0,&begin,&end,2100,3100,128,1,192000);
+    probe_scheduler_interval_snapshot(PROBE_DELAY_LOCAL_RENDER0,&interval);
+    CHECK(interval.coherent && interval.markers_valid && interval.counts[PROBE_SAMPLE_IPC]==1 && !interval.counts[PROBE_SAMPLE_TIMER]);
+    probe_scheduler_interval_observe(PROBE_DELAY_LOCAL_RENDER0,&begin,&end,2100,2200,128,2,96000);
+    probe_scheduler_interval_snapshot(PROBE_DELAY_LOCAL_RENDER0,&interval);
+    CHECK(interval.coherent && interval.stream_serial==2 && interval.rate==96000 && interval.wall_us==100 && interval.revision==4);
+    probe_scheduler_snapshot(0,&a);CHECK(a.counts[PROBE_SAMPLE_IPC]==2 && a.counts[PROBE_SAMPLE_TIMER]==1);
+    probe_scheduler_snapshot(1,&b);CHECK(b.counts[PROBE_SAMPLE_IPC]==1);
+    puts("PASS sampler: per-core identities, tick gaps, sequence/counter/time wrap, nonspinning snapshots, Core0/Core1 maximum intervals, IPC/timer attribution, invalid/mixed-core marks, counter/time/publication wrap, missing tasks and registration rollback");return 0;
 }

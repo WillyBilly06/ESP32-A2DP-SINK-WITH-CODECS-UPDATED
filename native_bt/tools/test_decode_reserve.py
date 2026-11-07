@@ -57,10 +57,18 @@ int main(void){
     atomic_store(&output.stop_requested,1);CHECK(probe_output_decode_budget()==2);atomic_store(&output.stop_requested,0);
     /* High rates remain bounded by the renderer's existing target. */
     for(uint32_t rate=96001;rate<=192000;rate+=997){atomic_store(&output.rate,rate);rings(1,pcm_target_frames(rate));CHECK(probe_output_decode_budget()==1);}
-    printf("PASS actual decoder admission: 192k reserve, recorded deadline, empty input progress, lower-rate compatibility, counter wrap, owner/stop/failure fences and reachable targets\n");return 0;
+    atomic_store(&output.rate,192000);atomic_store(&output.render_core,1);rings(0,1215);
+    unsigned pressure_wakes=wakes;CHECK(probe_output_owner_needs_time() && wakes==pressure_wakes);
+    rings(0,1216);CHECK(!probe_output_owner_needs_time());rings(0,0);
+    atomic_store(&output.rate,96000);CHECK(!probe_output_owner_needs_time());atomic_store(&output.rate,192000);
+    atomic_store(&output.render_core,0);CHECK(!probe_output_owner_needs_time());atomic_store(&output.render_core,1);
+    atomic_store(&output.running,0);CHECK(!probe_output_owner_needs_time());atomic_store(&output.running,1);
+    atomic_store(&output.failed,1);CHECK(!probe_output_owner_needs_time());atomic_store(&output.failed,0);
+    atomic_store(&output.stop_requested,1);CHECK(!probe_output_owner_needs_time());
+    printf("PASS actual decoder admission and atomic owner pressure: 192k reserve, recorded deadline, empty input progress, lower-rate compatibility, counter wrap, owner/stop/failure fences and reachable targets\n");return 0;
 }
 '''
-harness=OUT/'admission.c';harness.write_text(prefix+function('static uint32_t pcm_target_frames(')+'\n'+function('uint16_t probe_output_decode_budget(')+'\n'+main)
+harness=OUT/'admission.c';harness.write_text(prefix+function('static uint32_t pcm_target_frames(')+'\n'+function('uint16_t probe_output_decode_budget(')+'\n'+function('bool probe_output_owner_needs_time(')+'\n'+main)
 env=os.environ.copy()
 if os.name=='nt':
     vc=pathlib.Path(r'C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Auxiliary\Build\vcvars64.bat')

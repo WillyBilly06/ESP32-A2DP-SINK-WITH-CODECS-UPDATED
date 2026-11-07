@@ -41,6 +41,18 @@ if scheduler_trace:
         command=next(e['command'] for e in commands if Path(e['file']).name==unit)
         assert re.findall(r'(?:^|\s)-DDBT_PROBE_SCHEDULER_TRACE=(\S+)',command)==['1']
         assert not re.search(r'(?:^|\s)-UDBT_PROBE_SCHEDULER_TRACE(?:\s|$)',command)
+owner_pacer=bool(build_status.get('owner_pacer'))
+assert ('DBT_PROBE_OWNER_PACER:BOOL=ON' in cache)==owner_pacer, 'Owner budget receipt/cache mismatch'
+assert re.findall(r'(?:^|\s)-DDBT_PROBE_OWNER_PACER=(\S+)',main_command)==(['1'] if owner_pacer else [])
+pacer_units=[e for e in commands if Path(e['file']).name=='probe_owner_pacer.c']
+assert bool(pacer_units)==owner_pacer, 'Unexpected or missing owner budget unit'
+if owner_pacer:
+    assert build_status.get('stay_native') and build_status.get('priority_order') and build_status.get('async_audio') and build_status.get('pcm_copied') and build_status.get('codec_aware_render')
+    assert not diagnostic and not pipeline
+    for unit in ('probe_main.c','probe_audio.c','probe_owner_pacer.c'):
+        command=next(e['command'] for e in commands if Path(e['file']).name==unit)
+        assert re.findall(r'(?:^|\s)-DDBT_PROBE_OWNER_PACER=(\S+)',command)==['1']
+        assert not re.search(r'(?:^|\s)-UDBT_PROBE_OWNER_PACER(?:\s|$)',command)
 dsp_inline=bool(build_status.get('dsp_inline_check'))
 assert ('DBT_PROBE_DSP_INLINE_CHECK:BOOL=ON' in cache)==dsp_inline, 'DSP inline receipt/cache mismatch'
 assert bool(re.search(r'(?:^|\s)-DDBT_PROBE_DSP_INLINE_CHECK=1(?:\s|$)',main_command))==dsp_inline

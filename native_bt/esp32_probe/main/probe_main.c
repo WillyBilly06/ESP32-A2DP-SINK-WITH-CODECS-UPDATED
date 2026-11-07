@@ -27,6 +27,9 @@ static int __attribute__((format(printf,1,2))) host_printf(const char *format,..
 #define HOST_PRINTF printf
 #endif
 #include "probe_wait.h"
+#ifdef DBT_PROBE_OWNER_PACER
+#include "probe_owner_pacer.h"
+#endif
 #include "dbt_gap.h"
 #ifdef DBT_PROBE_AUDIO_TEST
 #include "probe_audio.h"
@@ -631,6 +634,9 @@ void app_main(void) {
     _Static_assert(DBT_PROBE_HOST_PRIORITY < ESP_TASK_BT_CONTROLLER_PRIO,
                    "The host must remain below the controller");
     vTaskPrioritySet(owner, DBT_PROBE_HOST_PRIORITY);
+#ifdef DBT_PROBE_OWNER_PACER
+    if(probe_owner_pacer_init(owner)!=ESP_OK)owner_fault_park("host budget timer initialization");
+#endif
 #ifdef DBT_PROBE_PRODUCT_SECURITY
     if(!probe_reset_dispatch_init(owner))owner_fault_park("core-0 restart timer initialization");
     if(!probe_pair_button_init(owner))owner_fault_park("local pairing button initialization");
@@ -758,6 +764,18 @@ void app_main(void) {
     bool gatt_initialized = false, gatt_reported = false;
 #endif
     for (;;) {
+#ifdef DBT_PROBE_OWNER_PACER
+        if(!probe_owner_pacer_ready()){
+            /* Early controller notifications remain bounded events. Keep
+             * protocol work queued until the on-demand release event; never
+             * spin or poll for the timer, and never wait in a VHCI callback. */
+            ulTaskNotifyTake(pdTRUE,portMAX_DELAY);continue;
+        }
+        /* The following complete poll observes all already-published work.
+         * Consume its coalesced wakeups, including the release timer wake.
+         * New work published after this point remains notified. */
+        (void)ulTaskNotifyTake(pdTRUE,0);
+#endif
         uint32_t now = now_ms();
 #ifdef DBT_PROBE_SMP
         if(smp_initialized)HOST_CALL(PROBE_HOST_SECURITY,probe_smp_security_request_preflight(now));
@@ -1151,6 +1169,13 @@ void app_main(void) {
 #ifdef DBT_PROBE_SCHEDULER_TRACE
         probe_scheduler_host_phase(previous_phase);
 #endif
+#ifdef DBT_PROBE_OWNER_PACER
+        bool notified=wait!=0 && ulTaskNotifyTake(pdTRUE,0)!=0;
+        /* A release timer may defer real immediately runnable work. It must
+         * never replace a normal event/deadline sleep and create polling. */
+        if(probe_owner_pacer_charge(wait==0 || notified,probe_audio_owner_pressure()))continue;
+        if(notified)continue;
+#endif
         if (wait == 0) {
 #if DBT_PROBE_OWNER_READY_YIELD
             /* The decoder also yields after a bounded batch. Return to the
@@ -1167,6 +1192,12 @@ void app_main(void) {
             if (ticks == 0) ticks = 1;
         }
         /* A notification before this call remains pending, avoiding a lost wakeup. */
+#ifdef DBT_PROBE_OWNER_PACER
+        uint32_t wait_began_us=(uint32_t)esp_timer_get_time();
+#endif
         ulTaskNotifyTake(pdTRUE, ticks);
+#ifdef DBT_PROBE_OWNER_PACER
+        probe_owner_pacer_waited((uint32_t)esp_timer_get_time()-wait_began_us);
+#endif
     }
 }

@@ -167,6 +167,9 @@ static DRAM_ATTR struct {
   dbt_dsp_job_lane_t lane;
   uint32_t began_us,submitted_us,committed_us,committed_frames,budget;
   uint32_t extra_cycles,block_max_cycles,commit_delay_max_us,completed_blocks;
+#ifdef DBT_PROBE_SCHEDULER_TRACE
+  probe_scheduler_mark_t committed_mark;
+#endif
   _Atomic uint32_t jobs,blocks,frames,cycles,max_cycles,max_job_frames,queue_max_us,finish_wait_max_us,retire_wait_max_us,wall_max_us,failures;
 } assist;
 #endif
@@ -1131,6 +1134,9 @@ static dbt_result_t dsp_assist_commit(void *context,const dbt_audio_render_job_t
     math_end=(uint32_t)esp_timer_get_time();
   }
   OUTPUT_TEST_STEP(8);
+#ifdef DBT_PROBE_SCHEDULER_TRACE
+  probe_scheduler_mark(1,&assist.committed_mark);
+#endif
   return DBT_OK;
 }
 static bool dsp_assist_work(void){
@@ -1156,6 +1162,13 @@ static int dsp_assist_complete(void){
   uint32_t made=assist.committed_frames;
   dbt_result_t retired=dbt_dsp_job_retire(&assist.lane,token);
   uint32_t now=(uint32_t)esp_timer_get_time();
+#ifdef DBT_PROBE_SCHEDULER_TRACE
+  if((unsigned)xPortGetCoreID()==1u){
+    probe_scheduler_mark_t end_mark;probe_scheduler_mark(1,&end_mark);
+    probe_scheduler_interval_observe(PROBE_DELAY_ASSIST_RETIRE,&assist.committed_mark,&end_mark,
+        assist.committed_us,now,made,atomic_load(&timeline.stream_serial),atomic_load(&output.rate));
+  }
+#endif
   assist_add(&assist.jobs,1);assist_add(&assist.blocks,assist.completed_blocks);assist_add(&assist.frames,made);
   assist_add(&assist.cycles,cycles+assist.extra_cycles);
   assist_max(&assist.max_cycles,cycles>assist.block_max_cycles?cycles:assist.block_max_cycles);
@@ -1306,7 +1319,21 @@ static bool render_step(void) {
           return false; /* no raw DSP/meter reads or lifecycle work while lent */
         }
 #endif
+#ifdef DBT_PROBE_SCHEDULER_TRACE
+        probe_scheduler_mark_t local_mark;
+        unsigned local_core=(unsigned)xPortGetCoreID();
+        bool mark_local=budget!=0;
+        if(mark_local)probe_scheduler_mark(local_core,&local_mark);
+        uint32_t local_began=(uint32_t)esp_timer_get_time();
+#endif
         uint32_t made = budget?dbt_audio_render(&output.audio, budget):0;
+#ifdef DBT_PROBE_SCHEDULER_TRACE
+        uint32_t local_end=(uint32_t)esp_timer_get_time();
+        if(mark_local && made){
+          probe_scheduler_mark_t end_mark;probe_scheduler_mark(local_core,&end_mark);
+          probe_scheduler_interval_observe(local_core?PROBE_DELAY_LOCAL_RENDER:PROBE_DELAY_LOCAL_RENDER0,&local_mark,&end_mark,local_began,local_end,made,atomic_load(&timeline.stream_serial),atomic_load(&output.rate));
+        }
+#endif
 #ifdef DBT_PROBE_SOUND_BUILD
         if(made && output.sound_silence){
           output.clock_at=(uint32_t)(esp_timer_get_time()/1000);
@@ -1741,6 +1768,14 @@ dbt_result_t probe_output_pcm(const int16_t *samples, uint16_t frames,
 }
 bool probe_output_failed(void){return atomic_load(&output.failed) || atomic_load(&output.request_fault);}
 bool probe_output_running(void){return atomic_load(&output.running)!=0;}
+bool probe_output_owner_needs_time(void){
+  if(!atomic_load(&output.running) || atomic_load(&output.failed) || atomic_load(&output.stop_requested) ||
+     atomic_load(&output.render_core)!=1u)return false;
+  uint32_t rate=atomic_load(&output.rate);if(rate<=96000u)return false;
+  uint32_t read=atomic_load_explicit(&output.audio.output.read,memory_order_acquire);
+  uint32_t written=atomic_load_explicit(&output.audio.output.written,memory_order_acquire);
+  return written-read<(rate+199u)/200u+2u*DMA_FRAMES;
+}
 void probe_output_stats(probe_output_stats_t *s) {
   if (!s)
     return;
@@ -1872,18 +1907,24 @@ dbt_result_t probe_output_controls(int8_t bass, int8_t mid, int8_t treble,
   return dbt_audio_controls(&output.audio, bass, mid, treble, volume, flags);
 }
 
+/* Task-context publishers wake the existing owner immediately. Gain/EQ is
+ * still applied only at a safe render boundary, with its existing ramps. */
+static dbt_result_t control_published(dbt_result_t result){
+  if(result==DBT_OK){TaskHandle_t owner=atomic_load_explicit(&output.task,memory_order_acquire);if(owner)xTaskNotifyGive(owner);}
+  return result;
+}
 dbt_result_t probe_output_volume(uint8_t volume) {
-  return dbt_audio_volume(&output.audio, volume);
+  return control_published(dbt_audio_volume(&output.audio, volume));
 }
 
 dbt_result_t probe_output_eq(int8_t bass, int8_t mid, int8_t treble) {
-  return dbt_audio_eq(&output.audio, bass, mid, treble);
+  return control_published(dbt_audio_eq(&output.audio, bass, mid, treble));
 }
 dbt_result_t probe_output_control(uint8_t flags) {
-  return dbt_audio_control_flags(&output.audio, flags);
+  return control_published(dbt_audio_control_flags(&output.audio, flags));
 }
 dbt_result_t probe_output_analysis(bool enabled) {
-  return dbt_audio_analysis(&output.audio, enabled);
+  return control_published(dbt_audio_analysis(&output.audio, enabled));
 }
 
 void probe_output_meter(uint8_t values[3]) {

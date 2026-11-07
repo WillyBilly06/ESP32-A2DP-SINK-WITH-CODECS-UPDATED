@@ -215,6 +215,9 @@ static void __attribute__((format(printf,2,3))) snapshot_log(uint32_t began,cons
     bool ready=snapshot_vformat(line,sizeof(line),began,format,arguments);va_end(arguments);
     if(ready)printf("%s",line);
 }
+#ifdef DBT_PROBE_OWNER_PACER
+#include "probe_owner_pacer.h"
+#endif
 #define PROBE_SNAPSHOT_LOG(...) do {uint32_t snapshot_began=(uint32_t)esp_timer_get_time();snapshot_log(snapshot_began,__VA_ARGS__);}while(0)
 #if defined(DBT_PROBE_SCHEDULER_TRACE) && defined(DBT_PROBE_AUDIO_OUTPUT)
 static void decoder_timeline(uint32_t phase,uint32_t at){
@@ -582,6 +585,13 @@ static dbt_result_t stream(void *context,bool started,const dbt_codec_config_t *
     return publish_stream(started,config);
 }
 #endif
+bool probe_audio_owner_pressure(void){
+#if defined(DBT_PROBE_LHDC_BUILD) && defined(DBT_PROBE_AUDIO_OUTPUT)
+    return atomic_load_explicit(&pcm_codec,memory_order_acquire)==9u && probe_output_owner_needs_time();
+#else
+    return false;
+#endif
+}
 bool probe_audio_dsp_assist_ready(void){
 #ifdef DBT_PROBE_LHDC_BUILD
     return atomic_load_explicit(&decoder_wait_kind,memory_order_acquire)==0u &&
@@ -674,6 +684,49 @@ static bool log_metadata(void){
     heap_caps_free(escaped);return true;
 }
 #endif
+#ifdef DBT_PROBE_SCHEDULER_TRACE
+static void log_render_delays(void){
+    static uint32_t seen[PROBE_DELAY_KINDS];
+    for(unsigned kind=0;kind<PROBE_DELAY_KINDS;++kind){
+        probe_scheduler_interval_t span;probe_scheduler_interval_snapshot(kind,&span);
+        if(!span.coherent || span.revision==seen[kind])continue;
+        seen[kind]=span.revision;
+        PROBE_SNAPSHOT_LOG("{\"probe\":\"%s\",\"core\":%u,\"scope\":\"stream_max_wall\",\"stream_serial\":%" PRIu32 ",\"rate\":%" PRIu32 ",\"begin_us\":%" PRIu32
+            ",\"end_us\":%" PRIu32 ",\"wall_us\":%" PRIu32 ",\"frames\":%" PRIu32
+            ",\"begin_tick_us\":%" PRIu32 ",\"end_tick_us\":%" PRIu32 ",\"markers_valid\":%s,\"sample_hz\":%u"
+            ",\"ticks_not_cpu_time\":true,\"known_task_mask\":%" PRIu32
+            ",\"begin_marker_cycles\":%" PRIu32 ",\"end_marker_cycles\":%" PRIu32
+            ",\"host\":%" PRIu32 ",\"decoder\":%" PRIu32 ",\"renderer\":%" PRIu32 ",\"logger\":%" PRIu32
+            ",\"controller\":%" PRIu32 ",\"idle\":%" PRIu32 ",\"other\":%" PRIu32 ",\"ipc\":%" PRIu32 ",\"timer\":%" PRIu32
+            ",\"host_other\":%" PRIu32 ",\"host_query\":%" PRIu32 ",\"host_submit\":%" PRIu32
+            ",\"host_runtime\":%" PRIu32 ",\"host_wait\":%" PRIu32 ",\"host_gatt\":%" PRIu32
+            ",\"host_security\":%" PRIu32 ",\"host_product\":%" PRIu32 ",\"host_io\":%" PRIu32
+            ",\"host_audio\":%" PRIu32 ",\"host_avrcp\":%" PRIu32 ",\"host_console\":%" PRIu32 "}\n",
+            kind==PROBE_DELAY_LOCAL_RENDER?"render_local_delay":kind==PROBE_DELAY_LOCAL_RENDER0?"render_local_delay_core0":"render_retirement_delay",
+            kind==PROBE_DELAY_LOCAL_RENDER0?0u:1u,
+            span.stream_serial,span.rate,span.begin_us,span.end_us,span.wall_us,span.frames,span.begin_tick_us,span.end_tick_us,
+            span.markers_valid?"true":"false",(unsigned)configTICK_RATE_HZ,span.known_task_mask,
+            span.begin_read_cycles,span.end_read_cycles,
+            span.counts[0],span.counts[1],span.counts[2],span.counts[3],span.counts[4],span.counts[5],span.counts[6],span.counts[7],span.counts[8],
+            span.host_phases[0],span.host_phases[1],span.host_phases[2],span.host_phases[3],span.host_phases[4],span.host_phases[5],
+            span.host_phases[6],span.host_phases[7],span.host_phases[8],span.host_phases[9],span.host_phases[10],span.host_phases[11]);
+    }
+}
+#endif
+#ifdef DBT_PROBE_OWNER_PACER
+static void log_owner_pacer(void){
+    static uint32_t seen=UINT32_MAX,seen_failed=UINT32_MAX;
+    probe_owner_pacer_stats_t s;probe_owner_pacer_snapshot(&s);
+    if(seen==s.pauses && seen_failed==s.failed)return;
+    seen=s.pauses;seen_failed=s.failed;
+    PROBE_SNAPSHOT_LOG("{\"probe\":\"owner_budget\",\"enabled\":%" PRIu32 ",\"waiting\":%" PRIu32 ",\"failed\":%" PRIu32
+        ",\"slice_us\":%u,\"release_us\":%u,\"pauses\":%" PRIu32 ",\"releases\":%" PRIu32
+        ",\"early_wait_checks\":%" PRIu32 ",\"max_slice_wall_us\":%" PRIu32 ",\"max_pause_wall_us\":%" PRIu32
+        ",\"arm_failures\":%" PRIu32 ",\"counter_scope\":\"since_boot\",\"independent_counters\":true,\"timer_is_on_demand\":true}\n",
+        s.enabled,s.waiting,s.failed,(unsigned)PROBE_OWNER_SLICE_US,(unsigned)PROBE_OWNER_RELEASE_US,
+        s.pauses,s.releases,s.wait_checks,s.max_slice_us,s.max_pause_us,s.arm_failures);
+}
+#endif
 static void log_loop(void *unused){
     (void)unused;
     uint32_t previous=UINT32_MAX,previous_errors=UINT32_MAX,previous_ignored=UINT32_MAX,previous_oversized=UINT32_MAX;
@@ -690,6 +743,12 @@ static void log_loop(void *unused){
         if(++ticks<10)continue;
         ticks=0;
         uint32_t at=(uint32_t)esp_timer_get_time();
+#ifdef DBT_PROBE_OWNER_PACER
+        log_owner_pacer();
+#endif
+#ifdef DBT_PROBE_SCHEDULER_TRACE
+        log_render_delays();
+#endif
 #ifdef DBT_PROBE_DSP_ASSIST
         probe_dsp_assist_stats_t assisted;probe_output_dsp_assist_snapshot(&assisted);
         PROBE_SNAPSHOT_LOG("{\"probe\":\"dsp_assist\",\"collection_cycle_us\":%" PRIu32 ",\"counter_scope\":\"since_boot\",\"independent_counters\":true,\"enabled\":%" PRIu32 ",\"state\":%" PRIu32 ",\"worker_core\":0,\"render_owner_core\":1,\"jobs\":%" PRIu32 ",\"blocks\":%" PRIu32 ",\"max_blocks_per_job\":4,\"max_job_frames\":%" PRIu32 ",\"frames\":%" PRIu32 ",\"helper_cycles\":%" PRIu32 ",\"helper_max_cycles\":%" PRIu32 ",\"queue_max_us\":%" PRIu32 ",\"finish_to_commit_max_us\":%" PRIu32 ",\"commit_to_retire_max_us\":%" PRIu32 ",\"publication_core\":0,\"wall_max_us\":%" PRIu32 ",\"failures\":%" PRIu32 ",\"cycles_include_preemption\":true,\"cycles_wrap_uint32\":true,\"wall_includes_async_wait\":true}\n",
@@ -705,10 +764,10 @@ static void log_loop(void *unused){
             probe_scheduler_snapshot(core,&sample);
             snapshot_log(began,"{\"probe\":\"scheduler_samples\",\"core\":%u,\"sample_hz\":%u,\"coherent\":%s,\"known_task_mask\":%" PRIu32
                 ",\"host\":%" PRIu32 ",\"decoder\":%" PRIu32 ",\"renderer\":%" PRIu32 ",\"logger\":%" PRIu32 ",\"controller\":%" PRIu32
-                ",\"idle\":%" PRIu32 ",\"other\":%" PRIu32 ",\"last_tick_us\":%" PRIu32 ",\"max_tick_gap_us\":%" PRIu32
+                ",\"idle\":%" PRIu32 ",\"other\":%" PRIu32 ",\"ipc\":%" PRIu32 ",\"timer\":%" PRIu32 ",\"last_tick_us\":%" PRIu32 ",\"max_tick_gap_us\":%" PRIu32
                 ",\"max_gap_begin_us\":%" PRIu32 ",\"max_gap_end_us\":%" PRIu32 ",\"max_gap_previous_role\":%" PRIu32 ",\"max_gap_current_role\":%" PRIu32
                 ",\"max_callback_body_cycles\":%" PRIu32 "}\n",core,(unsigned)configTICK_RATE_HZ,sample.coherent?"true":"false",sample.known_task_mask,
-                sample.counts[0],sample.counts[1],sample.counts[2],sample.counts[3],sample.counts[4],sample.counts[5],sample.counts[6],
+                sample.counts[0],sample.counts[1],sample.counts[2],sample.counts[3],sample.counts[4],sample.counts[5],sample.counts[6],sample.counts[7],sample.counts[8],
                 sample.at_us,sample.max_gap_us,sample.max_gap_begin_us,sample.max_gap_end_us,sample.max_gap_previous_role,sample.max_gap_current_role,sample.max_callback_cycles);
             snapshot_log(began,"{\"probe\":\"host_phase_samples\",\"core\":%u,\"coherent\":%s,\"last_tick_us\":%" PRIu32
                 ",\"other\":%" PRIu32 ",\"controller_query\":%" PRIu32 ",\"controller_submit\":%" PRIu32 ",\"runtime_poll\":%" PRIu32

@@ -1,5 +1,13 @@
 # Current project progress
 
+[Scheduling/volume update2026-11-06](AUDIO_SCHEDULING_VOLUME_2026_11_06.md):
+COM6 runs owned image8f125b7c69bc. Accepted controls now wake the renderer;
+one LDAC96 real-key volume trace has no in-play gaps, with a separate
+post-pause source-empty tail. Two-core/IPC/timer attribution is available.
+The corrected opt-in owner budget still has470656 unfilled LHDC192/fixed900
+frames. Maximum-rate and all-feature qualification remain incomplete.
+
+
 Latest focused update2026-11-06: [bounded LHDC DSP assistance](LHDC_DSP_ASSIST_2026_11_06.md)
 is implemented with worker-side PCM publication, a four-block maximum, no new
 PCM storage and tested stop/cancel fences. COM6 runs image2fd4bbc8dba4.
