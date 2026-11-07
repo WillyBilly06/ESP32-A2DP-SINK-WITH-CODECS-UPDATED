@@ -1,0 +1,161 @@
+{
+  "scope": "Post-DONE notification dependency removal; full goal incomplete",
+  "baseline": {
+    "image": "6e4c4932cf282e5beb56c313f0b2e40301dd55be08c31e7405bb894ec458da85",
+    "archive": "runs/1794036556549434000-6e4c4932cf28",
+    "trace": "D:/bt-owned61/native_bt/_build/experiments/assist-wake-1794037437554/baseline-lhdc",
+    "command_s": 12.295,
+    "frames": 2693312,
+    "initial": 502016,
+    "recovered": 269824,
+    "unfilled": 232192,
+    "worker_detail_lost": 3502
+  },
+  "candidate": {
+    "image": "a9427d8cafde6e89ee4826435e392fe7eef1653ba7e7b8873a60ff01963fdb57",
+    "archive": "runs/1794037693865568200-a9427d8cafde",
+    "readbacks": [
+      true,
+      true
+    ],
+    "boot": {
+      "probe": "boot_selection",
+      "host": "owned",
+      "kept_active": true,
+      "partition": 3735552,
+      "ota_state": 2,
+      "result": 0,
+      "production_ready": false
+    },
+    "cold_check": {
+      "probe": "target_codec_selftest",
+      "passed": true,
+      "configurations": 37,
+      "selected": 37,
+      "callbacks": 173,
+      "stack_bytes": 8192,
+      "stack_low_water_bytes": 3464,
+      "tracked_peak_bytes": 56899,
+      "min_free_after_alloc_bytes": 103632,
+      "maximum_decode_us": 13919,
+      "rf_test": false
+    },
+    "original_preserved": true,
+    "automatic_fallback": false,
+    "footprint_delta": {
+      ".iram0.vectors": 0,
+      ".iram0.text": 0,
+      ".dram0.data": 0,
+      ".dram0.bss": 0,
+      ".flash.rodata": 0,
+      ".flash.text": 16
+    },
+    "trace1": "D:/bt-owned61/native_bt/_build/experiments/assist-wake-1794037437554/candidate-lhdc-1",
+    "trace2": "D:/bt-owned61/native_bt/_build/experiments/assist-wake-1794037437554/candidate-lhdc-2",
+    "command_s": [
+      12.07,
+      12.207
+    ],
+    "frames": [
+      2684672,
+      2727360
+    ],
+    "initial": [
+      465664,
+      440832
+    ],
+    "recovered": [
+      258816,
+      260864
+    ],
+    "unfilled": [
+      206848,
+      179968
+    ],
+    "copy_max_us": [
+      5,
+      5
+    ],
+    "mask_max_us": [
+      8,
+      9
+    ],
+    "descriptor_errors": [
+      0,
+      0
+    ],
+    "contract_errors": [
+      0,
+      0
+    ],
+    "worker_detail_lost": [
+      3416,
+      3482
+    ],
+    "aggregate_loss": [
+      0,
+      0
+    ],
+    "isolated_throughput_gain_established": false
+  },
+  "ldac": {
+    "trace": "D:/bt-owned61/native_bt/_build/experiments/assist-wake-1794037437554/candidate-ldac96",
+    "command_s": 12.248,
+    "rate": 96000,
+    "phone_input_bits": 32,
+    "sampled_wire_bps": 990000,
+    "frames": 1451264,
+    "shortages": 0,
+    "descriptor_errors": 0,
+    "worker_detail_lost": 5526
+  },
+  "memory_snapshots": {
+    "baseline": [
+      {
+        "codec": 9,
+        "resident": 60704,
+        "free": 19592,
+        "minimum": 19212,
+        "largest": 16384,
+        "stack_low": 5960
+      }
+    ],
+    "candidate1": [
+      {
+        "codec": 9,
+        "resident": 60704,
+        "free": 19604,
+        "minimum": 19604,
+        "largest": 18432,
+        "stack_low": 5960
+      }
+    ],
+    "candidate2": [
+      {
+        "codec": 9,
+        "resident": 60704,
+        "free": 19604,
+        "minimum": 19604,
+        "largest": 18432,
+        "stack_low": 5960
+      }
+    ],
+    "ldac": [
+      {
+        "codec": 8,
+        "resident": 28196,
+        "free": 68524,
+        "minimum": 19604,
+        "largest": 57344,
+        "stack_low": 5960
+      }
+    ]
+  },
+  "limitations": [
+    "successive short metronome segments; not identical replay",
+    "whole-stream counters include startup/drain",
+    "different since-boot helper maximum history windows",
+    "no full acoustic/per-sample/feature qualification",
+    "live1000kbps remains unqualified"
+  ]
+}

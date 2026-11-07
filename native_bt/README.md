@@ -50,11 +50,20 @@ one live HD decoder call, its copied input, and an independent DSP/final block
 against desktop replay. It also records a 440-frame payload versus 336-tick RTP
 discrepancy. It is not a causal diagnosis of that sound report; capture is off by default.
 
+[DSP completion wake order](docs/ASSIST_COMPLETION_WAKE_2026_11_06.md) now signals
+the Core1 owner before notifying the higher-priority Core0 decoder. The pinned
+kernel confirms the preemption path; a negative/two-core sanitizer regression
+proves the owner can retire/close while the helper continuation is suspended.
+COM6 normal image a9427d8cafde passes readbacks/37 cold cases, adds16 flash bytes
+and no RAM. Short LHDC192/fixed900 traces have206848/179968 unfilled versus232192
+in the fresh baseline; an isolated speedup is not established. LDAC96/observed
+990kbps has1451264 source/DMA frames and zero shortages. Full continuity remains open.
+
 [DMA refill during helper work](docs/ASSIST_DMA_REFILL_2026_11_06.md) now consumes
 already-published PCM while the helper retains its DSP/lifecycle borrow, and
 wakes the owner on a publication when a descriptor is pending. A valid negative
 control reproduces the missed refill; sanitizer, two-core lifecycle and sound
-regressions pass. COM6 normal image6e4c4932cf28 adds68 flash bytes/no RAM and
+regressions pass. Previous normal image6e4c4932cf28 adds68 flash bytes/no RAM and
 passes guarded readbacks/37 cold cases. Two LHDC192/fixed900 traces record
 182400/200320 unfilled frames versus237504 before; continuity still fails.
 LDAC96/observed990kbps metronome delivers1443584 frames with zero shortages.

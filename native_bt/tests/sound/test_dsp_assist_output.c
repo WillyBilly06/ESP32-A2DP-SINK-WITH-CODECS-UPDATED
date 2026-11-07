@@ -22,6 +22,9 @@ static _Thread_local mock_task_t *current_task;
 static _Atomic bool mock_shutdown,decoder_hint;
 static _Atomic unsigned mock_errors,pending_timed_waits,yields[2];
 static _Atomic unsigned sound_progress_wakes;
+static HANDLE producer_release;
+static _Atomic bool observe_completion_order,hold_producer_wake;
+static _Atomic unsigned owner_completion_signals,producer_hold_reached;
 extern uint32_t dbt_output_test_ready_pcm(void);
 static HANDLE yield_release;
 static _Atomic unsigned yield_job_gate,yield_ready_frames;
@@ -54,7 +57,10 @@ int xTaskCreatePinnedToCore(void (*fn)(void *),const char *name,unsigned stack,v
 }
 void xTaskNotifyGive(TaskHandle_t handle){
     if(handle!=&mock_tasks[0] && handle!=&mock_tasks[1]){atomic_fetch_add(&mock_errors,1);return;}
-    mock_task_t *t=handle;atomic_fetch_add_explicit(&t->notifications,1,memory_order_release);SetEvent(t->event);
+    mock_task_t *t=handle;
+    if(current_task && current_task->core==0 && t==&mock_tasks[1] && atomic_load(&observe_completion_order))
+        atomic_fetch_add(&owner_completion_signals,1);
+    atomic_fetch_add_explicit(&t->notifications,1,memory_order_release);SetEvent(t->event);
 }
 void vTaskNotifyGiveFromISR(TaskHandle_t task,BaseType_t *wake){xTaskNotifyGive(task);*wake=pdTRUE;}
 unsigned ulTaskNotifyTake(int clear,unsigned ticks){
@@ -75,6 +81,15 @@ void dbt_output_test_step(unsigned stage){
 }
 static bool hook_ready(unsigned stage){for(unsigned i=0;i<2000;++i){if(atomic_load_explicit(&hook_reached,memory_order_acquire)==stage)return true;Sleep(1);}return false;}
 static void release_helper(void){atomic_store(&hold_hook,0);SetEvent(hook_release);}
+static void decoder_wake_with_preemption(void *context){
+    external_wake(context);
+    if(current_task && current_task->core==0 && atomic_exchange(&hold_producer_wake,false)){
+        /* Model higher-priority decoder execution suspending this helper's
+         * continuation at the notification. Core1 must already be signaled. */
+        atomic_store_explicit(&producer_hold_reached,1,memory_order_release);
+        if(WaitForSingleObject(producer_release,3000)!=WAIT_OBJECT_0)atomic_fetch_add(&mock_errors,2);
+    }
+}
 static dbt_result_t ticket_result(uint32_t token){for(unsigned i=0;i<2000;++i){dbt_result_t r=probe_output_request_poll(token);if(r!=DBT_PENDING)return r;Sleep(1);}return DBT_PENDING;}
 static int start_stream(void){
     uint32_t token=0;CHECK(probe_output_stream_begin_primed(true,192000,2,DBT_PCM_S32_LE,false,0,&token)==DBT_PENDING);
@@ -91,7 +106,7 @@ static int lend_block(unsigned frames){
 static int stop_stream(void){uint32_t token=0;CHECK(probe_output_stream_begin(false,0,0,DBT_PCM_S16_LE,&token)==DBT_PENDING);CHECK(ticket_result(token)==DBT_OK);CHECK(!atomic_load(&live));return 0;}
 int main(void){
     main_id=GetCurrentThreadId();hook_release=CreateEventA(NULL,TRUE,FALSE,NULL);commit_release=CreateEventA(NULL,TRUE,FALSE,NULL);CHECK(hook_release && commit_release);
-    CHECK(probe_output_init(external_wake,&render_wakes)==DBT_OK);
+    CHECK(probe_output_init(decoder_wake_with_preemption,&render_wakes)==DBT_OK);
     probe_output_sound_wake(external_wake,&sound_progress_wakes);
 #ifdef DBT_PROBE_EARLY_INPUT_RELEASE
     input_release=CreateEventA(NULL,TRUE,FALSE,NULL);CHECK(input_release);
@@ -192,11 +207,28 @@ int main(void){
 #else
     CHECK(mock_tasks[1].priority==20 && mock_tasks[0].priority==20);
 #endif
+    /* No pending DMA window or EOF wakes exist in this fixture. Suspend the
+     * helper at its producer wake after DONE; the signaled owner must retire
+     * and close safely before this helper continuation resumes. */
+    producer_release=CreateEventA(NULL,TRUE,FALSE,NULL);CHECK(producer_release);
+    probe_output_dsp_assist_snapshot(&stats);unsigned jobs_before=stats.jobs;
+    CHECK(!start_stream() && !lend_block(512));allocations=atomic_load(&live);
+    atomic_store(&observe_completion_order,true);atomic_store(&hold_producer_wake,true);
+    release_helper();
+    for(unsigned i=0;i<2000 && !atomic_load_explicit(&producer_hold_reached,memory_order_acquire);++i)Sleep(1);
+    CHECK(atomic_load(&producer_hold_reached));
+    printf("owner completion signals before producer hold=%u\n",atomic_load(&owner_completion_signals));
+    CHECK(atomic_load(&owner_completion_signals)==1);
+    for(unsigned i=0;i<2000;++i){probe_output_dsp_assist_snapshot(&stats);if(stats.jobs==jobs_before+1u)break;Sleep(1);}
+    CHECK(stats.jobs==jobs_before+1u && !stats.state && !stats.failures && atomic_load(&live)==allocations);
+    CHECK(dbt_output_test_ready_pcm()==512 && !stop_stream());
+    atomic_store(&observe_completion_order,false);SetEvent(producer_release);
+    puts("PASS completion handoff: owner signaled before producer preemption, retires/closes during held helper continuation, no EOF needed");
     printf("main waits=%u blocking sends=%u mock errors=%u timed waits while held=%u\n",atomic_load(&main_waits),atomic_load(&blocking_sends),atomic_load(&mock_errors),atomic_load(&pending_timed_waits));
     CHECK(!atomic_load(&main_waits) && !atomic_load(&blocking_sends) && !atomic_load(&mock_errors) && !atomic_load(&pending_timed_waits));
     probe_output_restart_hold(true);CHECK(probe_output_restart_quiescent());
     atomic_store_explicit(&mock_shutdown,true,memory_order_release);
     for(unsigned i=0;i<2;++i){CHECK(mock_tasks[i].thread);SetEvent(mock_tasks[i].event);CHECK(WaitForSingleObject(mock_tasks[i].thread,2000)==WAIT_OBJECT_0);CloseHandle(mock_tasks[i].thread);CloseHandle(mock_tasks[i].event);}
-    CloseHandle(hook_release);CloseHandle(commit_release);
+    CloseHandle(hook_release);CloseHandle(commit_release);CloseHandle(producer_release);
     puts("PASS actual DSP-assisted output: held worker/queued stop/cancel, no early free, no timed pending polling, four-block/single-block leases, worker PCM published before DONE, decoder admission, single completion, both mocked cores, quiescent restart");return 0;
 }

@@ -47,3 +47,5 @@ Switching to LDAC96k/stereo with32-bit phone input and its optimized-quality rad
 [Structured results](ASSIST_DMA_REFILL_RESULTS_2026_11_06.json) bind the normal image and each scoped observation.
 
 Active LHDC baseline and both candidates each report60704 codec-resident bytes,19604 free internal heap,18432 largest block and5960 decoder stack low-water bytes in the sampled record. These are finite snapshots, not leak/stress qualification. The LDAC active sample reports28196 resident bytes,68524 free and57344 largest block. Detailed heap/stack samples are retained beside each trace.
+
+The later [completion wake-order correction](ASSIST_COMPLETION_WAKE_2026_11_06.md) signals the owner before notifying the higher-priority producer after DONE. It preserves this BUSY-helper refill path and all descriptor ownership limits.

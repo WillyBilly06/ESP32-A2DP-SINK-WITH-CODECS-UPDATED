@@ -1183,11 +1183,12 @@ static dbt_result_t dsp_assist_commit(void *context,const dbt_audio_render_job_t
 static bool dsp_assist_work(void){
   if((unsigned)xPortGetCoreID()!=0u)return false;
   if(!dbt_dsp_job_work_commit(&assist.lane,(dbt_dsp_job_clock_t){NULL,assist_cycles,assist_time_us},dsp_assist_commit,NULL))return false;
-  /* PCM/input publications precede DONE. Wake the producer immediately;
-   * it must not wait for a busy Core1 merely to observe available space. */
-  notify_pcm_progress();
+  /* Both wakeups follow DONE and require no owner acknowledgement. Signal
+   * Core1 before waking the higher-priority Core0 producer, which can preempt
+   * this helper before its next statement. No borrowed span is touched here. */
   TaskHandle_t owner=atomic_load_explicit(&output.task,memory_order_acquire);
   if(owner)xTaskNotifyGive(owner);
+  notify_pcm_progress();
   return true;
 }
 /* Return1 for a completed bounded transaction, -1 while borrowed, 0 idle.

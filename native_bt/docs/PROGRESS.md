@@ -1,5 +1,17 @@
 # Current project progress
 
+Latest: [post-DONE completion wake order](ASSIST_COMPLETION_WAKE_2026_11_06.md).
+The helper now signals Core1 before its higher-priority Core0 producer can
+preempt it. No owner ACK or new wait is introduced. The actual two-core model
+reproduces the old missing signal, then retires/closes during held helper
+continuation with ASan/UBSan; ordinary and fair/early/rebalanced modes pass.
+Normal COM6 a9427d8cafde passes both readbacks/owned boot/37 cold codec cases,
+adds16 flash bytes/no RAM and keeps priorities/buffers/features unchanged.
+LHDC192/fixed900 has206848/179968 unfilled versus232192 in a fresh baseline;
+short/history/segment limits prevent a throughput claim. LDAC96/observed990k
+delivers1451264 source frames with zero shortages. Full master qualification remains open.
+The following entries are historical.
+
 Latest: [DMA refill during borrowed DSP work](ASSIST_DMA_REFILL_2026_11_06.md).
 The owner no longer skips descriptor recovery solely because the helper is BUSY.
 Only release-published PCM is consumed; DSP/control/lifecycle remains borrowed.
