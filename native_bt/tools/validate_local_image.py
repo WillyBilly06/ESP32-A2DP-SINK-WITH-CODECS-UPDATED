@@ -399,7 +399,7 @@ assert image.min_rev_full<=301<=image.max_rev_full
 dsp_assist=build_status.get('dsp_assist',False)
 dsp_assist_blocks=build_status.get('dsp_assist_blocks',4)
 assert type(dsp_assist) is bool and ('DBT_PROBE_DSP_ASSIST:BOOL=ON' in cache)==dsp_assist, 'DSP helper receipt/cache mismatch'
-assert type(dsp_assist_blocks) is int and dsp_assist_blocks in (4,5), 'DSP helper batch must be4 or5'
+assert type(dsp_assist_blocks) is int and dsp_assist_blocks in (4,5,6), 'DSP helper batch must be4,5 or6'
 assert re.findall(r'^DBT_PROBE_DSP_ASSIST_BLOCKS:STRING=(\S+)\r?$',cache,re.M)==[str(dsp_assist_blocks)], 'DSP helper batch receipt/cache mismatch'
 assert dsp_assist or dsp_assist_blocks==4, 'Nondefault batch requires DSP helper'
 for unit in (entry_name,'probe_output.c','probe_audio.c'):

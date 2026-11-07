@@ -1,6 +1,6 @@
 """Run actual DSP-assisted output lifecycle against two mocked FreeRTOS cores. No hardware."""
 import argparse,hashlib,json,os,pathlib,shutil,subprocess
-parser=argparse.ArgumentParser();parser.add_argument("--fair-share",action="store_true");parser.add_argument("--early-input",action="store_true");parser.add_argument("--rebalance",action="store_true");parser.add_argument("--assist-blocks",type=int,choices=(4,5),default=4);options=parser.parse_args()
+parser=argparse.ArgumentParser();parser.add_argument("--fair-share",action="store_true");parser.add_argument("--early-input",action="store_true");parser.add_argument("--rebalance",action="store_true");parser.add_argument("--assist-blocks",type=int,choices=(4,5,6),default=4);options=parser.parse_args()
 if options.rebalance and not options.early_input:parser.error("rebalance requires early input")
 ROOT=pathlib.Path(__file__).resolve().parents[1];WS=ROOT.parent;OUT=ROOT/'_build/dsp_assist_output';OUT.mkdir(exist_ok=True)
 (OUT/'results.json').write_text(json.dumps({'passed':False,'state':'building','hardware_accessed':False})+'\n')

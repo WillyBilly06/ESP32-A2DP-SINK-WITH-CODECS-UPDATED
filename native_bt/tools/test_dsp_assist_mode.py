@@ -8,8 +8,8 @@ guard.write_text((ROOT/'esp32_probe/CMakeLists.txt').read_text().split('set(COMP
 deps=['STAY_NATIVE','CODEC_AWARE_RENDER','ASYNC_AUDIO','PCM_COPIED','BLOCK_DSP','UNITY_PCM_COPY']
 base={k:'ON' for k in deps+['DSP_ASSIST','LHDC_BUILD','KEEP_OWNED_ACTIVE','PRODUCT_IO','PRODUCT_SECURITY','AUDIO_TEST','AUDIO_OUTPUT','SBC_BUILD','CLASSIC_SECURITY_TEST','SMP','GATT_TEST','AVRCP']}
 base|={'DECODER_PRIORITY':'21','DSP_ASSIST_BLOCKS':'5'}
-cmake_cases=[({},True),({'DSP_ASSIST_BLOCKS':'4'},True),({'DSP_ASSIST':'OFF','DSP_ASSIST_BLOCKS':'4'},True),({'DSP_ASSIST':'OFF'},False)]
-cmake_cases += [({'DSP_ASSIST_BLOCKS':v},False) for v in ['0','2','3','6','50','4;5','5.0']]
+cmake_cases=[({},True),({'DSP_ASSIST_BLOCKS':'6'},True),({'DSP_ASSIST_BLOCKS':'4'},True),({'DSP_ASSIST':'OFF','DSP_ASSIST_BLOCKS':'4'},True),({'DSP_ASSIST':'OFF'},False)]
+cmake_cases += [({'DSP_ASSIST_BLOCKS':v},False) for v in ['0','2','3','7','50','4;5','5.0']]
 cmake_cases += [({k:'OFF'},False) for k in deps+['LHDC_BUILD']]
 cmake_cases += [({'LHDC_CORE0_RENDER':'ON'},False),({'APTX_SNAPSHOT':'ON'},False)]
 for changes,valid in cmake_cases:
@@ -35,9 +35,10 @@ def check(changes,valid):
     image_count+=1
 check({},True)
 check({'build_status':status|{'dsp_assist_blocks':4},'cache':cache.replace('STRING=5','STRING=4'),'commands':[e|{'command':macro.replace('BLOCKS=5','BLOCKS=4')} for e in commands]},True)
+check({'build_status':status|{'dsp_assist_blocks':6},'cache':cache.replace('STRING=5','STRING=6'),'commands':[e|{'command':macro.replace('BLOCKS=5','BLOCKS=6')} for e in commands]},True)
 off={'build_status':{'dsp_assist':False,'dsp_assist_blocks':4},'cache':'DBT_PROBE_DSP_ASSIST_BLOCKS:STRING=4','commands':[{'file':n,'command':'cc'} for n in units]}
 check(off,True)
-for bad in [True,False,'5',5.0,0,2,3,6]:check({'build_status':status|{'dsp_assist_blocks':bad}},False)
+for bad in [True,False,'5','6',5.0,6.0,0,2,3,7]:check({'build_status':status|{'dsp_assist_blocks':bad}},False)
 check({'build_status':status|{'dsp_assist':1}},False)
 check({'cache':cache.replace('STRING=5','STRING=4')},False)
 check({'cache':cache.replace('DBT_PROBE_DSP_ASSIST:BOOL=ON','')},False)
@@ -56,14 +57,14 @@ check(off|{'commands':commands},False)
 fake=OUT/'header.c';fake.write_text('#include "probe_output.h"\nint main(void){return 0;}\n')
 cc=r'C:/Program Files/LLVM/bin/clang.exe'
 includes=[ROOT/'tests/codecs/probe_audio_stubs',ROOT/'include',ROOT/'esp32_probe/main',ROOT.parent/'bt_audio_sink/main/dsp']
-header_cases=[([],True),(['-DDBT_PROBE_DSP_ASSIST=1'],True),(['-DDBT_PROBE_DSP_ASSIST=1','-DDBT_PROBE_DSP_ASSIST_BLOCKS=4'],True),(['-DDBT_PROBE_DSP_ASSIST=1','-DDBT_PROBE_DSP_ASSIST_BLOCKS=5'],True),(['-DDBT_PROBE_DSP_ASSIST_BLOCKS=5'],False)]
-header_cases += [(['-DDBT_PROBE_DSP_ASSIST=1','-DDBT_PROBE_DSP_ASSIST_BLOCKS='+str(v)],False) for v in [0,2,3,6]]
+header_cases=[([],True),(['-DDBT_PROBE_DSP_ASSIST=1'],True),(['-DDBT_PROBE_DSP_ASSIST=1','-DDBT_PROBE_DSP_ASSIST_BLOCKS=4'],True),(['-DDBT_PROBE_DSP_ASSIST=1','-DDBT_PROBE_DSP_ASSIST_BLOCKS=5'],True),(['-DDBT_PROBE_DSP_ASSIST=1','-DDBT_PROBE_DSP_ASSIST_BLOCKS=6'],True),(['-DDBT_PROBE_DSP_ASSIST_BLOCKS=5'],False)]
+header_cases += [(['-DDBT_PROBE_DSP_ASSIST=1','-DDBT_PROBE_DSP_ASSIST_BLOCKS='+str(v)],False) for v in [0,2,3,7]]
 for defines,valid in header_cases:
     result=subprocess.run([cc,'-std=c11','-Werror','-fsyntax-only',*['-I'+str(p) for p in includes],*defines,str(fake)],capture_output=True,text=True)
     assert (result.returncode==0)==valid,result.stdout+result.stderr
 cli_count=0
 if sys.platform=='win32':
-    for value,needle in [('5','Nondefault DSP batch requires'),('6','DspAssistBlocks')]:
+    for value,needle in [('5','Nondefault DSP batch requires'),('6','Nondefault DSP batch requires'),('7','DspAssistBlocks')]:
         result=subprocess.run(['powershell','-NoProfile','-ExecutionPolicy','Bypass','-File',str(ROOT/'tools/build_probe.ps1'),'-DspAssistBlocks',value],capture_output=True,text=True)
         assert result.returncode and needle in result.stderr,result.stdout+result.stderr
         cli_count+=1

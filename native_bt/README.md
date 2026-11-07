@@ -50,9 +50,17 @@ one live HD decoder call, its copied input, and an independent DSP/final block
 against desktop replay. It also records a 440-frame payload versus 336-tick RTP
 discrepancy. It is not a causal diagnosis of that sound report; capture is off by default.
 
+[Six-block DSP development selection](docs/ASSIST_SIX_BLOCKS_2026_11_07.md)
+retains an explicit 768-frame cap with unchanged memory, arithmetic and priorities.
+Fresh LHDC192/fixed900 unfilled totals are116608 with five blocks and
+107648/74368/72320 with six; continuity still fails. COM6 imagef2637213bb69
+passes full readbacks/owned boot/37 existing cold cases. LDAC96 has1451264
+source frames and zero shortages. Default4 remains; the retained build explicitly
+uses `-DspAssistBlocks 6`. Full maximum-rate/coexistence/feature gates stay open.
+
 [Pre-decoder RTP clock telemetry](docs/RTP_INPUT_CLOCK_2026_11_07.md) now records
 an exact consecutive-sequence timestamp pair before queue admission/decode, with
-a coherent one-attempt snapshot and sparse host-writer events. COM6 image7fbb6ccc5146
+a coherent one-attempt snapshot and sparse host-writer events. Previous image7fbb6ccc5146
 passes full readbacks/37 cold cases; diagnostic cost is24 static bytes. LHDC
 sequence717->718 has27840 RTP ticks instead of960, an extra140ms already at input.
 No local packet/decode rejection occurs, but LHDC still has122880 unfilled frames.
@@ -61,7 +69,7 @@ Native phone queue dumps were unavailable; no cause or controller-policy fix is 
 
 [Five-block DSP development selection](docs/ASSIST_FIVE_BLOCKS_2026_11_07.md)
 uses an explicit640-frame cap without adding RAM or changing precision/priority.
-The default remains4 blocks; the retained build explicitly adds `-DspAssistBlocks 5`.
+This previous selection used `-DspAssistBlocks 5`; the later six-block record above supersedes it.
 Actual sanitizer/lifecycle and82 admission checks pass. Previous image041f25beb2ef
 passes guarded readbacks/37 cold cases. LHDC192/fixed900 unfilled199296 ->
 124672/108800 in repeated short segments, with zero descriptor/contract errors.

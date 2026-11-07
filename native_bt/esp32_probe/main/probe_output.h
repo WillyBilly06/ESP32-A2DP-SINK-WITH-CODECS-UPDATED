@@ -7,8 +7,8 @@
 #ifndef DBT_PROBE_DSP_ASSIST_BLOCKS
 #define DBT_PROBE_DSP_ASSIST_BLOCKS 4
 #endif
-#if DBT_PROBE_DSP_ASSIST_BLOCKS != 4 && DBT_PROBE_DSP_ASSIST_BLOCKS != 5
-#error DSP batch must be4 or5 canonical blocks
+#if DBT_PROBE_DSP_ASSIST_BLOCKS != 4 && DBT_PROBE_DSP_ASSIST_BLOCKS != 5 && DBT_PROBE_DSP_ASSIST_BLOCKS != 6
+#error DSP batch must be4,5 or6 canonical blocks
 #endif
 #elif defined(DBT_PROBE_DSP_ASSIST_BLOCKS)
 #error DSP batch override requires DSP assistance

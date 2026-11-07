@@ -1,5 +1,17 @@
 # Current project progress
 
+Latest: [bounded six-block assistance](ASSIST_SIX_BLOCKS_2026_11_07.md).
+The retained explicit cap is768 frames; default4, admission values4/5/6.
+Actual21 CMake/54 image/10 header/3 CLI checks and sanitizer-backed two-core
+lifecycle/cap cases pass, with no new boot cases. COM6 f2637213bb69 passes full
+readbacks/owned VALID boot/37 existing cold codec cases with zero ELF-size delta.
+Fresh LHDC192/24/fixed900 unfilled116608 ->107648/74368/72320; short-segment
+variation prevents a throughput/headroom guarantee and continuity still fails.
+First shortages retain raw PCM with empty output, while pre-decoder clock jumps
+also persist. LDAC96/observed990k delivers1451264 frames with zero shortages.
+Phone paused, raw UART listening; full1000k/coexistence/acoustic/parity gates open.
+The following entries are historical.
+
 Latest: [pre-decoder input clock origin](RTP_INPUT_CLOCK_2026_11_07.md).
 The generic worker observes maximum forward RTP steps for consecutive wire
 sequences/same SSRC before queue admission/decode. It adds24 static bytes, no
