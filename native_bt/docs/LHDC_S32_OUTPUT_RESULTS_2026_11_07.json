@@ -1,0 +1,333 @@
+{
+  "image": "173206502d7a72c9f879b80a715046b998d98315de3fea80535aded262d3fa64",
+  "archive": "D:/bt-owned61/native_bt/_build/hardware/runs/1794065469275878200-173206502d7a",
+  "readback_matches": true,
+  "cold37": {
+    "probe": "target_codec_selftest",
+    "passed": true,
+    "configurations": 37,
+    "selected": 37,
+    "callbacks": 173,
+    "stack_bytes": 8192,
+    "stack_low_water_bytes": 3456,
+    "tracked_peak_bytes": 56899,
+    "min_free_after_alloc_bytes": 102996,
+    "maximum_decode_us": 13016,
+    "rf_test": false
+  },
+  "baseline": {
+    "image": "8ecd27c50ec85e4780af82b977d279796b98d691be1bd32b36036b37aa30d7f7",
+    "decoder_us": 2403.7248322147652,
+    "output_tail_us": 379.60882457386367
+  },
+  "runs": [
+    {
+      "units": 2798,
+      "decoder_us": 2167.9578270192997,
+      "frame_calls": 2784,
+      "frame_stages": [
+        {
+          "name": "prepare",
+          "mean_us": 11.12765954262452
+        },
+        {
+          "name": "channel_envelope",
+          "mean_us": 1813.1346294300768
+        },
+        {
+          "name": "scale_scan",
+          "mean_us": 199.38600484913792
+        },
+        {
+          "name": "output_tail",
+          "mean_us": 129.94227430555554
+        }
+      ],
+      "configuration": {
+        "probe": "codec_configuration",
+        "collection_cycle_us": 147054546,
+        "revision": 1,
+        "codec": 9,
+        "rate": 192000,
+        "channels": 2,
+        "pcm_container_bytes": 4,
+        "cie_size": 13,
+        "cie_hex": "00ff3a050000354c0102110000",
+        "snapshot_begin_us": 149235491,
+        "at_us": 149235535,
+        "snapshot_span_us": 44,
+        "record_crc32": "a205b4fa"
+      },
+      "media": {
+        "probe": "media_input",
+        "collection_cycle_us": 165885553,
+        "stream_epoch": 5,
+        "packets": 2799,
+        "payload_bytes": 1584234,
+        "rtp_first_timestamp": 0,
+        "rtp_last_timestamp": 2686080,
+        "rate": 192000,
+        "timestamp_origin": "wire_rtp",
+        "snapshot_begin_us": 167197537,
+        "at_us": 167197552,
+        "snapshot_span_us": 15,
+        "record_crc32": "c5282194"
+      },
+      "refill": {
+        "probe": "i2s_refill_window",
+        "collection_cycle_us": 165885553,
+        "period_us": 666,
+        "initial_shortage_frames": 32320,
+        "recovered_frames": 17216,
+        "recovered_copies": 136,
+        "unfilled_frames": 15104,
+        "canceled_frames": 0,
+        "copy_max_us": 4,
+        "mask_max_us": 7,
+        "contract_errors": 0,
+        "pending_index": 4294967295,
+        "guard_us": 64,
+        "copy_budget_us": 32,
+        "closes_at_next_eof": true,
+        "snapshot_begin_us": 167380276,
+        "at_us": 167688338,
+        "snapshot_span_us": 308062,
+        "record_crc32": "c87c09ba"
+      },
+      "quality": {
+        "probe": "lhdc_frame_quality",
+        "collection_cycle_us": 165885553,
+        "revision": 5596,
+        "peak_concealed": 0,
+        "nonfinite_frames": 0,
+        "clipped_frames": 12,
+        "clipped_samples": 42,
+        "last_event_attempt": 2205,
+        "last_event_peak_f32_bits": "4f0006bf",
+        "last_event_flags": 72,
+        "snapshot_begin_us": 166460419,
+        "at_us": 166460426,
+        "snapshot_span_us": 7,
+        "record_crc32": "e9bf14ad"
+      },
+      "first_starvation": {
+        "probe": "first_starvation",
+        "stream_serial": 1,
+        "captured": true,
+        "coherent": true,
+        "event_us": 148045316,
+        "taken_frames": 0,
+        "input_frames": 1280,
+        "output_frames": 0,
+        "accepted_frames": 147840,
+        "rendered_frames": 146432,
+        "dma_source_frames": 146176,
+        "snapshot_begin_us": 150968430,
+        "at_us": 150968437,
+        "snapshot_span_us": 7,
+        "record_crc32": "9874cae9"
+      },
+      "starvation_decoder": {
+        "probe": "starvation_decoder",
+        "stream_serial": 1,
+        "event_us": 148045316,
+        "coherent": true,
+        "phase": 7,
+        "phase_name": "wait_encoded_input",
+        "phase_since_us": 148044894,
+        "encoded_queued_at_phase_change": 0,
+        "snapshot_begin_us": 151043005,
+        "at_us": 151043017,
+        "snapshot_span_us": 12,
+        "record_crc32": "0b9bad7a"
+      },
+      "starvation_renderer": {
+        "probe": "starvation_renderer",
+        "stream_serial": 1,
+        "event_us": 148045316,
+        "coherent": true,
+        "inside_audio_render": true,
+        "phase_since_us": 148044822,
+        "dsp_assist_state_at_gap": 0,
+        "snapshot_begin_us": 151075565,
+        "at_us": 151075574,
+        "snapshot_span_us": 9,
+        "record_crc32": "d73c6533"
+      },
+      "volume_before": "[V] will control stream=3 (STREAM_MUSIC)\r\n[V] will get volume\r\n[V] Connecting to AudioService\r\n[V] volume is 90 in range [0..150]\r\n",
+      "volume_test": "[V] will control stream=3 (STREAM_MUSIC)\r\n[V] will get volume\r\n[V] Connecting to AudioService\r\n[V] volume is 150 in range [0..150]\r\n",
+      "automatic_restore": "[V] will control stream=3 (STREAM_MUSIC)\r\n[V] will get volume\r\n[V] Connecting to AudioService\r\n[V] volume is 90 in range [0..150]\r\n"
+    },
+    {
+      "units": 2819,
+      "decoder_us": 2168.6495211067754,
+      "frame_calls": 2816,
+      "frame_stages": [
+        {
+          "name": "prepare",
+          "mean_us": 10.924596058238636
+        },
+        {
+          "name": "channel_envelope",
+          "mean_us": 1811.7181685014205
+        },
+        {
+          "name": "scale_scan",
+          "mean_us": 199.88747336647728
+        },
+        {
+          "name": "output_tail",
+          "mean_us": 129.72461085464016
+        }
+      ],
+      "configuration": {
+        "probe": "codec_configuration",
+        "collection_cycle_us": 513919497,
+        "revision": 3,
+        "codec": 9,
+        "rate": 192000,
+        "channels": 2,
+        "pcm_container_bytes": 4,
+        "cie_size": 13,
+        "cie_hex": "00ff3a050000354c0102110000",
+        "snapshot_begin_us": 516469001,
+        "at_us": 516469040,
+        "snapshot_span_us": 39,
+        "record_crc32": "d727bb67"
+      },
+      "media": {
+        "probe": "media_input",
+        "collection_cycle_us": 533129499,
+        "stream_epoch": 9,
+        "packets": 2819,
+        "payload_bytes": 1595554,
+        "rtp_first_timestamp": 5411520,
+        "rtp_last_timestamp": 8116800,
+        "rate": 192000,
+        "timestamp_origin": "wire_rtp",
+        "snapshot_begin_us": 534442037,
+        "at_us": 534442053,
+        "snapshot_span_us": 16,
+        "record_crc32": "3826e9c7"
+      },
+      "refill": {
+        "probe": "i2s_refill_window",
+        "collection_cycle_us": 530079501,
+        "period_us": 666,
+        "initial_shortage_frames": 23104,
+        "recovered_frames": 10048,
+        "recovered_copies": 79,
+        "unfilled_frames": 13056,
+        "canceled_frames": 0,
+        "copy_max_us": 4,
+        "mask_max_us": 7,
+        "contract_errors": 0,
+        "pending_index": 4294967295,
+        "guard_us": 64,
+        "copy_budget_us": 32,
+        "closes_at_next_eof": true,
+        "snapshot_begin_us": 531673624,
+        "at_us": 531991022,
+        "snapshot_span_us": 317398,
+        "record_crc32": "a83ed349"
+      },
+      "quality": {
+        "probe": "lhdc_frame_quality",
+        "collection_cycle_us": 533129499,
+        "revision": 16846,
+        "peak_concealed": 0,
+        "nonfinite_frames": 0,
+        "clipped_frames": 26,
+        "clipped_samples": 76,
+        "last_event_attempt": 7767,
+        "last_event_peak_f32_bits": "4f0003e0",
+        "last_event_flags": 72,
+        "snapshot_begin_us": 533704116,
+        "at_us": 533704123,
+        "snapshot_span_us": 7,
+        "record_crc32": "9a3067b1"
+      },
+      "first_starvation": {
+        "probe": "first_starvation",
+        "stream_serial": 3,
+        "captured": true,
+        "coherent": true,
+        "event_us": 515017453,
+        "taken_frames": 0,
+        "input_frames": 1920,
+        "output_frames": 0,
+        "accepted_frames": 78976,
+        "rendered_frames": 77056,
+        "dma_source_frames": 76800,
+        "snapshot_begin_us": 517964734,
+        "at_us": 517964741,
+        "snapshot_span_us": 7,
+        "record_crc32": "07b69c55"
+      },
+      "starvation_decoder": {
+        "probe": "starvation_decoder",
+        "stream_serial": 3,
+        "event_us": 515017453,
+        "coherent": true,
+        "phase": 4,
+        "phase_name": "wait_pcm_space",
+        "phase_since_us": 515016912,
+        "encoded_queued_at_phase_change": 5,
+        "snapshot_begin_us": 518221561,
+        "at_us": 518221574,
+        "snapshot_span_us": 13,
+        "record_crc32": "a121d343"
+      },
+      "starvation_renderer": {
+        "probe": "starvation_renderer",
+        "stream_serial": 3,
+        "event_us": 515017453,
+        "coherent": true,
+        "inside_audio_render": false,
+        "phase_since_us": 515017395,
+        "dsp_assist_state_at_gap": 2,
+        "snapshot_begin_us": 518287714,
+        "at_us": 518287722,
+        "snapshot_span_us": 8,
+        "record_crc32": "0616a61f"
+      },
+      "volume_before": "[V] will control stream=3 (STREAM_MUSIC)\r\n[V] will get volume\r\n[V] Connecting to AudioService\r\n[V] volume is 90 in range [0..150]\r\n",
+      "volume_test": "[V] will control stream=3 (STREAM_MUSIC)\r\n[V] will get volume\r\n[V] Connecting to AudioService\r\n[V] volume is 150 in range [0..150]\r\n",
+      "automatic_restore": "[V] will control stream=3 (STREAM_MUSIC)\r\n[V] will get volume\r\n[V] Connecting to AudioService\r\n[V] volume is 60 in range [0..150]\r\n"
+    }
+  ],
+  "mean_decoder_us": 2168.3036740630378,
+  "decoder_elapsed_reduction_percent": 9.794014481050771,
+  "mean_output_tail_us": 129.83344258009785,
+  "output_tail_reduction_percent": 65.79809683669905,
+  "scope": "two finite native YouTube192k/S24/fixed900 max-volume traces; profiling/preemption/startup/drain apply; not1Mbps or whole-feature qualification",
+  "exhaustive_binary32": 4294967296,
+  "frame_equivalence_cases": 12000,
+  "independent_pcm_cases": 48,
+  "codec_regression_cases": 80,
+  "code_sram_delta": 140,
+  "data_delta": 0,
+  "bss_delta": 0,
+  "volume_restore_correction": {
+    "target": 90,
+    "steps": [
+      {
+        "value": 70,
+        "output": ""
+      },
+      {
+        "value": 80,
+        "output": ""
+      },
+      {
+        "value": 90,
+        "output": ""
+      }
+    ],
+    "final": {
+      "value": 90,
+      "text": "[V] will control stream=3 (STREAM_MUSIC)\r\n[V] will get volume\r\n[V] Connecting to AudioService\r\n[V] volume is 90 in range [0..150]\r\n"
+    }
+  },
+  "full_goal_qualified": false
+}

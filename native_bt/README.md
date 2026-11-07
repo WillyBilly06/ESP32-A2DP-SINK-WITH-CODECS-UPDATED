@@ -1,5 +1,9 @@
 # Independent ESP32 Bluetooth host
 
+The [S32 output specialization](docs/LHDC_S32_OUTPUT_2026_11_07.md) preserves PCM
+and reduces measured LHDC192k/S24/fixed900 decode time about9.8% in two short
+YouTube runs. Remaining refill shortages and full-feature qualification are open.
+
 The [LHDC entropy candidate](docs/LHDC_MODEL_TRAFFIC_2026_11_07.md) preserves
 complete model/history and PCM in host checks. It is flashed for finite checks,
 but measured decoder time remains within baseline variation; no speed or

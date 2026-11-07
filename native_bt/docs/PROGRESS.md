@@ -1,3 +1,15 @@
+## 2026-11-07 — measured S32 decoder output improvement
+
+173206502d7a passes guarded readback and37 cold cases. At actual192k/S24/fixed900,
+two native YouTube traces repeat about9.8% lower whole-decoder elapsed time
+(2.40ms to2.17ms/unit) and65.8% lower output/tail cost (380us to130us).
+Exhaustive binary32 conversion,12000 frame state cases,48 independent full-PCM
+cases and80 codec regressions pass. New cost:140B IRAM, no data/BSS/buffers/tasks.
+Refill shortages remain: decoded input exists while processed output is empty;
+next inspect DSP assistance/scheduling and controlled volume workloads. No1Mbps,
+coexistence, acoustic or production qualification claimed. See
+[S32 output evidence](LHDC_S32_OUTPUT_2026_11_07.md).
+
 ## 2026-11-07 — measured live LHDC stages
 
 The FAC batching candidate preserved PCM but did not speed up the measured
