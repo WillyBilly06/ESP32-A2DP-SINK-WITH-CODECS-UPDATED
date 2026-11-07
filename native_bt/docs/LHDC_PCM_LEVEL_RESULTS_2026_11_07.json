@@ -1,0 +1,33 @@
+{
+  "passed": true,
+  "scope": "host generated encoder tone through actual native worker with target selector/math; no RF, target timing or acoustics",
+  "cases": 48,
+  "codec_units": 4608,
+  "independent_reference_pcm_equal": true,
+  "gain_db_min": -0.0036860055932657508,
+  "gain_db_max": 0.0004092906179279489,
+  "clipped_frames": 0,
+  "concealed_frames": 0,
+  "baseline_192k_s24_quiet_gain_db": [
+    1.3507056109507691,
+    1.3505919607334647,
+    1.3505655453991774,
+    1.3505755686183665
+  ],
+  "baseline_192k_s24_95_percent_clipped_frames": [
+    96,
+    96
+  ],
+  "regression_passed": true,
+  "experiment": "D:/bt-owned61/native_bt/_build/experiments/lhdc-level-1794057006786",
+  "firmware_sha256": "8e85a4aa3eb5b0f089831624e93d4a6a5195488bf9e01fbd635e869d93c08c0b",
+  "firmware_flashed": false,
+  "full_goal_qualified": false,
+  "receipts_sha256": {
+    "host/levels.json": "c234553d3c0ce0706607be5be6e31574ac5d5f0db22efeae163ff7b13cbca008",
+    "current-source/levels.json": "77ec4a783f73fc93eb889e0329a65ec83faff8449c7dc1d41da89d9be9ab3e69",
+    "normalized-final/refreshed-points.json": "efdde6d903113e8379efacbfa8735f86661c18f271238283e01f9c9dfa2da2b1",
+    "firmware-build.log": "958e056388ac2faf5f0847741d74c628a9da040d8f26ba33e8392b100420ea6c",
+    "all-codecs-sanitized.log": "83bf40b864ed09b29c3566d2f7da33a3c1377375c294bd0f466eccce9a648e0b"
+  }
+}

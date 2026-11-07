@@ -315,6 +315,28 @@ extern void dbt_lhdc_stage_record(uint32_t,uint32_t,uint32_t,uint32_t,uint32_t,u
     cache_rate = sample_rate; cache_depth = bit_depth; cache_level = level;
 #endif
     return level;''')
+            # The former subjective per-rate/depth trims break value preservation:
+            # 192k/S24 adds +0.79 dB, and S16 removes 5.60 dB. Independent
+            # C99 encoder sweeps show the untrimmed reconstruction is 16/15
+            # across all four rates, two depths, and 400/1000 kbps. Cancel that
+            # transform normalization with the exactly representable 15/16.
+            # Apply it before the existing safety scan and PCM saturation; do
+            # not add frame-dependent gain, change overlap, or bypass concealment.
+            level_start=text.index('static float lhdc_dec_level_cal(uint32_t sample_rate, int bit_depth)')
+            level_end=text.index('\n/*',level_start)
+            legacy_level=text[level_start:level_end]
+            text=text[:level_start]+'''#if defined(DBT_LHDC_KEEP_LEGACY_LEVEL) && !defined(LHDC_HOST_BUILD)
+#error Legacy subjective LHDC level is host-comparison only
+#endif
+#if defined(DBT_LHDC_KEEP_LEGACY_LEVEL)
+'''+legacy_level+'''#else
+static float lhdc_dec_level_cal(uint32_t sample_rate, int bit_depth)
+{
+    (void)sample_rate; (void)bit_depth;
+    return 0.9375f; /* exact 15/16; inverse of the measured 16/15 transform gain */
+}
+#endif
+'''+text[level_end:]
             text=once(text,'#define LHDC_DEC_MALLOC(n) heap_caps_malloc((n), MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT)',
                       '#define LHDC_DEC_MALLOC(n) dbt_lhdc_mem_alloc(n)')
             text=once(text,'#define LHDC_DEC_FREE(p)   heap_caps_free(p)','#define LHDC_DEC_FREE(p)   dbt_lhdc_mem_free(p)')

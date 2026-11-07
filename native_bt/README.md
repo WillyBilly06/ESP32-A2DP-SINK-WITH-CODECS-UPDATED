@@ -1,5 +1,10 @@
 # Independent ESP32 Bluetooth host
 
+The [LHDC PCM-level investigation](docs/LHDC_PCM_LEVEL_2026_11_07.md) confirms
+and corrects a rate/depth gain mismatch before decoder saturation. Independent
+level/bitrate-transition checks and80 sanitized host codec cases pass; device
+max-volume auto-bitrate continuity remains unqualified.
+
 The local [diagnostics dashboard](docs/SERIAL_DASHBOARD_2026_11_05.md) provides
 background collection, separate pipeline-stage views, raw/JSON inspection,
 capture replay and export. `tools/start_serial_dashboard.ps1` prints its URL.

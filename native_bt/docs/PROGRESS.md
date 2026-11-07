@@ -1,3 +1,13 @@
+## 2026-11-07 — LHDC PCM level correction
+
+Independent known-input C99 encoder tests reproduce +1.35 dB excess gain at
+192k/S24 and clipping at95% peak. The owned port now normalizes by15/16 before
+PCM saturation. All48 rate/depth/level/bitrate-transition cases and80 sanitized
+real-codec deferred cases pass on the host. The current built8e85 image passes
+offline admission; it has not yet been flashed. This corrects amplitude and does
+not establish that the remaining I2S shortages are solved. See
+[LHDC PCM-level evidence](LHDC_PCM_LEVEL_2026_11_07.md).
+
 # Current project progress
 
 Latest source/off-board change: [terminal failure diagnostics](HOST_FAILURE_ASYNC_2026_11_07.md).

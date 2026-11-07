@@ -75,6 +75,7 @@ def main():
     ref.reference_frame.argtypes=[ptr,u,ptr,u,ctypes.POINTER(u),ctypes.POINTER(u)]
     def buf(data):return (u8*len(data)).from_buffer_copy(data)
     def control(op,cie=None):return native.worker_control(op,buf(cie) if cie else None,len(cie) if cie else 0)
+    os.environ['LHDC_LEVELDB']=str(20*math.log10(15/16))
     rows=[]
     for rate in (44100,48000,96000,192000):
         for depth in (16,24):

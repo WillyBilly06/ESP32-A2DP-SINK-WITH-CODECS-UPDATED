@@ -27,6 +27,9 @@ try:
         lib.dbt_lhdc_test_gain.argtypes=[ctypes.c_int,ctypes.c_int,ctypes.c_int,ctypes.c_uint32];lib.dbt_lhdc_test_gain.restype=ctypes.c_float
         lib.dbt_lhdc_test_level.argtypes=[ctypes.c_uint32,ctypes.c_int];lib.dbt_lhdc_test_level.restype=ctypes.c_float
         lib.dbt_lhdc_test_norm.argtypes=[ctypes.c_int];lib.dbt_lhdc_test_norm.restype=ctypes.c_float
+    # The unmodified reference exposes a host-only calibration override.
+    # Select exact 15/16 normalization; default native output has no env hook.
+    os.environ['LHDC_LEVELDB']=str(20*__import__('math').log10(15/16))
     same=lambda x,y:struct.pack('<f',x)==struct.pack('<f',y)
     comparisons=0
     for rate in (44100,48000,96000,192000):
