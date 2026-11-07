@@ -1,5 +1,6 @@
 #include "probe_schedule_limits.h"
 #include "probe_audio.h"
+#include "probe_audio_trace.h"
 #include <string.h>
 #include "probe_sdp.h"
 #ifdef DBT_PROBE_CONSOLE_IRQ
@@ -142,13 +143,8 @@ static _Atomic uint32_t l2cap_malformed_signaling,l2cap_unknown_responses,l2cap_
 static _Atomic uint32_t media_sdu_max,last_oversized_size,last_oversized_mtu,last_oversized_psm;
 /* Separate single-writer rings for host admission and decoder events. Logging
  * never waits on the producer; record loss is itself exposed every second. */
-#define TRACE_SLOTS 16u
-typedef struct {dbt_codec_trace_t event;uint32_t at_us,ordinal,codec;} media_trace_t;
-typedef struct {
-    media_trace_t items[TRACE_SLOTS];
-    _Atomic uint32_t written,read,lost;
-    uint32_t ordinal;
-} media_trace_ring_t;
+typedef probe_audio_trace_t media_trace_t;
+typedef probe_audio_trace_ring_t media_trace_ring_t;
 static media_trace_ring_t media_trace_rings[2];
 static _Atomic uint32_t rx_packets,rx_acl,rx_events,rx_bytes,rx_isr,rx_rejected,rx_pending_us;
 static _Atomic uint32_t rx_callback_max_us,first_rx_to_poll_max_us,host_poll_max_us;
@@ -276,17 +272,20 @@ static void timing_event(unsigned kind){
     while(bucket<7 && elapsed>bound){++bucket;bound*=2;}
     atomic_fetch_add(&phase->hist[bucket],1);
 }
+static uint32_t trace_clock(void *context){(void)context;return (uint32_t)esp_timer_get_time();}
+/* Host-owner only; this copies a diagnostic snapshot and never touches stdio.
+ * Full diagnostic storage is counted by host_trace_lost, not a protocol wait. */
+dbt_result_t probe_audio_host_record(const probe_host_record_t *record){
+    if(!initialized || !logger_task || xTaskGetCurrentTaskHandle()!=owner)return DBT_UNSUPPORTED;
+    return probe_audio_trace_host(&media_trace_rings[0],record,trace_clock,NULL);
+}
 static void media_trace(void *context,const dbt_codec_trace_t *event){
     (void)context;
     if(event->kind>=DBT_CODEC_DECODE_BEGIN && event->kind!=DBT_CODEC_INPUT_CLOCK_MAX){
         timing_event((unsigned)event->kind);return;
     }
     media_trace_ring_t *ring=&media_trace_rings[(event->kind<=DBT_CODEC_QUEUE_FULL || event->kind==DBT_CODEC_INPUT_CLOCK_MAX)?0:1];
-    uint32_t ordinal=++ring->ordinal;
-    uint32_t written=atomic_load_explicit(&ring->written,memory_order_relaxed);
-    if(written-atomic_load_explicit(&ring->read,memory_order_acquire)>=TRACE_SLOTS){atomic_fetch_add(&ring->lost,1);return;}
-    ring->items[written%TRACE_SLOTS]=(media_trace_t){*event,(uint32_t)esp_timer_get_time(),ordinal,atomic_load_explicit(&pcm_codec,memory_order_relaxed)};
-    atomic_store_explicit(&ring->written,written+1u,memory_order_release);
+    (void)probe_audio_trace_media(ring,event,atomic_load_explicit(&pcm_codec,memory_order_relaxed),trace_clock,NULL);
 }
 #if defined(DBT_PROBE_SCHEDULER_TRACE) && defined(DBT_PROBE_AUDIO_OUTPUT)
 static void log_first_starvation(void){
@@ -316,10 +315,18 @@ static void log_first_starvation(void){
 #endif
 static void log_media_trace(void){
     for(unsigned i=0;i<2;++i)for(unsigned budget=0;budget<2;++budget){
-        media_trace_ring_t *ring=&media_trace_rings[i];uint32_t read=atomic_load(&ring->read);
-        if(read==atomic_load_explicit(&ring->written,memory_order_acquire))break;
-        media_trace_t record=ring->items[read%TRACE_SLOTS];
-        atomic_store_explicit(&ring->read,read+1u,memory_order_release);
+        media_trace_t record;if(!probe_audio_trace_pop(&media_trace_rings[i],&record))break;
+        if(record.codec==PROBE_AUDIO_TRACE_HOST){
+            const probe_host_record_t *state=&record.host;
+            if(state->kind==PROBE_HOST_CLASSIC_VISIBILITY){
+                PROBE_SNAPSHOT_LOG("{\"probe\":\"classic_visibility\",\"completed_scan\":%" PRIu32 ",\"requested_scan\":%" PRIu32 ",\"command_pending\":%s,\"pairing_open\":%s,\"pairing_origin\":%" PRIu32 ",\"event_us\":%" PRIu32 ",\"host_log_ordinal\":%" PRIu32 "}\n",
+                    state->value[0],state->value[1],state->value[2]?"true":"false",state->value[3]?"true":"false",state->value[4],record.at_us,record.ordinal);
+            }else if(state->kind==PROBE_HOST_GAP_STATE){
+                PROBE_SNAPSHOT_LOG("{\"probe\":\"gap_state\",\"state\":%" PRIu32 ",\"controller_status\":%" PRIu32 ",\"profiles_ready\":false,\"advertising\":%s,\"classic_scan\":%" PRIu32 ",\"event_us\":%" PRIu32 ",\"host_log_ordinal\":%" PRIu32 "}\n",
+                    state->value[0],state->value[1],state->value[2]?"true":"false",state->value[3],record.at_us,record.ordinal);
+            }else atomic_fetch_add_explicit(&snapshot_format_lost,1,memory_order_relaxed);
+            continue;
+        }
         const dbt_codec_trace_t *e=&record.event;
         printf("{\"probe\":\"media_trace\",\"at_us\":%" PRIu32 ",\"stage\":\"%s\",\"ordinal\":%" PRIu32
                ",\"sequence\":%u,\"expected\":%u,\"rtp_timestamp\":%" PRIu32 ",\"ssrc\":%" PRIu32
@@ -934,7 +941,7 @@ static void log_loop(void *unused){
         PROBE_SNAPSHOT_LOG("{\"probe\":\"media_drop_reasons\",\"collection_cycle_us\":%" PRIu32 ",\"queue_full\":%" PRIu32 ",\"decode_reject\":%" PRIu32
                ",\"reset_failed\":%" PRIu32 ",\"pcm_failed\":%" PRIu32 ",\"pcm_timeout\":%" PRIu32 ",\"pcm_busy\":%" PRIu32
                ",\"input_sequence_breaks\":%" PRIu32 ",\"input_ssrc_changes\":%" PRIu32 ",\"queue_high_water\":%" PRIu32
-               ",\"host_trace_lost\":%" PRIu32 ",\"worker_trace_lost\":%" PRIu32 ",\"snapshot_records_lost\":%" PRIu32 ",\"snapshot_uart_lost\":%" PRIu32 "}\n",at,
+               ",\"host_trace_scope\":\"media_and_host_state\",\"host_trace_lost\":%" PRIu32 ",\"worker_trace_lost\":%" PRIu32 ",\"snapshot_records_lost\":%" PRIu32 ",\"snapshot_uart_lost\":%" PRIu32 "}\n",at,
                atomic_load(&worker.queue_full_drops),atomic_load(&worker.decode_rejects),atomic_load(&worker.reset_failures),
                atomic_load(&worker.pcm_failures),atomic_load(&worker.pcm_timeouts),atomic_load(&worker.pcm_backpressure),
                atomic_load(&worker.input_sequence_breaks),atomic_load(&worker.input_ssrc_changes),atomic_load(&worker.queue_high_water),

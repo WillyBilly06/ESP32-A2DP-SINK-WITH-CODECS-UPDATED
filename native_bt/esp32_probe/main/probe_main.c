@@ -1017,6 +1017,10 @@ void app_main(void) {
            reported_pairing_open!=discoverable || reported_scan_pending!=gap.classic_pending)){
             reported_scan=gap.classic_scan;reported_wanted_scan=wanted_scan;
             reported_pairing_open=discoverable;reported_scan_pending=gap.classic_pending;
+#ifdef DBT_PROBE_AUDIO_TEST
+            const probe_host_record_t host_record={.kind=PROBE_HOST_CLASSIC_VISIBILITY,.value={gap.classic_scan,wanted_scan,gap.classic_pending,discoverable,classic_origin}};
+            if(probe_audio_host_record(&host_record)==DBT_UNSUPPORTED)
+#endif
             HOST_PRINTF("{\"probe\":\"classic_visibility\",\"completed_scan\":%u,\"requested_scan\":%u,\"command_pending\":%s,\"pairing_open\":%s,\"pairing_origin\":%u}\n",
                 gap.classic_scan,wanted_scan,gap.classic_pending?"true":"false",discoverable?"true":"false",classic_origin);
         }
@@ -1113,6 +1117,10 @@ void app_main(void) {
         }
         if (gap.state != previous_gap) {
             previous_gap = gap.state;
+#ifdef DBT_PROBE_AUDIO_TEST
+            const probe_host_record_t host_record={.kind=PROBE_HOST_GAP_STATE,.value={(uint32_t)gap.state,gap.last_status,gap.advertising,gap.classic_scan,0}};
+            if(probe_audio_host_record(&host_record)==DBT_UNSUPPORTED)
+#endif
             HOST_PRINTF("{\"probe\":\"gap_state\",\"state\":%u,\"controller_status\":%u,"
                    "\"profiles_ready\":false,\"advertising\":%s,\"classic_scan\":%u}\n",
                    (unsigned)gap.state, gap.last_status, gap.advertising ? "true" : "false", gap.classic_scan);

@@ -1,5 +1,17 @@
 # Current project progress
 
+Latest source/off-board change: [deferred visibility/GAP logging](HOST_STATE_ASYNC_2026_11_07.md).
+Two live owner paths now copy scalar records into existing SPSC trace storage;
+formatting/UART stays on the background logger. Pre-init startup output remains,
+with no UART fallback on full queues. Actual producer/logger/main source tests
+pass saturation, cursor/ordinal wrap, immutable copies and stalled-consumer cases.
+The full ccache product build and exact c2ed33307c2c source/image admission pass.
+IRAM/data/BSS unchanged; flash text+532/rodata+368. No new task/buffer/boot test.
+This image is not flashed. COM6 still has no UART/ROM response, physical recovery
+request pending; b309 remains the last verified flash content. Other printf paths,
+physical regressions and the complete master qualification stay open.
+The following entries are historical.
+
 Latest experimental candidate: [full-range finalizer](DSP_FULL_OUTPUT_2026_11_07.md).
 Exact-state8.8M frames plus independent1.85M wide-oracle samples and lifecycle
 checks pass. Ccache b309817ce3d6 passes admission/readbacks/owned VALID/37 existing

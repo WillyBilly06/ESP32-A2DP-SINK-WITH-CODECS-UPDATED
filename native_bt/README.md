@@ -50,6 +50,14 @@ one live HD decoder call, its copied input, and an independent DSP/final block
 against desktop replay. It also records a 440-frame payload versus 336-tick RTP
 discrepancy. It is not a causal diagnosis of that sound report; capture is off by default.
 
+[Deferred visibility/GAP logs](docs/HOST_STATE_ASYNC_2026_11_07.md) now publish
+immutable snapshots through existing trace storage after logger initialization.
+The host does not wait for UART, including on a full queue; startup output is
+preserved. Actual source/blocked-consumer tests and full ccache build/admission
+pass. Unflashed imagec2ed33307c2c has unchanged SRAM sections (+532 flash text,
++368 rodata). COM6 recovery and physical regression remain pending. Other direct
+logging paths and all maximum-rate/coexistence/feature gates are still open.
+
 [Experimental full-range finalizer](docs/DSP_FULL_OUTPUT_2026_11_07.md) preserves
 exact PCM/state and measures716–717 versus778–779 helper elapsed cycles/sample.
 LHDC192/fixed900 still has32832/17280/22528 unfilled frames. IRAM+288 bytes;
