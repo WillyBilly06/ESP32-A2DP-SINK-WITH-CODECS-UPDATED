@@ -1,5 +1,7 @@
-param([switch]$HighRatePcmRebalance,[switch]$EarlyInputRelease,[switch]$MatchedFeedback,[switch]$MatchedFeedbackCompare,[switch]$RenderFairShare,[switch]$VolumeRampBlock,[switch]$VolumeRampCompare,[switch]$OwnerPacer,[switch]$DspAssist,[switch]$DspBlockIram,[switch]$UnityPcmCopy,[switch]$LhdcCore0Render,[switch]$LhdcFastMantissa,[switch]$AptxSnapshot,[switch]$StayNative,[switch]$WordDsp,[switch]$PriorityOrder,[ValidateSet(5,6,21)][int]$DecoderPriority=5,[switch]$SchedulerTrace,[switch]$CodecAwareRender,[switch]$PcmCopied,[switch]$PcmHash,[ValidateSet(-1,0,1)][int]$LoggerCore=-1,[switch]$BlockDsp,[ValidateSet(16,32,64)][int]$PcmTargetMs=64,[switch]$PcmLoans,[switch]$DspInlineCheck,[ValidateSet(0,1)][int]$DecoderCore=0,[switch]$RfProtocolDiagnostic,[switch]$FirCompilerCheck,[switch]$DspStageProfile,[switch]$AudioStageProfile,[switch]$PipelineDiagnostic,[switch]$AsyncAudio,[switch]$DeferredCodecCheck,[switch]$LhdcStageProfile,[switch]$LhdcMaximumCheck,[switch]$CodecDiagnosticOnly,[switch]$WithProductIo,[switch]$WithProductSecurity,[switch]$WithRfcomm,[switch]$WithLhdc,[switch]$WithOpus,[switch]$WithAac,[switch]$WithAptx,[switch]$WithLdac,[switch]$WithSmp,[switch]$WithAvrcp,[switch]$WithSbc,[switch]$WithAudioProbe,[switch]$WithAudioOutput,[switch]$WithGatt,[switch]$WithClassicSecurity,[switch]$TraceIngress,[switch]$WithoutRxFlow,[switch]$KeepOwned=$true,[string]$TestPeer='',[string]$LhdcSourceDir='')
+param([switch]$ConsoleIrq,[switch]$TaskRuntimeStats,[switch]$HighRatePcmRebalance,[switch]$EarlyInputRelease,[switch]$MatchedFeedback,[switch]$MatchedFeedbackCompare,[switch]$RenderFairShare,[switch]$VolumeRampBlock,[switch]$VolumeRampCompare,[switch]$OwnerPacer,[switch]$DspAssist,[switch]$DspBlockIram,[switch]$UnityPcmCopy,[switch]$LhdcCore0Render,[switch]$LhdcFastMantissa,[switch]$AptxSnapshot,[switch]$StayNative,[switch]$WordDsp,[switch]$PriorityOrder,[ValidateSet(5,6,21)][int]$DecoderPriority=5,[switch]$SchedulerTrace,[switch]$CodecAwareRender,[switch]$PcmCopied,[switch]$PcmHash,[ValidateSet(-1,0,1)][int]$LoggerCore=-1,[switch]$BlockDsp,[ValidateSet(16,32,64)][int]$PcmTargetMs=64,[switch]$PcmLoans,[switch]$DspInlineCheck,[ValidateSet(0,1)][int]$DecoderCore=0,[switch]$RfProtocolDiagnostic,[switch]$FirCompilerCheck,[switch]$DspStageProfile,[switch]$AudioStageProfile,[switch]$PipelineDiagnostic,[switch]$AsyncAudio,[switch]$DeferredCodecCheck,[switch]$LhdcStageProfile,[switch]$LhdcMaximumCheck,[switch]$CodecDiagnosticOnly,[switch]$WithProductIo,[switch]$WithProductSecurity,[switch]$WithRfcomm,[switch]$WithLhdc,[switch]$WithOpus,[switch]$WithAac,[switch]$WithAptx,[switch]$WithLdac,[switch]$WithSmp,[switch]$WithAvrcp,[switch]$WithSbc,[switch]$WithAudioProbe,[switch]$WithAudioOutput,[switch]$WithGatt,[switch]$WithClassicSecurity,[switch]$TraceIngress,[switch]$WithoutRxFlow,[switch]$KeepOwned=$true,[string]$TestPeer='',[string]$LhdcSourceDir='')
 $ErrorActionPreference = 'Stop'
+if ($ConsoleIrq -and (-not $StayNative -or -not $AsyncAudio)) { throw 'Console IRQ requires complete native asynchronous output' }
+if ($TaskRuntimeStats -and (-not $StayNative -or -not $SchedulerTrace -or -not $AsyncAudio)) { throw 'Task runtime requires complete native sampled asynchronous output' }
 if ($HighRatePcmRebalance -and (-not $EarlyInputRelease -or -not $WithLhdc -or $PcmTargetMs -ne 16 -or $LhdcCore0Render)) { throw 'High-rate PCM rebalance requires Core1 LHDC early release and configured16ms reserve' }
 if ($EarlyInputRelease -and (-not $StayNative -or -not $CodecAwareRender -or -not $AsyncAudio -or -not $PcmCopied -or -not $UnityPcmCopy -or -not $BlockDsp -or $MatchedFeedbackCompare -or $VolumeRampCompare -or $OwnerPacer)) { throw 'Early input release requires full native copied/unity/block output without kernel comparisons or pacing' }
 if ($MatchedFeedbackCompare) { $MatchedFeedback=$true }
@@ -82,6 +84,7 @@ $idfRoot = Join-Path $workspaceRoot 'esp-idf'
 $buildRoot = Join-Path $nativeRoot '_build\esp32'
 $probeRoot = Join-Path $nativeRoot 'esp32_probe'
 New-Item -ItemType Directory -Path $buildRoot -Force | Out-Null
+if ($TaskRuntimeStats -and -not (Test-Path -LiteralPath (Join-Path $probeRoot 'sdkconfig'))) { Copy-Item -LiteralPath (Join-Path $probeRoot 'sdkconfig.defaults') -Destination (Join-Path $probeRoot 'sdkconfig') }
 $buildReceiptPath=Join-Path $buildRoot 'local-build-status.json'
 @{schema=1;passed=$false;state='building';hardware_accessed=$false} | ConvertTo-Json | Set-Content -LiteralPath $buildReceiptPath -Encoding utf8
 if ($WithAudioOutput) {
@@ -103,6 +106,20 @@ if ($StayNative) {
         $nativeSdk += "`nCONFIG_BTDM_CTRL_PINNED_TO_CORE_1=y`nCONFIG_ESP_MAIN_TASK_AFFINITY_CPU1=y`nCONFIG_ESP_TIMER_TASK_AFFINITY_CPU0=y`nCONFIG_FREERTOS_TIMER_TASK_AFFINITY_CPU1=y`nCONFIG_ESP_WIFI_TASK_PINNED_TO_CORE_1=y`nCONFIG_LWIP_TCPIP_TASK_AFFINITY_CPU1=y`n"
         [IO.File]::WriteAllText($nativeSdkPath,$nativeSdk,[Text.UTF8Encoding]::new($false))
     }
+}
+# The private probe SDK config follows the explicit observer option. Restore
+# the original disabled kernel accounting in non-profile builds.
+$statsSdkPath=Join-Path $probeRoot 'sdkconfig'
+if (Test-Path -LiteralPath $statsSdkPath) {
+    $statsSdk=[IO.File]::ReadAllText($statsSdkPath)
+    foreach ($statsKey in @('CONFIG_FREERTOS_GENERATE_RUN_TIME_STATS','CONFIG_FREERTOS_USE_TRACE_FACILITY','CONFIG_FREERTOS_USE_STATS_FORMATTING_FUNCTIONS','CONFIG_FREERTOS_VTASKLIST_INCLUDE_COREID')) {
+        $statsPattern='(?m)^(?:# )?'+[regex]::Escape($statsKey)+'(?:=.*| is not set)\r?$'
+        $statsSdk=[regex]::Replace($statsSdk,$statsPattern,'')
+        $statsSdk += "`n$(if ($TaskRuntimeStats) { $statsKey+'=y' } else { '# '+$statsKey+' is not set' })`n"
+    }
+    $statsSdk=[regex]::Replace($statsSdk,'(?m)^(?:# )?CONFIG_FREERTOS_(?:RUN_TIME_COUNTER_TYPE_U32|RUN_TIME_COUNTER_TYPE_U64|RUN_TIME_STATS_USING_ESP_TIMER|RUN_TIME_STATS_USING_CPU_CLK)(?:=.*| is not set)\r?$','')
+    if ($TaskRuntimeStats) { $statsSdk += "`nCONFIG_FREERTOS_RUN_TIME_COUNTER_TYPE_U32=y`n# CONFIG_FREERTOS_RUN_TIME_COUNTER_TYPE_U64 is not set`nCONFIG_FREERTOS_RUN_TIME_STATS_USING_ESP_TIMER=y`n# CONFIG_FREERTOS_RUN_TIME_STATS_USING_CPU_CLK is not set`n" }
+    [IO.File]::WriteAllText($statsSdkPath,$statsSdk,[Text.UTF8Encoding]::new($false))
 }
 $env:GIT_NO_LAZY_FETCH = '1'
 if (-not (Test-Path -LiteralPath (Join-Path $idfRoot '.git'))) {
@@ -174,6 +191,8 @@ $idfArguments += "-DDBT_PROBE_DECODER_CORE=$DecoderCore"
 $idfArguments += "-DDBT_PROBE_DECODER_PRIORITY=$DecoderPriority"
 $idfArguments += "-DDBT_PROBE_PRIORITY_ORDER=$(if ($PriorityOrder) { 'ON' } else { 'OFF' })"
 $idfArguments += "-DDBT_PROBE_LOGGER_CORE=$LoggerCore"
+$idfArguments += "-DDBT_PROBE_CONSOLE_IRQ=$(if ($ConsoleIrq) { 'ON' } else { 'OFF' })"
+$idfArguments += "-DDBT_PROBE_TASK_RUNTIME_STATS=$(if ($TaskRuntimeStats) { 'ON' } else { 'OFF' })"
 $idfArguments += "-DDBT_PROBE_SCHEDULER_TRACE=$(if ($SchedulerTrace) { 'ON' } else { 'OFF' })"
 $idfArguments += "-DDBT_PROBE_CODEC_AWARE_RENDER=$(if ($CodecAwareRender) { 'ON' } else { 'OFF' })"
 $idfArguments += "-DDBT_PROBE_HIGH_RATE_PCM_REBALANCE=$(if ($HighRatePcmRebalance) { 'ON' } else { 'OFF' })"
@@ -238,6 +257,8 @@ $buildReceipt.renderer_priority=$(if ($RenderFairShare) { 22 } elseif ($StayNati
 $buildReceipt.auxiliary_renderer_priority=$(if ($StayNative) { 20 } elseif ($PriorityOrder) { 5 } else { 6 })
 $buildReceipt.owner_ready_yield=($RenderFairShare -or $DecoderPriority -eq $buildReceipt.host_priority)
 $buildReceipt.logger_core=$LoggerCore
+$buildReceipt.console_irq=[bool]$ConsoleIrq
+$buildReceipt.task_runtime_stats=[bool]$TaskRuntimeStats
 $buildReceipt.scheduler_trace=[bool]$SchedulerTrace
 $buildReceipt.codec_aware_render=[bool]$CodecAwareRender
 $buildReceipt.high_rate_pcm_rebalance=[bool]$HighRatePcmRebalance

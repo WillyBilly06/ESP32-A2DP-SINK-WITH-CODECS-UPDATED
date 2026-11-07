@@ -1,5 +1,16 @@
 # Current project progress
 
+Latest: [task accounting and UART output](TASK_RUNTIME_UART_2026_11_06.md).
+COM6 owned image 40805d7940ef reduces measured logger charge with whole-record
+interrupt-driven UART, preserving every record and PCM allocation. Exact source/image
+admission, sanitized writer/observer tests, guarded readbacks and 37 cold codec cases
+pass. The 12.102-second native YouTube LHDC 192/24/fixed900 trace has equal accepted,
+rendered and DMA source counts (2515008), but still 352512 unfilled frames. No
+transport/decode rejection or watchdog is observed; detailed worker-ring losses
+remain explicit. The next investigation is the bounded DSP consumer handoff.
+The master goal, live 1000 kbps, remote gain and full feature qualification remain open.
+The following entries are historical.
+
 Latest: [PCM sizing and input handoff](PCM_BUFFER_HANDOFF_2026_11_06.md).
 COM6 image ae24c89e42eb uses early copied-input release and an explicit
 2048-input/2560-processed-frame layout at 192k, with the same 39936-byte

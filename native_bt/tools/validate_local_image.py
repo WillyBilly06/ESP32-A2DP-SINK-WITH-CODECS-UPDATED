@@ -41,6 +41,24 @@ if scheduler_trace:
         command=next(e['command'] for e in commands if Path(e['file']).name==unit)
         assert re.findall(r'(?:^|\s)-DDBT_PROBE_SCHEDULER_TRACE=(\S+)',command)==['1']
         assert not re.search(r'(?:^|\s)-UDBT_PROBE_SCHEDULER_TRACE(?:\s|$)',command)
+console_irq=build_status.get('console_irq',False)
+assert type(console_irq) is bool and ('DBT_PROBE_CONSOLE_IRQ:BOOL=ON' in cache)==console_irq
+console_units=[e for e in commands if Path(e['file']).name=='probe_console.c']
+assert len(console_units)==int(console_irq)
+if console_irq:assert stay_native and build_status.get('async_audio') and not diagnostic and not pipeline
+for entry in [e for e in commands if Path(e['file']).name in (entry_name,'probe_console.c')]:
+    assert re.findall(r'(?:^|\s)-DDBT_PROBE_CONSOLE_IRQ=(\S+)',entry['command'])==(['1'] if console_irq else [])
+    assert not re.search(r'(?:^|\s)-UDBT_PROBE_CONSOLE_IRQ(?:\s|$)',entry['command'])
+task_runtime_stats=build_status.get('task_runtime_stats',False)
+assert type(task_runtime_stats) is bool and ('DBT_PROBE_TASK_RUNTIME_STATS:BOOL=ON' in cache)==task_runtime_stats
+if task_runtime_stats:
+    assert stay_native and scheduler_trace and build_status.get('async_audio') and not diagnostic and not pipeline
+for unit in (entry_name,'probe_scheduler.c','probe_audio.c'):
+    found=[e['command'] for e in commands if Path(e['file']).name==unit]
+    if task_runtime_stats:assert len(found)==1
+    for command in found:
+        assert re.findall(r'(?:^|\s)-DDBT_PROBE_TASK_RUNTIME_STATS=(\S+)',command)==(['1'] if task_runtime_stats else [])
+        assert not re.search(r'(?:^|\s)-UDBT_PROBE_TASK_RUNTIME_STATS(?:\s|$)',command)
 volume_ramp=bool(build_status.get('volume_ramp_block'))
 volume_compare=bool(build_status.get('volume_ramp_compare'))
 assert ('DBT_PROBE_VOLUME_RAMP_BLOCK:BOOL=ON' in cache)==volume_ramp
@@ -329,6 +347,16 @@ project=blob[80:112].split(b'\0',1)[0].decode();assert project=='native_bt_probe
 config_bytes=(a.image.parent/'config/sdkconfig.h').read_bytes()
 assert hashlib.sha256(config_bytes).hexdigest()==build_status['config_sha256']
 config=config_bytes.decode()
+for key in ('CONFIG_FREERTOS_GENERATE_RUN_TIME_STATS','CONFIG_FREERTOS_USE_TRACE_FACILITY','CONFIG_FREERTOS_USE_STATS_FORMATTING_FUNCTIONS','CONFIG_FREERTOS_VTASKLIST_INCLUDE_COREID'):
+    assert re.findall(r'^#define '+key+r' (\S+)\r?$',config,re.M)==(['1'] if task_runtime_stats else []), 'Kernel accounting mismatch: '+key
+if task_runtime_stats:
+    for key in ('CONFIG_FREERTOS_RUN_TIME_STATS_USING_ESP_TIMER','CONFIG_FREERTOS_RUN_TIME_COUNTER_TYPE_U32'):
+        assert re.findall(r'^#define '+key+r' (\S+)\r?$',config,re.M)==['1']
+    for key in ('CONFIG_FREERTOS_RUN_TIME_STATS_USING_CPU_CLK','CONFIG_FREERTOS_RUN_TIME_COUNTER_TYPE_U64'):
+        assert not re.findall(r'^#define '+key+r' (\S+)\r?$',config,re.M)
+if console_irq:
+    for key,value in [('CONFIG_ESP_CONSOLE_UART','1'),('CONFIG_ESP_CONSOLE_UART_NUM','0'),('CONFIG_ESP_CONSOLE_UART_BAUDRATE','115200')]:
+        assert re.findall(r'^#define '+key+r' (\S+)\r?$',config,re.M)==[value]
 assert '#define CONFIG_BT_CONTROLLER_ONLY 1' in config
 assert '#define CONFIG_BTDM_CTRL_MODE_BTDM 1' in config
 assert '#define CONFIG_BT_BLUEDROID_ENABLED 1' not in config
@@ -346,7 +374,7 @@ assert hashlib.sha256(original).hexdigest()==receipt['sha256']
 assert table==original[0x8000:0x8000+len(table)]
 assert image.flash_mode==2 and image.flash_size_freq==0x3f
 assert image.min_rev_full<=301<=image.max_rev_full
-report={'passed':True,'scheduler_trace':scheduler_trace,'stay_native':stay_native,'priority_order':priority_order,'host_priority':host_priority,'decoder_priority':decoder_priority,'renderer_priority':renderer_priority,'early_input_release':early_input_release,'high_rate_pcm_rebalance':high_rate_pcm_rebalance,'matched_feedback':matched_feedback,'matched_feedback_compare':matched_compare,'render_fair_share':render_fair_share,'auxiliary_renderer_priority':build_status.get('auxiliary_renderer_priority',renderer_priority),'owner_ready_yield':owner_ready_yield,'scope':'offline image checksum/digest, ESP32 revision and admitted OTA capacity; no device access or runtime qualification',
+report={'passed':True,'scheduler_trace':scheduler_trace,'task_runtime_stats':task_runtime_stats,'console_irq':console_irq,'stay_native':stay_native,'priority_order':priority_order,'host_priority':host_priority,'decoder_priority':decoder_priority,'renderer_priority':renderer_priority,'early_input_release':early_input_release,'high_rate_pcm_rebalance':high_rate_pcm_rebalance,'matched_feedback':matched_feedback,'matched_feedback_compare':matched_compare,'render_fair_share':render_fair_share,'auxiliary_renderer_priority':build_status.get('auxiliary_renderer_priority',renderer_priority),'owner_ready_yield':owner_ready_yield,'scope':'offline image checksum/digest, ESP32 revision and admitted OTA capacity; no device access or runtime qualification',
  'image_sha256':hashlib.sha256(blob).hexdigest(),'image_bytes':len(blob),'project':project,'chip_id':image.chip_id,'codec_diagnostic_only':diagnostic,'pipeline_diagnostic':pipeline,
  'rf_protocol_diagnostic':rf_diagnostic,'pcm_target_ms':pcm_target_ms,'pcm_copied':pcm_copied,'logger_core':logger_core,'block_dsp':block_dsp,'word_dsp':word_dsp,'experimental_short_pcm_target':pcm_target_ms!=64,'revision_range':[image.min_rev_full,image.max_rev_full],'checksum_verified':True,'digest_verified':bool(image.append_digest),
  'latest_local_build_completed':True,'build_sources_match':True,'build_source_units':source_count,'product_io':bool(build_status.get('product_io')),'product_security':product_security,'rfcomm_profile':rfcomm,'controller_only_dual_mode':True,'anti_rollback_fuse_updates':False,'partition_offset':slot['offset'],'partition_bytes':slot['size'],

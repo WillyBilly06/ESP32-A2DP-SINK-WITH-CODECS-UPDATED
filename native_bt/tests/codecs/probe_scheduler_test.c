@@ -7,6 +7,15 @@ static int fail_core=-1;
 static unsigned registrations,deregistrations;
 static uint32_t clock_us,cycles;
 static TaskHandle_t running;
+#ifdef DBT_PROBE_TASK_RUNTIME_STATS
+static unsigned info_calls,info_errors;
+void vTaskGetInfo(TaskHandle_t handle,TaskStatus_t *info,int stack,eTaskState state){
+    if(!handle || stack!=pdFALSE || state!=eReady)++info_errors;
+    unsigned n=(unsigned)(uintptr_t)handle;
+    *info=(TaskStatus_t){handle,NULL,n==1?0u:n+100u,20u+n,UINT32_MAX-n,(int32_t)(n&1u)};
+    ++info_calls;clock_us+=3;
+}
+#endif
 static bool missing_controller,have_system_tasks;
 static TaskHandle_t task(unsigned n){return (TaskHandle_t)(uintptr_t)n;}
 uint32_t esp_cpu_get_cycle_count(void){uint32_t before=cycles;cycles+=16;return before;}
@@ -23,6 +32,12 @@ void esp_deregister_freertos_tick_hook_for_cpu(esp_freertos_tick_cb_t hook,unsig
 static void fixture(void){
     memset(samples,0,sizeof(samples));memset(intervals,0,sizeof(intervals));memset(tasks,0,sizeof(tasks));memset(idle_tasks,0,sizeof(idle_tasks));
     memset(hooks,0,sizeof(hooks));atomic_store(&enabled,false);atomic_store(&host_phase,PROBE_HOST_OTHER);attempted=false;known_task_mask=0;
+    #ifdef DBT_PROBE_CODEC_AWARE_RENDER
+    atomic_store(&renderer0,0);
+    #endif
+    #ifdef DBT_PROBE_TASK_RUNTIME_STATS
+    info_calls=info_errors=0;
+    #endif
     fail_core=-1;registrations=deregistrations=clock_us=cycles=0;missing_controller=have_system_tasks=false;running=timer_task=0;ipc_tasks[0]=ipc_tasks[1]=0;
 }
 static void tick(unsigned core,unsigned identity,uint32_t at){running=task(identity);clock_us=at;hooks[core]();}
@@ -120,5 +135,20 @@ int main(void){
     CHECK(interval.coherent && interval.stream_serial==2 && interval.rate==96000 && interval.wall_us==100 && interval.revision==4);
     probe_scheduler_snapshot(0,&a);CHECK(a.counts[PROBE_SAMPLE_IPC]==2 && a.counts[PROBE_SAMPLE_TIMER]==1);
     probe_scheduler_snapshot(1,&b);CHECK(b.counts[PROBE_SAMPLE_IPC]==1);
+#ifdef DBT_PROBE_TASK_RUNTIME_STATS
+    probe_task_runtime_snapshot_t runtime;
+    fixture();probe_scheduler_task_runtime(&runtime);CHECK(!runtime.present_mask && !info_calls);
+    probe_scheduler_task_runtime(NULL);CHECK(!info_calls);
+    have_system_tasks=true;CHECK(probe_scheduler_start(task(1),task(2),task(4))==ESP_OK);
+    probe_scheduler_bind_renderer0(task(14));clock_us=UINT32_MAX-10u;
+    probe_scheduler_task_runtime(&runtime);
+    CHECK(runtime.present_mask==2047u && info_calls==11 && !info_errors);
+    CHECK(runtime.max_query_us==3 && runtime.end_us-runtime.begin_us==33 && runtime.end_us<runtime.begin_us);
+    CHECK(runtime.tasks[0].task_number==0 && runtime.tasks[0].counter_us==UINT32_MAX-1u && runtime.tasks[0].core==1);
+    CHECK(runtime.tasks[10].task_number==114 && runtime.tasks[10].priority==34 && runtime.tasks[10].core==0);
+    fixture();missing_controller=true;CHECK(probe_scheduler_start(task(1),task(2),task(4))==ESP_OK);
+    probe_scheduler_task_runtime(&runtime);CHECK(info_calls==6 && !info_errors && runtime.present_mask==111u && !runtime.tasks[4].counter_us);
+    puts("PASS runtime observer:11 permanent roles, raw counter/clock wrap, missing handles, no stack/state scans, no allocation or ISR collection");
+#endif
     puts("PASS sampler: per-core identities, tick gaps, sequence/counter/time wrap, nonspinning snapshots, Core0/Core1 maximum intervals, IPC/timer attribution, invalid/mixed-core marks, counter/time/publication wrap, missing tasks and registration rollback");return 0;
 }

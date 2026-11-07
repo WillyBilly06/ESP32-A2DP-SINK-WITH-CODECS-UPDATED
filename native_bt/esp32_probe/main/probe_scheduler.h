@@ -46,6 +46,20 @@ void probe_scheduler_interval_snapshot(unsigned kind,probe_scheduler_interval_t 
 /* Publish the optional permanent Core0 renderer handle after its lazy creation. */
 void probe_scheduler_bind_renderer0(TaskHandle_t task);
 #endif
+#ifdef DBT_PROBE_TASK_RUNTIME_STATS
+#define PROBE_RUNTIME_TASKS 11u
+typedef struct {uint32_t counter_us,task_number,priority;int32_t core;} probe_task_runtime_t;
+typedef struct {
+    uint32_t begin_us,end_us,present_mask,max_query_us;
+    probe_task_runtime_t tasks[PROBE_RUNTIME_TASKS];
+} probe_task_runtime_snapshot_t;
+/* Background logger only. At most11 public GetInfo calls on the permanent
+ * handles registered above; skip stack scans and task-state queries. Each
+ * call uses the SDK kernel lock. The snapshot has a reported read interval,
+ * not an atomic simultaneous view. Runtime includes interrupted-task ISR time
+ * and excludes the running task's unfinished quantum until its next switch. */
+void probe_scheduler_task_runtime(probe_task_runtime_snapshot_t *);
+#endif
 /* Host-owner task only; returns previous phase for nested controller calls.
  * One writer, atomic load/store only. No timer, lock, allocation or logging. */
 unsigned probe_scheduler_host_phase(unsigned phase);

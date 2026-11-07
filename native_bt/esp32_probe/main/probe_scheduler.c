@@ -4,6 +4,7 @@
 #include "esp_freertos_hooks.h"
 #include "esp_timer.h"
 #include <stdatomic.h>
+#include <stddef.h>
 
 /* Tick sampling observes interrupted task identity, not precise CPU runtime.
  * Interrupt masking, higher-level ISRs and periodic-work aliasing bias it.
@@ -167,3 +168,38 @@ void probe_scheduler_interval_snapshot(unsigned kind,probe_scheduler_interval_t 
     atomic_thread_fence(memory_order_seq_cst);out->revision=before;
     out->coherent=before && !(before&1u) && before==atomic_load_explicit(&r->sequence,memory_order_acquire);
 }
+
+#ifdef DBT_PROBE_TASK_RUNTIME_STATS
+#if configGENERATE_RUN_TIME_STATS != 1 || configUSE_TRACE_FACILITY != 1 || configTASKLIST_INCLUDE_COREID != 1 || !CONFIG_FREERTOS_RUN_TIME_STATS_USING_ESP_TIMER
+#error Task-runtime observation requires SDK ESP-timer statistics, trace and core IDs
+#endif
+_Static_assert(sizeof(configRUN_TIME_COUNTER_TYPE)==sizeof(uint32_t),"Runtime records require uint32 microseconds");
+void probe_scheduler_task_runtime(probe_task_runtime_snapshot_t *out){
+    if(!out)return;
+    *out=(probe_task_runtime_snapshot_t){0};
+    if(!atomic_load_explicit(&enabled,memory_order_acquire))return;
+    out->begin_us=(uint32_t)esp_timer_get_time();
+    for(unsigned i=0;i<PROBE_RUNTIME_TASKS;++i){
+        TaskHandle_t task=NULL;
+        if(i<5u)task=tasks[i];
+        else if(i<7u)task=idle_tasks[i-5u];
+        else if(i<9u)task=ipc_tasks[i-7u];
+        else if(i==9u)task=timer_task;
+#ifdef DBT_PROBE_CODEC_AWARE_RENDER
+        else task=atomic_load_explicit(&renderer0,memory_order_acquire);
+#endif
+        if(!task)continue;
+        TaskStatus_t info;
+        uint32_t began=(uint32_t)esp_timer_get_time();
+        /* Permanent handles live until reset. Never call this from the tick,
+         * decoder, controller or render paths; no stack walk or state scan. */
+        vTaskGetInfo(task,&info,pdFALSE,eReady);
+        uint32_t elapsed=(uint32_t)esp_timer_get_time()-began;
+        if(elapsed>out->max_query_us)out->max_query_us=elapsed;
+        out->tasks[i]=(probe_task_runtime_t){(uint32_t)info.ulRunTimeCounter,
+            (uint32_t)info.xTaskNumber,(uint32_t)info.uxCurrentPriority,(int32_t)info.xCoreID};
+        out->present_mask|=1u<<i;
+    }
+    out->end_us=(uint32_t)esp_timer_get_time();
+}
+#endif

@@ -27,6 +27,9 @@ static int __attribute__((format(printf,1,2))) host_printf(const char *format,..
 #define HOST_PRINTF printf
 #endif
 #include "probe_wait.h"
+#ifdef DBT_PROBE_CONSOLE_IRQ
+#include "probe_console.h"
+#endif
 #ifdef DBT_PROBE_OWNER_PACER
 #include "probe_owner_pacer.h"
 #endif
@@ -631,6 +634,11 @@ static void boot_memory(const char *phase){
 }
 void app_main(void) {
     owner = xTaskGetCurrentTaskHandle();
+#ifdef DBT_PROBE_CONSOLE_IRQ
+    bool console_created=false;
+    if(probe_console_irq_init(&console_created)!=ESP_OK)owner_fault_park("interrupt-driven console initialization");
+    HOST_PRINTF("{\"probe\":\"console_output\",\"mode\":\"uart_irq\",\"driver_created\":%s,\"created_rx_ring_bytes\":%u,\"created_tx_ring_bytes\":0,\"task_count_added\":0,\"background_write_may_sleep\":true}\n",console_created?"true":"false",console_created?256u:0u);
+#endif
     _Static_assert(DBT_PROBE_HOST_PRIORITY < ESP_TASK_BT_CONTROLLER_PRIO,
                    "The host must remain below the controller");
     vTaskPrioritySet(owner, DBT_PROBE_HOST_PRIORITY);

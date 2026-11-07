@@ -1,6 +1,10 @@
 #include "probe_schedule_limits.h"
 #include "probe_audio.h"
+#include <string.h>
 #include "probe_sdp.h"
+#ifdef DBT_PROBE_CONSOLE_IRQ
+#include "probe_console.h"
+#endif
 #include "probe_audio_limits.h"
 #ifdef DBT_PROBE_SCHEDULER_TRACE
 #include "probe_scheduler.h"
@@ -193,6 +197,16 @@ static uint32_t snapshot_crc32(const char *bytes,size_t length){
     }
     return crc^UINT32_MAX;
 }
+#ifdef DBT_PROBE_CONSOLE_IRQ
+static _Atomic uint32_t snapshot_uart_lost;
+#endif
+static uint32_t snapshot_uart_failures(void){
+#ifdef DBT_PROBE_CONSOLE_IRQ
+    return atomic_load_explicit(&snapshot_uart_lost,memory_order_relaxed);
+#else
+    return 0;
+#endif
+}
 static bool snapshot_vformat(char *line,size_t capacity,uint32_t began,const char *format,va_list arguments){
     uint32_t ended=(uint32_t)esp_timer_get_time();
     if(capacity<160u)goto lost;
@@ -213,7 +227,14 @@ lost:
 static void __attribute__((format(printf,2,3))) snapshot_log(uint32_t began,const char *format,...){
     char line[1024];va_list arguments;va_start(arguments,format);
     bool ready=snapshot_vformat(line,sizeof(line),began,format,arguments);va_end(arguments);
-    if(ready)printf("%s",line);
+    if(ready){
+#ifdef DBT_PROBE_CONSOLE_IRQ
+        if(!probe_console_write_record(line,strlen(line),sizeof(line)))
+            atomic_store(&snapshot_uart_lost,atomic_load(&snapshot_uart_lost)+1u);
+#else
+        printf("%s",line);
+#endif
+    }
 }
 #ifdef DBT_PROBE_OWNER_PACER
 #include "probe_owner_pacer.h"
@@ -713,6 +734,22 @@ static void log_render_delays(void){
     }
 }
 #endif
+#ifdef DBT_PROBE_TASK_RUNTIME_STATS
+static void log_task_runtime(void){
+    static const char *const roles[PROBE_RUNTIME_TASKS]={"host","decoder","renderer1","logger","controller","idle0","idle1","ipc0","ipc1","timer","renderer0"};
+    probe_task_runtime_snapshot_t s;probe_scheduler_task_runtime(&s);
+    for(unsigned i=0;i<PROBE_RUNTIME_TASKS;++i){
+        if(!(s.present_mask&(1u<<i)))continue;
+        const probe_task_runtime_t *t=&s.tasks[i];
+        PROBE_SNAPSHOT_LOG("{\"probe\":\"task_runtime\",\"role\":\"%s\",\"core\":%" PRId32
+            ",\"priority\":%" PRIu32 ",\"task_number\":%" PRIu32 ",\"runtime_us\":%" PRIu32
+            ",\"begin_us\":%" PRIu32 ",\"end_us\":%" PRIu32 ",\"read_span_us\":%" PRIu32 ",\"max_query_us\":%" PRIu32
+            ",\"present_mask\":%" PRIu32 ",\"clock\":\"esp_timer_u32\",\"clock_wrap_during_read\":%s,\"stack_scanned\":false,\"query_wall_includes_preemption\":true,\"interrupt_time_included\":true,\"running_tail_excluded\":true}\n",
+            roles[i],t->core,t->priority,t->task_number,t->counter_us,s.begin_us,s.end_us,s.end_us-s.begin_us,s.max_query_us,
+            s.present_mask,s.end_us<s.begin_us?"true":"false");
+    }
+}
+#endif
 #ifdef DBT_PROBE_OWNER_PACER
 static void log_owner_pacer(void){
     static uint32_t seen=UINT32_MAX,seen_failed=UINT32_MAX;
@@ -779,6 +816,9 @@ static void log_loop(void *unused){
 #endif
 #ifdef DBT_PROBE_SCHEDULER_TRACE
         log_render_delays();
+#endif
+#ifdef DBT_PROBE_TASK_RUNTIME_STATS
+        log_task_runtime();
 #endif
 #ifdef DBT_PROBE_DSP_ASSIST
         probe_dsp_assist_stats_t assisted;probe_output_dsp_assist_snapshot(&assisted);
@@ -855,11 +895,11 @@ static void log_loop(void *unused){
         PROBE_SNAPSHOT_LOG("{\"probe\":\"media_drop_reasons\",\"collection_cycle_us\":%" PRIu32 ",\"queue_full\":%" PRIu32 ",\"decode_reject\":%" PRIu32
                ",\"reset_failed\":%" PRIu32 ",\"pcm_failed\":%" PRIu32 ",\"pcm_timeout\":%" PRIu32 ",\"pcm_busy\":%" PRIu32
                ",\"input_sequence_breaks\":%" PRIu32 ",\"input_ssrc_changes\":%" PRIu32 ",\"queue_high_water\":%" PRIu32
-               ",\"host_trace_lost\":%" PRIu32 ",\"worker_trace_lost\":%" PRIu32 ",\"snapshot_records_lost\":%" PRIu32 "}\n",at,
+               ",\"host_trace_lost\":%" PRIu32 ",\"worker_trace_lost\":%" PRIu32 ",\"snapshot_records_lost\":%" PRIu32 ",\"snapshot_uart_lost\":%" PRIu32 "}\n",at,
                atomic_load(&worker.queue_full_drops),atomic_load(&worker.decode_rejects),atomic_load(&worker.reset_failures),
                atomic_load(&worker.pcm_failures),atomic_load(&worker.pcm_timeouts),atomic_load(&worker.pcm_backpressure),
                atomic_load(&worker.input_sequence_breaks),atomic_load(&worker.input_ssrc_changes),atomic_load(&worker.queue_high_water),
-               atomic_load(&media_trace_rings[0].lost),atomic_load(&media_trace_rings[1].lost),atomic_load(&snapshot_format_lost));
+               atomic_load(&media_trace_rings[0].lost),atomic_load(&media_trace_rings[1].lost),atomic_load(&snapshot_format_lost),snapshot_uart_failures());
         PROBE_SNAPSHOT_LOG("{\"probe\":\"l2cap_reassembly\",\"collection_cycle_us\":%" PRIu32 ",\"delivered\":%" PRIu32
             ",\"abandoned\":%" PRIu32 ",\"rejected_wire_packets\":%" PRIu32 ",\"orphan_continuations\":%" PRIu32 ",\"oversized_pdus\":%" PRIu32 ",\"malformed_signaling\":%" PRIu32 ",\"unknown_responses\":%" PRIu32 ",\"retained_storage_bytes\":%" PRIu32 "}\n",
             at,atomic_load(&l2cap_delivered),atomic_load(&l2cap_abandoned),atomic_load(&l2cap_rejected),atomic_load(&l2cap_orphaned),atomic_load(&l2cap_oversized),atomic_load(&l2cap_malformed_signaling),atomic_load(&l2cap_unknown_responses),atomic_load(&l2cap_retained_bytes));

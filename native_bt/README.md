@@ -50,6 +50,15 @@ one live HD decoder call, its copied input, and an independent DSP/final block
 against desktop replay. It also records a 440-frame payload versus 336-tick RTP
 discrepancy. It is not a causal diagnosis of that sound report; capture is off by default.
 
+[Task accounting and UART output](docs/TASK_RUNTIME_UART_2026_11_06.md) now
+separate logger overhead from PCM consumer timing. Whole-record interrupt-driven
+UART lowers the measured central logger charge from 10.27% to 3.13% on Core 1
+and post-drain charge from 59.58% to 1.37%. No audio storage or log suppression
+is added. COM6 image 40805d7940ef passes guarded readbacks and 37 cold codec cases;
+the 12.102-second LHDC 192/fixed900 music trace still has 352512 unfilled frames.
+No transport or decode rejection is observed. This remains an incomplete
+consumer-deadline investigation, with full qualification gates open.
+
 [PCM buffer handoff and sizing](docs/PCM_BUFFER_HANDOFF_2026_11_06.md) records
 the 256-frame decoder transfer versus 128-frame render/DMA units. Optional
 Core1 early input release permits producer reuse during DSP; a fixed-memory
