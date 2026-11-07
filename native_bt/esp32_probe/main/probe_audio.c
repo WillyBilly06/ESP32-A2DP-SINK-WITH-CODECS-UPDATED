@@ -861,8 +861,8 @@ static void log_loop(void *unused){
 #endif
 #ifdef DBT_PROBE_DSP_ASSIST
         probe_dsp_assist_stats_t assisted;probe_output_dsp_assist_snapshot(&assisted);
-        PROBE_SNAPSHOT_LOG("{\"probe\":\"dsp_assist\",\"collection_cycle_us\":%" PRIu32 ",\"counter_scope\":\"since_boot\",\"independent_counters\":true,\"enabled\":%" PRIu32 ",\"state\":%" PRIu32 ",\"worker_core\":0,\"render_owner_core\":1,\"jobs\":%" PRIu32 ",\"blocks\":%" PRIu32 ",\"max_blocks_per_job\":4,\"max_job_frames\":%" PRIu32 ",\"frames\":%" PRIu32 ",\"helper_cycles\":%" PRIu32 ",\"helper_max_cycles\":%" PRIu32 ",\"queue_max_us\":%" PRIu32 ",\"finish_to_commit_max_us\":%" PRIu32 ",\"commit_to_retire_max_us\":%" PRIu32 ",\"publication_core\":0,\"wall_max_us\":%" PRIu32 ",\"failures\":%" PRIu32 ",\"cycles_include_preemption\":true,\"cycles_wrap_uint32\":true,\"wall_includes_async_wait\":true}\n",
-            at,assisted.enabled,assisted.state,assisted.jobs,assisted.blocks,assisted.max_job_frames,assisted.frames,assisted.cycles,assisted.max_cycles,
+        PROBE_SNAPSHOT_LOG("{\"probe\":\"dsp_assist\",\"collection_cycle_us\":%" PRIu32 ",\"counter_scope\":\"since_boot\",\"independent_counters\":true,\"enabled\":%" PRIu32 ",\"state\":%" PRIu32 ",\"worker_core\":0,\"render_owner_core\":1,\"jobs\":%" PRIu32 ",\"blocks\":%" PRIu32 ",\"max_blocks_per_job\":%u,\"max_job_frames\":%" PRIu32 ",\"frames\":%" PRIu32 ",\"helper_cycles\":%" PRIu32 ",\"helper_max_cycles\":%" PRIu32 ",\"queue_max_us\":%" PRIu32 ",\"finish_to_commit_max_us\":%" PRIu32 ",\"commit_to_retire_max_us\":%" PRIu32 ",\"publication_core\":0,\"wall_max_us\":%" PRIu32 ",\"failures\":%" PRIu32 ",\"cycles_include_preemption\":true,\"cycles_wrap_uint32\":true,\"wall_includes_async_wait\":true}\n",
+            at,assisted.enabled,assisted.state,assisted.jobs,assisted.blocks,(unsigned)DBT_PROBE_DSP_ASSIST_BLOCKS,assisted.max_job_frames,assisted.frames,assisted.cycles,assisted.max_cycles,
             assisted.queue_max_us,assisted.finish_wait_max_us,assisted.retire_wait_max_us,assisted.wall_max_us,assisted.failures);
 #endif
 #ifdef DBT_PROBE_LHDC_BUILD

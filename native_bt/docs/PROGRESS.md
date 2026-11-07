@@ -1,5 +1,19 @@
 # Current project progress
 
+Latest: [bounded five-block assistance](ASSIST_FIVE_BLOCKS_2026_11_07.md).
+Four remains the default; the current full native build explicitly uses5 blocks.
+Actual CMake/image/header/CLI gates verify the numeric value and helper mode;
+ASan/UBSan proves640-frame publication cap, page crossing, lifetime/stop/cancel,
+completion ordering and unchanged39936-byte payload. Guarded COM6 image041f25beb2ef
+passes full readbacks/owned boot/37 cold cases and adds4 flash bytes/no RAM.
+LHDC192/24/fixed900 traces have124672/108800 unfilled versus199296 in the fresh
+four-block baseline, with more Core0 DSP work and no new descriptor/contract/drop
+errors. LDAC96/observed990k has1445632 source frames and zero shortages.
+RTP clock excess188160 ->107520/80640 sample ticks despite continuous sequence
+needs sender/credit-flow investigation; no vendor flushing cause is claimed.
+The master goal, live1000k, sustained continuity and full-feature gates stay open.
+The following entries are historical.
+
 Latest: [post-DONE completion wake order](ASSIST_COMPLETION_WAKE_2026_11_06.md).
 The helper now signals Core1 before its higher-priority Core0 producer can
 preempt it. No owner ACK or new wait is introduced. The actual two-core model

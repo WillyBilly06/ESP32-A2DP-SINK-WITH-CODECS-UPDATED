@@ -1,6 +1,6 @@
 """Run actual DSP-assisted output lifecycle against two mocked FreeRTOS cores. No hardware."""
 import argparse,hashlib,json,os,pathlib,shutil,subprocess
-parser=argparse.ArgumentParser();parser.add_argument("--fair-share",action="store_true");parser.add_argument("--early-input",action="store_true");parser.add_argument("--rebalance",action="store_true");options=parser.parse_args()
+parser=argparse.ArgumentParser();parser.add_argument("--fair-share",action="store_true");parser.add_argument("--early-input",action="store_true");parser.add_argument("--rebalance",action="store_true");parser.add_argument("--assist-blocks",type=int,choices=(4,5),default=4);options=parser.parse_args()
 if options.rebalance and not options.early_input:parser.error("rebalance requires early input")
 ROOT=pathlib.Path(__file__).resolve().parents[1];WS=ROOT.parent;OUT=ROOT/'_build/dsp_assist_output';OUT.mkdir(exist_ok=True)
 (OUT/'results.json').write_text(json.dumps({'passed':False,'state':'building','hardware_accessed':False})+'\n')
@@ -21,7 +21,7 @@ defines=['DBT_PROBE_DSP_ASSIST','DBT_PROBE_CODEC_AWARE_RENDER','DBT_PROBE_ASYNC_
 if options.fair_share:defines+=['DBT_PROBE_RENDER_FAIR_SHARE']
 if options.early_input:defines+=['DBT_PROBE_EARLY_INPUT_RELEASE']
 if options.rebalance:defines+=['DBT_PROBE_HIGH_RATE_PCM_REBALANCE']
-base=[cache,cc,'-std=c11','-O1','-g','-fwrapv','-Wall','-Wextra','-Werror','-Wno-unused-function','-fsanitize=address,undefined','-fno-sanitize-recover=all','-fno-omit-frame-pointer','-fms-runtime-lib=dll','-D_DLL','-DDBT_PROBE_PCM_TARGET_MS=16','-DDBT_PROBE_DECODER_PRIORITY=21','-DCONFIG_NATIVE_AUDIO_BCLK=27','-DCONFIG_NATIVE_AUDIO_LRCK=25','-DCONFIG_NATIVE_AUDIO_DATA=26','-include',str(ROOT/'tests/sound/dsp_assist_mock.h')]+['-D'+d+'=1' for d in defines]+['-I'+str(p) for p in includes]
+base=[cache,cc,'-std=c11','-O1','-g','-fwrapv','-Wall','-Wextra','-Werror','-Wno-unused-function','-fsanitize=address,undefined','-fno-sanitize-recover=all','-fno-omit-frame-pointer','-fms-runtime-lib=dll','-D_DLL','-DDBT_PROBE_PCM_TARGET_MS=16','-DDBT_PROBE_DECODER_PRIORITY=21','-DDBT_PROBE_DSP_ASSIST_BLOCKS='+str(options.assist_blocks),'-DCONFIG_NATIVE_AUDIO_BCLK=27','-DCONFIG_NATIVE_AUDIO_LRCK=25','-DCONFIG_NATIVE_AUDIO_DATA=26','-include',str(ROOT/'tests/sound/dsp_assist_mock.h')]+['-D'+d+'=1' for d in defines]+['-I'+str(p) for p in includes]
 objects=[];commands=[]
 for i,source in enumerate(sources):
     obj=OUT/(str(i)+'.obj');command=base+['-c',str(source),'-o',str(obj)]
@@ -34,4 +34,4 @@ result=subprocess.run([str(exe)],env=env,timeout=15,capture_output=True,text=Tru
 print(result.stdout.strip());print(result.stderr.strip());result.check_returncode()
 assert 'PASS actual DSP-assisted output' in result.stdout
 assert all(hashlib.sha256(pathlib.Path(p).read_bytes()).hexdigest()==h for p,h in before.items())
-(OUT/'results.json').write_text(json.dumps({'passed':True,'fair_share':options.fair_share,'early_input':options.early_input,'rebalance':options.rebalance,'hardware_accessed':False,'sanitizers':['address','undefined'],'scope':'actual output/render/sound and DSP lane, two mocked FreeRTOS cores, held BUSY worker with queued stop/cancel, owner completion before modeled producer preemption, no early free or timed pending polling; no ESP32 timing','stdout':result.stdout,'sources':before,'commands':commands},indent=2)+'\n')
+(OUT/'results.json').write_text(json.dumps({'passed':True,'fair_share':options.fair_share,'early_input':options.early_input,'rebalance':options.rebalance,'assist_blocks':options.assist_blocks,'hardware_accessed':False,'sanitizers':['address','undefined'],'scope':'actual output/render/sound and DSP lane, two mocked FreeRTOS cores, held BUSY worker with queued stop/cancel, owner completion before modeled producer preemption, no early free or timed pending polling; no ESP32 timing','stdout':result.stdout,'sources':before,'commands':commands},indent=2)+'\n')

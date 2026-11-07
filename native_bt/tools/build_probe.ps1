@@ -1,5 +1,6 @@
-param([switch]$ConsoleIrq,[switch]$TaskRuntimeStats,[switch]$TaskCycleAccounting,[switch]$HighRatePcmRebalance,[switch]$EarlyInputRelease,[switch]$MatchedFeedback,[switch]$MatchedFeedbackCompare,[switch]$RenderFairShare,[switch]$VolumeRampBlock,[switch]$VolumeRampCompare,[switch]$OwnerPacer,[switch]$DspAssist,[switch]$DspBlockIram,[switch]$UnityPcmCopy,[switch]$LhdcCore0Render,[switch]$LhdcFastMantissa,[switch]$AptxSnapshot,[switch]$StayNative,[switch]$WordDsp,[switch]$PriorityOrder,[ValidateSet(5,6,21)][int]$DecoderPriority=5,[switch]$SchedulerTrace,[switch]$CodecAwareRender,[switch]$PcmCopied,[switch]$PcmHash,[ValidateSet(-1,0,1)][int]$LoggerCore=-1,[switch]$BlockDsp,[ValidateSet(16,32,64)][int]$PcmTargetMs=64,[switch]$PcmLoans,[switch]$DspInlineCheck,[ValidateSet(0,1)][int]$DecoderCore=0,[switch]$RfProtocolDiagnostic,[switch]$FirCompilerCheck,[switch]$DspStageProfile,[switch]$AudioStageProfile,[switch]$PipelineDiagnostic,[switch]$AsyncAudio,[switch]$DeferredCodecCheck,[switch]$LhdcStageProfile,[switch]$LhdcMaximumCheck,[switch]$CodecDiagnosticOnly,[switch]$WithProductIo,[switch]$WithProductSecurity,[switch]$WithRfcomm,[switch]$WithLhdc,[switch]$WithOpus,[switch]$WithAac,[switch]$WithAptx,[switch]$WithLdac,[switch]$WithSmp,[switch]$WithAvrcp,[switch]$WithSbc,[switch]$WithAudioProbe,[switch]$WithAudioOutput,[switch]$WithGatt,[switch]$WithClassicSecurity,[switch]$TraceIngress,[switch]$WithoutRxFlow,[switch]$KeepOwned=$true,[string]$TestPeer='',[string]$LhdcSourceDir='')
+param([switch]$ConsoleIrq,[switch]$TaskRuntimeStats,[switch]$TaskCycleAccounting,[switch]$HighRatePcmRebalance,[switch]$EarlyInputRelease,[switch]$MatchedFeedback,[switch]$MatchedFeedbackCompare,[switch]$RenderFairShare,[switch]$VolumeRampBlock,[switch]$VolumeRampCompare,[switch]$OwnerPacer,[switch]$DspAssist,[ValidateSet(4,5)][int]$DspAssistBlocks=4,[switch]$DspBlockIram,[switch]$UnityPcmCopy,[switch]$LhdcCore0Render,[switch]$LhdcFastMantissa,[switch]$AptxSnapshot,[switch]$StayNative,[switch]$WordDsp,[switch]$PriorityOrder,[ValidateSet(5,6,21)][int]$DecoderPriority=5,[switch]$SchedulerTrace,[switch]$CodecAwareRender,[switch]$PcmCopied,[switch]$PcmHash,[ValidateSet(-1,0,1)][int]$LoggerCore=-1,[switch]$BlockDsp,[ValidateSet(16,32,64)][int]$PcmTargetMs=64,[switch]$PcmLoans,[switch]$DspInlineCheck,[ValidateSet(0,1)][int]$DecoderCore=0,[switch]$RfProtocolDiagnostic,[switch]$FirCompilerCheck,[switch]$DspStageProfile,[switch]$AudioStageProfile,[switch]$PipelineDiagnostic,[switch]$AsyncAudio,[switch]$DeferredCodecCheck,[switch]$LhdcStageProfile,[switch]$LhdcMaximumCheck,[switch]$CodecDiagnosticOnly,[switch]$WithProductIo,[switch]$WithProductSecurity,[switch]$WithRfcomm,[switch]$WithLhdc,[switch]$WithOpus,[switch]$WithAac,[switch]$WithAptx,[switch]$WithLdac,[switch]$WithSmp,[switch]$WithAvrcp,[switch]$WithSbc,[switch]$WithAudioProbe,[switch]$WithAudioOutput,[switch]$WithGatt,[switch]$WithClassicSecurity,[switch]$TraceIngress,[switch]$WithoutRxFlow,[switch]$KeepOwned=$true,[string]$TestPeer='',[string]$LhdcSourceDir='')
 $ErrorActionPreference = 'Stop'
+if ($DspAssistBlocks -ne 4 -and -not $DspAssist) { throw 'Nondefault DSP batch requires -DspAssist' }
 if ($TaskCycleAccounting -and -not $TaskRuntimeStats) { throw 'Task-cycle accounting requires task runtime statistics' }
 if ($ConsoleIrq -and (-not $StayNative -or -not $AsyncAudio)) { throw 'Console IRQ requires complete native asynchronous output' }
 if ($TaskRuntimeStats -and (-not $StayNative -or -not $SchedulerTrace -or -not $AsyncAudio)) { throw 'Task runtime requires complete native sampled asynchronous output' }
@@ -206,6 +207,7 @@ $idfArguments += "-DDBT_PROBE_VOLUME_RAMP_BLOCK=$(if ($VolumeRampBlock) { 'ON' }
 $idfArguments += "-DDBT_PROBE_VOLUME_RAMP_COMPARE=$(if ($VolumeRampCompare) { 'ON' } else { 'OFF' })"
 $idfArguments += "-DDBT_PROBE_OWNER_PACER=$(if ($OwnerPacer) { 'ON' } else { 'OFF' })"
 $idfArguments += "-DDBT_PROBE_DSP_ASSIST=$(if ($DspAssist) { 'ON' } else { 'OFF' })"
+$idfArguments += "-DDBT_PROBE_DSP_ASSIST_BLOCKS=$DspAssistBlocks"
 $idfArguments += "-DDBT_PROBE_DSP_BLOCK_IRAM=$(if ($DspBlockIram) { 'ON' } else { 'OFF' })"
 $idfArguments += "-DDBT_PROBE_UNITY_PCM_COPY=$(if ($UnityPcmCopy) { 'ON' } else { 'OFF' })"
 $idfArguments += "-DDBT_PROBE_LHDC_CORE0_RENDER=$(if ($LhdcCore0Render) { 'ON' } else { 'OFF' })"
@@ -273,6 +275,7 @@ $buildReceipt.volume_ramp_block=[bool]$VolumeRampBlock
 $buildReceipt.volume_ramp_compare=[bool]$VolumeRampCompare
 $buildReceipt.owner_pacer=[bool]$OwnerPacer
 $buildReceipt.dsp_assist=[bool]$DspAssist
+$buildReceipt.dsp_assist_blocks=[int]$DspAssistBlocks
 $buildReceipt.dsp_block_iram=[bool]$DspBlockIram
 $buildReceipt.unity_pcm_copy=[bool]$UnityPcmCopy
 $buildReceipt.lhdc_core0_render=[bool]$LhdcCore0Render

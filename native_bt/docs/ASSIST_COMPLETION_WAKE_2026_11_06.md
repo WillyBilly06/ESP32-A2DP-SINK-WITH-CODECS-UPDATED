@@ -41,3 +41,5 @@ After switching to LDAC96k/stereo and32-bit phone input, optimized-quality selec
 Active LHDC candidate snapshots report60704 resident codec bytes,19604 free internal heap,18432 largest block and5960 decoder stack low-water bytes in both runs. The older baseline has prior codec-switch history and reports19592 free/19212 minimum/16384 largest; the candidate does not add static or requested PCM memory. These snapshots do not prove leak/fragmentation resilience. The LDAC active sample has28196 resident bytes,68524 free and57344 largest.
 
 The normal a9427d8c image remains selected, temporary task-cycle hooks/storage OFF, raw UART dashboard listening and native YouTube paused. [Structured results](ASSIST_COMPLETION_WAKE_RESULTS_2026_11_06.json) preserve image/run binding and limitations.
+
+The subsequent [five-block scheduling comparison](ASSIST_FIVE_BLOCKS_2026_11_07.md) keeps this completion ordering and the guarded BUSY-refill path. Its explicit development cap5 improves repeated short LHDC observations, while4 stays the source/build default and full continuity remains open.

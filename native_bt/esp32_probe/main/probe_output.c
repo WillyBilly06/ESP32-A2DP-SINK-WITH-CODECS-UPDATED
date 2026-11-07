@@ -1139,14 +1139,14 @@ static uint32_t assist_cycles(void *context){
 #endif
 }
 static uint32_t assist_time_us(void *context){(void)context;return (uint32_t)esp_timer_get_time();}
-/* At most four canonical blocks per lease. Publish every completed span
+/* At most the admitted canonical block count per lease. Publish every span
  * immediately, then return on empty input/output or any error. This is bounded
  * work, never a wait for PCM. Core1 retains lifecycle ownership through DONE. */
 static dbt_result_t dsp_assist_commit(void *context,const dbt_audio_render_job_t *first,bool success){
   (void)context;
   dbt_audio_render_job_t next;const dbt_audio_render_job_t *block=first;
   uint32_t math_end=assist.lane.finished_us;
-  for(unsigned i=0;i<4u;++i){
+  for(unsigned i=0;i<DBT_PROBE_DSP_ASSIST_BLOCKS;++i){
     uint32_t made=0;
     dbt_result_t result=dbt_audio_render_finish(&output.audio,block,success,&made);
     assist.committed_us=(uint32_t)esp_timer_get_time();
@@ -1162,7 +1162,7 @@ static dbt_result_t dsp_assist_commit(void *context,const dbt_audio_render_job_t
       if(owner)xTaskNotifyGive(owner);
     }
     OUTPUT_TEST_STEP(11); /* test-only hold after each publication, before DONE */
-    if(i==3u || assist.committed_frames>=assist.budget)break;
+    if(i+1u==DBT_PROBE_DSP_ASSIST_BLOCKS || assist.committed_frames>=assist.budget)break;
     result=dbt_audio_render_prepare(&output.audio,assist.budget-assist.committed_frames,&next);
     if(result==DBT_EMPTY)break;
     if(result!=DBT_OK)return result;
@@ -1236,7 +1236,8 @@ static bool dsp_assist_submit(uint32_t budget,uint32_t began){
   if(result!=DBT_OK){atomic_store(&output.failed,1);assist_add(&assist.failures,1);notify_clients();return true;}
   assist.began_us=began;assist.submitted_us=(uint32_t)esp_timer_get_time();
   assist.committed_frames=assist.committed_us=assist.extra_cycles=assist.block_max_cycles=0;
-  assist.commit_delay_max_us=assist.completed_blocks=0;assist.budget=budget>512u?512u:budget;
+  const uint32_t maximum=DBT_PROBE_DSP_ASSIST_BLOCKS*FIXED_DSP_BLOCK_FRAMES;
+  assist.commit_delay_max_us=assist.completed_blocks=0;assist.budget=budget>maximum?maximum:budget;
   if(dbt_dsp_job_submit(&assist.lane,&block)!=DBT_OK){
     /* Submit transferred no borrow. Retire the matching preparation as a
      * failed stream, never run local math over an ambiguously owned block. */
@@ -1335,7 +1336,8 @@ static bool render_step(void) {
         uint32_t began = (uint32_t)esp_timer_get_time();
         uint32_t budget = target - available;
 #ifdef DBT_PROBE_DSP_ASSIST
-        uint32_t assist_budget=budget>512u?512u:budget;
+        const uint32_t assist_limit=DBT_PROBE_DSP_ASSIST_BLOCKS*FIXED_DSP_BLOCK_FRAMES;
+        uint32_t assist_budget=budget>assist_limit?assist_limit:budget;
 #endif
         if (budget > 128)
           budget = 128;
@@ -1356,7 +1358,7 @@ static bool render_step(void) {
 #endif
 #ifdef DBT_PROBE_DSP_ASSIST
         /* An attached WAV mixer retains its existing per-block readiness
-         * boundary. Pure music may amortize the lease across four blocks. */
+         * boundary. Pure music may amortize the admitted bounded lease. */
 #ifdef DBT_PROBE_SOUND_BUILD
         if(output.sound || !budget)assist_budget=budget;
 #endif

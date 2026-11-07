@@ -1,0 +1,204 @@
+{
+  "scope": "Explicit bounded five-block helper; full goal incomplete",
+  "default_blocks": 4,
+  "selected_blocks": 5,
+  "admission": {
+    "cmake": 20,
+    "actual_image": 51,
+    "header": 9,
+    "cli": 2
+  },
+  "baseline": {
+    "image": "a9427d8cafde6e89ee4826435e392fe7eef1653ba7e7b8873a60ff01963fdb57",
+    "archive": "runs/1794037693865568200-a9427d8cafde",
+    "command_s": 12.066,
+    "frames": 2684160,
+    "unfilled": 199296,
+    "initial": 453120,
+    "recovered": 253824,
+    "detail_loss": 3439
+  },
+  "candidate": {
+    "image": "041f25beb2ef58aaecf12a8ce0d83afe51ca77d287988e7e502009330f9f4609",
+    "archive": "runs/1794039193932149000-041f25beb2ef",
+    "readbacks": [
+      true,
+      true
+    ],
+    "boot": {
+      "probe": "boot_selection",
+      "host": "owned",
+      "kept_active": true,
+      "partition": 3735552,
+      "ota_state": 2,
+      "result": 0,
+      "production_ready": false
+    },
+    "cold_check": {
+      "probe": "target_codec_selftest",
+      "passed": true,
+      "configurations": 37,
+      "selected": 37,
+      "callbacks": 173,
+      "stack_bytes": 8192,
+      "stack_low_water_bytes": 3544,
+      "tracked_peak_bytes": 56899,
+      "min_free_after_alloc_bytes": 103632,
+      "maximum_decode_us": 13915,
+      "rf_test": false
+    },
+    "original_preserved": true,
+    "automatic_fallback": false,
+    "max_blocks": 5,
+    "max_exercised_frames": 640,
+    "footprint_delta": {
+      ".iram0.vectors": 0,
+      ".iram0.text": 0,
+      ".dram0.data": 0,
+      ".dram0.bss": 0,
+      ".flash.rodata": 0,
+      ".flash.text": 4
+    },
+    "command_s": [
+      12.077,
+      12.24
+    ],
+    "frames": [
+      2756672,
+      2814720
+    ],
+    "unfilled": [
+      124672,
+      108800
+    ],
+    "initial": [
+      260224,
+      211968
+    ],
+    "recovered": [
+      135552,
+      103168
+    ],
+    "copy_max_us": [
+      5,
+      7
+    ],
+    "mask_max_us": [
+      9,
+      9
+    ],
+    "descriptor_errors": [
+      0,
+      0
+    ],
+    "contract_errors": [
+      0,
+      0
+    ],
+    "detail_loss": [
+      2833,
+      2831
+    ],
+    "aggregate_loss": [
+      0,
+      0
+    ]
+  },
+  "ldac": {
+    "command_s": 12.197,
+    "rate": 96000,
+    "phone_input_bits": 32,
+    "sampled_wire_bps": 990000,
+    "frames": 1445632,
+    "shortages": 0,
+    "descriptor_errors": 0,
+    "detail_loss": 5469
+  },
+  "rtp_clock_accounting": {
+    "four": {
+      "packets": 2799,
+      "payload_bytes": 1584234,
+      "all_payloads_at_observed_max566": true,
+      "clock_span_frames": 2875200,
+      "one_frame_per_packet_samples": 2687040,
+      "excess_clock_frames": 188160,
+      "excess_5ms_units": 196,
+      "excess_time_ms": 980,
+      "decode_attempt_delta": 2797,
+      "scope": "Aggregate sender RTP clock vs packet/frame count; cause not yet proven"
+    },
+    "five1": {
+      "packets": 2872,
+      "payload_bytes": 1625552,
+      "all_payloads_at_observed_max566": true,
+      "clock_span_frames": 2864640,
+      "one_frame_per_packet_samples": 2757120,
+      "excess_clock_frames": 107520,
+      "excess_5ms_units": 112,
+      "excess_time_ms": 560,
+      "decode_attempt_delta": 2872,
+      "scope": "Aggregate sender RTP clock vs packet/frame count; cause not yet proven"
+    },
+    "five2": {
+      "packets": 2932,
+      "payload_bytes": 1659512,
+      "all_payloads_at_observed_max566": true,
+      "clock_span_frames": 2895360,
+      "one_frame_per_packet_samples": 2814720,
+      "excess_clock_frames": 80640,
+      "excess_5ms_units": 84,
+      "excess_time_ms": 420,
+      "decode_attempt_delta": 2932,
+      "scope": "Aggregate sender RTP clock vs packet/frame count; cause not yet proven"
+    }
+  },
+  "memory_samples": {
+    "four": [
+      {
+        "codec": 9,
+        "resident": 60704,
+        "free": 19592,
+        "minimum": 19212,
+        "largest": 16384,
+        "stack_low": 5960
+      }
+    ],
+    "five1": [
+      {
+        "codec": 9,
+        "resident": 60704,
+        "free": 19604,
+        "minimum": 19604,
+        "largest": 18432,
+        "stack_low": 5960
+      }
+    ],
+    "five2": [
+      {
+        "codec": 9,
+        "resident": 60704,
+        "free": 19604,
+        "minimum": 19604,
+        "largest": 18432,
+        "stack_low": 5960
+      }
+    ],
+    "ldac": [
+      {
+        "codec": 8,
+        "resident": 28196,
+        "free": 68524,
+        "minimum": 19604,
+        "largest": 57344,
+        "stack_low": 5960
+      }
+    ]
+  },
+  "evidence_directory": "D:/bt-owned61/native_bt/_build/experiments/assist-five-1794038745721",
+  "limitations": [
+    "short successive segments; not identical replay or sustained proof",
+    "whole-stream counters include startup/drain",
+    "sender-clock discrepancy demonstrated; handset congestion cause unproven",
+    "live1000kbps and full feature/acoustic qualification open"
+  ]
+}

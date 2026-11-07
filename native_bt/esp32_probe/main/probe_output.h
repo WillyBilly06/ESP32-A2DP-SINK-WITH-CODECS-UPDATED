@@ -3,6 +3,16 @@
 #include "dbt_audio.h"
 #define PROBE_OUTPUT_DMA_FRAMES 128u
 #define PROBE_OUTPUT_DMA_DESCRIPTORS 3u
+#ifdef DBT_PROBE_DSP_ASSIST
+#ifndef DBT_PROBE_DSP_ASSIST_BLOCKS
+#define DBT_PROBE_DSP_ASSIST_BLOCKS 4
+#endif
+#if DBT_PROBE_DSP_ASSIST_BLOCKS != 4 && DBT_PROBE_DSP_ASSIST_BLOCKS != 5
+#error DSP batch must be4 or5 canonical blocks
+#endif
+#elif defined(DBT_PROBE_DSP_ASSIST_BLOCKS)
+#error DSP batch override requires DSP assistance
+#endif
 #ifndef DBT_PROBE_PCM_TARGET_MS
 #define DBT_PROBE_PCM_TARGET_MS 64
 #endif

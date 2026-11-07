@@ -50,11 +50,21 @@ one live HD decoder call, its copied input, and an independent DSP/final block
 against desktop replay. It also records a 440-frame payload versus 336-tick RTP
 discrepancy. It is not a causal diagnosis of that sound report; capture is off by default.
 
+[Five-block DSP development selection](docs/ASSIST_FIVE_BLOCKS_2026_11_07.md)
+uses an explicit640-frame cap without adding RAM or changing precision/priority.
+The default remains4 blocks; the retained build explicitly adds `-DspAssistBlocks 5`.
+Actual sanitizer/lifecycle and82 admission checks pass. COM6 image041f25beb2ef
+passes guarded readbacks/37 cold cases. LHDC192/fixed900 unfilled199296 ->
+124672/108800 in repeated short segments, with zero descriptor/contract errors.
+LDAC96/observed990k delivers1445632 frames with zero shortages. Sender RTP clock
+spans also exceed received frame content; the handset mechanism remains unproven.
+Full LHDC continuity and all-feature qualification remain open.
+
 [DSP completion wake order](docs/ASSIST_COMPLETION_WAKE_2026_11_06.md) now signals
 the Core1 owner before notifying the higher-priority Core0 decoder. The pinned
 kernel confirms the preemption path; a negative/two-core sanitizer regression
 proves the owner can retire/close while the helper continuation is suspended.
-COM6 normal image a9427d8cafde passes readbacks/37 cold cases, adds16 flash bytes
+Previous normal image a9427d8cafde passes readbacks/37 cold cases, adds16 flash bytes
 and no RAM. Short LHDC192/fixed900 traces have206848/179968 unfilled versus232192
 in the fresh baseline; an isolated speedup is not established. LDAC96/observed
 990kbps has1451264 source/DMA frames and zero shortages. Full continuity remains open.

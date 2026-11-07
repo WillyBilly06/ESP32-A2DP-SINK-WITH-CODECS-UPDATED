@@ -396,7 +396,28 @@ assert hashlib.sha256(original).hexdigest()==receipt['sha256']
 assert table==original[0x8000:0x8000+len(table)]
 assert image.flash_mode==2 and image.flash_size_freq==0x3f
 assert image.min_rev_full<=301<=image.max_rev_full
-report={'passed':True,'scheduler_trace':scheduler_trace,'task_runtime_stats':task_runtime_stats,'task_cycle_accounting':task_cycle_accounting,'console_irq':console_irq,'stay_native':stay_native,'priority_order':priority_order,'host_priority':host_priority,'decoder_priority':decoder_priority,'renderer_priority':renderer_priority,'early_input_release':early_input_release,'high_rate_pcm_rebalance':high_rate_pcm_rebalance,'matched_feedback':matched_feedback,'matched_feedback_compare':matched_compare,'render_fair_share':render_fair_share,'auxiliary_renderer_priority':build_status.get('auxiliary_renderer_priority',renderer_priority),'owner_ready_yield':owner_ready_yield,'scope':'offline image checksum/digest, ESP32 revision and admitted OTA capacity; no device access or runtime qualification',
+dsp_assist=build_status.get('dsp_assist',False)
+dsp_assist_blocks=build_status.get('dsp_assist_blocks',4)
+assert type(dsp_assist) is bool and ('DBT_PROBE_DSP_ASSIST:BOOL=ON' in cache)==dsp_assist, 'DSP helper receipt/cache mismatch'
+assert type(dsp_assist_blocks) is int and dsp_assist_blocks in (4,5), 'DSP helper batch must be4 or5'
+assert re.findall(r'^DBT_PROBE_DSP_ASSIST_BLOCKS:STRING=(\S+)\r?$',cache,re.M)==[str(dsp_assist_blocks)], 'DSP helper batch receipt/cache mismatch'
+assert dsp_assist or dsp_assist_blocks==4, 'Nondefault batch requires DSP helper'
+for unit in (entry_name,'probe_output.c','probe_audio.c'):
+    entries=[e['command'] for e in commands if Path(e['file']).name==unit]
+    if dsp_assist:assert len(entries)==1
+    for command in entries:
+        for macro,expected in [('DBT_PROBE_DSP_ASSIST',['1'] if dsp_assist else []),('DBT_PROBE_DSP_ASSIST_BLOCKS',[str(dsp_assist_blocks)] if dsp_assist else [])]:
+            assert re.findall(r'(?:^|\s)-D'+macro+r'=(\S+)',command)==expected, 'DSP helper command mismatch: '+unit+' '+macro
+            assert not re.search(r'(?:^|\s)-U'+macro+r'(?:\s|$)',command), 'DSP helper command override: '+macro
+if dsp_assist:
+    assert not diagnostic and not pipeline
+    for key in ('stay_native','codec_aware_render','async_audio','pcm_copied','block_dsp','unity_pcm_copy'):
+        assert build_status.get(key) is True, 'DSP helper dependency missing: '+key
+        assert 'DBT_PROBE_'+key.upper()+':BOOL=ON' in cache, 'DSP helper dependency cache mismatch: '+key
+    assert 'DBT_PROBE_LHDC_BUILD:BOOL=ON' in cache
+    assert not build_status.get('lhdc_core0_render') and 'DBT_PROBE_LHDC_CORE0_RENDER:BOOL=ON' not in cache
+    assert not build_status.get('aptx_snapshot') and 'DBT_PROBE_APTX_SNAPSHOT:BOOL=ON' not in cache
+report={'passed':True,'dsp_assist':dsp_assist,'dsp_assist_blocks':dsp_assist_blocks,'scheduler_trace':scheduler_trace,'task_runtime_stats':task_runtime_stats,'task_cycle_accounting':task_cycle_accounting,'console_irq':console_irq,'stay_native':stay_native,'priority_order':priority_order,'host_priority':host_priority,'decoder_priority':decoder_priority,'renderer_priority':renderer_priority,'early_input_release':early_input_release,'high_rate_pcm_rebalance':high_rate_pcm_rebalance,'matched_feedback':matched_feedback,'matched_feedback_compare':matched_compare,'render_fair_share':render_fair_share,'auxiliary_renderer_priority':build_status.get('auxiliary_renderer_priority',renderer_priority),'owner_ready_yield':owner_ready_yield,'scope':'offline image checksum/digest, ESP32 revision and admitted OTA capacity; no device access or runtime qualification',
  'image_sha256':hashlib.sha256(blob).hexdigest(),'image_bytes':len(blob),'project':project,'chip_id':image.chip_id,'codec_diagnostic_only':diagnostic,'pipeline_diagnostic':pipeline,
  'rf_protocol_diagnostic':rf_diagnostic,'pcm_target_ms':pcm_target_ms,'pcm_copied':pcm_copied,'logger_core':logger_core,'block_dsp':block_dsp,'word_dsp':word_dsp,'experimental_short_pcm_target':pcm_target_ms!=64,'revision_range':[image.min_rev_full,image.max_rev_full],'checksum_verified':True,'digest_verified':bool(image.append_digest),
  'latest_local_build_completed':True,'build_sources_match':True,'build_source_units':source_count,'product_io':bool(build_status.get('product_io')),'product_security':product_security,'rfcomm_profile':rfcomm,'controller_only_dual_mode':True,'anti_rollback_fuse_updates':False,'partition_offset':slot['offset'],'partition_bytes':slot['size'],

@@ -96,7 +96,7 @@ static int start_stream(void){
     CHECK(ticket_result(token)==DBT_OK);return 0;
 }
 static int lend_block(unsigned frames){
-    int32_t pcm[1024];for(unsigned i=0;i<1024;++i)pcm[i]=(int32_t)(i*65536u);
+    int32_t pcm[2048];for(unsigned i=0;i<2048;++i)pcm[i]=(int32_t)(i*65536u);
     atomic_store(&hook_reached,0);atomic_store(&hold_hook,4);ResetEvent(hook_release);
     atomic_store_explicit(&decoder_hint,true,memory_order_release);
     CHECK(probe_output_try_pcm_format(pcm,(uint16_t)frames,2,192000,DBT_PCM_S32_LE)==DBT_OK);
@@ -224,6 +224,19 @@ int main(void){
     CHECK(dbt_output_test_ready_pcm()==512 && !stop_stream());
     atomic_store(&observe_completion_order,false);SetEvent(producer_release);
     puts("PASS completion handoff: owner signaled before producer preemption, retires/closes during held helper continuation, no EOF needed");
+    /* Supply one block beyond the lease cap. Publication is bounded by the
+     * admitted cap; the owner retains its separate local block after DONE. */
+    probe_output_dsp_assist_snapshot(&stats);
+    unsigned cap_jobs=stats.jobs,cap_frames=stats.frames,cap_blocks=stats.blocks;
+    const unsigned cap=DBT_PROBE_DSP_ASSIST_BLOCKS*FIXED_DSP_BLOCK_FRAMES;
+    ResetEvent(commit_release);CHECK(!start_stream() && !lend_block(cap+128u));
+    atomic_store(&hold_hook,8);SetEvent(hook_release);CHECK(hook_ready(8));
+    CHECK(dbt_output_test_ready_pcm()==cap && probe_output_decode_budget()==0);
+    atomic_store(&decoder_hint,false);atomic_store(&hold_hook,0);SetEvent(commit_release);
+    for(unsigned i=0;i<2000;++i){probe_output_dsp_assist_snapshot(&stats);if(stats.jobs==cap_jobs+1u && dbt_output_test_ready_pcm()==cap+128u)break;Sleep(1);}
+    CHECK(stats.jobs==cap_jobs+1u && stats.frames-cap_frames==cap && stats.blocks-cap_blocks==DBT_PROBE_DSP_ASSIST_BLOCKS && stats.max_job_frames==cap && !stats.failures && !stats.state);
+    CHECK(dbt_output_test_ready_pcm()==cap+128u && !stop_stream());
+    printf("PASS bounded helper cap: %u blocks / %u frames plus one local128, retained borrow until DONE\n",DBT_PROBE_DSP_ASSIST_BLOCKS,cap);
     printf("main waits=%u blocking sends=%u mock errors=%u timed waits while held=%u\n",atomic_load(&main_waits),atomic_load(&blocking_sends),atomic_load(&mock_errors),atomic_load(&pending_timed_waits));
     CHECK(!atomic_load(&main_waits) && !atomic_load(&blocking_sends) && !atomic_load(&mock_errors) && !atomic_load(&pending_timed_waits));
     probe_output_restart_hold(true);CHECK(probe_output_restart_quiescent());
