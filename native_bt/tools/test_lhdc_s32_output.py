@@ -1,6 +1,7 @@
 """All float32 conversion patterns plus actual output/quality/overlap block comparison."""
 import argparse,hashlib,json,os,pathlib,re,shutil,subprocess,sys
 R=pathlib.Path(__file__).resolve().parents[1];p=argparse.ArgumentParser();p.add_argument('--decoder',type=pathlib.Path,required=True);p.add_argument('--baseline',type=pathlib.Path,required=True);a=p.parse_args();O=R/'_build/lhdc_s32_output';O.mkdir(exist_ok=True);port=O/'port'
+(O/'results.json').write_text(json.dumps(dict(passed=False,state='building',hardware_accessed=False))+'\n')
 subprocess.run([sys.executable,str(R/'codecs/lhdcv5/prepare_port.py'),'--source',str(a.decoder),'--output',str(port)],check=True,stdout=subprocess.DEVNULL)
 old=a.baseline.read_text();new=(port/'lhdc_dec.c').read_text();macro=re.search(r'    #define LHDC_OUT_SAMPLE.*?while \(0\)',old,re.S)[0]
 def body(t):
@@ -9,7 +10,7 @@ prefix='#include <math.h>\n#include <limits.h>\n#include <string.h>\n#include "l
 for name,text in [('reference',old),('candidate',new)]:
  code=prefix+('#include "dbt_lhdc_pcm_s32.h"\n' if name=='candidate' else macro+'\n')
  if name=='reference':code+='int32_t reference_sample(uint32_t bits){float v;memcpy(&v,&bits,4);int32_t out;LHDC_OUT_SAMPLE(out,v,-2147483648.0f,2147483647.0f);return out;}\nvoid reference_emit(const float *l,const float *r,int32_t *out,int frames,float scale){for(int i=0;i<frames;++i){LHDC_OUT_SAMPLE(out[2*i],l[i]*scale,-2147483648.0f,2147483647.0f);LHDC_OUT_SAMPLE(out[2*i+1],r[i]*scale,-2147483648.0f,2147483647.0f);}}\n#undef LHDC_OUT_SAMPLE\n'
- else:code+='int32_t candidate_sample(uint32_t bits){float v;memcpy(&v,&bits,4);return dbt_lhdc_s32_sample(v);}\nvoid candidate_emit(const float *l,const float *r,int32_t *out,int frames,float scale){dbt_lhdc_emit_s32(l,r,out,frames,scale);}\n'
+ else:code+='int32_t candidate_sample(uint32_t bits){float v;memcpy(&v,&bits,4);return dbt_lhdc_s32_sample(v);}\nvoid candidate_emit(const float *l,const float *r,int32_t *out,int frames,float scale){if(scale>0.0f&&isfinite(scale)){(void)dbt_lhdc_scan_emit_s32(l,r,out,frames,scale);}else{for(int i=0;i<frames;++i){out[2*i]=dbt_lhdc_s32_sample(l[i]*scale);out[2*i+1]=dbt_lhdc_s32_sample(r[i]*scale);}}}\n'
  code+='static output_event_t *event;\n#define dbt_lhdc_frame_quality '+name+'_quality\nstatic void '+name+'_quality(float peak,unsigned clipped,int concealed,int nonfinite){memcpy(&event->peak,&peak,4);event->clipped=clipped;event->concealed=concealed;event->nonfinite=nonfinite;}\n'
  code+='typedef struct {int alloc_mdct_size;float *overlap_buf[2];} context_t;\nvoid '+name+'_frame(const float *out_l,const float *out_r,void *out_pcm,int samples_per_ch,int channels,int bytes_per_sample,float sc,output_event_t *result,float *ov0,float *ov1){\ncontext_t ctx={2*samples_per_ch,{ov0,ov1}},*dec=&ctx;int do_stereo=channels>=2;float clip_lim=bytes_per_sample==2?32767.0f:2147483647.0f;event=result;\n'+body(text)+'\n}\n'
  (O/(name+'.c')).write_text(code)

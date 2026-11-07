@@ -1,5 +1,11 @@
 # Independent ESP32 Bluetooth host
 
+The [stereo S32 scan/emission fusion](docs/LHDC_SCAN_EMIT_2026_11_07.md)
+preserves PCM and quality behavior and measures about1.8–1.9% lower whole LHDC
+decoder time in two short192k/S24/fixed900 runs. It costs92B instruction RAM,
+with no new buffers or data/BSS. LHDC render underruns remain; this is not a
+continuity or full-feature qualification.
+
 An [immediate DSP resubmission experiment](docs/LHDC_RETIRE_RESUBMIT_2026_11_07.md)
 showed no repeatable continuity advantage and is removed. The exact previous
 image is restored; the reverse comparison also documents substantial run

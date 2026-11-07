@@ -1,3 +1,21 @@
+## 2026-11-07 — compact FPU scan/emission fusion retained
+
+9283f7559e33 passes guarded readbacks, VALID owned boot and37 cold codec cases.
+Stereo S32 shares the quality scan and private PCM emission, with original
+saturation and generic exceptional-scale fallback. All4.29B conversion patterns,
+36000 frame-state cases,48 independent full-PCM cases and80 real-codec deferred
+cases pass. Final helper218B, no calls; IRAM+92B, data/BSS0, flashtext+288B.
+
+Whole decoder2166.93us/unit baseline becomes2125.76/2127.78 in two native
+YouTube192/S24/fixed900 traces (about1.8–1.9% lower). Underruns remain:
+12288/15488 unfilled versus12672 baseline. Max-volume trace11264; LDAC96
+regression zero shortages, return to LHDC succeeds. Phone paused90, UART live.
+Rejected word conversion was slower and is removed. Next audit actual kernel
+equal-priority notification behavior: notifying renderer22 does not itself
+preempt host22, while DMA period666us is below the1ms tick. No scheduling
+change or full-goal qualification claimed. See
+[scan/emission evidence](LHDC_SCAN_EMIT_2026_11_07.md).
+
 ## 2026-11-07 — rejected immediate helper resubmission
 
 The immediate-resubmission prototype passes actual ownership interleavings and

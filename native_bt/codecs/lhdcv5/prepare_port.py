@@ -379,14 +379,33 @@ static float lhdc_dec_level_cal(uint32_t sample_rate, int bit_depth)
     return LHDC_DEC_OK;
 }''')
             text=text[:frame_start]+frame+text[frame_end:]
-            # Specialize only successful, unconcealed stereo S32 emission.
-            # Original scan, diagnostics, overlap and other formats stay intact.
+            # Stereo S32 may scan and emit into disjoint, still-private transform
+            # scratch in one traversal. Keep the exact quality comparisons and
+            # existing concealment overwrite/overlap retirement. Other formats
+            # retain their original scan and output paths.
             text=once(text,'lhdc_dec_ret_t lhdc_dec_decode_frame(',
                       '#include "dbt_lhdc_pcm_s32.h"\n\nlhdc_dec_ret_t lhdc_dec_decode_frame(')
-            text=once(text,'    #define LHDC_OUT_SAMPLE',
-                      '''    if(bytes_per_sample==4 && channels==2 && !conceal){
-        dbt_lhdc_emit_s32(out_l,out_r,(int32_t *)out_pcm,samples_per_ch,sc);
+            original_scan='''    for (int n = 0; n < samples_per_ch; n++) {
+        float l = out_l[n];
+        float r = do_stereo ? out_r[n] : out_l[n];
+        float al = (l < 0 ? -l : l) * sc, ar = (r < 0 ? -r : r) * sc;
+        if (!(al <= frame_peak)) frame_peak = al >= 0.0f ? al : INFINITY;
+        if (!(ar <= frame_peak)) frame_peak = ar >= 0.0f ? ar : INFINITY;
+        if (al > clip_lim) clip_cnt++;
+        if (ar > clip_lim) clip_cnt++;
+    }
+'''
+            text=once(text,original_scan,'''    int emitted_s32 = bytes_per_sample == 4 && channels == 2 && sc > 0.0f && isfinite(sc);
+    if (emitted_s32) {
+        dbt_lhdc_s32_quality_t quality = dbt_lhdc_scan_emit_s32(
+            out_l, out_r, (int32_t *)out_pcm, samples_per_ch, sc);
+        frame_peak = quality.peak;
+        clip_cnt = quality.clipped;
     } else {
+'''+original_scan+'''    }
+''')
+            text=once(text,'    #define LHDC_OUT_SAMPLE',
+                      '''    if (!emitted_s32 || conceal) {
     #define LHDC_OUT_SAMPLE''')
             text=once(text,'    #undef LHDC_OUT_SAMPLE','    #undef LHDC_OUT_SAMPLE\n    }')
         if name=="lhdc_entropy_dec.c":
