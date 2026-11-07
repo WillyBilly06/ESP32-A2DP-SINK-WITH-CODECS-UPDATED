@@ -17,9 +17,11 @@ _Static_assert(CONFIG_LWIP_TCPIP_TASK_AFFINITY==DBT_ESP32_BACKGROUND_CORE,"TCP/I
 #include "probe_scheduler.h"
 #define HOST_CALL(phase,expression) do{unsigned probe_previous_phase=probe_scheduler_host_phase(phase);expression;probe_scheduler_host_phase(probe_previous_phase);}while(0)
 static int __attribute__((format(printf,1,2))) host_printf(const char *format,...){
-    unsigned previous=probe_scheduler_host_phase(PROBE_HOST_LOG);
+    bool tagged=probe_scheduler_host_context();unsigned previous=0;
+    if(tagged)previous=probe_scheduler_host_phase(PROBE_HOST_LOG);
     va_list args;va_start(args,format);int result=vprintf(format,args);va_end(args);
-    probe_scheduler_host_phase(previous);return result;
+    if(tagged)probe_scheduler_host_phase(previous);
+    return result;
 }
 #define HOST_PRINTF host_printf
 #else

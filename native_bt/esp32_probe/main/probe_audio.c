@@ -767,6 +767,23 @@ static void log_render_accounting(void){
             s.max_wall_cycles,s.charged_at_max_wall,s.max_charged_cycles,faults[core]);
     }
 }
+static void log_host_accounting(void){
+    probe_host_account_t s;probe_scheduler_host_account(&s);
+    if(!s.revision && !s.wrong_context)return;
+    uint32_t faults[2];probe_task_cycles_faults(faults);
+    PROBE_SNAPSHOT_LOG("{\"probe\":\"host_task_cycles\",\"core\":1,\"coherent\":%s,\"invalid\":%" PRIu32
+        ",\"wrong_context\":%" PRIu32 ",\"hook_faults\":%" PRIu32
+        ",\"wrong_pc\":%" PRIu32 ",\"wrong_phase\":%" PRIu32
+        ",\"charged_cycles\":[%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 "]"
+        ",\"intervals\":[%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 "]"
+        ",\"order\":\"other,query,submit,runtime,wait,gatt,security,product,io,audio,avrcp,console\",\"cpu_mhz\":240"
+        ",\"scope\":\"up_to_last_host_phase_transition\",\"irq_time_included\":true,\"switched_away_excluded\":true,\"counters_wrap_u32\":true}\n",
+        s.coherent?"true":"false",s.invalid,s.wrong_context,faults[1],s.wrong_pc,s.wrong_phase,
+        s.charged_cycles[0],s.charged_cycles[1],s.charged_cycles[2],s.charged_cycles[3],s.charged_cycles[4],s.charged_cycles[5],
+        s.charged_cycles[6],s.charged_cycles[7],s.charged_cycles[8],s.charged_cycles[9],s.charged_cycles[10],s.charged_cycles[11],
+        s.intervals[0],s.intervals[1],s.intervals[2],s.intervals[3],s.intervals[4],s.intervals[5],
+        s.intervals[6],s.intervals[7],s.intervals[8],s.intervals[9],s.intervals[10],s.intervals[11]);
+}
 #endif
 #ifdef DBT_PROBE_OWNER_PACER
 static void log_owner_pacer(void){
@@ -840,6 +857,7 @@ static void log_loop(void *unused){
 #endif
 #ifdef DBT_PROBE_TASK_CYCLE_ACCOUNTING
         log_render_accounting();
+        log_host_accounting();
 #endif
 #ifdef DBT_PROBE_DSP_ASSIST
         probe_dsp_assist_stats_t assisted;probe_output_dsp_assist_snapshot(&assisted);

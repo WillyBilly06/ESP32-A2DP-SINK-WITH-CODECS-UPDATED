@@ -7,6 +7,7 @@ static int fail_core=-1;
 static unsigned registrations,deregistrations;
 static uint32_t clock_us,cycles;
 static TaskHandle_t running;
+static bool running_isr;
 #ifdef DBT_PROBE_TASK_RUNTIME_STATS
 static unsigned info_calls,info_errors;
 void vTaskGetInfo(TaskHandle_t handle,TaskStatus_t *info,int stack,eTaskState state){
@@ -21,6 +22,7 @@ static TaskHandle_t task(unsigned n){return (TaskHandle_t)(uintptr_t)n;}
 uint32_t esp_cpu_get_cycle_count(void){uint32_t before=cycles;cycles+=16;return before;}
 int64_t esp_timer_get_time(void){return clock_us;}
 TaskHandle_t xTaskGetCurrentTaskHandle(void){return running;}
+int xPortInIsrContext(void){return running_isr;}
 TaskHandle_t xTaskGetHandle(const char *name){return !strcmp(name,"native_render")?task(3):!strcmp(name,"btController")&&!missing_controller?task(5):have_system_tasks&&!strcmp(name,"ipc0")?task(11):have_system_tasks&&!strcmp(name,"ipc1")?task(12):have_system_tasks&&!strcmp(name,"esp_timer")?task(13):0;}
 TaskHandle_t xTaskGetIdleTaskHandleForCore(unsigned core){return task(6+core);}
 esp_err_t esp_register_freertos_tick_hook_for_cpu(esp_freertos_tick_cb_t hook,unsigned core){
@@ -38,13 +40,19 @@ static void fixture(void){
     #ifdef DBT_PROBE_TASK_RUNTIME_STATS
     info_calls=info_errors=0;
     #endif
-    fail_core=-1;registrations=deregistrations=clock_us=cycles=0;missing_controller=have_system_tasks=false;running=timer_task=0;ipc_tasks[0]=ipc_tasks[1]=0;
+    fail_core=-1;registrations=deregistrations=clock_us=cycles=0;missing_controller=have_system_tasks=running_isr=false;running=timer_task=0;ipc_tasks[0]=ipc_tasks[1]=0;
 }
 static void tick(unsigned core,unsigned identity,uint32_t at){running=task(identity);clock_us=at;hooks[core]();}
 int main(void){
     probe_scheduler_snapshot_t a,b;
     fixture();probe_scheduler_snapshot(0,&a);CHECK(!a.coherent);
+    running=task(1);CHECK(!probe_scheduler_host_context());
     CHECK(probe_scheduler_start(task(1),task(2),task(4))==ESP_OK && registrations==2 && hooks[0] && hooks[1]);
+    CHECK(probe_scheduler_host_context());
+    running_isr=true;CHECK(!probe_scheduler_host_context());running_isr=false;
+    running=task(3);CHECK(!probe_scheduler_host_context());
+    running=task(4);CHECK(!probe_scheduler_host_context());
+    running=0;CHECK(!probe_scheduler_host_context());
     const unsigned identities[]={1,2,3,4,5,6,8};
     for(unsigned i=0;i<7;++i)tick(0,identities[i],1000u*(i+1u));
     tick(1,7,1000);tick(1,2,2000);

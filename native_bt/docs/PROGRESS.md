@@ -1,5 +1,16 @@
 # Current project progress
 
+Latest: [corrected host attribution and rejected clock trial](HOST_DEADLINE_CLOCK_2026_11_06.md).
+Background boot printf no longer mutates the host phase. Valid optional host
+markers report zero context/hook faults; runtime/deadline work is measured
+separately from renderer execution. Shared-clock candidate has only0.41% lower
+wait charge per iteration and no continuity gain, so it is removed. First
+shortage has1920 decoded frames waiting and0 processed output. Normal COM6
+ea790bbaaa24 passes full readbacks/owned boot/37 existing cold codec cases,
+adds72 flash bytes/no RAM versus6e7afd71e8a0 and excludes temporary hooks/storage.
+No normal-image audio speedup is claimed. Maximum LHDC/full-feature gates remain open.
+The following entries are historical.
+
 Latest: [sound-space progress wakeups](SOUND_PROGRESS_WAKE_2026_11_06.md).
 Only a live sound lease receives PCM-space signals; lifecycle/error notifications
 are preserved. Source tests reproduce and fix idle callbacks, and async overlay/

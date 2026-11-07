@@ -1,6 +1,5 @@
-"""Sanitize the actual tick sampler without accessing a device."""
-import argparse,hashlib,json,os,pathlib,shutil,subprocess
-parser=argparse.ArgumentParser();parser.add_argument("--runtime-stats",action="store_true",default=True);options=parser.parse_args()
+"""Sanitize actual switch counters, renderer marks and host phase attribution; no device."""
+import hashlib,json,os,pathlib,shutil,subprocess
 ROOT=pathlib.Path(__file__).resolve().parents[1];OUT=ROOT/'_build/task_cycle_accounting';OUT.mkdir(exist_ok=True)
 (OUT/'results.json').write_text(json.dumps({'passed':False,'state':'building','hardware_accessed':False})+'\n')
 env=os.environ.copy()
@@ -19,11 +18,11 @@ tracked=[source,pathlib.Path(__file__).resolve()]+list(stubs.rglob('*.h'))+list(
 before={str(p):hashlib.sha256(p.read_bytes()).hexdigest() for p in tracked}
 exe=OUT/('sampler.exe' if os.name=='nt' else 'sampler')
 cmd=[cache,cc,'-std=c11','-O3','-g','-Wall','-Wextra','-Werror','-fsanitize=address,undefined','-fno-sanitize-recover=all','-fno-omit-frame-pointer','-I'+str(stubs),str(source),'-o',str(exe)]
-if options.runtime_stats:cmd+=['-DDBT_PROBE_TASK_RUNTIME_STATS=1','-DDBT_PROBE_CODEC_AWARE_RENDER=1','-DDBT_PROBE_TASK_CYCLE_ACCOUNTING=1']
+cmd+=['-DDBT_PROBE_TASK_RUNTIME_STATS=1','-DDBT_PROBE_CODEC_AWARE_RENDER=1','-DDBT_PROBE_TASK_CYCLE_ACCOUNTING=1']
 if os.name=='nt':cmd+=['-fms-runtime-lib=dll','-D_DLL','-Wl,/NODEFAULTLIB:libcmt']
 subprocess.run(cmd,check=True,env=env)
 if os.name=='nt':
     resource=pathlib.Path(subprocess.check_output([cc,'-print-resource-dir'],text=True).strip());env['PATH']=str(resource/'lib/windows')+os.pathsep+env.get('PATH','')
 subprocess.run([str(exe)],check=True,env=env,timeout=60)
 assert all(hashlib.sha256(pathlib.Path(p).read_bytes()).hexdigest()==digest for p,digest in before.items())
-(OUT/'results.json').write_text(json.dumps({'passed':True,'runtime_observer':options.runtime_stats,'sanitizers':['address','undefined'],'signed_overflow_wrapping':False,'sources':before,'command':cmd,'scope':'actual sampler with model public RTOS hooks; target placement, real timing and sampling bias require physical measurement'},indent=2)+'\n')
+(OUT/'results.json').write_text(json.dumps({'passed':True,'task_cycle_accounting':True,'sanitizers':['address','undefined'],'signed_overflow_wrapping':False,'sources':before,'command':cmd,'scope':'actual hook/marker/phase code with model clock/core/IRQ and RTOS registration; no target timing'},indent=2)+'\n')

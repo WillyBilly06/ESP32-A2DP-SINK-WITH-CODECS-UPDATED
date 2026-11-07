@@ -83,6 +83,7 @@ esp_err_t probe_scheduler_start(TaskHandle_t host,TaskHandle_t decoder,TaskHandl
     tasks[PROBE_SAMPLE_CONTROLLER]=xTaskGetHandle("btController");
 #ifdef DBT_PROBE_TASK_CYCLE_ACCOUNTING
     probe_task_cycles_bind(1,tasks[PROBE_SAMPLE_RENDERER]);
+    probe_task_cycles_bind_host(host);
 #endif
     for(unsigned i=0;i<5;++i)if(tasks[i])known_task_mask|=1u<<i;
     for(unsigned core=0;core<2;++core)idle_tasks[core]=xTaskGetIdleTaskHandleForCore(core);
@@ -116,8 +117,68 @@ void probe_scheduler_snapshot(unsigned core,probe_scheduler_snapshot_t *out){
     out->known_task_mask=known_task_mask;
     out->coherent=!(before&1u) && before==atomic_load_explicit(&s->sequence,memory_order_acquire);
 }
+#ifdef DBT_PROBE_TASK_CYCLE_ACCOUNTING
+static struct {
+    _Atomic uint32_t sequence,charged[PROBE_HOST_PHASES],intervals[PROBE_HOST_PHASES],invalid,wrong_context,wrong_claim,wrong_pc,wrong_phase;
+    probe_task_cycle_mark_t last;
+    bool have_last;
+} host_account;
+static void host_account_phase(unsigned previous,unsigned requested,uintptr_t caller){
+    if(atomic_load_explicit(&host_account.wrong_context,memory_order_relaxed))return;
+    probe_task_cycle_mark_t current;probe_task_cycles_mark_host(&current);
+    if(!current.owner){
+        if(current.context_known){
+            uint32_t empty=0;
+            if(atomic_compare_exchange_strong_explicit(&host_account.wrong_claim,&empty,1,memory_order_acq_rel,memory_order_relaxed)){
+                atomic_store_explicit(&host_account.wrong_pc,(uint32_t)caller,memory_order_relaxed);
+                atomic_store_explicit(&host_account.wrong_phase,requested,memory_order_relaxed);
+                atomic_store_explicit(&host_account.wrong_context,1,memory_order_release);
+            }
+        }
+        return; /* A non-owner never writes the host's last mark or totals. */
+    }
+    uint32_t seq=atomic_load_explicit(&host_account.sequence,memory_order_relaxed);
+    atomic_store_explicit(&host_account.sequence,seq+1u,memory_order_seq_cst);
+    if(current.valid){
+        if(host_account.have_last && current.owner==host_account.last.owner){
+            uint32_t cycles=current.charged_cycles-host_account.last.charged_cycles;
+            unsigned p=previous<PROBE_HOST_PHASES?previous:PROBE_HOST_OTHER;
+            atomic_store_explicit(&host_account.charged[p],atomic_load_explicit(&host_account.charged[p],memory_order_relaxed)+cycles,memory_order_relaxed);
+            atomic_store_explicit(&host_account.intervals[p],atomic_load_explicit(&host_account.intervals[p],memory_order_relaxed)+1u,memory_order_relaxed);
+        }else if(host_account.have_last)atomic_store(&host_account.invalid,atomic_load(&host_account.invalid)+1u);
+        host_account.last=current;host_account.have_last=true;
+    }else{
+        if(host_account.have_last)atomic_store(&host_account.invalid,atomic_load(&host_account.invalid)+1u);
+        host_account.have_last=false;
+    }
+    uint32_t next=seq+2u;atomic_store_explicit(&host_account.sequence,next?next:2u,memory_order_release);
+}
+void probe_scheduler_host_account(probe_host_account_t *out){
+    if(!out)return;
+    *out=(probe_host_account_t){0};uint32_t before=atomic_load_explicit(&host_account.sequence,memory_order_acquire);
+    for(unsigned p=0;p<PROBE_HOST_PHASES;++p){
+        out->charged_cycles[p]=atomic_load_explicit(&host_account.charged[p],memory_order_relaxed);
+        out->intervals[p]=atomic_load_explicit(&host_account.intervals[p],memory_order_relaxed);
+    }
+    out->invalid=atomic_load_explicit(&host_account.invalid,memory_order_relaxed);
+    out->wrong_context=atomic_load_explicit(&host_account.wrong_context,memory_order_acquire);
+    if(out->wrong_context){
+        out->wrong_pc=atomic_load_explicit(&host_account.wrong_pc,memory_order_relaxed);
+        out->wrong_phase=atomic_load_explicit(&host_account.wrong_phase,memory_order_relaxed);
+    }
+    atomic_thread_fence(memory_order_seq_cst);out->revision=before;
+    out->coherent=before && !(before&1u) && before==atomic_load_explicit(&host_account.sequence,memory_order_acquire);
+}
+#endif
+bool probe_scheduler_host_context(void){
+    return atomic_load_explicit(&enabled,memory_order_acquire) && !xPortInIsrContext() &&
+        xTaskGetCurrentTaskHandle()==tasks[PROBE_SAMPLE_HOST];
+}
 unsigned probe_scheduler_host_phase(unsigned phase){
     unsigned previous=atomic_load_explicit(&host_phase,memory_order_relaxed);
+#ifdef DBT_PROBE_TASK_CYCLE_ACCOUNTING
+    host_account_phase(previous,phase,(uintptr_t)__builtin_return_address(0));
+#endif
     atomic_store_explicit(&host_phase,phase<PROBE_HOST_PHASES?phase:PROBE_HOST_OTHER,memory_order_relaxed);
     return previous;
 }

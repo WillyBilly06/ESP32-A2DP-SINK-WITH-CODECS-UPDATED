@@ -5,11 +5,16 @@
 typedef struct {
     uint32_t charged_cycles,wall_cycles;
     uintptr_t owner;
-    bool valid;
+    bool valid,context_known;
 } probe_task_cycle_mark_t;
+/* context_known is false before the first traced IN. A nonzero owner proves
+ * the calling task matches the requested slot even if a hook fault invalidates
+ * its count. Known non-owner/ISR/core calls never modify host charging state. */
 /* Permanent pinned render handles; bind before their first measured work.
  * No task object is dereferenced. Enable only after scheduler registration. */
 void probe_task_cycles_bind(unsigned core,void *task);
+/* Separate permanent Core1 host slot; never changes renderer identity. */
+void probe_task_cycles_bind_host(void *task);
 void probe_task_cycles_enable(void);
 /* SDK trace hooks: counter/pointer operations only; no kernel or logging API. */
 void probe_task_cycles_in(unsigned core,void *task);
@@ -18,5 +23,6 @@ void probe_task_cycles_out(unsigned core,void *task);
  * excludes intervals switched away and the OUT-to-IN selection gap. One local
  * interrupt-mask span, no kernel lock, stack scan, allocation or retry. */
 void probe_task_cycles_mark(unsigned expected_core,probe_task_cycle_mark_t *);
+void probe_task_cycles_mark_host(probe_task_cycle_mark_t *);
 void probe_task_cycles_faults(uint32_t faults[2]);
 #endif

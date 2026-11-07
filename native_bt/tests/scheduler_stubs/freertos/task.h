@@ -5,6 +5,7 @@
 #define pdFALSE 0
 #endif
 TaskHandle_t xTaskGetCurrentTaskHandle(void);
+int xPortInIsrContext(void);
 TaskHandle_t xTaskGetHandle(const char *);
 TaskHandle_t xTaskGetIdleTaskHandleForCore(unsigned);
 

@@ -23,6 +23,9 @@ typedef struct {
 /* Init-only, once per boot, after all permanent audio/controller tasks exist.
  * No task/queue/allocation is added. Failed registration is rolled back. */
 esp_err_t probe_scheduler_start(TaskHandle_t host,TaskHandle_t decoder,TaskHandle_t logger);
+/* Tagging guard for helpers also used by background workers. No state change,
+ * wait or kernel lock. A non-host caller must not alter the host's phase. */
+bool probe_scheduler_host_context(void);
 void probe_scheduler_snapshot(unsigned core,probe_scheduler_snapshot_t *out);
 /* Bounded task-context observation of existing counters. No new ISR work.
  * One sequence check; inconsistent observations are explicit, never retried.
@@ -57,6 +60,12 @@ typedef struct {
 /* Only local-render kinds are counted. A cross-core helper-retirement marker
  * has no own-core running-tail observation and is deliberately not charged. */
 void probe_scheduler_render_account(unsigned kind,probe_render_account_t *);
+typedef struct {
+    uint32_t revision,charged_cycles[PROBE_HOST_PHASES],intervals[PROBE_HOST_PHASES],invalid,wrong_context,wrong_pc,wrong_phase;
+    bool coherent;
+} probe_host_account_t;
+/* Up to the last owner phase transition, not a running-tail read by logger. */
+void probe_scheduler_host_account(probe_host_account_t *);
 #endif
 #ifdef DBT_PROBE_CODEC_AWARE_RENDER
 /* Publish the optional permanent Core0 renderer handle after its lazy creation. */
@@ -77,6 +86,7 @@ typedef struct {
 void probe_scheduler_task_runtime(probe_task_runtime_snapshot_t *);
 #endif
 /* Host-owner task only; returns previous phase for nested controller calls.
- * One writer, atomic load/store only. No timer, lock, allocation or logging. */
+ * One writer. No timer, kernel lock, allocation or logging. The optional
+ * task-cycle diagnostic adds one own-core interrupt-masked counter mark. */
 unsigned probe_scheduler_host_phase(unsigned phase);
 #endif

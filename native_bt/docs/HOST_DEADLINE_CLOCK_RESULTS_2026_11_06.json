@@ -1,0 +1,262 @@
+{
+  "scope": "Host CPU attribution and deadline-clock trial; master goal incomplete",
+  "baseline_image": "2ece8d96fef6cb57ed1b25c58af12e94ac4811decd76586339ead6e4bdf242f1",
+  "baseline_archive": "runs/1794034759718241700-2ece8d96fef6",
+  "baseline_trace": "D:/bt-owned61/native_bt/_build/experiments/host-charge-1794032927114/context-guard-lhdc",
+  "baseline_host": [
+    {
+      "name": "other",
+      "charged_us": 185401.375,
+      "share": 14.450609853691779
+    },
+    {
+      "name": "query",
+      "charged_us": 22479.604166666668,
+      "share": 1.75211208373144
+    },
+    {
+      "name": "submit",
+      "charged_us": 34872.15,
+      "share": 2.7180156264181847
+    },
+    {
+      "name": "runtime",
+      "charged_us": 349873.35833333334,
+      "share": 27.269934753590157
+    },
+    {
+      "name": "wait",
+      "charged_us": 277815.8875,
+      "share": 21.65360964242917
+    },
+    {
+      "name": "gatt",
+      "charged_us": 80543.32916666666,
+      "share": 6.277732439174056
+    },
+    {
+      "name": "security",
+      "charged_us": 74572.73333333334,
+      "share": 5.8123704590831435
+    },
+    {
+      "name": "product",
+      "charged_us": 35555.066666666666,
+      "share": 2.771243723095373
+    },
+    {
+      "name": "io",
+      "charged_us": 59041.4375,
+      "share": 4.601825517818448
+    },
+    {
+      "name": "audio",
+      "charged_us": 98150.4875,
+      "share": 7.65007488111753
+    },
+    {
+      "name": "avrcp",
+      "charged_us": 64694.92083333333,
+      "share": 5.042471019850722
+    },
+    {
+      "name": "console",
+      "charged_us": 0,
+      "share": 0
+    }
+  ],
+  "baseline_task_runtime": [
+    {
+      "begin": 111104995,
+      "end": 115981573,
+      "duration_us": 4876578,
+      "roles": {
+        "host": {
+          "core": 1,
+          "us": 1299095,
+          "pct": 26.639479569484994
+        },
+        "decoder": {
+          "core": 0,
+          "us": 2565484,
+          "pct": 52.60828392368583
+        },
+        "renderer1": {
+          "core": 1,
+          "us": 2117945,
+          "pct": 43.43096737097202
+        },
+        "logger": {
+          "core": 1,
+          "us": 155911,
+          "pct": 3.1971394695214554
+        },
+        "controller": {
+          "core": 1,
+          "us": 581010,
+          "pct": 11.914297279772825
+        },
+        "idle0": {
+          "core": 0,
+          "us": 689436,
+          "pct": 14.137700658125432
+        },
+        "idle1": {
+          "core": 1,
+          "us": 516213,
+          "pct": 10.5855581516383
+        },
+        "ipc0": {
+          "core": 0,
+          "us": 0,
+          "pct": 0
+        },
+        "ipc1": {
+          "core": 1,
+          "us": 0,
+          "pct": 0
+        },
+        "timer": {
+          "core": 0,
+          "us": 0,
+          "pct": 0
+        },
+        "renderer0": {
+          "core": 0,
+          "us": 1622195,
+          "pct": 33.26502723836264
+        }
+      }
+    },
+    {
+      "begin": 115981573,
+      "end": 120850890,
+      "duration_us": 4869317,
+      "roles": {
+        "host": {
+          "core": 1,
+          "us": 1327722,
+          "pct": 27.267109535074425
+        },
+        "decoder": {
+          "core": 0,
+          "us": 2507307,
+          "pct": 51.49196488953174
+        },
+        "renderer1": {
+          "core": 1,
+          "us": 2086019,
+          "pct": 42.84007387483707
+        },
+        "logger": {
+          "core": 1,
+          "us": 155699,
+          "pct": 3.1975531681342577
+        },
+        "controller": {
+          "core": 1,
+          "us": 606195,
+          "pct": 12.449281901342632
+        },
+        "idle0": {
+          "core": 0,
+          "us": 733369,
+          "pct": 15.061023958801615
+        },
+        "idle1": {
+          "core": 1,
+          "us": 490780,
+          "pct": 10.079031617781302
+        },
+        "ipc0": {
+          "core": 0,
+          "us": 0,
+          "pct": 0
+        },
+        "ipc1": {
+          "core": 1,
+          "us": 0,
+          "pct": 0
+        },
+        "timer": {
+          "core": 0,
+          "us": 0,
+          "pct": 0
+        },
+        "renderer0": {
+          "core": 0,
+          "us": 1628043,
+          "pct": 33.434730168522606
+        }
+      }
+    }
+  ],
+  "baseline_pcm": {
+    "accepted": 2656128,
+    "rendered": 2656128,
+    "dma_source": 2656128,
+    "unfilled": 273408,
+    "worker_detail_lost": 3528,
+    "snapshot_lost": 0
+  },
+  "first_shortage": {
+    "input_frames": 1920,
+    "output_frames": 0
+  },
+  "candidate_image": "39546528f3b30b3a40ec391d71f5d37d5aa300275ee42bc9ca2528c3a2e026db",
+  "candidate_archive": "runs/1794035270580121100-39546528f3b3",
+  "candidate_trace": "D:/bt-owned61/native_bt/_build/experiments/host-charge-1794032927114/deadline-clock-lhdc",
+  "clock_verdict": {
+    "baseline_wait_us_per_iteration": 445.9324036918138,
+    "candidate_wait_us_per_iteration": 444.103453689168,
+    "relative_change_pct": -0.4101406373486549,
+    "baseline_unfilled": 273408,
+    "candidate_unfilled": 312576,
+    "retained": false,
+    "reason": "No meaningful CPU or continuity improvement established in this bounded pair; preserve original scheduling semantics",
+    "scope": "Different metronome segments and short target traces do not prove causality"
+  },
+  "normal": {
+    "image": "ea790bbaaa24f6d04d0e7e7c35c5c71b930d50cd568bcb24ac0393af661e15a6",
+    "archive": "runs/1794035670765910300-ea790bbaaa24",
+    "readbacks": [
+      true,
+      true
+    ],
+    "cold_codec_check": {
+      "probe": "target_codec_selftest",
+      "passed": true,
+      "configurations": 37,
+      "selected": 37,
+      "callbacks": 173,
+      "stack_bytes": 8192,
+      "stack_low_water_bytes": 3464,
+      "tracked_peak_bytes": 56899,
+      "min_free_after_alloc_bytes": 103632,
+      "maximum_decode_us": 13899,
+      "rf_test": false
+    },
+    "boot": {
+      "probe": "boot_selection",
+      "host": "owned",
+      "kept_active": true,
+      "partition": 3735552,
+      "ota_state": 2,
+      "result": 0,
+      "production_ready": false
+    },
+    "original_preserved": true,
+    "automatic_fallback": false,
+    "task_cycle_accounting": false,
+    "relative_to_6e": {
+      ".iram0.vectors": 0,
+      ".iram0.text": 0,
+      ".dram0.data": 0,
+      ".dram0.bss": 0,
+      ".flash.rodata": 0,
+      ".flash.text": 72
+    },
+    "playback_run_on_this_exact_image": false
+  },
+  "full_goal_qualified": false
+}
