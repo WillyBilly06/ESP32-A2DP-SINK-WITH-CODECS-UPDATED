@@ -1154,6 +1154,14 @@ static dbt_result_t dsp_assist_commit(void *context,const dbt_audio_render_job_t
     if(delay>assist.commit_delay_max_us)assist.commit_delay_max_us=delay;
     if(result!=DBT_OK)return result;
     assist.committed_frames+=made;++assist.completed_blocks;
+    /* A published span is independent of the still-borrowed DSP state.
+     * Let the IRQ-core owner fill its current descriptor before the next EOF;
+     * waiting for the rest of this lease can discard an otherwise usable span. */
+    if(made && atomic_load_explicit(&output.refill_pending_index,memory_order_acquire)<DMA_DESCRIPTORS){
+      TaskHandle_t owner=atomic_load_explicit(&output.task,memory_order_acquire);
+      if(owner)xTaskNotifyGive(owner);
+    }
+    OUTPUT_TEST_STEP(11); /* test-only hold after each publication, before DONE */
     if(i==3u || assist.committed_frames>=assist.budget)break;
     result=dbt_audio_render_prepare(&output.audio,assist.budget-assist.committed_frames,&next);
     if(result==DBT_EMPTY)break;
@@ -1255,7 +1263,11 @@ static bool render_step(void) {
 #endif
 #ifdef DBT_PROBE_DSP_ASSIST
     int assisted=dsp_assist_complete();
-    if(assisted<0)return false; /* READY/BUSY retains every DSP/lifecycle borrow. */
+    if(assisted<0){
+      /* Consume only already-published PCM under the existing IRQ-core mask.
+       * DSP/meter reads, controls and lifecycle remain blocked through DONE. */
+      (void)service_refill_window();return false;
+    }
     /* DONE is only bookkeeping. Service controls/refill and at most one local
      * block before yielding; let Core0 resume decoding before another lease. */
 #endif

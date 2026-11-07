@@ -2,7 +2,12 @@
 #include <string.h>
 #include "freertos/queue.h"
 void vQueueDelete(QueueHandle_t);
+#ifdef DBT_PROBE_DSP_ASSIST
+static unsigned fixture_core;
+#define xPortGetCoreID() fixture_core
+#else
 #define xPortGetCoreID() 0u /* This focused fixture runs ISR/owner sequentially on one simulated CPU. */
+#endif
 #include "../../esp32_probe/main/probe_output.c"
 #ifdef _WIN32
 #define EX __declspec(dllexport)
@@ -19,11 +24,17 @@ static int64_t test_clock_step;
 static unsigned configured_irq_priority,created_render_priority;
 static unsigned allocation_attempt,fail_at_allocation;
 static unsigned decoder_wakes;
+#ifdef DBT_PROBE_DSP_ASSIST
+static unsigned worker_refill_notifications;
+#endif
 static void wake_compact(void *unused){(void)unused;++decoder_wakes;}
 void *heap_caps_malloc(size_t n,unsigned flags){(void)flags;if(++allocation_attempt==fail_at_allocation)return 0;void *p=malloc(n);if(p)live++;return p;}
 void heap_caps_free(void *p){if(p){live--;free(p);}}
 int64_t esp_timer_get_time(void){int64_t value=test_clock_us;test_clock_us+=test_clock_step;return value;}
 void xTaskNotifyGive(TaskHandle_t t){
+#ifdef DBT_PROBE_DSP_ASSIST
+    if(t==atomic_load(&output.task) && dbt_dsp_job_state(&assist.lane)==DBT_DSP_JOB_BUSY)++worker_refill_notifications;
+#endif
     (void)t;if(!request_pending)return;request_pending=false;
     dbt_result_t r;
     if(pending_request.start)r=start_output(pending_request.rate,pending_request.channels,pending_request.format);
@@ -34,7 +45,16 @@ void vTaskNotifyGiveFromISR(TaskHandle_t t,BaseType_t *w){(void)t;(void)w;}
 unsigned ulTaskNotifyTake(int b,unsigned t){(void)b;(void)t;return 0;}
 /* Metadata plumbing only; this host mock cannot measure an ESP32 stack. */
 unsigned uxTaskGetStackHighWaterMark(TaskHandle_t t){(void)t;++stack_queries;return 4096;}
-int xTaskCreatePinnedToCore(void (*f)(void *),const char *n,unsigned s,void *a,unsigned p,TaskHandle_t *t,int core){(void)f;(void)n;(void)s;(void)a;created_render_priority=p;(void)core;*t=(void *)3;return pdPASS;}
+int xTaskCreatePinnedToCore(void (*f)(void *),const char *n,unsigned s,void *a,unsigned p,TaskHandle_t *t,int core){(void)f;(void)n;(void)s;(void)a;created_render_priority=p;
+#ifdef DBT_PROBE_DSP_ASSIST
+    *t=(void *)(uintptr_t)(3+core);
+#else
+    (void)core;*t=(void *)3;
+#endif
+    return pdPASS;}
+#ifdef DBT_PROBE_DSP_ASSIST
+TaskHandle_t xTaskGetCurrentTaskHandle(void){return (void *)(uintptr_t)(3+fixture_core);}
+#endif
 void vQueueDelete(QueueHandle_t q){(void)q;}
 QueueHandle_t xQueueCreate(unsigned n,unsigned s){(void)n;(void)s;return (void *)(uintptr_t)(++queues_created);}
 int xQueueSend(QueueHandle_t q,const void *p,unsigned t){

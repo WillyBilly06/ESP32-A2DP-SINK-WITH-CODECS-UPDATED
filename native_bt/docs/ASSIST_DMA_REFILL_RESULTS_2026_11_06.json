@@ -1,0 +1,159 @@
+{
+  "scope": "Consumer handoff correction; full master goal incomplete",
+  "baseline": {
+    "image": "ea790bbaaa24f6d04d0e7e7c35c5c71b930d50cd568bcb24ac0393af661e15a6",
+    "archive": "runs/1794035670765910300-ea790bbaaa24",
+    "trace": "D:/bt-owned61/native_bt/_build/experiments/assist-refill-1794036169410/baseline-lhdc",
+    "command_s": 12.241,
+    "frames": 2669760,
+    "initial": 356800,
+    "recovered": 119296,
+    "unfilled": 237504
+  },
+  "candidate": {
+    "image": "6e4c4932cf282e5beb56c313f0b2e40301dd55be08c31e7405bb894ec458da85",
+    "archive": "runs/1794036556549434000-6e4c4932cf28",
+    "readbacks": [
+      true,
+      true
+    ],
+    "boot": {
+      "probe": "boot_selection",
+      "host": "owned",
+      "kept_active": true,
+      "partition": 3735552,
+      "ota_state": 2,
+      "result": 0,
+      "production_ready": false
+    },
+    "all_codec_cold_check": {
+      "probe": "target_codec_selftest",
+      "passed": true,
+      "configurations": 37,
+      "selected": 37,
+      "callbacks": 173,
+      "stack_bytes": 8192,
+      "stack_low_water_bytes": 3608,
+      "tracked_peak_bytes": 56899,
+      "min_free_after_alloc_bytes": 103632,
+      "maximum_decode_us": 13922,
+      "rf_test": false
+    },
+    "original_preserved": true,
+    "automatic_fallback": false,
+    "relative_footprint": {
+      ".iram0.vectors": 0,
+      ".iram0.text": 0,
+      ".dram0.data": 0,
+      ".dram0.bss": 0,
+      ".flash.rodata": 0,
+      ".flash.text": 68
+    },
+    "trace1": "D:/bt-owned61/native_bt/_build/experiments/assist-refill-1794036169410/candidate-lhdc-1",
+    "trace2": "D:/bt-owned61/native_bt/_build/experiments/assist-refill-1794036169410/candidate-lhdc-2",
+    "frames": [
+      2721856,
+      2713920
+    ],
+    "initial": [
+      395648,
+      456704
+    ],
+    "recovered": [
+      213248,
+      256384
+    ],
+    "unfilled": [
+      182400,
+      200320
+    ],
+    "copy_max_us": [
+      5,
+      5
+    ],
+    "mask_max_us": [
+      9,
+      11
+    ],
+    "descriptor_errors": [
+      0,
+      0
+    ],
+    "contract_errors": [
+      0,
+      0
+    ],
+    "worker_detail_loss": [
+      3508,
+      3516
+    ],
+    "aggregate_loss": [
+      0,
+      0
+    ]
+  },
+  "ldac": {
+    "trace": "D:/bt-owned61/native_bt/_build/experiments/assist-refill-1794036169410/candidate-ldac-96",
+    "rate": 96000,
+    "phone_input_bits": 32,
+    "wire_inference_bps": 990000,
+    "command_s": 12.168,
+    "frames": 1443584,
+    "shortages": 0,
+    "descriptor_errors": 0,
+    "worker_detail_loss": 5512
+  },
+  "limitations": [
+    "short successive segments; not identical replay",
+    "whole-window counters include startup/drain",
+    "no complete per-sample hardware/acoustic proof",
+    "LHDC UI fixed900; live1000 still unqualified",
+    "sustained continuity and full feature parity open"
+  ],
+  "memory_snapshots": {
+    "baseline": [
+      {
+        "at_us": 692267670,
+        "codec": 9,
+        "resident": 60704,
+        "free": 19604,
+        "minimum": 19604,
+        "largest": 18432,
+        "decoder_stack_low_water_bytes": 5960
+      }
+    ],
+    "candidate1": [
+      {
+        "at_us": 114083934,
+        "codec": 9,
+        "resident": 60704,
+        "free": 19604,
+        "minimum": 19604,
+        "largest": 18432,
+        "decoder_stack_low_water_bytes": 5960
+      }
+    ],
+    "candidate2": [
+      {
+        "at_us": 157191108,
+        "codec": 9,
+        "resident": 60704,
+        "free": 19604,
+        "minimum": 19604,
+        "largest": 18432,
+        "decoder_stack_low_water_bytes": 5960
+      }
+    ],
+    "ldac": [
+      {
+        "at_us": 277423156,
+        "codec": 8,
+        "resident": 28196,
+        "free": 68524,
+        "minimum": 19604,
+        "largest": 57344,
+        "decoder_stack_low_water_bytes": 5960
+      }
+    ]
+  }
+}

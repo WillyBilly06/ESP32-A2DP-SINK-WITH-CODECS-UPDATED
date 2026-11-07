@@ -50,12 +50,21 @@ one live HD decoder call, its copied input, and an independent DSP/final block
 against desktop replay. It also records a 440-frame payload versus 336-tick RTP
 discrepancy. It is not a causal diagnosis of that sound report; capture is off by default.
 
+[DMA refill during helper work](docs/ASSIST_DMA_REFILL_2026_11_06.md) now consumes
+already-published PCM while the helper retains its DSP/lifecycle borrow, and
+wakes the owner on a publication when a descriptor is pending. A valid negative
+control reproduces the missed refill; sanitizer, two-core lifecycle and sound
+regressions pass. COM6 normal image6e4c4932cf28 adds68 flash bytes/no RAM and
+passes guarded readbacks/37 cold cases. Two LHDC192/fixed900 traces record
+182400/200320 unfilled frames versus237504 before; continuity still fails.
+LDAC96/observed990kbps metronome delivers1443584 frames with zero shortages.
+
 [Corrected host CPU attribution](docs/HOST_DEADLINE_CLOCK_2026_11_06.md) prevents
 background boot logging from altering the host phase. The opt-in separate host
 counter measures runtime/deadline work; old sampled console counts are not real
 console CPU evidence. A shared-clock candidate gives no meaningful gain and is
 reverted. First shortage has1920 decoded frames waiting and0 processed output.
-Normal COM6 image ea790bbaaa24 passes readbacks/owned boot/37 cold codec cases,
+Previous normal COM6 image ea790bbaaa24 passes readbacks/owned boot/37 cold codec cases,
 adds72 flash bytes and no RAM versus6e7afd71e8a0, with temporary hooks/storage
 absent. LHDC continuity remains unresolved; the last normal playback evidence
 below remains associated with its earlier exact image.

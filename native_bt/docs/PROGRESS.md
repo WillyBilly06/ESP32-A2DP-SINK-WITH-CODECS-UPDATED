@@ -1,5 +1,17 @@
 # Current project progress
 
+Latest: [DMA refill during borrowed DSP work](ASSIST_DMA_REFILL_2026_11_06.md).
+The owner no longer skips descriptor recovery solely because the helper is BUSY.
+Only release-published PCM is consumed; DSP/control/lifecycle remains borrowed.
+A pending descriptor gets a helper publication wake, at most4 per bounded lease.
+ASan/UBSan negative/positive, two-core stop/cancel and async-sound checks pass.
+COM6 normal6e4c4932cf28 passes full readbacks/owned boot/37 cold cases, adds68
+flash bytes and no RAM. LHDC192/fixed900 unfilled237504 ->182400/200320 in short
+successive metronome segments; full continuity is still unqualified. LDAC96
+wire samples consistent with990kbps deliver1443584 frames with zero shortages.
+No codec, PCM precision, priority or buffer is changed. The full goal stays open.
+The following entries are historical.
+
 Latest: [corrected host attribution and rejected clock trial](HOST_DEADLINE_CLOCK_2026_11_06.md).
 Background boot printf no longer mutates the host phase. Valid optional host
 markers report zero context/hook faults; runtime/deadline work is measured
