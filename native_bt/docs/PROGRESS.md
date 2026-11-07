@@ -1,5 +1,16 @@
 # Current project progress
 
+Latest: [decoded-PCM consumer handoff](DSP_RETIREMENT_HANDOFF_2026_11_06.md).
+The first-gap snapshot has decoded PCM waiting while processed output is empty.
+A bookkeeping-only fair yield is removed after helper retirement; deterministic
+actual-output tests show 640 versus 512 ready frames before the first yield.
+No added audio SRAM, task or priority change. COM6 image 23b03035b61a passes full
+readbacks and the existing 37 cold codec cases. LHDC 192/fixed900 music/metronome
+traces still have 382784/370432 unfilled frames, so no playback speedup or continuity
+pass is claimed. The next investigation remains shared-DSP scheduling and delivery
+deadlines. The master goal and all remaining qualification gates stay open.
+The following entries are historical.
+
 Latest: [task accounting and UART output](TASK_RUNTIME_UART_2026_11_06.md).
 COM6 owned image 40805d7940ef reduces measured logger charge with whole-record
 interrupt-driven UART, preserving every record and PCM allocation. Exact source/image

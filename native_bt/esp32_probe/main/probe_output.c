@@ -1242,7 +1242,9 @@ static bool render_step(void) {
 #endif
 #ifdef DBT_PROBE_DSP_ASSIST
     int assisted=dsp_assist_complete();
-    if(assisted)return assisted>0;
+    if(assisted<0)return false; /* READY/BUSY retains every DSP/lifecycle borrow. */
+    /* DONE is only bookkeeping. Service controls/refill and at most one local
+     * block before yielding; let Core0 resume decoding before another lease. */
 #endif
     publish_dsp_quality();
 #ifdef DBT_PROBE_SOUND_BUILD
@@ -1332,7 +1334,7 @@ static bool render_step(void) {
 #ifdef DBT_PROBE_SOUND_BUILD
         if(output.sound || !budget)assist_budget=budget;
 #endif
-        if(dsp_assist_submit(assist_budget,began)){
+        if(!assisted && dsp_assist_submit(assist_budget,began)){
 #ifdef DBT_PROBE_SCHEDULER_TRACE
           trace_render(0,(uint32_t)esp_timer_get_time());
 #endif

@@ -50,6 +50,15 @@ one live HD decoder call, its copied input, and an independent DSP/final block
 against desktop replay. It also records a 440-frame payload versus 336-tick RTP
 discrepancy. It is not a causal diagnosis of that sound report; capture is off by default.
 
+[DSP consumer handoff](docs/DSP_RETIREMENT_HANDOFF_2026_11_06.md) records a
+first gap with 1792 decoded frames waiting and zero processed output. A bounded
+retirement change processes one local block before the next fair yield; the
+actual two-core regression changes 512 ready frames to 640 at that boundary.
+COM6 image 23b03035b61a passes readbacks and 37 cold codec cases, but music and
+native YouTube metronome still have 382784/370432 unfilled frames at LHDC 192/fixed900.
+There is no demonstrated playback speedup or continuity pass. PCM sizes and
+priorities remain unchanged; the decoded-to-DSP consumer is still under investigation.
+
 [Task accounting and UART output](docs/TASK_RUNTIME_UART_2026_11_06.md) now
 separate logger overhead from PCM consumer timing. Whole-record interrupt-driven
 UART lowers the measured central logger charge from 10.27% to 3.13% on Core 1

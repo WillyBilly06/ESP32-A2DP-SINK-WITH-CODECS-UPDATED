@@ -21,7 +21,23 @@ static mock_task_t mock_tasks[2];
 static _Thread_local mock_task_t *current_task;
 static _Atomic bool mock_shutdown,decoder_hint;
 static _Atomic unsigned mock_errors,pending_timed_waits,yields[2];
-void taskYIELD(void){if(current_task)atomic_fetch_add(&yields[current_task->core],1);SwitchToThread();}
+extern uint32_t dbt_output_test_ready_pcm(void);
+static HANDLE yield_release;
+static _Atomic unsigned yield_job_gate,yield_ready_frames;
+void taskYIELD(void){
+    if(current_task){
+        atomic_fetch_add(&yields[current_task->core],1);
+        unsigned gate=atomic_load_explicit(&yield_job_gate,memory_order_acquire);
+        if(current_task->core==1 && gate){
+            probe_dsp_assist_stats_t stats;probe_output_dsp_assist_snapshot(&stats);
+            if(stats.jobs>=gate && atomic_exchange(&yield_job_gate,0)){
+                atomic_store_explicit(&yield_ready_frames,dbt_output_test_ready_pcm(),memory_order_release);
+                if(WaitForSingleObject(yield_release,3000)!=WAIT_OBJECT_0)atomic_fetch_add(&mock_errors,2);
+            }
+        }
+    }
+    SwitchToThread();
+}
 static HANDLE hook_release,commit_release,input_release;
 extern uint32_t dbt_output_test_ready_pcm(void);
 int xPortGetCoreID(void){return current_task?current_task->core:0;}
@@ -133,6 +149,25 @@ int main(void){
     CHECK(stats.jobs==2 && stats.blocks==5 && stats.frames==640 && stats.max_job_frames==512 && !stats.failures && !stats.state);
 #ifdef DBT_PROBE_RENDER_FAIR_SHARE
     CHECK(mock_tasks[1].priority==22 && mock_tasks[0].priority==20 && atomic_load(&yields[1]) && !atomic_load(&yields[0]));
+    /* Refill input while the helper has published 512 frames but still owns
+     * the lifecycle borrow. The first fair yield after DONE must include one
+     * local 128-frame block, rather than yielding after bookkeeping alone. */
+    yield_release=CreateEventA(NULL,TRUE,FALSE,NULL);CHECK(yield_release);ResetEvent(commit_release);
+    CHECK(!start_stream() && !lend_block(512));
+    atomic_store(&hold_hook,8);SetEvent(hook_release);CHECK(hook_ready(8));
+    CHECK(dbt_output_test_ready_pcm()==512 && probe_output_decode_budget()==0);
+    int32_t queued[512];for(unsigned i=0;i<512;i++)queued[i]=(int32_t)(0x12340000u+i);
+    CHECK(probe_output_try_pcm_format(queued,256,2,192000,DBT_PCM_S32_LE)==DBT_OK);
+    atomic_store_explicit(&yield_job_gate,3,memory_order_release);
+    atomic_store(&hold_hook,0);SetEvent(commit_release);
+    for(unsigned i=0;i<2000 && !atomic_load_explicit(&yield_ready_frames,memory_order_acquire);i++)Sleep(1);
+    printf("first yield after DONE: ready=%u frames\n",atomic_load(&yield_ready_frames));
+    CHECK(atomic_load(&yield_ready_frames)==640);
+    atomic_store(&decoder_hint,false);SetEvent(yield_release);
+    CHECK(!stop_stream());probe_output_dsp_assist_snapshot(&stats);
+    CHECK(stats.jobs==3 && stats.frames==1152 && stats.blocks==9 && !stats.failures && !stats.state);
+    CloseHandle(yield_release);
+    puts("PASS retirement handoff: pending input receives one bounded local block before first fair yield");
 #else
     CHECK(mock_tasks[1].priority==20 && mock_tasks[0].priority==20);
 #endif
