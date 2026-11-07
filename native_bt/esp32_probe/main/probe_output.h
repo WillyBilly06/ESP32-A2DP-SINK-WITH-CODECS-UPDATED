@@ -32,6 +32,8 @@
 typedef struct {
     uint32_t running,failed,rate,requested_bytes,accepted_frames,rendered_frames,ready_frames,input_ready_frames;
     uint32_t priming_ms,priming_remaining_ms;
+    uint32_t startup_coherent,startup_first_pcm_us,startup_enable_us,startup_elapsed_us;
+    uint32_t startup_input_frames,startup_preload_frames,startup_guard_state;
     uint32_t pcm_target_ms,block_dsp,word_dsp,pcm_input_mode,input_capacity_frames,input_ring_bytes,adaptive_clock,pcm_target_frames;
     /* underrun_frames retains its original initial-refill-shortage meaning. */
     uint32_t dma_eofs,dma_source_frames,underrun_frames,descriptor_errors,max_eof_gap_us;
@@ -115,7 +117,7 @@ void probe_output_dsp_assist_snapshot(probe_dsp_assist_stats_t *);
  * Phase0=between operations;1=decode;2=reset;3=PCM delivery;
  *4/5/6/7/8=waiting for PCM space/loan/control/encoded input/shared renderer. */
 typedef struct {
-    uint32_t captured,coherent;
+    uint32_t captured,coherent,deadline_us;
     uint32_t stream_serial,at_us,taken_frames,input_frames,output_frames,accepted_frames,rendered_frames,dma_source_frames,acl_us,host_poll_us,media_us,media_admit_us,media_epoch,media_sequence,media_timestamp,media_ssrc,media_result,media_gap_us,media_max_gap_us,media_coherent,decoder_phase,decoder_at_us,decoder_coherent,render_phase,render_at_us,render_coherent,decoder_queued,dsp_assist_state;
 } probe_output_starvation_t;
 void probe_output_trace_media(uint32_t began,uint32_t ended,uint32_t epoch,uint16_t sequence,uint32_t timestamp,uint32_t ssrc,dbt_result_t result);
@@ -123,6 +125,10 @@ void probe_output_trace_acl(uint32_t at);
 void probe_output_trace_host_poll(uint32_t at);
 void probe_output_trace_decoder(uint32_t phase,uint32_t at,uint32_t queued);
 void probe_output_first_starvation(probe_output_starvation_t *snapshot);
+/* First finalized unfilled descriptor: captured at closure, not at the initial
+ * shortage. deadline_us is the guarded copy cutoff, or zero if ineligible.
+ * Ring counts are adjacent atomic observations; no queue lock is taken. */
+void probe_output_first_unfilled(probe_output_starvation_t *snapshot);
 #endif
 
 /* Cheap failure fence for hot-path monitoring; no stack scanning/snapshot. */

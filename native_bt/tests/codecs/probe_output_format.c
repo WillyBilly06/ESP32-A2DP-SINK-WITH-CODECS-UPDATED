@@ -237,6 +237,11 @@ EX int probe_output_refill_windows(void){
     CHECK(service_refill_window() && !memcmp(dma[0],expected,sizeof expected));
     CHECK(atomic_load(&output.refill_pending_index)==UINT32_MAX && atomic_load(&output.refill_recovered_frames)==DMA_FRAMES);
     CHECK(!atomic_load(&output.refill_unfilled_frames) && !atomic_load(&output.refill_contract_errors));
+#ifdef DBT_PROBE_SCHEDULER_TRACE
+    probe_output_starvation_t shortage;probe_output_first_starvation(&shortage);
+    CHECK(shortage.captured && shortage.coherent && shortage.at_us==10000u);
+    probe_output_first_unfilled(&shortage);CHECK(!shortage.captured && shortage.coherent);
+#endif
     CHECK(dbt_audio_render(&output.audio,DMA_FRAMES)==DMA_FRAMES);
     memcpy(later,output.audio.output_pages[0]+DMA_FRAMES*8u,sizeof later);
     CHECK(memcmp(expected,later,sizeof later)!=0);event.dma_buf=dma[1];test_clock_us=11333;(void)sent(0,&event,&output);
@@ -248,6 +253,14 @@ EX int probe_output_refill_windows(void){
     CHECK(!memcmp(dma[1],expected,sizeof expected));test_clock_us=21400;CHECK(!service_refill_window());
     for(unsigned i=0;i<DMA_FRAMES*2;++i)CHECK(dma[0][i]==0);
     CHECK(atomic_load(&output.refill_unfilled_frames)==DMA_FRAMES && !atomic_load(&output.refill_recovered_frames));
+#ifdef DBT_PROBE_SCHEDULER_TRACE
+    probe_output_first_unfilled(&shortage);
+    CHECK(shortage.captured && shortage.coherent && shortage.at_us==21333u && shortage.taken_frames==0);
+    CHECK(shortage.deadline_us==20000u+1333u-REFILL_GUARD_US && shortage.output_frames==DMA_FRAMES);
+    CHECK(shortage.stream_serial==atomic_load(&timeline.stream_serial));
+    /* Closure snapshot is immutable even when a later final gap occurs. */
+    close_refill_window(&output);probe_output_first_unfilled(&shortage);CHECK(shortage.at_us==21333u);
+#endif
     close_output();CHECK(!live);
     /* Insufficient deadline margin consumes nothing. */
     event.dma_buf=dma[0];CHECK(refill_test_start(dma,30000)==0);(void)sent(0,&event,&output);CHECK(refill_test_pcm(expected)==0);
@@ -255,6 +268,9 @@ EX int probe_output_refill_windows(void){
     test_clock_us=atomic_load(&output.refill_deadline_us)-REFILL_COPY_BUDGET_US;
     CHECK(!service_refill_window() && atomic_load(&output.audio.output.read)==read);
     close_output();CHECK(!live && atomic_load(&output.refill_canceled_frames)==DMA_FRAMES);
+#ifdef DBT_PROBE_SCHEDULER_TRACE
+    probe_output_first_unfilled(&shortage);CHECK(!shortage.captured && shortage.coherent);
+#endif
     /* Modular microsecond deadlines retain the same behavior across wrap. */
     uint64_t wrap=(uint64_t)UINT32_MAX-500u;
     CHECK(refill_test_start(dma,wrap)==0);(void)sent(0,&event,&output);CHECK(refill_test_pcm(expected)==0);
@@ -271,6 +287,9 @@ EX int probe_output_refill_windows(void){
     /* Invalid prior descriptor history does not grant a refill opportunity. */
     CHECK(refill_test_start(dma,60000)==0);atomic_store(&output.descriptor_errors,1);(void)sent(0,&event,&output);
     CHECK(atomic_load(&output.refill_pending_index)==UINT32_MAX && atomic_load(&output.refill_unfilled_frames)==DMA_FRAMES);
+#ifdef DBT_PROBE_SCHEDULER_TRACE
+    probe_output_first_unfilled(&shortage);CHECK(shortage.captured && shortage.coherent && !shortage.deadline_us && shortage.at_us==60000u);
+#endif
     close_output();CHECK(!live);return 0;
 }
 #endif

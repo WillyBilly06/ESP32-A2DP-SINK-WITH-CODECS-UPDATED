@@ -331,28 +331,36 @@ static void media_trace(void *context,const dbt_codec_trace_t *event){
 }
 #if defined(DBT_PROBE_SCHEDULER_TRACE) && defined(DBT_PROBE_AUDIO_OUTPUT)
 static void log_first_starvation(void){
-    static uint32_t prior_serial=UINT32_MAX,prior_captured;
-    probe_output_starvation_t s;probe_output_first_starvation(&s);
-    if(!s.coherent || (s.stream_serial==prior_serial && s.captured==prior_captured))return;
-    prior_serial=s.stream_serial;prior_captured=s.captured;
-    PROBE_SNAPSHOT_LOG("{\"probe\":\"first_starvation\",\"stream_serial\":%" PRIu32 ",\"captured\":%s,\"coherent\":true"
-        ",\"event_us\":%" PRIu32 ",\"taken_frames\":%" PRIu32 ",\"input_frames\":%" PRIu32 ",\"output_frames\":%" PRIu32
-        ",\"accepted_frames\":%" PRIu32 ",\"rendered_frames\":%" PRIu32 ",\"dma_source_frames\":%" PRIu32 "}\n",
-        s.stream_serial,s.captured?"true":"false",s.at_us,s.taken_frames,s.input_frames,s.output_frames,s.accepted_frames,s.rendered_frames,s.dma_source_frames);
-    if(!s.captured)return;
-    PROBE_SNAPSHOT_LOG("{\"probe\":\"starvation_media\",\"stream_serial\":%" PRIu32 ",\"event_us\":%" PRIu32
-        ",\"coherent\":%s,\"last_acl_any_link_us\":%" PRIu32 ",\"last_host_poll_us\":%" PRIu32
-        ",\"media_begin_us\":%" PRIu32 ",\"media_admitted_us\":%" PRIu32 ",\"media_epoch\":%" PRIu32
-        ",\"media_sequence\":%" PRIu32 ",\"media_timestamp\":%" PRIu32 ",\"media_ssrc\":%" PRIu32 ",\"media_result\":%" PRIu32
-        ",\"last_media_gap_us\":%" PRIu32 ",\"max_media_gap_us\":%" PRIu32 "}\n",s.stream_serial,s.at_us,s.media_coherent?"true":"false",
-        s.acl_us,s.host_poll_us,s.media_us,s.media_admit_us,s.media_epoch,s.media_sequence,s.media_timestamp,s.media_ssrc,s.media_result,s.media_gap_us,s.media_max_gap_us);
+    static uint32_t prior_serial[2]={UINT32_MAX,UINT32_MAX},prior_captured[2];
+    static const char *const names[2][4]={{"first_starvation","starvation_media","starvation_decoder","starvation_renderer"},
+                                         {"first_unfilled","unfilled_media","unfilled_decoder","unfilled_renderer"}};
     static const char *const phases[]={"between_operations","decode","reset","pcm_delivery","wait_pcm_space","wait_pcm_loan","wait_control","wait_encoded_input","wait_shared_renderer"};
-    PROBE_SNAPSHOT_LOG("{\"probe\":\"starvation_decoder\",\"stream_serial\":%" PRIu32 ",\"event_us\":%" PRIu32
-        ",\"coherent\":%s,\"phase\":%" PRIu32 ",\"phase_name\":\"%s\",\"phase_since_us\":%" PRIu32 ",\"encoded_queued_at_phase_change\":%" PRIu32 "}\n",
-        s.stream_serial,s.at_us,s.decoder_coherent?"true":"false",s.decoder_phase,s.decoder_phase<9?phases[s.decoder_phase]:"unknown",s.decoder_at_us,s.decoder_queued);
-    PROBE_SNAPSHOT_LOG("{\"probe\":\"starvation_renderer\",\"stream_serial\":%" PRIu32 ",\"event_us\":%" PRIu32
-        ",\"coherent\":%s,\"inside_audio_render\":%s,\"phase_since_us\":%" PRIu32 ",\"dsp_assist_state_at_gap\":%" PRIu32 "}\n",
-        s.stream_serial,s.at_us,s.render_coherent?"true":"false",s.render_phase?"true":"false",s.render_at_us,s.dsp_assist_state);
+    /* Two immutable latches, one read attempt each. UART remains logger-only. */
+    for(unsigned kind=0;kind<2;++kind){
+        probe_output_starvation_t s;
+        if(kind)probe_output_first_unfilled(&s);else probe_output_first_starvation(&s);
+        if(!s.coherent || (s.stream_serial==prior_serial[kind] && s.captured==prior_captured[kind]))continue;
+        prior_serial[kind]=s.stream_serial;prior_captured[kind]=s.captured;
+        PROBE_SNAPSHOT_LOG("{\"probe\":\"%s\",\"stream_serial\":%" PRIu32 ",\"captured\":%s,\"coherent\":true"
+            ",\"event_us\":%" PRIu32 ",\"taken_frames\":%" PRIu32 ",\"input_frames\":%" PRIu32 ",\"output_frames\":%" PRIu32
+            ",\"accepted_frames\":%" PRIu32 ",\"rendered_frames\":%" PRIu32 ",\"dma_source_frames\":%" PRIu32
+            ",\"deadline_us\":%" PRIu32 ",\"finalized_shortage\":%s}\n",
+            names[kind][0],s.stream_serial,s.captured?"true":"false",s.at_us,s.taken_frames,s.input_frames,s.output_frames,
+            s.accepted_frames,s.rendered_frames,s.dma_source_frames,s.deadline_us,kind?"true":"false");
+        if(!s.captured)continue;
+        PROBE_SNAPSHOT_LOG("{\"probe\":\"%s\",\"stream_serial\":%" PRIu32 ",\"event_us\":%" PRIu32
+            ",\"coherent\":%s,\"last_acl_any_link_us\":%" PRIu32 ",\"last_host_poll_us\":%" PRIu32
+            ",\"media_begin_us\":%" PRIu32 ",\"media_admitted_us\":%" PRIu32 ",\"media_epoch\":%" PRIu32
+            ",\"media_sequence\":%" PRIu32 ",\"media_timestamp\":%" PRIu32 ",\"media_ssrc\":%" PRIu32 ",\"media_result\":%" PRIu32
+            ",\"last_media_gap_us\":%" PRIu32 ",\"max_media_gap_us\":%" PRIu32 "}\n",names[kind][1],s.stream_serial,s.at_us,s.media_coherent?"true":"false",
+            s.acl_us,s.host_poll_us,s.media_us,s.media_admit_us,s.media_epoch,s.media_sequence,s.media_timestamp,s.media_ssrc,s.media_result,s.media_gap_us,s.media_max_gap_us);
+        PROBE_SNAPSHOT_LOG("{\"probe\":\"%s\",\"stream_serial\":%" PRIu32 ",\"event_us\":%" PRIu32
+            ",\"coherent\":%s,\"phase\":%" PRIu32 ",\"phase_name\":\"%s\",\"phase_since_us\":%" PRIu32 ",\"encoded_queued_at_phase_change\":%" PRIu32 "}\n",
+            names[kind][2],s.stream_serial,s.at_us,s.decoder_coherent?"true":"false",s.decoder_phase,s.decoder_phase<9?phases[s.decoder_phase]:"unknown",s.decoder_at_us,s.decoder_queued);
+        PROBE_SNAPSHOT_LOG("{\"probe\":\"%s\",\"stream_serial\":%" PRIu32 ",\"event_us\":%" PRIu32
+            ",\"coherent\":%s,\"inside_audio_render\":%s,\"phase_since_us\":%" PRIu32 ",\"dsp_assist_state_at_gap\":%" PRIu32 "}\n",
+            names[kind][3],s.stream_serial,s.at_us,s.render_coherent?"true":"false",s.render_phase?"true":"false",s.render_at_us,s.dsp_assist_state);
+    }
 }
 #endif
 static void log_media_trace(void){
@@ -1259,6 +1267,14 @@ static void log_loop(void *unused){
         snapshot_log(output_snapshot_began,"{\"probe\":\"pcm_startup_guard\",\"collection_cycle_us\":%" PRIu32
                ",\"minimum_ms\":%" PRIu32 ",\"remaining_ms\":%" PRIu32 ",\"buffers_added\":0}\n",
                at,stats.priming_ms,stats.priming_remaining_ms);
+
+#ifdef DBT_PROBE_SCHEDULER_TRACE
+        snapshot_log(output_snapshot_began,"{\"probe\":\"pcm_startup_actual\",\"first_pcm_us\":%" PRIu32
+            ",\"enable_us\":%" PRIu32 ",\"elapsed_us\":%" PRIu32 ",\"input_frames\":%" PRIu32
+            ",\"preload_frames\":%" PRIu32 ",\"guard_state\":%" PRIu32 ",\"coherent\":%s}\n",
+            stats.startup_first_pcm_us,stats.startup_enable_us,stats.startup_elapsed_us,
+            stats.startup_input_frames,stats.startup_preload_frames,stats.startup_guard_state,stats.startup_coherent?"true":"false");
+#endif
         snapshot_log(output_snapshot_began,"{\"probe\":\"pcm_clock_policy\",\"adaptive_clock\":%" PRIu32
                ",\"one_to_one_pcm\":%s,\"target_frames\":%" PRIu32 "}\n",stats.adaptive_clock,stats.adaptive_clock?"false":"true",stats.pcm_target_frames);
 #ifdef DBT_PROBE_CODEC_AWARE_RENDER
