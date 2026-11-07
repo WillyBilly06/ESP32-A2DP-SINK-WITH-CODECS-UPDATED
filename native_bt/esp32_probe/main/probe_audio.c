@@ -278,10 +278,10 @@ static void timing_event(unsigned kind){
 }
 static void media_trace(void *context,const dbt_codec_trace_t *event){
     (void)context;
-    if(event->kind>=DBT_CODEC_DECODE_BEGIN){
+    if(event->kind>=DBT_CODEC_DECODE_BEGIN && event->kind!=DBT_CODEC_INPUT_CLOCK_MAX){
         timing_event((unsigned)event->kind);return;
     }
-    media_trace_ring_t *ring=&media_trace_rings[event->kind<=DBT_CODEC_QUEUE_FULL?0:1];
+    media_trace_ring_t *ring=&media_trace_rings[(event->kind<=DBT_CODEC_QUEUE_FULL || event->kind==DBT_CODEC_INPUT_CLOCK_MAX)?0:1];
     uint32_t ordinal=++ring->ordinal;
     uint32_t written=atomic_load_explicit(&ring->written,memory_order_relaxed);
     if(written-atomic_load_explicit(&ring->read,memory_order_acquire)>=TRACE_SLOTS){atomic_fetch_add(&ring->lost,1);return;}
@@ -324,7 +324,7 @@ static void log_media_trace(void){
         printf("{\"probe\":\"media_trace\",\"at_us\":%" PRIu32 ",\"stage\":\"%s\",\"ordinal\":%" PRIu32
                ",\"sequence\":%u,\"expected\":%u,\"rtp_timestamp\":%" PRIu32 ",\"ssrc\":%" PRIu32
                ",\"previous_ssrc\":%" PRIu32 ",\"bytes\":%u,\"queued\":%u,\"result\":%u,\"codec\":%" PRIu32 ",\"codec_name\":\"%s\",\"rtp_marker\":%s,\"payload_prefix\":[%u,%u],\"framing\":\"%s\",\"sequence_origin\":\"%s\",\"timestamp_origin\":\"%s\"}\n",
-               record.at_us,(unsigned)e->kind<sizeof(trace_names)/sizeof(trace_names[0])?trace_names[e->kind]:"invalid",record.ordinal,e->sequence,e->expected_sequence,e->timestamp,
+               record.at_us,e->kind==DBT_CODEC_INPUT_CLOCK_MAX?"input_clock_max":(unsigned)e->kind<sizeof(trace_names)/sizeof(trace_names[0])?trace_names[e->kind]:"invalid",record.ordinal,e->sequence,e->expected_sequence,e->timestamp,
                e->ssrc,e->previous_ssrc,e->bytes,e->queued,(unsigned)e->result,record.codec,codec_name(record.codec),e->marker?"true":"false",e->prefix[0],e->prefix[1],
                e->payload_type==DBT_AVDTP_RAW_PAYLOAD_TYPE?"raw":"rtp",
                e->payload_type==DBT_AVDTP_RAW_PAYLOAD_TYPE?"host_ordinal":"wire_rtp",
@@ -992,6 +992,14 @@ static void log_loop(void *unused){
                at,atomic_load(&worker.input_stream_epoch),atomic_load(&worker.input_packets),atomic_load(&worker.input_payload_bytes),
                atomic_load(&worker.input_first_timestamp),atomic_load(&worker.input_last_timestamp),rate,
                (codec==5u || codec==7u)?"host_samples":"wire_rtp");
+        dbt_codec_input_clock_t input_clock_snapshot;dbt_codec_worker_clock_snapshot(&worker,&input_clock_snapshot);
+        PROBE_SNAPSHOT_LOG("{\"probe\":\"rtp_input_clock\",\"collection_cycle_us\":%" PRIu32 ",\"stream_epoch\":%" PRIu32
+            ",\"coherent\":%s,\"observed\":%s,\"revision\":%" PRIu32 ",\"max_forward_step_ticks\":%" PRIu32
+            ",\"previous_sequence\":%u,\"sequence\":%u,\"previous_rtp_timestamp\":%" PRIu32 ",\"rtp_timestamp\":%" PRIu32
+            ",\"ssrc\":%" PRIu32 ",\"scope\":\"input_epoch_adjacent_wire_sequence_same_ssrc_forward_half_range\",\"before_queue_and_decode\":true,\"loss_count\":false}\n",
+            at,input_clock_snapshot.epoch,input_clock_snapshot.coherent?"true":"false",input_clock_snapshot.observed?"true":"false",
+            input_clock_snapshot.revision,input_clock_snapshot.step_ticks,input_clock_snapshot.observed?(unsigned)(uint16_t)(input_clock_snapshot.sequence-1u):0u,(unsigned)input_clock_snapshot.sequence,
+            input_clock_snapshot.timestamp-input_clock_snapshot.step_ticks,input_clock_snapshot.timestamp,input_clock_snapshot.ssrc);
 #ifdef DBT_PROBE_APTX_BUILD
         dbt_aptx_quality_t aptx_quality;dbt_aptx_quality_snapshot(&aptx_quality);
         snapshot_log(pcm_snapshot_began,"{\"probe\":\"aptx_resynchronization\",\"counter_scope\":\"decoder_lifetime_since_boot\",\"active\":%s"

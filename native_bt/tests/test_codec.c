@@ -65,7 +65,7 @@ typedef struct {
     _Alignas(8) uint8_t storage[8][16384];
     uint32_t sizes[8],live,peak,allocations,releases,fail_at,opens,closes,resets,media,errors;
     bool used[8],reset_bad,stream_bad,media_bad;uint8_t received,received_last;uint16_t received_size;uint32_t timestamp;
-    dbt_codec_trace_t traces[32];unsigned trace_count;
+    dbt_codec_trace_t traces[32];unsigned trace_count,clock_events;
 } fixture_t;
 static fixture_t f;
 static uint8_t *allocate(void *context,uint32_t size){
@@ -94,7 +94,7 @@ static void fake_close(dbt_codec_decoder_t *d){fixture_t *p=d->hooks.context;if(
 static dbt_result_t fake_reset(dbt_codec_decoder_t *d){fixture_t *p=d->hooks.context;++p->resets;return p->reset_bad?DBT_INVALID:DBT_OK;}
 static dbt_result_t fake_media(dbt_codec_decoder_t *d,const dbt_avdtp_media_t *packet,uint32_t now){
     (void)now;fixture_t *p=d->hooks.context;++p->media;p->received=packet->payload[0];p->received_last=packet->payload[packet->size-1u];p->received_size=packet->size;p->timestamp=packet->timestamp;return p->media_bad?DBT_INVALID:DBT_OK;}
-static void trace_event(void *context,const dbt_codec_trace_t *e){fixture_t *p=context;if(e->kind<DBT_CODEC_DECODE_BEGIN && p->trace_count<32)p->traces[p->trace_count++]=*e;}
+static void trace_event(void *context,const dbt_codec_trace_t *e){fixture_t *p=context;if(e->kind==DBT_CODEC_INPUT_CLOCK_MAX)++p->clock_events;else if(e->kind<DBT_CODEC_DECODE_BEGIN && p->trace_count<32)p->traces[p->trace_count++]=*e;}
 static dbt_result_t stream(void *context,bool start,const dbt_codec_config_t *config){(void)start;(void)config;return ((fixture_t *)context)->stream_bad?DBT_BUSY:DBT_OK;}
 static const dbt_codec_ops_t fake_sbc={"ownership SBC",fake_configure,fake_open,fake_close,fake_reset,fake_media,0,0,0};
 static const dbt_codec_ops_t fake_aac={"ownership AAC",dbt_aac_configure,fake_open,fake_close,fake_reset,fake_media,0,0,0};
@@ -213,5 +213,60 @@ EXPORT int test_codec_1800_packet_boundaries_and_queue_wrap(void){
         CHECK(dbt_codec_worker_step(&f.worker,3,1)==1 && f.received==40u+i && f.received_last==80u+i && f.received_size==sizes[i]);
     }
     CHECK(atomic_load(&f.worker.queue_high_water)==8 && atomic_load(&f.worker.input_oversize_rejects)==1);
+    CHECK(complete(DBT_SINK_DROP,1,false)==DBT_SINK_WORK_READY && !f.live && !f.errors);return 0;
+}
+
+EXPORT int test_codec_input_clock_snapshot_and_scope(void){
+    CHECK(setup());dbt_codec_input_clock_t c;
+    dbt_codec_worker_clock_snapshot(&f.worker,&c);CHECK(!c.coherent && !c.observed);
+    CHECK(complete(DBT_SINK_CONFIGURE,1,false)==DBT_SINK_WORK_READY && complete(DBT_SINK_START,1,false)==DBT_SINK_WORK_READY);
+    uint8_t bytes[]={0x04};dbt_avdtp_media_t p={bytes,UINT32_MAX-799u,9,1,65535,96,false};
+    CHECK(dbt_codec_worker_media(&f.worker,&p)==DBT_OK);dbt_codec_worker_clock_snapshot(&f.worker,&c);
+    CHECK(c.coherent && !c.observed && c.epoch==atomic_load(&f.worker.input_stream_epoch));
+    CHECK(dbt_codec_worker_step(&f.worker,2,1)==1);
+    p.sequence=0;p.timestamp=160;
+    CHECK(dbt_codec_worker_media(&f.worker,&p)==DBT_OK && dbt_codec_worker_step(&f.worker,2,1)==1);
+    dbt_codec_worker_clock_snapshot(&f.worker,&c);
+    CHECK(c.coherent && c.observed && c.step_ticks==960 && !c.sequence && c.timestamp==160 && c.ssrc==9 && f.clock_events==1);
+    p.sequence=1;p.timestamp+=29u*960u;unsigned decoded=f.media;
+    CHECK(dbt_codec_worker_media(&f.worker,&p)==DBT_OK);dbt_codec_worker_clock_snapshot(&f.worker,&c);
+    CHECK(c.coherent && c.step_ticks==27840 && c.sequence==1 && c.timestamp==28000 && c.ssrc==9 && f.clock_events==2 && f.media==decoded);
+    CHECK(!atomic_load(&f.worker.input_sequence_breaks) && !atomic_load(&f.worker.decode_rejects));
+    CHECK(dbt_codec_worker_step(&f.worker,2,1)==1);
+    p.sequence=2;CHECK(dbt_codec_worker_media(&f.worker,&p)==DBT_OK && dbt_codec_worker_step(&f.worker,2,1)==1);
+    p.sequence=4;p.timestamp+=1000000;
+    CHECK(dbt_codec_worker_media(&f.worker,&p)==DBT_OK && dbt_codec_worker_step(&f.worker,2,1)==1);
+    p.sequence=5;p.ssrc=10;p.timestamp+=2000000;
+    CHECK(dbt_codec_worker_media(&f.worker,&p)==DBT_OK && dbt_codec_worker_step(&f.worker,2,1)==1);
+    dbt_codec_worker_clock_snapshot(&f.worker,&c);
+    CHECK(c.step_ticks==27840 && c.sequence==1 && c.ssrc==9 && f.clock_events==2);
+    CHECK(atomic_load(&f.worker.input_sequence_breaks)==1 && atomic_load(&f.worker.input_ssrc_changes)==1);
+    uint32_t old_epoch=c.epoch;
+    CHECK(complete(DBT_SINK_CLOSE,1,false)==DBT_SINK_WORK_READY && !f.live);
+    CHECK(complete(DBT_SINK_CONFIGURE,1,false)==DBT_SINK_WORK_READY && complete(DBT_SINK_START,1,false)==DBT_SINK_WORK_READY);
+    p.sequence=10;p.ssrc=9;p.timestamp=999999;p.payload_type=DBT_AVDTP_RAW_PAYLOAD_TYPE;
+    CHECK(dbt_codec_worker_media(&f.worker,&p)==DBT_OK && dbt_codec_worker_step(&f.worker,2,1)==1);
+    dbt_codec_worker_clock_snapshot(&f.worker,&c);CHECK(c.coherent && !c.observed && c.epoch!=old_epoch && !c.step_ticks);
+    p.sequence=11;p.timestamp=0;p.payload_type=96;
+    CHECK(dbt_codec_worker_media(&f.worker,&p)==DBT_OK && dbt_codec_worker_step(&f.worker,2,1)==1);
+    dbt_codec_worker_clock_snapshot(&f.worker,&c);CHECK(!c.observed);
+    p.sequence=12;CHECK(dbt_codec_worker_media(&f.worker,&p)==DBT_OK && dbt_codec_worker_step(&f.worker,2,1)==1);
+    dbt_codec_worker_clock_snapshot(&f.worker,&c);CHECK(c.observed && !c.step_ticks && c.sequence==12);
+    p.sequence=13;p.timestamp=UINT32_MAX-5u;
+    CHECK(dbt_codec_worker_media(&f.worker,&p)==DBT_OK && dbt_codec_worker_step(&f.worker,2,1)==1);
+    dbt_codec_worker_clock_snapshot(&f.worker,&c);CHECK(!c.step_ticks && c.sequence==12); /* backwards half-range excluded */
+    p.sequence=14;p.timestamp=954;
+    CHECK(dbt_codec_worker_media(&f.worker,&p)==DBT_OK && dbt_codec_worker_step(&f.worker,2,1)==1);
+    dbt_codec_worker_clock_snapshot(&f.worker,&c);CHECK(c.step_ticks==960 && c.sequence==14);
+    uint32_t revision=c.revision;atomic_store(&f.worker.input_clock_revision,revision|1u);
+    dbt_codec_worker_clock_snapshot(&f.worker,&c);CHECK(!c.coherent);
+    atomic_store(&f.worker.input_clock_revision,UINT32_MAX-1u);p.sequence=15;p.timestamp+=2000;
+    CHECK(dbt_codec_worker_media(&f.worker,&p)==DBT_OK && dbt_codec_worker_step(&f.worker,2,1)==1);
+    dbt_codec_worker_clock_snapshot(&f.worker,&c);CHECK(c.coherent && c.revision==2 && c.step_ticks==2000);
+    p.sequence=16;p.timestamp+=3000;CHECK(dbt_codec_worker_media(&f.worker,&p)==DBT_OK);
+    p.sequence=17;p.timestamp+=3000;CHECK(dbt_codec_worker_media(&f.worker,&p)==DBT_OK);
+    p.sequence=18;p.timestamp+=4000;CHECK(dbt_codec_worker_media(&f.worker,&p)==DBT_NO_SPACE);
+    dbt_codec_worker_clock_snapshot(&f.worker,&c);CHECK(c.coherent && c.step_ticks==4000 && c.sequence==18 && atomic_load(&f.worker.queue_full_drops)==1);
+    dbt_codec_worker_clock_snapshot(&f.worker,0);dbt_codec_worker_clock_snapshot(0,&c);CHECK(!c.coherent && !c.observed);
     CHECK(complete(DBT_SINK_DROP,1,false)==DBT_SINK_WORK_READY && !f.live && !f.errors);return 0;
 }

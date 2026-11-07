@@ -119,6 +119,8 @@ dbt_result_t dbt_codec_worker_init(dbt_codec_worker_t *w,dbt_codec_worker_hooks_
     atomic_init(&w->input_sequence_breaks,0);atomic_init(&w->input_ssrc_changes,0);atomic_init(&w->queue_high_water,0);
     atomic_init(&w->input_packets,0);atomic_init(&w->input_payload_bytes,0);atomic_init(&w->input_first_timestamp,0);
     atomic_init(&w->input_last_timestamp,0);atomic_init(&w->input_stream_epoch,0);
+    atomic_init(&w->input_clock_revision,0);atomic_init(&w->input_clock_step,0);
+    atomic_init(&w->input_clock_sequence,0);atomic_init(&w->input_clock_timestamp,0);atomic_init(&w->input_clock_ssrc,0);
     atomic_init(&w->input_max_payload,0);atomic_init(&w->input_oversize_rejects,0);atomic_init(&w->input_last_oversize,0);
     dbt_codec_hooks_t decoder=hooks.decoder;
     if(hooks.deferred_pcm)decoder=(dbt_codec_hooks_t){w,deferred_allocate,deferred_release,deferred_pcm};
@@ -144,6 +146,50 @@ dbt_result_t dbt_codec_worker_submit(void *context,const dbt_sink_job_t *request
     job->binding=request->binding;job->token=request->token;job->epoch=epoch;job->operation=request->operation;copy(&job->config,&config,sizeof(config));
     atomic_store_explicit(&w->job_written,written+1u,memory_order_release);wake_worker(w);return DBT_OK;
 }
+static void input_clock(dbt_codec_worker_t *w,const media_t *packet,uint32_t epoch){
+    bool reset=w->input_epoch!=epoch,wire=packet->payload_type!=DBT_AVDTP_RAW_PAYLOAD_TYPE;
+    bool adjacent=!reset && wire && w->input_clock_prev_wire && packet->ssrc==w->input_ssrc &&
+        packet->sequence==(uint16_t)(w->input_sequence+1u);
+    uint32_t step=adjacent?packet->timestamp-atomic_load_explicit(&w->input_last_timestamp,memory_order_relaxed):0;
+    uint32_t tag=atomic_load_explicit(&w->input_clock_sequence,memory_order_relaxed);
+    bool update=adjacent && step<UINT32_C(0x80000000) &&
+        (!(tag&UINT32_C(0x10000)) || step>atomic_load_explicit(&w->input_clock_step,memory_order_relaxed));
+    if(reset || update){
+        uint32_t revision=atomic_load_explicit(&w->input_clock_revision,memory_order_relaxed);
+        atomic_store_explicit(&w->input_clock_revision,revision+1u,memory_order_seq_cst);
+        atomic_thread_fence(memory_order_seq_cst);
+        if(reset){
+            atomic_store_explicit(&w->input_clock_step,0,memory_order_relaxed);
+            atomic_store_explicit(&w->input_clock_sequence,0,memory_order_relaxed);
+            atomic_store_explicit(&w->input_clock_timestamp,0,memory_order_relaxed);
+            atomic_store_explicit(&w->input_clock_ssrc,0,memory_order_relaxed);
+            atomic_store_explicit(&w->input_stream_epoch,epoch,memory_order_relaxed);
+        }
+        if(update){
+            atomic_store_explicit(&w->input_clock_step,step,memory_order_relaxed);
+            atomic_store_explicit(&w->input_clock_sequence,UINT32_C(0x10000)|packet->sequence,memory_order_relaxed);
+            atomic_store_explicit(&w->input_clock_timestamp,packet->timestamp,memory_order_relaxed);
+            atomic_store_explicit(&w->input_clock_ssrc,packet->ssrc,memory_order_relaxed);
+        }
+        uint32_t next=revision+2u;
+        atomic_store_explicit(&w->input_clock_revision,next?next:2u,memory_order_release);
+        if(update)trace(w,DBT_CODEC_INPUT_CLOCK_MAX,packet,packet->sequence,packet->ssrc,DBT_OK);
+    }
+    w->input_clock_prev_wire=wire;
+}
+void dbt_codec_worker_clock_snapshot(const dbt_codec_worker_t *w,dbt_codec_input_clock_t *out){
+    if(!out)return;
+    *out=(dbt_codec_input_clock_t){0};if(!w)return;
+    uint32_t before=atomic_load_explicit(&w->input_clock_revision,memory_order_acquire);
+    out->epoch=atomic_load_explicit(&w->input_stream_epoch,memory_order_relaxed);
+    out->step_ticks=atomic_load_explicit(&w->input_clock_step,memory_order_relaxed);
+    uint32_t tag=atomic_load_explicit(&w->input_clock_sequence,memory_order_relaxed);
+    out->sequence=(uint16_t)tag;out->observed=(tag&UINT32_C(0x10000))!=0;
+    out->timestamp=atomic_load_explicit(&w->input_clock_timestamp,memory_order_relaxed);
+    out->ssrc=atomic_load_explicit(&w->input_clock_ssrc,memory_order_relaxed);
+    atomic_thread_fence(memory_order_seq_cst);out->revision=before;
+    out->coherent=before && !(before&1u) && before==atomic_load_explicit(&w->input_clock_revision,memory_order_acquire);
+}
 dbt_result_t dbt_codec_worker_media(void *context,const dbt_avdtp_media_t *packet){
     dbt_codec_worker_t *w=context;
     if(!w || !packet || !packet->payload || !packet->size)return DBT_INVALID;
@@ -158,12 +204,13 @@ dbt_result_t dbt_codec_worker_media(void *context,const dbt_avdtp_media_t *packe
     uint32_t epoch=atomic_load_explicit(&w->started_epoch,memory_order_acquire);
     if(w->input_epoch!=epoch){
         atomic_store(&w->input_packets,0);atomic_store(&w->input_payload_bytes,0);
-        atomic_store(&w->input_first_timestamp,packet->timestamp);atomic_store(&w->input_stream_epoch,epoch);
+        atomic_store(&w->input_first_timestamp,packet->timestamp);
     }
     atomic_fetch_add(&w->input_packets,1);atomic_fetch_add(&w->input_payload_bytes,packet->size);
-    atomic_store(&w->input_last_timestamp,packet->timestamp);
     media_t input={packet->timestamp,packet->ssrc,packet->sequence,packet->size,packet->payload_type,packet->marker,
         {packet->payload[0],packet->size>1u?packet->payload[1]:0}};
+    input_clock(w,&input,epoch);
+    atomic_store(&w->input_last_timestamp,packet->timestamp);
     if(w->input_epoch==epoch && packet->payload_type!=DBT_AVDTP_RAW_PAYLOAD_TYPE){
         if(packet->sequence!=(uint16_t)(w->input_sequence+1u)){
             atomic_fetch_add(&w->input_sequence_breaks,1);

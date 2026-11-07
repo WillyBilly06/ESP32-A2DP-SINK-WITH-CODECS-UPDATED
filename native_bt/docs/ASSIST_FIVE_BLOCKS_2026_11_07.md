@@ -47,3 +47,5 @@ This is a build-only command; the guarded COM6 deployment remains separate. Omit
 ```powershell
 .\native_bt\tools\build_probe.ps1 -DspAssistBlocks 5 -DspBlockIram -ConsoleIrq -TaskRuntimeStats -HighRatePcmRebalance -EarlyInputRelease -RenderFairShare -VolumeRampBlock -DspAssist -UnityPcmCopy -StayNative -WordDsp -PriorityOrder -CodecAwareRender -SchedulerTrace -AudioStageProfile -PcmCopied -BlockDsp -PcmTargetMs 16 -DecoderCore 0 -LoggerCore 1 -AsyncAudio -WithProductIo -WithRfcomm -WithLhdc -WithOpus -WithAac -WithAptx -WithLdac -LhdcSourceDir "D:\ESP32 Bluetooth\LHDC-V5-Decoder-main"
 ```
+
+The later [input-clock diagnostic](RTP_INPUT_CLOCK_2026_11_07.md) confirms a consecutive RTP sequence pair with an extra28 frame periods before media-queue admission and decode. It retains helper5, adds24 bytes of bounded metadata, and does not attribute a sender/credit/RF cause yet.

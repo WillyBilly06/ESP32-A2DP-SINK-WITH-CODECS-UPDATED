@@ -91,7 +91,9 @@ typedef enum {
     DBT_CODEC_WORKER_SEQUENCE, DBT_CODEC_WORKER_SSRC, DBT_CODEC_DECODE_REJECT,
     DBT_CODEC_RESET_FAILED, DBT_CODEC_PCM_FAILED, DBT_CODEC_PCM_TIMEOUT, DBT_CODEC_PCM_BUSY,
     DBT_CODEC_DECODE_BEGIN, DBT_CODEC_DECODE_END, DBT_CODEC_RESET_BEGIN, DBT_CODEC_RESET_END,
-    DBT_CODEC_PCM_BEGIN, DBT_CODEC_PCM_END
+    DBT_CODEC_PCM_BEGIN, DBT_CODEC_PCM_END,
+    /* Host-producer event; appended to preserve existing timing kind values. */
+    DBT_CODEC_INPUT_CLOCK_MAX
 } dbt_codec_trace_kind_t;
 typedef struct {
     uint32_t timestamp,ssrc,previous_ssrc;
@@ -141,6 +143,9 @@ typedef struct {
     _Atomic uint32_t queue_full_drops,decode_rejects,reset_failures,pcm_failures;
     _Atomic uint32_t input_sequence_breaks,input_ssrc_changes,queue_high_water;
     _Atomic uint32_t input_packets,input_payload_bytes,input_first_timestamp,input_last_timestamp,input_stream_epoch;
+    /* One host writer; maximum forward half-range RTP step for adjacent wire
+     * sequences and the same SSRC. A raw clock observation, never a loss count. */
+    _Atomic uint32_t input_clock_revision,input_clock_step,input_clock_sequence,input_clock_timestamp,input_clock_ssrc;
     /* Host-producer diagnostics, distinct from queue saturation/decode errors.
      * Maximum includes a size-rejected packet; no payload is exposed. */
     _Atomic uint32_t input_max_payload,input_oversize_rejects,input_last_oversize;
@@ -151,6 +156,7 @@ typedef struct {
      * packets do not masquerade as an upstream sequence discontinuity. */
     uint32_t input_epoch,input_ssrc;
     uint16_t input_sequence;
+    bool input_clock_prev_wire;
     uint8_t *packet_storage;
     uint32_t binding,last_ssrc;
     uint16_t maximum_payload,stride,last_sequence;
@@ -189,4 +195,12 @@ uint16_t dbt_codec_worker_step(dbt_codec_worker_t *worker,uint32_t now_ms,uint16
  * runnable. The render provider wakes the worker when space becomes available. */
 bool dbt_codec_worker_runnable(const dbt_codec_worker_t *worker);
 bool dbt_codec_worker_deadline(const dbt_codec_worker_t *worker,uint32_t *when_ms);
+typedef struct {
+    uint32_t revision,epoch,step_ticks,timestamp,ssrc;
+    uint16_t sequence;
+    bool coherent,observed;
+} dbt_codec_input_clock_t;
+/* One sequence check; no retry, allocation, timer or worker-state access.
+ * observed=false means no eligible pair in the current input epoch. */
+void dbt_codec_worker_clock_snapshot(const dbt_codec_worker_t *,dbt_codec_input_clock_t *);
 #endif

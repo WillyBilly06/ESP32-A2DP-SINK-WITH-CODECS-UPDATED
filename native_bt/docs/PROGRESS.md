@@ -1,5 +1,19 @@
 # Current project progress
 
+Latest: [pre-decoder input clock origin](RTP_INPUT_CLOCK_2026_11_07.md).
+The generic worker observes maximum forward RTP steps for consecutive wire
+sequences/same SSRC before queue admission/decode. It adds24 static bytes, no
+buffer/task, and no timer/wait in the observer. ASan/UBSan covers wrap/reset/raw
+exclusion/coherence/local saturation;10 PCM-loan groups and37 existing cold cases pass.
+COM6 image7fbb6ccc5146 passes full readbacks/owned VALID boot with helper5 unchanged.
+A verified pair717->718 advances27840 ticks rather than960: extra28 five-ms periods
+already present at input, queued4, no local queue/decode/sequence errors. LHDC
+still has122880 unfilled; no audio-speed improvement is claimed. LDAC reset512
+step/1443584 source frames/zero shortages passes. Phone native dumps exposed no
+queue counters and coincided with PID changes; that path is stopped, causal
+attribution remains unproven and playback/connection are restored. Full goal stays open.
+The following entries are historical.
+
 Latest: [bounded five-block assistance](ASSIST_FIVE_BLOCKS_2026_11_07.md).
 Four remains the default; the current full native build explicitly uses5 blocks.
 Actual CMake/image/header/CLI gates verify the numeric value and helper mode;

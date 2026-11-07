@@ -50,10 +50,19 @@ one live HD decoder call, its copied input, and an independent DSP/final block
 against desktop replay. It also records a 440-frame payload versus 336-tick RTP
 discrepancy. It is not a causal diagnosis of that sound report; capture is off by default.
 
+[Pre-decoder RTP clock telemetry](docs/RTP_INPUT_CLOCK_2026_11_07.md) now records
+an exact consecutive-sequence timestamp pair before queue admission/decode, with
+a coherent one-attempt snapshot and sparse host-writer events. COM6 image7fbb6ccc5146
+passes full readbacks/37 cold cases; diagnostic cost is24 static bytes. LHDC
+sequence717->718 has27840 RTP ticks instead of960, an extra140ms already at input.
+No local packet/decode rejection occurs, but LHDC still has122880 unfilled frames.
+LDAC resets to its normal512-tick maximum and has1443584 source frames/zero shortages.
+Native phone queue dumps were unavailable; no cause or controller-policy fix is claimed.
+
 [Five-block DSP development selection](docs/ASSIST_FIVE_BLOCKS_2026_11_07.md)
 uses an explicit640-frame cap without adding RAM or changing precision/priority.
 The default remains4 blocks; the retained build explicitly adds `-DspAssistBlocks 5`.
-Actual sanitizer/lifecycle and82 admission checks pass. COM6 image041f25beb2ef
+Actual sanitizer/lifecycle and82 admission checks pass. Previous image041f25beb2ef
 passes guarded readbacks/37 cold cases. LHDC192/fixed900 unfilled199296 ->
 124672/108800 in repeated short segments, with zero descriptor/contract errors.
 LDAC96/observed990k delivers1445632 frames with zero shortages. Sender RTP clock

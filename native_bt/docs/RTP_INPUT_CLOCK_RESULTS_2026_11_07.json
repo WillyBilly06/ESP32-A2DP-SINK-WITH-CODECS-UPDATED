@@ -1,0 +1,161 @@
+{
+  "scope": "Pre-queue/pre-decoder input-clock origin diagnostic; no continuity claim",
+  "image": "7fbb6ccc514675bf201b2ed07b26268b0a8938965169014dd9ce48a4324025d3",
+  "archive": "runs/1794043320356337100-7fbb6ccc5146",
+  "readbacks": [
+    true,
+    true
+  ],
+  "boot": {
+    "probe": "boot_selection",
+    "host": "owned",
+    "kept_active": true,
+    "partition": 3735552,
+    "ota_state": 2,
+    "result": 0,
+    "production_ready": false
+  },
+  "cold_check": {
+    "probe": "target_codec_selftest",
+    "passed": true,
+    "configurations": 37,
+    "selected": 37,
+    "callbacks": 173,
+    "stack_bytes": 8192,
+    "stack_low_water_bytes": 3600,
+    "tracked_peak_bytes": 56899,
+    "min_free_after_alloc_bytes": 103608,
+    "maximum_decode_us": 13959,
+    "rf_test": false
+  },
+  "footprint": {
+    ".iram0.vectors": 0,
+    ".iram0.text": 0,
+    ".dram0.data": 0,
+    ".dram0.bss": 24,
+    ".flash.rodata": 384,
+    ".flash.text": 460
+  },
+  "rtp_clock": {
+    "probe": "rtp_input_clock",
+    "collection_cycle_us": 444842472,
+    "stream_epoch": 7,
+    "coherent": true,
+    "observed": true,
+    "revision": 6,
+    "max_forward_step_ticks": 27840,
+    "previous_sequence": 717,
+    "sequence": 718,
+    "previous_rtp_timestamp": 687360,
+    "rtp_timestamp": 715200,
+    "ssrc": 255,
+    "scope": "input_epoch_adjacent_wire_sequence_same_ssrc_forward_half_range",
+    "before_queue_and_decode": true,
+    "loss_count": false,
+    "snapshot_begin_us": 446118849,
+    "at_us": 446118856,
+    "snapshot_span_us": 7,
+    "record_crc32": "57946f8d"
+  },
+  "source_origin_event": {
+    "id": 881299,
+    "time": 1794043904.9447575,
+    "text": "{\"probe\":\"media_trace\",\"at_us\":430908906,\"stage\":\"input_clock_max\",\"ordinal\":2,\"sequence\":718,\"expected\":718,\"rtp_timestamp\":715200,\"ssrc\":255,\"previous_ssrc\":255,\"bytes\":566,\"queued\":4,\"result\":0,\"codec\":9,\"codec_name\":\"LHDC V5\",\"rtp_marker\":false,\"payload_prefix\":[4,233],\"framing\":\"rtp\",\"sequence_origin\":\"wire_rtp\",\"timestamp_origin\":\"wire_rtp\"}",
+    "level": "info",
+    "fields": {
+      "probe": "media_trace",
+      "at_us": 430908906,
+      "stage": "input_clock_max",
+      "ordinal": 2,
+      "sequence": 718,
+      "expected": 718,
+      "rtp_timestamp": 715200,
+      "ssrc": 255,
+      "previous_ssrc": 255,
+      "bytes": 566,
+      "queued": 4,
+      "result": 0,
+      "codec": 9,
+      "codec_name": "LHDC V5",
+      "rtp_marker": false,
+      "payload_prefix": [
+        4,
+        233
+      ],
+      "framing": "rtp",
+      "sequence_origin": "wire_rtp",
+      "timestamp_origin": "wire_rtp"
+    },
+    "integrity": "Unverified",
+    "stage": "Decoder / queue",
+    "probe": "media_trace",
+    "source": "Live UART · COM6",
+    "source_id": 84
+  },
+  "lhdc": {
+    "command_s": 12.247,
+    "input": {
+      "probe": "media_input",
+      "collection_cycle_us": 444842472,
+      "stream_epoch": 7,
+      "packets": 2895,
+      "payload_bytes": 1638570,
+      "rtp_first_timestamp": 0,
+      "rtp_last_timestamp": 2885760,
+      "rate": 192000,
+      "timestamp_origin": "wire_rtp",
+      "snapshot_begin_us": 446095622,
+      "at_us": 446095681,
+      "snapshot_span_us": 59,
+      "record_crc32": "0aee7f1e"
+    },
+    "source_frames": 2779008,
+    "unfilled": 122880,
+    "descriptor_errors": 0,
+    "contract_errors": 0,
+    "local_input_sequence_breaks": 0,
+    "local_queue_full": 0,
+    "decode_rejects": 0,
+    "detail_loss": 2561
+  },
+  "ldac": {
+    "command_s": 12.217,
+    "clock": {
+      "probe": "rtp_input_clock",
+      "collection_cycle_us": 988195514,
+      "stream_epoch": 12,
+      "coherent": true,
+      "observed": true,
+      "revision": 10,
+      "max_forward_step_ticks": 512,
+      "previous_sequence": 1,
+      "sequence": 2,
+      "previous_rtp_timestamp": 0,
+      "rtp_timestamp": 512,
+      "ssrc": 255,
+      "scope": "input_epoch_adjacent_wire_sequence_same_ssrc_forward_half_range",
+      "before_queue_and_decode": true,
+      "loss_count": false,
+      "snapshot_begin_us": 989468812,
+      "at_us": 989468819,
+      "snapshot_span_us": 7,
+      "record_crc32": "042a1b20"
+    },
+    "frames": 1443584,
+    "shortages": 0,
+    "descriptor_errors": 0
+  },
+  "phone_dumps": {
+    "directory": "D:/bt-owned61/native_bt/_build/experiments/rtp-credit-1794041407526",
+    "usable_native_queue_stats": false,
+    "pids_observed": [
+      16656,
+      8599,
+      8879
+    ],
+    "cause_proven": false,
+    "final_pid": 8879,
+    "dump_path_stopped": true
+  },
+  "full_goal_qualified": false
+}
