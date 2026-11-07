@@ -20,8 +20,10 @@ void dbt_lhdc_stage_record(uint32_t,uint32_t,uint32_t,uint32_t,uint32_t,uint32_t
 typedef struct {
     uint32_t revision,generation,rate,sample_bytes,collecting,channel_calls;
     uint32_t sum_cycles[6],max_cycles[6];
+    uint32_t frame_calls,frame_sum_cycles[4],frame_max_cycles[4];
 } probe_lhdc_live_t;
 void probe_lhdc_profile_live_enable(void);
+void dbt_lhdc_frame_stage_record(uint32_t,uint32_t,uint32_t,uint32_t);
 void dbt_lhdc_stage_live_begin(uint32_t rate,uint32_t sample_bytes);
 void dbt_lhdc_stage_live_end(void);
 bool probe_lhdc_profile_snapshot(probe_lhdc_live_t *result);

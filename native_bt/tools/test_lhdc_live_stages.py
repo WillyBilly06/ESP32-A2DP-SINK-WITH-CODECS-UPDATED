@@ -12,6 +12,7 @@ if not rt.is_file():rt=pathlib.Path(cc).parent/rt.name
 assert rt.is_file();shutil.copy2(rt,O/rt.name)
 r=subprocess.run([str(exe)],capture_output=True,text=True,env=env,timeout=20);(O/'stdout.txt').write_text(r.stdout);(O/'stderr.txt').write_text(r.stderr);print(r.stdout);print(r.stderr);r.check_returncode()
 event=json.loads(next(l for l in r.stdout.splitlines() if l.startswith('{')));assert event['probe']=='lhdc_live_stages' and event['rate']==192000 and event['channel_calls']==32 and event['sum_cycles'][0]==4294967264 and event['sum_cycles'][1]==64
+assert event['frame_calls']==16 and event['frame_sum_cycles']==[112,128,144,160] and event['frame_stages']==['prepare','channel_envelope','scale_scan','output_tail']
 assert all(hashlib.sha256(pathlib.Path(f).read_bytes()).hexdigest()==h for f,h in before.items());(O/'results.json').write_text(json.dumps(dict(passed=True,scope='actual collector and extracted logger; bounded snapshot/epochs/wrap/finite compatibility; no target timing',event=event,source_sha256=before),indent=2)+'\n')
 
 cm=(R/'esp32_probe/CMakeLists.txt').read_text();gate=re.search(r'^if\(DBT_PROBE_LHDC_STAGE_PROFILE AND NOT DBT_PROBE_LHDC_MAX_CHECK[^\n]*\)\n.*?endif\(\)',cm,re.M|re.S)[0];(O/'gate.cmake').write_text(gate+'\n')

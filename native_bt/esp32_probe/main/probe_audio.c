@@ -405,10 +405,15 @@ static void log_lhdc_quality(uint32_t cycle){
 #ifdef DBT_PROBE_LHDC_STAGE_PROFILE
 static void log_lhdc_live(uint32_t cycle){
     probe_lhdc_live_t s;if(!probe_lhdc_profile_snapshot(&s) || !s.channel_calls)return;
-    PROBE_SNAPSHOT_LOG("{\"probe\":\"lhdc_live_stages\",\"collection_cycle_us\":%" PRIu32 ",\"revision\":%" PRIu32 ",\"generation\":%" PRIu32 ",\"rate\":%" PRIu32 ",\"pcm_container_bytes\":%" PRIu32 ",\"collecting\":%" PRIu32 ",\"channel_calls\":%" PRIu32 ",\"sum_cycles\":[%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 "],\"max_cycles\":[%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 "],\"stages\":[\"preamble\",\"entropy\",\"mantissa\",\"dequant_sns\",\"imdct\",\"overlap\"],\"cycles_wrap_uint32\":true,\"cycles_include_preemption\":true,\"instrumented\":true,\"publication_period_channels\":32}\n",
+    PROBE_SNAPSHOT_LOG("{\"probe\":\"lhdc_live_stages\",\"collection_cycle_us\":%" PRIu32 ",\"revision\":%" PRIu32 ",\"generation\":%" PRIu32 ",\"rate\":%" PRIu32 ",\"pcm_container_bytes\":%" PRIu32 ",\"collecting\":%" PRIu32 ",\"channel_calls\":%" PRIu32
+        ",\"sum_cycles\":[%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 "],\"max_cycles\":[%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 "]"
+        ",\"frame_calls\":%" PRIu32 ",\"frame_sum_cycles\":[%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 "],\"frame_max_cycles\":[%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 "]"
+        ",\"stages\":[\"preamble\",\"entropy\",\"mantissa\",\"dequant_sns\",\"imdct\",\"overlap\"],\"frame_stages\":[\"prepare\",\"channel_envelope\",\"scale_scan\",\"output_tail\"],\"cycles_wrap_uint32\":true,\"cycles_include_preemption\":true,\"instrumented\":true,\"publication_period_frames\":16}\n",
         cycle,s.revision,s.generation,s.rate,s.sample_bytes,s.collecting,s.channel_calls,
         s.sum_cycles[0],s.sum_cycles[1],s.sum_cycles[2],s.sum_cycles[3],s.sum_cycles[4],s.sum_cycles[5],
-        s.max_cycles[0],s.max_cycles[1],s.max_cycles[2],s.max_cycles[3],s.max_cycles[4],s.max_cycles[5]);
+        s.max_cycles[0],s.max_cycles[1],s.max_cycles[2],s.max_cycles[3],s.max_cycles[4],s.max_cycles[5],s.frame_calls,
+        s.frame_sum_cycles[0],s.frame_sum_cycles[1],s.frame_sum_cycles[2],s.frame_sum_cycles[3],
+        s.frame_max_cycles[0],s.frame_max_cycles[1],s.frame_max_cycles[2],s.frame_max_cycles[3]);
 }
 #endif
 void probe_audio_transport_received(uint32_t began_us,uint16_t bytes,uint8_t type,dbt_result_t result,bool isr){

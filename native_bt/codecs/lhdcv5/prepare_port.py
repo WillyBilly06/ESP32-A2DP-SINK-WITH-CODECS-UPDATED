@@ -349,6 +349,36 @@ static float lhdc_dec_level_cal(uint32_t sample_rate, int bit_depth)
                      channel, ret, (int)slt->sns_params.global_gain, num_sfb);''')
             text=once(text,'        if (conceal && (s_rl++ % 16) == 0) {',
                       '        if (conceal && g_lhdc_trace > 0 && (s_rl++ % 16) == 0) {')
+            # Keep per-frame denominators separate from the channel stages.
+            text=once(text,'extern void dbt_lhdc_stage_record(uint32_t,uint32_t,uint32_t,uint32_t,uint32_t,uint32_t);',
+                      'extern void dbt_lhdc_stage_record(uint32_t,uint32_t,uint32_t,uint32_t,uint32_t,uint32_t);\nextern void dbt_lhdc_frame_stage_record(uint32_t,uint32_t,uint32_t,uint32_t);')
+            text=once(text,'    const int64_t t_frame0 = LHDC_NOW_US();','''#if defined(DBT_LHDC_STAGE_PROFILE) && DBT_LHDC_STAGE_PROFILE
+    const uint32_t dbt_frame_begin=(uint32_t)DBT_LHDC_STAGE_NOW();
+#endif
+    const int64_t t_frame0 = LHDC_NOW_US();''')
+            text=once(text,'    /* Decode each channel */','''#if defined(DBT_LHDC_STAGE_PROFILE) && DBT_LHDC_STAGE_PROFILE
+    const uint32_t dbt_channels_begin=(uint32_t)DBT_LHDC_STAGE_NOW();
+#endif
+    /* Decode each channel */''')
+            text=once(text,'    /* Output scale: the encoder works in a fixed 24-bit internal scale; combined','''#if defined(DBT_LHDC_STAGE_PROFILE) && DBT_LHDC_STAGE_PROFILE
+    const uint32_t dbt_channels_end=(uint32_t)DBT_LHDC_STAGE_NOW();
+#endif
+    /* Output scale: the encoder works in a fixed 24-bit internal scale; combined''')
+            text=once(text,'    int conceal = (frame_peak > 2.0f * clip_lim);','''    int conceal = (frame_peak > 2.0f * clip_lim);
+#if defined(DBT_LHDC_STAGE_PROFILE) && DBT_LHDC_STAGE_PROFILE
+    const uint32_t dbt_scan_end=(uint32_t)DBT_LHDC_STAGE_NOW();
+#endif''')
+            frame_start=text.index('lhdc_dec_ret_t lhdc_dec_decode_frame(')
+            frame_end=text.index('/* Destroy a decoder instance:',frame_start)
+            frame=text[frame_start:frame_end]
+            frame=once(frame,'    return LHDC_DEC_OK;\n}', '''#if defined(DBT_LHDC_STAGE_PROFILE) && DBT_LHDC_STAGE_PROFILE
+    const uint32_t dbt_frame_end=(uint32_t)DBT_LHDC_STAGE_NOW();
+    dbt_lhdc_frame_stage_record(dbt_channels_begin-dbt_frame_begin,
+        dbt_channels_end-dbt_channels_begin,dbt_scan_end-dbt_channels_end,dbt_frame_end-dbt_scan_end);
+#endif
+    return LHDC_DEC_OK;
+}''')
+            text=text[:frame_start]+frame+text[frame_end:]
         if name=="lhdc_entropy_dec.c":
             text=once(text,'#include <stdlib.h>   /* malloc/free for the lazily-heaped FAC models */',
                       '#include <stdlib.h>\n#include "dbt_lhdc_alloc.h"\n#include "dbt_lhdc_bits.h"')
