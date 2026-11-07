@@ -50,6 +50,17 @@ one live HD decoder call, its copied input, and an independent DSP/final block
 against desktop replay. It also records a 440-frame payload versus 336-tick RTP
 discrepancy. It is not a causal diagnosis of that sound report; capture is off by default.
 
+[Current instruction-RAM DSP measurement](docs/DSP_IRAM_CURRENT_2026_11_06.md)
+retains the four-block/fixed-transfer baseline and places the existing integer
+block kernel in instruction SRAM (+3756 bytes, unchanged data RAM). COM6 image
+d2676c584056 passes readbacks/37 cold cases. Two LHDC 192/fixed900 metronome
+traces have 254464/269824 unfilled frames versus 359552 in the baseline; local
+elapsed DSP cost falls, but continuity still fails. LDAC 96 metronome regression
+has zero DMA shortages; sampled wire timing is consistent with 990 kbps.
+The [smaller-lease/copy-credit trials](docs/PCM_COPY_CREDIT_2026_11_06.md) show
+no benefit and are removed. Corrected LHDC framing fixtures pass all 80 real-codec
+host cases. Full maximum-rate and all-feature qualification remain open.
+
 [Exact block analysis](docs/DSP_ANALYSIS_BLOCK_2026_11_06.md) reduces repeated
 analyzer bookkeeping while preserving every PCM sample and meter/Goertzel state.
 Two arithmetic modes pass 8.8 million frame comparisons. COM6 image b31d1013ab8b

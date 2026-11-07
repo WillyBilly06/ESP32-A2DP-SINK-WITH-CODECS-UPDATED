@@ -122,6 +122,14 @@ static void put(writer_t *w,unsigned value,unsigned bits){
 }
 static bool duplicate_packet(case_t c,context_t *ctx,const uint8_t *source,uint16_t size,uint8_t *out,uint16_t *written){
     const dbt_codec_ops_t *ops=ops_for(c);
+    if(ops==&dbt_lhdcv5_codec){
+        /* LHDC count/sequence is two octets, independent of SBC F/S/L bits. */
+        unsigned frames=size>=2u?source[0]>>2:0u;
+        if(!frames || frames>31u || 2u+2u*(size-2u)>8192u)return false;
+        out[0]=(uint8_t)((source[0]&3u)|(2u*frames<<2));out[1]=source[1];
+        memcpy(out+2,source+2,size-2u);memcpy(out+size,source+2,size-2u);
+        *written=(uint16_t)(2u+2u*(size-2u));return true;
+    }
     if(ops==&dbt_aac_codec){
         dbt_aac_unit_t units[DBT_AAC_MAX_SUBFRAMES];uint8_t count=0;
         if(dbt_aac_latm_parse(&ctx->builder_mux,&ctx->config,source,size,units,DBT_AAC_MAX_SUBFRAMES,&count)!=DBT_OK || count!=1)return false;
@@ -198,6 +206,19 @@ static int run_case(case_t c){
     TRY(ctx.reference && ctx.timestamps);
     dbt_codec_hooks_t hooks={&ctx,allocate,release,pcm};
     TRY(dbt_codec_init(&direct,hooks)==DBT_OK && dbt_codec_open(&direct,&ctx.config)==DBT_OK && ops->reset(&direct)==DBT_OK);
+    if(ops==&dbt_lhdcv5_codec && c.mode==0){
+        const uint8_t *original;uint16_t size;bool marker;
+        original_packet(c,0,&original,&size,&marker);
+        uint8_t wrong[8192];TRY(size<=sizeof(wrong) && size>=6u);
+        memcpy(wrong,original,size);
+        const uint8_t sbc_fragment_headers[]={0xc2,0xa1};
+        for(unsigned i=0;i<2;++i){
+            wrong[0]=sbc_fragment_headers[i];
+            dbt_avdtp_media_t malformed={wrong,0,1,size,(uint16_t)i,96,false};
+            TRY(ops->media(&direct,&malformed,0)==DBT_INVALID && !ctx.reference_frames);
+            TRY(ops->reset(&direct)==DBT_OK);
+        }
+    }
     for(unsigned i=0;i<count;++i)TRY(feed(c,&ctx,&direct,NULL,i,&now,false));
     if(c.mode!=2)TRY(ctx.reference_frames==expected_frames(c));
     else if(ops!=&dbt_aptx_codec)TRY(ctx.reference_frames==2u*expected_frames(c));
@@ -205,7 +226,7 @@ static int run_case(case_t c){
     dbt_codec_close(&direct);TRY(!ctx.live && ctx.allocs==ctx.frees);
     ctx.deferred=true;ctx.want_pause=true;ctx.calls=0;ctx.builder_mux=(dbt_aac_mux_t){0};now=0;
     const dbt_codec_ops_t *codecs[]={ops};
-    dbt_codec_worker_hooks_t wh={hooks,codecs,1,0,0,0,true,{0},0,{0}};
+    dbt_codec_worker_hooks_t wh={hooks,codecs,1,0,0,0,true,{0},0,{0},0};
 #ifdef DBT_TEST_PCM_LOANS
     wh.async_stream=(dbt_codec_stream_async_t){stream_begin,no_stream_ticket,no_stream_ticket};
     wh.async_pcm=(dbt_codec_pcm_async_t){loan_begin,loan_poll,loan_cancel};
@@ -248,8 +269,8 @@ int main(void){
     for(unsigned i=0;i<sizeof(probe_codec_vectors)/sizeof(probe_codec_vectors[0]);++i){
         const probe_codec_vector_t *v=&probe_codec_vectors[i];if(!v->name)continue;
         case_t c={v,NULL,0,i};if(run_case(c))return 1;++cases;
-        if(v->ops==&dbt_sbc_codec || v->ops==&dbt_aac_codec || v->ops==&dbt_lhdcv5_codec){c.mode=1;if(run_case(c))return 1;++cases;}
-        if(v->ops==&dbt_sbc_codec || v->ops==&dbt_aac_codec || v->ops==&dbt_ldac_codec || v->ops==&dbt_aptx_codec){c.mode=2;if(run_case(c))return 1;++cases;}
+        if(v->ops==&dbt_sbc_codec || v->ops==&dbt_aac_codec){c.mode=1;if(run_case(c))return 1;++cases;}
+        if(v->ops==&dbt_sbc_codec || v->ops==&dbt_aac_codec || v->ops==&dbt_ldac_codec || v->ops==&dbt_aptx_codec || v->ops==&dbt_lhdcv5_codec){c.mode=2;if(run_case(c))return 1;++cases;}
     }
     for(unsigned i=0;i<sizeof(opus_vectors)/sizeof(opus_vectors[0]);++i)for(unsigned mode=0;mode<2;++mode){
         case_t c={NULL,&opus_vectors[i],mode,i};if(run_case(c))return 1;++cases;

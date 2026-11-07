@@ -1,5 +1,15 @@
 # Current project progress
 
+Latest: [instruction-RAM DSP under the current scheduler](DSP_IRAM_CURRENT_2026_11_06.md).
+COM6 image d2676c584056 uses 3756 more instruction-SRAM bytes and unchanged
+data RAM. Readbacks/owned boot/37 cold codec cases pass. Repeated LHDC 192/fixed900
+metronome runs reduce observed unfilled frames to 254464/269824 from 359552;
+continuity still fails. LDAC 96 metronome has zero shortages and wire samples
+consistent with 990 kbps. Smaller leases/copy credits are rejected and removed.
+Valid LHDC multi-frame/header checks and all 80 real-codec host cases pass.
+The full master goal, sustained maximum LHDC and all-feature gates stay open.
+The following entries are historical.
+
 Latest: [exact analyzer accumulation](DSP_ANALYSIS_BLOCK_2026_11_06.md).
 COM6 image b31d1013ab8b preserves full PCM/DSP state in 8.8 million comparisons
 and adds no static RAM. Guarded readbacks and 37 existing cold codec cases pass.
