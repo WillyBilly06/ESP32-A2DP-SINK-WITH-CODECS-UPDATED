@@ -15,3 +15,7 @@ Experiment: native_bt/_build/experiments/lhdc-fac-run-1794061546925.
     python native_bt/tools/test_lhdc_fac_run.py --decoder "D:/ESP32 Bluetooth/LHDC-V5-Decoder-main/decoder"
 
 The guarded playback harness now saves partial rows incrementally and failure receipts even if the final logger HTTP request fails. It does not treat lost logging as a successful trace.
+
+## Target result — not adopted
+
+59b2b6e2967f was flashed/readback-verified onCOM6; all37 cold cases pass. Native YouTube at actual192k/S24/fixed900 reports2819 decoded units and6904856 elapsed codec microseconds (2449.40us/unit) versus2421.04 baseline. This is no demonstrated improvement. Refill unfilled total5248 includes startup/drain; zero decoder rejects/nonfinite/concealed frames. Volume90/150 restored. The default production transformer is returned to the original FAC loop; the exact prototype and its tests remain available for study.

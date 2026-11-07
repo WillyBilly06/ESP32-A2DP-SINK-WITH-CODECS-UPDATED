@@ -1,4 +1,8 @@
 #include "dbt_lhdcv5_codec.h"
+#ifdef DBT_LHDC_STAGE_PROFILE
+extern void dbt_lhdc_stage_live_begin(uint32_t,uint32_t);
+extern void dbt_lhdc_stage_live_end(void);
+#endif
 #include "dbt_lhdc_alloc.h"
 #include "lhdc_dec.h"
 #include "lhdc_dec_internal.h"
@@ -146,6 +150,10 @@ static uint8_t *pcm(lhdc_state_t *s){
 }
 static void close_decoder(dbt_codec_decoder_t *d){
     lhdc_state_t *s=d->state;if(!s)return;
+
+#ifdef DBT_LHDC_STAGE_PROFILE
+    dbt_lhdc_stage_live_end();
+#endif
     lhdc_dec_deinit((lhdc_decoder_t *)workspace(s));
     lhdc_dec_free_slot_scratch();lhdc_entropy_free();lhdc_dec_free_window();
     lhdc_imdct_free_480();lhdc_imdct_free_960();lhdc_imdct_free_1920();lhdc_imdct_free_cos();
@@ -184,6 +192,9 @@ static dbt_result_t open_decoder(dbt_codec_decoder_t *d){
 #ifdef DBT_LHDC_QUALITY
     if(++quality_serial==0)++quality_serial;
     s->quality.generation=quality_serial;
+#endif
+#ifdef DBT_LHDC_STAGE_PROFILE
+    dbt_lhdc_stage_live_begin(checked.rate,checked.sample_bytes);
 #endif
     return DBT_OK;
 }

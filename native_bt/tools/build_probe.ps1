@@ -36,7 +36,7 @@ if ($PipelineDiagnostic) {
     $CodecDiagnosticOnly=$true; $WithLhdc=$true; $WithAudioOutput=$true; $AsyncAudio=$true; $KeepOwned=$false
 }
 if ($DeferredCodecCheck -and -not $CodecDiagnosticOnly) { throw 'Deferred codec check requires -CodecDiagnosticOnly' }
-if ($LhdcStageProfile -and -not $LhdcMaximumCheck) { throw 'Stage profiling requires -LhdcMaximumCheck' }
+if ($LhdcStageProfile -and -not $LhdcMaximumCheck -and -not ($StayNative -and $WithLhdc -and $WithProductIo -and $AsyncAudio -and $AudioStageProfile -and -not $CodecDiagnosticOnly -and -not $PipelineDiagnostic)) { throw 'LHDC stage profiling requires the maximum diagnostic or complete live native audio with -AudioStageProfile' }
 if ($LhdcMaximumCheck -and (-not $CodecDiagnosticOnly -or -not $WithLhdc)) { throw 'Maximum LHDC check requires -CodecDiagnosticOnly -WithLhdc' }
 if ($CodecDiagnosticOnly) {
     if ($WithProductIo -or $WithProductSecurity -or $WithRfcomm -or $WithSmp -or $WithAvrcp -or $WithAudioProbe -or ($WithAudioOutput -and -not $PipelineDiagnostic) -or $WithGatt -or $WithClassicSecurity -or $TraceIngress) { throw 'Codec-only diagnostic excludes radio and product features' }

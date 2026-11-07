@@ -309,6 +309,16 @@ if word_dsp:
     assert {Path(e['file']).name for e in block_core_commands}=={'dbt_audio.c','fixed_dsp.c'}
 assert ('DBT_PROBE_LHDC_MAX_CHECK:BOOL=ON' in cache)==bool(build_status.get('lhdc_maximum_check'))
 assert ('DBT_PROBE_LHDC_STAGE_PROFILE:BOOL=ON' in cache)==bool(build_status.get('lhdc_stage_profile'))
+if build_status.get('lhdc_stage_profile'):
+    assert re.search(r'(?:^|\s)-DDBT_PROBE_LHDC_STAGE_PROFILE=1(?:\s|$)',main_command)
+    for name in ('dbt_lhdcv5_codec.c','lhdc_dec.c'):
+        cmd=next(e['command'] for e in commands if Path(e['file']).name==name)
+        assert re.search(r'(?:^|\s)-DDBT_LHDC_STAGE_PROFILE=1(?:\s|$)',cmd)
+        assert re.search(r'(?:^|\s)-DDBT_LHDC_STAGE_CLOCK_CYCLES=1(?:\s|$)',cmd)
+    assert any(Path(e['file']).name=='probe_lhdc_profile.c' for e in commands)
+    if not build_status.get('lhdc_maximum_check'):
+        assert build_status.get('stay_native') and build_status.get('async_audio') and build_status.get('audio_stage_profile') and not diagnostic and not pipeline
+
 assert ('DBT_PROBE_PIPELINE_DIAGNOSTIC:BOOL=ON' in cache)==pipeline
 audio_profile=bool(build_status.get('audio_stage_profile'))
 assert ('DBT_PROBE_AUDIO_STAGE_PROFILE:BOOL=ON' in cache)==audio_profile

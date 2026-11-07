@@ -40,6 +40,9 @@
 #endif
 #ifdef DBT_PROBE_LHDC_BUILD
 #include "dbt_lhdcv5_codec.h"
+#ifdef DBT_PROBE_LHDC_STAGE_PROFILE
+#include "probe_lhdc_profile.h"
+#endif
 #define AUDIO_LHDC_JSON ",\"LHDC V5\""
 #else
 #define AUDIO_LHDC_JSON ""
@@ -396,6 +399,16 @@ static void log_lhdc_quality(uint32_t cycle){
         ",\"peak_concealed\":%" PRIu32 ",\"nonfinite_frames\":%" PRIu32 ",\"clipped_frames\":%" PRIu32 ",\"clipped_samples\":%" PRIu32
         ",\"last_event_attempt\":%" PRIu32 ",\"last_event_peak_f32_bits\":\"%08" PRIx32 "\",\"last_event_flags\":%" PRIu32 "}\n",
         cycle,q.revision,q.peak_concealed,q.nonfinite_frames,q.clipped_frames,q.clipped_samples,q.event_attempt,q.peak_f32_bits,q.flags);
+}
+#endif
+
+#ifdef DBT_PROBE_LHDC_STAGE_PROFILE
+static void log_lhdc_live(uint32_t cycle){
+    probe_lhdc_live_t s;if(!probe_lhdc_profile_snapshot(&s) || !s.channel_calls)return;
+    PROBE_SNAPSHOT_LOG("{\"probe\":\"lhdc_live_stages\",\"collection_cycle_us\":%" PRIu32 ",\"revision\":%" PRIu32 ",\"generation\":%" PRIu32 ",\"rate\":%" PRIu32 ",\"pcm_container_bytes\":%" PRIu32 ",\"collecting\":%" PRIu32 ",\"channel_calls\":%" PRIu32 ",\"sum_cycles\":[%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 "],\"max_cycles\":[%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 "],\"stages\":[\"preamble\",\"entropy\",\"mantissa\",\"dequant_sns\",\"imdct\",\"overlap\"],\"cycles_wrap_uint32\":true,\"cycles_include_preemption\":true,\"instrumented\":true,\"publication_period_channels\":32}\n",
+        cycle,s.revision,s.generation,s.rate,s.sample_bytes,s.collecting,s.channel_calls,
+        s.sum_cycles[0],s.sum_cycles[1],s.sum_cycles[2],s.sum_cycles[3],s.sum_cycles[4],s.sum_cycles[5],
+        s.max_cycles[0],s.max_cycles[1],s.max_cycles[2],s.max_cycles[3],s.max_cycles[4],s.max_cycles[5]);
 }
 #endif
 void probe_audio_transport_received(uint32_t began_us,uint16_t bytes,uint8_t type,dbt_result_t result,bool isr){
@@ -915,6 +928,9 @@ static void log_loop(void *unused){
 #endif
 #ifdef DBT_PROBE_LHDC_BUILD
         log_lhdc_quality(at);
+#ifdef DBT_PROBE_LHDC_STAGE_PROFILE
+        log_lhdc_live(at);
+#endif
 #endif
 #ifdef DBT_PROBE_SCHEDULER_TRACE
         for(unsigned core=0;core<2;++core){
@@ -1293,6 +1309,9 @@ dbt_result_t probe_audio_init(dbt_runtime_t *runtime,TaskHandle_t host_owner){
         sampled==ESP_OK?"true":"false",(unsigned)sampled,(unsigned)configTICK_RATE_HZ);
 #endif
     initialized=true;
+#ifdef DBT_PROBE_LHDC_STAGE_PROFILE
+    probe_lhdc_profile_live_enable();
+#endif
     printf("{\"probe\":\"scheduler_layout\",\"host_core\":%u,\"controller_core\":%u,\"host_priority\":%u,\"decoder_core\":%u,\"decoder_priority\":%u,\"owner_ready_yield\":%u,\"renderer_core\":%u,\"renderer_priority\":%u,\"logger_core\":%u,\"background_core\":%u,\"logger_priority\":1}\n",(unsigned)xPortGetCoreID(),(unsigned)DBT_ESP32_BLUETOOTH_CORE,(unsigned)DBT_PROBE_HOST_PRIORITY,(unsigned)DBT_PROBE_DECODER_CORE,(unsigned)DBT_PROBE_DECODER_PRIORITY,(unsigned)DBT_PROBE_OWNER_READY_YIELD,(unsigned)DBT_ESP32_RENDER_CORE,(unsigned)DBT_PROBE_RENDER_PRIORITY,(unsigned)AUDIO_LOGGER_CORE,(unsigned)DBT_ESP32_BACKGROUND_CORE);
     printf("{\"probe\":\"sbc_probe_ready\",\"psm\":25,\"mtu\":%u,\"worker_bytes\":%u,\"profile_bytes\":%u,\"decoder_stack\":8192,"
            "\"logger_stack\":4096,\"codecs\":" AUDIO_CODECS_JSON ",\"diagnostic_only\":true,\"audio_sink_sdp_advertised\":" AUDIO_SDP_JSON ",\"i2s_output\":" AUDIO_OUTPUT_JSON ",\"rf_protocol_diagnostic\":" AUDIO_RF_DIAG_JSON "}\n",

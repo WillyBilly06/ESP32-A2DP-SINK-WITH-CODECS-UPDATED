@@ -350,10 +350,6 @@ static float lhdc_dec_level_cal(uint32_t sample_rate, int bit_depth)
             text=once(text,'        if (conceal && (s_rl++ % 16) == 0) {',
                       '        if (conceal && g_lhdc_trace > 0 && (s_rl++ % 16) == 0) {')
         if name=="lhdc_entropy_dec.c":
-            text=once(text,'/* --- Rice quotient inverse (mirrors rice_dec.py, validated) --- */',
-                      '#include "dbt_lhdc_fac_run.h"\n\n/* --- Rice quotient inverse (mirrors rice_dec.py, validated) --- */')
-            text=once(text,'    for (int i = 0; i < count; i++) s1[i] = (uint8_t)fac_decode(&d, pm1);',
-                      '    dbt_lhdc_fac_run(&d, pm1, s1, count);')
             text=once(text,'#include <stdlib.h>   /* malloc/free for the lazily-heaped FAC models */',
                       '#include <stdlib.h>\n#include "dbt_lhdc_alloc.h"\n#include "dbt_lhdc_bits.h"')
             text=once(text,'''    int nb = 0;

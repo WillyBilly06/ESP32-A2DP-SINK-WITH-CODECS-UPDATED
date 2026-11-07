@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "dbt_codec.h"
+#include "dbt_esp32_affinity.h"
 #include "probe_codec_check.h"
 static void (*pending)(void *);
 static unsigned creates,callbacks,notifications,waits,fail_create,timeout,spurious;
@@ -23,7 +24,7 @@ unsigned ulTaskNotifyTake(int clear,unsigned ticks){
     return 1;
 }
 int xTaskCreatePinnedToCore(void (*work)(void *),const char *name,unsigned stack,void *arg,unsigned priority,TaskHandle_t *task,int core){
-    (void)name;(void)arg;(void)priority;(void)task;if(stack!=8192 || core!=1)return 0;
+    (void)name;(void)arg;(void)priority;(void)task;if(stack!=8192 || core!=DBT_ESP32_DECODER_CORE)return 0;
     ++creates;if(fail_create)return 0;pending=work;return pdPASS;
 }
 dbt_result_t dbt_codec_init(dbt_codec_decoder_t *decoder,dbt_codec_hooks_t hooks){memset(decoder,0,sizeof(*decoder));decoder->hooks=hooks;return DBT_OK;}
