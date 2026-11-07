@@ -1,3 +1,16 @@
+## 2026-11-07 — rejected immediate helper resubmission
+
+The immediate-resubmission prototype passes actual ownership interleavings and
+target37 cold cases but shows no repeatable continuity advantage. Unfilled
+counts are9984 baseline,15232/14464 prototype and18048 reverse baseline;
+the reverse result exposes significant variation, not causal proof of a loss.
+Both prototype source and its extended host fixture are removed. Exact prior
+ec89367eeef0 is restored with guarded readbacks, VALID owned boot, preserved
+original application and37 cold passes. Phone paused at90/150, logger live.
+Next investigate sharing the measured PCM safety scan and S32 output traversal
+without changing quality/overlap/PCM. See
+[resubmission evidence](LHDC_RETIRE_RESUBMIT_2026_11_07.md).
+
 ## 2026-11-07 — idle-decoder DSP admission and codec-switch checks
 
 ec89367eeef0 passes source/image admission, guarded921600 upload/full115200

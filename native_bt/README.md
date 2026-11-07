@@ -1,5 +1,10 @@
 # Independent ESP32 Bluetooth host
 
+An [immediate DSP resubmission experiment](docs/LHDC_RETIRE_RESUBMIT_2026_11_07.md)
+showed no repeatable continuity advantage and is removed. The exact previous
+image is restored; the reverse comparison also documents substantial run
+variation. LHDC continuity and full-feature qualification remain open.
+
 The [idle-decoder DSP admission](docs/LHDC_IDLE_DSP_2026_11_07.md) lets the
 existing lower-priority Core0 helper work while LHDC waits for encoded input.
 Short matched-setting runs show fewer unfilled frames with no added SRAM;

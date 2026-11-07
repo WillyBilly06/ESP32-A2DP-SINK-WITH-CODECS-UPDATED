@@ -1,0 +1,261 @@
+{
+  "date": "2026-11-07",
+  "decision": "Rejected: no repeatable improvement; reverse baseline exposes substantial run-to-run variation",
+  "retained_source_head": "3fd99286",
+  "baseline_and_restored_image": "ec89367eeef0acaaba286802a53d7aaced2e5b3b9991fa6d49fa9152f219c79f",
+  "rejected_image": "54ea970d475c90e5a7125de27b48c097ed23ec1bb35d194137449165443d0c16",
+  "rejected_archive": "runs/1794070033552522400-54ea970d475c",
+  "restore_archive": "runs/1794070649262749600-ec89367eeef0",
+  "restore_verified": {
+    "written_regions": [
+      {
+        "offset": 3735552,
+        "bytes": 1340704,
+        "readback_sha256": "ec89367eeef0acaaba286802a53d7aaced2e5b3b9991fa6d49fa9152f219c79f",
+        "readback_matches": true,
+        "write_baud": 921600,
+        "verify_baud": 115200
+      },
+      {
+        "offset": 6361088,
+        "bytes": 4096,
+        "readback_sha256": "d2876271aeafbcdc3992b115a21a41965cfcaef5daf2e27b5c4279a2552cf4a0",
+        "readback_matches": true,
+        "write_baud": 921600,
+        "verify_baud": 115200
+      }
+    ],
+    "original_preserved": true,
+    "owned": {
+      "probe": "boot_selection",
+      "host": "owned",
+      "kept_active": true,
+      "partition": 3735552,
+      "ota_state": 2,
+      "result": 0,
+      "production_ready": false
+    },
+    "automatic_bluedroid_restore": false,
+    "cold": {
+      "probe": "target_codec_selftest",
+      "passed": true,
+      "configurations": 37,
+      "selected": 37,
+      "callbacks": 173,
+      "stack_bytes": 8192,
+      "stack_low_water_bytes": 3584,
+      "tracked_peak_bytes": 56899,
+      "min_free_after_alloc_bytes": 102996,
+      "maximum_decode_us": 13021,
+      "rf_test": false
+    }
+  },
+  "rejected_section_deltas": [
+    {
+      "section": ".iram0.vectors",
+      "before": 1028,
+      "after": 1028,
+      "delta": 0
+    },
+    {
+      "section": ".iram0.text",
+      "before": 129851,
+      "after": 129851,
+      "delta": 0
+    },
+    {
+      "section": ".dram0.data",
+      "before": 25237,
+      "after": 25237,
+      "delta": 0
+    },
+    {
+      "section": ".dram0.bss",
+      "before": 51304,
+      "after": 51304,
+      "delta": 0
+    },
+    {
+      "section": ".flash.appdesc",
+      "before": 256,
+      "after": 256,
+      "delta": 0
+    },
+    {
+      "section": ".flash.rodata",
+      "before": 385368,
+      "after": 385368,
+      "delta": 0
+    },
+    {
+      "section": ".flash.tdata",
+      "before": 20,
+      "after": 20,
+      "delta": 0
+    },
+    {
+      "section": ".flash.text",
+      "before": 798792,
+      "after": 798772,
+      "delta": -20
+    },
+    {
+      "section": ".iram0.text_end",
+      "before": 1,
+      "after": 1,
+      "delta": 0
+    },
+    {
+      "section": ".iram0.data",
+      "before": 0,
+      "after": 0,
+      "delta": 0
+    },
+    {
+      "section": ".iram0.bss",
+      "before": 0,
+      "after": 0,
+      "delta": 0
+    },
+    {
+      "section": ".dram0.heap_start",
+      "before": 0,
+      "after": 0,
+      "delta": 0
+    }
+  ],
+  "runs": [
+    {
+      "label": "baseline-constant90",
+      "source_id": 14,
+      "guard_ok": true,
+      "failure": null,
+      "phone_volume": 90,
+      "codec": 9,
+      "rate": 192000,
+      "channels": 2,
+      "pcm_container_bytes": 4,
+      "dma_source_frames": 2738880,
+      "initial_shortage_frames": 18944,
+      "unfilled_frames": 9984,
+      "unfilled_per_million_frames": 3645.2856642131087,
+      "helper_fraction": 0.5356233204813646,
+      "helper_elapsed_cycles_per_frame": 714.8587894544543,
+      "first_raw_frames": 1920,
+      "first_processed_frames": 0,
+      "first_decoder_phase": "wait_pcm_space",
+      "first_assist_state": 0,
+      "maximum_local_render_us": 3898,
+      "queue_full": 0,
+      "decode_reject": 0,
+      "refill_contract_errors": 0,
+      "descriptor_errors": 0
+    },
+    {
+      "label": "candidate-constant90",
+      "source_id": 16,
+      "guard_ok": true,
+      "failure": null,
+      "phone_volume": 90,
+      "codec": 9,
+      "rate": 192000,
+      "channels": 2,
+      "pcm_container_bytes": 4,
+      "dma_source_frames": 2724736,
+      "initial_shortage_frames": 26880,
+      "unfilled_frames": 15232,
+      "unfilled_per_million_frames": 5590.266359750082,
+      "helper_fraction": 0.5603889697937708,
+      "helper_elapsed_cycles_per_frame": 714.1816129547741,
+      "first_raw_frames": 2048,
+      "first_processed_frames": 0,
+      "first_decoder_phase": "wait_pcm_space",
+      "first_assist_state": 0,
+      "maximum_local_render_us": 3907,
+      "queue_full": 0,
+      "decode_reject": 0,
+      "refill_contract_errors": 0,
+      "descriptor_errors": 0
+    },
+    {
+      "label": "candidate-repeat-constant90",
+      "source_id": 16,
+      "guard_ok": true,
+      "failure": null,
+      "phone_volume": 90,
+      "codec": 9,
+      "rate": 192000,
+      "channels": 2,
+      "pcm_container_bytes": 4,
+      "dma_source_frames": 2733120,
+      "initial_shortage_frames": 25088,
+      "unfilled_frames": 14464,
+      "unfilled_per_million_frames": 5292.120360613511,
+      "helper_fraction": 0.564172813487882,
+      "helper_elapsed_cycles_per_frame": 714.3312813887851,
+      "first_raw_frames": 1920,
+      "first_processed_frames": 0,
+      "first_decoder_phase": "decode",
+      "first_assist_state": 0,
+      "maximum_local_render_us": 3864,
+      "queue_full": 0,
+      "decode_reject": 0,
+      "refill_contract_errors": 0,
+      "descriptor_errors": 0
+    },
+    {
+      "label": "restored-constant90",
+      "source_id": 18,
+      "guard_ok": true,
+      "failure": null,
+      "phone_volume": 90,
+      "codec": 9,
+      "rate": 192000,
+      "channels": 2,
+      "pcm_container_bytes": 4,
+      "dma_source_frames": 2708160,
+      "initial_shortage_frames": 30720,
+      "unfilled_frames": 18048,
+      "unfilled_per_million_frames": 6664.303438496987,
+      "helper_fraction": 0.5473472763795344,
+      "helper_elapsed_cycles_per_frame": 715.2018904354303,
+      "first_raw_frames": 1920,
+      "first_processed_frames": 0,
+      "first_decoder_phase": "wait_pcm_space",
+      "first_assist_state": 2,
+      "maximum_local_render_us": 3423,
+      "queue_full": 0,
+      "decode_reject": 0,
+      "refill_contract_errors": 0,
+      "descriptor_errors": 0
+    }
+  ],
+  "source_restored_byte_identical": {
+    "output": true,
+    "test": true
+  },
+  "host_tests": {
+    "corrected_negative": "Old code fails intended helper/frame accounting check",
+    "positive": "Candidate passes ASan/UBSan actual output/DSP/sound interleavings at selected6 blocks and default4 blocks; local fallback640 preserved",
+    "first_fixture_error": "Required decoder media budget0 at DONE, contrary to actual release contract; corrected before intended negative control",
+    "prototype_and_receipts_saved": true,
+    "prototype_fixture_changes_retained": false,
+    "restored_six_block_lifecycle_passed": true
+  },
+  "capture_recovery": {
+    "old_baseline_source": 12,
+    "old_baseline_dma_frames": 2623680,
+    "new_baseline_source": 14,
+    "old_capture_restored_from_retained_full_record": true,
+    "new_run_and_mixed_append_saved": true,
+    "next_helper": "explicit directory argument, exclusive-create collision rejection before phone actions"
+  },
+  "limits": [
+    "No continuity fix",
+    "No causal proof that resubmission worsens timing: reverse baseline18048 exceeds both candidate runs",
+    "No live1Mbps LHDC or fixed990 LDAC qualification",
+    "Full master-goal functional/security/coexistence/OTA/lifecycle/stress/acoustic qualification open"
+  ],
+  "evidence_directory": "D:/bt-owned61/native_bt/_build/experiments/lhdc-retire-assist-1794069715082",
+  "next": "Audit fused stereo-S32 scan/emission without changing peak/clipping/concealment, overlap or PCM; do not repeat unmeasured scheduling candidates"
+}
