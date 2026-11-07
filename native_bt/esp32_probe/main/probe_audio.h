@@ -17,6 +17,8 @@
 /* Host-owner only. Bounded copy into existing diagnostics; never waits for UART.
  * NO_SPACE is an explicitly counted diagnostic loss, not protocol backpressure. */
 dbt_result_t probe_audio_host_record(const probe_host_record_t *);
+/* All-or-nothing immutable failure snapshot in three existing trace slots. */
+dbt_result_t probe_audio_host_failure(const probe_host_failure_t *);
 uint16_t probe_audio_rx_credit_window(void);
 bool probe_audio_rx_credit_ready(void *,const dbt_link_t *);
 dbt_result_t probe_audio_init(dbt_runtime_t *runtime,TaskHandle_t owner);

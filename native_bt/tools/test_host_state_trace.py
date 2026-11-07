@@ -3,7 +3,7 @@ import hashlib,json,os,pathlib,shutil,subprocess
 ROOT=pathlib.Path(__file__).resolve().parents[1];OUT=ROOT/'_build/host_state_trace';OUT.mkdir(exist_ok=True)
 (OUT/'results.json').write_text(json.dumps({'passed':False,'hardware_accessed':False})+'\n')
 source=ROOT/'esp32_probe/main/probe_audio.c';text=source.read_text()
-types=text[text.index('typedef probe_audio_trace_t media_trace_t;'):text.index('static media_trace_ring_t media_trace_rings[2];')]
+types=text[text.index('typedef probe_audio_trace_record_t media_trace_t;'):text.index('static media_trace_ring_t media_trace_rings[2];')]
 names=text[text.index('static const char *const trace_names[]='):text.index('static void maximum(')]
 producer=text[text.index('static uint32_t trace_clock('):text.index('static void media_trace(')]
 route_start=text.index('static void media_trace(');route=text[route_start:text.index('\n#if defined(DBT_PROBE_SCHEDULER_TRACE)',route_start)]
@@ -15,6 +15,8 @@ for kind,name,parameters in [('PROBE_HOST_CLASSIC_VISIBILITY','fixture_visibilit
     marker=main.index('.kind='+kind);begin=main.rfind('#ifdef DBT_PROBE_AUDIO_TEST',0,marker);statement=main.index('HOST_PRINTF(',marker);finish=main.index(');',statement)+2
     block=main[begin:finish];assert '==DBT_UNSUPPORTED' in block and '#endif' in block
     blocks.append('static void '+name+'('+parameters+'){\n'+block+'\n}\n')
+begin=main.index('                const dbt_runtime_failure_t *f=&runtime.failure;',main.index('else if (host->state == DBT_HOST_FAILED)'));finish=main.index('\n            }',begin)
+blocks.append('static void fixture_failure(test_host_t *host,test_runtime_t runtime){\n'+main[begin:finish]+'\n}\n')
 (OUT/'actual_main_records.inc').write_text(''.join(blocks))
 env=os.environ.copy()
 if os.name=='nt':
@@ -28,9 +30,9 @@ if not cache:
 env.pop('CCACHE_DISABLE',None)
 includes=[ROOT/'include',ROOT/'codecs/common',ROOT/'esp32_probe/main',OUT]
 sources=[ROOT/'esp32_probe/main/probe_audio_trace.c',ROOT/'tests/test_host_state_trace.c']
-tracked=sources+[source,ROOT/'esp32_probe/main/probe_audio_trace.h',ROOT/'esp32_probe/main/probe_host_record.h',ROOT/'esp32_probe/main/probe_main.c',pathlib.Path(__file__).resolve()]
+tracked=sources+[source,ROOT/'esp32_probe/main/probe_audio_trace.h',ROOT/'esp32_probe/main/probe_host_record.h',ROOT/'esp32_probe/main/probe_main.c',ROOT/'esp32_probe/main/probe_audio.h',ROOT/'codecs/common/dbt_codec.h',ROOT/'include/dbt_runtime.h',ROOT/'tests/host_trace_hook.h',pathlib.Path(__file__).resolve()]
 before={str(p):hashlib.sha256(p.read_bytes()).hexdigest() for p in tracked}
-base=[cache,cc,'-std=c11','-O1','-g','-Wall','-Wextra','-Werror','-fsanitize=address,undefined','-fno-sanitize-recover=all','-fno-omit-frame-pointer']
+base=[cache,cc,'-std=c11','-O1','-g','-Wall','-Wextra','-Werror','-fsanitize=address,undefined','-fno-sanitize-recover=all','-fno-omit-frame-pointer','-include',str(ROOT/'tests/host_trace_hook.h')]
 if os.name=='nt':base+=['-fms-runtime-lib=dll','-D_DLL']
 base+=['-I'+str(p) for p in includes];commands=[];objects=[]
 for i,path in enumerate(sources):
@@ -46,5 +48,13 @@ if os.name=='nt':
 run=subprocess.run([str(exe)],env=env,capture_output=True,text=True,timeout=15)
 (OUT/'run.stdout.txt').write_text(run.stdout);(OUT/'run.stderr.txt').write_text(run.stderr)
 print(run.stdout.strip());print(run.stderr.strip());run.check_returncode();assert 'PASS bounded shared trace' in run.stdout
+parsed=[json.loads(line[len('FAILURE_JSON '):]) for line in run.stdout.splitlines() if line.startswith('FAILURE_JSON ')]
+assert len(parsed)==2
+expected_failed={'probe':'failed','fault':5,'controller_status':17,'pending_opcode':4660,'rx_rejected':0xfedcba98,'rx_flow_failed_opcode':64513,'event_us':0xfffffffe,'host_log_ordinal':1}
+expected_parser={'probe':'parser_failure','at_ms':0xfffffff2,'origin':6,'result':3,'handle':291,'generation':0xabcdef01,'link_present':1,'cid':17767,'bytes':1800,'declared':4096,'type':2,'event':62,'pb':2,'bc':1,'code':11,'identifier':239,'host_stage':7,'host_packet_bytes':1029,'host_type':2,'host_event':19,'event_us':0xfffffffe,'host_log_ordinal':1}
+assert parsed==[expected_failed,expected_parser],parsed
+stalled=[json.loads(line[len('FAILURE_STALLED_JSON '):]) for line in run.stdout.splitlines() if line.startswith('FAILURE_STALLED_JSON ')]
+assert stalled==[expected_failed|{'controller_status':99,'event_us':0xffffffff,'host_log_ordinal':2},expected_parser|{'handle':0,'event_us':0xffffffff,'host_log_ordinal':2}],stalled
+
 assert all(hashlib.sha256(pathlib.Path(p).read_bytes()).hexdigest()==value for p,value in before.items())
-(OUT/'results.json').write_text(json.dumps({'passed':True,'hardware_accessed':False,'sanitizers':['address','undefined'],'signed_overflow_wrapping':False,'sanitizer_runtime_sha256':runtime_sha256 if os.name=='nt' else None,'scope':'actual queue plus exact producer/logger source spans: owner validation, immutable copies, mixed media/state, full/drop/no-clock, uint32 wrap, real JSON fields, stalled logger after slot release; no UART or MCU timing','sources':before,'commands':commands,'stdout':run.stdout},indent=2)+'\n')
+(OUT/'results.json').write_text(json.dumps({'passed':True,'hardware_accessed':False,'sanitizers':['address','undefined'],'signed_overflow_wrapping':False,'sanitizer_runtime_sha256':runtime_sha256 if os.name=='nt' else None,'scope':'actual queue plus exact main/producer/logger spans,24-field failure group and atomic publication: owner validation, immutable copies, mixed media/state, full/drop/no-clock, uint32 wrap, real JSON fields, stalled logger after slot release; no UART or MCU timing','failure_json':parsed,'stalled_failure_json':stalled,'sources':before,'commands':commands,'stdout':run.stdout},indent=2)+'\n')

@@ -1101,18 +1101,30 @@ void app_main(void) {
                        host->controller.address_le[5],host->controller.address_le[4],host->controller.address_le[3],
                        host->controller.address_le[2],host->controller.address_le[1],host->controller.address_le[0]);
             } else if (host->state == DBT_HOST_FAILED) {
-                HOST_PRINTF("{\"probe\":\"failed\",\"fault\":%u,\"controller_status\":%u,"
-                       "\"pending_opcode\":%u,\"rx_rejected\":%" PRIu32 ",\"rx_flow_failed_opcode\":%u}\n",
-                       (unsigned)host->fault, host->controller_status, host->pending_opcode,
-                       atomic_load_explicit(&host->ingress.rejected, memory_order_relaxed),runtime.rx_flow.failed_opcode);
                 const dbt_runtime_failure_t *f=&runtime.failure;
-                HOST_PRINTF("{\"probe\":\"parser_failure\",\"at_ms\":%" PRIu32 ",\"origin\":%u,\"result\":%u,"
-                       "\"handle\":%u,\"generation\":%" PRIu32 ",\"link_present\":%u,\"cid\":%u,\"bytes\":%u,\"declared\":%u,"
-                       "\"type\":%u,\"event\":%u,\"pb\":%u,\"bc\":%u,\"code\":%u,\"identifier\":%u,"
-                       "\"host_stage\":%u,\"host_packet_bytes\":%u,\"host_type\":%u,\"host_event\":%u}\n",
-                       f->at_ms,f->origin,f->result,f->handle,f->generation,(unsigned)f->link_present,f->cid,f->bytes,f->declared,
-                       f->packet_type,f->event,f->pb,f->bc,f->code,f->identifier,
-                       host->fault_stage,host->fault_packet_size,host->fault_packet_type,host->fault_event);
+#ifdef DBT_PROBE_AUDIO_TEST
+                const probe_host_failure_t failure_record={
+                    .fault=(uint32_t)host->fault,.controller_status=host->controller_status,.pending_opcode=host->pending_opcode,
+                    .rx_rejected=atomic_load_explicit(&host->ingress.rejected,memory_order_relaxed),.rx_flow_failed_opcode=runtime.rx_flow.failed_opcode,
+                    .at_ms=f->at_ms,.origin=f->origin,.result=f->result,.handle=f->handle,.generation=f->generation,
+                    .link_present=f->link_present,.cid=f->cid,.bytes=f->bytes,.declared=f->declared,.packet_type=f->packet_type,
+                    .event=f->event,.pb=f->pb,.bc=f->bc,.code=f->code,.identifier=f->identifier,
+                    .host_stage=host->fault_stage,.host_packet_bytes=host->fault_packet_size,.host_type=host->fault_packet_type,.host_event=host->fault_event};
+                if(probe_audio_host_failure(&failure_record)==DBT_UNSUPPORTED)
+#endif
+                {
+                    HOST_PRINTF("{\"probe\":\"failed\",\"fault\":%u,\"controller_status\":%u,"
+                           "\"pending_opcode\":%u,\"rx_rejected\":%" PRIu32 ",\"rx_flow_failed_opcode\":%u}\n",
+                           (unsigned)host->fault, host->controller_status, host->pending_opcode,
+                           atomic_load_explicit(&host->ingress.rejected, memory_order_relaxed),runtime.rx_flow.failed_opcode);
+                    HOST_PRINTF("{\"probe\":\"parser_failure\",\"at_ms\":%" PRIu32 ",\"origin\":%u,\"result\":%u,"
+                           "\"handle\":%u,\"generation\":%" PRIu32 ",\"link_present\":%u,\"cid\":%u,\"bytes\":%u,\"declared\":%u,"
+                           "\"type\":%u,\"event\":%u,\"pb\":%u,\"bc\":%u,\"code\":%u,\"identifier\":%u,"
+                           "\"host_stage\":%u,\"host_packet_bytes\":%u,\"host_type\":%u,\"host_event\":%u}\n",
+                           f->at_ms,f->origin,f->result,f->handle,f->generation,(unsigned)f->link_present,f->cid,f->bytes,f->declared,
+                           f->packet_type,f->event,f->pb,f->bc,f->code,f->identifier,
+                           host->fault_stage,host->fault_packet_size,host->fault_packet_type,host->fault_event);
+                }
             }
         }
         if (gap.state != previous_gap) {

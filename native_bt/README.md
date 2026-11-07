@@ -50,6 +50,15 @@ one live HD decoder call, its copied input, and an independent DSP/final block
 against desktop replay. It also records a 440-frame payload versus 336-tick RTP
 discrepancy. It is not a causal diagnosis of that sound report; capture is off by default.
 
+[Deferred terminal failure diagnostics](docs/HOST_FAILURE_ASYNC_2026_11_07.md)
+copy all24 original fields atomically through three existing trace slots. Both
+failed/parser_failure rows remain; initialized/full queues never fall back to UART.
+Actual-source tests cover partial publication, slot reuse during blocked output,
+all space/wrap boundaries and exact JSON values. Full ccache/admission passes
+for unflashed image2ade0c873b73; SRAM sections unchanged (+716 flash text,+496
+rodata). Consumer local copy grows64 bytes; live stack checks remain pending.
+COM6 physical recovery and the complete master qualification remain open.
+
 [Deferred visibility/GAP logs](docs/HOST_STATE_ASYNC_2026_11_07.md) now publish
 immutable snapshots through existing trace storage after logger initialization.
 The host does not wait for UART, including on a full queue; startup output is

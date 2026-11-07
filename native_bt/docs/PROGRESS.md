@@ -1,5 +1,17 @@
 # Current project progress
 
+Latest source/off-board change: [terminal failure diagnostics](HOST_FAILURE_ASYNC_2026_11_07.md).
+The owner copies24 scalar fields into3 existing slots and publishes once; the
+logger copies/releases the complete group before either original JSON row.
+Actual-source/sanitizer tests verify all fields, all capacity/wrap boundaries,
+partial publication, malformed groups and slot reuse while first output stalls.
+Startup fallback is preserved; no UART fallback occurs on full initialized queues.
+Full ccache/admission passes for unflashed2ade0c873b73; static SRAM unchanged,
+flash text+716/rodata+496. Consumer-local object+64 bytes, live stack gate open.
+COM6 remains without live UART; no reset/flash/media retry. b309 remains last
+verified flash content. Other logging and all master qualification remain open.
+The following entries are historical.
+
 Latest source/off-board change: [deferred visibility/GAP logging](HOST_STATE_ASYNC_2026_11_07.md).
 Two live owner paths now copy scalar records into existing SPSC trace storage;
 formatting/UART stays on the background logger. Pre-init startup output remains,

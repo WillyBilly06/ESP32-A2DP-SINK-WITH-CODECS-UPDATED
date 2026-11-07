@@ -143,7 +143,7 @@ static _Atomic uint32_t l2cap_malformed_signaling,l2cap_unknown_responses,l2cap_
 static _Atomic uint32_t media_sdu_max,last_oversized_size,last_oversized_mtu,last_oversized_psm;
 /* Separate single-writer rings for host admission and decoder events. Logging
  * never waits on the producer; record loss is itself exposed every second. */
-typedef probe_audio_trace_t media_trace_t;
+typedef probe_audio_trace_record_t media_trace_t;
 typedef probe_audio_trace_ring_t media_trace_ring_t;
 static media_trace_ring_t media_trace_rings[2];
 static _Atomic uint32_t rx_packets,rx_acl,rx_events,rx_bytes,rx_isr,rx_rejected,rx_pending_us;
@@ -279,6 +279,10 @@ dbt_result_t probe_audio_host_record(const probe_host_record_t *record){
     if(!initialized || !logger_task || xTaskGetCurrentTaskHandle()!=owner)return DBT_UNSUPPORTED;
     return probe_audio_trace_host(&media_trace_rings[0],record,trace_clock,NULL);
 }
+dbt_result_t probe_audio_host_failure(const probe_host_failure_t *failure){
+    if(!initialized || !logger_task || xTaskGetCurrentTaskHandle()!=owner)return DBT_UNSUPPORTED;
+    return probe_audio_trace_failure(&media_trace_rings[0],failure,trace_clock,NULL);
+}
 static void media_trace(void *context,const dbt_codec_trace_t *event){
     (void)context;
     if(event->kind>=DBT_CODEC_DECODE_BEGIN && event->kind!=DBT_CODEC_INPUT_CLOCK_MAX){
@@ -316,6 +320,22 @@ static void log_first_starvation(void){
 static void log_media_trace(void){
     for(unsigned i=0;i<2;++i)for(unsigned budget=0;budget<2;++budget){
         media_trace_t record;if(!probe_audio_trace_pop(&media_trace_rings[i],&record))break;
+        if(record.codec==PROBE_AUDIO_TRACE_FAILURE){
+            const probe_host_failure_t *f=&record.failure;
+            PROBE_SNAPSHOT_LOG("{\"probe\":\"failed\",\"fault\":%" PRIu32 ",\"controller_status\":%" PRIu32
+                ",\"pending_opcode\":%" PRIu32 ",\"rx_rejected\":%" PRIu32 ",\"rx_flow_failed_opcode\":%" PRIu32
+                ",\"event_us\":%" PRIu32 ",\"host_log_ordinal\":%" PRIu32 "}\n",
+                f->fault,f->controller_status,f->pending_opcode,f->rx_rejected,f->rx_flow_failed_opcode,record.at_us,record.ordinal);
+            PROBE_SNAPSHOT_LOG("{\"probe\":\"parser_failure\",\"at_ms\":%" PRIu32 ",\"origin\":%" PRIu32 ",\"result\":%" PRIu32
+                ",\"handle\":%" PRIu32 ",\"generation\":%" PRIu32 ",\"link_present\":%" PRIu32 ",\"cid\":%" PRIu32 ",\"bytes\":%" PRIu32 ",\"declared\":%" PRIu32
+                ",\"type\":%" PRIu32 ",\"event\":%" PRIu32 ",\"pb\":%" PRIu32 ",\"bc\":%" PRIu32 ",\"code\":%" PRIu32 ",\"identifier\":%" PRIu32
+                ",\"host_stage\":%" PRIu32 ",\"host_packet_bytes\":%" PRIu32 ",\"host_type\":%" PRIu32 ",\"host_event\":%" PRIu32
+                ",\"event_us\":%" PRIu32 ",\"host_log_ordinal\":%" PRIu32 "}\n",
+                f->at_ms,f->origin,f->result,f->handle,f->generation,f->link_present,f->cid,f->bytes,f->declared,
+                f->packet_type,f->event,f->pb,f->bc,f->code,f->identifier,f->host_stage,f->host_packet_bytes,f->host_type,f->host_event,record.at_us,record.ordinal);
+            continue;
+        }
+        if(record.codec==PROBE_AUDIO_TRACE_CORRUPT){atomic_fetch_add_explicit(&snapshot_format_lost,1,memory_order_relaxed);continue;}
         if(record.codec==PROBE_AUDIO_TRACE_HOST){
             const probe_host_record_t *state=&record.host;
             if(state->kind==PROBE_HOST_CLASSIC_VISIBILITY){
