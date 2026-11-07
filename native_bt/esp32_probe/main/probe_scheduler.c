@@ -23,7 +23,12 @@ static DRAM_ATTR sample_core_t samples[2];
 static DRAM_ATTR TaskHandle_t tasks[5],idle_tasks[2],ipc_tasks[2],timer_task;
 #ifdef DBT_PROBE_CODEC_AWARE_RENDER
 static DRAM_ATTR _Atomic(TaskHandle_t) renderer0;
-void probe_scheduler_bind_renderer0(TaskHandle_t task){atomic_store_explicit(&renderer0,task,memory_order_release);}
+void probe_scheduler_bind_renderer0(TaskHandle_t task){
+    atomic_store_explicit(&renderer0,task,memory_order_release);
+#ifdef DBT_PROBE_TASK_CYCLE_ACCOUNTING
+    probe_task_cycles_bind(0,task);
+#endif
+}
 #endif
 static DRAM_ATTR _Atomic bool enabled;
 static DRAM_ATTR _Atomic uint32_t host_phase;
@@ -76,6 +81,9 @@ esp_err_t probe_scheduler_start(TaskHandle_t host,TaskHandle_t decoder,TaskHandl
     tasks[PROBE_SAMPLE_HOST]=host;tasks[PROBE_SAMPLE_DECODER]=decoder;
     tasks[PROBE_SAMPLE_LOGGER]=logger;tasks[PROBE_SAMPLE_RENDERER]=xTaskGetHandle("native_render");
     tasks[PROBE_SAMPLE_CONTROLLER]=xTaskGetHandle("btController");
+#ifdef DBT_PROBE_TASK_CYCLE_ACCOUNTING
+    probe_task_cycles_bind(1,tasks[PROBE_SAMPLE_RENDERER]);
+#endif
     for(unsigned i=0;i<5;++i)if(tasks[i])known_task_mask|=1u<<i;
     for(unsigned core=0;core<2;++core)idle_tasks[core]=xTaskGetIdleTaskHandleForCore(core);
     ipc_tasks[0]=xTaskGetHandle("ipc0");ipc_tasks[1]=xTaskGetHandle("ipc1");timer_task=xTaskGetHandle("esp_timer");
@@ -88,6 +96,9 @@ esp_err_t probe_scheduler_start(TaskHandle_t host,TaskHandle_t decoder,TaskHandl
         if(result!=ESP_OK)esp_deregister_freertos_tick_hook_for_cpu(sample_tick0,0);
     }
     if(result!=ESP_OK)atomic_store_explicit(&enabled,false,memory_order_release);
+#ifdef DBT_PROBE_TASK_CYCLE_ACCOUNTING
+    if(result==ESP_OK)probe_task_cycles_enable();
+#endif
     return result;
 }
 void probe_scheduler_snapshot(unsigned core,probe_scheduler_snapshot_t *out){
@@ -131,10 +142,69 @@ void probe_scheduler_mark(unsigned core,probe_scheduler_mark_t *out){
     atomic_thread_fence(memory_order_seq_cst);
     out->coherent=!(before&1u) && before==atomic_load_explicit(&s->sequence,memory_order_acquire);
     out->read_cycles=esp_cpu_get_cycle_count()-began;
+#ifdef DBT_PROBE_TASK_CYCLE_ACCOUNTING
+    probe_task_cycles_mark(core,&out->task);
+#endif
 }
+#ifdef DBT_PROBE_TASK_CYCLE_ACCOUNTING
+typedef struct {
+    _Atomic uint32_t sequence,stream_serial,rate,calls,invalid,frames,wall_cycles,charged_cycles;
+    _Atomic uint32_t max_wall_cycles,charged_at_max_wall,max_charged_cycles;
+} render_account_t;
+static render_account_t render_accounts[2];
+static void render_account_observe(unsigned kind,const probe_scheduler_mark_t *begin,
+    const probe_scheduler_mark_t *end,uint32_t frames,uint32_t serial,uint32_t rate){
+    unsigned index;
+    if(kind==PROBE_DELAY_LOCAL_RENDER)index=1u;
+    else if(kind==PROBE_DELAY_LOCAL_RENDER0)index=0u;
+    else return;
+    render_account_t *s=&render_accounts[index];
+    uint32_t sequence=atomic_load_explicit(&s->sequence,memory_order_relaxed);
+    atomic_store_explicit(&s->sequence,sequence+1u,memory_order_seq_cst);
+    if(serial!=atomic_load_explicit(&s->stream_serial,memory_order_relaxed)){
+        atomic_store(&s->stream_serial,serial);atomic_store(&s->rate,rate);
+        atomic_store(&s->calls,0);atomic_store(&s->invalid,0);atomic_store(&s->frames,0);
+        atomic_store(&s->wall_cycles,0);atomic_store(&s->charged_cycles,0);
+        atomic_store(&s->max_wall_cycles,0);atomic_store(&s->charged_at_max_wall,0);atomic_store(&s->max_charged_cycles,0);
+    }
+    uint32_t wall=end->task.wall_cycles-begin->task.wall_cycles;
+    uint32_t charged=end->task.charged_cycles-begin->task.charged_cycles;
+    bool valid=begin->task.valid && end->task.valid && begin->core==index && end->core==index &&
+        begin->task.owner==end->task.owner && charged<=wall;
+    if(valid){
+#define ACCOUNT_ADD(field,value) atomic_store_explicit(&s->field,atomic_load_explicit(&s->field,memory_order_relaxed)+(value),memory_order_relaxed)
+        ACCOUNT_ADD(calls,1u);ACCOUNT_ADD(frames,frames);ACCOUNT_ADD(wall_cycles,wall);ACCOUNT_ADD(charged_cycles,charged);
+#undef ACCOUNT_ADD
+        if(wall>atomic_load(&s->max_wall_cycles)){
+            atomic_store(&s->max_wall_cycles,wall);atomic_store(&s->charged_at_max_wall,charged);
+        }
+        if(charged>atomic_load(&s->max_charged_cycles))atomic_store(&s->max_charged_cycles,charged);
+    }else atomic_store(&s->invalid,atomic_load(&s->invalid)+1u);
+    uint32_t published=sequence+2u;
+    atomic_store_explicit(&s->sequence,published?published:2u,memory_order_release);
+}
+void probe_scheduler_render_account(unsigned kind,probe_render_account_t *out){
+    if(!out)return;
+    *out=(probe_render_account_t){0};unsigned index;
+    if(kind==PROBE_DELAY_LOCAL_RENDER)index=1u;
+    else if(kind==PROBE_DELAY_LOCAL_RENDER0)index=0u;
+    else return;
+    render_account_t *s=&render_accounts[index];uint32_t before=atomic_load_explicit(&s->sequence,memory_order_acquire);
+#define ACCOUNT_GET(field) out->field=atomic_load_explicit(&s->field,memory_order_relaxed)
+    ACCOUNT_GET(stream_serial);ACCOUNT_GET(rate);ACCOUNT_GET(calls);ACCOUNT_GET(invalid);ACCOUNT_GET(frames);
+    ACCOUNT_GET(wall_cycles);ACCOUNT_GET(charged_cycles);ACCOUNT_GET(max_wall_cycles);
+    ACCOUNT_GET(charged_at_max_wall);ACCOUNT_GET(max_charged_cycles);
+#undef ACCOUNT_GET
+    atomic_thread_fence(memory_order_seq_cst);out->revision=before;
+    out->coherent=before && !(before&1u) && before==atomic_load_explicit(&s->sequence,memory_order_acquire);
+}
+#endif
 void probe_scheduler_interval_observe(unsigned kind,const probe_scheduler_mark_t *begin,
     const probe_scheduler_mark_t *end,uint32_t begin_us,uint32_t end_us,uint32_t frames,uint32_t stream_serial,uint32_t rate){
     if(kind>=PROBE_DELAY_KINDS || !begin || !end || !atomic_load_explicit(&enabled,memory_order_acquire))return;
+#ifdef DBT_PROBE_TASK_CYCLE_ACCOUNTING
+    render_account_observe(kind,begin,end,frames,stream_serial,rate);
+#endif
     interval_record_t *r=&intervals[kind];uint32_t wall=end_us-begin_us;
     if(stream_serial==atomic_load_explicit(&r->stream_serial,memory_order_relaxed) && wall<=atomic_load_explicit(&r->wall_us,memory_order_relaxed))return;
     uint32_t sequence=atomic_load_explicit(&r->sequence,memory_order_relaxed);

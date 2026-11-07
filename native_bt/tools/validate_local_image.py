@@ -59,6 +59,28 @@ for unit in (entry_name,'probe_scheduler.c','probe_audio.c'):
     for command in found:
         assert re.findall(r'(?:^|\s)-DDBT_PROBE_TASK_RUNTIME_STATS=(\S+)',command)==(['1'] if task_runtime_stats else [])
         assert not re.search(r'(?:^|\s)-UDBT_PROBE_TASK_RUNTIME_STATS(?:\s|$)',command)
+task_cycle_accounting=build_status.get('task_cycle_accounting',False)
+assert type(task_cycle_accounting) is bool
+assert ('DBT_PROBE_TASK_CYCLE_ACCOUNTING:BOOL=ON' in cache)==task_cycle_accounting
+assert not task_cycle_accounting or task_runtime_stats
+cycle_units=[e for e in commands if Path(e['file']).name=='probe_task_cycles.c']
+assert len(cycle_units)==(1 if task_cycle_accounting else 0)
+for unit in (entry_name,'probe_scheduler.c','probe_audio.c','probe_output.c','probe_task_cycles.c'):
+    found=[e['command'] for e in commands if Path(e['file']).name==unit]
+    if task_cycle_accounting:assert len(found)==1
+    for command in found:
+        assert re.findall(r'(?:^|\s)-DDBT_PROBE_TASK_CYCLE_ACCOUNTING=(\S+)',command)==(['1'] if task_cycle_accounting else [])
+        assert not re.search(r'(?:^|\s)-UDBT_PROBE_TASK_CYCLE_ACCOUNTING(?:\s|$)',command)
+trace_header='probe_task_accounting_trace.h'
+trace_inclusions=[e for e in commands if trace_header in e['command']]
+if task_cycle_accounting:
+    kernel=[e for e in commands if Path(e['file']).name=='tasks.c']
+    assert len(kernel)==1 and trace_header in kernel[0]['command']
+    for e in trace_inclusions:
+        assert '/components/freertos/' in str(e['file']).replace('\\','/') and str(e['file']).endswith('.c')
+        assert e['command'].count(trace_header)==1
+        assert re.search(r'(?:^|\s)-include\s+(?:"[^"]*[/\\]|\S*[/\\])probe_task_accounting_trace\.h(?:["\s]|$)',e['command'])
+else:assert not trace_inclusions
 volume_ramp=bool(build_status.get('volume_ramp_block'))
 volume_compare=bool(build_status.get('volume_ramp_compare'))
 assert ('DBT_PROBE_VOLUME_RAMP_BLOCK:BOOL=ON' in cache)==volume_ramp
@@ -374,7 +396,7 @@ assert hashlib.sha256(original).hexdigest()==receipt['sha256']
 assert table==original[0x8000:0x8000+len(table)]
 assert image.flash_mode==2 and image.flash_size_freq==0x3f
 assert image.min_rev_full<=301<=image.max_rev_full
-report={'passed':True,'scheduler_trace':scheduler_trace,'task_runtime_stats':task_runtime_stats,'console_irq':console_irq,'stay_native':stay_native,'priority_order':priority_order,'host_priority':host_priority,'decoder_priority':decoder_priority,'renderer_priority':renderer_priority,'early_input_release':early_input_release,'high_rate_pcm_rebalance':high_rate_pcm_rebalance,'matched_feedback':matched_feedback,'matched_feedback_compare':matched_compare,'render_fair_share':render_fair_share,'auxiliary_renderer_priority':build_status.get('auxiliary_renderer_priority',renderer_priority),'owner_ready_yield':owner_ready_yield,'scope':'offline image checksum/digest, ESP32 revision and admitted OTA capacity; no device access or runtime qualification',
+report={'passed':True,'scheduler_trace':scheduler_trace,'task_runtime_stats':task_runtime_stats,'task_cycle_accounting':task_cycle_accounting,'console_irq':console_irq,'stay_native':stay_native,'priority_order':priority_order,'host_priority':host_priority,'decoder_priority':decoder_priority,'renderer_priority':renderer_priority,'early_input_release':early_input_release,'high_rate_pcm_rebalance':high_rate_pcm_rebalance,'matched_feedback':matched_feedback,'matched_feedback_compare':matched_compare,'render_fair_share':render_fair_share,'auxiliary_renderer_priority':build_status.get('auxiliary_renderer_priority',renderer_priority),'owner_ready_yield':owner_ready_yield,'scope':'offline image checksum/digest, ESP32 revision and admitted OTA capacity; no device access or runtime qualification',
  'image_sha256':hashlib.sha256(blob).hexdigest(),'image_bytes':len(blob),'project':project,'chip_id':image.chip_id,'codec_diagnostic_only':diagnostic,'pipeline_diagnostic':pipeline,
  'rf_protocol_diagnostic':rf_diagnostic,'pcm_target_ms':pcm_target_ms,'pcm_copied':pcm_copied,'logger_core':logger_core,'block_dsp':block_dsp,'word_dsp':word_dsp,'experimental_short_pcm_target':pcm_target_ms!=64,'revision_range':[image.min_rev_full,image.max_rev_full],'checksum_verified':True,'digest_verified':bool(image.append_digest),
  'latest_local_build_completed':True,'build_sources_match':True,'build_source_units':source_count,'product_io':bool(build_status.get('product_io')),'product_security':product_security,'rfcomm_profile':rfcomm,'controller_only_dual_mode':True,'anti_rollback_fuse_updates':False,'partition_offset':slot['offset'],'partition_bytes':slot['size'],

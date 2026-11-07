@@ -5,6 +5,9 @@
 #include "freertos/task.h"
 #include <stdbool.h>
 #include <stdint.h>
+#ifdef DBT_PROBE_TASK_CYCLE_ACCOUNTING
+#include "probe_task_cycles.h"
+#endif
 enum { PROBE_SAMPLE_HOST,PROBE_SAMPLE_DECODER,PROBE_SAMPLE_RENDERER,
        PROBE_SAMPLE_LOGGER,PROBE_SAMPLE_CONTROLLER,PROBE_SAMPLE_IDLE,
        PROBE_SAMPLE_OTHER,PROBE_SAMPLE_IPC,PROBE_SAMPLE_TIMER,PROBE_SAMPLE_ROLES };
@@ -28,6 +31,9 @@ typedef struct {
     uint32_t counts[PROBE_SAMPLE_ROLES],host_phases[PROBE_HOST_PHASES];
     uint32_t at_us,known_task_mask,read_cycles,core;
     bool coherent;
+#ifdef DBT_PROBE_TASK_CYCLE_ACCOUNTING
+    probe_task_cycle_mark_t task;
+#endif
 } probe_scheduler_mark_t;
 enum {PROBE_DELAY_LOCAL_RENDER,PROBE_DELAY_ASSIST_RETIRE,PROBE_DELAY_LOCAL_RENDER0,PROBE_DELAY_KINDS};
 typedef struct {
@@ -42,6 +48,16 @@ void probe_scheduler_mark(unsigned core,probe_scheduler_mark_t *);
 void probe_scheduler_interval_observe(unsigned kind,const probe_scheduler_mark_t *,
     const probe_scheduler_mark_t *,uint32_t begin_us,uint32_t end_us,uint32_t frames,uint32_t stream_serial,uint32_t rate);
 void probe_scheduler_interval_snapshot(unsigned kind,probe_scheduler_interval_t *);
+#ifdef DBT_PROBE_TASK_CYCLE_ACCOUNTING
+typedef struct {
+    uint32_t revision,stream_serial,rate,calls,invalid,frames;
+    uint32_t wall_cycles,charged_cycles,max_wall_cycles,charged_at_max_wall,max_charged_cycles;
+    bool coherent;
+} probe_render_account_t;
+/* Only local-render kinds are counted. A cross-core helper-retirement marker
+ * has no own-core running-tail observation and is deliberately not charged. */
+void probe_scheduler_render_account(unsigned kind,probe_render_account_t *);
+#endif
 #ifdef DBT_PROBE_CODEC_AWARE_RENDER
 /* Publish the optional permanent Core0 renderer handle after its lazy creation. */
 void probe_scheduler_bind_renderer0(TaskHandle_t task);

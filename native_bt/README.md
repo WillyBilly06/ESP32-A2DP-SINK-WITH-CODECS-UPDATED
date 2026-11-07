@@ -50,6 +50,16 @@ one live HD decoder call, its copied input, and an independent DSP/final block
 against desktop replay. It also records a 440-frame payload versus 336-tick RTP
 discrepancy. It is not a causal diagnosis of that sound report; capture is off by default.
 
+[Sound-space wakeups](docs/SOUND_PROGRESS_WAKE_2026_11_06.md) now signal PCM
+progress only for a live sound lease. Completion, failure, cancellation and
+retirement signals remain unconditional; actual async-sound and two-core tests
+pass. Normal COM6 image 6e7afd71e8a0 adds 48 flash bytes and no static RAM.
+LHDC 192/fixed900 still has 262656 unfilled frames; normal-build improvement
+is not established. LDAC 96 metronome has zero shortages, with sampled wire
+data consistent with 990 kbps. Optional [task-cycle accounting](docs/RENDER_TASK_CYCLES_2026_11_06.md)
+measures running tails and switched-away intervals, but is disabled in this
+normal image. Full continuity and all-feature qualification remain open.
+
 [Current instruction-RAM DSP measurement](docs/DSP_IRAM_CURRENT_2026_11_06.md)
 retains the four-block/fixed-transfer baseline and places the existing integer
 block kernel in instruction SRAM (+3756 bytes, unchanged data RAM). COM6 image

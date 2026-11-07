@@ -399,6 +399,19 @@ static void notify_clients(void){
   notify_sound();
 #endif
 }
+#ifdef DBT_PROBE_SOUND_BUILD
+static void notify_sound_progress(void){
+  /* Only a live lease can consume mixer/refill progress. Request results,
+   * errors and token retirement still use unconditional lifecycle wakeups. */
+  if(atomic_load_explicit(&output.sound_token,memory_order_acquire))notify_sound();
+}
+#endif
+static void notify_pcm_progress(void){
+  if(output.wake_decoder)output.wake_decoder(output.wake_context);
+#ifdef DBT_PROBE_SOUND_BUILD
+  notify_sound_progress();
+#endif
+}
 static void finish_cancel(uint32_t id,dbt_result_t result){
   bool legacy=output.inflight.legacy;
   reclaim_cancelled(&output.inflight,result);
@@ -1109,9 +1122,9 @@ static void render_completed(uint32_t began,bool input_wake_owned){
   atomic_fetch_add(&output.render_total_us,elapsed);atomic_fetch_add(&output.render_calls,1);
   atomic_store(&output.rendered_frames,atomic_load(&output.audio.rendered_frames));
   (void)service_refill_window();
-  if(!input_wake_owned)notify_clients();
+  if(!input_wake_owned)notify_pcm_progress();
 #ifdef DBT_PROBE_SOUND_BUILD
-  else notify_sound(); /* Mixer space is released only after DSP/mixing. */
+  else notify_sound_progress(); /* Mixer space is released only after DSP/mixing. */
 #endif
 }
 #ifdef DBT_PROBE_DSP_ASSIST
@@ -1164,7 +1177,7 @@ static bool dsp_assist_work(void){
   if(!dbt_dsp_job_work_commit(&assist.lane,(dbt_dsp_job_clock_t){NULL,assist_cycles,assist_time_us},dsp_assist_commit,NULL))return false;
   /* PCM/input publications precede DONE. Wake the producer immediately;
    * it must not wait for a busy Core1 merely to observe available space. */
-  notify_clients();
+  notify_pcm_progress();
   TaskHandle_t owner=atomic_load_explicit(&output.task,memory_order_acquire);
   if(owner)xTaskNotifyGive(owner);
   return true;

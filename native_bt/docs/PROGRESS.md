@@ -1,5 +1,16 @@
 # Current project progress
 
+Latest: [sound-space progress wakeups](SOUND_PROGRESS_WAKE_2026_11_06.md).
+Only a live sound lease receives PCM-space signals; lifecycle/error notifications
+are preserved. Source tests reproduce and fix idle callbacks, and async overlay/
+queue/takeover/cancellation regressions pass. Normal image 6e7afd71e8a0 passes
+readbacks/owned boot/37 cold cases, adds 48 flash bytes and no static RAM.
+Temporary task-cycle accounting is OFF and verified absent from the kernel.
+LHDC still has 262656 unfilled frames; LDAC 96/observed990kbps metronome has zero
+shortages. The diagnostic measured substantial switched-away time, with all IRQ/
+marker/coverage limits explicit. No full throughput or feature-parity pass is claimed.
+The following entries are historical.
+
 Latest: [instruction-RAM DSP under the current scheduler](DSP_IRAM_CURRENT_2026_11_06.md).
 COM6 image d2676c584056 uses 3756 more instruction-SRAM bytes and unchanged
 data RAM. Readbacks/owned boot/37 cold codec cases pass. Repeated LHDC 192/fixed900

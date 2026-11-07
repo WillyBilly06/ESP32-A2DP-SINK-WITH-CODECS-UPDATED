@@ -21,6 +21,7 @@ static mock_task_t mock_tasks[2];
 static _Thread_local mock_task_t *current_task;
 static _Atomic bool mock_shutdown,decoder_hint;
 static _Atomic unsigned mock_errors,pending_timed_waits,yields[2];
+static _Atomic unsigned sound_progress_wakes;
 extern uint32_t dbt_output_test_ready_pcm(void);
 static HANDLE yield_release;
 static _Atomic unsigned yield_job_gate,yield_ready_frames;
@@ -91,9 +92,11 @@ static int stop_stream(void){uint32_t token=0;CHECK(probe_output_stream_begin(fa
 int main(void){
     main_id=GetCurrentThreadId();hook_release=CreateEventA(NULL,TRUE,FALSE,NULL);commit_release=CreateEventA(NULL,TRUE,FALSE,NULL);CHECK(hook_release && commit_release);
     CHECK(probe_output_init(external_wake,&render_wakes)==DBT_OK);
+    probe_output_sound_wake(external_wake,&sound_progress_wakes);
 #ifdef DBT_PROBE_EARLY_INPUT_RELEASE
     input_release=CreateEventA(NULL,TRUE,FALSE,NULL);CHECK(input_release);
     CHECK(!start_stream());
+    unsigned music_only_wakes=atomic_load(&sound_progress_wakes);
     probe_output_stats_t geometry;probe_output_stats(&geometry);
 #ifdef DBT_PROBE_HIGH_RATE_PCM_REBALANCE
     CHECK(geometry.input_capacity_frames==2048 && geometry.input_ring_bytes==16384 && geometry.pcm_target_frames==2048 && geometry.requested_bytes==39936);
@@ -109,7 +112,9 @@ int main(void){
     CHECK(probe_output_try_pcm_format(replacement,(uint16_t)capacity,2,192000,DBT_PCM_S32_LE)==DBT_OK);
     atomic_store(&hold_hook,0);SetEvent(input_release);
     for(unsigned i=0;i<2000 && dbt_output_test_ready_pcm()!=capacity+128u;i++)Sleep(1);
-    CHECK(dbt_output_test_ready_pcm()==capacity+128u && !stop_stream());CloseHandle(input_release);
+    CHECK(dbt_output_test_ready_pcm()==capacity+128u);
+    CHECK(atomic_load(&sound_progress_wakes)==music_only_wakes);
+    CHECK(!stop_stream() && atomic_load(&sound_progress_wakes)>music_only_wakes);CloseHandle(input_release);
     puts("PASS early local input: full measured-capacity ring reused before DSP, output unpublished until processing");
 #endif
 #ifdef DBT_PROBE_HIGH_RATE_PCM_REBALANCE
@@ -125,6 +130,22 @@ int main(void){
     }
     puts("PASS PCM rebalance: same39936-byte192k stereo payload allocation; five other formats/rates unchanged");
 #endif
+    /* Idle music skips sound-space signals, but a live reserve receives them.
+     * Failed reserve and release receipts must still wake with no live token. */
+    CHECK(!start_stream());uint32_t denied=0;
+    unsigned before_sound_wake=atomic_load(&sound_progress_wakes);
+    CHECK(probe_output_sound_reserve_begin(192000,true,&denied)==DBT_PENDING && ticket_result(denied)==DBT_BUSY);
+    CHECK(atomic_load(&sound_progress_wakes)>before_sound_wake && !probe_output_sound_alive(denied));
+    uint32_t lease=0;CHECK(probe_output_sound_reserve_begin(192000,false,&lease)==DBT_PENDING && ticket_result(lease)==DBT_OK);
+    CHECK(probe_output_sound_alive(lease));before_sound_wake=atomic_load(&sound_progress_wakes);
+    int32_t leased_pcm[256];for(unsigned i=0;i<256;i++)leased_pcm[i]=(int32_t)(i*65536u);
+    CHECK(probe_output_try_pcm_format(leased_pcm,128,2,192000,DBT_PCM_S32_LE)==DBT_OK);
+    for(unsigned i=0;i<2000 && dbt_output_test_ready_pcm()!=128;i++)Sleep(1);
+    CHECK(dbt_output_test_ready_pcm()==128 && atomic_load(&sound_progress_wakes)>before_sound_wake);
+    uint32_t released=0;before_sound_wake=atomic_load(&sound_progress_wakes);
+    CHECK(probe_output_sound_release_begin(lease,&released)==DBT_PENDING && ticket_result(released)==DBT_OK);
+    CHECK(!probe_output_sound_alive(lease) && atomic_load(&sound_progress_wakes)>before_sound_wake && !stop_stream());
+    puts("PASS sound progress: idle music has no sound-space wake, live lease refills, failed reserve/release ACKs preserved");
     CHECK(!start_stream() && !lend_block(512));unsigned allocations=atomic_load(&live);CHECK(allocations>0);
     uint32_t stop=0;CHECK(probe_output_stream_begin(false,0,0,DBT_PCM_S16_LE,&stop)==DBT_PENDING);
     Sleep(20);CHECK(probe_output_request_poll(stop)==DBT_PENDING && atomic_load(&live)==allocations);

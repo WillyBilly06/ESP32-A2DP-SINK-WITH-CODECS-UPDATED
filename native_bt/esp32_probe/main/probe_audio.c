@@ -750,6 +750,24 @@ static void log_task_runtime(void){
     }
 }
 #endif
+#ifdef DBT_PROBE_TASK_CYCLE_ACCOUNTING
+static void log_render_accounting(void){
+    uint32_t faults[2];probe_task_cycles_faults(faults);
+    for(unsigned core=0;core<2u;++core){
+        probe_render_account_t s;
+        probe_scheduler_render_account(core?PROBE_DELAY_LOCAL_RENDER:PROBE_DELAY_LOCAL_RENDER0,&s);
+        if(!s.calls && !s.invalid && !faults[core])continue;
+        PROBE_SNAPSHOT_LOG("{\"probe\":\"render_task_cycles\",\"core\":%u,\"stream_serial\":%" PRIu32
+            ",\"rate\":%" PRIu32 ",\"coherent\":%s,\"calls\":%" PRIu32 ",\"invalid\":%" PRIu32 ",\"frames\":%" PRIu32
+            ",\"wall_cycles\":%" PRIu32 ",\"charged_cycles\":%" PRIu32
+            ",\"max_wall_cycles\":%" PRIu32 ",\"charged_at_max_wall\":%" PRIu32 ",\"max_charged_cycles\":%" PRIu32
+            ",\"hook_faults\":%" PRIu32 ",\"cpu_mhz\":240,\"scope\":\"local_audio_render_markers\",\"irq_time_included\":true"
+            ",\"running_tail_included\":true,\"other_tasks_and_selection_gap_excluded\":true,\"counters_wrap_u32\":true}\n",
+            core,s.stream_serial,s.rate,s.coherent?"true":"false",s.calls,s.invalid,s.frames,s.wall_cycles,s.charged_cycles,
+            s.max_wall_cycles,s.charged_at_max_wall,s.max_charged_cycles,faults[core]);
+    }
+}
+#endif
 #ifdef DBT_PROBE_OWNER_PACER
 static void log_owner_pacer(void){
     static uint32_t seen=UINT32_MAX,seen_failed=UINT32_MAX;
@@ -819,6 +837,9 @@ static void log_loop(void *unused){
 #endif
 #ifdef DBT_PROBE_TASK_RUNTIME_STATS
         log_task_runtime();
+#endif
+#ifdef DBT_PROBE_TASK_CYCLE_ACCOUNTING
+        log_render_accounting();
 #endif
 #ifdef DBT_PROBE_DSP_ASSIST
         probe_dsp_assist_stats_t assisted;probe_output_dsp_assist_snapshot(&assisted);

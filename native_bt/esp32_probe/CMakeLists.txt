@@ -1,4 +1,8 @@
 cmake_minimum_required(VERSION 3.22)
+option(DBT_PROBE_TASK_CYCLE_ACCOUNTING "Opt-in pinned-render task-switch cycle accounting" OFF)
+if(DBT_PROBE_TASK_CYCLE_ACCOUNTING AND NOT DBT_PROBE_TASK_RUNTIME_STATS)
+    message(FATAL_ERROR "Task-cycle accounting requires native task runtime statistics")
+endif()
 option(DBT_PROBE_LDAC_BUILD "Build standalone LDAC decoder" OFF)
 option(DBT_PROBE_STAY_NATIVE "Explicit persistent development selection; no automatic baseline return" OFF)
 option(DBT_PROBE_CODEC_AWARE_RENDER "Share CPU0 for light-codec output; retain CPU1 for heavy codecs" OFF)
@@ -240,6 +244,13 @@ if(NOT IDF_VERSION_MAJOR EQUAL 6 OR NOT IDF_VERSION_MINOR EQUAL 1)
 endif()
 idf_build_set_property(MINIMAL_BUILD ON)
 project(native_bt_probe)
+
+if(DBT_PROBE_TASK_CYCLE_ACCOUNTING)
+    idf_component_get_property(account_kernel freertos COMPONENT_LIB)
+    target_compile_options(${account_kernel} PRIVATE
+        "$<$<COMPILE_LANGUAGE:C>:-include>"
+        "$<$<COMPILE_LANGUAGE:C>:${CMAKE_CURRENT_LIST_DIR}/main/probe_task_accounting_trace.h>")
+endif()
 
 # Generic SDK flash targets would also write bootloader/table/default app. The
 # owned workflow admits a specific existing OTA slot and preserves those regions.

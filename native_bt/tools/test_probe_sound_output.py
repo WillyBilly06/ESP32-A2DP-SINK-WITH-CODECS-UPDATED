@@ -33,7 +33,15 @@ def main(sanitize=False,async_client=False,pcm_loans=False):
     if sanitize:flags+=['-fsanitize=undefined','-fno-sanitize-recover=all']
     if async_client:flags+=['-DDBT_PROBE_ASYNC_AUDIO=1']
     if pcm_loans:flags+=['-DDBT_PROBE_PCM_LOANS=1']
-    exe=OUT/'integration.exe';subprocess.run(flags+['-I'+str(x) for x in inc]+[str(x) for x in sources]+['-o',str(exe)],env=env,check=True)
+    cache=shutil.which('ccache',path=env.get('PATH'))
+    if not cache:
+        candidates=sorted((Path.home()/'.espressif/tools/ccache').glob('*/ccache-*/ccache.exe'))
+        if candidates:cache=str(candidates[-1])
+    assert cache,'ccache required';env.pop('CCACHE_DISABLE',None)
+    objects=[]
+    for index,source in enumerate(sources):
+        obj=OUT/(str(index)+'.obj');subprocess.run([cache,*flags,*['-I'+str(x) for x in inc],'-c',str(source),'-o',str(obj)],env=env,check=True);objects.append(obj)
+    exe=OUT/'integration.exe';subprocess.run(flags+list(map(str,objects))+['-o',str(exe)],env=env,check=True)
     subprocess.run([str(exe)],env=env,check=True,timeout=60)
     entries=json.loads((ROOT/'_build/esp32/compile_commands.json').read_text());entry=next(x for x in entries if x['file'].endswith('probe_output.c'))
     args=argv_windows(entry['command']);args=args[:args.index('-o')]+['-DDBT_PROBE_SOUND_BUILD=1','-Werror','-I'+str(ROOT/'include')]
