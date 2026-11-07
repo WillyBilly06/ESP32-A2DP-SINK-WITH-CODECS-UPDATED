@@ -379,6 +379,16 @@ static float lhdc_dec_level_cal(uint32_t sample_rate, int bit_depth)
     return LHDC_DEC_OK;
 }''')
             text=text[:frame_start]+frame+text[frame_end:]
+            # Specialize only successful, unconcealed stereo S32 emission.
+            # Original scan, diagnostics, overlap and other formats stay intact.
+            text=once(text,'lhdc_dec_ret_t lhdc_dec_decode_frame(',
+                      '#include "dbt_lhdc_pcm_s32.h"\n\nlhdc_dec_ret_t lhdc_dec_decode_frame(')
+            text=once(text,'    #define LHDC_OUT_SAMPLE',
+                      '''    if(bytes_per_sample==4 && channels==2 && !conceal){
+        dbt_lhdc_emit_s32(out_l,out_r,(int32_t *)out_pcm,samples_per_ch,sc);
+    } else {
+    #define LHDC_OUT_SAMPLE''')
+            text=once(text,'    #undef LHDC_OUT_SAMPLE','    #undef LHDC_OUT_SAMPLE\n    }')
         if name=="lhdc_entropy_dec.c":
             text=once(text,'#include <stdlib.h>   /* malloc/free for the lazily-heaped FAC models */',
                       '#include <stdlib.h>\n#include "dbt_lhdc_alloc.h"\n#include "dbt_lhdc_bits.h"')
