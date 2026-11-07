@@ -1,3 +1,15 @@
+## 2026-11-07 — decoder entropy candidate measured
+
+Image9316b00a1045 is flashed/readback-verified onCOM6 and passes all37 cold
+codec cases. FAC model write cancellation passes10.4M complete-state/history
+checks,48 independent full-PCM encoder cases and80 codec regressions. Target
+decode time2431.98us/unit is within the2425.59–2435.91 baseline range, so no
+speed gain is established. The224B instruction-RAM cost remains experimental.
+Next target is the bounded FAC range loop; preserve exact state/PCM and reclaim
+unproven code cost before accepting a larger candidate. Phone is paused with
+volume90/150 restored. Logger is live via the persistent launcher. See
+[LHDC model evidence](LHDC_MODEL_TRAFFIC_2026_11_07.md).
+
 Update:8e85 is now flashed/readback-verified onCOM6; all37 target cold checks
 pass. Native YouTube max-volume auto-rate checks include actual192k/S24.
 Decoder frame muting stays zero, but sample clipping and refill shortages remain;

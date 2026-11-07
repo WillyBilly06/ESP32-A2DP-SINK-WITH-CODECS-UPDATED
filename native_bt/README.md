@@ -1,5 +1,10 @@
 # Independent ESP32 Bluetooth host
 
+The [LHDC entropy candidate](docs/LHDC_MODEL_TRAFFIC_2026_11_07.md) preserves
+complete model/history and PCM in host checks. It is flashed for finite checks,
+but measured decoder time remains within baseline variation; no speed or
+continuity improvement is claimed.
+
 The [exact limiter division](docs/LIMITER_WORD_DIV_2026_11_07.md) replaces the
 clipped-sample wide division with a bounded word implementation. The complete
 integer curve and DSP state pass exhaustive/regression checks; candidate timing

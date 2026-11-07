@@ -22,3 +22,11 @@ Reproduce:
     python native_bt/tools/test_lhdc_model_traffic.py --decoder "D:/ESP32 Bluetooth/LHDC-V5-Decoder-main/decoder"
     python native_bt/tools/test_lhdcv5_pcm_levels.py --encoder D:/owned61-lhdc-encoder --decoder "D:/ESP32 Bluetooth/LHDC-V5-Decoder-main/decoder" --out native_bt/_build/experiments/<run>
     python native_bt/tools/test_probe_codec_check.py --lhdc-source "D:/ESP32 Bluetooth/LHDC-V5-Decoder-main" --deferred --sanitize --lhdc-esp32-paths --lhdc-max-fixture
+
+## Guarded COM6 result
+
+Candidate9316b00a1045 is flashed at921600 with full written-image readback at115200. Owned VALID, no automatic Bluedroid restore, original application preserved; all37 cold configurations pass. Cold decoder stack low3560 bytes, tracked peak56899 and minimum free after allocation103292.
+
+A guarded native YouTube metronome trace negotiates actual192k/S24/fixed900 (566-byte media,899200 coded bits/s), phone volume150/150 with90/150 restored afterward.2836 decoded units take6,897,095 elapsed codec microseconds:2431.98us/unit, including wrapper/preemption costs. This lies inside the pre-change2425.59–2435.91 range, so the store-cancellation change has no demonstrated target speed gain. Refill unfilled total5248 includes startup/drain and is not a continuity pass. Decoder rejects/nonfinite/concealed frames stay zero; finite sample clipping remains. The candidate remains experimental.
+
+Next: investigate grouping consecutive FAC zero symbols only while the model state is provably unchanged, keeping range/code/byte-position locals and committing at a bounded exit. Preserve rescale/trace behavior and malformed-input padding. Compare complete range/model/history state and PCM before target timing. The extra224 instruction-RAM bytes from this unproven per-symbol shortcut should be reclaimed before accepting a larger hot-loop implementation.
