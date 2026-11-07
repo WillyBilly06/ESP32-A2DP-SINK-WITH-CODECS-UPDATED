@@ -1,0 +1,36 @@
+{
+  "passed": true,
+  "scope": "host complete FAC state and independent PCM equality plus target build/admission; not target speed",
+  "image_sha256": "9316b00a1045e964af17892dd28541368e4fad0ae1c680c9e061822e3eb1caad",
+  "flashed": false,
+  "model": {
+    "passed": true,
+    "transitions": 10400000,
+    "cancelled": 8085456,
+    "still_rescaled": 1652545,
+    "scope": "actual original/generated FAC model, complete state/history and rescale-call equality; host only",
+    "sanitizers": [
+      "address",
+      "undefined"
+    ],
+    "source_sha256": {
+      "D:\\bt-owned61\\native_bt\\tests\\codecs\\test_lhdc_model_traffic.c": "365488600599061767477491557ed8501181d24daad1d27af589f8ad19c7b12a",
+      "D:\\bt-owned61\\native_bt\\tools\\test_lhdc_model_traffic.py": "f0d876eddde0cabb3260ec7af5657a05329b0ea255c2967dcc5b0a6347069eaf",
+      "D:\\bt-owned61\\native_bt\\codecs\\lhdcv5\\prepare_port.py": "b5793685258059e50055283406430129a8e29a2adc82f6f9a4fbfeb6e85be228",
+      "D:\\ESP32 Bluetooth\\LHDC-V5-Decoder-main\\decoder\\lhdc_entropy_dec.c": "698a55c083697aa9a98578415cfdf24cf0a6197f2e23c1b7f025d16a87802f70",
+      "D:\\bt-owned61\\native_bt\\_build\\lhdc_model_traffic\\port\\lhdc_entropy_dec.c": "e144cd91befb38d9f639ed9bcd4a3b5c118e6b1465f024877354f9ab331fe03b",
+      "D:\\bt-owned61\\native_bt\\_build\\lhdc_model_traffic\\lhdc_model_under_test.h": "0da386439abe9851dcb4d9ff085666857a3eb19619d085a530812435a04d5fe0"
+    }
+  },
+  "pcm_cases": 48,
+  "independent_pcm_equal": true,
+  "baseline_us_per_codec_unit": [
+    2435.910505836576,
+    2425.5893549524144
+  ],
+  "instruction_ram_delta": 224,
+  "data_delta": 0,
+  "bss_delta": 0,
+  "full_goal_qualified": false,
+  "experiment": "D:/bt-owned61/native_bt/_build/experiments/lhdc-model-traffic-1794060102541"
+}
