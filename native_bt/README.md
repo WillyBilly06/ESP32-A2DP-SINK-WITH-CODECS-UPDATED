@@ -1,5 +1,16 @@
 # Independent ESP32 Bluetooth host
 
+The [current UART checkpoint](docs/UART_921600_2026_11_07.md) runs the firmware and
+live monitor at **921600 baud**, keeps full raw records, and suppresses unchanged
+configuration output. All 37 cold codec cases pass; a current-source window has
+4,998 valid CRC records with no invalid/malformed records.
+
+The [PCM-prefix/build checkpoint](docs/URGENT_PCM_PREFIX_2026_11_07.md) adds guarded
+partial refills and prevents restored source timestamps from leaving stale objects.
+Builds recheck compiler inputs through ccache. The current short LHDC 192 kHz/S24/
+900 kbps trace still has 6,080 unfilled sample frames; continuity, 1 Mbps and full
+feature/coexistence qualification remain open. This is a development host.
+
 The [LX6 Rice-reader checkpoint](docs/LHDC_RICE_CURSOR_2026_11_07.md) preserves
 valid PCM and adds checked malformed-magnitude rejection. Actual ESP32 linking
 uses 496 B less instruction RAM with no persistent data/BSS increase. All 37
@@ -11,7 +22,7 @@ LHDC24 output level against the real phone: measured48k/192k levels match LDAC
 within0.014dB. The192k decoded-input ring is8KiB smaller. Fresh-stream EQ policy
 is applied before DSP starts; live controls retain integer ramps.
 
-The current image still has2432/6080 unfilled frames in two short192k/S24/fixed900
+The earlier integrated image has2432/6080 unfilled frames in two short192k/S24/fixed900
 traces. Startup buffering, credit reserve and bounded owner checkpoints are
 integrated, but uninterrupted playback and the complete feature/1Mbps/coexistence
 qualification remain open. This is development firmware.

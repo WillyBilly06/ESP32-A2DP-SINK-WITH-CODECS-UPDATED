@@ -23,8 +23,8 @@ for c in [{'build_status':{'console_irq':1,'async_audio':True}},{'build_status':
 for bad in ['cc','cc -DDBT_PROBE_CONSOLE_IRQ=0',cmd+' -UDBT_PROBE_CONSOLE_IRQ',cmd+' -DDBT_PROBE_CONSOLE_IRQ=1']:check({'commands':[{'file':n,'command':bad} for n in units]},False)
 node=next(n for i,n in enumerate(tree.body) if i>assignment('config') and isinstance(n,ast.If) and isinstance(n.test,ast.Name) and n.test.id=='console_irq')
 code=compile(ast.Module(body=[node],type_ignores=[]),'<actual console SDK admission>','exec');cfg='#define CONFIG_ESP_CONSOLE_UART 1\r\n#define CONFIG_ESP_CONSOLE_UART_NUM 0\r\n#define CONFIG_ESP_CONSOLE_UART_BAUDRATE 115200\r\n';sdk_count=0
-for config,enabled,valid in [(cfg,True,True),('',False,True),(cfg.replace('NUM 0','NUM 1'),True,False),(cfg.replace('115200','921600'),True,False),('',True,False)]:
-    try:exec(code,{'console_irq':enabled,'config':config,'re':re})
+for config,enabled,valid in [(cfg,True,True),('',False,True),(cfg.replace('NUM 0','NUM 1'),True,False),(cfg.replace('115200','921600'),True,True),(cfg.replace('115200','230400'),True,True),(cfg.replace('115200','460800'),True,True),(cfg.replace('115200','999999'),True,False),(cfg+cfg,True,False),('',True,False)]:
+    try:exec(code,{'console_irq':enabled,'config':config,'re':re,'build_status':{'console_baud':int(re.search(r'BAUDRATE (\d+)',config)[1]) if re.search(r'BAUDRATE (\d+)',config) else 115200}})
     except AssertionError:assert not valid
     else:assert valid
     sdk_count+=1

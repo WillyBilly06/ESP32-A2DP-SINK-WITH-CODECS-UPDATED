@@ -1,4 +1,4 @@
-param([switch]$ConsoleIrq,[switch]$TaskRuntimeStats,[switch]$TaskCycleAccounting,[switch]$HighRatePcmRebalance,[switch]$EarlyInputRelease,[switch]$MatchedFeedback,[switch]$MatchedFeedbackCompare,[switch]$RenderFairShare,[switch]$VolumeRampBlock,[switch]$VolumeRampCompare,[switch]$OwnerPacer,[switch]$DspAssist,[ValidateSet(4,5,6)][int]$DspAssistBlocks=4,[switch]$DspBlockIram,[switch]$UnityPcmCopy,[switch]$LhdcCore0Render,[switch]$LhdcFastMantissa,[switch]$AptxSnapshot,[switch]$StayNative,[switch]$WordDsp,[switch]$PriorityOrder,[ValidateSet(5,6,21)][int]$DecoderPriority=5,[switch]$SchedulerTrace,[switch]$CodecAwareRender,[switch]$PcmCopied,[switch]$PcmHash,[ValidateSet(-1,0,1)][int]$LoggerCore=-1,[switch]$BlockDsp,[ValidateSet(16,32,64)][int]$PcmTargetMs=64,[switch]$PcmLoans,[switch]$DspInlineCheck,[ValidateSet(0,1)][int]$DecoderCore=0,[switch]$RfProtocolDiagnostic,[switch]$FirCompilerCheck,[switch]$DspStageProfile,[switch]$AudioStageProfile,[switch]$PipelineDiagnostic,[switch]$AsyncAudio,[switch]$DeferredCodecCheck,[switch]$LhdcStageProfile,[switch]$LhdcMaximumCheck,[switch]$CodecDiagnosticOnly,[switch]$WithProductIo,[switch]$WithProductSecurity,[switch]$WithRfcomm,[switch]$WithLhdc,[switch]$WithOpus,[switch]$WithAac,[switch]$WithAptx,[switch]$WithLdac,[switch]$WithSmp,[switch]$WithAvrcp,[switch]$WithSbc,[switch]$WithAudioProbe,[switch]$WithAudioOutput,[switch]$WithGatt,[switch]$WithClassicSecurity,[switch]$TraceIngress,[switch]$WithoutRxFlow,[switch]$KeepOwned=$true,[string]$TestPeer='',[string]$LhdcSourceDir='')
+param([ValidateSet(115200,230400,460800,921600)][int]$ConsoleBaud=921600,[switch]$ConsoleIrq,[switch]$TaskRuntimeStats,[switch]$TaskCycleAccounting,[switch]$HighRatePcmRebalance,[switch]$EarlyInputRelease,[switch]$MatchedFeedback,[switch]$MatchedFeedbackCompare,[switch]$RenderFairShare,[switch]$VolumeRampBlock,[switch]$VolumeRampCompare,[switch]$OwnerPacer,[switch]$DspAssist,[ValidateSet(4,5,6)][int]$DspAssistBlocks=4,[switch]$DspBlockIram,[switch]$UnityPcmCopy,[switch]$LhdcCore0Render,[switch]$LhdcFastMantissa,[switch]$AptxSnapshot,[switch]$StayNative,[switch]$WordDsp,[switch]$PriorityOrder,[ValidateSet(5,6,21)][int]$DecoderPriority=5,[switch]$SchedulerTrace,[switch]$CodecAwareRender,[switch]$PcmCopied,[switch]$PcmHash,[ValidateSet(-1,0,1)][int]$LoggerCore=-1,[switch]$BlockDsp,[ValidateSet(16,32,64)][int]$PcmTargetMs=64,[switch]$PcmLoans,[switch]$DspInlineCheck,[ValidateSet(0,1)][int]$DecoderCore=0,[switch]$RfProtocolDiagnostic,[switch]$FirCompilerCheck,[switch]$DspStageProfile,[switch]$AudioStageProfile,[switch]$PipelineDiagnostic,[switch]$AsyncAudio,[switch]$DeferredCodecCheck,[switch]$LhdcStageProfile,[switch]$LhdcMaximumCheck,[switch]$CodecDiagnosticOnly,[switch]$WithProductIo,[switch]$WithProductSecurity,[switch]$WithRfcomm,[switch]$WithLhdc,[switch]$WithOpus,[switch]$WithAac,[switch]$WithAptx,[switch]$WithLdac,[switch]$WithSmp,[switch]$WithAvrcp,[switch]$WithSbc,[switch]$WithAudioProbe,[switch]$WithAudioOutput,[switch]$WithGatt,[switch]$WithClassicSecurity,[switch]$TraceIngress,[switch]$WithoutRxFlow,[switch]$KeepOwned=$true,[string]$TestPeer='',[string]$LhdcSourceDir='')
 $ErrorActionPreference = 'Stop'
 if ($DspAssistBlocks -ne 4 -and -not $DspAssist) { throw 'Nondefault DSP batch requires -DspAssist' }
 if ($TaskCycleAccounting -and -not $TaskRuntimeStats) { throw 'Task-cycle accounting requires task runtime statistics' }
@@ -86,9 +86,19 @@ $idfRoot = Join-Path $workspaceRoot 'esp-idf'
 $buildRoot = Join-Path $nativeRoot '_build\esp32'
 $probeRoot = Join-Path $nativeRoot 'esp32_probe'
 New-Item -ItemType Directory -Path $buildRoot -Force | Out-Null
-if ($TaskRuntimeStats -and -not (Test-Path -LiteralPath (Join-Path $probeRoot 'sdkconfig'))) { Copy-Item -LiteralPath (Join-Path $probeRoot 'sdkconfig.defaults') -Destination (Join-Path $probeRoot 'sdkconfig') }
+if (-not (Test-Path -LiteralPath (Join-Path $probeRoot 'sdkconfig'))) { Copy-Item -LiteralPath (Join-Path $probeRoot 'sdkconfig.defaults') -Destination (Join-Path $probeRoot 'sdkconfig') }
 $buildReceiptPath=Join-Path $buildRoot 'local-build-status.json'
 @{schema=1;passed=$false;state='building';hardware_accessed=$false} | ConvertTo-Json | Set-Content -LiteralPath $buildReceiptPath -Encoding utf8
+$consoleSdkPath=Join-Path $probeRoot 'sdkconfig'
+if (Test-Path -LiteralPath $consoleSdkPath) {
+    $consoleSdk=[IO.File]::ReadAllText($consoleSdkPath)
+    # Custom UART0 keeps GPIO1/3 but makes the baud Kconfig prompt visible.
+    # Remove generated legacy aliases too, so they cannot restore115200.
+    $consoleKeys='(?:ESP_)?CONSOLE_UART_(?:DEFAULT|CUSTOM|CUSTOM_NUM_0|CUSTOM_NUM_1|NUM|TX_GPIO|RX_GPIO|BAUDRATE)'
+    $consoleSdk=[regex]::Replace($consoleSdk,'(?m)^(?:# )?CONFIG_'+$consoleKeys+'(?:=.*| is not set)\r?$','')
+    $consoleSdk += "`n# CONFIG_ESP_CONSOLE_UART_DEFAULT is not set`nCONFIG_ESP_CONSOLE_UART_CUSTOM=y`nCONFIG_ESP_CONSOLE_UART_CUSTOM_NUM_0=y`n# CONFIG_ESP_CONSOLE_UART_CUSTOM_NUM_1 is not set`nCONFIG_ESP_CONSOLE_UART_TX_GPIO=1`nCONFIG_ESP_CONSOLE_UART_RX_GPIO=3`nCONFIG_ESP_CONSOLE_UART_BAUDRATE=$ConsoleBaud`n"
+    [IO.File]::WriteAllText($consoleSdkPath,$consoleSdk,[Text.UTF8Encoding]::new($false))
+}
 if ($WithAudioOutput) {
     $nativeSdkPath=Join-Path $probeRoot 'sdkconfig'
     if (Test-Path -LiteralPath $nativeSdkPath) {
@@ -219,7 +229,20 @@ $sourceManifestPath=Join-Path $buildRoot 'local-build-sources.json'
 # are final before fingerprinting the actual build inputs.
 python (Join-Path $idfRoot 'tools\idf.py') @idfArguments reconfigure
 $buildExitCode=$LASTEXITCODE
+if ($buildExitCode -eq 0) {
+    $generatedConsoleConfig=[IO.File]::ReadAllText((Join-Path $buildRoot 'config/sdkconfig.h'))
+    $generatedConsoleMatch=[regex]::Match($generatedConsoleConfig,'(?m)^#define CONFIG_ESP_CONSOLE_UART_BAUDRATE (\d+)\r?$')
+    if (-not $generatedConsoleMatch.Success -or [int]$generatedConsoleMatch.Groups[1].Value -ne $ConsoleBaud) { throw 'Requested console baud does not match generated SDK configuration' }
+}
 $sourceCheckCode=-1
+$invalidationExitCode=-1
+if ($buildExitCode -eq 0) {
+    # Restored files can be older than objects. Re-enter every compiler through
+    # ccache; a stable source manifest alone does not prove Ninja recompiled it.
+    python (Join-Path $PSScriptRoot 'invalidate_compile_outputs.py') --build $buildRoot --receipt (Join-Path $buildRoot 'local-build-invalidation.json')
+    $invalidationExitCode=$LASTEXITCODE
+    $buildExitCode=$invalidationExitCode
+}
 if ($buildExitCode -eq 0) {
     python (Join-Path $PSScriptRoot 'source_snapshot.py') --save $sourceManifestPath
     $buildExitCode=$LASTEXITCODE
@@ -232,7 +255,7 @@ if ($buildExitCode -eq 0) {
 }
 python (Join-Path $PSScriptRoot 'check_workspace.py')
 $workspaceCheckCode=$LASTEXITCODE
-$buildReceipt=[ordered]@{schema=1;passed=($buildExitCode -eq 0 -and $sourceCheckCode -eq 0 -and $workspaceCheckCode -eq 0);state='failed';hardware_accessed=$false;product_io=[bool]$WithProductIo;product_security=[bool]$WithProductSecurity;rfcomm=[bool]$WithRfcomm;build_exit=$buildExitCode;source_check_exit=$sourceCheckCode;workspace_check_exit=$workspaceCheckCode}
+$buildReceipt=[ordered]@{schema=2;console_baud=$ConsoleBaud;compiled_inputs_rechecked=($invalidationExitCode -eq 0);invalidation_exit=$invalidationExitCode;passed=($buildExitCode -eq 0 -and $sourceCheckCode -eq 0 -and $workspaceCheckCode -eq 0 -and $invalidationExitCode -eq 0);state='failed';hardware_accessed=$false;product_io=[bool]$WithProductIo;product_security=[bool]$WithProductSecurity;rfcomm=[bool]$WithRfcomm;build_exit=$buildExitCode;source_check_exit=$sourceCheckCode;workspace_check_exit=$workspaceCheckCode}
 $buildReceipt.fir_compiler_check=[bool]$FirCompilerCheck
 $buildReceipt.dsp_stage_profile=[bool]$DspStageProfile
 $buildReceipt.dsp_inline_check=[bool]$DspInlineCheck

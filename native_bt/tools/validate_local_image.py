@@ -7,6 +7,7 @@ ROOT=Path(__file__).resolve().parents[1]
 p=argparse.ArgumentParser();p.add_argument('--image',type=Path,default=ROOT/'_build/esp32/native_bt_probe.bin');a=p.parse_args()
 build_status=json.loads((a.image.parent/'local-build-status.json').read_text(encoding='utf-8-sig'))
 assert build_status['passed'] and build_status['state']=='complete', 'Latest build did not complete; refusing a possibly stale binary'
+assert build_status.get('schema',0)>=2 and build_status.get('compiled_inputs_rechecked') is True, 'Compiler input invalidation missing; rebuild through ccache before admission'
 source_count=verify_manifest(a.image.parent/'local-build-sources.json',build_status['source_manifest_sha256'])
 commands=json.loads((a.image.parent/'compile_commands.json').read_text(encoding='utf-8'))
 diagnostic=bool(build_status.get('codec_diagnostic_only'))
@@ -387,8 +388,11 @@ if task_runtime_stats:
     for key in ('CONFIG_FREERTOS_RUN_TIME_STATS_USING_CPU_CLK','CONFIG_FREERTOS_RUN_TIME_COUNTER_TYPE_U64'):
         assert not re.findall(r'^#define '+key+r' (\S+)\r?$',config,re.M)
 if console_irq:
-    for key,value in [('CONFIG_ESP_CONSOLE_UART','1'),('CONFIG_ESP_CONSOLE_UART_NUM','0'),('CONFIG_ESP_CONSOLE_UART_BAUDRATE','115200')]:
+    for key,value in [('CONFIG_ESP_CONSOLE_UART','1'),('CONFIG_ESP_CONSOLE_UART_NUM','0')]:
         assert re.findall(r'^#define '+key+r' (\S+)\r?$',config,re.M)==[value]
+    console_baud_values=re.findall(r'^#define CONFIG_ESP_CONSOLE_UART_BAUDRATE (\d+)\r?$',config,re.M)
+    assert len(console_baud_values)==1 and int(console_baud_values[0]) in (115200,230400,460800,921600)
+    assert build_status.get('console_baud')==int(console_baud_values[0]), 'Console baud receipt/config mismatch'
 assert '#define CONFIG_BT_CONTROLLER_ONLY 1' in config
 assert '#define CONFIG_BTDM_CTRL_MODE_BTDM 1' in config
 assert '#define CONFIG_BT_BLUEDROID_ENABLED 1' not in config

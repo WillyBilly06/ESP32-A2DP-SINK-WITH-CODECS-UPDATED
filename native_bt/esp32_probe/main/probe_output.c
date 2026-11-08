@@ -524,10 +524,12 @@ static bool IRAM_ATTR service_refill_window(void){
      (int32_t)(deadline-now)>(int32_t)REFILL_COPY_BUDGET_US){
     descriptor_t *d=&output.descriptors[index];uint32_t valid=atomic_load(&d->valid);
     uint32_t missing=valid<=DMA_FRAMES?DMA_FRAMES-valid:0;
-    if(missing && dbt_audio_output_frames(&output.audio)>=missing){
+    uint32_t ready=dbt_audio_output_frames(&output.audio);
+    if(missing && ready){
+      uint32_t wanted=ready<missing?ready:missing;
       uint32_t began=(uint32_t)esp_timer_get_time();
       int32_t *buffer=d->address;
-      uint32_t taken=dbt_audio_take(&output.audio,buffer+2u*valid,missing);
+      uint32_t taken=dbt_audio_take(&output.audio,buffer+2u*valid,wanted);
       uint32_t ended=(uint32_t)esp_timer_get_time(),elapsed=ended-began;
       atomic_store(&d->valid,valid+taken);
       atomic_store(&output.refill_recovered_frames,atomic_load(&output.refill_recovered_frames)+taken);
@@ -538,7 +540,7 @@ static bool IRAM_ATTR service_refill_window(void){
         atomic_store(&output.held_right,buffer[2u*(DMA_FRAMES-1u)+1u]);
         atomic_store_explicit(&output.refill_pending_index,UINT32_MAX,memory_order_release);
       }
-      if(taken!=missing || elapsed>REFILL_COPY_BUDGET_US || (int32_t)(ended-deadline)>=0){
+      if(taken!=wanted || elapsed>REFILL_COPY_BUDGET_US || (int32_t)(ended-deadline)>=0){
         atomic_store(&output.refill_contract_errors,atomic_load(&output.refill_contract_errors)+1u);
         atomic_store(&output.failed,1);
       }
@@ -554,6 +556,25 @@ static bool IRAM_ATTR service_refill_window(void){
   return copied;
 #else
   return false;
+#endif
+}
+/* An unfinished most-recent DMA descriptor can consume a published prefix.
+ * Limit urgent local DSP to half a block so ready samples reach that window
+ * sooner. This is an atomic scheduling hint, never a borrowed DMA pointer. */
+static uint32_t refill_render_budget(uint32_t limit){
+#ifdef DBT_PROBE_STAY_NATIVE
+  uint32_t index=atomic_load_explicit(&output.refill_pending_index,memory_order_acquire);
+  if(index>=DMA_DESCRIPTORS || atomic_load(&output.callback_core)!=(uint32_t)xPortGetCoreID())return 0;
+  uint32_t now=(uint32_t)esp_timer_get_time(),deadline=atomic_load(&output.refill_deadline_us);
+  if((int32_t)(deadline-now)<=(int32_t)REFILL_COPY_BUDGET_US)return 0;
+  uint32_t valid=atomic_load(&output.descriptors[index].valid);
+  uint32_t ready=dbt_audio_output_frames(&output.audio);
+  if(valid>=DMA_FRAMES || ready>=DMA_FRAMES-valid)return 0;
+  uint32_t needed=DMA_FRAMES-valid-ready;
+  if(needed>DMA_FRAMES/2u)needed=DMA_FRAMES/2u;
+  return needed<limit?needed:limit;
+#else
+  (void)limit;return 0;
 #endif
 }
 static bool IRAM_ATTR finish_sent(output_t *o,uint32_t began,BaseType_t wake){
@@ -1384,6 +1405,8 @@ static bool render_step(void) {
 #endif
         if (budget > 128)
           budget = 128;
+        uint32_t urgent_budget=refill_render_budget(budget);
+        if(urgent_budget)budget=urgent_budget;
 #ifdef DBT_PROBE_SOUND_BUILD
         if(output.sound){
           uint16_t sound_frames=dbt_sound_play_mix_frames(output.sound,(uint16_t)budget);
@@ -1405,7 +1428,7 @@ static bool render_step(void) {
 #ifdef DBT_PROBE_SOUND_BUILD
         if(output.sound || !budget)assist_budget=budget;
 #endif
-        if(!assisted && dsp_assist_submit(assist_budget,began)){
+        if(!assisted && !urgent_budget && dsp_assist_submit(assist_budget,began)){
 #ifdef DBT_PROBE_SCHEDULER_TRACE
           trace_render(0,(uint32_t)esp_timer_get_time());
 #endif

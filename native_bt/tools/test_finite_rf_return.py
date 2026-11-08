@@ -30,12 +30,13 @@ class Controller:
         self.resets+=1
         if self.prime and self.resets==1:self._port.chunks=[b'Loaded app from partition at offset 0x390000\n']
         else:self._port.chunks=([b'Guru Meditation Error\n'] if self.fatal else [])+BASE[:2]+([] if self.missing else BASE[2:])
-for rebooted in (True,False):
-    c=Controller(prime=not rebooted)
-    with patch.object(module.time,'monotonic',Clock()):result,capture=module.return_pending_rf_trial(c,115200,rebooted)
-    assert result['baseline_boot_observed'] and not result['baseline_fatal_marker']
-    assert c.resets==(1 if rebooted else 2) and c._port.baudrate==115200 and c._port.clears==c.resets
-    assert all(x in capture for x in BASE)
+for native_baud in (115200,921600):
+    for rebooted in (True,False):
+        c=Controller(prime=not rebooted)
+        with patch.object(module.time,'monotonic',Clock()):result,capture=module.return_pending_rf_trial(c,native_baud,rebooted)
+        assert result['baseline_boot_observed'] and not result['baseline_fatal_marker']
+        assert c.resets==(1 if rebooted else 2) and c._port.baudrate==115200 and c._port.clears==c.resets
+        assert all(x in capture for x in BASE)
 c=Controller(missing=True)
 with patch.object(module.time,'monotonic',Clock()):result,capture=module.return_pending_rf_trial(c,115200,True)
 assert not result['baseline_boot_observed'] and b'System ready' not in capture

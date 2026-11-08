@@ -24,6 +24,16 @@ class Monitor:
             phone_path.write_text(json.dumps({'pid':os.getpid(),'token':self.phone_token,'hostname':self.phone_hostname,'url':'http://'+self.phone_hostname+'/'+self.phone_token+'/','read_only':True},indent=2)+'\n',encoding='utf-8')
         self.metrics={'audio':'Waiting for firmware counters','heap':'Waiting for a heap snapshot','counters':'Waiting'}
         self.data={'running':True,'pid':os.getpid(),'port':args.port,'baud':args.baud,'connected':False,'identity_verified':False,'received_lines':0,'received_bytes':0,'reader_mode':'starting','requested_mode':'listening','command_id':'','applied_command_id':'','note_command_id':'','firmware':'unknown','uart_writes':0,'deliberate_resets':0,'last_line_unix':0,'updated_unix':0,'revision':0,'status':'Checking USB identity'}
+    def restore_history(self,checkpoint):
+        records=checkpoint['logs'][-10000:];token=checkpoint.get('control_token')
+        for item in records:
+            if not isinstance(item.get('id'),int) or not isinstance(item.get('source_id'),int) or not isinstance(item.get('text'),str) or len(item['text'])>4096:raise ValueError('Invalid history record')
+        if token is not None and not re.fullmatch(r'[A-Za-z0-9_-]{43}',token):raise ValueError('Invalid dashboard session token')
+        with self.lock:
+            self.logs.extend(records);self.source_epoch=max((x['source_id'] for x in records),default=0)
+            self.data['revision']=max((x['id'] for x in records),default=0)
+            for key in ('received_lines','received_bytes','history_dropped'):self.data[key]=int(checkpoint['state'].get(key,0))
+            if token is not None:self.token=token
     def log(self,text,level='info',fields=None,integrity='Unverified',stage='System'):
         with self.lock:
             self.data['revision']+=1
@@ -34,6 +44,15 @@ class Monitor:
     def request(self,cid,action,text=''):
         with self.lock:
             if action=='note':self.log('MONITOR: '+text[:1000]);self.data['note_command_id']=cid;return
+            if action=='baud':
+                value=int(text)
+                if value not in (115200,230400,460800,921600):raise ValueError('Unsupported UART baud')
+                self.args.baud=value;self.data['requested_baud']=value
+                mode=self.control[1]  # Preserve released/listening and replay ownership.
+                self.control=(cid,mode);self.data['command_id']=cid
+                self.data['requested_mode']='released' if mode=='release' else 'listening'
+                self.data['status']='Applying UART baud without writes or modem-line reset'
+                self.wake.set();return
             if action=='clear':self.logs.clear();self.clear_epoch+=1;self.data['revision']+=1;return
             if action=='replay':
                 if text not in {x['path'] for x in self.captures()}:raise ValueError('Capture not admitted')
@@ -112,7 +131,7 @@ class Monitor:
         while not self.stop.is_set():
             with self.lock:cid,action=self.control
             if action=='release':
-                with self.lock:self.data.update(connected=False,reader_mode='released',applied_command_id=cid,status='COM6 released for flashing; log display remains open')
+                with self.lock:self.data.update(connected=False,baud=self.args.baud,reader_mode='released',applied_command_id=cid,status='COM6 released for flashing; log display remains open')
                 self.wake.wait(.2);self.wake.clear();continue
             stream=None
             try:
@@ -120,11 +139,12 @@ class Monitor:
                 if not found or found.vid!=0x10c4 or found.pid!=0xea60 or found.serial_number!=self.args.usb_serial:raise RuntimeError('Admitted speaker USB identity is absent; other ports remain untouched')
                 stream=serial.Serial(port=None,baudrate=self.args.baud,timeout=.15,write_timeout=0);stream.dtr=False;stream.rts=False;stream.port=self.args.port;stream.open()
                 self.new_source('Live UART · COM6','uart')
-                with self.lock:self.data.update(connected=True,identity_verified=True,reader_mode='listening',applied_command_id=cid,status='Connected to the verified speaker; listening without UART commands')
+                with self.lock:self.data.update(connected=True,baud=stream.baudrate,identity_verified=True,reader_mode='listening',applied_command_id=cid,status='Connected to the verified speaker; listening without UART commands')
                 self.log('Serial reader connected');pending=bytearray()
                 while not self.stop.is_set():
-                    with self.lock:released=self.control[1]=='release'
-                    if released:break
+                    with self.lock:
+                        released=self.control[1]=='release';baud_changed=stream.baudrate!=self.args.baud
+                    if released or baud_changed:break
                     with self.lock:self.data['applied_command_id']=self.control[0]
                     raw=stream.read(min(4096,max(1,stream.in_waiting)))
                     if not raw:continue
@@ -198,7 +218,7 @@ class Monitor:
                 try:
                     if self.command.is_file() and self.command.stat().st_size<=4096:
                         c=json.loads(self.command.read_text());cid=c.get('id','')
-                        if c.get('pid')==os.getpid() and isinstance(cid,str) and 0<len(cid)<=64 and cid!=self.seen and c.get('action') in ('release','resume','note'):
+                        if c.get('pid')==os.getpid() and isinstance(cid,str) and 0<len(cid)<=64 and cid!=self.seen and c.get('action') in ('release','resume','note','baud'):
                             self.seen=cid;self.request(cid,c['action'],str(c.get('text',''))[:1000])
                 except (OSError,ValueError):pass
                 now=time.time()
@@ -213,17 +233,12 @@ class Monitor:
             with self.lock:self.data.update(running=False,connected=False)
             self.state.write_text(json.dumps(self.snapshot(False),indent=2)+'\n')
 def main():
-    p=argparse.ArgumentParser();p.add_argument('--port',required=True);p.add_argument('--usb-serial',required=True);p.add_argument('--baud',type=int,default=115200);p.add_argument('--state',required=True);p.add_argument('--http-port',type=int,default=8765);p.add_argument('--released',action='store_true');p.add_argument('--restore-buffer',type=Path);p.add_argument('--phone-hostname',default='');args=p.parse_args()
+    p=argparse.ArgumentParser();p.add_argument('--port',required=True);p.add_argument('--usb-serial',required=True);p.add_argument('--baud',type=int,choices=(115200,230400,460800,921600),default=921600);p.add_argument('--state',required=True);p.add_argument('--http-port',type=int,default=8765);p.add_argument('--released',action='store_true');p.add_argument('--restore-buffer',type=Path);p.add_argument('--phone-hostname',default='');args=p.parse_args()
     if args.port.upper()!='COM6' or args.usb_serial!='CA0ACAD67933EF1180C36117A04C7D1C':p.error('Only the released COM6 speaker is admitted')
     args.port='COM6';monitor=Monitor(args)
     if args.restore_buffer:
         path=args.restore_buffer.resolve();path.relative_to((ROOT/'_build').resolve())
         if path.stat().st_size>64*1024*1024:raise ValueError('History checkpoint exceeds 64 MiB')
-        checkpoint=json.loads(path.read_text(encoding='utf-8'));records=checkpoint['logs'][-10000:]
-        for item in records:
-            if not isinstance(item.get('id'),int) or not isinstance(item.get('source_id'),int) or not isinstance(item.get('text'),str) or len(item['text'])>4096:raise ValueError('Invalid history record')
-        monitor.logs.extend(records);monitor.source_epoch=max((x['source_id'] for x in records),default=0)
-        monitor.data['revision']=max((x['id'] for x in records),default=0)
-        for key in ('received_lines','received_bytes','history_dropped'):monitor.data[key]=int(checkpoint['state'].get(key,0))
+        monitor.restore_history(json.loads(path.read_text(encoding='utf-8')))
     monitor.run()
 if __name__=='__main__':main()

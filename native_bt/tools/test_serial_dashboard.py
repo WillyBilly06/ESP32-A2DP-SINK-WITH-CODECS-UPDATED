@@ -43,7 +43,7 @@ class DashboardTests(unittest.TestCase):
         m=monitor();opened=threading.Event();closed=threading.Event()
         class Port:
             in_waiting=0
-            def __init__(self,**kwargs):self.dtr=None;self.rts=None
+            def __init__(self,**kwargs):self.dtr=None;self.rts=None;self.baudrate=kwargs['baudrate']
             def open(self):
                 if self.dtr is not False or self.rts is not False:raise AssertionError('Modem lines not disabled before open')
                 opened.set()
@@ -60,5 +60,44 @@ class DashboardTests(unittest.TestCase):
                 self.assertEqual(m.data['reader_mode'],'released');self.assertFalse(m.data['connected'])
             finally:m.stop.set();m.wake.set();thread.join(2)
             self.assertFalse(thread.is_alive())
+
+    def test_baud_rejects_invalid_without_changing_reader(self):
+        m=monitor();before=m.control
+        for value in ('0','999999','not-a-number'):
+            with self.assertRaises(ValueError):m.request('bad','baud',value)
+            self.assertEqual(m.args.baud,115200);self.assertEqual(m.control,before)
+    def test_baud_reopens_reader_without_uart_writes_or_resets(self):
+        m=monitor();opened=[];closed=[]
+        class Port:
+            in_waiting=0
+            def __init__(self,**kwargs):self.dtr=None;self.rts=None;self.baudrate=kwargs['baudrate']
+            def open(self):
+                self.assert_modem_disabled();opened.append(self.baudrate)
+            def assert_modem_disabled(self):
+                if self.dtr is not False or self.rts is not False:raise AssertionError('Modem-line reset')
+            def read(self,n):time.sleep(.01);return b''
+            def close(self):closed.append(self.baudrate)
+            def write(self,data):raise AssertionError('Unexpected UART write')
+        device=argparse.Namespace(device='COM6',vid=0x10c4,pid=0xea60,serial_number=m.args.usb_serial)
+        with patch('serial_monitor_server.list_ports.comports',return_value=[device]),patch('serial_monitor_server.serial.Serial',Port):
+            m.request('listen','resume');thread=threading.Thread(target=m.reader);thread.start()
+            try:
+                end=time.monotonic()+2
+                while not opened and time.monotonic()<end:time.sleep(.01)
+                self.assertEqual(opened,[115200]);m.request('fast','baud','921600')
+                end=time.monotonic()+2
+                while m.data['applied_command_id']!='fast' and time.monotonic()<end:time.sleep(.01)
+                self.assertEqual(opened,[115200,921600]);self.assertIn(115200,closed)
+                self.assertEqual(m.data['baud'],921600);self.assertTrue(m.data['connected'])
+                self.assertEqual(m.data['applied_command_id'],'fast');self.assertEqual(m.data['uart_writes'],0)
+            finally:m.stop.set();m.wake.set();thread.join(2)
+            self.assertFalse(thread.is_alive())
+
+    def test_restore_keeps_history_identity_and_open_dashboard_controls(self):
+        m=monitor();checkpoint={'logs':[{'id':123,'source_id':7,'text':'complete UART record'}],
+            'state':{'received_lines':123,'received_bytes':4096},'control_token':'a'*43}
+        m.restore_history(checkpoint);self.assertEqual(m.logs[-1]['text'],'complete UART record')
+        self.assertEqual(m.data['revision'],123);self.assertEqual(m.source_epoch,7);self.assertEqual(m.token,'a'*43)
+        with self.assertRaises(ValueError):m.restore_history(checkpoint|{'control_token':'invalid'})
 
 if __name__=='__main__':unittest.main()

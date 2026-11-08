@@ -53,7 +53,7 @@ def capture_markers(port,seconds,markers,limit=65536):
         if all(marker in data for marker in markers):break
     return bytes(data)
 
-def return_pending_rf_trial(controller,console_baud,rebooted):
+def return_pending_rf_trial(controller,console_baud,rebooted,baseline_baud=115200):
     """Reset an unconfirmed NEW trial and require the preserved baseline boot.
     Caller admits only images unable to mark themselves valid and a verified
     rollback-enabled bootloader. No flash write is performed here.
@@ -63,6 +63,8 @@ def return_pending_rf_trial(controller,console_baud,rebooted):
     if not rebooted:
         port.reset_input_buffer();controller.hard_reset()
         prime=capture_markers(port,3,(b'Loaded app from partition at offset',))
+    # The preserved1.0.4 baseline uses115200 independently of native logging.
+    port.baudrate=baseline_baud
     port.reset_input_buffer();controller.hard_reset()
     baseline=capture_markers(port,15,(b'Loaded app from partition at offset 0x110000',b'1.0.4-idf6.1',b'System ready'))
     observed=all(x in baseline for x in (b'Loaded app from partition at offset 0x110000',b'1.0.4-idf6.1',b'System ready'))
@@ -142,6 +144,7 @@ def main():
     parser.add_argument('--rf-protocol-diagnostic',action='store_true',help='Explicit finite radio/decoder test with A2DP PCM checksum sink; no DAC/render qualification')
     parser.add_argument('--press-pairing-button',action='store_true',help='Explicit COM6 fixture: after native readiness hold DTR/BOOT for 3.5 seconds without toggling RTS/EN; finite RF only')
     parser.add_argument('--rf-seconds',type=int,choices=(15,60,120,180,300,600),default=15,help='Bounded finite-RF interaction window, at most ten minutes; baseline return follows')
+    parser.add_argument('--expected-sha256',help='Require this exact candidate SHA256 before opening COM6')
     parser.add_argument('--baud',type=int,choices=(115200,230400,460800,921600),default=921600,help='Flash transport rate; 921600 requested by user. Readback errors abort; console baud is independent.')
     parser.add_argument('--verify-baud',type=int,choices=(115200,230400,460800,921600),default=230400,help='Full flash readback rate; independent of the 921600 upload rate.')
     args=parser.parse_args()
@@ -162,6 +165,9 @@ def main():
     if hashlib.sha256(original).hexdigest()!=receipt['sha256']:raise RuntimeError('Original backup integrity failed')
     build_name,project_name=('audio_app','bt_audio_sink') if args.kind=='audio' else ('esp32','native_bt_probe')
     image_path=ROOT/'_build'/build_name/(project_name+'.bin');candidate=image_path.read_bytes()
+    if args.expected_sha256 is not None:
+        if not re.fullmatch(r'[0-9a-fA-F]{64}',args.expected_sha256) or hashlib.sha256(candidate).hexdigest()!=args.expected_sha256.lower():
+            raise RuntimeError('Expected candidate SHA256 mismatch; COM6 not opened')
     configuration=(image_path.parent/'config/sdkconfig.h').read_text()
     baud_match=re.search(r'^#define CONFIG_ESP_CONSOLE_UART_BAUDRATE (\d+)$',configuration,re.M)
     if not baud_match:raise RuntimeError('Console baud is missing from the actual build configuration')

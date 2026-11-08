@@ -1256,6 +1256,17 @@ static void log_loop(void *unused){
 #else
         const char *early_input="false";
 #endif
+        /* Logger-local configuration identity: avoid formatting/transmitting
+         * unchanged policies every cycle. A ten-cycle heartbeat lets a reattached
+         * reader recover configuration. Fault/counter/event records below
+         * remain independent and periodic; every emitted UART line is retained. */
+        static uint32_t previous_config[13],config_ticks;static bool config_seen;
+        uint32_t config_key[13]={stats.rate,stats.input_capacity_frames,stats.input_ring_bytes,
+            stats.requested_bytes,stats.pcm_target_frames,stats.render_core,stats.render_owner_transfers,
+            stats.auxiliary_render_stack_bytes,stats.auxiliary_render_allocation_failures,
+            stats.priming_ms,stats.priming_remaining_ms,stats.startup_enable_us,stats.startup_coherent};
+        if(!config_seen || memcmp(previous_config,config_key,sizeof config_key) || ++config_ticks>=10u){
+            memcpy(previous_config,config_key,sizeof config_key);config_seen=true;config_ticks=0;
         snapshot_log(output_snapshot_began,"{\"probe\":\"pcm_buffer_geometry\",\"configured_target_ms\":%u,\"rate\":%" PRIu32
             ",\"decoder_transfer_limit_frames\":%u,\"input_capacity_frames\":%" PRIu32 ",\"input_bytes\":%" PRIu32
             ",\"output_capacity_frames\":%" PRIu32 ",\"output_target_frames\":%" PRIu32
@@ -1284,6 +1295,7 @@ static void log_loop(void *unused){
                stats.render_owner_transfers,stats.auxiliary_render_stack_bytes,stats.auxiliary_render_allocation_failures,
                stats.main_render_priority,stats.auxiliary_render_priority);
 #endif
+        }
         snapshot_log(output_snapshot_began,"{\"probe\":\"render_work\",\"core\":%" PRIu32 ",\"collection_cycle_us\":%" PRIu32 ",\"calls\":%" PRIu32 ",\"elapsed_us\":%" PRIu32
                ",\"maximum_us\":%" PRIu32 ",\"wall_time_includes_preemption\":true,\"input_ready_frames\":%" PRIu32 ",\"render_stack_low_water_bytes\":%" PRIu32
                ",\"allocation_failed_bytes\":%" PRIu32 ",\"allocation_failure_free\":%" PRIu32 ",\"allocation_failure_largest\":%" PRIu32
