@@ -1,7 +1,8 @@
 """Offline production output-format test with real dbt_audio and mocked I2S."""
-import argparse,ctypes,hashlib,json,os,pathlib,shutil,subprocess,sys
-parser=argparse.ArgumentParser();parser.add_argument('--compact-copy',action='store_true');parser.add_argument('--block-dsp',action='store_true');parser.add_argument('--priority-order',action='store_true');parser.add_argument('--word-dsp',action='store_true');parser.add_argument('--refill-window',action='store_true');parser.add_argument('--assist-refill',action='store_true');parser.add_argument('--starvation-trace',action='store_true');parser.add_argument('--light-gap',action='store_true');options=parser.parse_args()
+import argparse,ctypes,gzip,hashlib,json,os,pathlib,shutil,subprocess,sys
+parser=argparse.ArgumentParser();parser.add_argument('--compact-copy',action='store_true');parser.add_argument('--block-dsp',action='store_true');parser.add_argument('--priority-order',action='store_true');parser.add_argument('--word-dsp',action='store_true');parser.add_argument('--refill-window',action='store_true');parser.add_argument('--assist-refill',action='store_true');parser.add_argument('--starvation-trace',action='store_true');parser.add_argument('--light-gap',action='store_true');parser.add_argument('--owner-state',action='store_true');options=parser.parse_args()
 if options.light_gap and not options.starvation_trace:parser.error('--light-gap requires --starvation-trace')
+if options.owner_state and not options.light_gap:parser.error('--owner-state requires --starvation-trace --light-gap')
 if options.starvation_trace:
     if options.assist_refill:parser.error('Select one focused sanitized entry point')
     options.refill_window=options.compact_copy=options.block_dsp=options.word_dsp=options.priority_order=True
@@ -12,7 +13,7 @@ if options.assist_refill:
 if options.word_dsp and not options.block_dsp:raise SystemExit('--word-dsp requires --block-dsp')
 root=pathlib.Path(__file__).resolve().parents[1];ws=root.parent;out=root/'_build/avrcp';out.mkdir(parents=True,exist_ok=True)
 if sanitized:
-    receipt=out/('light-gap-results.json' if options.light_gap else 'starvation-trace-results.json' if options.starvation_trace else 'assist-refill-results.json')
+    receipt=out/('owner-state-gap-results.json' if options.owner_state else 'light-gap-results.json' if options.light_gap else 'starvation-trace-results.json' if options.starvation_trace else 'assist-refill-results.json')
     receipt.write_text(json.dumps({'passed':False,'hardware_accessed':False,'state':'building'})+'\n')
 check=[sys.executable,str(root/'tools/check_workspace.py')];subprocess.run(check,check=True)
 env=os.environ.copy()
@@ -33,8 +34,10 @@ try:
     src=[root/'tests/codecs/probe_output_format.c',root/'src/dbt_audio.c',root/'src/dbt_resampler.c',ws/'bt_audio_sink/main/dsp/fixed_dsp.c']
     if options.assist_refill:src[0]=root/'tests/codecs/probe_output_assist_refill.c';src+=[root/'src/dbt_dsp_job.c']
     if options.starvation_trace:src[0]=root/'tests/codecs/probe_output_starvation.c'
+    if options.owner_state:src+=[root/'esp32_probe/main/probe_owner_state.c',root/'src/dbt_hci.c']
     if sanitized:
         tracked=src+[root/'esp32_probe/main/probe_output.c',root/'esp32_probe/main/probe_output.h',root/'tests/codecs/probe_output_format.c',pathlib.Path(__file__).resolve()]
+        if options.owner_state:tracked+=[root/'esp32_probe/main/probe_owner_state.h',*sorted((root/'include').glob('*.h'))]
         source_hashes={str(p):hashlib.sha256(p.read_bytes()).hexdigest() for p in tracked};runs=[]
     cmd=[cache,cc,'-std=c11','-O1','-fwrapv','-shared','-DCONFIG_I2S_ISR_IRAM_SAFE=1','-DCONFIG_NATIVE_AUDIO_BCLK=26','-DCONFIG_NATIVE_AUDIO_LRCK=25','-DCONFIG_NATIVE_AUDIO_DATA=27']
     if options.refill_window:
@@ -45,6 +48,7 @@ try:
     if options.word_dsp:cmd+=['-DDBT_PROBE_WORD_DSP=1','-DFIXED_DSP_WORD_QUANT=1']
     if options.assist_refill:cmd+=['-DDBT_PROBE_DSP_ASSIST=1','-DDBT_PROBE_CODEC_AWARE_RENDER=1','-DDBT_OUTPUT_TEST_HOOKS=1','-DDBT_AUDIO_UNITY_COPY=1']
     if options.starvation_trace and not options.light_gap:cmd+=['-DDBT_PROBE_SCHEDULER_TRACE=1']
+    if options.owner_state:cmd+=['-DPROBE_OWNER_STATE_TRACE=1']
     if os.name!='nt':cmd+=['-fPIC']
     cmd+=sum((['-I',str(i)] for i in incs),[])+[str(s) for s in src]
     if sanitized:
@@ -56,7 +60,7 @@ try:
             resource=pathlib.Path(subprocess.check_output([cc,'-print-resource-dir'],text=True).strip())
             env['PATH']=str(resource/'lib/windows')+os.pathsep+env.get('PATH','')
     for hz in (100,1000):
-        tag='light-gap' if options.light_gap else 'starvation-trace' if options.starvation_trace else 'assist-refill' if options.assist_refill else 'refill' if options.refill_window else 'compact-block' if options.compact_copy and options.block_dsp else 'compact' if options.compact_copy else 'block' if options.block_dsp else 'format'
+        tag='owner-state-gap' if options.owner_state else 'light-gap' if options.light_gap else 'starvation-trace' if options.starvation_trace else 'assist-refill' if options.assist_refill else 'refill' if options.refill_window else 'compact-block' if options.compact_copy and options.block_dsp else 'compact' if options.compact_copy else 'block' if options.block_dsp else 'format'
         artifact=out/(f'probe-output-{tag}-{hz}.dll' if os.name=='nt' else f'probe-output-{tag}-{hz}.so')
         if sanitized:
             artifact=out/(f'probe-output-{tag}-{hz}.exe' if os.name=='nt' else f'probe-output-{tag}-{hz}')
@@ -80,6 +84,9 @@ try:
                 identity=hashlib.sha256(manifest.encode()).hexdigest()[:16]
                 (out/f'{tag}-{hz}-{identity}-retired.json').write_text(manifest)
                 for name in objects:pathlib.Path(name).unlink()
+            if os.name=='nt' and artifact.with_suffix('.pdb').exists():
+                pdb=artifact.with_suffix('.pdb');raw=pdb.read_bytes();digest=hashlib.sha256(raw).hexdigest();dest=pdb.with_name(pdb.name+'.'+digest[:12]+'.gz');dest.write_bytes(gzip.compress(raw));assert gzip.decompress(dest.read_bytes())==raw
+                (out/f'{tag}-{hz}-{digest[:12]}-symbols.json').write_text(json.dumps({'tested_executable':str(artifact),'executable_sha256':hashlib.sha256(artifact.read_bytes()).hexdigest(),'original':str(pdb),'archive':str(dest),'sha256':digest,'bytes':len(raw),'gzip_bytes':dest.stat().st_size,'lossless_verified':True},indent=2)+chr(10));pdb.unlink()
             runs.append({'tick_hz':hz,'stdout':result.stdout,'stderr':result.stderr,'returncode':result.returncode})
             print(f'PASS sanitized {tag} at {hz} Hz; no target timing proof')
             continue

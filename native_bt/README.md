@@ -1,5 +1,13 @@
 # Independent ESP32 Bluetooth host
 
+The [DMA refill priority checkpoint](docs/DMA_REFILL_PRIORITY_2026_11_08.md)
+fixes a reproduced bookkeeping-before-refill deadline defect, keeps urgent
+DSP at 64 frames, and permits at most two extra ready refill steps before a
+host yield. The execution policy adds no linked SRAM/IRAM. Separate owner and
+credit gap snapshots cost 120 bytes SRAM and 392 bytes IRAM. Current short
+LHDC192/S24/900 windows still have **768 / 1152 / 192 unfilled PCM frames**.
+Continuity remains unresolved; UART stays **921600 baud**.
+
 The [lightweight arrival checkpoint](docs/LIGHTWEIGHT_MEDIA_ARRIVAL_2026_11_08.md)
 correlates real HCI callbacks with admitted RTP packets without the scheduler
 profiler. It costs 112 bytes of DRAM and 96 bytes of IRAM. Short LHDC192/S24/900

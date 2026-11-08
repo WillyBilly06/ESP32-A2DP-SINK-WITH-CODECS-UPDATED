@@ -193,6 +193,7 @@ typedef struct {
   _Atomic uint32_t deadline_us,pending_acl_metadata;
   _Atomic uint32_t stream_serial,at_us,taken_frames,input_frames,output_frames,accepted_frames,rendered_frames,dma_source_frames,acl_us,host_poll_us,media_us,media_admit_us,media_epoch,media_sequence,media_timestamp,media_ssrc,media_result,media_gap_us,media_max_gap_us,media_arrival_us,media_arrival_cursor,media_arrival_flags,media_arrival_valid,media_coherent,decoder_phase,decoder_at_us,decoder_coherent,render_phase,render_at_us,render_coherent,decoder_queued,dsp_assist_state;
   _Atomic uint32_t vhci_coherent,vhci_at_us,vhci_flags,vhci_submitted_us,vhci_packet,vhci_pending_acks,vhci_owned_now;
+  _Atomic uint32_t owner_coherent,owner_phase,owner_phase_at_us,owner_wait_ms,owner_credits_at_us,owner_pending_counts,owner_ncp_at_us,owner_ncp_packets,owner_flags,owner_tx_owned;
 } starvation_capture_t;
 static DRAM_ATTR struct {
   _Atomic uint32_t stream_serial,acl_us,host_poll_us;
@@ -251,6 +252,20 @@ static void IRAM_ATTR capture_starvation(starvation_capture_t *f,output_t *o,uin
 #else
   atomic_store(&f->pending_acl_metadata,UINT32_MAX);
 #endif
+  probe_owner_sample_t owner_sample={0};
+#ifdef PROBE_OWNER_STATE_TRACE
+  probe_owner_state_sample(&owner_sample);
+#endif
+  atomic_store(&f->owner_coherent,owner_sample.coherent);
+  atomic_store(&f->owner_phase,owner_sample.phase);
+  atomic_store(&f->owner_phase_at_us,owner_sample.phase_at_us);
+  atomic_store(&f->owner_wait_ms,owner_sample.wait_ms);
+  atomic_store(&f->owner_credits_at_us,owner_sample.credits_at_us);
+  atomic_store(&f->owner_pending_counts,owner_sample.pending_counts);
+  atomic_store(&f->owner_ncp_at_us,owner_sample.ncp_at_us);
+  atomic_store(&f->owner_ncp_packets,owner_sample.ncp_packets);
+  atomic_store(&f->owner_flags,owner_sample.flags);
+  atomic_store(&f->owner_tx_owned,owner_sample.tx_owned);
   /* Consumer read precedes producer written; capacity bounds remain visible.
    * These are adjacent atomic observations, not a simultaneous queue lock. */
   uint32_t read=atomic_load(&o->audio.input.read),written=atomic_load(&o->audio.input.written);
@@ -328,6 +343,16 @@ static void starvation_snapshot(starvation_capture_t *f,probe_output_starvation_
   s->vhci_flags=atomic_load(&f->vhci_flags);s->vhci_submitted_us=atomic_load(&f->vhci_submitted_us);
   s->vhci_packet=atomic_load(&f->vhci_packet);s->vhci_pending_acks=atomic_load(&f->vhci_pending_acks);
   s->vhci_owned_now=atomic_load(&f->vhci_owned_now);
+  s->owner.coherent=atomic_load(&f->owner_coherent);
+  s->owner.phase=atomic_load(&f->owner_phase);
+  s->owner.phase_at_us=atomic_load(&f->owner_phase_at_us);
+  s->owner.wait_ms=atomic_load(&f->owner_wait_ms);
+  s->owner.credits_at_us=atomic_load(&f->owner_credits_at_us);
+  s->owner.pending_counts=atomic_load(&f->owner_pending_counts);
+  s->owner.ncp_at_us=atomic_load(&f->owner_ncp_at_us);
+  s->owner.ncp_packets=atomic_load(&f->owner_ncp_packets);
+  s->owner.flags=atomic_load(&f->owner_flags);
+  s->owner.tx_owned=atomic_load(&f->owner_tx_owned);
   s->media_us=atomic_load(&f->media_us);
   s->media_admit_us=atomic_load(&f->media_admit_us);
   s->media_epoch=atomic_load(&f->media_epoch);
@@ -551,7 +576,7 @@ static void IRAM_ATTR close_refill_window(output_t *o){
 /* Render owner only, same CPU as the ISR. A verified three-descriptor ring
  * gives at least one conservative buffer period after a fresh normal EOF.
  * No newer EOF is allowed to leave an older window open. The local mask never
- * waits for another CPU; only a <=1024-byte copy and atomic metadata run here. */
+ * waits for another CPU; only a bounded descriptor copy and atomic metadata run here. */
 static bool IRAM_ATTR service_refill_window(void){
 #ifdef DBT_PROBE_STAY_NATIVE
   if(atomic_load(&output.refill_pending_index)==UINT32_MAX ||
@@ -604,8 +629,8 @@ static bool IRAM_ATTR service_refill_window(void){
 #endif
 }
 /* An unfinished most-recent DMA descriptor can consume a published prefix.
- * Limit urgent local DSP to half a block so ready samples reach that window
- * sooner. This is an atomic scheduling hint, never a borrowed DMA pointer. */
+ * Keep urgent local DSP at 64 frames independently of descriptor geometry, so
+ * ready samples reach the window sooner. This is a scheduling hint only. */
 static uint32_t refill_render_budget(uint32_t limit){
 #ifdef DBT_PROBE_STAY_NATIVE
   uint32_t index=atomic_load_explicit(&output.refill_pending_index,memory_order_acquire);
@@ -616,11 +641,20 @@ static uint32_t refill_render_budget(uint32_t limit){
   uint32_t ready=dbt_audio_output_frames(&output.audio);
   if(valid>=DMA_FRAMES || ready>=DMA_FRAMES-valid)return 0;
   uint32_t needed=DMA_FRAMES-valid-ready;
-  if(needed>DMA_FRAMES/2u)needed=DMA_FRAMES/2u;
+  if(needed>64u)needed=64u;
   return needed<limit?needed:limit;
 #else
   (void)limit;return 0;
 #endif
+}
+/* At most two additional productive steps before equal-priority host service.
+ * A completed descriptor, expired window, empty input or stop always yields.
+ * The cap remains effective even if a newer EOF opens another window. */
+static inline bool refill_burst_continue(unsigned *steps){
+  if(*steps<2u && output.active && !output.stopping && !atomic_load(&output.failed) &&
+     !atomic_load(&output.stop_requested) && refill_render_budget(1u) &&
+     dbt_audio_input_frames(&output.audio)>1u){++*steps;return true;}
+  *steps=0;return false;
 }
 static bool IRAM_ATTR finish_sent(output_t *o,uint32_t began,BaseType_t wake){
   uint32_t elapsed=(uint32_t)esp_timer_get_time()-began;
@@ -1232,11 +1266,12 @@ static void copied_input_ready(void *context){
 }
 #endif
 static void render_completed(uint32_t began,bool input_wake_owned){
+  /* Published PCM must reach an open DMA window before diagnostic work. */
+  (void)service_refill_window();
   uint32_t elapsed=(uint32_t)esp_timer_get_time()-began;
   if(elapsed>atomic_load(&output.maximum_render_us))atomic_store(&output.maximum_render_us,elapsed);
   atomic_fetch_add(&output.render_total_us,elapsed);atomic_fetch_add(&output.render_calls,1);
   atomic_store(&output.rendered_frames,atomic_load(&output.audio.rendered_frames));
-  (void)service_refill_window();
   if(!input_wake_owned)notify_pcm_progress();
 #ifdef DBT_PROBE_SOUND_BUILD
   else notify_sound_progress(); /* Mixer space is released only after DSP/mixing. */
@@ -1642,8 +1677,14 @@ static TickType_t render_wait_ticks(void){
 static void render_loop(void *unused) {
   (void)unused;
 #ifdef DBT_PROBE_CODEC_AWARE_RENDER
+#ifdef DBT_PROBE_RENDER_FAIR_SHARE
+  unsigned refill_burst_steps=0;
+#endif
   for(;;){
     if(!owns_output()){
+#ifdef DBT_PROBE_RENDER_FAIR_SHARE
+      refill_burst_steps=0;
+#endif
 #ifdef DBT_PROBE_DSP_ASSIST
       if(dsp_assist_work())continue;
 #endif
@@ -1661,9 +1702,14 @@ static void render_loop(void *unused) {
     }
     bool again=render_step();
     if(!owns_output())continue;
-    if(!again)ulTaskNotifyTake(pdTRUE,render_wait_ticks());
+    if(!again){
 #ifdef DBT_PROBE_RENDER_FAIR_SHARE
-    else if((unsigned)xPortGetCoreID()==1u)taskYIELD(); /* one bounded step before equal-host service */
+      refill_burst_steps=0;
+#endif
+      ulTaskNotifyTake(pdTRUE,render_wait_ticks());
+    }
+#ifdef DBT_PROBE_RENDER_FAIR_SHARE
+    else if((unsigned)xPortGetCoreID()==1u && !refill_burst_continue(&refill_burst_steps))taskYIELD();
 #endif
   }
 #else

@@ -3,6 +3,7 @@
 #include "probe_audio_trace.h"
 #if (defined(DBT_PROBE_SCHEDULER_TRACE) || defined(DBT_PROBE_STAY_NATIVE)) && defined(DBT_PROBE_AUDIO_OUTPUT)
 #include "probe_arrival.h"
+#include "probe_owner_state.h"
 #endif
 #if defined(DBT_PROBE_SCHEDULER_TRACE) && defined(DBT_PROBE_AUDIO_OUTPUT)
 #include "probe_vhci_ready.h"
@@ -401,6 +402,25 @@ static void log_first_starvation(void){
         PROBE_SNAPSHOT_LOG("{\"probe\":\"%s\",\"stream_serial\":%" PRIu32 ",\"event_us\":%" PRIu32
             ",\"coherent\":%s,\"inside_audio_render\":%s,\"phase_since_us\":%" PRIu32 ",\"dsp_assist_state_at_gap\":%" PRIu32 "}\n",
             names[kind][3],s.stream_serial,s.at_us,s.render_coherent?"true":"false",s.render_phase?"true":"false",s.render_at_us,s.dsp_assist_state);
+#ifdef PROBE_OWNER_STATE_TRACE
+        const probe_owner_sample_t *o=&s.owner;
+        static const char *const owner_names[]={"unknown","loop","runtime","profiles","deadlines","sleep","render_yield","ready_yield"};
+        PROBE_SNAPSHOT_LOG("{\"probe\":\"%s_owner\",\"stream_serial\":%" PRIu32 ",\"event_us\":%" PRIu32
+            ",\"coherent\":%s,\"phase\":%" PRIu32 ",\"phase_name\":\"%s\",\"phase_since_us\":%" PRIu32
+            ",\"phase_is_intent_marker\":true,\"wait_ms\":%" PRIu32 ",\"inside_runtime_window\":%s,\"tx_owned_independent\":%" PRIu32 ",\"tx_owned_known\":%s}\n",
+            kind?"unfilled":"starvation",s.stream_serial,s.at_us,o->coherent?"true":"false",o->phase,
+            o->phase<sizeof(owner_names)/sizeof(owner_names[0])?owner_names[o->phase]:"invalid",o->phase_at_us,o->wait_ms,
+            (o->flags&PROBE_OWNER_IN_RUNTIME)?"true":"false",o->tx_owned,(o->flags&PROBE_OWNER_BOUND)?"true":"false");
+        PROBE_SNAPSHOT_LOG("{\"probe\":\"%s_credits\",\"stream_serial\":%" PRIu32 ",\"event_us\":%" PRIu32
+            ",\"coherent\":%s,\"pending_known\":%s,\"counts_sampled_us\":%" PRIu32
+            ",\"pending_classic\":%" PRIu32 ",\"pending_le\":%" PRIu32
+            ",\"completion_submission_known\":%s,\"completion_submitted_us\":%" PRIu32 ",\"completion_packets\":%" PRIu32
+            ",\"submission_is_sdk_return_not_controller_ack\":true}\n",
+            kind?"unfilled":"starvation",s.stream_serial,s.at_us,o->coherent?"true":"false",
+            o->coherent && (o->flags&PROBE_OWNER_PENDING)?"true":"false",o->credits_at_us,
+            o->pending_counts&UINT16_MAX,o->pending_counts>>16,
+            o->coherent && (o->flags&PROBE_OWNER_NCP)?"true":"false",o->ncp_at_us,o->ncp_packets);
+#endif
 #ifdef DBT_PROBE_SCHEDULER_TRACE
         PROBE_SNAPSHOT_LOG("{\"probe\":\"%s\",\"stream_serial\":%" PRIu32 ",\"event_us\":%" PRIu32
             ",\"sample_coherent\":%s,\"sample_valid\":%s,\"sample_us\":%" PRIu32
@@ -1809,6 +1829,9 @@ void probe_audio_poll(uint32_t now){
     atomic_store(&credit_window_status,(uint32_t)flow->packet_count|(gate?0x10000u:0)|
         ((releasable>0x7fffu?0x7fffu:releasable)<<17));
     atomic_store(&credit_pending_classic,classic_pending);atomic_store(&credit_pending_le,le_pending);
+#ifdef PROBE_OWNER_STATE_TRACE
+    probe_owner_state_credits(classic_pending,le_pending,(uint32_t)esp_timer_get_time());
+#endif
     atomic_store(&credit_acknowledged,flow->acknowledged);atomic_store(&credit_commands,flow->commands_submitted);atomic_store(&credit_partial_commands,flow->partial_commands);
     if(blocked>atomic_load(&credit_peak_blocked))atomic_store(&credit_peak_blocked,blocked);
     atomic_store(&credit_media_queued,atomic_load(&worker.media_written)-atomic_load(&worker.media_read));

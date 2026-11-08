@@ -45,9 +45,14 @@ static int __attribute__((format(printf,1,2))) host_printf(const char *format,..
 #include "dbt_gap.h"
 #if (defined(DBT_PROBE_SCHEDULER_TRACE) || defined(DBT_PROBE_STAY_NATIVE)) && defined(DBT_PROBE_AUDIO_OUTPUT) && defined(DBT_PROBE_AUDIO_TEST)
 #include "probe_arrival.h"
+#include "probe_owner_state.h"
+#define OWNER_MARK(phase,wait) probe_owner_state_mark((phase),(uint32_t)esp_timer_get_time(),(wait))
 #endif
 #if defined(DBT_PROBE_SCHEDULER_TRACE) && defined(DBT_PROBE_AUDIO_OUTPUT) && defined(DBT_PROBE_AUDIO_TEST)
 #include "probe_vhci_ready.h"
+#endif
+#ifndef OWNER_MARK
+#define OWNER_MARK(phase,wait) ((void)0)
 #endif
 #ifdef DBT_PROBE_AUDIO_TEST
 #include "probe_audio.h"
@@ -390,7 +395,15 @@ static bool product_startup(void){
 
 static void owner_render_checkpoint(void){
 #ifdef DBT_PROBE_RENDER_FAIR_SHARE
-    if(probe_audio_owner_pressure()){probe_audio_owner_service_yield();taskYIELD();}
+    if(probe_audio_owner_pressure()){
+#ifdef PROBE_OWNER_STATE_TRACE
+        uint32_t prior=OWNER_MARK(PROBE_OWNER_RENDER_YIELD,UINT32_MAX);
+#endif
+        probe_audio_owner_service_yield();taskYIELD();
+#ifdef PROBE_OWNER_STATE_TRACE
+        OWNER_MARK(prior,UINT32_MAX);
+#endif
+    }
 #endif
 }
 #ifdef DBT_PROBE_RENDER_FAIR_SHARE
@@ -501,6 +514,10 @@ static bool transport_send(void *context, uint8_t *data, uint16_t size) {
     atomic_store_explicit(&vhci_tx_inflight,true,memory_order_release);
     /* Host task only, outside critical sections and scheduler suspension. */
     HOST_CALL(PROBE_HOST_SUBMIT,esp_vhci_host_send_packet(data,size));
+#ifdef PROBE_OWNER_STATE_TRACE
+    if(size>=4u && data[0]==DBT_H4_COMMAND && dbt_read_le16(data+1)==0x0c35u)
+        (void)probe_owner_state_completed(data,size,(uint32_t)esp_timer_get_time());
+#endif
     return true;
 }
 
@@ -721,6 +738,7 @@ void app_main(void) {
 #endif
 #if (defined(DBT_PROBE_SCHEDULER_TRACE) || defined(DBT_PROBE_STAY_NATIVE)) && defined(DBT_PROBE_AUDIO_OUTPUT) && defined(DBT_PROBE_AUDIO_TEST)
     probe_arrival_init();
+    probe_owner_state_init(&vhci_tx_inflight);
 #endif
 #if defined(DBT_PROBE_SCHEDULER_TRACE) && defined(DBT_PROBE_AUDIO_OUTPUT) && defined(DBT_PROBE_AUDIO_TEST)
     probe_vhci_ready_init(&vhci_tx_inflight);
@@ -851,6 +869,7 @@ void app_main(void) {
     bool gatt_initialized = false, gatt_reported = false;
 #endif
     for (;;) {
+        OWNER_MARK(PROBE_OWNER_LOOP,UINT32_MAX);
 #if defined(DBT_PROBE_SCHEDULER_TRACE) && defined(DBT_PROBE_AUDIO_OUTPUT) && defined(DBT_PROBE_AUDIO_TEST)
         readiness_held_sampled=false;readiness_clear_sampled=false;
 #endif
@@ -874,7 +893,9 @@ void app_main(void) {
         uint32_t poll_began_us=(uint32_t)esp_timer_get_time();
         probe_audio_transport_poll_begin(poll_began_us);
 #endif
+        OWNER_MARK(PROBE_OWNER_RUNTIME,UINT32_MAX);
         HOST_POLL(PROBE_HOST_RUNTIME,dbt_runtime_poll(&runtime,now,8,8));
+        OWNER_MARK(PROBE_OWNER_PROFILES,UINT32_MAX);
 #ifdef DBT_PROBE_GATT_TEST
         bool parameter_hold=false;
 #ifdef DBT_PROBE_PRODUCT_SECURITY
@@ -1236,6 +1257,7 @@ void app_main(void) {
         probe_scheduler_owner_cost_end(PROBE_COST_CLOCK_FLOOR,floor_mark);
         probe_owner_cost_mark_t wait_mark=probe_scheduler_owner_cost_begin();
 #endif
+        OWNER_MARK(PROBE_OWNER_DEADLINES,UINT32_MAX);
         uint32_t deadline_now=now_ms();
         uint32_t wait;HOST_WAIT_VALUE(PROBE_COST_RUNTIME_WAIT,wait,dbt_runtime_wait_ms(&runtime, deadline_now));
 #ifdef DBT_PROBE_AUDIO_TEST
@@ -1316,6 +1338,7 @@ void app_main(void) {
             /* Return after a bounded protocol batch so a ready equal-priority
              * decoder or admitted Core1 renderer gets service. No delay and
              * no wait for another subsystem. */
+            OWNER_MARK(PROBE_OWNER_READY_YIELD,UINT32_MAX);
             probe_audio_owner_ready_yield();
             taskYIELD();
 #endif
@@ -1330,6 +1353,7 @@ void app_main(void) {
 #ifdef DBT_PROBE_OWNER_PACER
         uint32_t wait_began_us=(uint32_t)esp_timer_get_time();
 #endif
+        OWNER_MARK(PROBE_OWNER_SLEEP,wait);
         ulTaskNotifyTake(pdTRUE, ticks);
 #ifdef DBT_PROBE_OWNER_PACER
         probe_owner_pacer_waited((uint32_t)esp_timer_get_time()-wait_began_us);

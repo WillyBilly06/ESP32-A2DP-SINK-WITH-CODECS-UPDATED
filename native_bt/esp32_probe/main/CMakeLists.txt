@@ -16,7 +16,7 @@ endif()
 set(probe_linker_fragments)
 if((DBT_PROBE_SCHEDULER_TRACE OR DBT_PROBE_STAY_NATIVE) AND DBT_PROBE_AUDIO_OUTPUT AND DBT_PROBE_AUDIO_TEST)
     # Packet-bound gap metadata is independent of the heavy scheduler profiler.
-    list(APPEND probe_sources "probe_arrival.c")
+    list(APPEND probe_sources "probe_arrival.c" "probe_owner_state.c")
 endif()
 if(DBT_PROBE_SCHEDULER_TRACE AND DBT_PROBE_AUDIO_OUTPUT AND DBT_PROBE_AUDIO_TEST)
     list(APPEND probe_sources "probe_vhci_ready.c")
