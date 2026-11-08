@@ -1,15 +1,17 @@
 """Explicit persistent development admission; no serial, reset or flashing."""
 import ast,json,pathlib,re,subprocess,sys
 ROOT=pathlib.Path(__file__).resolve().parents[1];OUT=ROOT/'_build/stay_native_mode';OUT.mkdir(exist_ok=True)
+(OUT/'results.json').write_text(json.dumps({'passed':False,'phase':'checking','hardware_accessed':False})+'\n')
 guard=OUT/'guard.cmake';guard.write_text((ROOT/'esp32_probe/CMakeLists.txt').read_text().split('set(COMPONENTS main)')[0])
 base={'STAY_NATIVE':'ON','KEEP_OWNED_ACTIVE':'ON','PRODUCT_IO':'ON','PRODUCT_SECURITY':'ON','AUDIO_TEST':'ON',
       'AUDIO_OUTPUT':'ON','ASYNC_AUDIO':'ON','SBC_BUILD':'ON','CLASSIC_SECURITY_TEST':'ON','PCM_COPIED':'ON',
-      'BLOCK_DSP':'ON','WORD_DSP':'ON','PCM_TARGET_MS':'16','DECODER_PRIORITY':'6','PRIORITY_ORDER':'ON',
+      'BLOCK_DSP':'ON','WORD_DSP':'ON','PCM_TARGET_MS':'16','DECODER_PRIORITY':'21','PRIORITY_ORDER':'ON',
       'SMP':'ON','GATT_TEST':'ON','AVRCP':'ON'}
 cases=[({},True),({'STAY_NATIVE':'OFF'},False),({'KEEP_OWNED_ACTIVE':'OFF'},False),({'PRODUCT_IO':'OFF'},False),
        ({'PRODUCT_SECURITY':'OFF'},False),({'AUDIO_TEST':'OFF'},False),({'AUDIO_OUTPUT':'OFF'},False),
        ({'ASYNC_AUDIO':'OFF'},False),({'CODEC_DIAGNOSTIC_ONLY':'ON'},False),({'PIPELINE_DIAGNOSTIC':'ON'},False),
-       ({'RF_PROTOCOL_DIAGNOSTIC':'ON'},False),({'SCHEDULER_TRACE':'ON'},False)]
+       ({'RF_PROTOCOL_DIAGNOSTIC':'ON'},False),({'SCHEDULER_TRACE':'ON'},True),
+       ({'DECODER_PRIORITY':'5'},False),({'DECODER_PRIORITY':'6'},False)]
 for change,valid in cases:
     run=subprocess.run(['cmake',*[f'-DDBT_PROBE_{k}={v}' for k,v in (base|change).items()],'-P',str(guard)],capture_output=True,text=True)
     assert (run.returncode==0)==valid,run.stdout+run.stderr

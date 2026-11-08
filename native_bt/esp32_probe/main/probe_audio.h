@@ -97,6 +97,9 @@ void probe_audio_product_observer(probe_audio_product_event_fn,void *);
 bool probe_audio_sound_memory_ok(void);
 /* Atomic scheduling hint only; no borrowed decoder or codec state. */
 bool probe_audio_dsp_assist_ready(void);
+/* Diagnostic queue-slot count including any active packet; UINT32_MAX if the
+ * bounded atomic observation races retirement. This is not PCM duration. */
+uint32_t probe_audio_startup_encoded_slots(void);
 bool probe_audio_owner_pressure(void);
 /* Bounded scalar diagnostics only; receive may run in controller/ISR context.
  * first_rx_to_poll_us is a wake/service indicator, not per-packet latency. */

@@ -1,8 +1,15 @@
 #ifndef PROBE_OUTPUT_H
 #define PROBE_OUTPUT_H
 #include "dbt_audio.h"
-#define PROBE_OUTPUT_DMA_FRAMES 128u
-#define PROBE_OUTPUT_DMA_DESCRIPTORS 3u
+/* Native runtime keeps bounded first-gap evidence without enabling the tick
+ * sampler or per-owner cost profiler. Detailed tracing remains opt-in. */
+#if defined(DBT_PROBE_SCHEDULER_TRACE) || defined(DBT_PROBE_STAY_NATIVE)
+#define PROBE_OUTPUT_GAP_TRACE 1
+#endif
+/* Keep 384 total DMA frames while reducing IRQ cadence at high rates.
+ * Two descriptors are supported by IDF; refill still closes at the next EOF. */
+#define PROBE_OUTPUT_DMA_FRAMES 192u
+#define PROBE_OUTPUT_DMA_DESCRIPTORS 2u
 #ifdef DBT_PROBE_DSP_ASSIST
 #ifndef DBT_PROBE_DSP_ASSIST_BLOCKS
 #define DBT_PROBE_DSP_ASSIST_BLOCKS 4
@@ -33,7 +40,7 @@ typedef struct {
     uint32_t running,failed,rate,requested_bytes,accepted_frames,rendered_frames,ready_frames,input_ready_frames;
     uint32_t priming_ms,priming_remaining_ms;
     uint32_t startup_coherent,startup_first_pcm_us,startup_enable_us,startup_elapsed_us;
-    uint32_t startup_input_frames,startup_preload_frames,startup_guard_state;
+    uint32_t startup_input_frames,startup_preload_frames,startup_guard_state,startup_encoded_slots;
     uint32_t pcm_target_ms,block_dsp,word_dsp,pcm_input_mode,input_capacity_frames,input_ring_bytes,adaptive_clock,pcm_target_frames;
     /* underrun_frames retains its original initial-refill-shortage meaning. */
     uint32_t dma_eofs,dma_source_frames,underrun_frames,descriptor_errors,max_eof_gap_us;
@@ -112,13 +119,14 @@ typedef struct {
     uint32_t enabled,state,jobs,blocks,frames,cycles,max_cycles,max_job_frames,queue_max_us,finish_wait_max_us,retire_wait_max_us,wall_max_us,failures;
 } probe_dsp_assist_stats_t;
 void probe_output_dsp_assist_snapshot(probe_dsp_assist_stats_t *);
-#ifdef DBT_PROBE_SCHEDULER_TRACE
+#ifdef PROBE_OUTPUT_GAP_TRACE
 /* Passive stage stamps. Each producer has one writer; snapshots never spin.
  * Phase0=between operations;1=decode;2=reset;3=PCM delivery;
  *4/5/6/7/8=waiting for PCM space/loan/control/encoded input/shared renderer. */
 typedef struct {
     uint32_t captured,coherent,deadline_us,pending_acl_metadata;
     uint32_t stream_serial,at_us,taken_frames,input_frames,output_frames,accepted_frames,rendered_frames,dma_source_frames,acl_us,host_poll_us,media_us,media_admit_us,media_epoch,media_sequence,media_timestamp,media_ssrc,media_result,media_gap_us,media_max_gap_us,media_arrival_us,media_arrival_cursor,media_arrival_flags,media_arrival_valid,media_coherent,decoder_phase,decoder_at_us,decoder_coherent,render_phase,render_at_us,render_coherent,decoder_queued,dsp_assist_state;
+    uint32_t vhci_coherent,vhci_at_us,vhci_flags,vhci_submitted_us,vhci_packet,vhci_pending_acks,vhci_owned_now;
 } probe_output_starvation_t;
 void probe_output_trace_media(uint32_t began,uint32_t ended,uint32_t epoch,uint16_t sequence,uint32_t timestamp,uint32_t ssrc,dbt_result_t result);
 /* Matched current complete ACL/L2CAP/RTP packet, not RF arrival. Fragmented,

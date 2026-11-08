@@ -3,6 +3,7 @@
 #include "probe_audio_trace.h"
 #if defined(DBT_PROBE_SCHEDULER_TRACE) && defined(DBT_PROBE_AUDIO_OUTPUT)
 #include "probe_arrival.h"
+#include "probe_vhci_ready.h"
 #endif
 #include <string.h>
 #include "probe_sdp.h"
@@ -273,14 +274,16 @@ static void __attribute__((format(printf,2,3))) snapshot_log(uint32_t began,cons
 #include "probe_owner_pacer.h"
 #endif
 #define PROBE_SNAPSHOT_LOG(...) do {uint32_t snapshot_began=(uint32_t)esp_timer_get_time();snapshot_log(snapshot_began,__VA_ARGS__);}while(0)
-#if defined(DBT_PROBE_SCHEDULER_TRACE) && defined(DBT_PROBE_AUDIO_OUTPUT)
+#if defined(PROBE_OUTPUT_GAP_TRACE) && defined(DBT_PROBE_AUDIO_OUTPUT)
 static void decoder_timeline(uint32_t phase,uint32_t at){
     uint32_t read=atomic_load(&worker.media_read),written=atomic_load(&worker.media_written);
     probe_output_trace_decoder(phase,at,written-read);
 }
 static dbt_result_t timed_worker_media(void *context,const dbt_avdtp_media_t *packet){
     uint32_t began=(uint32_t)esp_timer_get_time();
-    probe_arrival_sample_t arrival={0};bool arrival_valid=false;
+    bool arrival_valid=false;uint32_t arrival_us=0,arrival_cursor=0,arrival_flags=0;
+#ifdef DBT_PROBE_SCHEDULER_TRACE
+    probe_arrival_sample_t arrival={0};
     dbt_runtime_t *runtime=profile.bearer.runtime;
     if(runtime && runtime->host.in_poll && runtime->host.in_callback){
         const uint8_t *raw=runtime->host.rx_packet;
@@ -291,16 +294,18 @@ static dbt_result_t timed_worker_media(void *context,const dbt_avdtp_media_t *pa
                 raw,(uint16_t)wire_bytes,packet,&arrival);
         }
     }
+    arrival_us=arrival.arrival_us;arrival_cursor=arrival.queue_cursor;arrival_flags=arrival.acl_flags;
+#endif
     if(context && packet && packet->payload && packet->size){
         dbt_codec_worker_t *w=context;
         probe_output_trace_media_arrival(began,0,atomic_load(&w->started_epoch),packet->sequence,packet->timestamp,packet->ssrc,DBT_PENDING,
-            arrival_valid,arrival.arrival_us,arrival.queue_cursor,arrival.acl_flags);
+            arrival_valid,arrival_us,arrival_cursor,arrival_flags);
     }
     dbt_result_t result=dbt_codec_worker_media(context,packet);
     if(context && packet && packet->payload && packet->size){
         dbt_codec_worker_t *w=context;
         probe_output_trace_media_arrival(began,(uint32_t)esp_timer_get_time(),atomic_load(&w->input_stream_epoch),
-            packet->sequence,packet->timestamp,packet->ssrc,result,arrival_valid,arrival.arrival_us,arrival.queue_cursor,arrival.acl_flags);
+            packet->sequence,packet->timestamp,packet->ssrc,result,arrival_valid,arrival_us,arrival_cursor,arrival_flags);
     }
     return result;
 }
@@ -311,7 +316,7 @@ static void timing_event(unsigned kind){
     unsigned index=(kind-DBT_CODEC_DECODE_BEGIN)/2u;
     if(index>=3)return;
     phase_timing_t *phase=&phase_timing[index];uint32_t at=(uint32_t)esp_timer_get_time();
-#if defined(DBT_PROBE_SCHEDULER_TRACE) && defined(DBT_PROBE_AUDIO_OUTPUT)
+#if defined(PROBE_OUTPUT_GAP_TRACE) && defined(DBT_PROBE_AUDIO_OUTPUT)
     decoder_timeline((kind-DBT_CODEC_DECODE_BEGIN)%2u?0u:index+1u,at);
 #endif
     if((kind-DBT_CODEC_DECODE_BEGIN)%2u==0){phase->began=at;return;}
@@ -344,11 +349,11 @@ static void media_trace(void *context,const dbt_codec_trace_t *event){
     media_trace_ring_t *ring=&media_trace_rings[(event->kind<=DBT_CODEC_QUEUE_FULL || event->kind==DBT_CODEC_INPUT_CLOCK_MAX)?0:1];
     (void)probe_audio_trace_media(ring,event,atomic_load_explicit(&pcm_codec,memory_order_relaxed),trace_clock,NULL);
 }
-#if defined(DBT_PROBE_SCHEDULER_TRACE) && defined(DBT_PROBE_AUDIO_OUTPUT)
+#if defined(PROBE_OUTPUT_GAP_TRACE) && defined(DBT_PROBE_AUDIO_OUTPUT)
 static void log_first_starvation(void){
     static uint32_t prior_serial[2]={UINT32_MAX,UINT32_MAX},prior_captured[2];
-    static const char *const names[2][4]={{"first_starvation","starvation_media","starvation_decoder","starvation_renderer"},
-                                         {"first_unfilled","unfilled_media","unfilled_decoder","unfilled_renderer"}};
+    static const char *const names[2][5]={{"first_starvation","starvation_media","starvation_decoder","starvation_renderer","starvation_transport"},
+                                         {"first_unfilled","unfilled_media","unfilled_decoder","unfilled_renderer","unfilled_transport"}};
     static const char *const phases[]={"between_operations","decode","reset","pcm_delivery","wait_pcm_space","wait_pcm_loan","wait_control","wait_encoded_input","wait_shared_renderer"};
     /* Two immutable latches, one read attempt each. UART remains logger-only. */
     for(unsigned kind=0;kind<2;++kind){
@@ -377,6 +382,19 @@ static void log_first_starvation(void){
         PROBE_SNAPSHOT_LOG("{\"probe\":\"%s\",\"stream_serial\":%" PRIu32 ",\"event_us\":%" PRIu32
             ",\"coherent\":%s,\"inside_audio_render\":%s,\"phase_since_us\":%" PRIu32 ",\"dsp_assist_state_at_gap\":%" PRIu32 "}\n",
             names[kind][3],s.stream_serial,s.at_us,s.render_coherent?"true":"false",s.render_phase?"true":"false",s.render_at_us,s.dsp_assist_state);
+#ifdef DBT_PROBE_SCHEDULER_TRACE
+        PROBE_SNAPSHOT_LOG("{\"probe\":\"%s\",\"stream_serial\":%" PRIu32 ",\"event_us\":%" PRIu32
+            ",\"sample_coherent\":%s,\"sample_valid\":%s,\"sample_us\":%" PRIu32
+            ",\"owned_at_sample\":%s,\"sdk_ready_at_sample\":%s,\"submission_known\":%s"
+            ",\"submitted_us\":%" PRIu32 ",\"last_hci_type\":%" PRIu32 ",\"last_hci_code\":%" PRIu32
+            ",\"pending_acks_at_sample\":%" PRIu32 ",\"owned_at_gap\":%" PRIu32 ",\"owned_at_gap_valid\":%s,\"owned_read_independent\":true}\n",
+            names[kind][4],s.stream_serial,s.at_us,s.vhci_coherent?"true":"false",
+            s.vhci_coherent && (s.vhci_flags&PROBE_VHCI_SAMPLE)?"true":"false",s.vhci_at_us,
+            (s.vhci_flags&PROBE_VHCI_HELD)?"true":"false",(s.vhci_flags&PROBE_VHCI_SDK_READY)?"true":"false",
+            (s.vhci_flags&PROBE_VHCI_SUBMITTED)?"true":"false",s.vhci_submitted_us,s.vhci_packet>>16,s.vhci_packet&0xffffu,
+            s.vhci_pending_acks,s.vhci_owned_now,s.vhci_owned_now!=UINT32_MAX?"true":"false");
+#endif
+
     }
 }
 #endif
@@ -476,7 +494,7 @@ void probe_audio_transport_received(uint32_t began_us,uint16_t bytes,uint8_t typ
     atomic_fetch_add(&rx_packets,1);atomic_fetch_add(&rx_bytes,bytes);
     if(type==DBT_H4_ACL){
         atomic_fetch_add(&rx_acl,1);
-#if defined(DBT_PROBE_SCHEDULER_TRACE) && defined(DBT_PROBE_AUDIO_OUTPUT)
+#if defined(PROBE_OUTPUT_GAP_TRACE) && defined(DBT_PROBE_AUDIO_OUTPUT)
         probe_output_trace_acl(began_us);
 #endif
     }
@@ -489,7 +507,7 @@ void probe_audio_transport_received(uint32_t began_us,uint16_t bytes,uint8_t typ
 }
 void probe_audio_transport_poll_begin(uint32_t began_us){
     (void)began_us;
-#if defined(DBT_PROBE_SCHEDULER_TRACE) && defined(DBT_PROBE_AUDIO_OUTPUT)
+#if defined(PROBE_OUTPUT_GAP_TRACE) && defined(DBT_PROBE_AUDIO_OUTPUT)
     probe_output_trace_host_poll(began_us);
 #endif
     uint32_t pending=atomic_exchange_explicit(&rx_pending_us,0,memory_order_acq_rel);
@@ -698,10 +716,10 @@ static dbt_result_t stream_begin(void *context,bool start,const dbt_codec_config
     if(config->ops==&dbt_ldac_codec)priming=40;
 #endif
 #ifdef DBT_PROBE_LHDC_BUILD
-    /* Use the existing event/deadline startup guard. It lets the retained
-     * encoded queue absorb observed 10-27ms arrival gaps before DMA starts;
-     * no additional PCM storage or blocking wait is needed. */
-    if(config->ops==&dbt_lhdcv5_codec)priming=40;
+    /* The observed high-rate delivery gaps now reach 30-35ms. Retain one
+     * additional 10ms startup margin within the existing queues; lower-rate
+     * LHDC keeps its current guard. This remains an event/deadline hold. */
+    if(config->ops==&dbt_lhdcv5_codec)priming=config->rate>96000u?50u:40u;
 #endif
 #ifdef DBT_PROBE_CODEC_AWARE_RENDER
     bool share=config->ops==&dbt_sbc_codec;
@@ -750,6 +768,13 @@ bool probe_audio_owner_pressure(void){
 #else
     return false;
 #endif
+}
+uint32_t probe_audio_startup_encoded_slots(void){
+    uint32_t read=atomic_load_explicit(&worker.media_read,memory_order_acquire);
+    uint32_t written=atomic_load_explicit(&worker.media_written,memory_order_acquire);
+    uint32_t after=atomic_load_explicit(&worker.media_read,memory_order_acquire);
+    uint32_t depth=atomic_load_explicit(&worker.queue_layout,memory_order_acquire)&0xffu;
+    return read==after && depth && written-read<=depth?written-read:UINT32_MAX;
 }
 bool probe_audio_dsp_assist_ready(void){
 #ifdef DBT_PROBE_LHDC_BUILD
@@ -805,11 +830,11 @@ static void decode_loop(void *unused){
         uint32_t before=(uint32_t)esp_timer_get_time();
         atomic_store_explicit(&decoder_wait_began,before,memory_order_relaxed);
         atomic_store_explicit(&decoder_wait_kind,reason,memory_order_release);
-#if defined(DBT_PROBE_SCHEDULER_TRACE) && defined(DBT_PROBE_AUDIO_OUTPUT)
+#if defined(PROBE_OUTPUT_GAP_TRACE) && defined(DBT_PROBE_AUDIO_OUTPUT)
         decoder_timeline(4u+reason,before);
 #endif
         (void)ulTaskNotifyTake(pdTRUE,wait);
-#if defined(DBT_PROBE_SCHEDULER_TRACE) && defined(DBT_PROBE_AUDIO_OUTPUT)
+#if defined(PROBE_OUTPUT_GAP_TRACE) && defined(DBT_PROBE_AUDIO_OUTPUT)
         decoder_timeline(0,(uint32_t)esp_timer_get_time());
 #endif
         uint32_t waited=(uint32_t)esp_timer_get_time()-before;
@@ -1026,16 +1051,26 @@ static void log_loop(void *unused){
 #ifdef DBT_APTX_SNAPSHOT
         dbt_pcm_snapshot_log(!probe_output_running());
 #endif
-#if defined(DBT_PROBE_SCHEDULER_TRACE) && defined(DBT_PROBE_AUDIO_OUTPUT)
+#if defined(PROBE_OUTPUT_GAP_TRACE) && defined(DBT_PROBE_AUDIO_OUTPUT)
         log_first_starvation();
-        probe_arrival_stats_t arrival_stats;probe_arrival_stats(&arrival_stats);
-        PROBE_SNAPSHOT_LOG("{\"probe\":\"media_arrival_fifo\",\"published\":%" PRIu32 ",\"consumed\":%" PRIu32 ",\"lost\":%" PRIu32
-            ",\"status\":%" PRIu32 ",\"metadata_bytes\":%" PRIu32 ",\"metadata_slots\":8,\"diagnostic_only\":true,\"association_scope\":\"complete_current_acl_l2cap_rtp\",\"counts_independent\":true}\n",
-            arrival_stats.published,arrival_stats.consumed,arrival_stats.lost,arrival_stats.status,arrival_stats.bytes);
 #endif
         if(++ticks<10)continue;
         ticks=0;
         uint32_t at=(uint32_t)esp_timer_get_time();
+#if defined(DBT_PROBE_SCHEDULER_TRACE) && defined(DBT_PROBE_AUDIO_OUTPUT)
+        /* Cumulative diagnostics need one heartbeat per second. Keep trace and
+         * first-gap draining above the cadence gate; never print per packet. */
+        probe_arrival_stats_t arrival_stats;probe_arrival_stats(&arrival_stats);
+        PROBE_SNAPSHOT_LOG("{\"probe\":\"media_arrival_fifo\",\"published\":%" PRIu32 ",\"consumed\":%" PRIu32 ",\"lost\":%" PRIu32
+            ",\"status\":%" PRIu32 ",\"metadata_bytes\":%" PRIu32 ",\"metadata_slots\":8,\"diagnostic_only\":true,\"association_scope\":\"complete_current_acl_l2cap_rtp\",\"counts_independent\":true}\n",
+            arrival_stats.published,arrival_stats.consumed,arrival_stats.lost,arrival_stats.status,arrival_stats.bytes);
+        probe_vhci_ready_stats_t readiness;probe_vhci_ready_stats(&readiness);
+        PROBE_SNAPSHOT_LOG("{\"probe\":\"vhci_ready_probe\",\"observations\":%" PRIu32 ",\"held_observations\":%" PRIu32
+            ",\"sdk_ready_while_held\":%" PRIu32 ",\"max_ready_observation_span_us\":%" PRIu32
+            ",\"max_slot_age_when_sdk_ready_us\":%" PRIu32 ",\"metadata_bytes\":%" PRIu32
+            ",\"independent_counters\":true,\"sends_unchanged\":true,\"held_queries_limited_per_owner_turn\":true}\n",
+            readiness.observations,readiness.held,readiness.ready_while_held,readiness.max_ready_span_us,readiness.max_slot_age_us,readiness.bytes);
+#endif
 #if defined(DBT_PROBE_VOLUME_RAMP_COMPARE) || defined(DBT_PROBE_MATCHED_FEEDBACK_COMPARE)
         log_volume_kernels();
 #endif
@@ -1300,12 +1335,13 @@ static void log_loop(void *unused){
                ",\"minimum_ms\":%" PRIu32 ",\"remaining_ms\":%" PRIu32 ",\"buffers_added\":0}\n",
                at,stats.priming_ms,stats.priming_remaining_ms);
 
-#ifdef DBT_PROBE_SCHEDULER_TRACE
+#ifdef PROBE_OUTPUT_GAP_TRACE
         snapshot_log(output_snapshot_began,"{\"probe\":\"pcm_startup_actual\",\"first_pcm_us\":%" PRIu32
             ",\"enable_us\":%" PRIu32 ",\"elapsed_us\":%" PRIu32 ",\"input_frames\":%" PRIu32
-            ",\"preload_frames\":%" PRIu32 ",\"guard_state\":%" PRIu32 ",\"coherent\":%s}\n",
+            ",\"preload_frames\":%" PRIu32 ",\"guard_state\":%" PRIu32 ",\"encoded_slots\":%" PRIu32 ",\"encoded_slots_known\":%s,\"coherent\":%s}\n",
             stats.startup_first_pcm_us,stats.startup_enable_us,stats.startup_elapsed_us,
-            stats.startup_input_frames,stats.startup_preload_frames,stats.startup_guard_state,stats.startup_coherent?"true":"false");
+            stats.startup_input_frames,stats.startup_preload_frames,stats.startup_guard_state,stats.startup_encoded_slots,
+            stats.startup_coherent && stats.startup_encoded_slots!=UINT32_MAX?"true":"false",stats.startup_coherent?"true":"false");
 #endif
         snapshot_log(output_snapshot_began,"{\"probe\":\"pcm_clock_policy\",\"adaptive_clock\":%" PRIu32
                ",\"one_to_one_pcm\":%s,\"target_frames\":%" PRIu32 "}\n",stats.adaptive_clock,stats.adaptive_clock?"false":"true",stats.pcm_target_frames);

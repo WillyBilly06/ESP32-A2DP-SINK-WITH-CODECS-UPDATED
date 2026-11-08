@@ -45,6 +45,7 @@ static int __attribute__((format(printf,1,2))) host_printf(const char *format,..
 #include "dbt_gap.h"
 #if defined(DBT_PROBE_SCHEDULER_TRACE) && defined(DBT_PROBE_AUDIO_OUTPUT) && defined(DBT_PROBE_AUDIO_TEST)
 #include "probe_arrival.h"
+#include "probe_vhci_ready.h"
 #endif
 #ifdef DBT_PROBE_AUDIO_TEST
 #include "probe_audio.h"
@@ -412,12 +413,20 @@ static void wake_owner(void) {
     }
 }
 
-/* Original ESP32 VHCI is asynchronous. Match BTstack's transport-sent
- * ownership rule: availability queries do not release a submitted buffer.
- * Only this controller notification returns the one in-flight transport slot.
- * Host and ACL builders already retain their buffers while can_send is false. */
+/* Conservative owned-host slot fence, retained while SDK readiness is
+ * measured. The public callback reports readiness; it does not by itself
+ * specify caller-buffer lifetime. No diagnostic below relaxes this fence.
+ * Host and ACL builders retain their buffers while can_send is false. */
 static _Atomic uint32_t vhci_tx_inflight;
 _Static_assert(ATOMIC_INT_LOCK_FREE==2,"VHCI completion must be lock-free");
+#if defined(DBT_PROBE_SCHEDULER_TRACE) && defined(DBT_PROBE_AUDIO_OUTPUT) && defined(DBT_PROBE_AUDIO_TEST)
+static bool readiness_held_sampled,readiness_clear_sampled;
+static void observe_transport_ready(bool held,bool sdk){
+    uint32_t pending=0;
+    for(unsigned i=0;i<DBT_MAX_LINKS;++i)if(runtime.rx_flow.pending[i].used)pending+=runtime.rx_flow.pending[i].packets;
+    probe_vhci_ready_observe(held,sdk,(uint32_t)esp_timer_get_time(),pending);
+}
+#endif
 static void send_available(void) {
     atomic_store_explicit(&vhci_tx_inflight,false,memory_order_release);
     wake_owner();
@@ -454,8 +463,24 @@ static int receive_packet(uint8_t *data, uint16_t size) {
 
 static bool transport_ready(void *context) {
     (void)context;
-    if(atomic_load_explicit(&vhci_tx_inflight,memory_order_acquire))return false;
-    bool available;HOST_CALL(PROBE_HOST_QUERY,available=esp_vhci_host_check_send_available());return available;
+    bool held=atomic_load_explicit(&vhci_tx_inflight,memory_order_acquire)!=0;
+    if(held){
+#if defined(DBT_PROBE_SCHEDULER_TRACE) && defined(DBT_PROBE_AUDIO_OUTPUT) && defined(DBT_PROBE_AUDIO_TEST)
+        if(!readiness_held_sampled){
+            readiness_held_sampled=true;
+            bool sdk;HOST_CALL(PROBE_HOST_QUERY,sdk=esp_vhci_host_check_send_available());
+            /* A callback may clear the flag during the observation. Count a
+             * mismatch only if it remains held after the fresh SDK query. */
+            observe_transport_ready(atomic_load_explicit(&vhci_tx_inflight,memory_order_acquire)!=0,sdk);
+        }
+#endif
+        return false; /* diagnostic never relaxes the existing decision */
+    }
+    bool available;HOST_CALL(PROBE_HOST_QUERY,available=esp_vhci_host_check_send_available());
+#if defined(DBT_PROBE_SCHEDULER_TRACE) && defined(DBT_PROBE_AUDIO_OUTPUT) && defined(DBT_PROBE_AUDIO_TEST)
+    if(!readiness_clear_sampled){readiness_clear_sampled=true;observe_transport_ready(false,available);}
+#endif
+    return available;
 }
 
 static bool transport_send(void *context, uint8_t *data, uint16_t size) {
@@ -463,6 +488,12 @@ static bool transport_send(void *context, uint8_t *data, uint16_t size) {
     if (!transport_ready(context)) return false;
 #ifdef DBT_PROBE_CLASSIC_SECURITY_TEST
     probe_echo_transmit(data,size);
+#endif
+#if defined(DBT_PROBE_SCHEDULER_TRACE) && defined(DBT_PROBE_AUDIO_OUTPUT) && defined(DBT_PROBE_AUDIO_TEST)
+    uint32_t packet=data && size?(uint32_t)data[0]<<16:0;
+    if(data && size>=4u && data[0]==DBT_H4_COMMAND)packet|=dbt_read_le16(data+1);
+    else if(data && size>=5u && data[0]==DBT_H4_ACL)packet|=dbt_read_le16(data+1)&0xfffu;
+    probe_vhci_ready_submitted((uint32_t)esp_timer_get_time(),packet);
 #endif
     /* Publish before send: completion may arrive during the SDK call. */
     atomic_store_explicit(&vhci_tx_inflight,true,memory_order_release);
@@ -688,6 +719,7 @@ void app_main(void) {
 #endif
 #if defined(DBT_PROBE_SCHEDULER_TRACE) && defined(DBT_PROBE_AUDIO_OUTPUT) && defined(DBT_PROBE_AUDIO_TEST)
     probe_arrival_init();
+    probe_vhci_ready_init(&vhci_tx_inflight);
 #endif
     dbt_transport_t transport = { 0, transport_ready, transport_send };
     dbt_runtime_hooks_t hooks = {0};
@@ -815,6 +847,9 @@ void app_main(void) {
     bool gatt_initialized = false, gatt_reported = false;
 #endif
     for (;;) {
+#if defined(DBT_PROBE_SCHEDULER_TRACE) && defined(DBT_PROBE_AUDIO_OUTPUT) && defined(DBT_PROBE_AUDIO_TEST)
+        readiness_held_sampled=false;readiness_clear_sampled=false;
+#endif
 #ifdef DBT_PROBE_OWNER_PACER
         if(!probe_owner_pacer_ready()){
             /* Early controller notifications remain bounded events. Keep

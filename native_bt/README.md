@@ -1,6 +1,19 @@
 # Independent ESP32 Bluetooth host
 
-The [current arrival/owner checkpoint](docs/MEDIA_ARRIVAL_2026_11_07.md) binds
+The [DMA/lightweight-gap checkpoint](docs/AUDIO_DMA_LIGHT_GAPS_2026_11_07.md)
+keeps separate media, decoder, renderer and finalized-gap records without the
+heavy tick/owner profiler. COM6 runs **921600 baud** with **2 x 192 DMA frames**,
+the same3,072-byte DMA payload as before. Current short LHDC192/S24/900 windows
+have **768 / 2,880 unfilled PCM sample frames**; continuity remains unresolved.
+The37 existing cold codec cases pass. This remains development firmware.
+
+The [UART logging follow-up](docs/UART_LOG_CADENCE_2026_11_07.md) verifies COM6
+and the live monitor at **921600 baud**. In detailed tracing mode, two repetitive cumulative diagnostics
+report once per second; separate errors, first-gap records and full raw UART
+are retained. The flashed build passes all 37 existing cold codec cases. This
+logging check does not qualify LHDC playback; its remaining underruns are open.
+
+The [earlier arrival/owner checkpoint](docs/MEDIA_ARRIVAL_2026_11_07.md) binds
 VHCI callback times to admitted RTP packets and skips fourteen redundant deadline
 queries when the runtime is already ready. Current-source sanitizer checks and
 all 37 cold target cases pass. Short LHDC192/S24/900 traces have **5,696 / 3,200 /

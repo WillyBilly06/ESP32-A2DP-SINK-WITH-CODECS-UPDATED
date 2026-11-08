@@ -14,6 +14,7 @@ import time
 import serial.tools.list_ports
 import esptool
 from esptool.bin_image import ESP32FirmwareImage
+from phone_boot_guard import PhoneBootPauseGuard
 
 ROOT=Path(__file__).resolve().parents[1]
 HARDWARE=ROOT/'_build/hardware'
@@ -147,7 +148,11 @@ def main():
     parser.add_argument('--expected-sha256',help='Require this exact candidate SHA256 before opening COM6')
     parser.add_argument('--baud',type=int,choices=(115200,230400,460800,921600),default=921600,help='Flash transport rate; 921600 requested by user. Readback errors abort; console baud is independent.')
     parser.add_argument('--verify-baud',type=int,choices=(115200,230400,460800,921600),default=230400,help='Full flash readback rate; independent of the 921600 upload rate.')
+    parser.add_argument('--pause-youtube-serial',help='Explicit ADB phone: independent pause guard around persistent native reset; pause-only')
     args=parser.parse_args()
+    if args.pause_youtube_serial and (args.kind!='probe' or not args.keep_owned or not args.stay_native or args.finite_rf or args.codec_only or args.pipeline_only):
+        raise RuntimeError('Phone boot pause is supported only for a persistent native probe')
+    phone_guard=PhoneBootPauseGuard(args.pause_youtube_serial) if args.pause_youtube_serial else None
     if args.pipeline_only:args.codec_only=True
     if args.finite_rf and (args.kind!='probe' or args.keep_owned or args.codec_only):
         raise RuntimeError('Finite RF mode requires an unconfirmed ordinary native probe')
@@ -242,6 +247,7 @@ def main():
     head=subprocess.run(['git','rev-parse','HEAD'],cwd=ROOT.parent,capture_output=True,text=True,check=True).stdout.strip()
     (archive/'source-commit.txt').write_text(head+'\n')
     try:
+        if phone_guard:phone_guard.precheck()
         controller=esptool.detect_chip(port='COM6',baud=115200,connect_mode='default_reset')
         mac=':'.join(f'{v:02X}' for v in controller.read_mac())
         if controller.CHIP_NAME!='ESP32' or mac!=receipt['mac']:raise RuntimeError('Chip/MAC identity mismatch')
@@ -307,11 +313,12 @@ def main():
         report['original_application_preserved']=after_md5==preserved_md5
         if not report['original_application_preserved']:raise RuntimeError('Original application verification failed')
         controller._port.baudrate=console_baud
+        if phone_guard:phone_guard.arm()
         controller.hard_reset();rebooted=True
         if args.press_pairing_button:
             button_hold=PairingButtonHold(controller._port);report['pairing_button_fixture']=button_hold.report
         boot=bytearray();deadline=time.monotonic()+(35 if args.codec_only else args.rf_seconds if args.finite_rf else 15)
-        boot_limit=1048576 if args.finite_rf else 131072 if args.codec_only else 65536
+        boot_limit=1048576 if args.finite_rf or phone_guard else 131072 if args.codec_only else 65536
         controller._port.timeout=0.2
         live_path=destination.with_name(destination.name+'-live.txt')
         with live_path.open('w',encoding='utf-8') as live:
@@ -324,6 +331,7 @@ def main():
         if button_hold:
             button_hold.release()
             if not button_hold.done:raise RuntimeError('Pairing fixture did not complete; no GPIO consent proof')
+        if phone_guard:report['phone_boot_pause']=phone_guard.finish()
         destination.with_suffix('.bin').write_bytes(boot)
         text=boot.decode('utf-8',errors='backslashreplace')
         destination.with_suffix('.txt').write_text(text,encoding='utf-8')
@@ -447,8 +455,18 @@ def main():
                     print(json.dumps({'probe':'finite_rf_return',**returned,'run_archive':report['run_archive']},indent=2))
                     if not returned['baseline_boot_observed'] or returned['baseline_fatal_marker']:
                         raise RuntimeError('Finite RF baseline return was not cleanly observed; inspect captured result')
-                elif not rebooted:controller.hard_reset()
+                elif not rebooted:
+                    if phone_guard:phone_guard.arm()
+                    controller.hard_reset()
             finally:controller._port.close()
+        if phone_guard and not phone_guard.finished:
+            try:report['phone_boot_pause']=phone_guard.finish()
+            except Exception as error:
+                report['phone_boot_pause_error']=str(error)
+                failure=destination.with_suffix('.phone-guard.failure.json')
+                failure.write_text(json.dumps(report,indent=2)+'\n',encoding='utf-8')
+                shutil.copy2(failure,archive/failure.name)
+                raise RuntimeError('Phone boot pause verification failed; receipt preserved') from error
         if release_error:raise RuntimeError('Pairing fixture release failed; inspect line/device state') from release_error
 
 if __name__=='__main__':main()

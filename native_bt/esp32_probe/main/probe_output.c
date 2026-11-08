@@ -2,6 +2,7 @@
 #include "probe_output.h"
 #if defined(DBT_PROBE_SCHEDULER_TRACE) && defined(DBT_PROBE_AUDIO_TEST)
 #include "probe_arrival.h"
+#include "probe_vhci_ready.h"
 #endif
 #include "dbt_async_ticket.h"
 #ifdef DBT_PROBE_DSP_ASSIST
@@ -159,9 +160,9 @@ typedef struct {
   _Atomic uint32_t refill_period_us,refill_pending_index,refill_deadline_us;
   _Atomic uint32_t refill_recovered_frames,refill_recovered_calls,refill_unfilled_frames,refill_canceled_frames;
   _Atomic uint32_t refill_copy_max_us,refill_mask_max_us,refill_contract_errors;
-#ifdef DBT_PROBE_SCHEDULER_TRACE
+#ifdef PROBE_OUTPUT_GAP_TRACE
   _Atomic uint32_t startup_version,startup_first_pcm_us,startup_enable_us,startup_elapsed_us;
-  _Atomic uint32_t startup_input_frames,startup_preload_frames,startup_guard_state;
+  _Atomic uint32_t startup_input_frames,startup_preload_frames,startup_guard_state,startup_encoded_slots;
 #endif
   /* Logger requests a best-effort snapshot. The render owner reads DSP only
    * after prepared work retires; logger and ISR never read live filter state. */
@@ -181,7 +182,7 @@ static DRAM_ATTR struct {
 } assist;
 #endif
 
-#ifdef DBT_PROBE_SCHEDULER_TRACE
+#ifdef PROBE_OUTPUT_GAP_TRACE
 /* No queue or borrowed object: immutable first-gap metadata survives UART
  * backpressure. All shared cells are atomic. Seq-cst versions and cells give
  * bounded readers an explicit coherent/incoherent result without retry. */
@@ -189,6 +190,7 @@ typedef struct {
   _Atomic uint32_t version,valid;
   _Atomic uint32_t deadline_us,pending_acl_metadata;
   _Atomic uint32_t stream_serial,at_us,taken_frames,input_frames,output_frames,accepted_frames,rendered_frames,dma_source_frames,acl_us,host_poll_us,media_us,media_admit_us,media_epoch,media_sequence,media_timestamp,media_ssrc,media_result,media_gap_us,media_max_gap_us,media_arrival_us,media_arrival_cursor,media_arrival_flags,media_arrival_valid,media_coherent,decoder_phase,decoder_at_us,decoder_coherent,render_phase,render_at_us,render_coherent,decoder_queued,dsp_assist_state;
+  _Atomic uint32_t vhci_coherent,vhci_at_us,vhci_flags,vhci_submitted_us,vhci_packet,vhci_pending_acks,vhci_owned_now;
 } starvation_capture_t;
 static DRAM_ATTR struct {
   _Atomic uint32_t stream_serial,acl_us,host_poll_us;
@@ -242,7 +244,7 @@ static void IRAM_ATTR capture_starvation(starvation_capture_t *f,output_t *o,uin
   atomic_store(&f->stream_serial,atomic_load(&timeline.stream_serial));
   atomic_store(&f->at_us,now);atomic_store(&f->taken_frames,taken);
   atomic_store(&f->deadline_us,deadline);
-#ifdef DBT_PROBE_AUDIO_TEST
+#if defined(DBT_PROBE_SCHEDULER_TRACE) && defined(DBT_PROBE_AUDIO_TEST)
   atomic_store(&f->pending_acl_metadata,probe_arrival_pending());
 #else
   atomic_store(&f->pending_acl_metadata,UINT32_MAX);
@@ -258,6 +260,16 @@ static void IRAM_ATTR capture_starvation(starvation_capture_t *f,output_t *o,uin
   atomic_store(&f->dma_source_frames,atomic_load(&o->dma_source_frames));
   atomic_store(&f->acl_us,atomic_load(&timeline.acl_us));
   atomic_store(&f->host_poll_us,atomic_load(&timeline.host_poll_us));
+#if defined(DBT_PROBE_SCHEDULER_TRACE) && defined(DBT_PROBE_AUDIO_TEST)
+  probe_vhci_ready_sample_t vhci;probe_vhci_ready_sample(&vhci);
+  atomic_store(&f->vhci_coherent,vhci.coherent);atomic_store(&f->vhci_at_us,vhci.at_us);
+  atomic_store(&f->vhci_flags,vhci.flags);atomic_store(&f->vhci_submitted_us,vhci.submitted_us);
+  atomic_store(&f->vhci_packet,vhci.packet);atomic_store(&f->vhci_pending_acks,vhci.pending_acks);
+  atomic_store(&f->vhci_owned_now,vhci.owned_now);
+#else
+  atomic_store(&f->vhci_coherent,0);atomic_store(&f->vhci_owned_now,UINT32_MAX);
+  atomic_store(&f->vhci_pending_acks,UINT32_MAX);
+#endif
   uint32_t before=atomic_load(&timeline.media_version);
   atomic_store(&f->media_us,atomic_load(&timeline.media_us));
   atomic_store(&f->media_admit_us,atomic_load(&timeline.media_admit_us));
@@ -291,6 +303,7 @@ static void IRAM_ATTR capture_starvation(starvation_capture_t *f,output_t *o,uin
 static void starvation_snapshot(starvation_capture_t *f,probe_output_starvation_t *s){
   if(!s)return;
   *s=(probe_output_starvation_t){0};
+  s->pending_acl_metadata=s->vhci_owned_now=s->vhci_pending_acks=UINT32_MAX;
   uint32_t serial=atomic_load(&timeline.stream_serial);
   s->stream_serial=serial;s->coherent=1;
   if(!atomic_load(&f->valid)){
@@ -309,6 +322,10 @@ static void starvation_snapshot(starvation_capture_t *f,probe_output_starvation_
   s->dma_source_frames=atomic_load(&f->dma_source_frames);
   s->acl_us=atomic_load(&f->acl_us);
   s->host_poll_us=atomic_load(&f->host_poll_us);
+  s->vhci_coherent=atomic_load(&f->vhci_coherent);s->vhci_at_us=atomic_load(&f->vhci_at_us);
+  s->vhci_flags=atomic_load(&f->vhci_flags);s->vhci_submitted_us=atomic_load(&f->vhci_submitted_us);
+  s->vhci_packet=atomic_load(&f->vhci_packet);s->vhci_pending_acks=atomic_load(&f->vhci_pending_acks);
+  s->vhci_owned_now=atomic_load(&f->vhci_owned_now);
   s->media_us=atomic_load(&f->media_us);
   s->media_admit_us=atomic_load(&f->media_admit_us);
   s->media_epoch=atomic_load(&f->media_epoch);
@@ -518,7 +535,7 @@ static void IRAM_ATTR close_refill_window(output_t *o){
   if(index<DMA_DESCRIPTORS){
     uint32_t valid=atomic_load(&o->descriptors[index].valid);
     if(valid<=DMA_FRAMES){
-#ifdef DBT_PROBE_SCHEDULER_TRACE
+#ifdef PROBE_OUTPUT_GAP_TRACE
       if(valid<DMA_FRAMES && !atomic_load(&timeline.first_unfilled.valid))
         capture_starvation(&timeline.first_unfilled,o,(uint32_t)esp_timer_get_time(),valid,atomic_load(&o->refill_deadline_us));
 #endif
@@ -729,7 +746,7 @@ static bool IRAM_ATTR sent(i2s_chan_handle_t channel, i2s_event_data_t *event,
                  atomic_load(&o->stop_fill_frames) + wanted - taken);
   } else {
     if (taken < DMA_FRAMES && !atomic_load(&o->underrun_frames)) {
-#ifdef DBT_PROBE_SCHEDULER_TRACE
+#ifdef PROBE_OUTPUT_GAP_TRACE
       capture_starvation(&timeline.first,o,now,taken,0);
 #endif
       atomic_store(&o->first_underrun_accepted_frames,
@@ -766,7 +783,7 @@ static bool IRAM_ATTR sent(i2s_chan_handle_t channel, i2s_event_data_t *event,
       atomic_store(&o->refill_deadline_us,now+period-REFILL_GUARD_US);
       atomic_store_explicit(&o->refill_pending_index,index,memory_order_release);
     }else {
-#ifdef DBT_PROBE_SCHEDULER_TRACE
+#ifdef PROBE_OUTPUT_GAP_TRACE
       if(!atomic_load(&timeline.first_unfilled.valid))
         capture_starvation(&timeline.first_unfilled,o,now,taken,0);
 #endif
@@ -933,13 +950,14 @@ static dbt_result_t start_output(uint32_t rate, uint8_t channels,
   atomic_store(&output.dma_eofs, 0);
   atomic_store(&output.dma_source_frames, 0);
   atomic_store(&output.underrun_frames, 0);
-#ifdef DBT_PROBE_SCHEDULER_TRACE
+#ifdef PROBE_OUTPUT_GAP_TRACE
   atomic_store(&timeline.first.valid,0);atomic_store(&timeline.first_unfilled.valid,0);
   uint32_t startup_version=atomic_load(&output.startup_version);
   atomic_store(&output.startup_version,startup_version+1u);
   atomic_store(&output.startup_first_pcm_us,0);atomic_store(&output.startup_enable_us,0);
   atomic_store(&output.startup_elapsed_us,0);atomic_store(&output.startup_input_frames,0);
   atomic_store(&output.startup_preload_frames,0);atomic_store(&output.startup_guard_state,0);
+  atomic_store(&output.startup_encoded_slots,UINT32_MAX);
   atomic_store(&output.startup_version,startup_version+2u);
   atomic_store(&timeline.stream_serial,atomic_load(&timeline.stream_serial)+1u);
 #endif
@@ -985,7 +1003,7 @@ static dbt_result_t start_output(uint32_t rate, uint8_t channels,
   return DBT_OK;
 }
 static dbt_result_t enable_output(void) {
-#ifdef DBT_PROBE_SCHEDULER_TRACE
+#ifdef PROBE_OUTPUT_GAP_TRACE
   uint32_t preload_frames=dbt_audio_output_frames(&output.audio);
   uint32_t input_frames=dbt_audio_input_frames(&output.audio);
   uint32_t guard_state=atomic_load(&output.priming_state);
@@ -1002,7 +1020,7 @@ static dbt_result_t enable_output(void) {
   }
   output.enabled = i2s_channel_enable(output.channel) == ESP_OK;
   if (output.enabled) {
-#ifdef DBT_PROBE_SCHEDULER_TRACE
+#ifdef PROBE_OUTPUT_GAP_TRACE
     uint32_t enabled_us=(uint32_t)esp_timer_get_time();
     uint32_t startup_version=atomic_load(&output.startup_version);
     atomic_store(&output.startup_version,startup_version+1u);
@@ -1011,6 +1029,11 @@ static dbt_result_t enable_output(void) {
     atomic_store(&output.startup_input_frames,input_frames);
     atomic_store(&output.startup_preload_frames,preload_frames);
     atomic_store(&output.startup_guard_state,guard_state);
+#ifdef DBT_PROBE_AUDIO_TEST
+    atomic_store(&output.startup_encoded_slots,probe_audio_startup_encoded_slots());
+#else
+    atomic_store(&output.startup_encoded_slots,UINT32_MAX);
+#endif
     atomic_store(&output.startup_version,startup_version+2u);
 #endif
     output.clock_at = (uint32_t)(esp_timer_get_time() / 1000);
@@ -1445,7 +1468,7 @@ static bool render_step(void) {
           if(sound_frames && sound_frames<budget)budget=sound_frames;
         }
 #endif
-#ifdef DBT_PROBE_SCHEDULER_TRACE
+#ifdef PROBE_OUTPUT_GAP_TRACE
         trace_render(1,began);
 #endif
 #ifdef DBT_PROBE_DSP_ASSIST
@@ -1455,7 +1478,7 @@ static bool render_step(void) {
         if(output.sound || !budget)assist_budget=budget;
 #endif
         if(!assisted && !urgent_budget && dsp_assist_submit(assist_budget,began)){
-#ifdef DBT_PROBE_SCHEDULER_TRACE
+#ifdef PROBE_OUTPUT_GAP_TRACE
           trace_render(0,(uint32_t)esp_timer_get_time());
 #endif
           return false; /* no raw DSP/meter reads or lifecycle work while lent */
@@ -1502,7 +1525,7 @@ static bool render_step(void) {
           }
         }
 #endif
-#ifdef DBT_PROBE_SCHEDULER_TRACE
+#ifdef PROBE_OUTPUT_GAP_TRACE
         trace_render(0,(uint32_t)esp_timer_get_time());
 #endif
         if(made)render_completed(began,input_wake_owned);
@@ -1893,7 +1916,7 @@ dbt_result_t probe_output_try_pcm_format(const void *samples, uint16_t frames,
   if(result==DBT_OK){
     uint32_t previous=atomic_fetch_add(&output.accepted_frames,frames);
     uint32_t state=atomic_load(&output.priming_state);
-#ifdef DBT_PROBE_SCHEDULER_TRACE
+#ifdef PROBE_OUTPUT_GAP_TRACE
     if(!previous)atomic_store(&output.startup_first_pcm_us,(uint32_t)esp_timer_get_time());
 #endif
     if(!previous && (state&PRIMING_BUDGET)){
@@ -1977,11 +2000,13 @@ void probe_output_stats(probe_output_stats_t *s) {
   s->startup_coherent=0;
   s->startup_first_pcm_us=s->startup_enable_us=s->startup_elapsed_us=0;
   s->startup_input_frames=s->startup_preload_frames=s->startup_guard_state=0;
-#ifdef DBT_PROBE_SCHEDULER_TRACE
+  s->startup_encoded_slots=UINT32_MAX;
+#ifdef PROBE_OUTPUT_GAP_TRACE
 #define STARTUP_LOAD(field) s->field=atomic_load(&output.field)
   uint32_t startup_version=atomic_load(&output.startup_version);
   STARTUP_LOAD(startup_first_pcm_us);STARTUP_LOAD(startup_enable_us);STARTUP_LOAD(startup_elapsed_us);
   STARTUP_LOAD(startup_input_frames);STARTUP_LOAD(startup_preload_frames);STARTUP_LOAD(startup_guard_state);
+  STARTUP_LOAD(startup_encoded_slots);
 #undef STARTUP_LOAD
   s->startup_coherent=s->startup_enable_us && !(startup_version&1u) &&
       startup_version==atomic_load(&output.startup_version);
