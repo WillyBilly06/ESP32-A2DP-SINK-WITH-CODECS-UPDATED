@@ -17,6 +17,12 @@ typedef struct {
     /* Borrowed SCO frame/status, owner only. The application must validate its
      * synchronous handle and copy data for a voice worker before returning. */
     dbt_observer_t sco;
+    /* Optional owner point after a nonempty host RX batch returns. RX views
+     * and callbacks have retired; normal HCI command pumping may have run.
+     * This precedes runtime post-batch RX-credit reports and outbound ACL TX.
+     * May yield/enqueue work, never wait for completion or retain views. The
+     * runtime operation fence stays set, so recursive polls do nothing. */
+    void (*rx_checkpoint)(void *context);
 } dbt_runtime_hooks_t;
 
 typedef struct {

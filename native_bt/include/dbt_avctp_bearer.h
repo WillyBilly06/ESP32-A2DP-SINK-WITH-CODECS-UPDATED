@@ -26,6 +26,11 @@ dbt_result_t dbt_avctp_bearer_receive(dbt_avctp_bearer_t *bearer,
 void dbt_avctp_bearer_event(dbt_avctp_bearer_t *bearer, dbt_channel_event_t event,
     const dbt_channel_t *channel);
 dbt_result_t dbt_avctp_bearer_poll(dbt_avctp_bearer_t *bearer, uint32_t now_ms);
+/* Local admission/lifecycle work only: 0 means owner work is runnable, otherwise
+ * UINT32_MAX. This excludes AVCTP wire/response/reassembly deadlines. Composite
+ * profiles collect those once through their own full wait function. Standalone
+ * bearer users should continue calling dbt_avctp_bearer_wait_ms. */
+uint32_t dbt_avctp_bearer_local_wait_ms(const dbt_avctp_bearer_t *);
 uint32_t dbt_avctp_bearer_wait_ms(const dbt_avctp_bearer_t *bearer, uint32_t now_ms);
 /* Quiesce the runtime first. Returns BUSY until its outgoing borrow is returned. */
 dbt_result_t dbt_avctp_bearer_clear(dbt_avctp_bearer_t *bearer);

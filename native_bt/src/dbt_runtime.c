@@ -477,7 +477,9 @@ void dbt_runtime_poll(dbt_runtime_t *runtime, uint32_t now_ms, uint16_t rx_budge
     /* Expire once per owner turn, before a bounded RX batch. Retained-storage
      * receive checks only its own slot; it does not rescan all links per PDU. */
     if(runtime->ready)(void)dbt_l2cap_expire(&runtime->rx,now_ms);
-    (void)dbt_host_poll(&runtime->host, now_ms, rx_budget);
+    uint16_t received=dbt_host_poll(&runtime->host, now_ms, rx_budget);
+    if(received && runtime->host.state!=DBT_HOST_FAILED && runtime->hooks.rx_checkpoint)
+        runtime->hooks.rx_checkpoint(runtime->hooks.context);
     (void)initialize_layers(runtime);
     dbt_rx_flow_poll(&runtime->rx_flow,now_ms);
     if (runtime->host.state == DBT_HOST_FAILED) {

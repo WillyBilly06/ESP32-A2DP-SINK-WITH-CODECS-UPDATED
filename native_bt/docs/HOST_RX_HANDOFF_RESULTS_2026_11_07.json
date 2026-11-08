@@ -1,0 +1,101 @@
+{
+  "schema": 1,
+  "image_sha256": "708940335ae512da0a470217381ae5ba7e07551da3bc8baab016d4c24335a7f9",
+  "archive": "D:/bt-owned61/native_bt/_build/hardware/runs/1794102182584413400-708940335ae5",
+  "classification": "unqualified development; continuity unresolved",
+  "tests": [
+    {
+      "label": "deadlines",
+      "result": "D:/bt-owned61/native_bt/_build/experiments/avrcp-deadline-1794097781529/deadline-header-final/results.json",
+      "program_tests_passed": true,
+      "source_hashes_checked": 87,
+      "mismatches": []
+    },
+    {
+      "label": "host_wipe",
+      "result": "D:/bt-owned61/native_bt/_build/experiments/avrcp-deadline-1794097781529/host-wipe-test/results.json",
+      "program_tests_passed": true,
+      "source_hashes_checked": 4,
+      "mismatches": []
+    },
+    {
+      "label": "avrcp",
+      "result": "D:/bt-owned61/native_bt/_build/experiments/avrcp-deadline-1794097781529/protocol-header-final/avrcp-results.json",
+      "program_tests_passed": true,
+      "source_hashes_checked": 83,
+      "mismatches": []
+    },
+    {
+      "label": "runtime_asan",
+      "result": "D:/bt-owned61/native_bt/_build/experiments/avrcp-deadline-1794097781529/runtime-header-final/runtime-windows-asan.json",
+      "program_tests_passed": true,
+      "source_hashes_checked": 39,
+      "mismatches": []
+    }
+  ],
+  "wrapper_storage_failure": {
+    "program_tests_passed": true,
+    "exit_code": 1,
+    "rebuildable_mib": 513.213,
+    "final_storage_recheck_passed": true,
+    "final_rebuildable_mib": 511.796,
+    "artifacts_preserved": true
+  },
+  "traces": [
+    {
+      "stem": "D:/bt-owned61/native_bt/_build/hardware/runs/1794102182584413400-708940335ae5/traces/rx-checkpoint-metronome-1794102515453",
+      "guard": {
+        "ok": true,
+        "output": "",
+        "at": 1794102529716
+      },
+      "failure": null,
+      "initial_shortage_frames": 8576,
+      "recovered_frames": 4160,
+      "unfilled_frames": 4416,
+      "contract_errors": 0,
+      "accepted_frames": 2497920,
+      "rendered_frames": 2497920,
+      "dma_source_frames": 2497920,
+      "descriptor_errors": 0,
+      "running_after": 0
+    },
+    {
+      "stem": "D:/bt-owned61/native_bt/_build/hardware/runs/1794102182584413400-708940335ae5/traces/rx-checkpoint-metronome-repeat-1794102540919",
+      "guard": {
+        "ok": true,
+        "output": "",
+        "at": 1794102555155
+      },
+      "failure": null,
+      "initial_shortage_frames": 14592,
+      "recovered_frames": 5568,
+      "unfilled_frames": 9024,
+      "contract_errors": 0,
+      "accepted_frames": 2525760,
+      "rendered_frames": 2525760,
+      "dma_source_frames": 2525760,
+      "descriptor_errors": 0,
+      "running_after": 0
+    }
+  ],
+  "uart": {
+    "source_id": 63,
+    "baud": 921600,
+    "seconds": 20.13377833366394,
+    "line_delta": 842,
+    "byte_delta": 344361,
+    "rows": 842,
+    "integrity": {
+      "Verified": 842
+    },
+    "other_sources": 0,
+    "contiguous_ids": true,
+    "requested_end": 947595,
+    "captured_end": 947595,
+    "uart_writes": 0,
+    "deliberate_resets": 0
+  },
+  "uart_raw": "D:/bt-owned61/native_bt/_build/hardware/runs/1794102182584413400-708940335ae5/traces/uart-921600-final-1794103789239.json",
+  "qualification_complete": false
+}

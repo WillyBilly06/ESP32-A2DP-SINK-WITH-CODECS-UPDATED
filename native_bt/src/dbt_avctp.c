@@ -160,7 +160,8 @@ uint32_t dbt_avctp_wait_ms(const dbt_avctp_t *s, uint32_t now) {
     if (!s || !s->binding || s->failed) return 0;
     uint32_t best=UINT32_MAX;
     if (s->tx_used) best=expired(now,s->tx_deadline)?0:s->tx_deadline-now;
-    for (unsigned i=0;i<16;i++) if ((s->local_sent & (1u<<i)) && s->response_timeout[i]) {
+    uint16_t pending=s->local_sent;
+    for (unsigned i=0;pending;++i,pending=(uint16_t)(pending>>1)) if ((pending&1u) && s->response_timeout[i]) {
         uint32_t d=expired(now,s->response_deadline[i])?0:s->response_deadline[i]-now;
         if (d<best) best=d;
     }

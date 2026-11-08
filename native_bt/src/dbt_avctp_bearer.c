@@ -65,17 +65,20 @@ dbt_result_t dbt_avctp_bearer_poll(dbt_avctp_bearer_t *b, uint32_t now) {
     else (void)dbt_avctp_tx_cancel(b->signal);
     return result == DBT_BUSY ? DBT_OK : result;
 }
-uint32_t dbt_avctp_bearer_wait_ms(const dbt_avctp_bearer_t *b, uint32_t now) {
+uint32_t dbt_avctp_bearer_local_wait_ms(const dbt_avctp_bearer_t *b) {
     if (!b || !b->attached) return UINT32_MAX;
-    if (!current(b) || b->runtime->host.state == DBT_HOST_FAILED) return 0;
-    uint32_t wait = dbt_avctp_wait_ms(b->signal, now);
-    if (!b->active && !b->signal->failed &&
-        b->signal->tx_used) {
+    if (!b->runtime || !b->signal || !current(b) || b->runtime->host.state == DBT_HOST_FAILED) return 0;
+    if (!b->active && !b->signal->failed && b->signal->tx_used) {
         for (unsigned i = 0; i < DBT_MAX_LINKS; ++i)
             if (b->runtime->acl.links[i].used && b->runtime->acl.links[i].handle == b->handle &&
                 !b->runtime->tx[i].active) return 0;
     }
-    return wait;
+    return UINT32_MAX;
+}
+uint32_t dbt_avctp_bearer_wait_ms(const dbt_avctp_bearer_t *b, uint32_t now) {
+    uint32_t local=dbt_avctp_bearer_local_wait_ms(b);
+    if (!local || !b || !b->attached) return local;
+    return dbt_avctp_wait_ms(b->signal,now);
 }
 dbt_result_t dbt_avctp_bearer_clear(dbt_avctp_bearer_t *b) {
     if (!b || !b->attached) return DBT_INVALID;

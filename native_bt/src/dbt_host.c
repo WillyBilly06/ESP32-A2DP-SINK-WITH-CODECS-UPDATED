@@ -26,8 +26,22 @@ static void copy_bytes(uint8_t *destination, const uint8_t *source, uint16_t siz
 static bool due(uint32_t now, uint32_t deadline) {
     return (uint32_t)(now - deadline) < 0x80000000u;
 }
+#if defined(__GNUC__) || defined(__clang__)
+/* RAM buffers may be byte arrays. may_alias permits aligned word erasure
+ * without violating their declared type. Volatile retains every store. */
+typedef uint32_t dbt_wipe_word_t __attribute__((__may_alias__));
+#endif
 static void wipe(void *data, unsigned size) {
-    volatile uint8_t *bytes=data;for(unsigned i=0;i<size;++i)bytes[i]=0;
+    volatile uint8_t *bytes=data;
+#if defined(__GNUC__) || defined(__clang__)
+    while(size && ((uintptr_t)bytes&3u)){*bytes++=0;--size;}
+    if(size>=4u){
+        volatile dbt_wipe_word_t *words=(volatile dbt_wipe_word_t *)bytes;
+        do{*words++=0;size-=4u;}while(size>=4u);
+        bytes=(volatile uint8_t *)words;
+    }
+#endif
+    while(size){*bytes++=0;--size;}
 }
 static bool sensitive(const dbt_hci_packet_t *packet) {
     /* ACL may contain SMP keys in a first or continuation fragment. Avoid

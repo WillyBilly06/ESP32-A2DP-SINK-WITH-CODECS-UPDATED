@@ -387,6 +387,9 @@ static void owner_render_checkpoint(void){
     if(probe_audio_owner_pressure()){probe_audio_owner_service_yield();taskYIELD();}
 #endif
 }
+#ifdef DBT_PROBE_RENDER_FAIR_SHARE
+static void received_render_checkpoint(void *context){(void)context;owner_render_checkpoint();}
+#endif
 /* Only owner-loop call sites use this wrapper. Never yield inside VHCI
  * readiness/submission, a protocol callback, or a borrowed packet operation. */
 #define HOST_POLL(phase,expression) do{owner_render_checkpoint();HOST_CALL(phase,expression);owner_render_checkpoint();}while(0)
@@ -671,6 +674,9 @@ void app_main(void) {
     dbt_transport_t transport = { 0, transport_ready, transport_send };
     dbt_runtime_hooks_t hooks = {0};
     hooks.allocate = allocate_rx; hooks.release = release_rx; hooks.packet = observe;
+#ifdef DBT_PROBE_RENDER_FAIR_SHARE
+    hooks.rx_checkpoint=received_render_checkpoint;
+#endif
 #if defined(DBT_PROBE_GATT_TEST) || defined(DBT_PROBE_SMP)
     hooks.channels.fixed_data = profile_fixed;
     hooks.channels.fixed_oversized = profile_fixed_oversized;

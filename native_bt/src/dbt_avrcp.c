@@ -464,7 +464,8 @@ uint32_t dbt_avrcp_wait_ms(const dbt_avrcp_t *s,uint32_t now) {
     const dbt_avctp_t *t=s->transport;
     if(!t->tx_used && !t->pinned) {
         if(s->continuation_needed || s->abort_needed) return 0;
-        for(unsigned i=0;i<16;i++) if(s->remote_auto & (1u<<i)) {
+        uint16_t automatic=s->remote_auto;
+        for(unsigned i=0;automatic;++i,automatic=(uint16_t)(automatic>>1)) if(automatic&1u) {
             uint8_t kind=s->remote_auto_kind[i];
             if(!s->target_active || kind==AUTO_CONT || kind==AUTO_PID || kind==AUTO_PASS_NOT_IMPL ||
                (kind==AUTO_ECHO && s->remote_opcode[i]==PASS)) return 0;
@@ -472,7 +473,8 @@ uint32_t dbt_avrcp_wait_ms(const dbt_avrcp_t *s,uint32_t now) {
     }
     uint32_t wait=dbt_avctp_wait_ms(t,now);
     if(s->target_active) { uint32_t d=due(now,s->target_deadline)?0:s->target_deadline-now; if(d<wait) wait=d; }
-    for(unsigned i=0;i<16;i++) if((s->remote_pending & (1u<<i)) && !(s->remote_interim & (1u<<i))) {
+    uint16_t pending=(uint16_t)(s->remote_pending & (uint16_t)~s->remote_interim);
+    for(unsigned i=0;pending;++i,pending=(uint16_t)(pending>>1)) if(pending&1u) {
         uint32_t d=due(now,s->remote_deadline[i])?0:s->remote_deadline[i]-now; if(d<wait) wait=d;
     }
     return wait;

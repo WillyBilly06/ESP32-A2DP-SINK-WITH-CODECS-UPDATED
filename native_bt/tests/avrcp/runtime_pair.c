@@ -123,7 +123,7 @@ static void controller_init(endpoint *e) {
     uint16_t opcode=get16(e->wire+1); uint8_t p[68]={1,(uint8_t)opcode,(uint8_t)(opcode>>8),0}; uint8_t n=4;
     switch(opcode) {
     case 0x1001:n=12;p[4]=8;p[7]=8;break;
-    case 0x1002:n=68;break;
+    case 0x1002:n=68;p[14]=0xe0;break;
     case 0x1003:n=12;p[8]=0x40;break;
     case 0x1009:n=10;p[4]=0x42;break;
     case 0x1005:n=11;p[4]=27;p[7]=2;break;
@@ -303,4 +303,61 @@ EXPORT int avrcp_runtime_competing_loan(void) {
     CHECK(borrowed); CHECK(disconnect(ct,1)==0);
     CHECK(ct->foreign_done==1 && ct->foreign_outcome==DBT_TX_LINK_LOST && !ct->bearer.attached && !ct->transport.binding);
     return cleanup();
+}
+
+/* Quiescent RX checkpoint is after data callbacks/erasure and before a new
+ * Host Number Of Completed Packets command. Recursive polls remain fenced. */
+static unsigned checkpoint_calls,checkpoint_errors,checkpoint_fixed_expected,checkpoint_sends_expected;
+static bool checkpoint_abort;
+static void rx_checkpoint(void *ctx){
+    endpoint *e=ctx;dbt_runtime_t *r=&e->runtime;++checkpoint_calls;
+    if(!r->in_poll || r->host.in_poll || r->host.in_callback || r->channels.in_callback)++checkpoint_errors;
+    if(e->fixed_calls!=checkpoint_fixed_expected || e->sends!=checkpoint_sends_expected)++checkpoint_errors;
+    for(unsigned i=0;i<12;++i)if(r->host.rx_packet[i])++checkpoint_errors;
+    uint32_t packets=r->host.packets_processed,now=r->now_ms;
+    dbt_runtime_poll(r,now+1u,8,8);
+    if(r->host.packets_processed!=packets || r->now_ms!=now || !r->in_poll)++checkpoint_errors;
+    if(checkpoint_abort){dbt_runtime_abort(r,DBT_FAULT_BAD_PACKET);if(r->cleared)++checkpoint_errors;}
+}
+static int checkpoint_setup(endpoint *e){
+    att_ready=false;CHECK(initialize(e)==0);
+    CHECK(dbt_runtime_enable_rx_flow(&e->runtime,64,3)==DBT_OK);
+    for(unsigned n=0;n<16 && (e->runtime.rx_flow.state!=DBT_RX_FLOW_ACTIVE || !e->ready);++n){
+        dbt_runtime_poll(&e->runtime,++tick,8,0);controller_init(e);
+    }
+    CHECK(e->runtime.rx_flow.state==DBT_RX_FLOW_ACTIVE && e->ready);
+    CHECK(dbt_channels_register_fixed(&e->runtime.channels,DBT_LINK_LE,4)==DBT_OK);
+    CHECK(link_add(e,2,true)==0);
+    e->runtime.hooks.rx_checkpoint=rx_checkpoint;return 0;
+}
+static int checkpoint_input(endpoint *e,uint8_t value){
+    uint8_t packet[12]={2,2,0x20,7,0,3,0,4,0,value,0x55,0xaa};
+    CHECK(dbt_runtime_receive(&e->runtime,packet,sizeof packet)==DBT_OK);return 0;
+}
+EXPORT int avrcp_runtime_rx_checkpoint(void){
+    endpoint *e=&peers[0];checkpoint_calls=checkpoint_errors=0;checkpoint_abort=false;
+    {int setup_line=checkpoint_setup(e);if(setup_line)return setup_line;}
+    CHECK(checkpoint_input(e,1)==0);CHECK(checkpoint_input(e,2)==0);
+    unsigned sends=e->sends;checkpoint_sends_expected=sends;checkpoint_fixed_expected=1;
+    dbt_runtime_poll(&e->runtime,++tick,0,0);CHECK(!checkpoint_calls && !e->fixed_calls && e->sends==sends);
+    dbt_runtime_poll(&e->runtime,++tick,1,0);
+    CHECK(checkpoint_calls==1 && !checkpoint_errors && e->fixed_calls==1);
+    CHECK(e->runtime.rx_flow.acknowledged==1 && e->sends==sends+1);
+    CHECK(e->wire[0]==1 && get16(e->wire+1)==0x0c35 && get16(e->wire+7)==1);
+    check_loan(e);CHECK(!e->borrow_errors);e->ready=true;
+    checkpoint_sends_expected=e->sends;checkpoint_fixed_expected=2;
+    dbt_runtime_poll(&e->runtime,++tick,1,0);
+    CHECK(checkpoint_calls==2 && !checkpoint_errors && e->fixed_calls==2 && e->runtime.rx_flow.acknowledged==2);
+    check_loan(e);CHECK(!e->borrow_errors);e->ready=true;
+    dbt_runtime_poll(&e->runtime,++tick,8,0);CHECK(checkpoint_calls==2 && !checkpoint_errors);
+    dbt_runtime_abort(&e->runtime,DBT_FAULT_BAD_PACKET);CHECK(e->allocs==e->releases);
+    /* Abort from the checkpoint defers teardown until its frame returns. */
+    {int setup_line=checkpoint_setup(e);if(setup_line)return setup_line;}
+    CHECK(checkpoint_input(e,3)==0);
+    checkpoint_abort=true;checkpoint_fixed_expected=1;checkpoint_sends_expected=e->sends;
+    dbt_runtime_poll(&e->runtime,++tick,1,0);
+    CHECK(checkpoint_calls==3 && !checkpoint_errors && e->runtime.cleared);
+    CHECK(e->runtime.host.state==DBT_HOST_FAILED && !e->runtime.rx_flow.commands_submitted);
+    CHECK(e->sends==checkpoint_sends_expected && e->allocs==e->releases);
+    checkpoint_abort=false;return 0;
 }

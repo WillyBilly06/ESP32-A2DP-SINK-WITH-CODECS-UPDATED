@@ -1,14 +1,22 @@
 # Independent ESP32 Bluetooth host
 
-The [current UART checkpoint](docs/UART_921600_2026_11_07.md) runs the firmware and
+The [current host RX checkpoint](docs/HOST_RX_HANDOFF_2026_11_07.md) removes
+duplicate deadline collection, reduces sensitive-scratch erase stores and adds
+a fenced RX-to-render handoff. Host regressions and all 37 cold codec cases pass.
+Two short LHDC 192 kHz/S24/900 kbps traces still have **4,416 / 9,024 unfilled
+PCM sample frames**. Continuity, 1 Mbps and full feature/coexistence qualification
+remain open. The UART monitor is live at **921600 baud**; a fresh 842-record
+window is entirely CRC verified. This remains development firmware.
+
+The [UART configuration checkpoint](docs/UART_921600_2026_11_07.md) runs the firmware and
 live monitor at **921600 baud**, keeps full raw records, and suppresses unchanged
 configuration output. All 37 cold codec cases pass; a current-source window has
 4,998 valid CRC records with no invalid/malformed records.
 
 The [PCM-prefix/build checkpoint](docs/URGENT_PCM_PREFIX_2026_11_07.md) adds guarded
 partial refills and prevents restored source timestamps from leaving stale objects.
-Builds recheck compiler inputs through ccache. The current short LHDC 192 kHz/S24/
-900 kbps trace still has 6,080 unfilled sample frames; continuity, 1 Mbps and full
+Builds recheck compiler inputs through ccache. That checkpoint’s short LHDC 192 kHz/S24/
+900 kbps trace has 6,080 unfilled sample frames; continuity, 1 Mbps and full
 feature/coexistence qualification remain open. This is a development host.
 
 The [LX6 Rice-reader checkpoint](docs/LHDC_RICE_CURSOR_2026_11_07.md) preserves
