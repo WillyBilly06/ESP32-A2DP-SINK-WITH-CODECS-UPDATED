@@ -6,6 +6,9 @@
 #include "esp_timer.h"
 #include <stdio.h>
 #include <string.h>
+#if defined(DBT_PROBE_AUDIO_TEST) && (defined(DBT_PROBE_STAY_NATIVE) || defined(DBT_PROBE_SCHEDULER_TRACE))
+#include "probe_audio.h"
+#endif
 #ifdef DBT_PROBE_PRODUCT_SECURITY
 #include "probe_admission.h"
 #endif
@@ -588,6 +591,14 @@ void probe_security_oversized(const dbt_channel_oversize_t *data){
 }
 void probe_security_smp_trace(uint16_t handle,uint32_t generation,uint8_t stage,int result,uint8_t code,uint16_t size,uint32_t window){
     if(!log_queue)return;
+#if defined(DBT_PROBE_AUDIO_TEST) && (defined(DBT_PROBE_STAY_NATIVE) || defined(DBT_PROBE_SCHEDULER_TRACE))
+    /* Owner-only bounded copy. Avoid competing with verbose connection records
+     * in the protocol logger; full audio storage counts a host trace loss.
+     * Startup/foreign context keeps the existing queue and wire fields. */
+    const probe_host_record_t record={.kind=PROBE_HOST_SMP,
+        .value={handle,generation,stage,(uint32_t)result,(uint32_t)code|((uint32_t)size<<8),window,protocol_log_lost}};
+    if(probe_audio_host_record(&record)!=DBT_UNSUPPORTED)return;
+#endif
     log_item_t item;wipe(&item,sizeof(item));item.local_record=8;
     item.smp_trace.handle=handle;item.smp_trace.generation=generation;item.smp_trace.stage=stage;
     item.smp_trace.result=result;item.smp_trace.code=code;item.smp_trace.size=size;item.smp_trace.window=window;

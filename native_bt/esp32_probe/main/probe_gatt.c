@@ -10,6 +10,9 @@
 #include "freertos/task.h"
 #include <string.h>
 #include <stdatomic.h>
+#if defined(DBT_PROBE_AUDIO_TEST) && (defined(DBT_PROBE_STAY_NATIVE) || defined(DBT_PROBE_SCHEDULER_TRACE))
+#include "probe_audio.h"
+#endif
 
 /* Diagnostic echo/counter and baseline product-control services. */
 static dbt_att_server_t server;
@@ -26,6 +29,20 @@ typedef struct {
     uint16_t values[PROBE_CCCD_COUNT];cccd_phase_t phase;uint32_t retry_at;bool retry_pending;
 } cccd_binding_t;
 static cccd_binding_t cccd_bindings[DBT_MAX_LINKS];
+
+/* Owner-only lifecycle observation. Reuse the existing bounded host ring;
+ * never format, allocate, wait or record bond keys on the ATT path. */
+static void cccd_record(uint16_t handle,uint32_t generation,uint32_t token,uint32_t stage,
+                        uint32_t phase,uint32_t result,uint32_t kind) {
+#if defined(DBT_PROBE_AUDIO_TEST) && (defined(DBT_PROBE_STAY_NATIVE) || defined(DBT_PROBE_SCHEDULER_TRACE))
+    const probe_host_record_t r={.kind=PROBE_HOST_CCCD,
+        .value={handle,generation,token,stage,phase,result,kind}};
+    (void)probe_audio_host_record(&r);
+#else
+    (void)handle;(void)generation;(void)token;(void)stage;(void)phase;(void)result;(void)kind;
+#endif
+}
+
 typedef struct {uint16_t handle,values[PROBE_CCCD_COUNT];uint32_t generation;uint8_t mask;} cccd_touched_t;
 static cccd_touched_t cccd_touched[DBT_MAX_LINKS];
 static uint8_t *echo;
@@ -309,6 +326,7 @@ static uint16_t cccd_enqueue(const dbt_link_t *link,cccd_binding_t *binding,uint
     if(values)memcpy(job->cccd_values,values,sizeof(job->cccd_values));
     if(xQueueSend(control_work,&job,0)!=pdTRUE){heap_caps_free(job);return DBT_ATT_RESOURCES;}
     ++control_jobs;++cccd_jobs;for(unsigned i=0;i<CONTROL_REGISTRY_CAPACITY;i++)if(!control_registry[i]){control_registry[i]=job;break;}
+    cccd_record(link->handle,link->generation,token,1,binding->phase,DBT_OK,kind);
     (void)xSemaphoreGive(control_signal);return 0;
 }
 static dbt_result_t load_cccd(void *context,const dbt_link_t *link,uint16_t handle,uint16_t *value) {
@@ -434,10 +452,14 @@ static uint16_t write(void *context, const dbt_link_t *link, const dbt_att_batch
             for(unsigned i=0;i<DBT_MAX_LINKS;i++)if(server.connections[i].used &&
                 server.connections[i].handle==link->handle && server.connections[i].generation==link->generation)c=&server.connections[i];
             if(!b || b->phase!=CCCD_BOUND || !c || !c->bonded || batch->command ||
-               batch->count!=batch->cccd_count)return DBT_ATT_UNLIKELY;
+               batch->count!=batch->cccd_count){
+                cccd_record(link->handle,link->generation,token,3,b?b->phase:UINT32_MAX,DBT_ATT_UNLIKELY,0);return DBT_ATT_UNLIKELY;
+            }
             uint8_t type,id[6],tag[32];
             if(!bond_query || bond_query(link->handle,link->generation,&type,id,tag)!=DBT_OK ||
-               type!=b->type || memcmp(id,b->identity,6) || memcmp(tag,b->tag,32))return DBT_ATT_UNLIKELY;
+               type!=b->type || memcmp(id,b->identity,6) || memcmp(tag,b->tag,32)){
+                cccd_record(link->handle,link->generation,token,4,b->phase,DBT_ATT_UNLIKELY,0);return DBT_ATT_UNLIKELY;
+            }
             uint16_t rc=cccd_enqueue(link,b,2,token,*error_handle,c->staged_cccds);
             return rc?rc:DBT_ATT_DEFERRED;
         }
@@ -447,7 +469,8 @@ static uint16_t write(void *context, const dbt_link_t *link, const dbt_att_batch
     if(batch->cccd_count) for(unsigned i=0;i<DBT_MAX_LINKS;i++) {
         const dbt_att_connection_t *c=&server.connections[i];
         if(c->used && c->handle==link->handle && c->generation==link->generation && c->bonded) {
-            *error_handle=batch->cccds[0].handle;return DBT_ATT_UNLIKELY;
+            *error_handle=batch->cccds[0].handle;
+            cccd_record(link->handle,link->generation,token,5,UINT32_MAX,DBT_ATT_UNLIKELY,0);return DBT_ATT_UNLIKELY;
         }
     }
     for(unsigned i=0;i<batch->count;i++) if(batch->writes[i].handle==0x22) {
@@ -612,6 +635,7 @@ void probe_gatt_receive(void *context, const dbt_link_t *link, uint16_t cid, con
 static void finish_cccd(control_job_t *job) {
     const dbt_link_t *link=dbt_acl_find(&bearer.runtime->acl,job->handle);
     cccd_binding_t *b=link && link->generation==job->generation?cccd_binding(link):NULL;
+    cccd_record(job->handle,job->generation,job->token,2,b?b->phase:UINT32_MAX,job->cccd_result,job->cccd_kind);
     uint8_t type,id[6],tag[32];
     bool current=b && bond_query && bond_query(job->handle,job->generation,&type,id,tag)==DBT_OK &&
         type==job->identity_type && type==b->type && !memcmp(id,job->identity,6) &&
@@ -943,6 +967,7 @@ static void sync_cccd(void) {
             dbt_result_t rc=dbt_att_security(&server,l,sec.authenticated,sec.key_size,true);
             if(rc==DBT_OK) {
                 b->phase=CCCD_BOUND;
+                cccd_record(l->handle,l->generation,0,6,b->phase,DBT_OK,0);
                 cccd_touched_t *t=touch_for(l);if(t)t->mask=0;
                 if(b->values[2]&1u)status_pending_generation[i]=l->generation;
             } else if(rc!=DBT_BUSY)b->phase=CCCD_ERROR;

@@ -30,6 +30,11 @@ static void capture_snapshot(const char *format,...){va_list args;va_start(args,
 static int capture_printf(const char *format,...){va_list args;va_start(args,format);int count=capture(format,args);va_end(args);return count;}
 static bool initialized;static void *owner,*logger_task,*current_task;
 static _Atomic uint32_t pcm_codec;static unsigned timing_calls,timing_kind;
+static dbt_codec_worker_t worker;
+static dbt_result_t submit_result=DBT_OK;
+dbt_result_t dbt_codec_worker_submit(void *context,const dbt_sink_job_t *job){
+    assert(context==&worker && job);return submit_result;
+}
 static void timing_event(unsigned kind){++timing_calls;timing_kind=kind;}
 static int64_t esp_timer_get_time(void){++clock_calls;return clock_value++;}
 static void *xTaskGetCurrentTaskHandle(void){return current_task;}
@@ -244,6 +249,20 @@ int main(void){
     probe_host_record_t delay_value={.kind=PROBE_HOST_A2DP_DELAY,.value={13440,192000,881u|(1u<<16),DBT_OK,7}};
     unsigned delay_line=line_count;assert(probe_audio_host_record(&delay_value)==DBT_OK);log_media_trace();
     assert(line_count==delay_line+1);printf("DELAY_ESTIMATE_JSON %s",lines[delay_line]);
+    probe_host_record_t cccd_value={.kind=PROBE_HOST_CCCD,.value={0,6,0xfedcba98u,3,1,14,0}};
+    unsigned cccd_line=line_count;assert(probe_audio_host_record(&cccd_value)==DBT_OK);
+    cccd_value.value[4]=5;log_media_trace();
+    assert(line_count==cccd_line+1);printf("CCCD_JSON %s",lines[cccd_line]);
+    atomic_store(&worker.gate_epoch,7);atomic_store(&worker.started_epoch,4);
+    dbt_sink_job_t job={.binding=10,.token=20,.operation=DBT_SINK_START};
+    unsigned job_line=line_count;assert(sink_work(&worker,&job)==DBT_OK);log_media_trace();
+    assert(line_count==job_line+1);printf("A2DP_JOB_JSON %s",lines[job_line]);
+    probe_host_record_t smp_value={.kind=PROBE_HOST_SMP,.value={0,6,7,(uint32_t)-2,5u|(13u<<8),0xfedcba98u,9}};
+    unsigned smp_line=line_count;assert(probe_audio_host_record(&smp_value)==DBT_OK);
+    smp_value.value[4]=0;log_media_trace();assert(line_count==smp_line+1);
+    printf("SMP_JSON %s",lines[smp_line]);
+    submit_result=DBT_BUSY;job_line=line_count;
+    assert(sink_work(&worker,&job)==DBT_BUSY);log_media_trace();assert(line_count==job_line);
     printf("PASS deferred heap collection: owner/full never query allocator, background uses fixed owner handle, controller properties immutable\n");
     printf("PASS atomic failure group:24 fields,3 existing slots,all space/wrap boundaries,partial publication,malformed groups,startup/full policy,blocked UART\n");
     printf("PASS bounded shared trace: full/drop/wrap/copy, actual JSON logger, blocked UART consumer, unchanged slot size=%zu ring=%zu\n",sizeof(probe_audio_trace_t),sizeof(probe_audio_trace_ring_t));

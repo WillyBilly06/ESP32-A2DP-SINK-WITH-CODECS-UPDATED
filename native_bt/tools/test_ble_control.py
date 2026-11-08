@@ -13,7 +13,7 @@ ROOT = Path(__file__).resolve().parents[1]
 WORKSPACE = ROOT.parent
 OUT = ROOT / '_build/ble_control'
 CHECK = ROOT / 'tools/check_workspace.py'
-NAMES = 'queue hci host acl l2cap credit ertm ertm_engine channels rx_flow runtime gap att att_bearer ble_control'.split()
+NAMES = 'queue hci host acl l2cap credit ertm ertm_engine channels rx_flow runtime page gap att att_bearer ble_control'.split()
 SCHEMA_SOURCES = [ROOT / 'tests/ble_control/schema.c', ROOT / 'src/esp32/dbt_ble_nvs.c'] + [ROOT / f'src/dbt_{name}.c' for name in NAMES]
 PROTOCOL_SOURCES = [ROOT / 'tests/ble_control/protocol.c', ROOT / 'src/dbt_ble_control.c']
 INCLUDES = [ROOT / 'tests/ble_control/shim', ROOT / 'include']
@@ -62,7 +62,7 @@ def main():
     OUT.mkdir(parents=True, exist_ok=True)
     result = {'schema': 1, 'passed': False, 'sanitize': args.sanitize, 'tick_hz':args.tick_hz,
               'scope': 'offline ATT/product parser and fake NVS/task queues; no target, RF, device or real NVS evidence',
-              'source_sha256': {}, 'stage': 'preflight'}
+              'source_sha256': {}, 'commands': [], 'stage': 'preflight'}
     status = 1
     try:
         paths = inputs()
@@ -93,7 +93,16 @@ def main():
         for name, sources, include_dirs in (('schema', SCHEMA_SOURCES, INCLUDES), ('protocol', PROTOCOL_SOURCES, [ROOT / 'include'])):
             exe = OUT / (name + ('.exe' if os.name == 'nt' else ''))
             result['stage'] = name + '_compile'
-            subprocess.run([cache, cc, *flags, *['-I' + str(x) for x in include_dirs], *map(str, sources), '-o', str(exe)], env=env, check=True)
+            objects = []
+            for index, source in enumerate(sources):
+                obj = OUT / (name + '-' + str(index) + ('.obj' if os.name == 'nt' else '.o'))
+                command = [cache, cc, *flags, *['-I' + str(x) for x in include_dirs], '-c', str(source), '-o', str(obj)]
+                subprocess.run(command, env=env, check=True)
+                result['commands'].append(command)
+                objects.append(obj)
+            command = [cc, *(['-fsanitize=address,undefined'] if args.sanitize else []), *map(str, objects), '-o', str(exe)]
+            subprocess.run(command, env=env, check=True)
+            result['commands'].append(command)
             result['stage'] = name + '_run'
             subprocess.run([str(exe)], env=env, check=True)
         result['stage'] = 'source_stability'

@@ -2,7 +2,7 @@
 #define PROBE_HOST_RECORD_H
 #include <stdint.h>
 typedef enum { PROBE_HOST_CLASSIC_VISIBILITY=1,PROBE_HOST_GAP_STATE=2,PROBE_HOST_MEMORY_SERVICES=3,PROBE_HOST_A2DP_DELAY=4,
-    PROBE_HOST_A2DP_JOB=5,PROBE_HOST_A2DP_STATE=6,PROBE_HOST_A2DP_HANDOFF=7 } probe_host_record_kind_t;
+    PROBE_HOST_A2DP_JOB=5,PROBE_HOST_A2DP_STATE=6,PROBE_HOST_A2DP_HANDOFF=7,PROBE_HOST_CCCD=8,PROBE_HOST_SMP=9 } probe_host_record_kind_t;
 /* Immutable producing-task snapshot. Values are copied, never borrowed or formatted on
  * the protocol task. These diagnostic kinds are not A2DP codec/wire flags. */
 /* Seven values still fit the existing32-byte media trace payload. */

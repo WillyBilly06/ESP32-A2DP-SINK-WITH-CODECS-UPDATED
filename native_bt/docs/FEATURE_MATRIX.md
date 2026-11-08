@@ -1,14 +1,15 @@
 # Independent host and product feature matrix
 
-Current development checkpoint (2026-11-08): image57850f2d36b9 passes readback,
-37 cold codec configurations and 173 PCM callbacks on COM6. The high-rate LHDC
-startup hold is provisionally 80 ms. Four fixed-900 YouTube excerpts record
-0 / 192 / 0 / 0 finalized unfilled frames, with the 192-frame event after an
-accepted stop request. See [the current report](LHDC_STARTUP_RESERVE_2026_11_08.md).
-The full goal remains active: sustained 1 Mbps with BLE/control, acoustics,
+Current development checkpoint (2026-11-08): imagec07781e066ab passes readback,
+37 cold codec configurations and173 PCM callbacks on COM6 at921600 baud.
+Separate SMP/CCCD records retain unchanged linked SRAM/IRAM. The guarded
+LHDC192/S24/fixed900 control trace identifies an ATT0x0E readiness race and
+retains33,024 finalized unfilled PCM frames during playback. The semantic
+deferred-write fix is still open. See [the current report](BLE_LHDC_CONTROL_TRACE_2026_11_08.md).
+The full goal remains active: sustained1Mbps with BLE/control, acoustics,
 security/lifecycle/product/OTA parity and matched-baseline RAM/CPU qualification
-are still open. The rows below retain their dated image scopes; the historical
-L06 codec failures are superseded for cold checks by the current 37-case result.
+are still open. Rows below retain their dated image scopes. Historical cold
+codec failures are superseded by the current37-case cold result.
 
 Updated 2026-11-05. **The goal remains active and incomplete.** COM6 was
 explicitly released for flashing, serial and Bluetooth testing in this chat;

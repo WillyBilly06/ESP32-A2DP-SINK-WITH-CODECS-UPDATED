@@ -62,6 +62,17 @@ run=subprocess.run([str(exe)],env=env,capture_output=True,text=True,timeout=15)
 print(run.stdout.strip());print(run.stderr.strip());run.check_returncode();assert 'PASS bounded shared trace' in run.stdout
 delay_rows=[json.loads(line[len('DELAY_ESTIMATE_JSON '):]) for line in run.stdout.splitlines() if line.startswith('DELAY_ESTIMATE_JSON ')]
 assert len(delay_rows)==1
+cccd_rows=[json.loads(line[len('CCCD_JSON '):]) for line in run.stdout.splitlines() if line.startswith('CCCD_JSON ')]
+assert len(cccd_rows)==1
+smp_rows=[json.loads(line[len('SMP_JSON '):]) for line in run.stdout.splitlines() if line.startswith('SMP_JSON ')]
+assert len(smp_rows)==1
+assert {k:v for k,v in smp_rows[0].items() if k not in ('event_us','host_log_ordinal')}=={'probe':'smp_trace','handle':0,'generation':6,'stage':7,'result':-2,'code':5,'size':13,'window':0xfedcba98,'trace_records_lost':9},smp_rows
+job_rows=[json.loads(line[len('A2DP_JOB_JSON '):]) for line in run.stdout.splitlines() if line.startswith('A2DP_JOB_JSON ')]
+assert len(job_rows)==1
+job=job_rows[0]
+assert job['probe']=='a2dp_worker_submit' and job['binding']==10 and job['token']==20 and job['gate_epoch']==7 and job['started_epoch_at_return']==4 and job['accepted'] is True
+assert (job['event_us']-job['begin_us'])&0xffffffff==1,job
+assert {k:v for k,v in cccd_rows[0].items() if k not in ('event_us','host_log_ordinal')}=={'probe':'gatt_cccd','handle':0,'generation':6,'token':0xfedcba98,'stage':3,'phase':1,'result':14,'job_kind':0},cccd_rows
 delay=delay_rows[0]
 assert delay['probe']=='avdtp_delay_estimate' and delay['encoded_frames']==13440 and delay['encoded_known'] is True
 assert delay['rate']==192000 and delay['delay_100us']==881 and delay['result']==0 and delay['binding']==7 and delay['adjacent_buffer_estimate'] is True

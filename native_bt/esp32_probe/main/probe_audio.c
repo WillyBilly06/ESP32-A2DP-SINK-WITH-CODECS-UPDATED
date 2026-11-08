@@ -506,6 +506,12 @@ static void log_media_trace(void){
             }else if(state->kind==PROBE_HOST_A2DP_HANDOFF){
                 PROBE_SNAPSHOT_LOG("{\"probe\":\"a2dp_stream_handoff\",\"binding\":%" PRIu32 ",\"token\":%" PRIu32 ",\"job_epoch\":%" PRIu32 ",\"phase\":%" PRIu32 ",\"start\":%s,\"renderer_ticket\":%" PRIu32 ",\"result\":%" PRIu32 ",\"event_us\":%" PRIu32 ",\"decoder_log_ordinal\":%" PRIu32 "}\n",
                     state->value[0],state->value[1],state->value[2],state->value[3],state->value[4]?"true":"false",state->value[5],state->value[6],record.at_us,record.ordinal);
+            }else if(state->kind==PROBE_HOST_SMP){
+                PROBE_SNAPSHOT_LOG("{\"probe\":\"smp_trace\",\"handle\":%" PRIu32 ",\"generation\":%" PRIu32 ",\"stage\":%" PRIu32 ",\"result\":%" PRId32 ",\"code\":%" PRIu32 ",\"size\":%" PRIu32 ",\"window\":%" PRIu32 ",\"event_us\":%" PRIu32 ",\"trace_records_lost\":%" PRIu32 ",\"host_log_ordinal\":%" PRIu32 "}\n",
+                    state->value[0],state->value[1],state->value[2],(int32_t)state->value[3],state->value[4]&255u,state->value[4]>>8,state->value[5],record.at_us,state->value[6],record.ordinal);
+            }else if(state->kind==PROBE_HOST_CCCD){
+                PROBE_SNAPSHOT_LOG("{\"probe\":\"gatt_cccd\",\"handle\":%" PRIu32 ",\"generation\":%" PRIu32 ",\"token\":%" PRIu32 ",\"stage\":%" PRIu32 ",\"phase\":%" PRIu32 ",\"result\":%" PRIu32 ",\"job_kind\":%" PRIu32 ",\"event_us\":%" PRIu32 ",\"host_log_ordinal\":%" PRIu32 "}\n",
+                    state->value[0],state->value[1],state->value[2],state->value[3],state->value[4],state->value[5],state->value[6],record.at_us,record.ordinal);
             }else if(state->kind==PROBE_HOST_MEMORY_SERVICES){
                 PROBE_SNAPSHOT_LOG("{\"probe\":\"boot_memory\",\"host\":\"owned\",\"phase\":\"services_ready\",\"internal_free\":%u,\"internal_largest\":%u,\"internal_minimum\":%u,\"internal_total\":%u,\"owner_stack_low\":%u"
                     ",\"collection_context\":\"background_logger\",\"event_us\":%" PRIu32 ",\"host_log_ordinal\":%" PRIu32 "}\n",

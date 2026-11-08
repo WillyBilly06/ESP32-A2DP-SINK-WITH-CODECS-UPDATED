@@ -1,5 +1,18 @@
 # Independent ESP32 Bluetooth host
 
+The [current BLE/LHDC control trace](docs/BLE_LHDC_CONTROL_TRACE_2026_11_08.md)
+runs on readback-verified COM6 imagec07781e066ab at **921600 baud**. Separate
+CCCD and checksummed SMP snapshots reuse existing trace storage, with unchanged
+linked SRAM/IRAM.37 cold codec configurations pass.
+
+The trace identifies an ATT0x0E race: a subscription write arrives while saved
+subscriptions are still loading and is rejected35ms before loading succeeds.
+That deferred-write fix remains open. The same LHDC192/S24/fixed900 excerpt
+retains33,024 unfilled PCM frames during playback. **BLE coexistence, sustained
+LHDC continuity,1Mbps and full feature parity are not qualified.**
+
+## Earlier checkpoints
+
 The [startup-reserve checkpoint](docs/LHDC_STARTUP_RESERVE_2026_11_08.md) uses an
 **80 ms high-rate LHDC hold**, adding 30 ms of startup latency within the existing
 buffers. Linked SRAM/IRAM and image size are unchanged. Four guarded fixed-900

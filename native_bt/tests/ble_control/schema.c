@@ -136,6 +136,11 @@ BaseType_t xTaskCreate(void (*fn)(void *), const char *name, uint32_t stack,
   assert(stack == CONTROL_STACK_BYTES);
   spawn_calls++;return fail_spawn?0:pdPASS;
 }
+BaseType_t xTaskCreatePinnedToCore(void (*fn)(void *),const char *name,uint32_t stack,
+                                    void *arg,UBaseType_t pri,TaskHandle_t *out,BaseType_t core) {
+  assert(core==DBT_ESP32_BACKGROUND_CORE);
+  return xTaskCreate(fn,name,stack,arg,pri,out);
+}
 void xTaskNotifyGive(TaskHandle_t h) { assert(h); }
 void vTaskDelete(TaskHandle_t h) {
   (void)h;
@@ -755,6 +760,10 @@ int main(void) {
   dbt_att_clear(&server);link0->used=true;link0->encrypted=true;link0->generation++;
   assert(dbt_att_open(&server,link0)==DBT_OK);committed_bond=true;test_bond_tag=1;
   sync_cccd();assert(cccd_binding(link0)->phase==CCCD_LOADING && !server.connections[0].bonded);
+  /* Expose the current readiness rejection separately from a failed save:
+   * no second persistence job and no ephemeral success before bond restore. */
+  write_req(0x28,enabled,2,false);tx(out,&n);
+  assert(out[0]==1 && out[4]==DBT_ATT_UNLIKELY && cccd_jobs==1 && !cccd_present[1]);
   execute_one();pump_control();sync_cccd();assert(server.connections[0].bonded);
   write_req(0x28,enabled,2,false);assert(server.connections[0].deferred && !cccd_present[1]);
   assert(dbt_att_tx_peek(&server,1,link0->generation,(dbt_att_view_t[1]){{0}})==DBT_EMPTY);
