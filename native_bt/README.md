@@ -1,11 +1,27 @@
 # Independent ESP32 Bluetooth host
 
+The [idle logging checkpoint](docs/UART_IDLE_CADENCE_2026_11_08.md) keeps firmware
+and the raw-UART web viewer at **921600 baud**. Idle detail runs once per five
+counter cycles while events, first-gap traces and metadata retain their existing
+paths. Measured idle traffic after LHDC playback fell from about14KB/s to3KB/s,
+with zero trace/UART losses. Linked SRAM/IRAM are unchanged. COM6 image2492e98a66c3
+passes readback and37 cold codec cases. The routed metronome excerpt retains256
+final unfilled frames, first captured after pause acknowledgment; background
+logging was sparse under load. **LHDC continuity remains unresolved.**
+
+The [startup-guard comparison](docs/LHDC_STARTUP_COMPARISON_2026_11_08.md) rejected
+30ms: same-image50/30/30/50 windows contained512/6208/7872/1600 unfilled frames.
+Normal50ms and trace-off policy are restored. The supplied local Bluedroid code
+actually applies18 LHDC queue entries; the owned queue has8 uniform1800-byte
+payload slots. That storage-efficiency difference is under review, not proven
+as the cause. Full1Mbps and sustained BLE/control/feature parity remain open.
+
 The [frozen-dispatch and early-refill checkpoint](docs/FROZEN_DISPATCH_EARLY_REFILL_2026_11_08.md)
 puts local DMA refill immediately after fully mixed PCM publication, ahead of
 bookkeeping. An actual render-step deadline test fails without the correction.
 An optional bounded task trace now identifies controller/host/render/decoder
 contexts; it adds352B DRAM and488B IRAM when enabled and is off by default.
-Current COM6 diagnostic imageaf37df00e68c runs the trace at **921600 baud**.
+The checkpoint diagnostic imageaf37df00e68c runs the trace at **921600 baud**.
 
 **LHDC continuity remains unresolved.** Corrected metronome windows have
 **2112/11712 unfilled PCM frames**; music has0. The active repeat waits for encoded

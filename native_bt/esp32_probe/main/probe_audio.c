@@ -1110,6 +1110,9 @@ static void log_loop(void *unused){
     unsigned ticks=0;
     uint32_t previous_codec_revision=0;
     uint32_t previous_encoded_epoch=UINT32_MAX,previous_encoded_known=UINT32_MAX;
+#if defined(DBT_PROBE_STAY_NATIVE) && defined(DBT_PROBE_AUDIO_OUTPUT)
+    uint32_t previous_activity[8]={0};unsigned quiet_ticks=0;bool activity_seen=false;
+#endif
     for(;;){
         vTaskDelay(pdMS_TO_TICKS(100));log_media_trace();
 #ifdef DBT_PROBE_DISPATCH_TRACE
@@ -1124,9 +1127,35 @@ static void log_loop(void *unused){
         if(++ticks<10)continue;
         ticks=0;
         uint32_t at=(uint32_t)esp_timer_get_time();
+#ifdef DBT_PROBE_AVRCP
+        (void)log_metadata();
+#endif
+#if defined(DBT_PROBE_STAY_NATIVE) && defined(DBT_PROBE_AUDIO_OUTPUT)
+        /* Event/fault rings and first-gap latches drain above this gate. Keep
+         * playback detail at its existing cadence; while stopped, avoid
+         * formatting unchanged cumulative counters four cycles out of five.
+         * Lifecycle, PCM progress and error changes reopen detail next cycle.
+         * A small liveness record keeps passive UART readers current. */
+        uint32_t activity[8]={atomic_load(&profile_snapshot),atomic_load(&event_errors),
+            atomic_load(&codec_revision),atomic_load(&pcm_generation),
+            atomic_load(&worker.faults),atomic_load(&worker.media_drops),
+            atomic_load(&ignored_dynamic),atomic_load(&oversized_dynamic)};
+        if(!probe_output_running() && activity_seen &&
+           !memcmp(previous_activity,activity,sizeof activity) && ++quiet_ticks<5u){
+            PROBE_SNAPSHOT_LOG("{\"probe\":\"logger_idle\",\"detail_period_ms\":5000,\"event_drain_period_ms\":100,\"playback_detail_period_ms\":1000}\n");
+            continue;
+        }
+        memcpy(previous_activity,activity,sizeof activity);activity_seen=true;quiet_ticks=0;
+#endif
+#ifdef DBT_PROBE_DISPATCH_TRACE
+        probe_media_timing_t media_time;(void)probe_output_media_timing(&media_time);
+        PROBE_SNAPSHOT_LOG("{\"probe\":\"media_admission_clock\",\"collection_cycle_us\":%" PRIu32 ",\"coherent\":%s,\"media_epoch\":%" PRIu32 ",\"sequence\":%" PRIu32 ",\"rtp_timestamp\":%" PRIu32 ",\"ssrc\":%" PRIu32 ",\"begin_us\":%" PRIu32 ",\"admitted_us\":%" PRIu32 ",\"result\":%" PRIu32 ",\"hci_arrival_valid\":%s,\"hci_arrival_us\":%" PRIu32 ",\"rf_arrival\":false}\n",
+            at,media_time.coherent?"true":"false",media_time.epoch,media_time.sequence,media_time.timestamp,media_time.ssrc,media_time.begin_us,media_time.admitted_us,media_time.result,media_time.arrival_valid?"true":"false",media_time.arrival_us);
+#endif
+
 #if (defined(DBT_PROBE_SCHEDULER_TRACE) || defined(DBT_PROBE_STAY_NATIVE)) && defined(DBT_PROBE_AUDIO_OUTPUT)
-        /* Cumulative diagnostics need one heartbeat per second. Keep trace and
-         * first-gap draining above the cadence gate; never print per packet. */
+        /* Playback counters use the one-second detail cadence. Idle detail
+         * is reduced above; trace and first-gap draining remain independent. */
         probe_arrival_stats_t arrival_stats;probe_arrival_stats(&arrival_stats);
         PROBE_SNAPSHOT_LOG("{\"probe\":\"media_arrival_fifo\",\"published\":%" PRIu32 ",\"consumed\":%" PRIu32 ",\"lost\":%" PRIu32
             ",\"status\":%" PRIu32 ",\"metadata_bytes\":%" PRIu32 ",\"metadata_slots\":8,\"diagnostic_only\":true,\"association_scope\":\"complete_current_acl_l2cap_rtp\",\"counts_independent\":true}\n",
@@ -1350,9 +1379,6 @@ static void log_loop(void *unused){
                    (unsigned)(snapshot&255u),(unsigned)((snapshot>>8)&1u),(unsigned)((snapshot>>9)&1u),
                    (unsigned)((snapshot>>10)&1u),errors,atomic_load(&last_channel_event),atomic_load(&last_channel_result),(snapshot&0x7fffffffu)>>11,(snapshot>>31)?"true":"false",ignored,oversized);
         }
-#ifdef DBT_PROBE_AVRCP
-        (void)log_metadata();
-#endif
 #ifdef DBT_PROBE_AUDIO_OUTPUT
         uint32_t output_snapshot_began=(uint32_t)esp_timer_get_time();
         probe_output_stats_t stats;probe_output_stats(&stats);

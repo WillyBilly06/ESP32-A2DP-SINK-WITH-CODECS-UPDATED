@@ -134,6 +134,15 @@ void probe_output_trace_media(uint32_t began,uint32_t ended,uint32_t epoch,uint1
 /* Matched current complete ACL/L2CAP/RTP packet, not RF arrival. Fragmented,
  * deferred and raw media remain uncorrelated. All fields share the version. */
 void probe_output_trace_media_arrival(uint32_t,uint32_t,uint32_t,uint16_t,uint32_t,uint32_t,dbt_result_t,bool,uint32_t,uint32_t,uint32_t);
+/* Latest host-owned RTP admission tuple. One attempt, no lock/retry. Epoch
+ * remains the tuple's own binding; it may precede a new stream's first packet.
+ * A stable tuple can describe an in-progress/rejected admission: inspect result.
+ * Correlated HCI arrival is not an RF arrival timestamp. */
+typedef struct {
+    uint32_t epoch,sequence,timestamp,ssrc,begin_us,admitted_us,result,arrival_us;
+    bool arrival_valid,coherent;
+} probe_media_timing_t;
+bool probe_output_media_timing(probe_media_timing_t *);
 void probe_output_trace_acl(uint32_t at);
 void probe_output_trace_host_poll(uint32_t at);
 void probe_output_trace_decoder(uint32_t phase,uint32_t at,uint32_t queued);

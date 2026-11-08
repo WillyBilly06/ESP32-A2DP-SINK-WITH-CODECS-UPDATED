@@ -387,6 +387,18 @@ static void starvation_snapshot(starvation_capture_t *f,probe_output_starvation_
   s->coherent=s->captured && !(before&1u) && before==atomic_load(&f->version) &&
       serial==s->stream_serial && serial==atomic_load(&timeline.stream_serial);
 }
+bool probe_output_media_timing(probe_media_timing_t *s){
+  if(!s)return false;
+  *s=(probe_media_timing_t){0};
+  uint32_t v=atomic_load(&timeline.media_version);if(v&1u)return false;
+  s->epoch=atomic_load(&timeline.media_epoch);s->sequence=atomic_load(&timeline.media_sequence);
+  s->timestamp=atomic_load(&timeline.media_timestamp);s->ssrc=atomic_load(&timeline.media_ssrc);
+  s->begin_us=atomic_load(&timeline.media_us);s->admitted_us=atomic_load(&timeline.media_admit_us);
+  s->result=atomic_load(&timeline.media_result);s->arrival_us=atomic_load(&timeline.media_arrival_us);
+  s->arrival_valid=atomic_load(&timeline.media_arrival_valid)!=0;
+  OUTPUT_TEST_STEP(13);
+  s->coherent=s->epoch && v==atomic_load(&timeline.media_version);return s->coherent;
+}
 void probe_output_first_starvation(probe_output_starvation_t *s){starvation_snapshot(&timeline.first,s);}
 void probe_output_first_unfilled(probe_output_starvation_t *s){starvation_snapshot(&timeline.first_unfilled,s);}
 #endif

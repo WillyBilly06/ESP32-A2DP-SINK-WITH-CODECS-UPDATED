@@ -3,9 +3,12 @@
 #define DBT_OUTPUT_TEST_HOOKS 1
 #include "probe_output_format.c"
 #include <stdio.h>
-static bool publication_preempt;
+static bool publication_preempt,media_timing_interference;
 static unsigned publication_preemptions;
 void dbt_output_test_step(unsigned stage){
+    if(stage==13 && media_timing_interference){media_timing_interference=false;
+        probe_output_trace_media_arrival(90002,90012,100,44,1920,255,DBT_OK,false,0,0,0);
+    }
     if(stage==12 && publication_preempt){publication_preempt=false;++publication_preemptions;
         test_clock_us=(int64_t)atomic_load(&output.refill_deadline_us)+20u;
     }
@@ -80,6 +83,13 @@ static int partial_refill(void){
     CHECK(probe_owner_state_completed(owner_ncp,sizeof owner_ncp,88020));
     probe_owner_state_mark(PROBE_OWNER_SLEEP,88030,UINT32_MAX);
 #endif
+    probe_output_trace_media_arrival(90000,90010,99,42,960,255,DBT_OK,true,89900,UINT32_MAX-7u,0x2001u);
+    probe_media_timing_t timing;CHECK(probe_output_media_timing(&timing) && timing.coherent);
+    CHECK(timing.epoch==99 && timing.sequence==42 && timing.timestamp==960 && timing.ssrc==255 && timing.begin_us==90000 && timing.admitted_us==90010 && timing.result==DBT_OK && timing.arrival_valid && timing.arrival_us==89900);
+    uint32_t media_v=atomic_load(&timeline.media_version);atomic_store(&timeline.media_version,media_v+1u);
+    CHECK(!probe_output_media_timing(&timing));atomic_store(&timeline.media_version,media_v+2u);
+    media_timing_interference=true;CHECK(!probe_output_media_timing(&timing));
+    CHECK(!probe_output_media_timing(NULL));
     probe_output_trace_media_arrival(90000,90010,99,42,960,255,DBT_OK,true,89900,UINT32_MAX-7u,0x2001u);
     e.dma_buf=dma[0];(void)sent(0,&e,&output);
     CHECK(probe_output_try_pcm_format(input,512,2,96000,DBT_PCM_S32_LE)==DBT_OK);
