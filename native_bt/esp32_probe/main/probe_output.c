@@ -1,5 +1,6 @@
 #include "probe_schedule_limits.h"
 #include "probe_output.h"
+#include "probe_dispatch_trace.h"
 #if (defined(DBT_PROBE_SCHEDULER_TRACE) || defined(DBT_PROBE_STAY_NATIVE)) && defined(DBT_PROBE_AUDIO_TEST)
 #include "probe_arrival.h"
 #endif
@@ -236,12 +237,18 @@ void probe_output_trace_decoder(uint32_t phase,uint32_t at,uint32_t queued){
   atomic_store(&timeline.decoder_version,version+2u);
 }
 static void trace_render(uint32_t phase,uint32_t at){
+#ifdef DBT_PROBE_DISPATCH_TRACE
+  probe_dispatch_mark(phase?PROBE_DISPATCH_RENDER_ENTER:PROBE_DISPATCH_RENDER_LEAVE,PROBE_DISPATCH_RENDER,0);
+#endif
   uint32_t version=atomic_load(&timeline.render_version);
   atomic_store(&timeline.render_version,version+1u);
   atomic_store(&timeline.render_phase,phase);atomic_store(&timeline.render_at_us,at);
   atomic_store(&timeline.render_version,version+2u);
 }
 static void IRAM_ATTR capture_starvation(starvation_capture_t *f,output_t *o,uint32_t now,uint32_t taken,uint32_t deadline){
+#ifdef DBT_PROBE_DISPATCH_TRACE
+  if(f==&timeline.first_unfilled)probe_dispatch_freeze(atomic_load(&timeline.stream_serial),now);
+#endif
   uint32_t version=atomic_load(&f->version);
   atomic_store(&f->version,version+1u);
   atomic_store(&f->stream_serial,atomic_load(&timeline.stream_serial));
@@ -400,6 +407,9 @@ static bool ensure_auxiliary_render0(void){
     atomic_fetch_add(&output.auxiliary_allocation_failures,1);return false;
   }
   output.workers[0]=worker;atomic_store(&output.auxiliary_stack_bytes,AUX_RENDER_STACK_BYTES);
+#ifdef DBT_PROBE_DISPATCH_TRACE
+  probe_dispatch_bind(PROBE_DISPATCH_HELPER,worker);
+#endif
 #ifdef DBT_PROBE_SCHEDULER_TRACE
   probe_scheduler_bind_renderer0(worker);
 #endif
@@ -703,6 +713,9 @@ static bool IRAM_ATTR sent(i2s_chan_handle_t channel, i2s_event_data_t *event,
   output_t *o = context;
   BaseType_t wake = pdFALSE;
   uint32_t now = (uint32_t)esp_timer_get_time();
+#ifdef DBT_PROBE_DISPATCH_TRACE
+  probe_dispatch_eof(now,xTaskGetCurrentTaskHandle());
+#endif
   uint32_t gap = o->last_eof?now-o->last_eof:0;
   if (!event->dma_buf || event->size != DMA_FRAMES * 8u) {
     atomic_store(&o->descriptor_fault_at_us,now);
@@ -857,6 +870,9 @@ static bool IRAM_ATTR sent(i2s_chan_handle_t channel, i2s_event_data_t *event,
   return finish_sent(o,now,wake);
 }
 static void close_output(void) {
+#ifdef DBT_PROBE_DISPATCH_TRACE
+  probe_dispatch_stop();
+#endif
 #ifdef DBT_PROBE_PCM_LOANS
   (void)retire_pcm_loan(true);
 #endif
@@ -1023,6 +1039,9 @@ static dbt_result_t start_output(uint32_t rate, uint8_t channels,
   atomic_store(&output.startup_encoded_slots,UINT32_MAX);
   atomic_store(&output.startup_version,startup_version+2u);
   atomic_store(&timeline.stream_serial,atomic_load(&timeline.stream_serial)+1u);
+#ifdef DBT_PROBE_DISPATCH_TRACE
+  probe_dispatch_begin(atomic_load(&timeline.stream_serial),(uint32_t)esp_timer_get_time());
+#endif
 #endif
   atomic_store(&output.descriptor_errors, 0);
   atomic_store(&output.descriptor_shape_errors,0);
@@ -1328,6 +1347,9 @@ static dbt_result_t dsp_assist_commit(void *context,const dbt_audio_render_job_t
     uint32_t made=0;
     dbt_result_t result=dbt_audio_render_finish(&output.audio,block,success,&made);
     assist.committed_us=(uint32_t)esp_timer_get_time();
+#ifdef DBT_PROBE_DISPATCH_TRACE
+    if(made)probe_dispatch_mark(PROBE_DISPATCH_PCM_READY,PROBE_DISPATCH_HELPER,made);
+#endif
     uint32_t delay=assist.committed_us-math_end;
     if(delay>assist.commit_delay_max_us)assist.commit_delay_max_us=delay;
     if(result!=DBT_OK)return result;
@@ -1366,6 +1388,9 @@ static bool dsp_assist_work(void){
    * this helper before its next statement. No borrowed span is touched here. */
   TaskHandle_t owner=atomic_load_explicit(&output.task,memory_order_acquire);
   if(owner)xTaskNotifyGive(owner);
+#ifdef DBT_PROBE_DISPATCH_TRACE
+  probe_dispatch_mark(PROBE_DISPATCH_HELPER_DONE,PROBE_DISPATCH_HELPER,0);
+#endif
   notify_pcm_progress();
   return true;
 }
@@ -1424,6 +1449,9 @@ static bool dsp_assist_submit(uint32_t budget,uint32_t began){
   assist.committed_frames=assist.committed_us=assist.extra_cycles=assist.block_max_cycles=0;
   const uint32_t maximum=DBT_PROBE_DSP_ASSIST_BLOCKS*FIXED_DSP_BLOCK_FRAMES;
   assist.commit_delay_max_us=assist.completed_blocks=0;assist.budget=budget>maximum?maximum:budget;
+#ifdef DBT_PROBE_DISPATCH_TRACE
+  probe_dispatch_mark(PROBE_DISPATCH_HELPER_QUEUED,PROBE_DISPATCH_RENDER,assist.budget|((uint32_t)admission<<16));
+#endif
   if(dbt_dsp_job_submit(&assist.lane,&block)!=DBT_OK){
     /* Submit transferred no borrow. Retire the matching preparation as a
      * failed stream, never run local math over an ambiguously owned block. */
@@ -1431,6 +1459,9 @@ static bool dsp_assist_submit(uint32_t budget,uint32_t began){
     atomic_store(&output.failed,1);assist_add(&assist.failures,1);notify_clients();return true;
   }
   if(admission==PROBE_DSP_RESERVED_ASSIST)assist_add(&assist.reserve_submitted,1);
+#ifdef DBT_PROBE_DISPATCH_TRACE
+  probe_dispatch_mark(PROBE_DISPATCH_HELPER_SUBMITTED,PROBE_DISPATCH_RENDER,0);
+#endif
   xTaskNotifyGive(output.workers[0]);return true;
 }
 #endif
@@ -1574,6 +1605,10 @@ static bool render_step(void) {
         const bool input_wake_owned=false;
         uint32_t made=budget?dbt_audio_render(&output.audio,budget):0;
 #endif
+        /* PCM is already mixed/published. Refill before diagnostic timestamps,
+         * stage accounting or a scheduler handoff can expire this window. */
+        if(made)(void)service_refill_window();
+        OUTPUT_TEST_STEP(12); /* test-only post-publication preemption */
 #ifdef DBT_PROBE_SCHEDULER_TRACE
         uint32_t local_end=(uint32_t)esp_timer_get_time();
         if(mark_local && made){
@@ -1602,7 +1637,12 @@ static bool render_step(void) {
 #ifdef PROBE_OUTPUT_GAP_TRACE
         trace_render(0,(uint32_t)esp_timer_get_time());
 #endif
-        if(made)render_completed(began,input_wake_owned);
+        if(made){
+#ifdef DBT_PROBE_DISPATCH_TRACE
+          probe_dispatch_mark(PROBE_DISPATCH_PCM_READY,PROBE_DISPATCH_RENDER,made);
+#endif
+          render_completed(began,input_wake_owned);
+        }
       }
       available = dbt_audio_output_frames(&output.audio);
       atomic_store(&output.ready_frames, available);
@@ -1780,6 +1820,9 @@ dbt_result_t probe_output_init(void (*wake_decoder)(void *), void *context) {
   }
 #ifdef DBT_PROBE_CODEC_AWARE_RENDER
   output.workers[DBT_ESP32_RENDER_CORE]=base;
+#ifdef DBT_PROBE_DISPATCH_TRACE
+  probe_dispatch_bind(PROBE_DISPATCH_RENDER,base);
+#endif
 #endif
   atomic_store_explicit(&output.task,base,memory_order_release);xTaskNotifyGive(base);
   return DBT_OK;

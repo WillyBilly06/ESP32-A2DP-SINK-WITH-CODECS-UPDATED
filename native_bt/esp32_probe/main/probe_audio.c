@@ -61,6 +61,7 @@
 #endif
 #ifdef DBT_PROBE_AUDIO_OUTPUT
 #include "probe_output.h"
+#include "probe_dispatch_trace.h"
 #define AUDIO_SDP_JSON "true"
 #else
 #define AUDIO_SDP_JSON "false"
@@ -318,6 +319,10 @@ static dbt_result_t timed_worker_media(void *context,const dbt_avdtp_media_t *pa
 #define timed_worker_media dbt_codec_worker_media
 #endif
 static void timing_event(unsigned kind){
+#ifdef DBT_PROBE_DISPATCH_TRACE
+    if(kind==DBT_CODEC_DECODE_BEGIN)probe_dispatch_mark(PROBE_DISPATCH_DECODE_ENTER,PROBE_DISPATCH_DECODE,0);
+    else if(kind==DBT_CODEC_DECODE_END)probe_dispatch_mark(PROBE_DISPATCH_DECODE_LEAVE,PROBE_DISPATCH_DECODE,0);
+#endif
     unsigned index=(kind-DBT_CODEC_DECODE_BEGIN)/2u;
     if(index>=3)return;
     /* Functional producer state, independent of optional timeline/profilers.
@@ -1084,6 +1089,21 @@ static void log_volume_kernels(void){
     }
 }
 #endif
+#ifdef DBT_PROBE_DISPATCH_TRACE
+static void log_dispatch_trace(void){
+    static uint32_t previous[2];
+    for(unsigned core=0;core<2;++core){
+        probe_dispatch_snapshot_t s;if(!probe_dispatch_snapshot(core,&s) || previous[core]==s.serial)continue;
+        PROBE_SNAPSHOT_LOG("{\"probe\":\"dispatch_window\",\"stream_serial\":%" PRIu32 ",\"core\":%u,\"begin_us\":%" PRIu32 ",\"gap_us\":%" PRIu32 ",\"head\":%" PRIu32 ",\"begin_head\":%" PRIu32 ",\"count\":%" PRIu32 ",\"bindings\":%" PRIu32 ",\"prefix_overwritten\":%s,\"task_switch_is_selection\":true,\"interrupt_time_included\":true,\"one_attempt\":true}\n",
+            s.serial,core,s.begin_us,s.gap_us,s.head,s.begin_head,s.count,s.bindings,s.head-s.begin_head>s.count?"true":"false");
+        for(unsigned i=0;i<s.count;++i){probe_dispatch_event_t *e=&s.events[i];
+            PROBE_SNAPSHOT_LOG("{\"probe\":\"dispatch_event\",\"stream_serial\":%" PRIu32 ",\"core\":%u,\"ordinal\":%" PRIu32 ",\"event_us\":%" PRIu32 ",\"kind\":%u,\"task_role\":%u,\"value\":%" PRIu32 ",\"after_gap\":%s}\n",
+                s.serial,core,s.head-s.count+i,e->at_us,(unsigned)(e->info&15u),(unsigned)((e->info>>4)&15u),e->info>>8,(int32_t)(e->at_us-s.gap_us)>0?"true":"false");
+        }
+        previous[core]=s.serial;
+    }
+}
+#endif
 static void log_loop(void *unused){
     (void)unused;
     uint32_t previous=UINT32_MAX,previous_errors=UINT32_MAX,previous_ignored=UINT32_MAX,previous_oversized=UINT32_MAX;
@@ -1092,6 +1112,9 @@ static void log_loop(void *unused){
     uint32_t previous_encoded_epoch=UINT32_MAX,previous_encoded_known=UINT32_MAX;
     for(;;){
         vTaskDelay(pdMS_TO_TICKS(100));log_media_trace();
+#ifdef DBT_PROBE_DISPATCH_TRACE
+        log_dispatch_trace();
+#endif
 #ifdef DBT_APTX_SNAPSHOT
         dbt_pcm_snapshot_log(!probe_output_running());
 #endif
@@ -1598,6 +1621,14 @@ dbt_result_t probe_audio_init(dbt_runtime_t *runtime,TaskHandle_t host_owner){
         sampled==ESP_OK?"true":"false",(unsigned)sampled,(unsigned)configTICK_RATE_HZ);
 #endif
     initialized=true;
+#ifdef DBT_PROBE_DISPATCH_TRACE
+    probe_dispatch_bind(PROBE_DISPATCH_HOST,owner);probe_dispatch_bind(PROBE_DISPATCH_DECODE,decoder_task);
+    probe_dispatch_bind(PROBE_DISPATCH_LOGGER,logger_task);
+    probe_dispatch_bind(PROBE_DISPATCH_CONTROLLER,xTaskGetHandle("btController"));
+    probe_dispatch_bind(PROBE_DISPATCH_IPC1,xTaskGetHandle("ipc1"));
+    probe_dispatch_bind(PROBE_DISPATCH_IDLE0,xTaskGetHandle("IDLE0"));
+    probe_dispatch_bind(PROBE_DISPATCH_IDLE1,xTaskGetHandle("IDLE1"));
+#endif
 #ifdef DBT_PROBE_LHDC_STAGE_PROFILE
     probe_lhdc_profile_live_enable();
 #endif

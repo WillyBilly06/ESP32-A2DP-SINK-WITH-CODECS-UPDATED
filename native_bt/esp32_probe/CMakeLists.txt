@@ -1,4 +1,5 @@
 cmake_minimum_required(VERSION 3.22)
+option(DBT_PROBE_DISPATCH_TRACE "Freeze bounded task/publication history at first final audio gap" OFF)
 option(DBT_PROBE_TASK_CYCLE_ACCOUNTING "Opt-in pinned-render task-switch cycle accounting" OFF)
 if(DBT_PROBE_TASK_CYCLE_ACCOUNTING AND NOT DBT_PROBE_TASK_RUNTIME_STATS)
     message(FATAL_ERROR "Task-cycle accounting requires native task runtime statistics")
@@ -210,6 +211,9 @@ endif()
 if(DBT_PROBE_CONSOLE_IRQ AND (NOT DBT_PROBE_STAY_NATIVE OR NOT DBT_PROBE_ASYNC_AUDIO))
     message(FATAL_ERROR "Console IRQ requires the complete native asynchronous product")
 endif()
+if(DBT_PROBE_DISPATCH_TRACE AND (NOT DBT_PROBE_STAY_NATIVE OR NOT DBT_PROBE_ASYNC_AUDIO OR NOT DBT_PROBE_PCM_COPIED OR NOT DBT_PROBE_DSP_ASSIST OR NOT DBT_PROBE_LHDC_BUILD OR DBT_PROBE_SCHEDULER_TRACE OR DBT_PROBE_TASK_RUNTIME_STATS OR DBT_PROBE_TASK_CYCLE_ACCOUNTING))
+    message(FATAL_ERROR "Frozen dispatch trace requires native copied LHDC/helper output without other task profilers")
+endif()
 set(COMPONENTS main)
 if(DBT_PROBE_CONSOLE_IRQ)
     list(APPEND COMPONENTS esp_driver_uart)
@@ -249,6 +253,14 @@ if(NOT IDF_VERSION_MAJOR EQUAL 6 OR NOT IDF_VERSION_MINOR EQUAL 1)
 endif()
 idf_build_set_property(MINIMAL_BUILD ON)
 project(native_bt_probe)
+
+if(DBT_PROBE_DISPATCH_TRACE)
+    idf_component_get_property(dispatch_kernel freertos COMPONENT_LIB)
+    target_compile_options(${dispatch_kernel} PRIVATE
+        "$<$<COMPILE_LANGUAGE:C>:-DDBT_PROBE_DISPATCH_TRACE=1>"
+        "$<$<COMPILE_LANGUAGE:C>:-include>"
+        "$<$<COMPILE_LANGUAGE:C>:${CMAKE_CURRENT_LIST_DIR}/main/probe_dispatch_kernel_trace.h>")
+endif()
 
 if(DBT_PROBE_TASK_CYCLE_ACCOUNTING)
     idf_component_get_property(account_kernel freertos COMPONENT_LIB)

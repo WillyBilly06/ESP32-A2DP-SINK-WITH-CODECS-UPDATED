@@ -1,7 +1,15 @@
 /* Host-only actual output implementation; scheduler marks are metadata stubs.
  * No target timing is inferred from this deterministic virtual clock. */
+#define DBT_OUTPUT_TEST_HOOKS 1
 #include "probe_output_format.c"
 #include <stdio.h>
+static bool publication_preempt;
+static unsigned publication_preemptions;
+void dbt_output_test_step(unsigned stage){
+    if(stage==12 && publication_preempt){publication_preempt=false;++publication_preemptions;
+        test_clock_us=(int64_t)atomic_load(&output.refill_deadline_us)+20u;
+    }
+}
 #ifdef DBT_PROBE_SCHEDULER_TRACE
 void probe_scheduler_mark(unsigned core,probe_scheduler_mark_t *m){memset(m,0,sizeof *m);m->core=core;}
 void probe_scheduler_interval_observe(unsigned kind,const probe_scheduler_mark_t *a,const probe_scheduler_mark_t *b,
@@ -118,6 +126,21 @@ static int refill_before_diagnostics(void){
     CHECK(!atomic_load(&output.refill_contract_errors) && !atomic_load(&output.failed));
     close_output();CHECK(!live);return 0;
 }
+static int local_publication_refill_order(void){
+    static int32_t dma[DMA_DESCRIPTORS][DMA_FRAMES*2];int32_t pcm[512*2];
+    for(unsigned i=0;i<512*2;++i)pcm[i]=0x1000000+(int32_t)i*4000;
+    CHECK(refill_test_start(dma,150000)==0);
+    i2s_event_data_t e={.dma_buf=dma[0],.size=DMA_FRAMES*8u};(void)sent(0,&e,&output);
+    CHECK(probe_output_try_pcm_format(pcm,512,2,96000,DBT_PCM_S32_LE)==DBT_OK);
+    uint32_t deadline=atomic_load(&output.refill_deadline_us);
+    test_clock_us=(int64_t)deadline-REFILL_COPY_BUDGET_US-200u;
+    publication_preemptions=0;publication_preempt=true;(void)render_step();publication_preempt=false;
+    CHECK(publication_preemptions==1 && atomic_load(&output.descriptors[0].valid)==64u);
+    CHECK(atomic_load(&output.refill_recovered_frames)==64u && !atomic_load(&output.refill_contract_errors));
+    /* The late remainder is never written into the expired descriptor. */
+    CHECK(!service_refill_window() && atomic_load(&output.descriptors[0].valid)==64u);
+    close_output();CHECK(!live);return 0;
+}
 static int bounded_refill_burst(void){
     static int32_t dma[DMA_DESCRIPTORS][DMA_FRAMES*2];int32_t pcm[512*2]={0};
     CHECK(refill_test_start(dma,130000)==0);
@@ -164,6 +187,7 @@ static int fragmented_dsp_equivalence(void){
 int main(void){
     int line=probe_output_refill_windows();if(!line)line=startup_observation();
     if(!line)line=refill_before_diagnostics();
+    if(!line)line=local_publication_refill_order();
     if(!line)line=bounded_refill_burst();
     if(!line)line=partial_refill();if(!line)line=fragmented_dsp_equivalence();
     if(line){fprintf(stderr,"FAIL finalized-refill/startup evidence line %d\n",line);return 1;}

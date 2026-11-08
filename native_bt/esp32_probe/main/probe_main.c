@@ -393,11 +393,15 @@ static bool product_startup(void){
 #endif
 
 
+#include "probe_dispatch_trace.h"
 static void owner_render_checkpoint(void){
 #ifdef DBT_PROBE_RENDER_FAIR_SHARE
     if(probe_audio_owner_pressure()){
 #ifdef PROBE_OWNER_STATE_TRACE
         uint32_t prior=OWNER_MARK(PROBE_OWNER_RENDER_YIELD,UINT32_MAX);
+#endif
+#ifdef DBT_PROBE_DISPATCH_TRACE
+        probe_dispatch_mark(PROBE_DISPATCH_HOST_YIELD,PROBE_DISPATCH_HOST,0);
 #endif
         probe_audio_owner_service_yield();taskYIELD();
 #ifdef PROBE_OWNER_STATE_TRACE

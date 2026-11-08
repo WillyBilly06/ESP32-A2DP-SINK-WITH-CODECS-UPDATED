@@ -1,12 +1,25 @@
 # Independent ESP32 Bluetooth host
 
+The [frozen-dispatch and early-refill checkpoint](docs/FROZEN_DISPATCH_EARLY_REFILL_2026_11_08.md)
+puts local DMA refill immediately after fully mixed PCM publication, ahead of
+bookkeeping. An actual render-step deadline test fails without the correction.
+An optional bounded task trace now identifies controller/host/render/decoder
+contexts; it adds352B DRAM and488B IRAM when enabled and is off by default.
+Current COM6 diagnostic imageaf37df00e68c runs the trace at **921600 baud**.
+
+**LHDC continuity remains unresolved.** Corrected metronome windows have
+**2112/11712 unfilled PCM frames**; music has0. The active repeat waits for encoded
+input with empty PCM queues, separately from an earlier decoded-PCM handoff miss.
+Core191/191, output/sound/trace checks and37 cold codec cases pass. Full1Mbps,
+BLE/control, acoustics and complete feature/security/OTA qualification remain open.
+
 The [retired-packet scheduling checkpoint](docs/RETIRED_PACKET_SCHEDULING_2026_11_08.md)
 adds conditional owner yield points between fully retired HCI packets, returning
 safe receive credits before yielding. Linked SRAM/IRAM and all priorities/buffers
 are unchanged.191/191 host tests and37 cold target cases pass. Short corrected
 LHDC192/S24/fixed900 windows still have **256/704 music and3456 metronome unfilled
 PCM frames**. Playback-time misses remain; this is not a continuity fix.
-Current COM6 imagee7948405b95b and the raw-UART monitor run at **921600 baud**.
+Checkpoint imagee7948405b95b and the raw-UART monitor run at **921600 baud**.
 
 The [encoded-duration checkpoint](docs/LHDC_ENCODED_DURATION_2026_11_08.md)
 counts grouped LHDC frames and partial PCM delivery correctly for negotiated
