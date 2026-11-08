@@ -26,7 +26,7 @@ static bool (*control_trust_valid)(uint16_t,uint32_t,uint32_t);
 typedef enum { CCCD_NONE,CCCD_LOADING,CCCD_MERGE,CCCD_SAVING,CCCD_READY,CCCD_BOUND,CCCD_ERROR } cccd_phase_t;
 typedef struct {
     uint16_t handle;uint32_t generation;uint8_t type,identity[6],tag[32];
-    uint16_t values[PROBE_CCCD_COUNT];cccd_phase_t phase;uint32_t retry_at;bool retry_pending;
+    uint16_t values[PROBE_CCCD_COUNT];cccd_phase_t phase;uint32_t retry_at,pending_token;bool retry_pending;
 } cccd_binding_t;
 static cccd_binding_t cccd_bindings[DBT_MAX_LINKS];
 
@@ -311,6 +311,41 @@ static int cccd_number(uint16_t handle) {
     for(unsigned i=0;i<PROBE_CCCD_COUNT;i++)if(handles[i]==handle)return (int)i;
     return -1;
 }
+
+/* Reuse the per-connection touched values; never retain an ATT batch pointer. */
+static bool cccd_touch_batch(const dbt_link_t *link,const dbt_att_batch_t *batch) {
+    cccd_touched_t *t=touch_for(link);if(!t)return false;
+    for(unsigned i=0;i<batch->cccd_count;i++)if(cccd_number(batch->cccds[i].handle)<0)return false;
+    for(unsigned i=0;i<batch->cccd_count;i++){
+        unsigned k=(unsigned)cccd_number(batch->cccds[i].handle);
+        t->mask|=(uint8_t)(1u<<k);t->values[k]=batch->cccds[i].value;
+    }
+    return true;
+}
+static bool cccd_merge_touched(const dbt_link_t *link,cccd_binding_t *b) {
+    cccd_touched_t *t=touch_for(link);if(!t)return false;
+    for(unsigned i=0;i<PROBE_CCCD_COUNT;i++)if(t->mask&(1u<<i))b->values[i]=t->values[i];
+    return true;
+}
+/* Only outside ATT callbacks. The token fences the single deferred request;
+ * restoration/persistence must finish before ATT's bonded state is attached. */
+static bool cccd_complete_pending(const dbt_link_t *link,cccd_binding_t *b,
+                                  dbt_att_connection_t *c,uint8_t error) {
+    uint32_t token=b->pending_token;if(!token)return true;b->pending_token=0;
+    bool current=c && c->used && c->handle==b->handle && c->generation==b->generation &&
+        c->deferred && !c->failed && c->token==token &&
+        (int32_t)(control_now_ms-c->request_deadline)<0;
+    if(!current || error){
+        cccd_touched_t *t=touch_for(link);if(t)t->mask=0;
+        b->phase=CCCD_ERROR;
+    }
+    if(!current)return false;
+    if(!error)memcpy(c->staged_cccds,b->values,sizeof(b->values));
+    dbt_result_t rc=dbt_att_complete(&server,b->handle,b->generation,token,error,c->error_handle);
+    cccd_record(b->handle,b->generation,token,8,b->phase,error?error:(uint32_t)rc,0);
+    return rc==DBT_OK;
+}
+
 static uint16_t cccd_enqueue(const dbt_link_t *link,cccd_binding_t *binding,uint8_t kind,
                              uint32_t token,uint16_t error_handle,const uint16_t *values) {
     /* One bounded extra CCCD job is independent of the four control slots;
@@ -451,17 +486,36 @@ static uint16_t write(void *context, const dbt_link_t *link, const dbt_att_batch
             cccd_binding_t *b=cccd_binding(link);dbt_att_connection_t *c=NULL;
             for(unsigned i=0;i<DBT_MAX_LINKS;i++)if(server.connections[i].used &&
                 server.connections[i].handle==link->handle && server.connections[i].generation==link->generation)c=&server.connections[i];
-            if(!b || b->phase!=CCCD_BOUND || !c || !c->bonded || batch->command ||
-               batch->count!=batch->cccd_count){
+            if(!c || c->failed || !security.encrypted || !link->encrypted || security.key_size<7 ||
+               batch->command || batch->count!=batch->cccd_count){
                 cccd_record(link->handle,link->generation,token,3,b?b->phase:UINT32_MAX,DBT_ATT_UNLIKELY,0);return DBT_ATT_UNLIKELY;
             }
             uint8_t type,id[6],tag[32];
-            if(!bond_query || bond_query(link->handle,link->generation,&type,id,tag)!=DBT_OK ||
-               type!=b->type || memcmp(id,b->identity,6) || memcmp(tag,b->tag,32)){
-                cccd_record(link->handle,link->generation,token,4,b->phase,DBT_ATT_UNLIKELY,0);return DBT_ATT_UNLIKELY;
+            if(!bond_query || bond_query(link->handle,link->generation,&type,id,tag)!=DBT_OK)
+                return DBT_ATT_UNLIKELY;
+            /* A controller event and the first write may share an owner poll,
+             * before sync_cccd has installed the new binding. No NVS work here. */
+            if(!b && !c->bonded)for(unsigned i=0;i<DBT_MAX_LINKS;i++){
+                const dbt_link_t *l=&bearer.runtime->acl.links[i];
+                if(!l->used || l->handle!=link->handle || l->generation!=link->generation)continue;
+                b=&cccd_bindings[i];memset(b,0,sizeof(*b));b->handle=l->handle;b->generation=l->generation;
+                b->type=type;memcpy(b->identity,id,6);memcpy(b->tag,tag,32);break;
             }
-            uint16_t rc=cccd_enqueue(link,b,2,token,*error_handle,c->staged_cccds);
-            return rc?rc:DBT_ATT_DEFERRED;
+            if(!b || type!=b->type || memcmp(id,b->identity,6) || memcmp(tag,b->tag,32)){
+                cccd_record(link->handle,link->generation,token,4,b?b->phase:UINT32_MAX,DBT_ATT_UNLIKELY,0);return DBT_ATT_UNLIKELY;
+            }
+            if(b->phase==CCCD_BOUND && c->bonded){
+                uint16_t rc=cccd_enqueue(link,b,2,token,*error_handle,c->staged_cccds);
+                return rc?rc:DBT_ATT_DEFERRED;
+            }
+            if(c->bonded || b->phase==CCCD_BOUND || b->phase==CCCD_ERROR || b->pending_token ||
+               !cccd_touch_batch(link,batch))return DBT_ATT_UNLIKELY;
+            b->pending_token=token;
+            if(b->phase==CCCD_READY || b->phase==CCCD_MERGE){
+                (void)cccd_merge_touched(link,b);b->phase=CCCD_MERGE;
+            }
+            cccd_record(link->handle,link->generation,token,7,b->phase,DBT_ATT_DEFERRED,0);
+            return DBT_ATT_DEFERRED;
         }
     }
     /* If ATT still believes the connection bonded but the security snapshot
@@ -645,18 +699,21 @@ static void finish_cccd(control_job_t *job) {
             if(job->cccd_result==DBT_OK || job->cccd_result==DBT_EMPTY) {
                 memcpy(b->values,job->cccd_values,sizeof(b->values));
                 cccd_touched_t *t=touch_for(link);
-                if(!t)b->phase=CCCD_ERROR;
-                else {
-                    for(unsigned i=0;i<PROBE_CCCD_COUNT;i++)if(t->mask&(1u<<i))b->values[i]=t->values[i];
-                    b->phase=t->mask?CCCD_MERGE:CCCD_READY;
-                }
+                if(!cccd_merge_touched(link,b))b->phase=CCCD_ERROR;
+                else b->phase=t->mask?CCCD_MERGE:CCCD_READY;
             } else if(job->cccd_result==DBT_NO_SPACE) {
                 b->phase=CCCD_NONE;b->retry_pending=true;b->retry_at=control_now_ms+100u;
             } else b->phase=CCCD_ERROR;
         }
     } else if(job->cccd_kind==3) {
         if(current && b->phase==CCCD_SAVING) {
-            if(job->cccd_result==DBT_OK)b->phase=CCCD_READY;
+            if(job->cccd_result==DBT_OK){
+                /* A pending write may arrive after this save was copied.
+                 * Merge it and save again before completing that request. */
+                memcpy(b->values,job->cccd_values,sizeof(b->values));
+                if(!cccd_merge_touched(link,b))b->phase=CCCD_ERROR;
+                else b->phase=memcmp(b->values,job->cccd_values,sizeof(b->values))?CCCD_MERGE:CCCD_READY;
+            }
             else if(job->cccd_result==DBT_NO_SPACE){b->phase=CCCD_MERGE;b->retry_pending=true;b->retry_at=control_now_ms+100u;}
             else b->phase=CCCD_ERROR;
         }
@@ -944,6 +1001,8 @@ static void sync_cccd(void) {
         bool same=active && b->generation==l->generation && b->handle==l->handle && b->type==type &&
             !memcmp(b->identity,id,6) && !memcmp(b->tag,tag,32);
         if(!same) {
+            if(b->handle==l->handle && b->generation==l->generation && b->pending_token)
+                (void)cccd_complete_pending(l,b,c,DBT_ATT_UNLIKELY);
             if(c->bonded) {
                 if(l->encrypted){(void)dbt_gap_disconnect(gap,l,0x13);continue;}
                 if(dbt_att_security(&server,l,false,0,false)!=DBT_OK)continue;
@@ -953,6 +1012,12 @@ static void sync_cccd(void) {
             b->handle=l->handle;b->generation=l->generation;b->type=type;
             memcpy(b->identity,id,6);memcpy(b->tag,tag,32);
         }
+        if(b->pending_token && (c->failed || !c->deferred || c->token!=b->pending_token ||
+           (int32_t)(control_now_ms-c->request_deadline)>=0))
+            (void)cccd_complete_pending(l,b,c,DBT_ATT_UNLIKELY);
+        if(c->failed)continue;
+        if(b->phase==CCCD_ERROR && b->pending_token)
+            (void)cccd_complete_pending(l,b,c,DBT_ATT_UNLIKELY);
         if(b->phase==CCCD_NONE) {
             if(b->retry_pending && (int32_t)(control_now_ms-b->retry_at)<0)continue;
             b->retry_pending=false;
@@ -964,6 +1029,7 @@ static void sync_cccd(void) {
             if(!cccd_enqueue(l,b,3,0,0,b->values))b->phase=CCCD_SAVING;
             else {b->retry_pending=true;b->retry_at=control_now_ms+100u;}
         } else if(b->phase==CCCD_READY) {
+            if(b->pending_token && !cccd_complete_pending(l,b,c,0))continue;
             dbt_result_t rc=dbt_att_security(&server,l,sec.authenticated,sec.key_size,true);
             if(rc==DBT_OK) {
                 b->phase=CCCD_BOUND;

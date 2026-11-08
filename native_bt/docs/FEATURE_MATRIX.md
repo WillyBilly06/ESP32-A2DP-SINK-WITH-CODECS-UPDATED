@@ -1,15 +1,15 @@
 # Independent host and product feature matrix
 
-Current development checkpoint (2026-11-08): imagec07781e066ab passes readback,
-37 cold codec configurations and173 PCM callbacks on COM6 at921600 baud.
-Separate SMP/CCCD records retain unchanged linked SRAM/IRAM. The guarded
-LHDC192/S24/fixed900 control trace identifies an ATT0x0E readiness race and
-retains33,024 finalized unfilled PCM frames during playback. The semantic
-deferred-write fix is still open. See [the current report](BLE_LHDC_CONTROL_TRACE_2026_11_08.md).
-The full goal remains active: sustained1Mbps with BLE/control, acoustics,
-security/lifecycle/product/OTA parity and matched-baseline RAM/CPU qualification
-are still open. Rows below retain their dated image scopes. Historical cold
-codec failures are superseded by the current37-case cold result.
+Current development checkpoint (2026-11-08): image861ec6f23c4a passes readback,
+37 cold codec configurations and173 callbacks on COM6 at921600 baud. The
+[deferred CCCD fix](CCCD_DEFERRED_RESTORE_2026_11_08.md) preserves persistence,
+other subscriptions and bond/token/generation checks, adding16B BSS. Seven
+arrival and nine failure/retry cases pass. A guarded LHDC192/S24/fixed900
+roundtrip receives ACK/readback/restoration before pause with0 PCM shortages,
+but one descriptor-order fault and one CPU1 idle-starvation watchdog event.
+Overall playback remains unqualified. CPU1 budgets,1Mbps, sustained coexistence,
+acoustics, live all-codec/security/lifecycle/product/OTA parity and comparative
+RAM/CPU qualification remain open. Rows below retain their dated image scopes.
 
 Updated 2026-11-05. **The goal remains active and incomplete.** COM6 was
 explicitly released for flashing, serial and Bluetooth testing in this chat;

@@ -4,6 +4,7 @@
 #include "nvs.h"
 #include <assert.h>
 #include <setjmp.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -55,7 +56,8 @@ static dbt_result_t ota_prepare(void *ctx,const dbt_ble_control_peer_t *p,uint32
 }
 static bool fail_heap;
 static uint8_t test_bond_tag=1;
-static bool cccd_fail;
+static bool cccd_fail,cccd_save_space;
+static dbt_result_t cccd_load_override=DBT_OK;
 static uint16_t cccd_saved[4][PROBE_CCCD_COUNT];
 static bool cccd_present[4];
 static dbt_result_t fake_security(uint16_t handle,uint32_t generation,dbt_smp_session_security_t *out) {
@@ -69,10 +71,12 @@ static dbt_result_t fake_bond(uint16_t handle,uint32_t generation,uint8_t *type,
 }
 dbt_result_t probe_cccd_load(uint8_t type,const uint8_t id[6],const uint8_t tag[32],uint16_t values[4]) {
   assert(worker_context && type==0 && id[0]==1 && tag[0]<4);
+  if(cccd_load_override!=DBT_OK)return cccd_load_override;
   memcpy(values,cccd_saved[tag[0]],sizeof(cccd_saved[0]));return cccd_present[tag[0]]?DBT_OK:DBT_EMPTY;
 }
 dbt_result_t probe_cccd_save(uint8_t type,const uint8_t id[6],const uint8_t tag[32],const uint16_t values[4]) {
   assert(worker_context && type==0 && id[0]==1 && tag[0]<4);
+  if(cccd_save_space)return DBT_NO_SPACE;
   if(cccd_fail)return DBT_INVALID;
   memcpy(cccd_saved[tag[0]],values,sizeof(cccd_saved[0]));cccd_present[tag[0]]=true;return DBT_OK;
 }
@@ -339,6 +343,96 @@ static void write_req(uint16_t h, const uint8_t *value, unsigned n,
   memcpy(p + 3, value, n);
   assert(dbt_att_receive(&server, link0, p, (uint16_t)(n + 3), 1) == DBT_OK);
 }
+
+/* Actual ATT plus worker/NVS completion orders; success waits for durability. */
+static void deferred_cccd_cases(void) {
+  const uint8_t enable[2]={1,0};uint8_t out[520];unsigned n;
+  for(unsigned phase=0;phase<7;phase++){
+    fprintf(stderr,"CCCD deferred phase=%u\n",phase);
+    assert(!cccd_jobs && !control_jobs && !uxQueueMessagesWaiting(control_work));
+    dbt_att_clear(&server);link0->generation++;control_now_ms=0;test_bond_tag=3;
+    memcpy(cccd_saved[3],(uint16_t[]){2,1,0,0},sizeof(cccd_saved[3]));cccd_present[3]=true;
+    bool touched=phase==2 || phase==3;
+    link0->encrypted=!touched;committed_bond=!touched;assert(dbt_att_open(&server,link0)==DBT_OK);
+    if(touched){write_req(0x28,enable,2,false);tx(out,&n);assert(out[0]==0x13);link0->encrypted=true;committed_bond=true;}
+    if(phase){
+      fail_heap=phase==5;sync_cccd();
+      assert(cccd_binding(link0)->phase==(phase==5?CCCD_NONE:CCCD_LOADING));
+      if(phase==2 || phase==3 || phase==4){
+        execute_one();pump_control();assert(cccd_binding(link0)->phase==(touched?CCCD_MERGE:CCCD_READY));
+        if(phase==3){sync_cccd();assert(cccd_binding(link0)->phase==CCCD_SAVING);}
+      }
+    }
+    if(phase==6){
+      uint8_t prepare[]={0x16,0x25,0,0,0,1,0},execute[]={0x18,1};
+      assert(dbt_att_receive(&server,link0,prepare,sizeof(prepare),1)==DBT_OK);tx(out,&n);assert(out[0]==0x17);
+      assert(dbt_att_receive(&server,link0,execute,sizeof(execute),1)==DBT_OK);
+    }else write_req(0x25,enable,2,false);
+    cccd_binding_t *b=cccd_binding(link0);
+    assert(b && b->pending_token==server.connections[0].token && server.connections[0].deferred &&
+      !server.connections[0].bonded && !server.connections[0].cccds[2]);
+    fail_heap=false;if(phase==5)control_now_ms=100;
+    if(phase==3){execute_one();pump_control();assert(b->phase==CCCD_MERGE && !cccd_saved[3][2]);}
+    else if(phase==0 || phase==1 || phase==5 || phase==6){
+      sync_cccd();assert(b->phase==CCCD_LOADING);execute_one();pump_control();assert(b->phase==CCCD_MERGE);
+    }
+    assert(dbt_att_tx_peek(&server,1,link0->generation,(dbt_att_view_t[1]){{0}})==DBT_EMPTY);
+    sync_cccd();assert(b->phase==CCCD_SAVING && cccd_jobs==1 && !cccd_saved[3][2]);
+    execute_one();assert(cccd_saved[3][2]==1);pump_control();sync_cccd();
+    assert(b->phase==CCCD_BOUND && !b->pending_token && server.connections[0].bonded &&
+      !server.connections[0].deferred && !memcmp(server.connections[0].cccds,
+        (uint16_t[]){2,1,1,touched?1:0},sizeof(cccd_saved[3])));
+    tx(out,&n);assert(n==1 && out[0]==(phase==6?0x19:0x13));
+  }
+  for(unsigned f=0;f<9;f++){
+    fprintf(stderr,"CCCD deferred failure/retry=%u\n",f);
+    assert(!cccd_jobs && !control_jobs);dbt_att_clear(&server);link0->generation++;control_now_ms=0;test_bond_tag=3;
+    link0->encrypted=true;committed_bond=true;
+    memcpy(cccd_saved[3],(uint16_t[]){2,1,0,0},sizeof(cccd_saved[3]));cccd_present[3]=true;
+    memcpy(cccd_saved[2],(uint16_t[]){0,0,0,1},sizeof(cccd_saved[2]));cccd_present[2]=true;
+    assert(dbt_att_open(&server,link0)==DBT_OK);sync_cccd();write_req(0x25,enable,2,false);
+    cccd_binding_t *b=cccd_binding(link0);assert(b->pending_token && server.connections[0].deferred);
+    if(f==0)cccd_load_override=DBT_INVALID;
+    if(f==2 || f==5){
+      if(f==5)server.connections[0].token++;else control_now_ms=server.connections[0].request_deadline;
+      sync_cccd();assert(b->phase==CCCD_ERROR && !b->pending_token && !server.connections[0].response_ready);
+      control_now_ms=server.connections[0].request_deadline;dbt_att_poll(&server,control_now_ms);
+      assert(server.connections[0].failed && !server.connections[0].deferred);
+    }else if(f==3){
+      dbt_att_close(&server,1,link0->generation);link0->generation++;
+      assert(dbt_att_open(&server,link0)==DBT_OK);sync_cccd();
+    }else if(f==4 || f==6){
+      if(f==4)test_bond_tag=2;else committed_bond=false;
+      sync_cccd();tx(out,&n);assert(out[0]==1 && out[4]==DBT_ATT_UNLIKELY);
+    }else if(f==7)cccd_load_override=DBT_NO_SPACE;
+    execute_one();pump_control();sync_cccd();cccd_load_override=DBT_OK;
+    if(f==1 || f==8){
+      assert(b->phase==CCCD_SAVING);cccd_fail=f==1;cccd_save_space=f==8;
+      execute_one();pump_control();sync_cccd();cccd_fail=cccd_save_space=false;
+    }
+    if(f==0 || f==1){
+      assert(b->phase==CCCD_ERROR && !b->pending_token && !server.connections[0].bonded &&
+        !server.connections[0].cccds[2] && !cccd_saved[3][2]);
+      tx(out,&n);assert(out[0]==1 && out[2]==0x25 && out[3]==0 && out[4]==DBT_ATT_UNLIKELY);
+    }else if(f==2 || f==5)assert(server.connections[0].failed && !b->pending_token && !cccd_saved[3][2]);
+    else if(f==7 || f==8){
+      assert(b->pending_token && server.connections[0].deferred && !cccd_saved[3][2]);
+      assert(dbt_att_tx_peek(&server,1,link0->generation,(dbt_att_view_t[1]){{0}})==DBT_EMPTY);
+      control_now_ms+=100;sync_cccd();execute_one();pump_control();sync_cccd();
+      if(f==7){assert(b->phase==CCCD_SAVING);execute_one();pump_control();sync_cccd();}
+      assert(b->phase==CCCD_BOUND && !b->pending_token && cccd_saved[3][2]==1);
+      tx(out,&n);assert(out[0]==0x13);
+    }else if(f==3 || f==4){
+      control_now_ms+=100;sync_cccd();execute_one();pump_control();sync_cccd();
+      assert(server.connections[0].bonded && !server.connections[0].cccds[2] && !cccd_saved[3][2]);
+      if(f==4)assert(!memcmp(server.connections[0].cccds,cccd_saved[2],sizeof(cccd_saved[2])));
+      assert(dbt_att_tx_peek(&server,1,link0->generation,(dbt_att_view_t[1]){{0}})==DBT_EMPTY);
+    }else assert(!server.connections[0].bonded && !cccd_saved[3][2]);
+    assert(!cccd_jobs && !control_jobs);
+  }
+  committed_bond=false;test_bond_tag=2;control_now_ms=0;
+}
+
 static bool worker_poll(void *ctx,bool retiring){
   (void)ctx;assert(worker_context);
   if(retiring)return ++retire_polls>=3;
@@ -526,12 +620,12 @@ int main(void) {
   tx(out, &n);
   assert(out[0] == 1 && out[4] == DBT_ATT_UNLIKELY);
   server.connections[0].bonded = false;
-  /* SMP can have a committed bond even though ATT has not been promoted. */
-  committed_bond=true;
+  /* A claimed SMP bond cannot persist a CCCD on an unencrypted link. */
+  committed_bond=true;link0->encrypted=false;
   write_req(0x28, enabled, 2, false);
   tx(out, &n);
   assert(out[0] == 1 && out[4] == DBT_ATT_UNLIKELY);
-  committed_bond=false;
+  committed_bond=false;link0->encrypted=true;
   /* An accepted EQ still commits on disconnect; a reused handle gets no ACK. */
   control_hooks.command = provider;
   uint8_t setname[] = {4, 'N'};
@@ -760,12 +854,17 @@ int main(void) {
   dbt_att_clear(&server);link0->used=true;link0->encrypted=true;link0->generation++;
   assert(dbt_att_open(&server,link0)==DBT_OK);committed_bond=true;test_bond_tag=1;
   sync_cccd();assert(cccd_binding(link0)->phase==CCCD_LOADING && !server.connections[0].bonded);
-  /* Expose the current readiness rejection separately from a failed save:
-   * no second persistence job and no ephemeral success before bond restore. */
-  write_req(0x28,enabled,2,false);tx(out,&n);
-  assert(out[0]==1 && out[4]==DBT_ATT_UNLIKELY && cccd_jobs==1 && !cccd_present[1]);
-  execute_one();pump_control();sync_cccd();assert(server.connections[0].bonded);
-  write_req(0x28,enabled,2,false);assert(server.connections[0].deferred && !cccd_present[1]);
+  /* First subscription waits for restore and durable merge without a
+   * second queued CCCD job, ephemeral success, or a rejected first write. */
+  control_now_ms=0;write_req(0x28,enabled,2,false);
+  assert(server.connections[0].deferred && cccd_jobs==1 && !cccd_present[1]);
+  assert(dbt_att_tx_peek(&server,1,link0->generation,(dbt_att_view_t[1]){{0}})==DBT_EMPTY);
+  execute_one();pump_control();sync_cccd();
+  assert(cccd_binding(link0)->phase==CCCD_SAVING && server.connections[0].deferred && !server.connections[0].bonded);
+  assert(dbt_att_tx_peek(&server,1,link0->generation,(dbt_att_view_t[1]){{0}})==DBT_EMPTY);
+  execute_one();pump_control();sync_cccd();tx(out,&n);
+  assert(out[0]==0x13 && server.connections[0].bonded && !cccd_binding(link0)->pending_token && cccd_saved[1][3]==1);
+  write_req(0x28,enabled,2,false);assert(server.connections[0].deferred && cccd_present[1]);
   assert(dbt_att_tx_peek(&server,1,link0->generation,(dbt_att_view_t[1]){{0}})==DBT_EMPTY);
   execute_one();assert(cccd_present[1]);pump_control();tx(out,&n);assert(out[0]==0x13);
   assert(server.connections[0].cccds[3]==1);
@@ -914,6 +1013,7 @@ int main(void) {
   control_now_ms+=100;sync_cccd();execute_one();pump_control();sync_cccd();
   assert(server.connections[0].bonded && !server.connections[0].cccds[2] && !cccd_saved[2][2]);
   committed_bond=false;
+  deferred_cccd_cases();
   /* Same-generation revoke/regrant invalidates queued provider work before
    * execution, while an admitted EQ still commits but gets no stale ACK. */
   dbt_att_clear(&server);link0->generation=1;assert(dbt_att_open(&server,link0)==DBT_OK);

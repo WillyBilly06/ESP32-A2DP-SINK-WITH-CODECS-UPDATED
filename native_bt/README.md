@@ -1,6 +1,21 @@
 # Independent ESP32 Bluetooth host
 
-The [current BLE/LHDC control trace](docs/BLE_LHDC_CONTROL_TRACE_2026_11_08.md)
+The [deferred subscription fix](docs/CCCD_DEFERRED_RESTORE_2026_11_08.md) runs on
+readback-verified COM6 image861ec6f23c4a at **921600 baud**. Valid first CCCD writes
+wait for restored values and durable merged persistence; other subscriptions and
+bond/token/generation checks are preserved. The change adds16B BSS, no tasks or
+audio buffers. Seven arrival and nine failure/retry cases plus37 cold codec
+configurations pass.
+
+A guarded LHDC192/S24/fixed900 excerpt completes subscription, unchanged-EQ ACK,
+independent readback and original-subscription restoration before pause. It has
+0 PCM shortage frames, but **one descriptor-order fault and one CPU1 idle-starvation
+watchdog event**. Playback is not clean. CPU1 budgets, full1Mbps, sustained
+continuity/coexistence and complete feature parity remain open.
+
+## Earlier checkpoints
+
+The [preceding BLE/LHDC control trace](docs/BLE_LHDC_CONTROL_TRACE_2026_11_08.md)
 runs on readback-verified COM6 imagec07781e066ab at **921600 baud**. Separate
 CCCD and checksummed SMP snapshots reuse existing trace storage, with unchanged
 linked SRAM/IRAM.37 cold codec configurations pass.
@@ -10,8 +25,6 @@ subscriptions are still loading and is rejected35ms before loading succeeds.
 That deferred-write fix remains open. The same LHDC192/S24/fixed900 excerpt
 retains33,024 unfilled PCM frames during playback. **BLE coexistence, sustained
 LHDC continuity,1Mbps and full feature parity are not qualified.**
-
-## Earlier checkpoints
 
 The [startup-reserve checkpoint](docs/LHDC_STARTUP_RESERVE_2026_11_08.md) uses an
 **80 ms high-rate LHDC hold**, adding 30 ms of startup latency within the existing
