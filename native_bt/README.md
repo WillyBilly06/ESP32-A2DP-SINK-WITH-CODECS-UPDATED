@@ -1,5 +1,12 @@
 # Independent ESP32 Bluetooth host
 
+The [pause-boundary and deadline investigation](docs/LHDC_PAUSE_DEADLINES_2026_11_08.md)
+confirms a playback-time miss with decoded PCM waiting for DSP. An urgent idle-
+helper trial showed no consistent benefit and was rejected; prior program bytes
+are restored on COM6. First-gap timing is bounded separately from phone pause,
+and all shortage counts remain. UART stays **921600 baud**. LHDC continuity,
+1 Mbps and simultaneous BLE/control headroom remain unqualified.
+
 The [LHDC register-scan checkpoint](docs/LHDC_REGISTER_SCAN_2026_11_08.md)
 uses documented Xtensa FP-to-integer register moves for S32 classification.
 Exhaustive scalar/frame checks and 80 real-codec deferred cases pass. Two short
