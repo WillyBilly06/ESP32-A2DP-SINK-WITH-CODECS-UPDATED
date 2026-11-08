@@ -1424,9 +1424,10 @@ static void log_loop(void *unused){
             " ,\"copy_max_us\":%" PRIu32
             " ,\"mask_max_us\":%" PRIu32
             " ,\"contract_errors\":%" PRIu32
+            " ,\"dispatch_requests\":%" PRIu32
             " ,\"pending_index\":%" PRIu32 ",\"guard_us\":64,\"copy_budget_us\":32,\"closes_at_next_eof\":true}\n",
             at,stats.refill_period_us,stats.underrun_frames,stats.refill_recovered_frames,stats.refill_recovered_calls,
-            stats.refill_unfilled_frames,stats.refill_canceled_frames,stats.refill_copy_max_us,stats.refill_mask_max_us,stats.refill_contract_errors,stats.refill_pending_index);
+            stats.refill_unfilled_frames,stats.refill_canceled_frames,stats.refill_copy_max_us,stats.refill_mask_max_us,stats.refill_contract_errors,stats.refill_dispatch_requests,stats.refill_pending_index);
         snapshot_log(output_snapshot_began,"{\"probe\":\"i2s_order_recovery\",\"collection_cycle_us\":%" PRIu32
                ",\"recoveries\":%" PRIu32 ",\"missed_callbacks_min\":%" PRIu32 ",\"source_frames_recovered\":%" PRIu32
                ",\"additional_complete_laps_unknown\":true}\n",at,stats.descriptor_order_recoveries,

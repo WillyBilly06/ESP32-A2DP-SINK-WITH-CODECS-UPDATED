@@ -1,5 +1,13 @@
 # Independent ESP32 Bluetooth host
 
+The [IRQ refill dispatch correction](docs/IRQ_REFILL_DISPATCH_2026_11_08.md)
+requests scheduling for useful equal-priority refill work while preserving the
+controller/host/render priorities. Three fixed-900 and two Auto LHDC192/S24
+excerpts end with **zero finalized unfilled frames**; one initial 64-frame
+shortage is recovered. Auto actually carries **404.8 kbps of payload**, so
+**1 Mbps and sustained BLE/control headroom remain unqualified**. The change
+adds 228 B IRAM with unchanged linked DRAM data/BSS. COM6/UART use **921600 baud**.
+
 The [pause-boundary and deadline investigation](docs/LHDC_PAUSE_DEADLINES_2026_11_08.md)
 confirms a playback-time miss with decoded PCM waiting for DSP. An urgent idle-
 helper trial showed no consistent benefit and was rejected; prior program bytes

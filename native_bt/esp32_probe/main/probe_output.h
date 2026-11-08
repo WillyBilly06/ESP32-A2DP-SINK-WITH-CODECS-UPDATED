@@ -46,7 +46,7 @@ typedef struct {
     /* underrun_frames retains its original initial-refill-shortage meaning. */
     uint32_t dma_eofs,dma_source_frames,underrun_frames,descriptor_errors,max_eof_gap_us;
     uint32_t refill_period_us,refill_recovered_frames,refill_recovered_calls,refill_unfilled_frames,refill_canceled_frames;
-    uint32_t refill_copy_max_us,refill_mask_max_us,refill_contract_errors,refill_pending_index;
+    uint32_t refill_copy_max_us,refill_mask_max_us,refill_contract_errors,refill_pending_index,refill_dispatch_requests;
     uint32_t descriptor_shape_errors,descriptor_pool_errors,descriptor_order_errors;
     /* Recoveries preserve the error count. Missed EOFs are a lower bound;
      * additional complete DMA laps cannot be inferred from the latest IRQ. */

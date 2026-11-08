@@ -1,4 +1,4 @@
-# This bounded public getter is called only by the opt-in tick sampler.
+# This bounded public getter is used by IRQ refill dispatch and the opt-in tick sampler.
 # Keep the SDK flash-default configuration for other task-only APIs.
 [mapping:probe_scheduler_getter]
 archive: libfreertos.a

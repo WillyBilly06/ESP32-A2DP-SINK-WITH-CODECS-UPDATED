@@ -161,7 +161,7 @@ typedef struct {
   _Atomic uint32_t first_underrun_accepted_frames, first_underrun_dma_frames;
   _Atomic uint32_t refill_period_us,refill_pending_index,refill_deadline_us;
   _Atomic uint32_t refill_recovered_frames,refill_recovered_calls,refill_unfilled_frames,refill_canceled_frames;
-  _Atomic uint32_t refill_copy_max_us,refill_mask_max_us,refill_contract_errors;
+  _Atomic uint32_t refill_copy_max_us,refill_mask_max_us,refill_contract_errors,refill_dispatch_requests;
 #ifdef PROBE_OUTPUT_GAP_TRACE
   _Atomic uint32_t startup_version,startup_first_pcm_us,startup_enable_us,startup_elapsed_us;
   _Atomic uint32_t startup_input_frames,startup_preload_frames,startup_guard_state,startup_encoded_slots;
@@ -656,7 +656,34 @@ static inline bool refill_burst_continue(unsigned *steps){
      dbt_audio_input_frames(&output.audio)>1u){++*steps;return true;}
   *steps=0;return false;
 }
+/* A notification only requests ISR preemption for a strictly higher priority.
+ * With host/render both22, useful refill work must request the scheduler too.
+ * This never raises priority or displaces an already-running renderer. */
+static bool IRAM_ATTR refill_dispatch_needed(output_t *o){
+#ifdef DBT_PROBE_STAY_NATIVE
+  uint32_t index=atomic_load_explicit(&o->refill_pending_index,memory_order_acquire);
+  if(index>=DMA_DESCRIPTORS || o->stopping || atomic_load(&o->failed) || atomic_load(&o->stop_requested) ||
+     atomic_load(&o->render_core)!=1u || (unsigned)xPortGetCoreID()!=1u)return false;
+  uint32_t read=atomic_load_explicit(&o->audio.input.read,memory_order_acquire);
+  uint32_t written=atomic_load_explicit(&o->audio.input.written,memory_order_acquire);
+  bool useful=read!=written;
+  read=atomic_load_explicit(&o->audio.output.read,memory_order_acquire);
+  written=atomic_load_explicit(&o->audio.output.written,memory_order_acquire);
+  useful=useful || read!=written;
+  if(!useful)return false;
+  TaskHandle_t renderer=atomic_load_explicit(&o->task,memory_order_acquire);
+  if(!renderer || xTaskGetCurrentTaskHandle()==renderer)return false;
+  uint32_t now=(uint32_t)esp_timer_get_time();
+  if((int32_t)(atomic_load(&o->refill_deadline_us)-now)<=(int32_t)REFILL_COPY_BUDGET_US)return false;
+  atomic_store_explicit(&o->refill_dispatch_requests,
+      atomic_load_explicit(&o->refill_dispatch_requests,memory_order_relaxed)+1u,memory_order_relaxed);
+  return true;
+#else
+  (void)o;return false;
+#endif
+}
 static bool IRAM_ATTR finish_sent(output_t *o,uint32_t began,BaseType_t wake){
+  bool dispatch=wake!=pdTRUE && refill_dispatch_needed(o);
   uint32_t elapsed=(uint32_t)esp_timer_get_time()-began;
   if(!atomic_load(&o->callback_calls)){
 #ifdef ESP_PLATFORM
@@ -668,7 +695,7 @@ static bool IRAM_ATTR finish_sent(output_t *o,uint32_t began,BaseType_t wake){
   atomic_store(&o->callback_calls,atomic_load(&o->callback_calls)+1u);
   atomic_store(&o->callback_elapsed_us,atomic_load(&o->callback_elapsed_us)+elapsed);
   if(elapsed>atomic_load(&o->callback_max_us))atomic_store(&o->callback_max_us,elapsed);
-  return wake==pdTRUE;
+  return wake==pdTRUE || dispatch;
 }
 static bool IRAM_ATTR sent(i2s_chan_handle_t channel, i2s_event_data_t *event,
                            void *context) {
@@ -1030,6 +1057,7 @@ static dbt_result_t start_output(uint32_t rate, uint8_t channels,
   atomic_store(&output.refill_recovered_frames,0);atomic_store(&output.refill_recovered_calls,0);
   atomic_store(&output.refill_unfilled_frames,0);atomic_store(&output.refill_canceled_frames,0);
   atomic_store(&output.refill_copy_max_us,0);atomic_store(&output.refill_mask_max_us,0);atomic_store(&output.refill_contract_errors,0);
+  atomic_store(&output.refill_dispatch_requests,0);
   atomic_store(&output.first_underrun_accepted_frames, 0);
   atomic_store(&output.first_underrun_dma_frames, 0);
   output.active = true;
@@ -2112,7 +2140,7 @@ void probe_output_stats(probe_output_stats_t *s) {
 #endif
   LOAD(input_ring_bytes_avoided);LOAD(pcm_loans_begun);LOAD(pcm_loans_retired);LOAD(pcm_loans_cancelled);LOAD(pcm_loan_active);LOAD(pcm_loan_max_us);
   LOAD(refill_period_us);LOAD(refill_recovered_frames);LOAD(refill_recovered_calls);LOAD(refill_unfilled_frames);LOAD(refill_canceled_frames);
-  LOAD(refill_copy_max_us);LOAD(refill_mask_max_us);LOAD(refill_contract_errors);LOAD(refill_pending_index);
+  LOAD(refill_copy_max_us);LOAD(refill_mask_max_us);LOAD(refill_contract_errors);LOAD(refill_pending_index);LOAD(refill_dispatch_requests);
   LOAD(input_capacity_frames);LOAD(input_ring_bytes);
   s->configured_irq_priority=DMA_IRQ_PRIORITY;
   LOAD(max_eof_gap_us);
