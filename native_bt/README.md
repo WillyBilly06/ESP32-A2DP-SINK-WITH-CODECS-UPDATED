@@ -1,5 +1,16 @@
 # Independent ESP32 Bluetooth host
 
+The [stream-boundary checkpoint](docs/A2DP_STREAM_BOUNDARY_2026_11_08.md) adds
+separate accepted-job, decoder-handoff and AVDTP-state records within the existing
+trace storage, with unchanged linked SRAM/IRAM. It also reads queue geometry
+atomically in the background logger. Six app variants and37 cold target cases pass.
+
+COM6 image9048cff45172 is readback-verified at **921600 baud**. A metronome
+excerpt has0 unfilled frames, but music has960 with an active gap165.6ms after
+Streaming and13.07s before accepted Suspend. **LHDC continuity remains unresolved.**
+An early host/RTP cadence deficit near48ms motivates a bounded startup-reserve
+trial; full1Mbps and sustained BLE/control qualification remain open.
+
 The [packed LHDC input checkpoint](docs/LHDC_PACKED_MEDIA_2026_11_08.md) stores
 small encoded records within the existing eight-slab pool. Raw566-byte packet
 capacity rises from8 to24; full1800-byte admission and borrowed-input lifetime
@@ -7,7 +18,7 @@ remain. Physical HCI credit reservations are preserved. It adds16B BSS with
 unchanged IRAM/pool/tasks.191 host checks,80 fixed+80 packed real-codec cases,
 six app variants and37 cold target cases pass.
 
-COM6 image3b246522d523 is readback-verified at **921600 baud**. Target queue
+Checkpoint image3b246522d523 is readback-verified at **921600 baud**. Target queue
 high-water reaches11 versus7 in fixed controls. Three short YouTube windows
 retain3264/2304/1152 final unfilled frames, first captured after pause acknowledgment.
 No pre-pause finalized gap was recorded in those finite candidate windows;

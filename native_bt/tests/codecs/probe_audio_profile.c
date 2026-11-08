@@ -13,6 +13,7 @@ size_t heap_caps_get_total_size(unsigned);
 #endif
 #define CHECK(x) do {if(!(x))return __LINE__;}while(0)
 static unsigned live_allocs,fail_alloc,owner_wakes;
+static TaskHandle_t test_current_override;
 static int created_decoder_core=-1;
 static int created_decoder_priority=-1;
 static int created_logger_core=-1;
@@ -166,6 +167,64 @@ EX int probe_audio_diagnostics(void){
     CHECK(!atomic_load(&codec_cie_words[6]));
     memset(media_trace_rings,0,sizeof(media_trace_rings));now=0;return 0;
 }
+EX int probe_audio_lifecycle_records(void){
+    dbt_codec_worker_t saved_worker=worker;dbt_a2dp_acceptor_t saved_profile=profile;
+    TaskHandle_t saved_owner=owner,saved_decoder=decoder_task,saved_logger=logger_task;
+    bool saved_initialized=initialized;uint32_t saved_now=now;
+    memset(&worker,0,sizeof worker);memset(&profile,0,sizeof profile);
+    for(unsigned i=0;i<2;++i)probe_audio_trace_init(&media_trace_rings[i]);
+    owner=(TaskHandle_t)(uintptr_t)11;decoder_task=(TaskHandle_t)(uintptr_t)22;logger_task=(TaskHandle_t)(uintptr_t)33;
+    initialized=true;test_current_override=owner;now=43;
+    atomic_store(&worker.gate_epoch,100);atomic_store(&worker.started_epoch,100);
+    dbt_sink_job_t job={3,9,DBT_SINK_START,1,NULL,0};
+    CHECK(sink_work(&worker,&job)==DBT_OK && atomic_load(&worker.job_written)==1);
+    probe_audio_trace_record_t record;
+    CHECK(probe_audio_trace_pop(&media_trace_rings[0],&record)&&record.host.kind==PROBE_HOST_A2DP_JOB);
+    CHECK(record.host.value[0]==3&&record.host.value[1]==9&&record.host.value[2]==DBT_SINK_START);
+    CHECK(record.host.value[3]==101&&record.host.value[4]==43000&&record.host.value[5]==100&&record.at_us==43000);
+    atomic_store(&worker.job_written,DBT_CODEC_WORKER_JOBS);
+    CHECK(sink_work(&worker,&job)==DBT_BUSY&&atomic_load(&media_trace_rings[0].written)==atomic_load(&media_trace_rings[0].read));
+    CHECK(atomic_load(&worker.gate_epoch)==101);atomic_store(&worker.job_written,1);
+    CHECK(sink_work(&worker,NULL)==DBT_INVALID);
+    profile.sink.binding=3;profile.sink.media_binding=77;profile.sink.pending.used=true;profile.sink.pending.token=9;
+    profile.sink.pending.operation=DBT_SINK_SUSPEND;sink_event(NULL,DBT_SINK_STATE,DBT_STREAM_OPEN);
+    profile.sink.binding=999;
+    CHECK(probe_audio_trace_pop(&media_trace_rings[0],&record)&&record.host.kind==PROBE_HOST_A2DP_STATE);
+    CHECK(record.host.value[0]==3&&record.host.value[1]==9&&record.host.value[2]==DBT_SINK_STATE);
+    CHECK(record.host.value[3]==DBT_STREAM_OPEN&&record.host.value[4]==77&&record.host.value[5]==101&&record.host.value[6]==100);
+#ifdef DBT_PROBE_ASYNC_AUDIO
+    test_current_override=decoder_task;stream_handoff_trace(1u,false,17u,DBT_OK);
+    CHECK(probe_audio_trace_pop(&media_trace_rings[1],&record)&&record.host.kind==PROBE_HOST_A2DP_HANDOFF);
+    CHECK(record.host.value[0]==3&&record.host.value[1]==9&&record.host.value[2]==101);
+    CHECK(record.host.value[3]==1&&!record.host.value[4]&&record.host.value[5]==17&&record.host.value[6]==DBT_OK);
+    atomic_store(&worker.job_read,atomic_load(&worker.job_written));stream_handoff_trace(0u,true,18u,DBT_PENDING);
+    CHECK(!probe_audio_trace_pop(&media_trace_rings[1],&record));
+#endif
+    atomic_store(&worker.job_read,0); /* A live job must not excuse a foreign producer. */
+    test_current_override=logger_task;
+    probe_host_record_t invalid={.kind=PROBE_HOST_A2DP_STATE};
+    CHECK(probe_audio_host_record(&invalid)==DBT_UNSUPPORTED);
+#ifdef DBT_PROBE_ASYNC_AUDIO
+    stream_handoff_trace(0u,true,19u,DBT_PENDING);CHECK(!probe_audio_trace_pop(&media_trace_rings[1],&record));
+#endif
+    test_current_override=owner;
+    for(unsigned i=0;i<PROBE_AUDIO_TRACE_SLOTS;++i){invalid.value[6]=i;CHECK(probe_audio_host_record(&invalid)==DBT_OK);}
+    CHECK(probe_audio_host_record(&invalid)==DBT_NO_SPACE&&atomic_load(&media_trace_rings[0].lost)==1);
+    invalid.kind=999;CHECK(probe_audio_trace_host(&media_trace_rings[0],&invalid,trace_clock,NULL)==DBT_INVALID);
+    for(unsigned i=0;i<PROBE_AUDIO_TRACE_SLOTS;++i){CHECK(probe_audio_trace_pop(&media_trace_rings[0],&record));CHECK(record.host.value[6]==i);}
+    /* Exercise the real background formatter on all three lifecycle records. */
+    const probe_host_record_t samples[]={
+        {PROBE_HOST_A2DP_JOB,{3,9,DBT_SINK_START,101,43000,100,0}},
+        {PROBE_HOST_A2DP_STATE,{3,9,DBT_SINK_STATE,DBT_STREAM_OPEN,77,101,100}},
+        {PROBE_HOST_A2DP_HANDOFF,{3,9,101,1,0,17,DBT_OK}}};
+    for(unsigned i=0;i<3;++i){probe_host_record_t sample=samples[i];
+        CHECK(probe_audio_trace_host(&media_trace_rings[i==2],&sample,trace_clock,NULL)==DBT_OK);}
+    log_media_trace();CHECK(atomic_load(&media_trace_rings[0].read)==atomic_load(&media_trace_rings[0].written));
+    CHECK(atomic_load(&media_trace_rings[1].read)==atomic_load(&media_trace_rings[1].written));
+    for(unsigned i=0;i<2;++i)probe_audio_trace_init(&media_trace_rings[i]);
+    worker=saved_worker;profile=saved_profile;owner=saved_owner;decoder_task=saved_decoder;logger_task=saved_logger;
+    initialized=saved_initialized;test_current_override=NULL;now=saved_now;return 0;
+}
 EX int probe_audio_wait_policy(void){
     dbt_codec_worker_t saved=worker;
     memset(&worker,0,sizeof(worker));
@@ -315,7 +374,7 @@ void heap_caps_free(void *p) {if(p){live_allocs--;
 }}
 size_t heap_caps_get_total_size(unsigned f){(void)f;return 217248;}
 int xPortGetCoreID(void){return DBT_PROBE_DECODER_CORE;}
-TaskHandle_t xTaskGetCurrentTaskHandle(void){return owner;}
+TaskHandle_t xTaskGetCurrentTaskHandle(void){return test_current_override?test_current_override:owner;}
 size_t heap_caps_get_free_size(unsigned f){(void)f;return 123456;}
 size_t heap_caps_get_minimum_free_size(unsigned f){(void)f;return 123000;}
 size_t heap_caps_get_largest_free_block(unsigned f){(void)f;return 120000;}
@@ -325,7 +384,7 @@ void taskYIELD(void){} unsigned ulTaskNotifyTake(int c,unsigned t){(void)c;(void
 void vTaskDelay(unsigned t){(void)t;}void vTaskDelete(TaskHandle_t t){(void)t;}
 unsigned uxTaskGetStackHighWaterMark(TaskHandle_t t){(void)t;return 4096;}
 int xTaskCreatePinnedToCore(void (*f)(void *),const char *n,unsigned bytes,void *a,unsigned p,TaskHandle_t *task,int core){(void)f;(void)bytes;(void)a;if(!strcmp(n,"native_decoder")){created_decoder_core=core;created_decoder_priority=(int)p;}if(!strcmp(n,"native_pcm_log"))created_logger_core=core;*task=(void *)1;return pdPASS;}
-dbt_result_t dbt_a2dp_acceptor_init(dbt_a2dp_acceptor_t *p,dbt_runtime_t *r,dbt_avdtp_sink_hooks_t h,const dbt_avdtp_endpoint_t *e,uint8_t n,uint16_t mtu,uint16_t c,uint32_t a,uint32_t b,uint32_t d){(void)h;(void)mtu;(void)c;(void)a;(void)b;(void)d;p->runtime=r;return e==endpoints&&n==sizeof(endpoints)/sizeof(endpoints[0])?DBT_OK:DBT_INVALID;}
+dbt_result_t dbt_a2dp_acceptor_init(dbt_a2dp_acceptor_t *p,dbt_runtime_t *r,dbt_avdtp_sink_hooks_t h,const dbt_avdtp_endpoint_t *e,uint8_t n,uint16_t mtu,uint16_t c,uint32_t a,uint32_t b,uint32_t d){(void)mtu;(void)c;(void)a;(void)b;(void)d;p->runtime=r;return e==endpoints&&n==sizeof(endpoints)/sizeof(endpoints[0])&&h.context==&worker&&h.work==sink_work&&h.event==sink_event&&h.media==timed_worker_media?DBT_OK:DBT_INVALID;}
 bool dbt_a2dp_acceptor_accept(const dbt_a2dp_acceptor_t *p,const dbt_link_t *l){(void)p;(void)l;return true;}
 dbt_result_t dbt_a2dp_acceptor_event(dbt_a2dp_acceptor_t *p,dbt_channel_event_t e,const dbt_channel_t *c){
     if(e==DBT_CH_EVENT_OPEN && !p->active){p->active=true;p->signaling=(dbt_a2dp_channel_t){.serial=c->serial,.generation=c->link_generation,.handle=c->handle};}

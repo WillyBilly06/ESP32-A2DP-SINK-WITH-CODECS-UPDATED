@@ -347,6 +347,18 @@ dbt_result_t probe_audio_host_record(const probe_host_record_t *record){
     if(!initialized || !logger_task || xTaskGetCurrentTaskHandle()!=owner)return DBT_UNSUPPORTED;
     return probe_audio_trace_host(&media_trace_rings[0],record,trace_clock,NULL);
 }
+/* Host-owner submission observation. Acceptance closes the media gate inside
+ * [begin_us,event_us]; a controller preemption can widen this interval. */
+static dbt_result_t sink_work(void *context,const dbt_sink_job_t *job){
+    uint32_t began=(uint32_t)esp_timer_get_time();
+    dbt_result_t result=dbt_codec_worker_submit(context,job);
+    if(result==DBT_OK && job){
+        probe_host_record_t record={.kind=PROBE_HOST_A2DP_JOB,.value={job->binding,job->token,
+            (uint32_t)job->operation,atomic_load(&worker.gate_epoch),began,atomic_load(&worker.started_epoch),0}};
+        (void)probe_audio_host_record(&record);
+    }
+    return result;
+}
 dbt_result_t probe_audio_host_failure(const probe_host_failure_t *failure){
     if(!initialized || !logger_task || xTaskGetCurrentTaskHandle()!=owner)return DBT_UNSUPPORTED;
     return probe_audio_trace_failure(&media_trace_rings[0],failure,trace_clock,NULL);
@@ -485,6 +497,15 @@ static void log_media_trace(void){
                     ",\"delay_100us\":%" PRIu32 ",\"result\":%" PRIu32 ",\"binding\":%" PRIu32 ",\"event_us\":%" PRIu32
                     ",\"adjacent_buffer_estimate\":true,\"host_log_ordinal\":%" PRIu32 "}\n",
                     state->value[0],(state->value[2]>>16)?"true":"false",state->value[1],state->value[2]&65535u,state->value[3],state->value[4],record.at_us,record.ordinal);
+            }else if(state->kind==PROBE_HOST_A2DP_JOB){
+                PROBE_SNAPSHOT_LOG("{\"probe\":\"a2dp_worker_submit\",\"binding\":%" PRIu32 ",\"token\":%" PRIu32 ",\"operation\":%" PRIu32 ",\"gate_epoch\":%" PRIu32 ",\"begin_us\":%" PRIu32 ",\"started_epoch_at_return\":%" PRIu32 ",\"accepted\":true,\"event_us\":%" PRIu32 ",\"host_log_ordinal\":%" PRIu32 "}\n",
+                    state->value[0],state->value[1],state->value[2],state->value[3],state->value[4],state->value[5],record.at_us,record.ordinal);
+            }else if(state->kind==PROBE_HOST_A2DP_STATE){
+                PROBE_SNAPSHOT_LOG("{\"probe\":\"a2dp_lifecycle\",\"binding\":%" PRIu32 ",\"pending_token\":%" PRIu32 ",\"event\":%" PRIu32 ",\"state\":%" PRIu32 ",\"media_binding\":%" PRIu32 ",\"gate_epoch\":%" PRIu32 ",\"started_epoch\":%" PRIu32 ",\"event_us\":%" PRIu32 ",\"host_log_ordinal\":%" PRIu32 "}\n",
+                    state->value[0],state->value[1],state->value[2],state->value[3],state->value[4],state->value[5],state->value[6],record.at_us,record.ordinal);
+            }else if(state->kind==PROBE_HOST_A2DP_HANDOFF){
+                PROBE_SNAPSHOT_LOG("{\"probe\":\"a2dp_stream_handoff\",\"binding\":%" PRIu32 ",\"token\":%" PRIu32 ",\"job_epoch\":%" PRIu32 ",\"phase\":%" PRIu32 ",\"start\":%s,\"renderer_ticket\":%" PRIu32 ",\"result\":%" PRIu32 ",\"event_us\":%" PRIu32 ",\"decoder_log_ordinal\":%" PRIu32 "}\n",
+                    state->value[0],state->value[1],state->value[2],state->value[3],state->value[4]?"true":"false",state->value[5],state->value[6],record.at_us,record.ordinal);
             }else if(state->kind==PROBE_HOST_MEMORY_SERVICES){
                 PROBE_SNAPSHOT_LOG("{\"probe\":\"boot_memory\",\"host\":\"owned\",\"phase\":\"services_ready\",\"internal_free\":%u,\"internal_largest\":%u,\"internal_minimum\":%u,\"internal_total\":%u,\"owner_stack_low\":%u"
                     ",\"collection_context\":\"background_logger\",\"event_us\":%" PRIu32 ",\"host_log_ordinal\":%" PRIu32 "}\n",
@@ -751,6 +772,17 @@ static dbt_result_t publish_stream(bool started,const dbt_codec_config_t *config
 }
 #ifdef DBT_PROBE_ASYNC_AUDIO
 static bool async_stream_start;
+/* Decoder owner alone writes ring1. The current immutable control job pins its
+ * token/epoch until the hook returns; never inspect another owner's live job. */
+static void stream_handoff_trace(unsigned phase,bool start,uint32_t ticket,dbt_result_t result){
+    if(!initialized || !decoder_task || xTaskGetCurrentTaskHandle()!=decoder_task)return;
+    uint32_t read=atomic_load_explicit(&worker.job_read,memory_order_relaxed);
+    if(read==atomic_load_explicit(&worker.job_written,memory_order_acquire))return;
+    const dbt_codec_job_t *job=&worker.jobs[read%DBT_CODEC_WORKER_JOBS];
+    probe_host_record_t record={.kind=PROBE_HOST_A2DP_HANDOFF,.value={job->binding,job->token,job->epoch,
+        phase,start?1u:0u,ticket,(uint32_t)result}};
+    (void)probe_audio_trace_host(&media_trace_rings[1],&record,trace_clock,NULL);
+}
 static dbt_result_t stream_begin(void *context,bool start,const dbt_codec_config_t *config,uint32_t *ticket){
     (void)context;
     if(!config || !config->rate)return DBT_INVALID;
@@ -792,14 +824,20 @@ static dbt_result_t stream_begin(void *context,bool start,const dbt_codec_config
     dbt_result_t result=probe_output_stream_begin_primed(start,config->rate,config->channels,(dbt_pcm_format_t)config->sample_bytes,false,priming,ticket);
 #endif
     if(result==DBT_PENDING)async_stream_start=start;
+    if(result!=DBT_BUSY)stream_handoff_trace(0u,start,ticket?*ticket:0u,result);
     return result;
 }
 static dbt_result_t stream_poll(void *context,uint32_t ticket){
     (void)context;dbt_result_t result=probe_output_request_poll(ticket);
+    if(result!=DBT_PENDING && result!=DBT_BUSY)stream_handoff_trace(1u,async_stream_start,ticket,result);
     if(result==DBT_OK)return publish_stream(async_stream_start,&worker.decoder.config);
     return result;
 }
-static dbt_result_t stream_cancel(void *context,uint32_t ticket){(void)context;return probe_output_request_cancel(ticket);}
+static dbt_result_t stream_cancel(void *context,uint32_t ticket){
+    (void)context;dbt_result_t result=probe_output_request_cancel(ticket);
+    if(result!=DBT_BUSY)stream_handoff_trace(2u,async_stream_start,ticket,result);
+    return result;
+}
 #else
 static dbt_result_t stream(void *context,bool started,const dbt_codec_config_t *config){
     (void)context;
@@ -1248,12 +1286,14 @@ static void log_loop(void *unused){
             at,encoded_epoch,encoded_frames,encoded_known?"true":"false");
             previous_encoded_epoch=encoded_epoch;previous_encoded_known=encoded_known;
         }
+        uint32_t packet_geometry=atomic_load_explicit(&worker.queue_layout,memory_order_acquire);
+        uint32_t packet_slabs=packet_geometry&DBT_CODEC_QUEUE_DEPTH_MASK,packet_stride=packet_geometry>>16;
         PROBE_SNAPSHOT_LOG("{\"probe\":\"decoder_input_queue\",\"collection_cycle_us\":%" PRIu32
                ",\"packet_capacity_bytes\":%u,\"packet_slots\":%u,\"slot_stride_bytes\":%u"
                ",\"reserved_packet_bytes\":%u,\"max_seen_payload_bytes\":%" PRIu32
                ",\"oversize_rejects\":%" PRIu32 ",\"last_oversize_bytes\":%" PRIu32 "}\n",
-               at,(unsigned)worker.maximum_payload,(unsigned)worker.depth,(unsigned)worker.stride,
-               (unsigned)worker.stride*worker.depth,atomic_load(&worker.input_max_payload),
+               at,(unsigned)worker.maximum_payload,(unsigned)packet_slabs,(unsigned)packet_stride,
+               (unsigned)(packet_stride*packet_slabs),atomic_load(&worker.input_max_payload),
                atomic_load(&worker.input_oversize_rejects),atomic_load(&worker.input_last_oversize));
         PROBE_SNAPSHOT_LOG("{\"probe\":\"owner_wait_reasons\",\"collection_cycle_us\":%" PRIu32 ",\"nonruntime_queries_skipped_on_runtime_ready\":true,\"iterations\":%" PRIu32
                ",\"runtime\":%" PRIu32 ",\"admission\":%" PRIu32 ",\"smp\":%" PRIu32 ",\"avrcp\":%" PRIu32
@@ -1518,6 +1558,10 @@ static void log_loop(void *unused){
 void probe_audio_product_observer(probe_audio_product_event_fn fn,void *context){product_observer=fn;product_context=context;}
 static void sink_event(void *context,dbt_sink_event_t event,dbt_stream_state_t state){
     (void)context;
+    probe_host_record_t record={.kind=PROBE_HOST_A2DP_STATE,.value={profile.sink.binding,
+        profile.sink.pending.used?profile.sink.pending.token:0u,(uint32_t)event,(uint32_t)state,
+        profile.sink.media_binding,atomic_load(&worker.gate_epoch),atomic_load(&worker.started_epoch)}};
+    (void)probe_audio_host_record(&record);
     dbt_sink_operation_t operation=profile.sink.pending.operation;
 #ifdef DBT_PROBE_AUDIO_OUTPUT
     /* Reconfiguration keeps the signaling binding but may change the rate and
@@ -1626,7 +1670,7 @@ dbt_result_t probe_audio_init(dbt_runtime_t *runtime,TaskHandle_t host_owner){
     dbt_result_t result=dbt_codec_worker_init(&worker,hooks,PROBE_A2DP_RX_MTU,PROBE_A2DP_MEDIA_SLOTS);
     if(result!=DBT_OK)return result;
     result=dbt_codec_worker_set_media_frames(&worker,media_frame_count);if(result!=DBT_OK)return result;
-    dbt_avdtp_sink_hooks_t client={&worker,allocate,release,dbt_codec_worker_submit,sink_event,timed_worker_media};
+    dbt_avdtp_sink_hooks_t client={&worker,allocate,release,sink_work,sink_event,timed_worker_media};
     result=dbt_a2dp_acceptor_init(&profile,runtime,client,endpoints,(uint8_t)(sizeof(endpoints)/sizeof(endpoints[0])),PROBE_A2DP_RX_MTU,64,5000,2000,5000);
     if(result!=DBT_OK)return result;
     /* Cold codec checks finished before this init. Enable live quality counts

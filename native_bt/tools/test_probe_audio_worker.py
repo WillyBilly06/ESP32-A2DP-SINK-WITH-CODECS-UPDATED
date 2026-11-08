@@ -113,6 +113,8 @@ try:
         if audit_capture(record.value.replace(b'"value":7',b'"value":8'))['passed']:raise SystemExit('FAIL damaged C snapshot accepted')
         line=dll.probe_audio_diagnostics()
         if line:raise SystemExit('FAIL detailed diagnostic rings/timing line '+str(line))
+        line=dll.probe_audio_lifecycle_records()
+        if line:raise SystemExit('FAIL lifecycle owner/decoder records, identity and bounded ring line '+str(line))
         line=dll.probe_audio_wait_policy()
         if line:raise SystemExit('FAIL event/deadline decoder scheduling line '+str(line))
         line=fn((u8*len(frame)).from_buffer_copy(frame),len(frame),(u8*6).from_buffer_copy(cie),(u8*len(aac)).from_buffer_copy(aac),len(aac),(u8*len(aac44)).from_buffer_copy(aac44),len(aac44))
