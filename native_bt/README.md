@@ -1,5 +1,12 @@
 # Independent ESP32 Bluetooth host
 
+The [runtime logging checkpoint](docs/UART_NECESSARY_LOGS_2026_11_08.md) keeps
+firmware and the raw-UART web logger at **921600 baud**. Expected PCM backpressure
+is counted without individual normal-mode records; explicit detailed tracing
+retains them. Two live windows have zero worker trace losses and **6528 / 0
+final unfilled PCM frames**. The logging change is verified; LHDC continuity
+remains unresolved. Linked SRAM and IRAM are unchanged.
+
 The [partial HCI completion checkpoint](docs/HCI_PARTIAL_COMPLETIONS_2026_11_08.md)
 returns safe individual controller credits as encoded slots retire, preserving
 the three-packet ingress limit and all queue sizes. Host checks pass 188/188.

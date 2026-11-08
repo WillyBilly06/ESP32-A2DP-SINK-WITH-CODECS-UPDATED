@@ -347,8 +347,19 @@ dbt_result_t probe_audio_host_controller(const probe_host_controller_t *controll
     if(!initialized || !logger_task || xTaskGetCurrentTaskHandle()!=owner)return DBT_UNSUPPORTED;
     return probe_audio_trace_controller(&media_trace_rings[0],controller,trace_clock,NULL);
 }
+#ifdef DBT_PROBE_SCHEDULER_TRACE
+#define PCM_BUSY_TRACE_JSON "true"
+#else
+#define PCM_BUSY_TRACE_JSON "false"
+#endif
 static void media_trace(void *context,const dbt_codec_trace_t *event){
     (void)context;
+#ifndef DBT_PROBE_SCHEDULER_TRACE
+    /* Expected PCM backpressure is already counted by the worker. Keep each
+     * episode only in explicit detailed traces; normal mode preserves faults,
+     * sequence changes and the immutable first-gap snapshots. */
+    if(event->kind==DBT_CODEC_PCM_BUSY)return;
+#endif
     if(event->kind>=DBT_CODEC_DECODE_BEGIN && event->kind!=DBT_CODEC_INPUT_CLOCK_MAX){
         timing_event((unsigned)event->kind);return;
     }
@@ -1174,7 +1185,7 @@ static void log_loop(void *unused){
         PROBE_SNAPSHOT_LOG("{\"probe\":\"media_drop_reasons\",\"collection_cycle_us\":%" PRIu32 ",\"queue_full\":%" PRIu32 ",\"decode_reject\":%" PRIu32
                ",\"reset_failed\":%" PRIu32 ",\"pcm_failed\":%" PRIu32 ",\"pcm_timeout\":%" PRIu32 ",\"pcm_busy\":%" PRIu32
                ",\"input_sequence_breaks\":%" PRIu32 ",\"input_ssrc_changes\":%" PRIu32 ",\"queue_high_water\":%" PRIu32
-               ",\"host_trace_scope\":\"media_and_host_state\",\"host_trace_lost\":%" PRIu32 ",\"worker_trace_lost\":%" PRIu32 ",\"snapshot_records_lost\":%" PRIu32 ",\"snapshot_uart_lost\":%" PRIu32 "}\n",at,
+               ",\"host_trace_scope\":\"media_and_host_state\",\"host_trace_lost\":%" PRIu32 ",\"worker_pcm_busy_events\":" PCM_BUSY_TRACE_JSON ",\"worker_trace_lost\":%" PRIu32 ",\"snapshot_records_lost\":%" PRIu32 ",\"snapshot_uart_lost\":%" PRIu32 "}\n",at,
                atomic_load(&worker.queue_full_drops),atomic_load(&worker.decode_rejects),atomic_load(&worker.reset_failures),
                atomic_load(&worker.pcm_failures),atomic_load(&worker.pcm_timeouts),atomic_load(&worker.pcm_backpressure),
                atomic_load(&worker.input_sequence_breaks),atomic_load(&worker.input_ssrc_changes),atomic_load(&worker.queue_high_water),
