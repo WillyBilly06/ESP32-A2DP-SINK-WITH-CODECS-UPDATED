@@ -1,6 +1,12 @@
 # Independent ESP32 Bluetooth host
 
-The [current host RX checkpoint](docs/HOST_RX_HANDOFF_2026_11_07.md) removes
+The [latest queue/transport review](docs/QUEUE_ERASE_REVIEW_2026_11_07.md) rejects
+a word-erase candidate after worse phone windows and restores the prior firmware
+implementation. New ASan/UBSan queue/SPSC regressions pass; reverse controls still
+have **1,920 / 4,736 unfilled PCM sample frames**. Input timestamp jumps and late
+rendering are recorded separately. LHDC continuity remains unresolved.
+
+The [host RX checkpoint](docs/HOST_RX_HANDOFF_2026_11_07.md) removes
 duplicate deadline collection, reduces sensitive-scratch erase stores and adds
 a fenced RX-to-render handoff. Host regressions and all 37 cold codec cases pass.
 Two short LHDC 192 kHz/S24/900 kbps traces still have **4,416 / 9,024 unfilled
