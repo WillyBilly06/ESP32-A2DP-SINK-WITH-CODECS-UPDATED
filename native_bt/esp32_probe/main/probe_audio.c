@@ -797,10 +797,10 @@ static dbt_result_t stream_begin(void *context,bool start,const dbt_codec_config
     if(config->ops==&dbt_ldac_codec)priming=40;
 #endif
 #ifdef DBT_PROBE_LHDC_BUILD
-    /* The observed high-rate delivery gaps now reach 30-35ms. Retain one
-     * additional 10ms startup margin within the existing queues; lower-rate
-     * LHDC keeps its current guard. This remains an event/deadline hold. */
-    if(config->ops==&dbt_lhdcv5_codec)priming=config->rate>96000u?50u:40u;
+    /* High-rate startup trace showed about48ms of host/RTP cadence deficit,
+     * exhausting the prior50ms reserve before decode/refill completed. Trial
+     * an80ms event/deadline hold using the existing queues; no added buffers. */
+    if(config->ops==&dbt_lhdcv5_codec)priming=config->rate>96000u?80u:40u;
 #endif
 #ifdef DBT_PROBE_CODEC_AWARE_RENDER
     bool share=config->ops==&dbt_sbc_codec;

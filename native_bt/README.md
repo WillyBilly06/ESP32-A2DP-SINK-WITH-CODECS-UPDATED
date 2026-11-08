@@ -1,11 +1,22 @@
 # Independent ESP32 Bluetooth host
 
+The [startup-reserve checkpoint](docs/LHDC_STARTUP_RESERVE_2026_11_08.md) uses an
+**80 ms high-rate LHDC hold**, adding 30 ms of startup latency within the existing
+buffers. Linked SRAM/IRAM and image size are unchanged. Four guarded fixed-900
+YouTube traces retain **0 / 192 / 0 / 0 unfilled frames**; none had a finalized
+pre-pause gap. The 192-frame event followed an accepted renderer stop request.
+This remains a finite comparison, not sustained continuity qualification.
+
+COM6 image57850f2d36b9 is readback-verified at **921600 baud**. Six app variants
+and 37 cold target configurations pass. **Full 1 Mbps, sustained BLE/control,
+acoustics and complete feature parity remain open.**
+
 The [stream-boundary checkpoint](docs/A2DP_STREAM_BOUNDARY_2026_11_08.md) adds
 separate accepted-job, decoder-handoff and AVDTP-state records within the existing
 trace storage, with unchanged linked SRAM/IRAM. It also reads queue geometry
 atomically in the background logger. Six app variants and37 cold target cases pass.
 
-COM6 image9048cff45172 is readback-verified at **921600 baud**. A metronome
+Checkpoint image9048cff45172 is readback-verified at **921600 baud**. A metronome
 excerpt has0 unfilled frames, but music has960 with an active gap165.6ms after
 Streaming and13.07s before accepted Suspend. **LHDC continuity remains unresolved.**
 An early host/RTP cadence deficit near48ms motivates a bounded startup-reserve
