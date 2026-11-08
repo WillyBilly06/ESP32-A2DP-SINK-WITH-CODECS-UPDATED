@@ -350,8 +350,10 @@ static bool control_async(dbt_codec_worker_t *w,const dbt_codec_job_t *job,uint3
 static void retire_slot(dbt_codec_worker_t *w,uint32_t read){
     uint32_t queued=atomic_load_explicit(&w->media_written,memory_order_acquire)-read;
     atomic_store_explicit(&w->media_read,read+1u,memory_order_release);
-    /* Match the selected policy, including small queues with reserved credits. */
-    if(queued==w->low_water)wake_owner(w);
+    /* A partial receive-credit grant can become possible before the low-water
+     * crossing. Signal each reclaimed slot in this pressure region; the host
+     * may coalesce notifications. Below it all controller permits already fit. */
+    if(queued>=w->low_water)wake_owner(w);
 }
 static void retire_media(dbt_codec_worker_t *w,uint32_t read,dbt_result_t result){
     if(result!=DBT_OK){

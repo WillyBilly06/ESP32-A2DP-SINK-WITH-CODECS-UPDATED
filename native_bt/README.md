@@ -1,5 +1,12 @@
 # Independent ESP32 Bluetooth host
 
+The [partial HCI completion checkpoint](docs/HCI_PARTIAL_COMPLETIONS_2026_11_08.md)
+returns safe individual controller credits as encoded slots retire, preserving
+the three-packet ingress limit and all queue sizes. Host checks pass 188/188.
+Short LHDC192/S24/fixed900 YouTube windows have **576 / 0 / 0 unfilled PCM frames**
+versus a fresh prior-image music control of 1152. Continuity and full feature
+qualification remain open. COM6 and the raw UART monitor run at **921600 baud**.
+
 The [reserved Core0 DSP checkpoint](docs/CORE0_RESERVED_DSP_2026_11_08.md)
 permits the existing helper during decode only with at least8ms of processed
 audio reserved. Observed helper workshare rises from53% to74% with unchanged

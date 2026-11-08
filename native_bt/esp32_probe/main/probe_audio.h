@@ -23,6 +23,7 @@ dbt_result_t probe_audio_host_failure(const probe_host_failure_t *);
 dbt_result_t probe_audio_host_controller(const probe_host_controller_t *);
 uint16_t probe_audio_rx_credit_window(void);
 bool probe_audio_rx_credit_ready(void *,const dbt_link_t *);
+uint16_t probe_audio_rx_credit_limit(void *,const dbt_link_t *,uint16_t,uint16_t);
 dbt_result_t probe_audio_init(dbt_runtime_t *runtime,TaskHandle_t owner);
 bool probe_audio_accept(void *context,const dbt_link_t *link,uint16_t psm);
 /* Host-owner outgoing signaling entry points. No peer is automatically

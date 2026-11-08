@@ -890,7 +890,7 @@ void app_main(void) {
 #ifdef DBT_PROBE_AUDIO_TEST
             uint16_t media_window=probe_audio_rx_credit_window();
             if(packets>media_window)packets=media_window;
-            result=dbt_rx_flow_set_gate(&runtime.rx_flow,probe_audio_rx_credit_ready,NULL);
+            result=dbt_rx_flow_set_limit(&runtime.rx_flow,probe_audio_rx_credit_limit,NULL);
 #endif
             if(result==DBT_OK)result=dbt_runtime_enable_rx_flow(&runtime,bytes,packets);
             if(result!=DBT_OK) {

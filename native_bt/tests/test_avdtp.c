@@ -93,8 +93,8 @@ EXPORT int test_avdtp_control_correlation_and_lazy_storage(void) {
         CHECK(dbt_avdtp_command(&a.signal,DBT_AVDTP_DISCOVER,0,0,20,&label)==DBT_OK && label==(i&15));
         CHECK(dbt_avdtp_tx_peek(&a.signal,&wire,&size)==DBT_OK);
         CHECK(dbt_avdtp_tx_commit(&a.signal,20)==DBT_OK);
-        reply[0]=(uint8_t)((label<<4)|2);reply[1]=1;
-        CHECK(dbt_avdtp_receive(&a.signal,123,reply,2,21)==DBT_OK);
+        uint8_t discovery_reply[]={(uint8_t)((label<<4)|2),1,4,8};
+        CHECK(dbt_avdtp_receive(&a.signal,123,discovery_reply,sizeof discovery_reply,21)==DBT_OK);
     }
     CHECK(dbt_avdtp_clear(&a.signal)==DBT_OK && a.allocated==0 && !a.errors);
     return 0;
@@ -181,7 +181,7 @@ EXPORT int test_avdtp_deadlines_wrap_and_pinned_timeout(void) {
     CHECK(dbt_avdtp_clear(&a.signal)==DBT_OK);
     CHECK(fixture(&a,48));uint8_t first[]={4,2,3,4};
     CHECK(dbt_avdtp_receive(&a.signal,123,first,sizeof(first),5)==DBT_OK);
-    CHECK(dbt_avdtp_poll(&a.signal,2005)==DBT_INVALID && a.allocated==a.released);
+    CHECK(dbt_avdtp_poll(&a.signal,2005)==DBT_OK && !a.signal.failed && !a.signal.rx && a.signal.discarded==1 && a.allocated==a.released);
     CHECK(dbt_avdtp_clear(&a.signal)==DBT_OK);
     CHECK(fixture(&a,48));
     CHECK(dbt_avdtp_command(&a.signal,1,0,0,0,&label)==DBT_OK);
@@ -190,7 +190,7 @@ EXPORT int test_avdtp_deadlines_wrap_and_pinned_timeout(void) {
     CHECK(dbt_avdtp_clear(&a.signal)==DBT_OK && a.responses==1);
     CHECK(fixture(&a,48));
     CHECK(dbt_avdtp_receive(&a.signal,123,command_packet,2,0)==DBT_OK);
-    CHECK(dbt_avdtp_respond(&a.signal,0,1,DBT_AVDTP_ACCEPT,0,0,2000)==DBT_INVALID && a.signal.failed);
+    uint8_t sep[]={4,8};CHECK(dbt_avdtp_respond(&a.signal,0,1,DBT_AVDTP_ACCEPT,sep,sizeof sep,2000)==DBT_INVALID && a.signal.failed);
     CHECK(dbt_avdtp_clear(&a.signal)==DBT_OK);
     return 0;
 }
@@ -209,7 +209,7 @@ EXPORT int test_avdtp_oom_retries_and_response_priority(void) {
     CHECK(dbt_avdtp_receive(&a.signal,123,incoming,2,2)==DBT_OK);
     a.fail=true;CHECK(dbt_avdtp_respond(&a.signal,1,1,DBT_AVDTP_ACCEPT,body,sizeof(body),2)==DBT_NO_SPACE);
     CHECK(a.signal.remote_pending && !a.signal.tx[1].used);
-    a.fail=false;CHECK(dbt_avdtp_respond(&a.signal,1,1,DBT_AVDTP_ACCEPT,0,0,2)==DBT_OK);
+    a.fail=false;uint8_t sep[]={4,8};CHECK(dbt_avdtp_respond(&a.signal,1,1,DBT_AVDTP_ACCEPT,sep,sizeof sep,2)==DBT_OK);
     CHECK(dbt_avdtp_tx_peek(&a.signal,&packet,&size)==DBT_OK && ((packet[0]>>2)&3)==3);
     CHECK(dbt_avdtp_tx_commit(&a.signal,3)==DBT_OK); /* finish first fragmented message */
     CHECK(dbt_avdtp_tx_peek(&a.signal,&packet,&size)==DBT_OK && packet[0]==0x12 && packet[1]==1);
@@ -233,7 +233,7 @@ EXPORT int test_avdtp_unknown_signals_and_command_backpressure(void) {
     CHECK(dbt_avdtp_receive(&a.signal,123,incoming,2,3)==DBT_BUSY && a.commands==1);
     CHECK(dbt_avdtp_respond(&a.signal,1,1,DBT_AVDTP_ACCEPT,0,0,3)==DBT_INVALID);
     CHECK(dbt_avdtp_respond(&a.signal,0,1,DBT_AVDTP_GENERAL_REJECT,incoming,1,3)==DBT_INVALID);
-    CHECK(dbt_avdtp_respond(&a.signal,0,1,DBT_AVDTP_ACCEPT,0,0,3)==DBT_OK);
+    uint8_t sep[]={4,8};CHECK(dbt_avdtp_respond(&a.signal,0,1,DBT_AVDTP_ACCEPT,sep,sizeof sep,3)==DBT_OK);
     CHECK(dbt_avdtp_tx_peek(&a.signal,&packet,&size)==DBT_OK);
     CHECK(dbt_avdtp_tx_commit(&a.signal,4)==DBT_OK);
     incoming[1]=0;CHECK(dbt_avdtp_receive(&a.signal,123,incoming,2,5)==DBT_INVALID && a.commands==1);
@@ -322,7 +322,7 @@ EXPORT int test_avdtp_simultaneous_local_and_remote_transactions(void) {
     uint8_t incoming[]={0x70,DBT_AVDTP_DISCOVER};
     CHECK(dbt_avdtp_receive(&a.signal,123,incoming,sizeof(incoming),2)==DBT_OK);
     CHECK(a.commands==1 && a.signal.tx[0].waiting);
-    CHECK(dbt_avdtp_respond(&a.signal,7,1,DBT_AVDTP_ACCEPT,0,0,2)==DBT_OK);
+    uint8_t sep[]={4,8};CHECK(dbt_avdtp_respond(&a.signal,7,1,DBT_AVDTP_ACCEPT,sep,sizeof sep,2)==DBT_OK);
     CHECK(dbt_avdtp_tx_peek(&a.signal,&packet,&size)==DBT_OK && packet[0]==0x72);
     uint8_t response[]={2,6};
     CHECK(dbt_avdtp_receive(&a.signal,123,response,sizeof(response),3)==DBT_OK && a.responses==1);

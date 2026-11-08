@@ -20,19 +20,26 @@ typedef struct {
 /* Owner-only, bounded policy. False retains completions until downstream
  * capacity returns; it never borrows an HCI payload or blocks this caller. */
 typedef bool (*dbt_rx_flow_ready_fn)(void *,const dbt_link_t *);
+/* Pure owner-only limit: return at most pending completions for this link.
+ * window is the shared advertised ACL buffer count, not a per-link grant.
+ * Must not mutate/reenter flow APIs, allocate or wait. */
+typedef uint16_t (*dbt_rx_flow_limit_fn)(void *,const dbt_link_t *,uint16_t pending,uint16_t window);
 
 typedef struct {
     dbt_host_t *host;
     dbt_acl_t *acl;
-    dbt_rx_flow_ready_fn completion_ready;
+    union {
+        dbt_rx_flow_ready_fn completion_ready;
+        dbt_rx_flow_limit_fn completion_limit;
+    };
     void *completion_context;
     dbt_rx_completed_t pending[DBT_MAX_LINKS];
-    uint32_t acknowledged, commands_submitted, retired_on_disconnect;
+    uint32_t acknowledged, commands_submitted, retired_on_disconnect, partial_commands;
     uint16_t packet_bytes, packet_count;
     uint16_t failed_opcode;
     uint8_t failed_status;
     dbt_rx_flow_state_t state;
-    bool command_pending;
+    bool command_pending, completion_is_limit;
     uint8_t tx[5u + 4u * DBT_MAX_LINKS];
 } dbt_rx_flow_t;
 
@@ -47,6 +54,8 @@ dbt_result_t dbt_rx_flow_start(dbt_rx_flow_t *flow, uint16_t packet_bytes, uint1
 /* Configure before start, with no retained packet/active connection. Caller
  * must wake its host owner when a withheld connection becomes ready again. */
 dbt_result_t dbt_rx_flow_set_gate(dbt_rx_flow_t *,dbt_rx_flow_ready_fn,void *);
+/* Alternative to the compatible all-or-nothing gate; same setup-only lifetime. */
+dbt_result_t dbt_rx_flow_set_limit(dbt_rx_flow_t *,dbt_rx_flow_limit_fn,void *);
 void dbt_rx_flow_poll(dbt_rx_flow_t *flow, uint32_t now_ms);
 /* Call after consuming the borrowed HCI packet, including profile callbacks.
  * Each packet is counted once, for its live connection generation. */

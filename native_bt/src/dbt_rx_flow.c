@@ -44,7 +44,21 @@ dbt_result_t dbt_rx_flow_init(dbt_rx_flow_t *flow, dbt_host_t *host, dbt_acl_t *
 dbt_result_t dbt_rx_flow_set_gate(dbt_rx_flow_t *flow,dbt_rx_flow_ready_fn ready,void *context){
     if(!flow || !flow->host || !flow->acl || flow->state!=DBT_RX_FLOW_DISABLED)return DBT_INVALID;
     for(unsigned i=0;i<DBT_MAX_LINKS;++i)if(flow->acl->links[i].used)return DBT_BUSY;
-    flow->completion_ready=ready;flow->completion_context=context;return DBT_OK;
+    flow->completion_ready=ready;flow->completion_context=context;flow->completion_is_limit=false;return DBT_OK;
+}
+
+dbt_result_t dbt_rx_flow_set_limit(dbt_rx_flow_t *flow,dbt_rx_flow_limit_fn limit,void *context){
+    if(!flow || !flow->host || !flow->acl || flow->state!=DBT_RX_FLOW_DISABLED)return DBT_INVALID;
+    for(unsigned i=0;i<DBT_MAX_LINKS;++i)if(flow->acl->links[i].used)return DBT_BUSY;
+    flow->completion_limit=limit;flow->completion_context=context;flow->completion_is_limit=true;return DBT_OK;
+}
+static uint16_t completed_limit(const dbt_rx_flow_t *flow,const dbt_link_t *link,uint16_t pending){
+    if(flow->completion_is_limit){
+        uint16_t allowed=flow->completion_limit?
+            flow->completion_limit(flow->completion_context,link,pending,flow->packet_count):pending;
+        return allowed<pending?allowed:pending;
+    }
+    return flow->completion_ready && !flow->completion_ready(flow->completion_context,link)?0:pending;
 }
 
 dbt_result_t dbt_rx_flow_start(dbt_rx_flow_t *flow, uint16_t packet_bytes, uint16_t packet_count) {
@@ -108,7 +122,8 @@ void dbt_rx_flow_poll(dbt_rx_flow_t *flow, uint32_t now_ms) {
         return;
     unsigned count = 0;
     uint32_t packets = 0;
-    bool selected[DBT_MAX_LINKS]={0};
+    uint16_t selected[DBT_MAX_LINKS]={0};
+    bool partial=false;
     for (unsigned i = 0; i < DBT_MAX_LINKS; ++i) {
         dbt_rx_completed_t *entry = &flow->pending[i];
         if (!entry->used || !entry->packets)
@@ -120,11 +135,12 @@ void dbt_rx_flow_poll(dbt_rx_flow_t *flow, uint32_t now_ms) {
             entry->packets = 0;
             continue;
         }
-        if(flow->completion_ready && !flow->completion_ready(flow->completion_context,link))continue;
-        selected[i]=true;
+        uint16_t allowed=completed_limit(flow,link,entry->packets);
+        if(!allowed)continue;
+        selected[i]=allowed;if(allowed<entry->packets)partial=true;
         put16(flow->tx + 5u + count * 4u, entry->handle);
-        put16(flow->tx + 7u + count * 4u, entry->packets);
-        packets += entry->packets;
+        put16(flow->tx + 7u + count * 4u, allowed);
+        packets += allowed;
         ++count;
     }
     if (!count)
@@ -139,9 +155,10 @@ void dbt_rx_flow_poll(dbt_rx_flow_t *flow, uint32_t now_ms) {
     if (!transport.send(transport.context, flow->tx, (uint16_t)(5u + count * 4u)))
         return;
     for (unsigned i = 0; i < DBT_MAX_LINKS; ++i) if(selected[i]) {
-        flow->pending[i].packets = 0;
-        flow->pending[i].used = false;
+        flow->pending[i].packets -= selected[i];
+        flow->pending[i].used = flow->pending[i].packets!=0;
     }
+    if(partial)++flow->partial_commands;
     flow->acknowledged += packets;
     ++flow->commands_submitted;
 }
@@ -215,8 +232,7 @@ uint32_t dbt_rx_flow_wait_ms(const dbt_rx_flow_t *flow) {
             const dbt_rx_completed_t *entry=&flow->pending[i];
             if(!entry->used || !entry->packets)continue;
             const dbt_link_t *link=dbt_acl_find(flow->acl,entry->handle);
-            if(!link || link->generation!=entry->generation || !flow->completion_ready ||
-               flow->completion_ready(flow->completion_context,link))return 0;
+            if(!link || link->generation!=entry->generation || completed_limit(flow,link,entry->packets))return 0;
         }
     return UINT32_MAX;
 }

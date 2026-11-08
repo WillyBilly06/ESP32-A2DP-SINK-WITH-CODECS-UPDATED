@@ -545,37 +545,59 @@ EXPORT int test_a2dp_acceptor_configured_acl_loss(void){
     for(unsigned i=0;i<2;++i)CHECK(peers[i].allocated==peers[i].released && !peers[i].integrity_errors);
     acceptor_enabled=avdtp_enabled=false;return 0;
 }
+static uint8_t *parser_no_memory(void *context,uint16_t bytes){(void)context;(void)bytes;return 0;}
 EXPORT int test_runtime_first_parser_failure_metadata(void){
     for(unsigned kind=0;kind<3;++kind){
         clock_ms=0;int result=fixture(0);if(result)return result;
         peer_t *peer=&peers[0];add_link(peer,1,false);
+        if(kind){
+            /* Wire rejections are local; they do not manufacture fatal metadata. */
+            uint8_t bad_l2cap[]={2,1,0x20,5,0,0,0,0x40,0,0xa5};
+            uint8_t bad_signal[]={2,1,0x20,8,0,4,0,1,0,8,0xa5,5,0};
+            CHECK(dbt_runtime_receive(&peer->runtime,kind==1?bad_l2cap:bad_signal,kind==1?sizeof bad_l2cap:sizeof bad_signal)==DBT_OK);
+            dbt_runtime_poll(&peer->runtime,++clock_ms,8,0);
+            CHECK(peer->runtime.ready && peer->runtime.host.state==DBT_HOST_IDENTIFIED && !peer->runtime.host.fault && !peer->runtime.failure.origin);
+            if(kind==1)CHECK(peer->runtime.rx.rejected==1);
+            else CHECK(peer->runtime.channels.malformed_pdus==1);
+        }
         if(kind==0){
-            uint8_t malformed[]={1};
-            CHECK(event(peer,0x13,malformed,sizeof(malformed))==DBT_OK);
+            uint8_t malformed[]={1};CHECK(event(peer,0x13,malformed,sizeof malformed)==DBT_OK);
         }else if(kind==1){
-            uint8_t bytes[]={2,1,0x20,5,0,0,0,0x40,0,0xa5};
-            CHECK(dbt_runtime_receive(&peer->runtime,bytes,sizeof(bytes))==DBT_OK);
+            /* Valid partial PDU, but its required reassembly allocation fails. */
+            peer->runtime.rx.hooks.allocate=parser_no_memory;
+            uint8_t bytes[]={2,1,0x20,5,0,9,0,0x40,0,0xa5};
+            CHECK(dbt_runtime_receive(&peer->runtime,bytes,sizeof bytes)==DBT_OK);
         }else{
-            uint8_t bytes[]={2,1,0x20,8,0,4,0,1,0,8,0xa5,5,0};
-            CHECK(dbt_runtime_receive(&peer->runtime,bytes,sizeof(bytes))==DBT_OK);
+            /* Fill mandatory signaling replies through the public receive API. */
+            const dbt_link_t *link=dbt_acl_find(&peer->runtime.acl,1);unsigned full=0;
+            for(unsigned i=1;i<=32;++i){
+                uint8_t echo[]={8,(uint8_t)i,0,0};
+                dbt_result_t status=dbt_channels_receive(&peer->runtime.channels,1,link->generation,1,echo,sizeof echo);
+                if(status==DBT_NO_SPACE){full=1;break;}CHECK(status==DBT_OK);
+            }
+            CHECK(full);
+            uint8_t bytes[]={2,1,0x20,8,0,4,0,1,0,8,0xa5,0,0};
+            CHECK(dbt_runtime_receive(&peer->runtime,bytes,sizeof bytes)==DBT_OK);
         }
         dbt_runtime_poll(&peer->runtime,++clock_ms,8,0);
         const dbt_runtime_failure_t *f=&peer->runtime.failure;
-        CHECK(peer->runtime.host.fault==DBT_FAULT_BAD_PACKET && peer->runtime.host.fault_stage==5);
-        CHECK(f->at_ms==clock_ms && f->result==DBT_INVALID);
+        dbt_fault_t expected=kind?DBT_FAULT_RX_OVERRUN:DBT_FAULT_BAD_PACKET;
+        CHECK(peer->runtime.host.fault==expected && peer->runtime.host.fault_stage==5);
+        CHECK(f->at_ms==clock_ms && f->result==(kind?DBT_NO_SPACE:DBT_INVALID));
         CHECK(f->origin==(kind==0?DBT_RUNTIME_FAULT_ACL_EVENT:kind==1?DBT_RUNTIME_FAULT_L2CAP:DBT_RUNTIME_FAULT_CHANNEL_PDU));
         if(kind){
             CHECK(f->handle==1 && f->cid==(kind==1?0x40:1) && f->generation && f->link_present);
-            if(kind==1)CHECK(f->code==0 && f->identifier==0);
-            else CHECK(f->code==8 && f->identifier==0xa5 && f->declared==5);
+            if(kind==1)CHECK(!f->code && !f->identifier && f->declared==9);
+            else CHECK(f->code==8 && f->identifier==0xa5 && !f->declared);
         }else CHECK(f->event==0x13 && f->bytes==1);
         uint32_t first_at=f->at_ms;uint8_t first_origin=f->origin;
         dbt_runtime_abort(&peer->runtime,DBT_FAULT_TIMEOUT);
-        CHECK(f->at_ms==first_at && f->origin==first_origin && peer->runtime.host.fault==DBT_FAULT_BAD_PACKET);
+        CHECK(f->at_ms==first_at && f->origin==first_origin && peer->runtime.host.fault==expected);
         CHECK(peer->allocated==peer->released && !peer->integrity_errors);
     }
     return 0;
 }
+
 EXPORT int test_commands_copy_credit_status_and_rejection(void){
     clock_ms=0;int r=fixture(0);if(r)return r;peer_t *p=&peers[0];dbt_host_t *host=&p->runtime.host;
     uint8_t parameter=0x55;
@@ -702,7 +724,7 @@ static int gap_fixture(void){
 }
 static int gap_ready(void){
     int r=gap_fixture();if(r)return r;
-    static const uint16_t expected[]={0x0c01,0x2001,0x0c6d,0x0c13,0x0c24,0x0c56,0x2006,0x2008,0x2009,0x0c52};
+    static const uint16_t expected[]={0x0c01,0x2001,0x0c6d,0x0c13,0x0c24,0x0c56,0x2006,0x2008,0x2009,0x0c52,0x0c16};
     for(unsigned i=0;i<sizeof(expected)/sizeof(expected[0]);++i){
         dbt_gap_poll(&gap,++clock_ms);dbt_runtime_poll(&peers[0].runtime,clock_ms,8,0);
         CHECK(dbt_read_le16(peers[0].wire+1)==expected[i] && !peers[0].ready);
@@ -716,6 +738,7 @@ static int gap_ready(void){
             CHECK(peers[0].wire[9]==5 && peers[0].wire[10]==3 && dbt_read_le16(peers[0].wire+11)==0x110b && dbt_read_le16(peers[0].wire+13)==0x110e);
             for(unsigned j=15;j<245;++j)CHECK(peers[0].wire[j]==0);
         }
+        if(i==10)CHECK(peers[0].wire_size==6 && dbt_read_le16(peers[0].wire+4)==DBT_GAP_CLASSIC_ACCEPT_MS*8u/5u);
         controller(&peers[0]);dbt_runtime_poll(&peers[0].runtime,++clock_ms,8,0);
     }
     CHECK(gap.state==DBT_GAP_READY && !gap.advertising && gap.classic_scan==0);return 0;

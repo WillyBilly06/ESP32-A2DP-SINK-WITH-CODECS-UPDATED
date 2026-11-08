@@ -148,7 +148,8 @@ EXPORT int test_audio_formats_match_integer_dsp_reference(void){
         CHECK(fixture_aligned((dbt_pcm_format_t)width,(uint8_t)channels,unaligned!=0));
         CHECK(dbt_audio_controls(&audio,2,-1,3,64,FDSP_BYPASS)==DBT_OK);
         CHECK(fixed_dsp_init(&reference,48000,90,500,512));fixed_dsp_controls(&reference,0,0,0,0,0,true);
-        fixed_dsp_controls(&reference,2,-1,3,64,FDSP_BYPASS,false);
+        /* Initial stream policy is immediate; live-change ramps have separate tests. */
+        fixed_dsp_controls(&reference,2,-1,3,64,FDSP_BYPASS,true);
         for(unsigned n=0;n<256;++n)for(unsigned ch=0;ch<channels;++ch){
             int32_t value=((int32_t)(n%64)-32)*(ch? -31:57);if(width==3)value*=256;if(width==4)value*=65536;
             put(input+(n*channels+ch)*width,value,width);
@@ -219,7 +220,7 @@ EXPORT int audio_stress_begin(void){
     if(dbt_audio_init(&audio,memory)!=DBT_OK || dbt_audio_open(&audio,config)!=DBT_OK)return 1;
     if(dbt_audio_controls(&audio,0,0,0,127,FDSP_BYPASS)!=DBT_OK)return 2;
     (void)fixed_dsp_init(&reference,48000,90,500,512);fixed_dsp_controls(&reference,0,0,0,0,0,true);
-    fixed_dsp_controls(&reference,0,0,0,127,FDSP_BYPASS,false);consumed_sequence=0;
+    fixed_dsp_controls(&reference,0,0,0,127,FDSP_BYPASS,true);consumed_sequence=0;
     atomic_store(&audio.input.written,UINT32_MAX-1023u);atomic_store(&audio.input.read,UINT32_MAX-1023u);
     atomic_store(&audio.output.written,UINT32_MAX-1023u);atomic_store(&audio.output.read,UINT32_MAX-1023u);
     return 0;

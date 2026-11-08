@@ -14,6 +14,7 @@ import time
 
 ROOT = Path(__file__).resolve().parents[1]
 TESTS = [
+    "codec_input_clock_snapshot_and_scope",
     "le_parameters_client_lifetime", "le_parameters_client_wrap_timeout_and_bearers",
     "codec_async_pcm_completion_and_exact_order", "codec_async_pcm_cancel_before_codec_lifecycle",
     "codec_async_pcm_deadline_and_stale_retirement",
@@ -291,6 +292,7 @@ def main():
     # Keep artifacts inside the one project-owned tree even on accidental invocation.
     output_dir.relative_to(ROOT / "_build")
     output_dir.mkdir(parents=True, exist_ok=True)
+    (output_dir / "results.json").write_text(json.dumps({"passed":False,"state":"building","scope":"native C behavioral tests; not hardware qualification"}) + "\n", encoding="utf-8")
     output = output_dir / ("native_bt_tests.dll" if os.name == "nt" else "native_bt_tests.so")
     sources, compiled_snapshot = build(output)
     lib = ctypes.CDLL(str(output))
