@@ -1,6 +1,9 @@
 #include "dbt_codec.h"
 #include <stddef.h>
 #include <string.h>
+#ifndef DBT_CODEC_DURATION_TEST_STEP
+#define DBT_CODEC_DURATION_TEST_STEP(worker) ((void)(worker))
+#endif
 
 typedef struct {uint32_t bytes,pad;} allocation_t;
 typedef struct {
@@ -111,6 +114,8 @@ dbt_result_t dbt_codec_worker_init(dbt_codec_worker_t *w,dbt_codec_worker_hooks_
     zero(w,sizeof(*w));w->hooks=hooks;w->maximum_payload=payload;w->stride=(uint16_t)stride;
     w->depth=w->depth_limit=depth;w->low_water=(uint8_t)((depth+1u)/2u);
     atomic_init(&w->queue_layout,0);
+    atomic_init(&w->duration_input_frames,0);atomic_init(&w->duration_pcm_base,0);
+    atomic_init(&w->duration_reject_base,0);atomic_init(&w->duration_epoch,0);
     atomic_init(&w->job_written,0);atomic_init(&w->job_read,0);atomic_init(&w->receipt_written,0);atomic_init(&w->receipt_read,0);
     atomic_init(&w->gate_epoch,0);atomic_init(&w->started_epoch,0);atomic_init(&w->media_written,0);atomic_init(&w->media_read,0);
     atomic_init(&w->packets,0);atomic_init(&w->media_drops,0);atomic_init(&w->resets,0);atomic_init(&w->faults,0);atomic_init(&w->resident_bytes,0);
@@ -190,6 +195,30 @@ void dbt_codec_worker_clock_snapshot(const dbt_codec_worker_t *w,dbt_codec_input
     atomic_thread_fence(memory_order_seq_cst);out->revision=before;
     out->coherent=before && !(before&1u) && before==atomic_load_explicit(&w->input_clock_revision,memory_order_acquire);
 }
+dbt_result_t dbt_codec_worker_set_media_frames(dbt_codec_worker_t *w,dbt_codec_media_frames_t frames){
+    if(!w || !frames || !w->hooks.codecs)return DBT_INVALID;
+    if(w->media_frames || atomic_load(&w->job_written) || atomic_load(&w->job_read) ||
+       atomic_load(&w->gate_epoch) || atomic_load(&w->started_epoch))return DBT_BUSY;
+    w->media_frames=frames;return DBT_OK;
+}
+bool dbt_codec_worker_buffered_frames(const dbt_codec_worker_t *w,uint32_t *frames){
+    if(!w || !frames)return false;
+    *frames=0;
+    uint32_t epoch=atomic_load_explicit(&w->started_epoch,memory_order_acquire);
+    if(!epoch || epoch!=atomic_load_explicit(&w->gate_epoch,memory_order_acquire) ||
+       epoch!=atomic_load_explicit(&w->duration_epoch,memory_order_acquire))return false;
+    uint32_t base=atomic_load_explicit(&w->duration_pcm_base,memory_order_relaxed);
+    uint32_t written=atomic_load_explicit(&w->duration_input_frames,memory_order_acquire);
+    uint32_t delivered=atomic_load_explicit(&w->pcm_delivered_frames,memory_order_acquire)-base;
+    uint32_t buffered=written-delivered;
+    DBT_CODEC_DURATION_TEST_STEP(w);
+    if(buffered>=0x80000000u || written!=atomic_load_explicit(&w->duration_input_frames,memory_order_acquire) ||
+       atomic_load(&w->decode_rejects)!=atomic_load(&w->duration_reject_base) ||
+       epoch!=atomic_load_explicit(&w->duration_epoch,memory_order_acquire) ||
+       epoch!=atomic_load_explicit(&w->started_epoch,memory_order_acquire) ||
+       epoch!=atomic_load_explicit(&w->gate_epoch,memory_order_acquire))return false;
+    *frames=buffered;return true;
+}
 dbt_result_t dbt_codec_worker_media(void *context,const dbt_avdtp_media_t *packet){
     dbt_codec_worker_t *w=context;
     if(!w || !packet || !packet->payload || !packet->size)return DBT_INVALID;
@@ -233,6 +262,11 @@ dbt_result_t dbt_codec_worker_media(void *context,const dbt_avdtp_media_t *packe
     slot->timestamp=packet->timestamp;slot->ssrc=packet->ssrc;slot->sequence=packet->sequence;slot->size=packet->size;
     slot->payload_type=packet->payload_type;slot->marker=packet->marker;
     slot->prefix[0]=input.prefix[0];slot->prefix[1]=input.prefix[1];memcpy(slot->bytes,packet->payload,packet->size);
+    if(atomic_load_explicit(&w->duration_epoch,memory_order_acquire)==epoch){
+        uint32_t frames=w->media_frames(&w->decoder.config,packet);
+        if(!frames || frames>=0x80000000u)atomic_store_explicit(&w->duration_epoch,0,memory_order_release);
+        else atomic_store_explicit(&w->duration_input_frames,atomic_load(&w->duration_input_frames)+frames,memory_order_release);
+    }
     atomic_store_explicit(&w->media_written,written+1u,memory_order_release);wake_worker(w);return DBT_OK;
 }
 dbt_result_t dbt_codec_worker_receipt(dbt_codec_worker_t *w,dbt_codec_receipt_t *receipt){
@@ -298,6 +332,13 @@ static dbt_sink_work_result_t control(dbt_codec_worker_t *w,const dbt_codec_job_
         pending_clear(w);w->media_active=false;
         w->sequence_valid=false;atomic_store(&w->media_read,atomic_load(&w->media_written));
         if(w->decoder.config.ops->reset(&w->decoder)!=DBT_OK){fault(w);return DBT_SINK_WORK_FATAL;}
+        if(start){
+            atomic_store(&w->duration_input_frames,0);
+            atomic_store(&w->duration_pcm_base,atomic_load(&w->pcm_delivered_frames));
+            atomic_store(&w->duration_reject_base,atomic_load(&w->decode_rejects));
+            bool supported=w->media_frames && w->hooks.deferred_pcm && !w->hooks.async_pcm.begin;
+            atomic_store_explicit(&w->duration_epoch,supported?job->epoch:0,memory_order_release);
+        }
         w->streaming=start;if(start)atomic_store_explicit(&w->started_epoch,job->epoch,memory_order_release);
         return DBT_SINK_WORK_READY;
     }

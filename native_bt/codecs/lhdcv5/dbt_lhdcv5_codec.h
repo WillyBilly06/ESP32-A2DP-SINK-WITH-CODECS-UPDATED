@@ -4,6 +4,9 @@
 dbt_result_t dbt_lhdcv5_configure(const uint8_t *cie,uint16_t size,dbt_codec_config_t *config);
 uint8_t dbt_a2dp_lhdcv5_validate(const dbt_avdtp_endpoint_t *endpoint,const dbt_avdtp_cap_t *codec);
 extern const dbt_codec_ops_t dbt_lhdcv5_codec;
+/* Pure bounded framing validation; returns PCM samples per channel.
+ * Zero means unknown/invalid, not an empty accepted packet. */
+uint32_t dbt_lhdcv5_packet_frames(const dbt_codec_config_t *,const dbt_avdtp_media_t *);
 
 enum { DBT_LHDC_CHANNEL0_ERROR=1u, DBT_LHDC_CHANNEL1_SILENCED=2u,
     DBT_LHDC_PEAK_CONCEALED=4u, DBT_LHDC_CLIPPED=8u, DBT_LHDC_ALLOCATION_FAILED=16u,

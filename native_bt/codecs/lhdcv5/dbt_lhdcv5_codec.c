@@ -232,16 +232,26 @@ static dbt_result_t resume(dbt_codec_decoder_t *d,uint32_t now){
     }
     return batch_finish(d,DBT_OK);
 }
-static dbt_result_t decode_payload(dbt_codec_decoder_t *d,const uint8_t *p,uint16_t size,uint8_t declared_frames,uint32_t timestamp){
-    lhdc_state_t *s=d->state;if(size<4)return DBT_INVALID;
+static unsigned payload_frame_count(const uint8_t *p,uint16_t size,uint8_t declared_frames){
+    if(!p || size<4 || !declared_frames)return 0;
     unsigned pos=0,frames=0;
     while(pos<size){
-        if(size-pos<2)return DBT_INVALID;
+        if(size-pos<2)return 0;
         unsigned n=((unsigned)p[pos]|((unsigned)p[pos+1]<<8))&1023u;n*=2u;
-        if(!n || n>LHDC_FRAME_MAX || n+2u>size-pos)return DBT_INVALID;
-        pos+=n+2u;if(++frames>declared_frames)return DBT_INVALID;
+        if(!n || n>LHDC_FRAME_MAX || n+2u>size-pos)return 0;
+        pos+=n+2u;if(++frames>declared_frames)return 0;
     }
-    if(!frames || frames!=declared_frames)return DBT_INVALID;
+    return frames==declared_frames?frames:0;
+}
+uint32_t dbt_lhdcv5_packet_frames(const dbt_codec_config_t *config,const dbt_avdtp_media_t *p){
+    if(!config || !config->samples || !p || !p->payload || p->size<6 || p->payload_type<96 ||
+       p->payload_type==DBT_AVDTP_RAW_PAYLOAD_TYPE)return 0;
+    uint8_t count=(uint8_t)(p->payload[0]>>2);
+    return payload_frame_count(p->payload+2,(uint16_t)(p->size-2u),count)*(uint32_t)config->samples;
+}
+static dbt_result_t decode_payload(dbt_codec_decoder_t *d,const uint8_t *p,uint16_t size,uint8_t declared_frames,uint32_t timestamp){
+    lhdc_state_t *s=d->state;
+    if(!payload_frame_count(p,size,declared_frames))return DBT_INVALID;
     s->batch=p;s->batch_size=size;s->batch_pos=0;s->batch_index=0;
     s->batch_timestamp=timestamp;
     return resume(d,0);

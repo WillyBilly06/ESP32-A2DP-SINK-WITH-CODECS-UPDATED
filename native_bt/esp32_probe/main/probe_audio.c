@@ -475,6 +475,11 @@ static void log_media_trace(void){
             }else if(state->kind==PROBE_HOST_GAP_STATE){
                 PROBE_SNAPSHOT_LOG("{\"probe\":\"gap_state\",\"state\":%" PRIu32 ",\"controller_status\":%" PRIu32 ",\"profiles_ready\":false,\"advertising\":%s,\"classic_scan\":%" PRIu32 ",\"event_us\":%" PRIu32 ",\"host_log_ordinal\":%" PRIu32 "}\n",
                     state->value[0],state->value[1],state->value[2]?"true":"false",state->value[3],record.at_us,record.ordinal);
+            }else if(state->kind==PROBE_HOST_A2DP_DELAY){
+                PROBE_SNAPSHOT_LOG("{\"probe\":\"avdtp_delay_estimate\",\"encoded_frames\":%" PRIu32 ",\"encoded_known\":%s,\"rate\":%" PRIu32
+                    ",\"delay_100us\":%" PRIu32 ",\"result\":%" PRIu32 ",\"binding\":%" PRIu32 ",\"event_us\":%" PRIu32
+                    ",\"adjacent_buffer_estimate\":true,\"host_log_ordinal\":%" PRIu32 "}\n",
+                    state->value[0],(state->value[2]>>16)?"true":"false",state->value[1],state->value[2]&65535u,state->value[3],state->value[4],record.at_us,record.ordinal);
             }else if(state->kind==PROBE_HOST_MEMORY_SERVICES){
                 PROBE_SNAPSHOT_LOG("{\"probe\":\"boot_memory\",\"host\":\"owned\",\"phase\":\"services_ready\",\"internal_free\":%u,\"internal_largest\":%u,\"internal_minimum\":%u,\"internal_total\":%u,\"owner_stack_low\":%u"
                     ",\"collection_context\":\"background_logger\",\"event_us\":%" PRIu32 ",\"host_log_ordinal\":%" PRIu32 "}\n",
@@ -1084,6 +1089,7 @@ static void log_loop(void *unused){
     uint32_t previous=UINT32_MAX,previous_errors=UINT32_MAX,previous_ignored=UINT32_MAX,previous_oversized=UINT32_MAX;
     unsigned ticks=0;
     uint32_t previous_codec_revision=0;
+    uint32_t previous_encoded_epoch=UINT32_MAX,previous_encoded_known=UINT32_MAX;
     for(;;){
         vTaskDelay(pdMS_TO_TICKS(100));log_media_trace();
 #ifdef DBT_APTX_SNAPSHOT
@@ -1179,6 +1185,15 @@ static void log_loop(void *unused){
             at,(unsigned)(credit_status&0xffffu),(credit_status&0x10000u)?"true":"false",(unsigned)(credit_status>>17),atomic_load(&credit_pending_classic),
             atomic_load(&credit_pending_le),atomic_load(&credit_peak_blocked),atomic_load(&credit_acknowledged),
             atomic_load(&credit_commands),atomic_load(&credit_partial_commands),atomic_load(&credit_media_queued));
+        uint32_t encoded_frames=0,encoded_epoch=atomic_load(&worker.duration_epoch);
+        bool encoded_known=dbt_codec_worker_buffered_frames(&worker,&encoded_frames);
+        if(encoded_epoch!=atomic_load(&worker.duration_epoch)){encoded_known=false;encoded_frames=0;}
+        if(encoded_known || encoded_epoch!=previous_encoded_epoch || (uint32_t)encoded_known!=previous_encoded_known){
+        PROBE_SNAPSHOT_LOG("{\"probe\":\"encoded_media_buffer\",\"collection_cycle_us\":%" PRIu32
+            ",\"encoded_epoch\":%" PRIu32 ",\"encoded_pcm_frames\":%" PRIu32 ",\"known\":%s,\"single_attempt\":true,\"copied_deferred_only\":true}\n",
+            at,encoded_epoch,encoded_frames,encoded_known?"true":"false");
+            previous_encoded_epoch=encoded_epoch;previous_encoded_known=encoded_known;
+        }
         PROBE_SNAPSHOT_LOG("{\"probe\":\"decoder_input_queue\",\"collection_cycle_us\":%" PRIu32
                ",\"packet_capacity_bytes\":%u,\"packet_slots\":%u,\"slot_stride_bytes\":%u"
                ",\"reserved_packet_bytes\":%u,\"max_seen_payload_bytes\":%" PRIu32
@@ -1308,9 +1323,9 @@ static void log_loop(void *unused){
             previous_ignored=ignored;previous_oversized=oversized;
             snapshot_log(profile_snapshot_began,"{\"probe\":\"native_profile\",\"state\":%u,\"active\":%u,\"enabled\":%u,\"draining\":%u,"
                    "\"event_errors\":%" PRIu32 ",\"last_event\":%" PRIu32 ",\"last_result\":%" PRIu32 ",\"detail\":%" PRIu32
-                   ",\"ignored_dynamic\":%" PRIu32 ",\"oversized_dynamic\":%" PRIu32 "}\n",
+                   ",\"delay_reporting\":%s,\"ignored_dynamic\":%" PRIu32 ",\"oversized_dynamic\":%" PRIu32 "}\n",
                    (unsigned)(snapshot&255u),(unsigned)((snapshot>>8)&1u),(unsigned)((snapshot>>9)&1u),
-                   (unsigned)((snapshot>>10)&1u),errors,atomic_load(&last_channel_event),atomic_load(&last_channel_result),snapshot>>11,ignored,oversized);
+                   (unsigned)((snapshot>>10)&1u),errors,atomic_load(&last_channel_event),atomic_load(&last_channel_result),(snapshot&0x7fffffffu)>>11,(snapshot>>31)?"true":"false",ignored,oversized);
         }
 #ifdef DBT_PROBE_AVRCP
         (void)log_metadata();
@@ -1529,6 +1544,18 @@ uint16_t probe_audio_rx_credit_limit(void *context,const dbt_link_t *link,uint16
     return allowed<pending?(uint16_t)allowed:pending;
 }
 
+static uint32_t media_frame_count(const dbt_codec_config_t *config,const dbt_avdtp_media_t *packet){
+#ifndef DBT_PROBE_SCHEDULER_TRACE
+    /* No hot-path duration work for a feature this peer did not negotiate. */
+    if(!profile.sink.delay_enabled)return 0;
+#endif
+#ifdef DBT_PROBE_LHDC_BUILD
+    if(config->ops==&dbt_lhdcv5_codec)return dbt_lhdcv5_packet_frames(config,packet);
+#else
+    (void)config;(void)packet;
+#endif
+    return 0; /* Other codecs retain the existing PCM-only estimate. */
+}
 dbt_result_t probe_audio_init(dbt_runtime_t *runtime,TaskHandle_t host_owner){
     if(restart_hold)return DBT_BUSY;
     owner=host_owner;
@@ -1547,6 +1574,7 @@ dbt_result_t probe_audio_init(dbt_runtime_t *runtime,TaskHandle_t host_owner){
 #endif
     dbt_result_t result=dbt_codec_worker_init(&worker,hooks,PROBE_A2DP_RX_MTU,PROBE_A2DP_MEDIA_SLOTS);
     if(result!=DBT_OK)return result;
+    result=dbt_codec_worker_set_media_frames(&worker,media_frame_count);if(result!=DBT_OK)return result;
     dbt_avdtp_sink_hooks_t client={&worker,allocate,release,dbt_codec_worker_submit,sink_event,timed_worker_media};
     result=dbt_a2dp_acceptor_init(&profile,runtime,client,endpoints,(uint8_t)(sizeof(endpoints)/sizeof(endpoints[0])),PROBE_A2DP_RX_MTU,64,5000,2000,5000);
     if(result!=DBT_OK)return result;
@@ -1893,6 +1921,7 @@ void probe_audio_poll(uint32_t now){
      * mutable profile state. Detail bits: retiring, drained, worker, borrowed,
      * attached, pinned, pending, submitted, sink/signal failed, signal/media key;
      * remaining upper bits count staged PSM channels. */
+    _Static_assert(sizeof(profile.runtime->channels.channels)/sizeof(profile.runtime->channels.channels[0])<256u,"Profile staged count must leave bit31 free");
     atomic_store(&profile_snapshot,(uint32_t)profile.sink.state|((uint32_t)profile.active<<8)|
         ((uint32_t)profile.enabled<<9)|((uint32_t)profile.draining<<10)|
         ((uint32_t)profile.sink.retiring<<11)|((uint32_t)profile.sink.drained<<12)|
@@ -1900,7 +1929,7 @@ void probe_audio_poll(uint32_t now){
         ((uint32_t)profile.bearer.attached<<15)|((uint32_t)profile.sink.signal.pinned<<16)|
         ((uint32_t)profile.sink.pending.used<<17)|((uint32_t)profile.sink.pending.submitted<<18)|
         ((uint32_t)profile.sink.failed<<19)|((uint32_t)profile.sink.signal.failed<<20)|
-        ((uint32_t)(profile.signaling.serial!=0)<<21)|((uint32_t)(profile.media.serial!=0)<<22)|(staged<<23));
+        ((uint32_t)(profile.signaling.serial!=0)<<21)|((uint32_t)(profile.media.serial!=0)<<22)|(staged<<23)|((uint32_t)profile.sink.delay_enabled<<31));
 #ifdef DBT_PROBE_AUDIO_OUTPUT
 #ifndef DBT_PROBE_RF_PROTOCOL_DIAGNOSTIC
     if(probe_output_failed())failed=true;
@@ -1914,7 +1943,13 @@ void probe_audio_poll(uint32_t now){
             for(unsigned i=0;i<sizeof(codecs)/sizeof(codecs[0]);++i)
                 if(codecs[i]->configure(caps.codec.data,caps.codec.size,&config)==DBT_OK){selected=true;break;}
         }
-        if(selected)(void)dbt_avdtp_sink_delay(&profile.sink,probe_output_delay_100us(config.rate),now);
+        if(selected){
+            uint32_t encoded_frames=0;bool known=dbt_codec_worker_buffered_frames(&worker,&encoded_frames);
+            uint16_t delay=probe_output_buffered_delay_100us(config.rate,encoded_frames);
+            dbt_result_t reported=dbt_avdtp_sink_delay(&profile.sink,delay,now);
+            const probe_host_record_t record={.kind=PROBE_HOST_A2DP_DELAY,.value={encoded_frames,config.rate,(uint32_t)delay|((uint32_t)known<<16),(uint32_t)reported,profile.sink.binding}};
+            (void)probe_audio_host_record(&record);
+        }
         /* A request can observe a signaling expiry after acceptor_poll. Do not
          * go idle with a failed signal and no remaining owner deadline. */
         if(profile.sink.failed || profile.sink.signal.failed)(void)dbt_a2dp_acceptor_retire(&profile,now);

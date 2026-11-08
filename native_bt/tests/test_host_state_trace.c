@@ -102,7 +102,11 @@ int main(void){
     assert(atomic_load(&media_trace_rings[0].written)==1 && !atomic_load(&media_trace_rings[1].written));
     assert(probe_audio_trace_pop(&media_trace_rings[0],&out) && out.codec==9 && out.event.kind==DBT_CODEC_INPUT_CLOCK_MAX);
     event.kind=DBT_CODEC_PCM_BUSY;media_trace(NULL,&event);
+#ifdef DBT_PROBE_SCHEDULER_TRACE
     assert(probe_audio_trace_pop(&media_trace_rings[1],&out) && out.event.kind==DBT_CODEC_PCM_BUSY);
+#else
+    assert(!probe_audio_trace_pop(&media_trace_rings[1],&out) && !atomic_load(&media_trace_rings[1].lost));
+#endif
     event.kind=DBT_CODEC_DECODE_BEGIN;media_trace(NULL,&event);
     assert(timing_calls==1 && timing_kind==DBT_CODEC_DECODE_BEGIN);
     assert(!probe_audio_trace_pop(&media_trace_rings[0],&out) && !probe_audio_trace_pop(&media_trace_rings[1],&out));
@@ -236,6 +240,10 @@ int main(void){
     assert(startup_lines==direct_before && atomic_load(&memory_reads[0])==memory_before && atomic_load(&media_trace_rings[0].lost)==2);
     atomic_store(&hold_heap,false);SetEvent(heap_release);assert(WaitForSingleObject(thread,3000)==WAIT_OBJECT_0);CloseHandle(thread);
     for(unsigned i=0;i<8;++i)log_media_trace();CloseHandle(heap_entered);CloseHandle(heap_release);
+    probe_audio_trace_init(&media_trace_rings[0]);probe_audio_trace_init(&media_trace_rings[1]);
+    probe_host_record_t delay_value={.kind=PROBE_HOST_A2DP_DELAY,.value={13440,192000,881u|(1u<<16),DBT_OK,7}};
+    unsigned delay_line=line_count;assert(probe_audio_host_record(&delay_value)==DBT_OK);log_media_trace();
+    assert(line_count==delay_line+1);printf("DELAY_ESTIMATE_JSON %s",lines[delay_line]);
     printf("PASS deferred heap collection: owner/full never query allocator, background uses fixed owner handle, controller properties immutable\n");
     printf("PASS atomic failure group:24 fields,3 existing slots,all space/wrap boundaries,partial publication,malformed groups,startup/full policy,blocked UART\n");
     printf("PASS bounded shared trace: full/drop/wrap/copy, actual JSON logger, blocked UART consumer, unchanged slot size=%zu ring=%zu\n",sizeof(probe_audio_trace_t),sizeof(probe_audio_trace_ring_t));

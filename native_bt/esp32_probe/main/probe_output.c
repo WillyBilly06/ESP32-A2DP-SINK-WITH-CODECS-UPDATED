@@ -573,7 +573,7 @@ static void IRAM_ATTR close_refill_window(output_t *o){
   }else atomic_store(&o->failed,1);
   atomic_store_explicit(&o->refill_pending_index,UINT32_MAX,memory_order_release);
 }
-/* Render owner only, same CPU as the ISR. A verified three-descriptor ring
+/* Render owner only, same CPU as the ISR. A verified ordered DMA ring
  * gives at least one conservative buffer period after a fresh normal EOF.
  * No newer EOF is allowed to leave an older window open. The local mask never
  * waits for another CPU; only a bounded descriptor copy and atomic metadata run here. */
@@ -2184,10 +2184,10 @@ void probe_output_stats(probe_output_stats_t *s) {
   s->clock_disturbances = clock.disturbances;
   s->clock_observed_valid = clock.observed_valid;
 }
-uint16_t probe_output_delay_100us(uint32_t rate) {
+uint16_t probe_output_buffered_delay_100us(uint32_t rate,uint32_t encoded_frames) {
   if (!rate)
     return 0;
-  uint32_t frames = atomic_load(&output.ready_frames) +
+  uint64_t frames = atomic_load(&output.ready_frames) +
                     atomic_load(&output.input_ready_frames) +
                     DMA_DESCRIPTORS * DMA_FRAMES + 80u;
   if (!atomic_load(&output.running)){
@@ -2195,12 +2195,14 @@ uint16_t probe_output_delay_100us(uint32_t rate) {
     if(!target || atomic_load(&output.rate)!=rate)target=pcm_target_frames(rate);
     frames=target+DMA_DESCRIPTORS*DMA_FRAMES+80u;
   }
+  frames+=encoded_frames;
   if(OUTPUT_ADAPTIVE_CLOCK)frames += dbt_resampler_delay_frames(rate);
-  uint32_t value = (uint32_t)(((uint64_t)frames * 10000u + rate - 1u) / rate);
+  uint64_t value = (frames * 10000u + rate - 1u) / rate;
   uint32_t guard=(atomic_load(&output.priming_state)&PRIMING_BUDGET)*10u;
   if(value<guard)value=guard; /* Minimum deliberate priming component. */
   return value > UINT16_MAX ? UINT16_MAX : (uint16_t)value;
 }
+uint16_t probe_output_delay_100us(uint32_t rate){return probe_output_buffered_delay_100us(rate,0);}
 dbt_result_t probe_output_controls(int8_t bass, int8_t mid, int8_t treble,
                                    uint8_t volume, uint8_t flags) {
   return dbt_audio_controls(&output.audio, bass, mid, treble, volume, flags);

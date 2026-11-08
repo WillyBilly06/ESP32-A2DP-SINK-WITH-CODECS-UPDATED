@@ -1,5 +1,7 @@
 #include <stdlib.h>
 #include <string.h>
+int xPortGetCoreID(void);
+size_t heap_caps_get_total_size(unsigned);
 #include "../../esp32_probe/main/probe_audio.c"
 #ifdef DBT_PROBE_APTX_BUILD
 #include "freeaptx.h"
@@ -15,6 +17,59 @@ static int created_decoder_core=-1;
 static int created_decoder_priority=-1;
 static int created_logger_core=-1;
 static dbt_result_t stop_result=DBT_OK;
+
+/* Sink-only fixture: outgoing connection/discovery dependencies are inert.
+ * Every call is counted; the sink workflow must never exercise these mocks.
+ * Outgoing behavior requires its separate coordinator/profile tests. */
+static unsigned source_mock_calls;
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-parameter"
+dbt_result_t dbt_a2dp_acceptor_connect_begin(dbt_a2dp_acceptor_t *p,const dbt_link_t *link,
+                                           uint32_t now,dbt_a2dp_channel_t *key){++source_mock_calls;return DBT_UNSUPPORTED;}
+dbt_result_t dbt_a2dp_acceptor_connect_status(const dbt_a2dp_acceptor_t *p,const dbt_a2dp_channel_t *key){++source_mock_calls;return DBT_UNSUPPORTED;}
+dbt_result_t dbt_a2dp_acceptor_connect_cancel(dbt_a2dp_acceptor_t *p,const dbt_a2dp_channel_t *key,uint32_t now){++source_mock_calls;return DBT_UNSUPPORTED;}
+dbt_result_t dbt_a2dp_acceptor_media_begin(dbt_a2dp_acceptor_t *p,const dbt_a2dp_channel_t *signal,
+    uint32_t now,dbt_a2dp_channel_t *key){++source_mock_calls;return DBT_UNSUPPORTED;}
+dbt_result_t dbt_a2dp_acceptor_media_status(const dbt_a2dp_acceptor_t *p,const dbt_a2dp_channel_t *key){++source_mock_calls;return DBT_UNSUPPORTED;}
+dbt_result_t dbt_a2dp_acceptor_media_cancel(dbt_a2dp_acceptor_t *p,const dbt_a2dp_channel_t *key,uint32_t now){++source_mock_calls;return DBT_UNSUPPORTED;}
+dbt_result_t dbt_a2dp_acceptor_abort_begin(dbt_a2dp_acceptor_t *p,const dbt_a2dp_channel_t *signaling,
+    dbt_avdtp_local_t *context,uint32_t now,uint32_t *id){++source_mock_calls;return DBT_UNSUPPORTED;}
+void dbt_a2dp_connect_init(dbt_a2dp_connect_t *c){++source_mock_calls;return;}
+dbt_result_t dbt_a2dp_connect_begin(dbt_a2dp_connect_t *c,dbt_a2dp_acceptor_t *p,dbt_gap_t *gap,
+    dbt_a2dp_connect_config_t config,uint32_t now,uint32_t *token){++source_mock_calls;return DBT_UNSUPPORTED;}
+void dbt_a2dp_connect_event(dbt_a2dp_connect_t *c,dbt_channel_event_t event,const dbt_channel_t *ch,
+    dbt_channel_reason_t reason,uint16_t result,uint32_t now){++source_mock_calls;return;}
+void dbt_a2dp_connect_poll(dbt_a2dp_connect_t *c,uint32_t now){++source_mock_calls;return;}
+uint32_t dbt_a2dp_connect_wait_ms(const dbt_a2dp_connect_t *c,uint32_t now){++source_mock_calls;return UINT32_MAX;}
+dbt_result_t dbt_a2dp_connect_cancel(dbt_a2dp_connect_t *c,uint32_t token){++source_mock_calls;return DBT_UNSUPPORTED;}
+bool dbt_a2dp_connect_done(const dbt_a2dp_connect_t *c){++source_mock_calls;return false;}
+dbt_result_t dbt_a2dp_connect_result(const dbt_a2dp_connect_t *c,uint32_t token,dbt_a2dp_connect_result_t *r){++source_mock_calls;return DBT_UNSUPPORTED;}
+void dbt_a2dp_rank_init(dbt_a2dp_rank_t *c){++source_mock_calls;return;}
+dbt_result_t dbt_a2dp_rank_begin(dbt_a2dp_rank_t *c,dbt_avdtp_t *signal,const dbt_avdtp_endpoint_t *endpoints,uint8_t count,
+    dbt_a2dp_rank_config_t config,uint32_t now,uint32_t *token){++source_mock_calls;return DBT_UNSUPPORTED;}
+void dbt_a2dp_rank_poll(dbt_a2dp_rank_t *c,uint32_t now){++source_mock_calls;return;}
+uint32_t dbt_a2dp_rank_wait_ms(const dbt_a2dp_rank_t *c,uint32_t now){++source_mock_calls;return UINT32_MAX;}
+dbt_result_t dbt_a2dp_rank_cancel(dbt_a2dp_rank_t *c,uint32_t token){++source_mock_calls;return DBT_UNSUPPORTED;}
+dbt_result_t dbt_a2dp_rank_interrupt(dbt_a2dp_rank_t *c,uint32_t token,dbt_a2dp_rank_outcome_t why){++source_mock_calls;return DBT_UNSUPPORTED;}
+dbt_result_t dbt_a2dp_rank_result(const dbt_a2dp_rank_t *c,uint32_t token,dbt_a2dp_rank_result_t *result,const uint8_t **proposal){++source_mock_calls;return DBT_UNSUPPORTED;}
+bool dbt_a2dp_rank_done(const dbt_a2dp_rank_t *c){++source_mock_calls;return false;}
+void dbt_avdtp_query_init(dbt_avdtp_query_t *q){++source_mock_calls;return;}
+dbt_result_t dbt_avdtp_query_begin(dbt_avdtp_query_t *q,dbt_avdtp_t *s,uint8_t command,uint8_t seid,
+    uint8_t *response,uint16_t capacity,uint32_t now,uint32_t *token){++source_mock_calls;return DBT_UNSUPPORTED;}
+dbt_result_t dbt_avdtp_query_cancel(dbt_avdtp_query_t *q,uint32_t token,uint32_t now){++source_mock_calls;return DBT_UNSUPPORTED;}
+dbt_result_t dbt_avdtp_query_result(const dbt_avdtp_query_t *q,uint32_t token,
+    dbt_avdtp_query_result_t *result,const uint8_t **body){++source_mock_calls;return DBT_UNSUPPORTED;}
+dbt_result_t dbt_avdtp_sep_next(const uint8_t *data,uint16_t size,uint16_t *cursor,dbt_avdtp_sep_t *sep){++source_mock_calls;return DBT_UNSUPPORTED;}
+dbt_result_t dbt_a2dp_select_exact(const dbt_avdtp_endpoint_t *endpoints,uint8_t count,
+    const dbt_avdtp_sep_t *peer,const uint8_t *capabilities,uint16_t size,
+    const dbt_a2dp_select_request_t *request,uint8_t *configuration,uint16_t capacity,
+    dbt_a2dp_select_result_t *out){++source_mock_calls;return DBT_UNSUPPORTED;}
+dbt_result_t dbt_a2dp_generate(const dbt_avdtp_endpoint_t *endpoints,uint8_t count,const dbt_avdtp_sep_t *peer,
+    const uint8_t *capabilities,uint16_t size,const dbt_a2dp_generate_request_t *request,
+    uint8_t *configuration,uint16_t capacity,dbt_a2dp_generate_result_t *out){++source_mock_calls;return DBT_UNSUPPORTED;}
+dbt_result_t probe_sdp_discovery_bind(dbt_sdp_discovery_t *context){++source_mock_calls;return DBT_UNSUPPORTED;}
+dbt_result_t probe_sdp_discovery_unbind(dbt_sdp_discovery_t *context){++source_mock_calls;return DBT_UNSUPPORTED;}
+#pragma GCC diagnostic pop
 static uint32_t now;
 static bool snapshot_for_test(char *line,size_t capacity,uint32_t began,const char *format,...){
     va_list arguments;va_start(arguments,format);bool ok=snapshot_vformat(line,capacity,began,format,arguments);va_end(arguments);return ok;
@@ -72,16 +127,16 @@ EX int probe_audio_diagnostics(void){
     memset(media_trace_rings,0,sizeof(media_trace_rings));
     dbt_codec_trace_t e={1234,9,8,10,9,77,8,DBT_CODEC_QUEUE_FULL,DBT_NO_SPACE};
     now=10;
-    for(unsigned i=0;i<TRACE_SLOTS+1u;++i){e.sequence=(uint16_t)i;media_trace(0,&e);}
-    CHECK(atomic_load(&media_trace_rings[0].written)==TRACE_SLOTS && atomic_load(&media_trace_rings[0].lost)==1);
+    for(unsigned i=0;i<PROBE_AUDIO_TRACE_SLOTS+1u;++i){e.sequence=(uint16_t)i;media_trace(0,&e);}
+    CHECK(atomic_load(&media_trace_rings[0].written)==PROBE_AUDIO_TRACE_SLOTS && atomic_load(&media_trace_rings[0].lost)==1);
     CHECK(media_trace_rings[0].items[0].event.timestamp==1234 && media_trace_rings[0].items[0].at_us==10000);
-    CHECK(media_trace_rings[0].items[TRACE_SLOTS-1].ordinal==TRACE_SLOTS);
+    CHECK(media_trace_rings[0].items[PROBE_AUDIO_TRACE_SLOTS-1].ordinal==PROBE_AUDIO_TRACE_SLOTS);
     e.kind=DBT_CODEC_DECODE_REJECT;media_trace(0,&e);
     CHECK(atomic_load(&media_trace_rings[1].written)==1 && !atomic_load(&media_trace_rings[1].lost));
     log_media_trace();
     CHECK(atomic_load(&media_trace_rings[0].read)==2 && atomic_load(&media_trace_rings[1].read)==1);
     e.kind=DBT_CODEC_INPUT_SEQUENCE;media_trace(0,&e);
-    CHECK(media_trace_rings[0].items[0].ordinal==TRACE_SLOTS+2u && atomic_load(&media_trace_rings[0].lost)==1);
+    CHECK(media_trace_rings[0].items[0].ordinal==PROBE_AUDIO_TRACE_SLOTS+2u && atomic_load(&media_trace_rings[0].lost)==1);
     probe_audio_transport_received(9000,100,DBT_H4_ACL,DBT_OK,false);
     CHECK(atomic_load(&rx_packets)==1 && atomic_load(&rx_acl)==1 && atomic_load(&rx_callback_max_us)==1000);
     now=12;probe_audio_transport_poll_begin(12000);now=14;probe_audio_transport_poll_end(12000);
@@ -158,6 +213,12 @@ dbt_result_t probe_output_stream_begin(bool start,uint32_t rate,uint8_t channels
     pending_config=(dbt_codec_config_t){0};pending_config.rate=rate;pending_config.channels=channels;pending_config.sample_bytes=(uint8_t)format;
     *ticket=pending_ticket;return DBT_PENDING;
 }
+dbt_result_t probe_output_stream_begin_primed(bool start,uint32_t rate,uint8_t channels,dbt_pcm_format_t format,bool shared,uint16_t priming,uint32_t *ticket){
+    (void)shared;(void)priming;return probe_output_stream_begin(start,rate,channels,format,ticket);
+}
+dbt_result_t probe_output_stream_begin_shared(bool start,uint32_t rate,uint8_t channels,dbt_pcm_format_t format,bool shared,uint32_t *ticket){
+    return probe_output_stream_begin_primed(start,rate,channels,format,shared,0,ticket);
+}
 dbt_result_t probe_output_request_poll(uint32_t ticket){
     if(!ticket || ticket!=pending_ticket)return DBT_INVALID;
 #ifdef DBT_PROBE_PCM_LOANS
@@ -195,6 +256,9 @@ static dbt_result_t send_format(const void *samples,uint16_t frames,const dbt_co
 static dbt_result_t send_format(const void *samples,uint16_t frames,const dbt_codec_config_t *config){return pcm(NULL,samples,frames,config,0);}
 #endif
 #endif
+#ifndef DBT_PROBE_ASYNC_AUDIO
+static dbt_result_t send_format(const void *samples,uint16_t frames,const dbt_codec_config_t *config){return pcm(NULL,samples,frames,config,0);}
+#endif
 EX int probe_audio_formats(void){
     const uint8_t packed24[]={0,0,0x80,0xff,0xff,0x7f,1,2,3,0xfd,0xfe,0xff};
     const int32_t pcm32[]={INT32_MIN,INT32_MAX,123456,-123456};
@@ -212,6 +276,19 @@ EX int probe_audio_formats(void){
 void probe_output_stats(probe_output_stats_t *stats){memset(stats,0,sizeof(*stats));}
 bool probe_output_failed(void){return false;}
 uint16_t probe_output_delay_100us(uint32_t rate){return rate?640:0;}
+/* Provider behavior is mocked here; actual delay math has its own test. */
+uint16_t probe_output_buffered_delay_100us(uint32_t rate,uint32_t encoded){(void)encoded;return probe_output_delay_100us(rate);}
+uint16_t probe_output_decode_budget(void){return 2;}
+bool probe_output_running(void){return output_started;}
+bool probe_output_owner_needs_time(void){return false;}
+static bool mock_restart_hold;
+void probe_output_restart_hold(bool hold){mock_restart_hold=hold;}
+bool probe_output_restart_quiescent(void){return mock_restart_hold&&!output_started;}
+dbt_result_t probe_output_volume(uint8_t v){return dbt_audio_volume(&output_audio,v);}
+dbt_result_t probe_output_eq(int8_t b,int8_t m,int8_t t){return dbt_audio_eq(&output_audio,b,m,t);}
+dbt_result_t probe_output_control(uint8_t flags){return dbt_audio_control_flags(&output_audio,flags);}
+dbt_result_t probe_output_analysis(bool enabled){return dbt_audio_analysis(&output_audio,enabled);}
+void probe_output_meter(uint8_t v[3]){memset(v,0,3);}
 #endif
 void *heap_caps_malloc(size_t n,unsigned flags) {
     (void)flags;if(fail_alloc){fail_alloc--;return 0;}
@@ -236,6 +313,9 @@ void heap_caps_free(void *p) {if(p){live_allocs--;
     free(p);
 #endif
 }}
+size_t heap_caps_get_total_size(unsigned f){(void)f;return 217248;}
+int xPortGetCoreID(void){return DBT_PROBE_DECODER_CORE;}
+TaskHandle_t xTaskGetCurrentTaskHandle(void){return owner;}
 size_t heap_caps_get_free_size(unsigned f){(void)f;return 123456;}
 size_t heap_caps_get_minimum_free_size(unsigned f){(void)f;return 123000;}
 size_t heap_caps_get_largest_free_block(unsigned f){(void)f;return 120000;}
@@ -251,6 +331,9 @@ dbt_result_t dbt_a2dp_acceptor_event(dbt_a2dp_acceptor_t *p,dbt_channel_event_t 
     if(e==DBT_CH_EVENT_OPEN && !p->active){p->active=true;p->signaling=(dbt_a2dp_channel_t){.serial=c->serial,.generation=c->link_generation,.handle=c->handle};}
     else if((e==DBT_CH_EVENT_CLOSED || e==DBT_CH_EVENT_FAILED) && p->signaling.serial==c->serial)p->signaling.serial=0;
     return DBT_OK;
+}
+dbt_result_t dbt_a2dp_acceptor_event_ex(dbt_a2dp_acceptor_t *p,dbt_channel_event_t event,const dbt_channel_t *channel,dbt_channel_reason_t reason,uint16_t wire_result){
+    (void)reason;(void)wire_result;return dbt_a2dp_acceptor_event(p,event,channel);
 }
 dbt_result_t dbt_a2dp_acceptor_receive(dbt_a2dp_acceptor_t *p,const dbt_channel_t *c,const uint8_t *d,uint16_t n){(void)p;(void)c;(void)d;(void)n;return DBT_OK;}
 dbt_result_t dbt_a2dp_acceptor_poll(dbt_a2dp_acceptor_t *p,uint32_t t){(void)p;(void)t;return DBT_OK;}
@@ -303,11 +386,20 @@ static int run_codec(uint8_t seid,const uint8_t *cie,uint8_t cie_size,const uint
     CHECK(dbt_avdtp_sink_media_receive(&sink,456,premature,sizeof(premature))==DBT_BUSY);
     CHECK(request(7,&ep,1)==DBT_OK && complete()==0 && sink.state==DBT_STREAM_STREAMING);
     CHECK(atomic_load(&pcm_codec)==codec_id && atomic_load(&pcm_rate)==rate && atomic_load(&pcm_sample_bytes)==sample_bytes);
-    uint8_t packet[700]={0x80,96,0,1,0,0,0,1,0,0,0,1};if(codec_id==4)packet[1]|=0x80;uint16_t offset=12;
+    uint32_t encoded_remaining=123;
+#if defined(DBT_PROBE_ASYNC_AUDIO) && !defined(DBT_PROBE_PCM_LOANS)
+    CHECK(dbt_codec_worker_buffered_frames(&worker,&encoded_remaining) && !encoded_remaining);
+#else
+    CHECK(!dbt_codec_worker_buffered_frames(&worker,&encoded_remaining) && !encoded_remaining);
+#endif
+
+    uint8_t packet[700]={0x80,96,0,1,0,0,0,1,0,0,0,1};if(codec_id==4)packet[1]|=0x80;uint16_t offset=(codec_id==5u || codec_id==7u)?0u:12u;
     if(prefix)packet[offset++]=1;CHECK((unsigned)n+offset<=sizeof(packet));memcpy(packet+offset,frame,n);
     CHECK(dbt_avdtp_sink_media_receive(&sink,456,packet,(uint16_t)(n+offset))==DBT_OK);
     CHECK(dbt_codec_worker_step(&worker,++now,1)==1);
     for(unsigned i=0;i<128 && atomic_load(&worker.media_read)!=atomic_load(&worker.media_written);++i)(void)dbt_codec_worker_step(&worker,++now,1);
+    if(atomic_load(&worker.media_read)!=atomic_load(&worker.media_written) || !atomic_load(&pcm_frames) || atomic_load(&pcm_channels)!=2)
+        fprintf(stderr,"profile incomplete codec=%u seid=%u queue=%u/%u pcm_views=%u channels=%u rejects=%u pending=%u media_active=%u blocked=%u faults=%u\n",(unsigned)codec_id,(unsigned)seid,(unsigned)atomic_load(&worker.media_read),(unsigned)atomic_load(&worker.media_written),(unsigned)atomic_load(&pcm_frames),(unsigned)atomic_load(&pcm_channels),(unsigned)atomic_load(&worker.decode_rejects),(unsigned)worker.pending_frames,(unsigned)worker.media_active,(unsigned)worker.output_blocked,(unsigned)atomic_load(&worker.faults));
     CHECK(atomic_load(&worker.media_read)==atomic_load(&worker.media_written) && atomic_load(&pcm_frames)>0 && atomic_load(&pcm_channels)==2);
     uint32_t callbacks_before=atomic_load(&pcm_frames);
     if(expected){CHECK(atomic_load(&pcm_bytes)==expected_bytes && atomic_load(&pcm_hash)==hash_bytes(expected,expected_bytes));}
@@ -317,7 +409,7 @@ static int run_codec(uint8_t seid,const uint8_t *cie,uint8_t cie_size,const uint
 #ifdef DBT_PROBE_AUDIO_OUTPUT
     CHECK(output_started && output_rate==rate && output_channels==2 && output_format==sample_bytes && output_frames>=expected_samples);
 #endif
-    packet[3]=2;CHECK(dbt_avdtp_sink_media_receive(&sink,456,packet,(uint16_t)(n+offset))==DBT_OK);
+    if(codec_id!=5u && codec_id!=7u)packet[3]=2;CHECK(dbt_avdtp_sink_media_receive(&sink,456,packet,(uint16_t)(n+offset))==DBT_OK);
     CHECK(request(9,&ep,1)==DBT_OK && complete()==0 && sink.state==DBT_STREAM_OPEN);
     CHECK(dbt_codec_worker_step(&worker,++now,1)==0 && atomic_load(&pcm_frames)==callbacks_before);
     CHECK(request(8,&ep,1)==DBT_OK && complete()==0 && dbt_avdtp_sink_media_closed(&sink,456)==DBT_OK);
@@ -338,7 +430,7 @@ EX int probe_audio_profiles(const uint8_t *sbc,uint16_t n,const uint8_t *sbc_cie
 #else
     CHECK(!worker.hooks.async_pcm.begin);
 #endif
-    CHECK(created_logger_core==1-DBT_PROBE_DECODER_CORE);
+    CHECK(created_logger_core==1-DBT_PROBE_DECODER_CORE); /* This fixture leaves the legacy override unset. */
     dbt_link_t restart_peer={0};stop_result=DBT_BUSY;
     CHECK(probe_audio_restart_hold(true,++now)==DBT_BUSY && !probe_audio_restart_quiescent());
     CHECK(!probe_audio_accept(0,&restart_peer,0x19));
@@ -425,5 +517,5 @@ EX int probe_audio_profiles(const uint8_t *sbc,uint16_t n,const uint8_t *sbc_cie
         r=run_codec((uint8_t)(5+i),at44,sizes[i],encoded,(uint16_t)encoded_n,4,5u+i,false,4,expected,(uint16_t)expected_n,44100);if(r)return r;
     }
 #endif
-    CHECK(dbt_avdtp_sink_shutdown(&sink,++now)==DBT_OK && !live_allocs);return 0;
+    CHECK(dbt_avdtp_sink_shutdown(&sink,++now)==DBT_OK && !live_allocs);CHECK(!source_mock_calls);return 0;
 }

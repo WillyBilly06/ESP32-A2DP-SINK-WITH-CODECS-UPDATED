@@ -105,6 +105,8 @@ typedef struct {
     uint8_t payload_type;
 } dbt_codec_trace_t;
 
+/* Return PCM sample-frames (one sample per channel), not codec-frame units. */
+typedef uint32_t (*dbt_codec_media_frames_t)(const dbt_codec_config_t *,const dbt_avdtp_media_t *);
 typedef struct {uint8_t depth,low_water;} dbt_codec_queue_t;
 typedef struct {
     dbt_codec_hooks_t decoder;
@@ -152,6 +154,10 @@ typedef struct {
     /* Atomic diagnostics/credit geometry: depth in bits0..7, low_water8..15,
      * slot stride16..31. Zero while the selected working set is absent. */
     _Atomic uint32_t queue_layout;
+    /* Duration metadata only: no per-slot growth. Producer counts accepted
+     * frame samples; copied-PCM delivery retires them using its existing count. */
+    dbt_codec_media_frames_t media_frames;
+    _Atomic uint32_t duration_input_frames,duration_pcm_base,duration_reject_base,duration_epoch;
     /* Host-producer only; compare before queue admission so locally rejected
      * packets do not masquerade as an upstream sequence discontinuity. */
     uint32_t input_epoch,input_ssrc;
@@ -180,6 +186,15 @@ typedef struct {
  * and a lazy shared encoded queue. Start/stop gate epochs cover every codec. */
 dbt_result_t dbt_codec_worker_init(dbt_codec_worker_t *worker,dbt_codec_worker_hooks_t hooks,
     uint16_t maximum_payload,uint8_t depth);
+/* Startup-only, before jobs/worker creation. Host-producer-only bounded
+ * duration callback; zero means unknown/inactive. It may inspect host-owned
+ * negotiated features, never decoder state, allocation or another owner. */
+dbt_result_t dbt_codec_worker_set_media_frames(dbt_codec_worker_t *,dbt_codec_media_frames_t);
+/* Any observer: one attempt, no slots/pointers borrowed. Changed producer
+ * counts invalidate the snapshot without retry. Available only
+ * for copied deferred PCM in a stable epoch with no decode rejection. It
+ * estimates encoded/in-flight samples not yet accepted by the PCM provider. */
+bool dbt_codec_worker_buffered_frames(const dbt_codec_worker_t *,uint32_t *);
 dbt_result_t dbt_codec_worker_submit(void *worker,const dbt_sink_job_t *job);
 /* Host input remains valid for the call and is disjoint from packet_storage. */
 dbt_result_t dbt_codec_worker_media(void *worker,const dbt_avdtp_media_t *packet);

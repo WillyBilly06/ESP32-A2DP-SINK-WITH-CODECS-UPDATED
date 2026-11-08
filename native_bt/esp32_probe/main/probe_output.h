@@ -150,6 +150,8 @@ bool probe_output_running(void);
 /* Atomic low-output hint only; no buffer pointers, stack scan or full stats. */
 bool probe_output_owner_needs_time(void);
 uint16_t probe_output_delay_100us(uint32_t rate);
+/* Adjacent-buffer estimate; add encoded debt before the priming floor. */
+uint16_t probe_output_buffered_delay_100us(uint32_t rate,uint32_t encoded_frames);
 dbt_result_t probe_output_controls(int8_t bass,int8_t mid,int8_t treble,uint8_t volume,uint8_t flags);
 dbt_result_t probe_output_volume(uint8_t volume);
 dbt_result_t probe_output_eq(int8_t,int8_t,int8_t);

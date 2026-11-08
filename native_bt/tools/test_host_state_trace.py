@@ -1,12 +1,17 @@
 """Actual host trace/producer/logger tests; no ESP32/phone access."""
-import hashlib,json,os,pathlib,shutil,subprocess
-ROOT=pathlib.Path(__file__).resolve().parents[1];OUT=ROOT/'_build/host_state_trace';OUT.mkdir(exist_ok=True)
+import argparse,hashlib,json,os,pathlib,shutil,subprocess
+parser=argparse.ArgumentParser();parser.add_argument("--detailed",action="store_true");options=parser.parse_args()
+ROOT=pathlib.Path(__file__).resolve().parents[1];OUT=ROOT/('_build/host_state_trace_detailed' if options.detailed else '_build/host_state_trace');OUT.mkdir(exist_ok=True)
 (OUT/'results.json').write_text(json.dumps({'passed':False,'hardware_accessed':False})+'\n')
 source=ROOT/'esp32_probe/main/probe_audio.c';text=source.read_text()
 types=text[text.index('typedef probe_audio_trace_record_t media_trace_t;'):text.index('static media_trace_ring_t media_trace_rings[2];')]
 names=text[text.index('static const char *const trace_names[]='):text.index('static void maximum(')]
 producer=text[text.index('static uint32_t trace_clock('):text.index('static void media_trace(')]
-route_start=text.index('static void media_trace(');route=text[route_start:text.index('\n#if defined(DBT_PROBE_SCHEDULER_TRACE)',route_start)]
+route_start=text.index('static void media_trace(')
+# Extract the complete column-zero function terminator, independently of
+# optional profiler blocks elsewhere in the file.
+route_end=text.index('\n}\n',route_start)+2
+route=text[route_start:route_end]
 start=text.index('static void log_media_trace(void){');end=text.index('\n#ifdef DBT_PROBE_LHDC_BUILD',start)
 logger=text[start:end];assert logger.rstrip().endswith('}')
 (OUT/'actual_trace_logger.inc').write_text(types+names+producer+route+logger)
@@ -40,6 +45,7 @@ tracked=sources+[source,ROOT/'esp32_probe/main/probe_audio_trace.h',ROOT/'esp32_
 before={str(p):hashlib.sha256(p.read_bytes()).hexdigest() for p in tracked}
 base=[cache,cc,'-std=c11','-O1','-g','-Wall','-Wextra','-Werror','-fsanitize=address,undefined','-fno-sanitize-recover=all','-fno-omit-frame-pointer','-include',str(ROOT/'tests/host_trace_hook.h')]
 if os.name=='nt':base+=['-fms-runtime-lib=dll','-D_DLL']
+if options.detailed:base+=['-DDBT_PROBE_SCHEDULER_TRACE=1']
 base+=['-I'+str(p) for p in includes];commands=[];objects=[]
 for i,path in enumerate(sources):
     obj=OUT/(str(i)+('.obj' if os.name=='nt' else '.o'));command=[*base,'-c',str(path),'-o',str(obj)]
@@ -54,6 +60,11 @@ if os.name=='nt':
 run=subprocess.run([str(exe)],env=env,capture_output=True,text=True,timeout=15)
 (OUT/'run.stdout.txt').write_text(run.stdout);(OUT/'run.stderr.txt').write_text(run.stderr)
 print(run.stdout.strip());print(run.stderr.strip());run.check_returncode();assert 'PASS bounded shared trace' in run.stdout
+delay_rows=[json.loads(line[len('DELAY_ESTIMATE_JSON '):]) for line in run.stdout.splitlines() if line.startswith('DELAY_ESTIMATE_JSON ')]
+assert len(delay_rows)==1
+delay=delay_rows[0]
+assert delay['probe']=='avdtp_delay_estimate' and delay['encoded_frames']==13440 and delay['encoded_known'] is True
+assert delay['rate']==192000 and delay['delay_100us']==881 and delay['result']==0 and delay['binding']==7 and delay['adjacent_buffer_estimate'] is True
 parsed=[json.loads(line[len('FAILURE_JSON '):]) for line in run.stdout.splitlines() if line.startswith('FAILURE_JSON ')]
 assert len(parsed)==2
 expected_failed={'probe':'failed','fault':5,'controller_status':17,'pending_opcode':4660,'rx_rejected':0xfedcba98,'rx_flow_failed_opcode':64513,'event_us':0xfffffffe,'host_log_ordinal':1}

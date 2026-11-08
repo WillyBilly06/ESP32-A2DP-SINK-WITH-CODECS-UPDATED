@@ -1,6 +1,6 @@
 """Offline AVDTP-to-worker tests with real SBC, Opus, AAC-LC and aptX codecs.
 No ESP32, Bluetooth radio, connections or network are used."""
-import argparse,ctypes,os,pathlib,shutil,subprocess,sys
+import argparse,ctypes,gzip,hashlib,json,os,pathlib,shutil,subprocess,sys,time,zipfile
 from audit_audio_capture import audit_capture
 parser=argparse.ArgumentParser();parser.add_argument('--eight-mod-16',action='store_true',help='exercise an alternate 8-byte-aligned allocator base');parser.add_argument('--async-output',action='store_true');parser.add_argument('--pcm-loans',action='store_true');parser.add_argument('--decoder-core',type=int,choices=(0,1),default=1);parser.add_argument('--decoder-priority',type=int,choices=(5,6),default=5);parser.add_argument('--priority-order',action='store_true');args=parser.parse_args()
 if args.priority_order:args.decoder_priority=6
@@ -8,6 +8,10 @@ if args.pcm_loans and not args.async_output:raise SystemExit('--pcm-loans requir
 root=pathlib.Path(__file__).resolve().parents[1];ws=root.parent;out=root/'_build/avrcp';out.mkdir(parents=True,exist_ok=True)
 opus=ws/'esp-idf/components/bt/host/bluedroid/external/opus';sbc=ws/'esp-idf/components/bt/host/bluedroid/external/sbc/decoder'
 check=[sys.executable,str(root/'tools/check_workspace.py')];subprocess.run(check,check=True)
+run_out=out/'app_worker_runs'/str(time.time_ns());run_out.mkdir(parents=True)
+latest=out/'probe-audio-worker-results.json';receipt=run_out/'results.json'
+initial=json.dumps({'passed':False,'state':'building','hardware_accessed':False,'run_directory':str(run_out)})+'\n';receipt.write_text(initial);latest.write_text(initial)
+commands=[];runs=[]
 env=os.environ.copy()
 try:
     if os.name=='nt':
@@ -37,17 +41,25 @@ try:
     aptx=ws/'esp-idf/components/bt/host/bluedroid/external/libfreeaptx/main'
     aac_port=out/'probe_aac_port';subprocess.run([sys.executable,str(root/'codecs/aac/prepare_port.py'),'--source',str(helix/'aacdec.c'),'--output',str(aac_port)],env=env,check=True,stdout=subprocess.DEVNULL)
     names='alloc bitalloc-sbc bitalloc bitstream-decode decoder-oina decoder-private decoder-sbc dequant framing-sbc framing oi_codec_version synthesis-8-generated synthesis-dct8 synthesis-sbc'.split()
-    src=[root/'tests/codecs/probe_audio_profile.c',root/'src/dbt_avdtp.c',root/'src/dbt_avdtp_caps.c',root/'src/dbt_avdtp_sink.c',root/'src/dbt_a2dp_sbc.c',root/'src/dbt_sbc_media.c',
+    src=[root/'tests/codecs/probe_audio_profile.c',root/'src/dbt_avdtp.c',root/'src/dbt_avdtp_caps.c',root/'src/dbt_avdtp_sink.c',root/'esp32_probe/main/probe_audio_trace.c',root/'src/dbt_a2dp_sbc.c',root/'src/dbt_sbc_media.c',
          root/'codecs/common/dbt_codec.c',root/'codecs/sbc/dbt_sbc_codec.c',root/'codecs/sbc/dbt_sbc_decoder.c',root/'codecs/opus/dbt_opus.c',root/'codecs/opus/scratch/dbt_opus_scratch.c']
     src += [(port if x.startswith('synthesis-') else sbc/'srce')/(x+'.c') for x in names]
     aac_names='aactabs bitstream buffers dct4 decelmnt dequant fft filefmt huffman hufftabs imdct noiseless pns stproc tns trigtabs'.split()
     src += [aac_port/'aacdec_guarded.c']+[(aac_port/(x+'_guarded.c') if x in ('decelmnt','noiseless','huffman') else helix/(x+'.c')) for x in aac_names]
     src += [root/'codecs/aac/dbt_aac_decoder.c',root/'codecs/aac/dbt_aac_transport.c',root/'codecs/aptx/dbt_aptx.c',root/'codecs/aptx/dbt_aptx_backend.c',root/'src/dbt_audio.c',root/'src/dbt_resampler.c',ws/'bt_audio_sink/main/dsp/fixed_dsp.c']
     incs=[root/'tests/codecs/probe_audio_stubs',root/'include',root/'codecs/common',root/'codecs/sbc',root/'codecs/sbc/port',root/'codecs/opus',root/'codecs/aac',root/'codecs/aptx',root/'esp32_probe/main',ws/'bt_audio_sink/main/dsp',sbc/'include',opus/'include',helix,aptx]
-    cmd=[cc,'-std=c11','-O1','-g','-fwrapv','-shared','-DUSE_DEFAULT_STDLIB','-DAAC_MAX_NCHANS=2']
+    cmd=[cc,'-D_CRT_SECURE_NO_WARNINGS','-std=c11','-O1','-g','-fwrapv','-shared','-DUSE_DEFAULT_STDLIB','-DAAC_MAX_NCHANS=2']
     if os.name!='nt':cmd+=['-fPIC']
     cmd+=sum((['-I',str(i)] for i in incs),[])+[str(s) for s in src]+[str(libs[0])]
     if os.name!='nt':cmd+=['-lm']
+    tracked=set(src+[pathlib.Path(__file__).resolve(),root/'esp32_probe/main/probe_audio.c'])
+    for directory in incs:tracked.update(directory.glob('*.h'))
+    source_hashes={str(p):hashlib.sha256(p.read_bytes()).hexdigest() for p in tracked}
+    with zipfile.ZipFile(run_out/'source-inputs.zip','w',compression=zipfile.ZIP_DEFLATED) as archive:
+        for p in sorted(tracked):archive.writestr(p.relative_to(ws).as_posix(),p.read_bytes())
+    with zipfile.ZipFile(run_out/'source-inputs.zip','r') as archive:
+        for p in sorted(tracked):assert hashlib.sha256(archive.read(p.relative_to(ws).as_posix())).hexdigest()==source_hashes[str(p)]
+    source_archive_sha256=hashlib.sha256((run_out/'source-inputs.zip').read_bytes()).hexdigest()
     raw=subprocess.check_output([ffmpeg,'-v','error','-f','lavfi','-i','sine=frequency=997:sample_rate=48000:duration=0.03','-ac','2','-c:a','sbc','-b:a','328k','-f','sbc','pipe:1'],env=env)
     assert raw[0]==0x9c
     f,pool=raw[1],raw[2];bands=8 if f&1 else 4;blocks=4*(1+((f>>4)&3));mode=(f>>2)&3;channels=2 if mode else 1
@@ -75,13 +87,21 @@ try:
         if args.async_output:variant+='-async'
         if args.pcm_loans:variant+='-pcm-loans'
         if args.priority_order:variant+='-priority-order'
-        artifact=out/('probe-audio-'+variant+('.dll' if os.name=='nt' else '.so'))
+        artifact=run_out/('probe-audio-'+variant+('.dll' if os.name=='nt' else '.so'))
         define=['-DDBT_PROBE_AVRCP=1',f'-DDBT_PROBE_DECODER_CORE={args.decoder_core}',f'-DDBT_PROBE_DECODER_PRIORITY={args.decoder_priority}']+(['-DDBT_PROBE_AUDIO_OUTPUT=1'] if output else [])+(['-DDBT_PROBE_OPUS_BUILD=1'] if opus_enabled else [])+(['-DDBT_PROBE_AAC_BUILD=1','-DDBT_PROBE_APTX_BUILD=1'] if extra_codecs else [])
         if args.async_output:define+=['-DDBT_PROBE_ASYNC_AUDIO=1']
         if args.priority_order:define+=['-DDBT_PROBE_PRIORITY_ORDER=1']
         if args.pcm_loans:define+=['-DDBT_PROBE_PCM_LOANS=1']
         if args.eight_mod_16:define+=['-DTEST_EIGHT_MOD16=1']
-        subprocess.run(cmd+define+['-o',str(artifact)],env=env,check=True)
+        compile_base=[x for x in cmd if x not in [str(s) for s in src] and x!=str(libs[0]) and x!='-shared']
+        objects=[]
+        for index,source in enumerate(src):
+            obj=run_out/(variant+'-'+str(index)+'.obj')
+            command=[cache,*compile_base,*define,'-c',str(source),'-o',str(obj)]
+            subprocess.run(command,env=env,check=True);commands.append(command);objects.append(obj)
+        command=compile_base+define+['-shared',*map(str,objects),str(libs[0]),'-o',str(artifact)]
+        subprocess.run(command,env=env,check=True);commands.append(command)
+        pending=json.dumps({'passed':False,'state':'executing','variant':variant,'run_directory':str(run_out),'hardware_accessed':False,'commands':commands,'sources':source_hashes,'source_archive_sha256':source_archive_sha256,'runs':runs},indent=2)+'\n';receipt.write_text(pending);latest.write_text(pending)
         dll=ctypes.CDLL(str(artifact));fn=dll.probe_audio_profiles;u8=ctypes.c_ubyte;fn.argtypes=[ctypes.POINTER(u8),ctypes.c_uint16,ctypes.POINTER(u8),ctypes.POINTER(u8),ctypes.c_uint16,ctypes.POINTER(u8),ctypes.c_uint16]
         line=dll.probe_audio_snapshot_records()
         if line:raise SystemExit('FAIL timestamp capture-window/format-loss line '+str(line))
@@ -102,5 +122,20 @@ try:
             if line:raise SystemExit('FAIL PCM format/stride line '+str(line))
         line=dll.probe_audio_metadata()
         if line:raise SystemExit('FAIL AVRCP metadata escaping/revision variant='+variant+' line '+str(line))
+        runs.append({'variant':variant,'decoder_core':args.decoder_core,'decoder_priority':args.decoder_priority,'passed':True})
+        retired=[]
+        for obj in objects:
+            data=obj.read_bytes();assert len(data)>=20 and int.from_bytes(data[:2],'little')==0x8664,'Unexpected host object; retained'
+            retired.append({'path':str(obj),'bytes':len(data),'sha256':hashlib.sha256(data).hexdigest()})
+        manifest=json.dumps(retired,indent=2)+'\n';identity=hashlib.sha256(manifest.encode()).hexdigest()[:16]
+        (run_out/(variant+'-'+identity+'-retired.json')).write_text(manifest)
+        for obj in objects:obj.unlink()
+        pdb=artifact.with_suffix('.pdb')
+        if pdb.exists():
+            data=pdb.read_bytes();digest=hashlib.sha256(data).hexdigest();dest=pdb.with_name(pdb.name+'.'+digest[:12]+'.gz');dest.write_bytes(gzip.compress(data));assert gzip.decompress(dest.read_bytes())==data
+            (run_out/(variant+'-symbols.json')).write_text(json.dumps({'original':str(pdb),'archive':str(dest),'sha256':digest,'roundtrip_verified':True},indent=2)+'\n');pdb.unlink()
         print('PASS '+variant+' profile/worker, real codec decoding, gating, teardown and AVRCP metadata escaping')
+    assert all(hashlib.sha256(pathlib.Path(p).read_bytes()).hexdigest()==h for p,h in source_hashes.items())
 finally:subprocess.run(check,check=True)
+completed=json.dumps({"passed":True,"run_directory":str(run_out),"state":"complete","hardware_accessed":False,"commands":commands,"runs":runs,"sources":source_hashes,"source_archive_sha256":source_archive_sha256,"scope":"Actual app/profile/worker with mocked output/RTOS and real codecs; no physical scheduling or DAC qualification"},indent=2)+"\n"
+receipt.write_text(completed);latest.write_text(completed)
