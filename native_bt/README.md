@@ -1,5 +1,13 @@
 # Independent ESP32 Bluetooth host
 
+The [LHDC register-scan checkpoint](docs/LHDC_REGISTER_SCAN_2026_11_08.md)
+uses documented Xtensa FP-to-integer register moves for S32 classification.
+Exhaustive scalar/frame checks and 80 real-codec deferred cases pass. Two short
+matching music intervals measure about **9.7–9.8% lower scale/output time** and
+**0.9–1.2% lower whole-frame elapsed time**; IRAM is 32 bytes smaller.
+LHDC continuity remains open: music has **1152 / 0 / 1088** and metronome **5568
+unfilled PCM frames**. UART remains **921600 baud**; this is development firmware.
+
 The [DMA refill priority checkpoint](docs/DMA_REFILL_PRIORITY_2026_11_08.md)
 fixes a reproduced bookkeeping-before-refill deadline defect, keeps urgent
 DSP at 64 frames, and permits at most two extra ready refill steps before a

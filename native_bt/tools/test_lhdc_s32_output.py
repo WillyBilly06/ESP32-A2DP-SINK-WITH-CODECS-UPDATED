@@ -1,5 +1,5 @@
 """All float32 conversion patterns plus actual output/quality/overlap block comparison."""
-import argparse,hashlib,json,os,pathlib,re,shutil,subprocess,sys
+import argparse,gzip,hashlib,json,os,pathlib,re,shutil,subprocess,sys
 R=pathlib.Path(__file__).resolve().parents[1];p=argparse.ArgumentParser();p.add_argument('--decoder',type=pathlib.Path,required=True);p.add_argument('--baseline',type=pathlib.Path,required=True);a=p.parse_args();O=R/'_build/lhdc_s32_output';O.mkdir(exist_ok=True);port=O/'port'
 (O/'results.json').write_text(json.dumps(dict(passed=False,state='building',hardware_accessed=False))+'\n')
 subprocess.run([sys.executable,str(R/'codecs/lhdcv5/prepare_port.py'),'--source',str(a.decoder),'--output',str(port)],check=True,stdout=subprocess.DEVNULL)
@@ -30,4 +30,18 @@ for sanitizer in (False,True):
   assert rt.is_file();shutil.copy2(rt,O/rt.name)
  r=subprocess.run([str(exe)]+(['--quick'] if sanitizer else []),capture_output=True,text=True,env=env,timeout=180);(O/(mode+'.stdout.txt')).write_text(r.stdout);(O/(mode+'.stderr.txt')).write_text(r.stderr);print(r.stdout,flush=True);print(r.stderr,flush=True);r.check_returncode();m=re.search(r'PASS (\d+) float patterns; (\d+) frame',r.stdout);assert m;runs.append(dict(sanitizers=sanitizer,float_patterns=int(m[1]),frame_cases=int(m[2])))
 assert runs[0]['float_patterns']==4294967296
-assert all(hashlib.sha256(pathlib.Path(f).read_bytes()).hexdigest()==h for f,h in before.items());(O/'results.json').write_text(json.dumps(dict(passed=True,runs=runs,scope='all binary32 patterns; actual original/candidate frame output, quality events and overlap; host only',source_sha256=before),indent=2)+'\n')
+assert all(hashlib.sha256(pathlib.Path(f).read_bytes()).hexdigest()==h for f,h in before.items())
+retired=[]
+for mode in ('exhaustive','sanitized'):
+ for i in range(3):
+  obj=O/(mode+str(i)+'.obj');raw=obj.read_bytes();assert int.from_bytes(raw[:2],'little')==0x8664
+  retired.append(dict(path=str(obj),bytes=len(raw),sha256=hashlib.sha256(raw).hexdigest()))
+(O/'passing-intermediates.json').write_text(json.dumps(retired,indent=2)+chr(10))
+for item in retired:pathlib.Path(item['path']).unlink()
+symbols=[]
+for pdb in O.glob('*.pdb'):
+ raw=pdb.read_bytes();digest=hashlib.sha256(raw).hexdigest();dest=pdb.with_name(pdb.name+'.'+digest[:12]+'.gz');dest.write_bytes(gzip.compress(raw));assert gzip.decompress(dest.read_bytes())==raw
+ symbols.append(dict(original=str(pdb),archive=str(dest),sha256=digest,bytes=len(raw),gzip_bytes=dest.stat().st_size,lossless_verified=True))
+ (O/'lossless-symbols.json').write_text(json.dumps(symbols,indent=2)+chr(10));pdb.unlink()
+subprocess.run([sys.executable,str(R/'tools/check_workspace.py')],check=True)
+(O/'results.json').write_text(json.dumps(dict(passed=True,runs=runs,scope='all binary32 patterns; actual original/candidate frame output, quality events and overlap; host only',source_sha256=before),indent=2)+chr(10))

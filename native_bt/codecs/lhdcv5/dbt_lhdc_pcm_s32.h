@@ -4,42 +4,57 @@
 #include <limits.h>
 #include <math.h>
 #include <float.h>
+#if defined(__XTENSA__) && defined(CONFIG_IDF_TARGET_ESP32) && CONFIG_IDF_TARGET_ESP32
+#include "xtensa/config/core-isa.h"
+#if !XCHAL_HAVE_FP
+#error ESP32 PCM register transfer requires the configured FP option
+#endif
+#endif
 _Static_assert(sizeof(float)==sizeof(uint32_t) && FLT_RADIX==2 && FLT_MANT_DIG==24 && FLT_MAX_EXP==128,
     "LHDC PCM specialization requires binary32");
-/* float(INT32_MAX) rounds to2^31. Every cast below has a representable
- * operand. Unordered input becomes0, matching the original output macro. */
+typedef union {float value;uint32_t bits;} dbt_lhdc_pcm_word_t;
+static inline __attribute__((always_inline)) uint32_t dbt_lhdc_pcm_bits(float value){
+#if defined(__XTENSA__) && defined(CONFIG_IDF_TARGET_ESP32) && CONFIG_IDF_TARGET_ESP32
+    /* Documented FR-to-AR bit move, also used by the pinned GCC movsf pattern:
+     * espressif/gcc esp-15.2.0_20251204, gcc/config/xtensa/xtensa.md. No memory. */
+    uint32_t bits;__asm__("rfr %0, %1" : "=a"(bits) : "f"(value));return bits;
+#else
+    dbt_lhdc_pcm_word_t word={.value=value};return word.bits;
+#endif
+}
 static inline __attribute__((always_inline)) int32_t dbt_lhdc_s32_sample(float value){
-    if(value < -2147483648.0f)return INT32_MIN;
-    if(!(value < 2147483648.0f))return value==value?INT32_MAX:0;
+    uint32_t bits=dbt_lhdc_pcm_bits(value),magnitude=bits&UINT32_C(0x7fffffff);
+    if(magnitude>=UINT32_C(0x4f000000)){
+        if(magnitude>UINT32_C(0x7f800000))return 0;
+        return bits>>31?INT32_MIN:INT32_MAX;
+    }
     return (int32_t)value;
 }
 typedef struct {float peak;int clipped;} dbt_lhdc_s32_quality_t;
 #if defined(__GNUC__) && !defined(__clang__)
-/* Threading the rare rail/NaN paths duplicates this small IRAM loop. Keep the
- * regular O3 arithmetic/loop optimizations without that code expansion. */
 #define DBT_LHDC_PCM_COMPACT __attribute__((optimize("no-thread-jumps")))
 #else
 #define DBT_LHDC_PCM_COMPACT
 #endif
-/* Output is private, disjoint transform scratch until the whole frame's quality
- * decision. Concealment still overwrites every sample and clears overlap in the
- * caller. For the admitted positive finite scale, taking the magnitude after
- * multiplication preserves its quality comparison under the decoder's normal
- * floating-point environment. Other scales retain the original caller path. */
+static inline __attribute__((always_inline)) int32_t dbt_lhdc_s32_accumulate(float value,uint32_t *peak,int *clipped){
+    uint32_t bits=dbt_lhdc_pcm_bits(value),magnitude=bits&UINT32_C(0x7fffffff);
+    if(magnitude>UINT32_C(0x7f800000)){*peak=UINT32_C(0x7f800000);return 0;}
+    *clipped+=magnitude>UINT32_C(0x4f000000);
+    if(magnitude>*peak)*peak=magnitude;
+    if(magnitude>=UINT32_C(0x4f000000))return bits>>31?INT32_MIN:INT32_MAX;
+    return (int32_t)value;
+}
+/* Inputs/output are disjoint private transform scratch until frame acceptance.
+ * A NaN selects sticky +Inf without a clip count. Inf/finite rails preserve the
+ * original rounded 2^31 comparisons; representable samples use hardware trunc. */
 static LHDC_HOT __attribute__((noinline)) DBT_LHDC_PCM_COMPACT dbt_lhdc_s32_quality_t dbt_lhdc_scan_emit_s32(
     const float *left,const float *right,int32_t *out,int frames,float scale){
-    dbt_lhdc_s32_quality_t quality={0.0f,0};
+    uint32_t peak=0;int clipped=0;
     for(int i=0;i<frames;++i){
-        float l=left[i]*scale,r=right[i]*scale;
-        float al=fabsf(l),ar=fabsf(r);
-        if(!(al<=quality.peak))quality.peak=al>=0.0f?al:INFINITY;
-        if(!(ar<=quality.peak))quality.peak=ar>=0.0f?ar:INFINITY;
-        if(al>2147483647.0f)++quality.clipped;
-        if(ar>2147483647.0f)++quality.clipped;
-        out[2*i]=dbt_lhdc_s32_sample(l);
-        out[2*i+1]=dbt_lhdc_s32_sample(r);
+        out[2*i]=dbt_lhdc_s32_accumulate(left[i]*scale,&peak,&clipped);
+        out[2*i+1]=dbt_lhdc_s32_accumulate(right[i]*scale,&peak,&clipped);
     }
-    return quality;
+    dbt_lhdc_pcm_word_t maximum={.bits=peak};return (dbt_lhdc_s32_quality_t){maximum.value,clipped};
 }
 #undef DBT_LHDC_PCM_COMPACT
 #endif

@@ -1,4 +1,5 @@
 """Run the actual self-test against real host codec implementations, no hardware."""
+import gzip
 import hashlib
 import json
 import os
@@ -50,7 +51,10 @@ def main():
     if args.pcm_loans:OUT=ROOT/('_build/native_codecs/deferred_loans_asan' if args.sanitize else '_build/native_codecs/deferred_loans_host')
     if args.lhdc_esp32_paths:OUT=OUT.with_name(OUT.name+('_esp32_keep_ov' if args.lhdc_keep_unused_overlap else '_esp32'))
     if args.lhdc_keep_dedicated_pcm:OUT=OUT.with_name(OUT.name+'_dedicated_pcm')
-    OUT.mkdir(parents=True,exist_ok=True);env=os.environ.copy()
+    OUT.mkdir(parents=True,exist_ok=True)
+    (OUT/'results.json').write_text(json.dumps({'passed':False,'state':'building','hardware_accessed':False})+'\n')
+    subprocess.run(CHECK,check=True)
+    env=os.environ.copy()
     if os.name=='nt':
         vc=Path(r'C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Auxiliary\Build\vcvars64.bat')
         values=subprocess.check_output(f'call "{vc}" >nul && set',shell=True,text=True)
@@ -166,7 +170,7 @@ def main():
         report={'passed':True,'pcm_loans':args.pcm_loans,'lhdc_esp32_paths':args.lhdc_esp32_paths,'lhdc_keep_unused_overlap':args.lhdc_keep_unused_overlap,'lhdc_keep_dedicated_pcm':args.lhdc_keep_dedicated_pcm,'scope':'real host codec algorithms and worker, byte/sample-timestamp comparison with simulated output backpressure and 150 ms pause; optional async PCM-loan mock and classic-ESP32 LHDC conditionals, no target/RF timing',
                 'sanitizers':['address for all source-built codecs','undefined for owned adapters/worker/test harness'] if args.sanitize else [],'guarded_opus_instrumented':args.sanitize,
                 'summary':summaries[0],'cases':cases,'source_sha256':before}
-        (OUT/'results.json').write_text(json.dumps(report,indent=2)+'\n')
+        (OUT/'results.json').write_text(json.dumps(dict(report,passed=False,functional_passed=True,state='verifying_workspace'),indent=2)+'\n')
         print(f'PASS {len(cases)} real-codec deferred cases: every PCM byte/timestamp identical; fragmentation, batching, all 37 configurations and maximum LHDC fixture; host only')
         return
     max_cases=[e for e in events if e.get('probe')=='lhdc_max_selftest']
@@ -197,7 +201,7 @@ def main():
             'opus_marker':opus[0],'summary':overall[0],'cases':cases[:selected],
             'negative_checks':['sample_mismatch','exact_hash_mismatch','low_stack','allocation_failure','failed_marker'],
             'source_sha256':before}
-    (OUT/'results.json').write_text(json.dumps(report,indent=2)+'\n')
+    (OUT/'results.json').write_text(json.dumps(dict(report,passed=False,functional_passed=True,state='verifying_workspace'),indent=2)+'\n')
     print(f'PASS host self-test: 48 Opus frames and {selected-16} additional codec cases; stack/time are stubs')
 
 
@@ -213,11 +217,24 @@ def release_completed_host_objects(directory):
     (directory/'completed-object-cleanup.json').write_text(json.dumps({'kind':'completed passing host compiler intermediates','files':items},indent=2)+'\n')
     for item in items:Path(item['path']).unlink()
 
+def archive_completed_symbols(directory):
+    items=[]
+    for pdb in sorted(directory.glob('*.pdb')):
+        raw=pdb.read_bytes();digest=hashlib.sha256(raw).hexdigest()
+        dest=pdb.with_name(pdb.name+'.'+digest[:12]+'.gz');dest.write_bytes(gzip.compress(raw))
+        if gzip.decompress(dest.read_bytes())!=raw:raise RuntimeError('Symbol archive round-trip mismatch')
+        items.append(dict(original=str(pdb),archive=str(dest),sha256=digest,bytes=len(raw),gzip_bytes=dest.stat().st_size,lossless_verified=True))
+        (directory/'lossless-symbols.json').write_text(json.dumps(items,indent=2)+chr(10));pdb.unlink()
+
 if __name__=='__main__':
-    subprocess.run(CHECK,check=True)
     completed=False
     try:
         main();completed=True
     finally:
-        if completed:release_completed_host_objects(OUT)
+        if completed:
+            release_completed_host_objects(OUT)
+            archive_completed_symbols(OUT)
         subprocess.run(CHECK,check=True)
+        if completed:
+            final=json.loads((OUT/'results.json').read_text());final.update(passed=True,state='complete')
+            (OUT/'results.json').write_text(json.dumps(final,indent=2)+'\n')
