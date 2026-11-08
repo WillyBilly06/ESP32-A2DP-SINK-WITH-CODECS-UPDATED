@@ -5,13 +5,21 @@ ROOT=pathlib.Path(__file__).resolve().parents[1];out=a.out.resolve();out.relativ
 receipt=out/'results.json';receipt.write_text(json.dumps({'passed':False,'state':'building','hardware_accessed':False})+'\n')
 check=[sys.executable,str(ROOT/'tools/check_workspace.py')];subprocess.run(check,check=True)
 app=ROOT/'esp32_probe/main/probe_audio.c';text=app.read_text()
-begin=text.index('bool probe_audio_rx_credit_ready(');end=text.index('\ndbt_result_t probe_audio_init(',begin)
+begin=text.index('bool probe_audio_rx_credit_ready(');end=text.index('\nstatic uint32_t media_frame_count(',begin)
 (out/'actual_audio_limit.inc').write_text(text[begin:end])
 codec=ROOT/'codecs/common/dbt_codec.c';codec_text=codec.read_text()
 begin=codec_text.index('static void wake_owner(dbt_codec_worker_t *w)');end=codec_text.index(chr(10),begin)
 wake=codec_text[begin:end]
-begin=codec_text.index('static void retire_slot(dbt_codec_worker_t *w,');end=codec_text.index(chr(10)+'static void retire_media',begin)
-(out/'actual_retirement.inc').write_text(wake+chr(10)+codec_text[begin:end])
+def actual_function(signature):
+    begin=codec_text.index(signature);end=codec_text.index('{',begin)+1;level=1
+    while level:
+        if codec_text[end]=='{':level+=1
+        elif codec_text[end]=='}':level-=1
+        end+=1
+    return codec_text[begin:end]
+begin=codec_text.index('typedef struct {\n    uint32_t timestamp,ssrc;');end=codec_text.index('_Static_assert',begin)
+parts=[codec_text[begin:end],wake]+[actual_function(s) for s in ('static uint16_t record_stride(', 'static void release_page(', 'static media_t *read_slot(', 'uint16_t dbt_codec_worker_free_slots(', 'static void retire_slot(')]
+(out/'actual_retirement.inc').write_text('#include <stddef.h>\n'+chr(10).join(parts))
 names=['dbt_queue','dbt_hci','dbt_host','dbt_acl','dbt_l2cap','dbt_credit','dbt_ertm','dbt_ertm_engine','dbt_channels','dbt_rx_flow','dbt_runtime']
 sources=[ROOT/'src'/(n+'.c') for n in names]+[ROOT/'tests/host_sensitive/test_rx_flow_limit.c']
 tracked=sources+[app,codec,ROOT/'codecs/common/dbt_codec.h',ROOT/'tests/test_rx_flow.c',pathlib.Path(__file__).resolve()]+list((ROOT/'include').glob('*.h'))

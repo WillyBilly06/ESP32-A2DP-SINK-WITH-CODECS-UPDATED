@@ -33,6 +33,7 @@ def main():
     parser=argparse.ArgumentParser()
     parser.add_argument('--lhdc-source',type=Path,help='Sibling LHDC repository or decoder directory')
     parser.add_argument('--deferred',action='store_true',help='Compare real synchronous/deferred PCM with simulated renderer backpressure')
+    parser.add_argument('--packed-media',action='store_true',help='Exercise packed input storage for every deferred codec; no target timing claim')
     parser.add_argument('--sanitize',action='store_true',help='AddressSanitizer for deferred adapters and all codec sources including guarded Opus')
     parser.add_argument('--pcm-loans',action='store_true',help='Use asynchronous immutable PCM loans with a delayed provider mock')
     parser.add_argument('--lhdc-esp32-paths',action='store_true',help='Host-execute the LHDC source conditionals selected on classic ESP32; not Xtensa execution')
@@ -46,11 +47,13 @@ def main():
         if not (LHDC/'lhdc_dec.c').is_file():LHDC=LHDC/'decoder'
     if args.sanitize and not args.deferred:raise RuntimeError('--sanitize requires --deferred')
     if args.pcm_loans and not args.deferred:raise RuntimeError('--pcm-loans requires --deferred')
+    if args.packed_media and not args.deferred:raise RuntimeError('--packed-media requires --deferred')
     if args.lhdc_keep_unused_overlap and not args.lhdc_esp32_paths:raise RuntimeError('--lhdc-keep-unused-overlap requires --lhdc-esp32-paths')
     if args.deferred:OUT=ROOT/('_build/native_codecs/deferred_asan' if args.sanitize else '_build/native_codecs/deferred_host')
     if args.pcm_loans:OUT=ROOT/('_build/native_codecs/deferred_loans_asan' if args.sanitize else '_build/native_codecs/deferred_loans_host')
     if args.lhdc_esp32_paths:OUT=OUT.with_name(OUT.name+('_esp32_keep_ov' if args.lhdc_keep_unused_overlap else '_esp32'))
     if args.lhdc_keep_dedicated_pcm:OUT=OUT.with_name(OUT.name+'_dedicated_pcm')
+    if args.packed_media:OUT=OUT.with_name(OUT.name+'_packed')
     OUT.mkdir(parents=True,exist_ok=True)
     (OUT/'results.json').write_text(json.dumps({'passed':False,'state':'building','hardware_accessed':False})+'\n')
     subprocess.run(CHECK,check=True)
@@ -122,6 +125,7 @@ def main():
     flags+=['-DDBT_PROBE_'+x+'_BUILD=1' for x in ('SBC','OPUS','AAC','APTX','LDAC','LHDC')]
     if args.lhdc_max_fixture:flags+=['-DDBT_PROBE_LHDC_MAX_CHECK=1']
     if args.pcm_loans:flags+=['-DDBT_TEST_PCM_LOANS=1']
+    if args.packed_media:flags+=['-DDBT_TEST_PACKED_MEDIA=1']
     if args.lhdc_keep_dedicated_pcm:flags+=['-DDBT_LHDC_KEEP_DEDICATED_PCM=1']
     flags+=['-I'+str(p) for p in inc]
     exe=OUT/('probe_codec_selftest.exe' if os.name=='nt' else 'probe_codec_selftest')
@@ -164,10 +168,11 @@ def main():
         summaries=[e for e in events if e.get('probe')=='deferred_codec_summary']
         assert len(summaries)==1 and summaries[0]['passed'] and summaries[0]['cases']==len(cases)
         assert summaries[0]['pcm_loans']==args.pcm_loans
+        assert summaries[0]['packed_media']==args.packed_media
         assert len([c for c in cases if c['mode']==0])==38
         assert all(c['passed'] and c['live_bytes']==0 and c['busy_attempts'] for c in cases)
         assert all(hashlib.sha256(Path(path).read_bytes()).hexdigest()==sha for path,sha in before.items())
-        report={'passed':True,'pcm_loans':args.pcm_loans,'lhdc_esp32_paths':args.lhdc_esp32_paths,'lhdc_keep_unused_overlap':args.lhdc_keep_unused_overlap,'lhdc_keep_dedicated_pcm':args.lhdc_keep_dedicated_pcm,'scope':'real host codec algorithms and worker, byte/sample-timestamp comparison with simulated output backpressure and 150 ms pause; optional async PCM-loan mock and classic-ESP32 LHDC conditionals, no target/RF timing',
+        report={'passed':True,'packed_media':args.packed_media,'pcm_loans':args.pcm_loans,'lhdc_esp32_paths':args.lhdc_esp32_paths,'lhdc_keep_unused_overlap':args.lhdc_keep_unused_overlap,'lhdc_keep_dedicated_pcm':args.lhdc_keep_dedicated_pcm,'scope':'real host codec algorithms and worker, byte/sample-timestamp comparison with simulated output backpressure and 150 ms pause; optional async PCM-loan mock and classic-ESP32 LHDC conditionals, no target/RF timing',
                 'sanitizers':['address for all source-built codecs','undefined for owned adapters/worker/test harness'] if args.sanitize else [],'guarded_opus_instrumented':args.sanitize,
                 'summary':summaries[0],'cases':cases,'source_sha256':before}
         (OUT/'results.json').write_text(json.dumps(dict(report,passed=False,functional_passed=True,state='verifying_workspace'),indent=2)+'\n')

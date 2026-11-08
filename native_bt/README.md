@@ -1,10 +1,23 @@
 # Independent ESP32 Bluetooth host
 
+The [packed LHDC input checkpoint](docs/LHDC_PACKED_MEDIA_2026_11_08.md) stores
+small encoded records within the existing eight-slab pool. Raw566-byte packet
+capacity rises from8 to24; full1800-byte admission and borrowed-input lifetime
+remain. Physical HCI credit reservations are preserved. It adds16B BSS with
+unchanged IRAM/pool/tasks.191 host checks,80 fixed+80 packed real-codec cases,
+six app variants and37 cold target cases pass.
+
+COM6 image3b246522d523 is readback-verified at **921600 baud**. Target queue
+high-water reaches11 versus7 in fixed controls. Three short YouTube windows
+retain3264/2304/1152 final unfilled frames, first captured after pause acknowledgment.
+No pre-pause finalized gap was recorded in those finite candidate windows;
+**sustained LHDC continuity,1Mbps and BLE/control/full parity remain unqualified**.
+
 The [idle logging checkpoint](docs/UART_IDLE_CADENCE_2026_11_08.md) keeps firmware
 and the raw-UART web viewer at **921600 baud**. Idle detail runs once per five
 counter cycles while events, first-gap traces and metadata retain their existing
 paths. Measured idle traffic after LHDC playback fell from about14KB/s to3KB/s,
-with zero trace/UART losses. Linked SRAM/IRAM are unchanged. COM6 image2492e98a66c3
+with zero trace/UART losses. Linked SRAM/IRAM are unchanged. Checkpoint image2492e98a66c3
 passes readback and37 cold codec cases. The routed metronome excerpt retains256
 final unfilled frames, first captured after pause acknowledgment; background
 logging was sparse under load. **LHDC continuity remains unresolved.**

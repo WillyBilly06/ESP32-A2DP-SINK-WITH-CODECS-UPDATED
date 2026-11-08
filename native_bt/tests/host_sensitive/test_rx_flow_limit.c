@@ -82,8 +82,14 @@ static void app_fixture(const dbt_link_t *link,unsigned depth){
 static int policy_boundaries(void){
     fixture();int r=add_link(1,false);if(r)return r;r=add_link(2,true);if(r)return r;
     const dbt_link_t *link=dbt_acl_find(&acl,1),*le=dbt_acl_find(&acl,2);unsigned cases=0;
-    for(unsigned depth=4;depth<=8;depth+=4)for(unsigned window=1;window<=3;window++)for(unsigned queued=0;queued<=depth;queued++)for(unsigned pending=0;pending<=window;pending++){
+    for(unsigned packed=0;packed<2;++packed)for(unsigned depth=4;depth<=8;depth+=4)for(unsigned window=1;window<=3;window++)for(unsigned queued=0;queued<=depth;queued++)for(unsigned pending=0;pending<=window;pending++){
         app_fixture(link,depth);uint32_t read=UINT32_MAX-3u;atomic_store(&worker.media_read,read);atomic_store(&worker.media_written,read+queued);
+        if(packed){
+            atomic_fetch_or(&worker.queue_layout,DBT_CODEC_QUEUE_PACKED);
+            atomic_store(&worker.media_page_read,UINT32_MAX-3u);
+            atomic_store(&worker.media_page_written,UINT32_MAX-3u+queued);
+            atomic_store(&worker.media_written,read+73u); /* Logical count cannot grant physical credits. */
+        }
         unsigned allowed=probe_audio_rx_credit_limit(0,link,pending,window),outside=window-pending;
         CHECK(allowed<=pending);
         if(queued+outside<=depth-1){

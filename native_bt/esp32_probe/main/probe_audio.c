@@ -822,8 +822,10 @@ uint32_t probe_audio_startup_encoded_slots(void){
     uint32_t read=atomic_load_explicit(&worker.media_read,memory_order_acquire);
     uint32_t written=atomic_load_explicit(&worker.media_written,memory_order_acquire);
     uint32_t after=atomic_load_explicit(&worker.media_read,memory_order_acquire);
-    uint32_t depth=atomic_load_explicit(&worker.queue_layout,memory_order_acquire)&0xffu;
-    return read==after && depth && written-read<=depth?written-read:UINT32_MAX;
+    uint32_t layout=atomic_load_explicit(&worker.queue_layout,memory_order_acquire);
+    uint32_t depth=layout&DBT_CODEC_QUEUE_DEPTH_MASK;
+    uint32_t capacity=(layout&DBT_CODEC_QUEUE_PACKED)?depth*((layout>>16)/24u):depth;
+    return read==after && depth && written-read<=capacity?written-read:UINT32_MAX;
 }
 probe_dsp_admission_t probe_audio_dsp_assist_admission(bool has_decode_reserve){
 #ifdef DBT_PROBE_LHDC_BUILD
@@ -1351,12 +1353,12 @@ static void log_loop(void *unused){
             aptx_quality.completed,aptx_quality.parity_rejects);
 #endif
         uint32_t queue_layout=atomic_load_explicit(&worker.queue_layout,memory_order_acquire);
-        uint32_t queue_depth=queue_layout&255u,queue_stride=queue_layout>>16;
+        uint32_t queue_depth=queue_layout&DBT_CODEC_QUEUE_DEPTH_MASK,queue_stride=queue_layout>>16;
         snapshot_log(pcm_snapshot_began,"{\"probe\":\"codec_queue_memory\",\"collection_cycle_us\":%" PRIu32 ",\"last_started_codec\":%" PRIu32
             ",\"depth\":%" PRIu32 ",\"credit_low_water\":%" PRIu32 ",\"slot_payload_capacity\":%u,\"slot_stride\":%" PRIu32
-            ",\"accounted_queue_allocation_bytes\":%" PRIu32 ",\"includes_allocation_header\":true}\n",
+            ",\"accounted_queue_allocation_bytes\":%" PRIu32 ",\"packed_records\":%s,\"includes_allocation_header\":true}\n",
             at,codec,queue_depth,(queue_layout>>8)&255u,(unsigned)PROBE_A2DP_RX_MTU,queue_stride,
-            queue_depth?queue_stride*queue_depth+8u:0u);
+            queue_depth?queue_stride*queue_depth+8u:0u,(queue_layout&DBT_CODEC_QUEUE_PACKED)?"true":"false");
         snapshot_log(pcm_snapshot_began,"{\"probe\":\"sbc_pcm\",\"frames\":%" PRIu32 ",\"bytes\":%" PRIu32 ",\"fnv1a32\":%" PRIu32
                ",\"fnv1a32_enabled\":" AUDIO_PCM_HASH_JSON ",\"frames_unit\":\"pcm_views\""
                ",\"rate\":%" PRIu32 ",\"channels\":%" PRIu32 ",\"media_packets\":%" PRIu32 ",\"drops\":%" PRIu32
@@ -1550,13 +1552,17 @@ static dbt_codec_queue_t codec_queue_policy(void *context,const dbt_codec_config
 #endif
     uint8_t low=(uint8_t)(depth/2u);
 #ifdef DBT_PROBE_LHDC_BUILD
-    /* At192k the peer currently sends one5ms unit per packet. Use the
-     * already allocated spare slot before applying backpressure; retain all
-     * three controller-credit slots, so previously credited ACLs still fit. */
+    /* At192k pack small LHDC records within the existing physical slabs.
+     * Admission/credits still reserve worst-case full-MTU slabs for permits
+     * already outside the host; an open slab tail never grants such credit. */
     if(config->ops==&dbt_lhdcv5_codec && config->rate==192000u)low=(uint8_t)(depth-3u);
 #endif
     if(low>depth-3u)low=(uint8_t)(depth-3u);
-    return (dbt_codec_queue_t){depth,low};
+    uint8_t storage=depth;
+#ifdef DBT_PROBE_LHDC_BUILD
+    if(config->ops==&dbt_lhdcv5_codec && config->rate==192000u)storage|=DBT_CODEC_QUEUE_PACKED;
+#endif
+    return (dbt_codec_queue_t){storage,low};
 }
 uint16_t probe_audio_rx_credit_window(void){return 3u;}
 bool probe_audio_rx_credit_ready(void *context,const dbt_link_t *link){
@@ -1565,11 +1571,10 @@ bool probe_audio_rx_credit_ready(void *context,const dbt_link_t *link){
        !profile.active || profile.draining || profile.sink.failed || profile.sink.retiring ||
        profile.sink.state!=DBT_STREAM_STREAMING || !profile.signaling.serial ||
        profile.signaling.handle!=link->handle || profile.signaling.generation!=link->generation)return true;
-    uint32_t read=atomic_load_explicit(&worker.media_read,memory_order_acquire);
-    uint32_t written=atomic_load_explicit(&worker.media_written,memory_order_acquire);
     uint32_t layout=atomic_load_explicit(&worker.queue_layout,memory_order_acquire);
+    uint32_t depth=layout&DBT_CODEC_QUEUE_DEPTH_MASK;
     uint8_t low=(uint8_t)(layout>>8);
-    return low && written-read<low;
+    return low && low<=depth && dbt_codec_worker_free_slots(&worker)>depth-low;
 }
 uint16_t probe_audio_rx_credit_limit(void *context,const dbt_link_t *link,uint16_t pending,uint16_t window){
     (void)context;
@@ -1578,16 +1583,13 @@ uint16_t probe_audio_rx_credit_limit(void *context,const dbt_link_t *link,uint16
        !profile.active || profile.draining || profile.sink.failed || profile.sink.retiring ||
        profile.sink.state!=DBT_STREAM_STREAMING || !profile.signaling.serial ||
        profile.signaling.handle!=link->handle || profile.signaling.generation!=link->generation)return pending;
-    uint32_t read=atomic_load_explicit(&worker.media_read,memory_order_acquire);
-    uint32_t written=atomic_load_explicit(&worker.media_written,memory_order_acquire);
-    uint32_t depth=atomic_load_explicit(&worker.queue_layout,memory_order_acquire)&0xffu;
-    uint32_t queued=written-read;
-    if(!depth || queued>=depth)return 0;
+    uint32_t free_slots=dbt_codec_worker_free_slots(&worker);
+    if(!free_slots)return 0;
     /* Every permit not held in THIS link's pending count could still become
      * an audio packet, including credits released for another (e.g.LE) link.
      * Keep the existing one-slot allowance for a deferred/partial media PDU. */
     uint32_t outside=window>pending?window-pending:0;
-    uint32_t free=depth-queued-1u;
+    uint32_t free=free_slots-1u;
     if(free<=outside)return 0;
     uint32_t allowed=free-outside;
     return allowed<pending?(uint16_t)allowed:pending;

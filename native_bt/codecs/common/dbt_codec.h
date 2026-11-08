@@ -107,6 +107,10 @@ typedef struct {
 
 /* Return PCM sample-frames (one sample per channel), not codec-frame units. */
 typedef uint32_t (*dbt_codec_media_frames_t)(const dbt_codec_config_t *,const dbt_avdtp_media_t *);
+/* Policy depth bit7 opts into aligned variable-size records within the same
+ * physical slabs; low7 bits still select their power-of-two count. */
+#define DBT_CODEC_QUEUE_PACKED 0x80u
+#define DBT_CODEC_QUEUE_DEPTH_MASK 0x7fu
 typedef struct {uint8_t depth,low_water;} dbt_codec_queue_t;
 typedef struct {
     dbt_codec_hooks_t decoder;
@@ -128,8 +132,9 @@ typedef struct {
     void (*trace)(void *context,const dbt_codec_trace_t *event);
     dbt_codec_pcm_async_t async_pcm;
     /* Pure selected-codec policy, called only while admission is closed.
-     * Every slot retains the full init maximum_payload; no truncated packets.
-     * low_water is the queue depth crossing that wakes receive-credit work. */
+     * Every slab retains the full init maximum_payload; no truncated packets.
+     * low_water bounds fixed-slot capacity wakeups. Packed mode also wakes
+     * when a sealed physical slab retires, independently of packet count. */
     dbt_codec_queue_t (*queue_policy)(void *context,const dbt_codec_config_t *config);
 } dbt_codec_worker_hooks_t;
 typedef struct {
@@ -151,9 +156,14 @@ typedef struct {
     /* Host-producer diagnostics, distinct from queue saturation/decode errors.
      * Maximum includes a size-rejected packet; no payload is exposed. */
     _Atomic uint32_t input_max_payload,input_oversize_rejects,input_last_oversize;
-    /* Atomic diagnostics/credit geometry: depth in bits0..7, low_water8..15,
+    /* Atomic diagnostics/credit geometry: physical depth in bits0..6, packed
+     * flag bit7, low_water8..15,
      * slot stride16..31. Zero while the selected working set is absent. */
     _Atomic uint32_t queue_layout;
+    /* Packed mode: page counts protect physical ownership; packet counters
+     * above still count logical packets. Each offset has one runtime owner. */
+    _Atomic uint32_t media_page_written,media_page_read;
+    uint16_t media_write_offset,media_read_offset;
     /* Duration metadata only: no per-slot growth. Producer counts accepted
      * frame samples; copied-PCM delivery retires them using its existing count. */
     dbt_codec_media_frames_t media_frames;
@@ -167,7 +177,7 @@ typedef struct {
     uint32_t binding,last_ssrc;
     uint16_t maximum_payload,stride,last_sequence;
     uint8_t depth,depth_limit,low_water;
-    bool configured,streaming,sequence_valid;
+    bool configured,streaming,sequence_valid,packed_media;
     /* Worker-owned borrow, not another PCM allocation. media_read pins the
      * input slot until all output and the codec's saved frame cursor retire. */
     const uint8_t *pending_pcm;
@@ -198,6 +208,9 @@ bool dbt_codec_worker_buffered_frames(const dbt_codec_worker_t *,uint32_t *);
 dbt_result_t dbt_codec_worker_submit(void *worker,const dbt_sink_job_t *job);
 /* Host input remains valid for the call and is disjoint from packet_storage. */
 dbt_result_t dbt_codec_worker_media(void *worker,const dbt_avdtp_media_t *packet);
+/* Host receive-credit query: conservative count of full maximum-payload
+ * admissions. Packed open-page tails never count as a full free slab. */
+uint16_t dbt_codec_worker_free_slots(const dbt_codec_worker_t *worker);
 dbt_result_t dbt_codec_worker_receipt(dbt_codec_worker_t *worker,dbt_codec_receipt_t *receipt);
 /* First service at most one accepted PCM-loan completion/cancellation so codec
  * teardown cannot overtake it. Then at most four control receipts and the

@@ -195,6 +195,14 @@ static bool feed(case_t c,context_t *ctx,dbt_codec_decoder_t *direct,dbt_codec_w
     return true;
 }
 #define TRY(x) do {if(!(x)){line=__LINE__;goto finish;}}while(0)
+#ifdef DBT_TEST_PACKED_MEDIA
+static dbt_codec_queue_t packed_policy(void *context,const dbt_codec_config_t *config){
+    (void)context;(void)config;return (dbt_codec_queue_t){2u|DBT_CODEC_QUEUE_PACKED,1};
+}
+#define PACKED_MEDIA_JSON "true"
+#else
+#define PACKED_MEDIA_JSON "false"
+#endif
 static int run_case(case_t c){
     context_t ctx={0};dbt_codec_decoder_t direct={0};dbt_codec_worker_t worker={0};
     bool worker_initialized=false;int line=0;uint32_t now=0;unsigned count=packet_count(c);
@@ -231,10 +239,16 @@ static int run_case(case_t c){
     wh.async_stream=(dbt_codec_stream_async_t){stream_begin,no_stream_ticket,no_stream_ticket};
     wh.async_pcm=(dbt_codec_pcm_async_t){loan_begin,loan_poll,loan_cancel};
 #endif
+#ifdef DBT_TEST_PACKED_MEDIA
+    wh.queue_policy=packed_policy;
+#endif
     TRY(dbt_codec_worker_init(&worker,wh,4096,2)==DBT_OK);worker_initialized=true;
     uint8_t configuration[4+DBT_CODEC_CIE_BYTES]={1,0,7,0};configuration[3]=(uint8_t)cie_size(c);
     memcpy(configuration+4,cie_for(c),cie_size(c));
     TRY(control(&worker,DBT_SINK_CONFIGURE,configuration,(uint16_t)(4u+cie_size(c))) && control(&worker,DBT_SINK_START,NULL,0));
+#ifdef DBT_TEST_PACKED_MEDIA
+    TRY(worker.packed_media && worker.depth==2);
+#endif
     for(unsigned i=0;i<count;++i)TRY(feed(c,&ctx,NULL,&worker,i,&now,false));
     TRY(ctx.compared_frames==ctx.reference_frames && !ctx.error && ctx.busy_calls && !worker.pending_pcm && !worker.media_active);
     TRY(control(&worker,DBT_SINK_DROP,NULL,0) && !ctx.live && ctx.allocs==ctx.frees);
@@ -276,7 +290,7 @@ int main(void){
         case_t c={NULL,&opus_vectors[i],mode,i};if(run_case(c))return 1;++cases;
     }
     case_t maximum={0};if(run_case(maximum))return 1;++cases;
-    printf("{\"probe\":\"deferred_codec_summary\",\"passed\":true,\"cases\":%u,\"maximum_rate_tested\":true,\"pcm_loans\":%s,\"rf_test\":false}\n",cases,
+    printf("{\"probe\":\"deferred_codec_summary\",\"passed\":true,\"cases\":%u,\"maximum_rate_tested\":true,\"packed_media\":" PACKED_MEDIA_JSON ",\"pcm_loans\":%s,\"rf_test\":false}\n",cases,
 #ifdef DBT_TEST_PCM_LOANS
         "true"
 #else

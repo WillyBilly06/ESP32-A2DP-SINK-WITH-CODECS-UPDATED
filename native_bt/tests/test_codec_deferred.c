@@ -90,8 +90,16 @@ static dbt_result_t media_model(dbt_codec_decoder_t *d,const dbt_avdtp_media_t *
 static dbt_result_t stream(void *context,bool start,const dbt_codec_config_t *config){(void)context;(void)start;(void)config;return DBT_OK;}
 static const dbt_codec_ops_t codec={"deferred ownership model",configure,open_model,close_model,reset_model,media_model,0,resume_model,0};
 static const dbt_codec_ops_t *const codecs[]={&codec};
+#ifdef DBT_TEST_PACKED_MEDIA
+static dbt_codec_queue_t packed_model_queue(void *context,const dbt_codec_config_t *config){
+    (void)context;(void)config;return (dbt_codec_queue_t){2u|DBT_CODEC_QUEUE_PACKED,1};
+}
+#endif
 static bool setup(void){
     zero(&f,sizeof(f));dbt_codec_worker_hooks_t hooks={{&f,allocate,release,output},codecs,1,0,0,stream,true,{0},0,{0},0};
+#ifdef DBT_TEST_PACKED_MEDIA
+    hooks.queue_policy=packed_model_queue;
+#endif
     return dbt_codec_worker_init(&f.worker,hooks,64,2)==DBT_OK;
 }
 static dbt_result_t submit(dbt_sink_operation_t op){
