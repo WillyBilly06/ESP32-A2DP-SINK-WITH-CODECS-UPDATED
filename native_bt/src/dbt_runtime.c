@@ -463,7 +463,19 @@ static bool send_fragment(dbt_runtime_t *runtime, unsigned index) {
     }
     return true;
 }
-void dbt_runtime_poll(dbt_runtime_t *runtime, uint32_t now_ms, uint16_t rx_budget, uint16_t tx_budget) {
+typedef struct {
+    dbt_runtime_t *runtime;dbt_owner_checkpoint_t checkpoint;void *context;
+} runtime_checkpoint_t;
+static void received_checkpoint(void *context){
+    runtime_checkpoint_t *point=context;dbt_runtime_t *runtime=point->runtime;
+    /* Observer callbacks and RX borrowing are over. Return consumed controller
+     * buffers before an optional scheduler handoff, preserving every gate and
+     * transport-retention rule. This only attempts one nonblocking flow poll. */
+    dbt_rx_flow_poll(&runtime->rx_flow,runtime->now_ms);
+    if(runtime->host.state!=DBT_HOST_FAILED)point->checkpoint(point->context);
+}
+void dbt_runtime_poll_checkpoint(dbt_runtime_t *runtime,uint32_t now_ms,uint16_t rx_budget,
+    uint16_t tx_budget,dbt_owner_checkpoint_t checkpoint,void *context) {
     if (!runtime || runtime->in_poll || runtime->host.in_poll ||
         runtime->host.in_callback || runtime->channels.in_callback) return;
     runtime->in_poll = true; runtime->now_ms = now_ms;
@@ -477,7 +489,9 @@ void dbt_runtime_poll(dbt_runtime_t *runtime, uint32_t now_ms, uint16_t rx_budge
     /* Expire once per owner turn, before a bounded RX batch. Retained-storage
      * receive checks only its own slot; it does not rescan all links per PDU. */
     if(runtime->ready)(void)dbt_l2cap_expire(&runtime->rx,now_ms);
-    uint16_t received=dbt_host_poll(&runtime->host, now_ms, rx_budget);
+    runtime_checkpoint_t point={runtime,checkpoint,context};
+    uint16_t received=dbt_host_poll_checkpoint(&runtime->host,now_ms,rx_budget,
+        checkpoint?received_checkpoint:NULL,&point);
     if(received && runtime->host.state!=DBT_HOST_FAILED && runtime->hooks.rx_checkpoint)
         runtime->hooks.rx_checkpoint(runtime->hooks.context);
     (void)initialize_layers(runtime);
@@ -531,6 +545,9 @@ void dbt_runtime_poll(dbt_runtime_t *runtime, uint32_t now_ms, uint16_t rx_budge
     }
     if(runtime->host.state==DBT_HOST_FAILED)finalize_abort(runtime);
     runtime->in_poll = false;
+}
+void dbt_runtime_poll(dbt_runtime_t *runtime,uint32_t now_ms,uint16_t rx_budget,uint16_t tx_budget){
+    dbt_runtime_poll_checkpoint(runtime,now_ms,rx_budget,tx_budget,NULL,NULL);
 }
 uint32_t dbt_runtime_wait_ms(const dbt_runtime_t *runtime, uint32_t now_ms) {
     if (!runtime) return UINT32_MAX;

@@ -1,5 +1,13 @@
 # Independent ESP32 Bluetooth host
 
+The [retired-packet scheduling checkpoint](docs/RETIRED_PACKET_SCHEDULING_2026_11_08.md)
+adds conditional owner yield points between fully retired HCI packets, returning
+safe receive credits before yielding. Linked SRAM/IRAM and all priorities/buffers
+are unchanged.191/191 host tests and37 cold target cases pass. Short corrected
+LHDC192/S24/fixed900 windows still have **256/704 music and3456 metronome unfilled
+PCM frames**. Playback-time misses remain; this is not a continuity fix.
+Current COM6 imagee7948405b95b and the raw-UART monitor run at **921600 baud**.
+
 The [encoded-duration checkpoint](docs/LHDC_ENCODED_DURATION_2026_11_08.md)
 counts grouped LHDC frames and partial PCM delivery correctly for negotiated
 AVDTP delay reports, costing **16 B BSS** without increasing buffers. Redmagic
@@ -10,7 +18,7 @@ misses and decoded PCM waiting for DSP. **LHDC continuity remains unresolved.**
 Firmware and the raw-UART web logger remain at **921600 baud**. Formatting/writes
 run in the low-priority background logger; expected PCM backpressure is counted
 without per-event output. Repeated unchanged unknown-duration rows are suppressed.
-All195 records in a fresh6s passive window pass CRC verification. Current COM6
+All195 records in a fresh6s passive window pass CRC verification. Checkpoint
 image9bced750ed38 passes readback and37 cold codec cases. This is development
 firmware;1Mbps, sustained BLE/control headroom and full parity remain unqualified.
 

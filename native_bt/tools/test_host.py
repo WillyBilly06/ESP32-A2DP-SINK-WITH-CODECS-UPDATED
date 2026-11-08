@@ -14,6 +14,9 @@ import time
 
 ROOT = Path(__file__).resolve().parents[1]
 TESTS = [
+    "runtime_packet_checkpoint_credit_gates_and_retention",
+    "runtime_packet_checkpoint_lifetime_budget_and_legacy",
+    "runtime_packet_checkpoint_abort_and_credit_retirement",
     "codec_input_clock_snapshot_and_scope",
     "le_parameters_client_lifetime", "le_parameters_client_wrap_timeout_and_bearers",
     "codec_async_pcm_completion_and_exact_order", "codec_async_pcm_cancel_before_codec_lifecycle",

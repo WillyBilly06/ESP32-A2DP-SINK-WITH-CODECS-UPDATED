@@ -113,6 +113,13 @@ dbt_result_t dbt_host_start(dbt_host_t *host, uint32_t now_ms);
 dbt_result_t dbt_host_receive(dbt_host_t *host, const uint8_t *data, uint16_t size);
 /* Bounded number of RX callbacks per invocation; also advances probe and timeout. */
 uint16_t dbt_host_poll(dbt_host_t *host, uint32_t now_ms, uint16_t rx_budget);
+/* Optional owner scheduling point after each healthy RX packet has completely
+ * retired: observer callbacks have returned and sensitive scratch is wiped.
+ * May yield or enqueue work; never wait, reinitialize, or retain packet views.
+ * The poll fence stays set. Context is borrowed only for this invocation. */
+typedef void (*dbt_owner_checkpoint_t)(void *context);
+uint16_t dbt_host_poll_checkpoint(dbt_host_t *host,uint32_t now_ms,uint16_t rx_budget,
+    dbt_owner_checkpoint_t checkpoint,void *context);
 uint32_t dbt_host_wait_ms(const dbt_host_t *host, uint32_t now_ms);
 /* Copies bounded parameters; valid after identification. At most one command is
  * outstanding even when the controller grants more credits. Unsent expiry is

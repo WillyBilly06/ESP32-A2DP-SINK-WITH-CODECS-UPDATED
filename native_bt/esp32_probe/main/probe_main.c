@@ -746,9 +746,6 @@ void app_main(void) {
     dbt_transport_t transport = { 0, transport_ready, transport_send };
     dbt_runtime_hooks_t hooks = {0};
     hooks.allocate = allocate_rx; hooks.release = release_rx; hooks.packet = observe;
-#ifdef DBT_PROBE_RENDER_FAIR_SHARE
-    hooks.rx_checkpoint=received_render_checkpoint;
-#endif
 #if defined(DBT_PROBE_GATT_TEST) || defined(DBT_PROBE_SMP)
     hooks.channels.fixed_data = profile_fixed;
     hooks.channels.fixed_oversized = profile_fixed_oversized;
@@ -894,7 +891,11 @@ void app_main(void) {
         probe_audio_transport_poll_begin(poll_began_us);
 #endif
         OWNER_MARK(PROBE_OWNER_RUNTIME,UINT32_MAX);
+#ifdef DBT_PROBE_RENDER_FAIR_SHARE
+        HOST_POLL(PROBE_HOST_RUNTIME,dbt_runtime_poll_checkpoint(&runtime,now,8,8,received_render_checkpoint,NULL));
+#else
         HOST_POLL(PROBE_HOST_RUNTIME,dbt_runtime_poll(&runtime,now,8,8));
+#endif
         OWNER_MARK(PROBE_OWNER_PROFILES,UINT32_MAX);
 #ifdef DBT_PROBE_GATT_TEST
         bool parameter_hold=false;

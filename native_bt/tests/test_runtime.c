@@ -1080,3 +1080,150 @@ EXPORT int test_gap_rename_failure_and_bounds(void){
     gap.rename_serial=UINT32_MAX;CHECK(dbt_gap_rename(&gap,good,1,&retry)==DBT_NO_SPACE);
     return 0;
 }
+
+/* Owner checkpoints are outside borrowed views, without weakening poll fences. */
+static struct {
+    unsigned packets,points,batches,errors,last_bytes,abort_at;
+    bool sensitive,credit_mode;
+} checkpoint_test;
+static void checkpoint_packet(void *context,const dbt_hci_packet_t *packet){
+    peer_t *p=context;
+    if(!p->runtime.in_poll || !p->runtime.host.in_poll || !p->runtime.host.in_callback)
+        ++checkpoint_test.errors;
+    ++checkpoint_test.packets;checkpoint_test.sensitive=packet->type==DBT_H4_EVENT && packet->event==0x18;
+    checkpoint_test.last_bytes=packet->size+3u;
+    if(checkpoint_test.sensitive && packet->size!=23u)++checkpoint_test.errors;
+}
+static void checkpoint_batch(void *context){
+    peer_t *p=context;++checkpoint_test.batches;
+    if(p->runtime.host.in_poll || p->runtime.host.in_callback || !p->runtime.in_poll)
+        ++checkpoint_test.errors;
+}
+static void checkpoint_owner(void *context){
+    peer_t *p=context;++checkpoint_test.points;
+    if(!p->runtime.in_poll || !p->runtime.host.in_poll || p->runtime.host.in_callback ||
+       checkpoint_test.packets!=checkpoint_test.points)++checkpoint_test.errors;
+    if(checkpoint_test.sensitive)for(unsigned i=0;i<checkpoint_test.last_bytes;++i)
+        if(p->runtime.host.rx_packet[i])++checkpoint_test.errors;
+    if(checkpoint_test.credit_mode){
+        unsigned pending=0;
+        for(unsigned i=0;i<DBT_MAX_LINKS;++i)pending+=p->runtime.rx_flow.pending[i].packets;
+        if(p->fixed_calls!=checkpoint_test.points || pending ||
+           p->runtime.rx_flow.acknowledged!=checkpoint_test.points)++checkpoint_test.errors;
+        /* Mock the controller returning its previous NCP TX borrow before the
+         * next packet. The wire storage must remain unchanged until then. */
+        check_borrow(p);p->ready=true;
+    }
+    /* A scheduling point must not become a way to recursively dispatch RX. */
+    unsigned packets=checkpoint_test.packets;
+    dbt_runtime_poll_checkpoint(&p->runtime,clock_ms,8,8,checkpoint_owner,p);
+    dbt_runtime_poll(&p->runtime,clock_ms,8,8);
+    if(dbt_host_poll_checkpoint(&p->runtime.host,clock_ms,8,checkpoint_owner,p) ||
+       checkpoint_test.packets!=packets)++checkpoint_test.errors;
+    if(checkpoint_test.abort_at==checkpoint_test.points)
+        dbt_runtime_abort(&p->runtime,DBT_FAULT_CONTROLLER);
+}
+static int queue_checkpoint_events(peer_t *p,unsigned count){
+    for(unsigned i=0;i<count;++i){
+        uint8_t payload[23];for(unsigned j=0;j<23;++j)payload[j]=(uint8_t)(i+j+1u);
+        if(event(p,(i&1u)?0x18:0xff,payload,(i&1u)?23:1)!=DBT_OK)return __LINE__;
+    }
+    return 0;
+}
+EXPORT int test_runtime_packet_checkpoint_lifetime_budget_and_legacy(void){
+    clock_ms=0;int r=fixture(0);if(r)return r;peer_t *p=&peers[0];
+    zero(&checkpoint_test,sizeof checkpoint_test);p->runtime.hooks.packet=checkpoint_packet;
+    p->runtime.hooks.rx_checkpoint=checkpoint_batch;
+    r=queue_checkpoint_events(p,8);if(r)return r;
+    dbt_runtime_poll_checkpoint(&p->runtime,++clock_ms,0,0,checkpoint_owner,p);
+    CHECK(!checkpoint_test.points && !checkpoint_test.packets && !checkpoint_test.batches);
+    dbt_runtime_poll_checkpoint(&p->runtime,++clock_ms,3,0,checkpoint_owner,p);
+    CHECK(checkpoint_test.packets==3 && checkpoint_test.points==3 && checkpoint_test.batches==1);
+    dbt_runtime_poll_checkpoint(&p->runtime,++clock_ms,8,0,checkpoint_owner,p);
+    CHECK(checkpoint_test.packets==8 && checkpoint_test.points==8 && checkpoint_test.batches==2);
+    CHECK(!checkpoint_test.errors && !dbt_queue_used(&p->runtime.host.ingress));
+    dbt_runtime_poll_checkpoint(&p->runtime,++clock_ms,8,0,checkpoint_owner,p);
+    CHECK(checkpoint_test.points==8 && checkpoint_test.batches==2);
+    /* The original entry still has exactly one post-batch hook and no new hook. */
+    r=queue_checkpoint_events(p,8);if(r)return r;
+    dbt_runtime_poll(&p->runtime,++clock_ms,8,0);
+    CHECK(checkpoint_test.packets==16 && checkpoint_test.points==8 && checkpoint_test.batches==3);
+    CHECK(!checkpoint_test.errors && p->runtime.ready && !p->integrity_errors);
+    return 0;
+}
+EXPORT int test_runtime_packet_checkpoint_abort_and_credit_retirement(void){
+    clock_ms=0;int r=fixture(0);if(r)return r;peer_t *p=&peers[0];
+    zero(&checkpoint_test,sizeof checkpoint_test);p->runtime.hooks.packet=checkpoint_packet;
+    checkpoint_test.abort_at=1;r=queue_checkpoint_events(p,8);if(r)return r;
+    dbt_runtime_poll_checkpoint(&p->runtime,++clock_ms,8,0,checkpoint_owner,p);
+    CHECK(checkpoint_test.packets==1 && checkpoint_test.points==1 && !checkpoint_test.errors);
+    CHECK(p->runtime.host.state==DBT_HOST_FAILED && p->runtime.cleared && !p->runtime.in_poll);
+    /* A failing HCI event is retired without invoking a healthy-packet hook. */
+    r=fixture(0);if(r)return r;p=&peers[0];zero(&checkpoint_test,sizeof checkpoint_test);
+    p->runtime.hooks.packet=checkpoint_packet;uint8_t error=1;
+    CHECK(event(p,0x10,&error,1)==DBT_OK);
+    dbt_runtime_poll_checkpoint(&p->runtime,++clock_ms,8,0,checkpoint_owner,p);
+    CHECK(checkpoint_test.packets==1 && !checkpoint_test.points && !checkpoint_test.errors);
+    CHECK(p->runtime.host.state==DBT_HOST_FAILED && p->runtime.cleared);
+    r=fixture(0);if(r)return r;p=&peers[0];
+    p->runtime.host.controller.supported_commands[10]=0xe0;
+    CHECK(dbt_runtime_enable_rx_flow(&p->runtime,1021,3)==DBT_OK);
+    for(unsigned i=0;i<20 && p->runtime.rx_flow.state!=DBT_RX_FLOW_ACTIVE;++i){
+        controller(p);dbt_runtime_poll(&p->runtime,++clock_ms,8,0);
+    }
+    CHECK(p->runtime.rx_flow.state==DBT_RX_FLOW_ACTIVE);add_link(p,2,true);
+    CHECK(dbt_channels_register_fixed(&p->runtime.channels,DBT_LINK_LE,4)==DBT_OK);
+    zero(&checkpoint_test,sizeof checkpoint_test);checkpoint_test.credit_mode=true;
+    p->runtime.hooks.packet=checkpoint_packet;
+    for(unsigned i=0;i<3;++i){uint8_t wire[10]={2,2,0x20,5,0,1,0,4,0,(uint8_t)i};
+        CHECK(dbt_runtime_receive(&p->runtime,wire,sizeof wire)==DBT_OK);}
+    dbt_runtime_poll_checkpoint(&p->runtime,++clock_ms,3,0,checkpoint_owner,p);
+    CHECK(checkpoint_test.points==3 && checkpoint_test.packets==3 && !checkpoint_test.errors);
+    CHECK(p->runtime.rx_flow.acknowledged==3 && p->runtime.ready && !p->integrity_errors);
+    return 0;
+}
+
+static bool checkpoint_gate_open;
+static uint32_t checkpoint_expected_acked;
+static bool checkpoint_credit_gate(void *context,const dbt_link_t *link){
+    (void)context;(void)link;return checkpoint_gate_open;
+}
+static void checkpoint_credit_hold(void *context){
+    peer_t *p=context;++checkpoint_test.points;unsigned pending=0;
+    for(unsigned i=0;i<DBT_MAX_LINKS;++i)pending+=p->runtime.rx_flow.pending[i].packets;
+    if(checkpoint_test.packets!=checkpoint_test.points || p->fixed_calls!=checkpoint_test.points ||
+       pending!=checkpoint_test.points-checkpoint_expected_acked ||
+       p->runtime.rx_flow.acknowledged!=checkpoint_expected_acked ||
+       !p->runtime.host.in_poll || p->runtime.host.in_callback || !p->runtime.in_poll)
+        ++checkpoint_test.errors;
+    check_borrow(p);
+}
+EXPORT int test_runtime_packet_checkpoint_credit_gates_and_retention(void){
+    clock_ms=0;int r=fixture(0);if(r)return r;peer_t *p=&peers[0];
+    checkpoint_gate_open=false;checkpoint_expected_acked=0;
+    CHECK(dbt_rx_flow_set_gate(&p->runtime.rx_flow,checkpoint_credit_gate,0)==DBT_OK);
+    p->runtime.host.controller.supported_commands[10]=0xe0;
+    CHECK(dbt_runtime_enable_rx_flow(&p->runtime,1021,3)==DBT_OK);
+    for(unsigned i=0;i<20 && p->runtime.rx_flow.state!=DBT_RX_FLOW_ACTIVE;++i){
+        controller(p);dbt_runtime_poll(&p->runtime,++clock_ms,8,0);
+    }
+    CHECK(p->runtime.rx_flow.state==DBT_RX_FLOW_ACTIVE);add_link(p,2,true);
+    CHECK(dbt_channels_register_fixed(&p->runtime.channels,DBT_LINK_LE,4)==DBT_OK);
+    zero(&checkpoint_test,sizeof checkpoint_test);p->runtime.hooks.packet=checkpoint_packet;
+    unsigned sends=p->sends;
+    for(unsigned i=0;i<3;++i){uint8_t wire[10]={2,2,0x20,5,0,1,0,4,0,(uint8_t)i};
+        CHECK(dbt_runtime_receive(&p->runtime,wire,sizeof wire)==DBT_OK);}
+    dbt_runtime_poll_checkpoint(&p->runtime,++clock_ms,3,0,checkpoint_credit_hold,p);
+    CHECK(checkpoint_test.points==3 && !checkpoint_test.errors && p->sends==sends && p->ready);
+    checkpoint_gate_open=true;dbt_runtime_poll_checkpoint(&p->runtime,++clock_ms,0,0,checkpoint_credit_hold,p);
+    CHECK(p->runtime.rx_flow.acknowledged==3 && p->sends==sends+1 && !p->ready);
+    CHECK(p->wire[0]==1 && dbt_read_le16(p->wire+1)==0x0c35 && dbt_read_le16(p->wire+7)==3);
+    checkpoint_expected_acked=3;
+    for(unsigned i=0;i<2;++i){uint8_t wire[10]={2,2,0x20,5,0,1,0,4,0,(uint8_t)i};
+        CHECK(dbt_runtime_receive(&p->runtime,wire,sizeof wire)==DBT_OK);}
+    dbt_runtime_poll_checkpoint(&p->runtime,++clock_ms,2,0,checkpoint_credit_hold,p);
+    CHECK(checkpoint_test.points==5 && !checkpoint_test.errors && p->sends==sends+1 && !p->integrity_errors);
+    p->ready=true;dbt_runtime_poll(&p->runtime,++clock_ms,0,0);
+    CHECK(p->runtime.rx_flow.acknowledged==5 && p->runtime.ready && p->sends==sends+2);
+    return 0;
+}

@@ -82,6 +82,12 @@ dbt_result_t dbt_runtime_enable_rx_flow(dbt_runtime_t *runtime, uint16_t packet_
                                        uint16_t packet_count);
 dbt_result_t dbt_runtime_receive(dbt_runtime_t *runtime, const uint8_t *data, uint16_t size);
 void dbt_runtime_poll(dbt_runtime_t *runtime, uint32_t now_ms, uint16_t rx_budget, uint16_t tx_budget);
+/* As poll, with a scheduling point after each fully retired healthy HCI packet.
+ * Consumed RX credits get one nonblocking poll before the scheduling point.
+ * This precedes ordinary command pumping; the legacy post-batch hook is intact.
+ * The runtime/host operation fences remain set across the owner checkpoint. */
+void dbt_runtime_poll_checkpoint(dbt_runtime_t *runtime,uint32_t now_ms,
+    uint16_t rx_budget,uint16_t tx_budget,dbt_owner_checkpoint_t checkpoint,void *context);
 uint32_t dbt_runtime_wait_ms(const dbt_runtime_t *runtime, uint32_t now_ms);
 /* One borrowed outbound SDU per connection. Keep it unchanged until done, even
  * during controller credit stalls. Channel callbacks may enqueue fixed replies;

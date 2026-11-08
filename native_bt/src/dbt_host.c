@@ -331,7 +331,8 @@ static void handle_event(dbt_host_t *host, const dbt_hci_packet_t *packet, uint3
     if (host->probe_index == PROBE_COUNT) host->state = DBT_HOST_IDENTIFIED;
 }
 
-uint16_t dbt_host_poll(dbt_host_t *host, uint32_t now_ms, uint16_t rx_budget) {
+uint16_t dbt_host_poll_checkpoint(dbt_host_t *host,uint32_t now_ms,uint16_t rx_budget,
+    dbt_owner_checkpoint_t checkpoint,void *context) {
     uint16_t processed = 0;
     if (!host || host->in_poll || host->in_callback) return 0;
     if(host->tx_retained && host->transport.can_send(host->transport.context)) {
@@ -375,6 +376,10 @@ uint16_t dbt_host_poll(dbt_host_t *host, uint32_t now_ms, uint16_t rx_budget) {
             host->fault_packet_type=packet.type;host->fault_event=packet.event;
             break;
         }
+        /* No RX view or sensitive bytes remain borrowed across this owner
+         * scheduling point. Do not defer it until the rest of a full batch. */
+        if(checkpoint)checkpoint(context);
+        if(host->state==DBT_HOST_FAILED)break;
     }
     if (host->state == DBT_HOST_PROBING && host->pending_opcode == 0 &&
         host->command_credits != 0 && host->transport.can_send(host->transport.context)) {
@@ -418,6 +423,10 @@ uint16_t dbt_host_poll(dbt_host_t *host, uint32_t now_ms, uint16_t rx_budget) {
     host->in_poll = false;
     if(host->state==DBT_HOST_FAILED)fail(host,host->fault);
     return processed;
+}
+
+uint16_t dbt_host_poll(dbt_host_t *host,uint32_t now_ms,uint16_t rx_budget){
+    return dbt_host_poll_checkpoint(host,now_ms,rx_budget,NULL,NULL);
 }
 
 uint32_t dbt_host_wait_ms(const dbt_host_t *host, uint32_t now_ms) {
