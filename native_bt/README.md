@@ -1,9 +1,15 @@
 # Independent ESP32 Bluetooth host
 
+The [reserved Core0 DSP checkpoint](docs/CORE0_RESERVED_DSP_2026_11_08.md)
+permits the existing helper during decode only with at least8ms of processed
+audio reserved. Observed helper workshare rises from53% to74% with unchanged
+linked RAM/IRAM, cores, priorities and audio format. Current short LHDC windows
+still have **2592 / 864 / 1120 unfilled PCM frames**; continuity remains open.
+
 The [DMA/lightweight-gap checkpoint](docs/AUDIO_DMA_LIGHT_GAPS_2026_11_07.md)
 keeps separate media, decoder, renderer and finalized-gap records without the
 heavy tick/owner profiler. COM6 runs **921600 baud** with **2 x 192 DMA frames**,
-the same3,072-byte DMA payload as before. Current short LHDC192/S24/900 windows
+the same3,072-byte DMA payload as before. Its earlier short LHDC192/S24/900 windows
 have **768 / 2,880 unfilled PCM sample frames**; continuity remains unresolved.
 The37 existing cold codec cases pass. This remains development firmware.
 

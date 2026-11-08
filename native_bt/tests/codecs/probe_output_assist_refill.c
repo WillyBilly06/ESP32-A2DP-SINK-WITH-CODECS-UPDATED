@@ -4,24 +4,28 @@
 #include <stdio.h>
 static unsigned publication_checks,publication_error;
 static int32_t *refill_destination;
-bool probe_audio_dsp_assist_ready(void){return true;}
+probe_dsp_admission_t probe_audio_dsp_assist_admission(bool reserve){(void)reserve;return PROBE_DSP_IDLE_ASSIST;}
 void dbt_output_test_step(unsigned stage){
-    if(stage!=11 || publication_checks++)return;
-    if(dbt_dsp_job_state(&assist.lane)!=DBT_DSP_JOB_BUSY ||
-       dbt_audio_output_frames(&output.audio)!=DMA_FRAMES){publication_error=1;return;}
+    if(stage!=11)return;
+    ++publication_checks;
+    uint32_t ready=dbt_audio_output_frames(&output.audio);
+    if(dbt_dsp_job_state(&assist.lane)!=DBT_DSP_JOB_BUSY || !ready){publication_error=1;return;}
+    uint32_t valid=atomic_load(&output.descriptors[0].valid);
+    uint32_t copy=atomic_load(&output.refill_pending_index)==0?DMA_FRAMES-valid:0;
+    if(copy>ready)copy=ready;
+    uint32_t read=atomic_load(&output.audio.output.read)%output.audio.config.output_frames;
+    if(read+copy>DBT_AUDIO_OUTPUT_PAGE_FRAMES){publication_error=3;return;}
     int32_t expected[DMA_FRAMES*2];
-    memcpy(expected,output.audio.output_pages[0],sizeof expected);
+    if(copy)memcpy(expected,output.audio.output_pages[0]+read*8u,copy*8u);
     fixed_dsp_t before=output.audio.dsp;
-    unsigned allocations=live;
+    unsigned allocations=live,recovered=atomic_load(&output.refill_recovered_frames);
     fixture_core=1;
-    fprintf(stderr,"refill interleave: owns=%u callback_core=%u pending=%u deadline=%u now=%u stop=%u failed=%u ready=%u\n",
-        owns_output(),atomic_load(&output.callback_core),atomic_load(&output.refill_pending_index),atomic_load(&output.refill_deadline_us),
-        (unsigned)test_clock_us,atomic_load(&output.stop_requested),atomic_load(&output.failed),dbt_audio_output_frames(&output.audio));
     bool again=render_step();fixture_core=0;
+    uint32_t expected_pending=valid+copy<DMA_FRAMES?0:UINT32_MAX;
     if(again || dbt_dsp_job_state(&assist.lane)!=DBT_DSP_JOB_BUSY ||
-       atomic_load(&output.refill_recovered_frames)!=DMA_FRAMES ||
-       atomic_load(&output.refill_pending_index)!=UINT32_MAX ||
-       memcmp(refill_destination,expected,sizeof expected) ||
+       atomic_load(&output.refill_recovered_frames)!=recovered+copy ||
+       atomic_load(&output.refill_pending_index)!=expected_pending ||
+       (copy && memcmp(refill_destination+valid*2u,expected,copy*8u)) ||
        memcmp(&before,&output.audio.dsp,sizeof before) || live!=allocations)
         publication_error=2;
 }
@@ -46,9 +50,9 @@ EX int probe_output_assist_refill(void){
     CHECK(dsp_assist_work());
     fprintf(stderr,"publication_checks=%u error=%u recovered=%u owner_wakes_while_busy=%u state=%u\n",
         publication_checks,publication_error,atomic_load(&output.refill_recovered_frames),worker_refill_notifications,(unsigned)dbt_dsp_job_state(&assist.lane));
-    CHECK(publication_checks==4 && !publication_error && worker_refill_notifications==1);
+    CHECK(publication_checks==4 && !publication_error && worker_refill_notifications==(DMA_FRAMES+FIXED_DSP_BLOCK_FRAMES-1u)/FIXED_DSP_BLOCK_FRAMES);
     CHECK(dbt_dsp_job_state(&assist.lane)==DBT_DSP_JOB_DONE);
-    CHECK(dbt_audio_output_frames(&output.audio)==384 && assist.committed_frames==512);
+    CHECK(dbt_audio_output_frames(&output.audio)==512u-DMA_FRAMES && assist.committed_frames==512 && atomic_load(&output.refill_recovered_frames)==DMA_FRAMES);
     CHECK(!atomic_load(&output.refill_contract_errors) && !atomic_load(&output.failed));
     fixture_core=1;CHECK(dsp_assist_complete()==1 && dbt_dsp_job_state(&assist.lane)==DBT_DSP_JOB_IDLE);
     close_output();CHECK(!live);return 0;

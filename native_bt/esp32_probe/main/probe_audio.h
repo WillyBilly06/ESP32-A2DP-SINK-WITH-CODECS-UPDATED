@@ -95,8 +95,12 @@ typedef void (*probe_audio_product_event_fn)(void *,probe_audio_product_event_t,
                                              uint16_t,uint32_t,uint32_t,uint32_t);
 void probe_audio_product_observer(probe_audio_product_event_fn,void *);
 bool probe_audio_sound_memory_ok(void);
-/* Atomic scheduling hint only; no borrowed decoder or codec state. */
-bool probe_audio_dsp_assist_ready(void);
+/* Scheduling hint only; the output owner still grants the single DSP borrow.
+ * The decode case requires an explicit processed-output reserve. */
+typedef enum {
+    PROBE_DSP_NO_ASSIST=0,PROBE_DSP_IDLE_ASSIST=1,PROBE_DSP_RESERVED_ASSIST=2
+} probe_dsp_admission_t;
+probe_dsp_admission_t probe_audio_dsp_assist_admission(bool has_decode_reserve);
 /* Diagnostic queue-slot count including any active packet; UINT32_MAX if the
  * bounded atomic observation races retirement. This is not PCM duration. */
 uint32_t probe_audio_startup_encoded_slots(void);

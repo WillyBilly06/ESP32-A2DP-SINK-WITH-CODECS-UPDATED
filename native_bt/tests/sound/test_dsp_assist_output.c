@@ -1,5 +1,6 @@
 /* Actual output task/lifecycle with two mocked FreeRTOS cores. No hardware. */
 #include "../../esp32_probe/main/probe_schedule_limits.h"
+#include "probe_audio.h"
 #define taskYIELD prior_task_yield
 #define main prior_sound_main
 #define xTaskCreatePinnedToCore prior_task_create
@@ -19,7 +20,8 @@
 typedef struct {void (*fn)(void *);void *arg;int core;unsigned priority;HANDLE thread,event;_Atomic unsigned notifications;} mock_task_t;
 static mock_task_t mock_tasks[2];
 static _Thread_local mock_task_t *current_task;
-static _Atomic bool mock_shutdown,decoder_hint;
+static _Atomic bool mock_shutdown,decoder_hint,decoder_computing;
+static _Atomic unsigned requested_eofs;
 static _Atomic unsigned mock_errors,pending_timed_waits,yields[2];
 static _Atomic unsigned sound_progress_wakes;
 static HANDLE producer_release;
@@ -46,7 +48,11 @@ static HANDLE hook_release,commit_release,input_release;
 extern uint32_t dbt_output_test_ready_pcm(void);
 int xPortGetCoreID(void){return current_task?current_task->core:0;}
 TaskHandle_t xTaskGetCurrentTaskHandle(void){return current_task;}
-bool probe_audio_dsp_assist_ready(void){return atomic_load_explicit(&decoder_hint,memory_order_acquire);}
+probe_dsp_admission_t probe_audio_dsp_assist_admission(bool reserve){
+    if(atomic_load_explicit(&decoder_hint,memory_order_acquire))return PROBE_DSP_IDLE_ASSIST;
+    return reserve && atomic_load_explicit(&decoder_computing,memory_order_acquire)?
+        PROBE_DSP_RESERVED_ASSIST:PROBE_DSP_NO_ASSIST;
+}
 static DWORD WINAPI mock_entry(void *pointer){current_task=pointer;current_task->fn(current_task->arg);return 0;}
 int xTaskCreatePinnedToCore(void (*fn)(void *),const char *name,unsigned stack,void *arg,unsigned priority,TaskHandle_t *task,int core){
     (void)name;(void)stack;
@@ -70,6 +76,17 @@ unsigned ulTaskNotifyTake(int clear,unsigned ticks){
     if(!atomic_load_explicit(&current_task->notifications,memory_order_acquire))
         WaitForSingleObject(current_task->event,ticks==portMAX_DELAY?INFINITE:ticks);
     if(atomic_load_explicit(&mock_shutdown,memory_order_acquire))ExitThread(0);
+    /* Mock ISR work runs on the owner thread, so a task cannot execute on the
+     * same simulated CPU before its IRQ callback returns. Batch is bounded. */
+    if(current_task->core==1){
+        unsigned events=atomic_exchange(&requested_eofs,0);
+        if(events>3){atomic_fetch_add(&mock_errors,4);events=3;}
+        for(unsigned i=0;i<events && atomic_load(&i2s_enabled);++i){
+            i2s_event_data_t event={.dma_buf=dma[dma_index],.size=sizeof(dma[0])};
+            callbacks.on_sent((void*)1,&event,callback_context);
+            dma_index=(dma_index+1u)%PROBE_OUTPUT_DMA_DESCRIPTORS;
+        }
+    }
     unsigned count=atomic_exchange_explicit(&current_task->notifications,0,memory_order_acq_rel);
     (void)clear;return count;
 }
@@ -104,6 +121,50 @@ static int lend_block(unsigned frames){
     CHECK(stats.state==2 && stats.enabled);return 0;
 }
 static int stop_stream(void){uint32_t token=0;CHECK(probe_output_stream_begin(false,0,0,DBT_PCM_S16_LE,&token)==DBT_PENDING);CHECK(ticket_result(token)==DBT_OK);CHECK(!atomic_load(&live));return 0;}
+static void request_mock_eofs(unsigned count){atomic_store(&requested_eofs,count);xTaskNotifyGive(&mock_tasks[1]);}
+static int reserve_boundary_and_enabled_stop(void){
+    atomic_store(&decoder_hint,false);atomic_store(&decoder_computing,false);
+    CHECK(!start_stream());
+    int32_t pcm[2048];for(unsigned i=0;i<2048;++i)pcm[i]=(int32_t)(i*65536u);
+    CHECK(probe_output_try_pcm_format(pcm,1024,2,192000,DBT_PCM_S32_LE)==DBT_OK);
+    for(unsigned i=0;i<2000 && dbt_output_test_ready_pcm()!=1024;++i)Sleep(1);
+    CHECK(dbt_output_test_ready_pcm()==1024);
+    CHECK(probe_output_try_pcm_format(pcm,1024,2,192000,DBT_PCM_S32_LE)==DBT_OK);
+    for(unsigned i=0;i<2000 && dbt_output_test_ready_pcm()!=2048;++i)Sleep(1);
+    CHECK(dbt_output_test_ready_pcm()==2048);
+    /* Fill the384-frame preload and leave64 source frames for a local block. */
+    CHECK(probe_output_try_pcm_format(pcm,448,2,192000,DBT_PCM_S32_LE)==DBT_OK);
+    for(unsigned i=0;i<2000 && !atomic_load(&i2s_enabled);++i)Sleep(1);
+    CHECK(atomic_load(&i2s_enabled) && dbt_output_test_ready_pcm()==2048);
+    probe_dsp_assist_stats_t before,after;probe_output_dsp_assist_snapshot(&before);
+    CHECK(!before.state);
+    atomic_store(&hook_reached,0);atomic_store(&hold_hook,4);ResetEvent(hook_release);
+    atomic_store(&decoder_computing,true);
+    request_mock_eofs(3); /* 2048-3*192=1472, below the1536-frame guard. */
+    for(unsigned i=0;i<2000 && dbt_output_test_ready_pcm()!=1536;++i)Sleep(1);
+    CHECK(dbt_output_test_ready_pcm()==1536); /* Local64-frame progress. */
+    probe_output_dsp_assist_snapshot(&after);
+    CHECK(after.jobs==before.jobs && after.reserve_submitted==before.reserve_submitted && !after.state);
+    CHECK(!atomic_load(&hook_reached));
+    CHECK(probe_output_try_pcm_format(pcm,128,2,192000,DBT_PCM_S32_LE)==DBT_OK);
+    CHECK(hook_ready(4)); /* Exactly1536 processed frames now permit a lease. */
+    probe_output_dsp_assist_snapshot(&after);
+    CHECK(after.state==2 && after.reserve_submitted==before.reserve_submitted+1u);
+    unsigned allocations=atomic_load(&live);uint32_t stop=0;
+    CHECK(probe_output_stream_begin(false,0,0,DBT_PCM_S16_LE,&stop)==DBT_PENDING);
+    Sleep(20);CHECK(probe_output_request_poll(stop)==DBT_PENDING && atomic_load(&live)==allocations);
+    release_helper();
+    dbt_result_t result=DBT_PENDING;
+    for(unsigned i=0;i<2000;++i){
+        result=probe_output_request_poll(stop);if(result!=DBT_PENDING)break;
+        if(atomic_load(&i2s_enabled))request_mock_eofs(1);Sleep(1);
+    }
+    CHECK(result==DBT_OK && !atomic_load(&live));
+    atomic_store(&decoder_computing,false);
+    probe_output_dsp_assist_snapshot(&after);
+    CHECK(!after.state && !after.failures && after.jobs==before.jobs+1u);
+    puts("PASS reserved decode lease: local progress below8ms, exact8ms boundary, held borrow/queued stop with enabled real-output DMA");return 0;
+}
 int main(void){
     main_id=GetCurrentThreadId();hook_release=CreateEventA(NULL,TRUE,FALSE,NULL);commit_release=CreateEventA(NULL,TRUE,FALSE,NULL);CHECK(hook_release && commit_release);
     CHECK(probe_output_init(decoder_wake_with_preemption,&render_wakes)==DBT_OK);
@@ -237,6 +298,7 @@ int main(void){
     CHECK(stats.jobs==cap_jobs+1u && stats.frames-cap_frames==cap && stats.blocks-cap_blocks==DBT_PROBE_DSP_ASSIST_BLOCKS && stats.max_job_frames==cap && !stats.failures && !stats.state);
     CHECK(dbt_output_test_ready_pcm()==cap+128u && !stop_stream());
     printf("PASS bounded helper cap: %u blocks / %u frames plus one local128, retained borrow until DONE\n",DBT_PROBE_DSP_ASSIST_BLOCKS,cap);
+    CHECK(!reserve_boundary_and_enabled_stop());
     printf("main waits=%u blocking sends=%u mock errors=%u timed waits while held=%u\n",atomic_load(&main_waits),atomic_load(&blocking_sends),atomic_load(&mock_errors),atomic_load(&pending_timed_waits));
     CHECK(!atomic_load(&main_waits) && !atomic_load(&blocking_sends) && !atomic_load(&mock_errors) && !atomic_load(&pending_timed_waits));
     probe_output_restart_hold(true);CHECK(probe_output_restart_quiescent());

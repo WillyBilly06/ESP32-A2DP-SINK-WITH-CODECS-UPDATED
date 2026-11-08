@@ -17,7 +17,7 @@ static _Atomic unsigned hold_hook,hook_reached,renderer_pause,pause_reached;
 static DWORD main_id;static _Atomic unsigned main_waits,blocking_sends;
 static void external_wake(void *p){atomic_fetch_add((_Atomic unsigned *)p,1);}
 static _Atomic DWORD render_id;static i2s_event_callbacks_t callbacks;static void *callback_context;
-static _Atomic bool i2s_enabled;static int32_t dma[3][256];static unsigned dma_index,preload;
+static _Atomic bool i2s_enabled;static int32_t dma[PROBE_OUTPUT_DMA_DESCRIPTORS][PROBE_OUTPUT_DMA_FRAMES*2u];static unsigned dma_index,preload;
 static _Atomic bool bad_dma;static _Atomic unsigned isr_wakes;
 void dbt_output_test_bad_receipt(uint32_t id);
 void dbt_output_test_step(unsigned stage){
@@ -40,7 +40,7 @@ unsigned ulTaskNotifyTake(int b,unsigned ticks){
     if(GetCurrentThreadId()==atomic_load(&render_id) && atomic_load(&i2s_enabled) && callbacks.on_sent){
         i2s_event_data_t event={.dma_buf=dma[dma_index],.size=sizeof(dma[0])};
         if(atomic_exchange(&bad_dma,false))event.size=0;
-        callbacks.on_sent((void*)1,&event,callback_context);count_pcm(dma[dma_index],256);dma_index=(dma_index+1)%3;
+        callbacks.on_sent((void*)1,&event,callback_context);count_pcm(dma[dma_index],PROBE_OUTPUT_DMA_FRAMES*2u);dma_index=(dma_index+1)%PROBE_OUTPUT_DMA_DESCRIPTORS;
     }
     if(ticks)Sleep(1);return 0;
 }
@@ -67,7 +67,7 @@ esp_err_t i2s_channel_init_std_mode(i2s_chan_handle_t ch,const i2s_std_config_t 
 esp_err_t i2s_channel_register_event_callback(i2s_chan_handle_t ch,const i2s_event_callbacks_t *cb,void *ctx){(void)ch;callbacks=*cb;callback_context=ctx;return ESP_OK;}
 esp_err_t i2s_channel_disable(i2s_chan_handle_t ch){(void)ch;atomic_store(&i2s_enabled,false);return ESP_OK;}
 esp_err_t i2s_channel_enable(i2s_chan_handle_t ch){(void)ch;atomic_store(&i2s_enabled,true);return ESP_OK;}
-esp_err_t i2s_channel_preload_data(i2s_chan_handle_t ch,const void *p,size_t n,size_t *loaded){(void)ch;if(preload>=3 || n!=sizeof(dma[0]))return 1;memcpy(dma[preload],p,n);count_pcm(dma[preload++],256);*loaded=n;return ESP_OK;}
+esp_err_t i2s_channel_preload_data(i2s_chan_handle_t ch,const void *p,size_t n,size_t *loaded){(void)ch;if(preload>=PROBE_OUTPUT_DMA_DESCRIPTORS || n!=sizeof(dma[0]))return 1;memcpy(dma[preload],p,n);count_pcm(dma[preload++],PROBE_OUTPUT_DMA_FRAMES*2u);*loaded=n;return ESP_OK;}
 
 typedef struct {uint8_t wav[8192];uint32_t len;} store_t;
 static bool no_begin(void *v,uint8_t t,uint32_t n){(void)v;(void)t;(void)n;return false;}

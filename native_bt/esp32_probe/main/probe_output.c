@@ -178,7 +178,7 @@ static DRAM_ATTR struct {
 #ifdef DBT_PROBE_SCHEDULER_TRACE
   probe_scheduler_mark_t committed_mark;
 #endif
-  _Atomic uint32_t jobs,blocks,frames,cycles,max_cycles,max_job_frames,queue_max_us,finish_wait_max_us,retire_wait_max_us,wall_max_us,failures;
+  _Atomic uint32_t jobs,reserve_submitted,blocks,frames,cycles,max_cycles,max_job_frames,queue_max_us,finish_wait_max_us,retire_wait_max_us,wall_max_us,failures;
 } assist;
 #endif
 
@@ -1343,7 +1343,15 @@ static int dsp_assist_complete(void){
 static bool dsp_assist_submit(uint32_t budget,uint32_t began){
   if(!budget || (unsigned)xPortGetCoreID()!=1u || !output.workers[0] ||
      atomic_load(&output.rate)<=96000u || atomic_load(&output.restart_hold) ||
-     dbt_dsp_job_state(&assist.lane)!=DBT_DSP_JOB_IDLE || !probe_audio_dsp_assist_ready())return false;
+     dbt_dsp_job_state(&assist.lane)!=DBT_DSP_JOB_IDLE)return false;
+  /* Existing idle admission remains immediate. Only ongoing decode may use
+   * spare Core0 time while at least8ms of processed PCM is already published.
+   * This is a scheduling margin, not a worst-case deadline guarantee. */
+  uint32_t rate=atomic_load(&output.rate);
+  bool reserve=output.enabled && !output.stopping &&
+      dbt_audio_output_frames(&output.audio)>=(rate+124u)/125u;
+  probe_dsp_admission_t admission=probe_audio_dsp_assist_admission(reserve);
+  if(admission==PROBE_DSP_NO_ASSIST)return false;
   dbt_audio_render_job_t block;dbt_result_t result=dbt_audio_render_prepare(&output.audio,budget,&block);
   if(result==DBT_EMPTY || result==DBT_UNSUPPORTED)return false;
   if(result!=DBT_OK){atomic_store(&output.failed,1);assist_add(&assist.failures,1);notify_clients();return true;}
@@ -1357,6 +1365,7 @@ static bool dsp_assist_submit(uint32_t budget,uint32_t began){
     (void)dbt_audio_render_finish(&output.audio,&block,false,NULL);
     atomic_store(&output.failed,1);assist_add(&assist.failures,1);notify_clients();return true;
   }
+  if(admission==PROBE_DSP_RESERVED_ASSIST)assist_add(&assist.reserve_submitted,1);
   xTaskNotifyGive(output.workers[0]);return true;
 }
 #endif
@@ -1366,7 +1375,7 @@ void probe_output_dsp_assist_snapshot(probe_dsp_assist_stats_t *stats){
 #ifdef DBT_PROBE_DSP_ASSIST
   stats->enabled=1;stats->state=(uint32_t)dbt_dsp_job_state(&assist.lane);
 #define ASSIST_LOAD(name) stats->name=atomic_load(&assist.name)
-  ASSIST_LOAD(jobs);ASSIST_LOAD(blocks);ASSIST_LOAD(frames);ASSIST_LOAD(cycles);ASSIST_LOAD(max_cycles);ASSIST_LOAD(max_job_frames);
+  ASSIST_LOAD(jobs);ASSIST_LOAD(reserve_submitted);ASSIST_LOAD(blocks);ASSIST_LOAD(frames);ASSIST_LOAD(cycles);ASSIST_LOAD(max_cycles);ASSIST_LOAD(max_job_frames);
   ASSIST_LOAD(queue_max_us);ASSIST_LOAD(finish_wait_max_us);ASSIST_LOAD(retire_wait_max_us);ASSIST_LOAD(wall_max_us);ASSIST_LOAD(failures);
 #undef ASSIST_LOAD
 #endif

@@ -34,4 +34,13 @@ result=subprocess.run([str(exe)],env=env,timeout=15,capture_output=True,text=Tru
 print(result.stdout.strip());print(result.stderr.strip());result.check_returncode()
 assert 'PASS actual DSP-assisted output' in result.stdout
 assert all(hashlib.sha256(pathlib.Path(p).read_bytes()).hexdigest()==h for p,h in before.items())
+retired=[]
+for obj in objects:
+    data=obj.read_bytes()
+    assert len(data)>=20 and int.from_bytes(data[:2],'little')==0x8664,'Unexpected host object; retained'
+    retired.append({'path':str(obj),'bytes':len(data),'sha256':hashlib.sha256(data).hexdigest(),'coff_machine':'AMD64'})
+manifest=json.dumps({'passed_executable':str(exe),'objects':retired},indent=2)+chr(10)
+identity=hashlib.sha256(manifest.encode()).hexdigest()[:16]
+(OUT/(identity+'-retired.json')).write_text(manifest)
+for obj in objects:obj.unlink()
 (OUT/'results.json').write_text(json.dumps({'passed':True,'fair_share':options.fair_share,'early_input':options.early_input,'rebalance':options.rebalance,'assist_blocks':options.assist_blocks,'hardware_accessed':False,'sanitizers':['address','undefined'],'scope':'actual output/render/sound and DSP lane, two mocked FreeRTOS cores, held BUSY worker with queued stop/cancel, owner completion before modeled producer preemption, no early free or timed pending polling; no ESP32 timing','stdout':result.stdout,'sources':before,'commands':commands},indent=2)+'\n')

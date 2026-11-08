@@ -116,7 +116,7 @@ void probe_output_stats(probe_output_stats_t *stats);
 /* Independent owner-published counters since boot; cycles are helper Core0
  * only. Queue/finish/wall spans use the shared microsecond clock. */
 typedef struct {
-    uint32_t enabled,state,jobs,blocks,frames,cycles,max_cycles,max_job_frames,queue_max_us,finish_wait_max_us,retire_wait_max_us,wall_max_us,failures;
+    uint32_t enabled,state,jobs,reserve_submitted,blocks,frames,cycles,max_cycles,max_job_frames,queue_max_us,finish_wait_max_us,retire_wait_max_us,wall_max_us,failures;
 } probe_dsp_assist_stats_t;
 void probe_output_dsp_assist_snapshot(probe_dsp_assist_stats_t *);
 #ifdef PROBE_OUTPUT_GAP_TRACE

@@ -120,6 +120,8 @@ static dbt_codec_worker_t worker;
 static TaskHandle_t owner,decoder_task,logger_task;
 static _Atomic uint32_t decoder_run_core;
 static _Atomic uint32_t decoder_wait_calls[5],decoder_wait_elapsed[5],decoder_wait_maximum[5];
+/* 0..4 are event waits;5 is only the codec media/resume call itself. */
+enum { DECODER_COMPUTING=5u };
 static _Atomic uint32_t decoder_wait_kind,decoder_wait_began;
 static bool initialized,failed,restart_hold,restart_drained;
 /* Owner-only cursor; cumulative worker faults are diagnostics, not a permanent
@@ -315,6 +317,10 @@ static dbt_result_t timed_worker_media(void *context,const dbt_avdtp_media_t *pa
 static void timing_event(unsigned kind){
     unsigned index=(kind-DBT_CODEC_DECODE_BEGIN)/2u;
     if(index>=3)return;
+    /* Functional producer state, independent of optional timeline/profilers.
+     * PCM/reset/end transitions revoke speculative helper admission. */
+    atomic_store_explicit(&decoder_wait_kind,kind==DBT_CODEC_DECODE_BEGIN?
+        DECODER_COMPUTING:UINT32_MAX,memory_order_release);
     phase_timing_t *phase=&phase_timing[index];uint32_t at=(uint32_t)esp_timer_get_time();
 #if defined(PROBE_OUTPUT_GAP_TRACE) && defined(DBT_PROBE_AUDIO_OUTPUT)
     decoder_timeline((kind-DBT_CODEC_DECODE_BEGIN)%2u?0u:index+1u,at);
@@ -776,19 +782,18 @@ uint32_t probe_audio_startup_encoded_slots(void){
     uint32_t depth=atomic_load_explicit(&worker.queue_layout,memory_order_acquire)&0xffu;
     return read==after && depth && written-read<=depth?written-read:UINT32_MAX;
 }
-bool probe_audio_dsp_assist_ready(void){
+probe_dsp_admission_t probe_audio_dsp_assist_admission(bool has_decode_reserve){
 #ifdef DBT_PROBE_LHDC_BUILD
-    /* A packet-starved decoder leaves Core0 available just as a full PCM
-     * ring does. The renderer still validates real input/output space before
-     * lending a block; a newly runnable decoder preempts its lower-priority
-     * DSP helper. Never lend across control, PCM-loan or renderer handoff. */
+    if(atomic_load_explicit(&pcm_codec,memory_order_relaxed)!=9u)return PROBE_DSP_NO_ASSIST;
     unsigned reason=atomic_load_explicit(&decoder_wait_kind,memory_order_acquire);
-    return (reason==0u || reason==3u) &&
-        atomic_load_explicit(&pcm_codec,memory_order_relaxed)==9u;
+    if(reason==0u || reason==3u)return PROBE_DSP_IDLE_ASSIST;
+    return has_decode_reserve && reason==DECODER_COMPUTING?
+        PROBE_DSP_RESERVED_ASSIST:PROBE_DSP_NO_ASSIST;
 #else
-    return false;
+    (void)has_decode_reserve;return PROBE_DSP_NO_ASSIST;
 #endif
 }
+
 static TickType_t decoder_wait_ticks(uint32_t now){
     uint32_t when;
     if(!dbt_codec_worker_deadline(&worker,&when))return portMAX_DELAY;
@@ -1091,8 +1096,8 @@ static void log_loop(void *unused){
 #endif
 #ifdef DBT_PROBE_DSP_ASSIST
         probe_dsp_assist_stats_t assisted;probe_output_dsp_assist_snapshot(&assisted);
-        PROBE_SNAPSHOT_LOG("{\"probe\":\"dsp_assist\",\"collection_cycle_us\":%" PRIu32 ",\"counter_scope\":\"since_boot\",\"independent_counters\":true,\"enabled\":%" PRIu32 ",\"state\":%" PRIu32 ",\"worker_core\":0,\"render_owner_core\":1,\"jobs\":%" PRIu32 ",\"blocks\":%" PRIu32 ",\"max_blocks_per_job\":%u,\"max_job_frames\":%" PRIu32 ",\"frames\":%" PRIu32 ",\"helper_cycles\":%" PRIu32 ",\"helper_max_cycles\":%" PRIu32 ",\"queue_max_us\":%" PRIu32 ",\"finish_to_commit_max_us\":%" PRIu32 ",\"commit_to_retire_max_us\":%" PRIu32 ",\"publication_core\":0,\"wall_max_us\":%" PRIu32 ",\"failures\":%" PRIu32 ",\"cycles_include_preemption\":true,\"cycles_wrap_uint32\":true,\"wall_includes_async_wait\":true}\n",
-            at,assisted.enabled,assisted.state,assisted.jobs,assisted.blocks,(unsigned)DBT_PROBE_DSP_ASSIST_BLOCKS,assisted.max_job_frames,assisted.frames,assisted.cycles,assisted.max_cycles,
+        PROBE_SNAPSHOT_LOG("{\"probe\":\"dsp_assist\",\"collection_cycle_us\":%" PRIu32 ",\"counter_scope\":\"since_boot\",\"independent_counters\":true,\"enabled\":%" PRIu32 ",\"state\":%" PRIu32 ",\"worker_core\":0,\"render_owner_core\":1,\"jobs\":%" PRIu32 ",\"decode_reserve_submitted\":%" PRIu32 ",\"blocks\":%" PRIu32 ",\"max_blocks_per_job\":%u,\"max_job_frames\":%" PRIu32 ",\"frames\":%" PRIu32 ",\"helper_cycles\":%" PRIu32 ",\"helper_max_cycles\":%" PRIu32 ",\"queue_max_us\":%" PRIu32 ",\"finish_to_commit_max_us\":%" PRIu32 ",\"commit_to_retire_max_us\":%" PRIu32 ",\"publication_core\":0,\"wall_max_us\":%" PRIu32 ",\"failures\":%" PRIu32 ",\"cycles_include_preemption\":true,\"cycles_wrap_uint32\":true,\"wall_includes_async_wait\":true}\n",
+            at,assisted.enabled,assisted.state,assisted.jobs,assisted.reserve_submitted,assisted.blocks,(unsigned)DBT_PROBE_DSP_ASSIST_BLOCKS,assisted.max_job_frames,assisted.frames,assisted.cycles,assisted.max_cycles,
             assisted.queue_max_us,assisted.finish_wait_max_us,assisted.retire_wait_max_us,assisted.wall_max_us,assisted.failures);
 #endif
 #ifdef DBT_PROBE_LHDC_BUILD
