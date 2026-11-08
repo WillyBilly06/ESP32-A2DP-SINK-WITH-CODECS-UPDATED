@@ -1,6 +1,9 @@
 #include "probe_schedule_limits.h"
 #include "probe_audio.h"
 #include "probe_audio_trace.h"
+#if defined(DBT_PROBE_SCHEDULER_TRACE) && defined(DBT_PROBE_AUDIO_OUTPUT)
+#include "probe_arrival.h"
+#endif
 #include <string.h>
 #include "probe_sdp.h"
 #ifdef DBT_PROBE_CONSOLE_IRQ
@@ -277,15 +280,27 @@ static void decoder_timeline(uint32_t phase,uint32_t at){
 }
 static dbt_result_t timed_worker_media(void *context,const dbt_avdtp_media_t *packet){
     uint32_t began=(uint32_t)esp_timer_get_time();
+    probe_arrival_sample_t arrival={0};bool arrival_valid=false;
+    dbt_runtime_t *runtime=profile.bearer.runtime;
+    if(runtime && runtime->host.in_poll && runtime->host.in_callback){
+        const uint8_t *raw=runtime->host.rx_packet;
+        if(raw[0]==DBT_H4_ACL){
+            uint32_t wire_bytes=5u+dbt_read_le16(raw+3);
+            if(wire_bytes<=DBT_MAX_H4_BYTES)arrival_valid=probe_arrival_media(
+                atomic_load_explicit(&runtime->host.ingress.read,memory_order_relaxed),
+                raw,(uint16_t)wire_bytes,packet,&arrival);
+        }
+    }
     if(context && packet && packet->payload && packet->size){
         dbt_codec_worker_t *w=context;
-        probe_output_trace_media(began,0,atomic_load(&w->started_epoch),packet->sequence,packet->timestamp,packet->ssrc,DBT_PENDING);
+        probe_output_trace_media_arrival(began,0,atomic_load(&w->started_epoch),packet->sequence,packet->timestamp,packet->ssrc,DBT_PENDING,
+            arrival_valid,arrival.arrival_us,arrival.queue_cursor,arrival.acl_flags);
     }
     dbt_result_t result=dbt_codec_worker_media(context,packet);
     if(context && packet && packet->payload && packet->size){
         dbt_codec_worker_t *w=context;
-        probe_output_trace_media(began,(uint32_t)esp_timer_get_time(),atomic_load(&w->input_stream_epoch),
-            packet->sequence,packet->timestamp,packet->ssrc,result);
+        probe_output_trace_media_arrival(began,(uint32_t)esp_timer_get_time(),atomic_load(&w->input_stream_epoch),
+            packet->sequence,packet->timestamp,packet->ssrc,result,arrival_valid,arrival.arrival_us,arrival.queue_cursor,arrival.acl_flags);
     }
     return result;
 }
@@ -344,16 +359,18 @@ static void log_first_starvation(void){
         PROBE_SNAPSHOT_LOG("{\"probe\":\"%s\",\"stream_serial\":%" PRIu32 ",\"captured\":%s,\"coherent\":true"
             ",\"event_us\":%" PRIu32 ",\"taken_frames\":%" PRIu32 ",\"input_frames\":%" PRIu32 ",\"output_frames\":%" PRIu32
             ",\"accepted_frames\":%" PRIu32 ",\"rendered_frames\":%" PRIu32 ",\"dma_source_frames\":%" PRIu32
-            ",\"deadline_us\":%" PRIu32 ",\"finalized_shortage\":%s}\n",
+            ",\"deadline_us\":%" PRIu32 ",\"pending_acl_metadata\":%" PRIu32 ",\"pending_acl_metadata_valid\":%s,\"finalized_shortage\":%s}\n",
             names[kind][0],s.stream_serial,s.captured?"true":"false",s.at_us,s.taken_frames,s.input_frames,s.output_frames,
-            s.accepted_frames,s.rendered_frames,s.dma_source_frames,s.deadline_us,kind?"true":"false");
+            s.accepted_frames,s.rendered_frames,s.dma_source_frames,s.deadline_us,s.pending_acl_metadata,s.pending_acl_metadata!=UINT32_MAX?"true":"false",kind?"true":"false");
         if(!s.captured)continue;
         PROBE_SNAPSHOT_LOG("{\"probe\":\"%s\",\"stream_serial\":%" PRIu32 ",\"event_us\":%" PRIu32
             ",\"coherent\":%s,\"last_acl_any_link_us\":%" PRIu32 ",\"last_host_poll_us\":%" PRIu32
             ",\"media_begin_us\":%" PRIu32 ",\"media_admitted_us\":%" PRIu32 ",\"media_epoch\":%" PRIu32
             ",\"media_sequence\":%" PRIu32 ",\"media_timestamp\":%" PRIu32 ",\"media_ssrc\":%" PRIu32 ",\"media_result\":%" PRIu32
-            ",\"last_media_gap_us\":%" PRIu32 ",\"max_media_gap_us\":%" PRIu32 "}\n",names[kind][1],s.stream_serial,s.at_us,s.media_coherent?"true":"false",
-            s.acl_us,s.host_poll_us,s.media_us,s.media_admit_us,s.media_epoch,s.media_sequence,s.media_timestamp,s.media_ssrc,s.media_result,s.media_gap_us,s.media_max_gap_us);
+            ",\"last_media_gap_us\":%" PRIu32 ",\"max_media_gap_us\":%" PRIu32
+            ",\"media_arrival_valid\":%s,\"media_current_acl_arrival_us\":%" PRIu32 ",\"media_hci_queue_cursor\":%" PRIu32 ",\"media_acl_flags\":%" PRIu32 "}\n",names[kind][1],s.stream_serial,s.at_us,s.media_coherent?"true":"false",
+            s.acl_us,s.host_poll_us,s.media_us,s.media_admit_us,s.media_epoch,s.media_sequence,s.media_timestamp,s.media_ssrc,s.media_result,s.media_gap_us,s.media_max_gap_us,
+            s.media_arrival_valid?"true":"false",s.media_arrival_us,s.media_arrival_cursor,s.media_arrival_flags);
         PROBE_SNAPSHOT_LOG("{\"probe\":\"%s\",\"stream_serial\":%" PRIu32 ",\"event_us\":%" PRIu32
             ",\"coherent\":%s,\"phase\":%" PRIu32 ",\"phase_name\":\"%s\",\"phase_since_us\":%" PRIu32 ",\"encoded_queued_at_phase_change\":%" PRIu32 "}\n",
             names[kind][2],s.stream_serial,s.at_us,s.decoder_coherent?"true":"false",s.decoder_phase,s.decoder_phase<9?phases[s.decoder_phase]:"unknown",s.decoder_at_us,s.decoder_queued);
@@ -1011,6 +1028,10 @@ static void log_loop(void *unused){
 #endif
 #if defined(DBT_PROBE_SCHEDULER_TRACE) && defined(DBT_PROBE_AUDIO_OUTPUT)
         log_first_starvation();
+        probe_arrival_stats_t arrival_stats;probe_arrival_stats(&arrival_stats);
+        PROBE_SNAPSHOT_LOG("{\"probe\":\"media_arrival_fifo\",\"published\":%" PRIu32 ",\"consumed\":%" PRIu32 ",\"lost\":%" PRIu32
+            ",\"status\":%" PRIu32 ",\"metadata_bytes\":%" PRIu32 ",\"metadata_slots\":8,\"diagnostic_only\":true,\"association_scope\":\"complete_current_acl_l2cap_rtp\",\"counts_independent\":true}\n",
+            arrival_stats.published,arrival_stats.consumed,arrival_stats.lost,arrival_stats.status,arrival_stats.bytes);
 #endif
         if(++ticks<10)continue;
         ticks=0;
@@ -1089,7 +1110,7 @@ static void log_loop(void *unused){
                at,(unsigned)worker.maximum_payload,(unsigned)worker.depth,(unsigned)worker.stride,
                (unsigned)worker.stride*worker.depth,atomic_load(&worker.input_max_payload),
                atomic_load(&worker.input_oversize_rejects),atomic_load(&worker.input_last_oversize));
-        PROBE_SNAPSHOT_LOG("{\"probe\":\"owner_wait_reasons\",\"collection_cycle_us\":%" PRIu32 ",\"iterations\":%" PRIu32
+        PROBE_SNAPSHOT_LOG("{\"probe\":\"owner_wait_reasons\",\"collection_cycle_us\":%" PRIu32 ",\"nonruntime_queries_skipped_on_runtime_ready\":true,\"iterations\":%" PRIu32
                ",\"runtime\":%" PRIu32 ",\"admission\":%" PRIu32 ",\"smp\":%" PRIu32 ",\"avrcp\":%" PRIu32
                ",\"restart\":%" PRIu32 ",\"pair_button\":%" PRIu32 ",\"rfcomm\":%" PRIu32 ",\"gap\":%" PRIu32
                ",\"product\":%" PRIu32 ",\"io\":%" PRIu32 ",\"att\":%" PRIu32 ",\"security\":%" PRIu32

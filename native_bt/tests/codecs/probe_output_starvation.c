@@ -50,7 +50,9 @@ static int partial_refill(void){
     CHECK(atomic_load(&output.refill_recovered_frames)==128 && !atomic_load(&output.refill_unfilled_frames));
     CHECK(!atomic_load(&output.refill_contract_errors) && !memcmp(dma[0],expected,sizeof expected));
     close_output();CHECK(!live);
-    CHECK(refill_test_start(dma,90000)==0);e.dma_buf=dma[0];(void)sent(0,&e,&output);
+    CHECK(refill_test_start(dma,90000)==0);
+    probe_output_trace_media_arrival(90000,90010,99,42,960,255,DBT_OK,true,89900,UINT32_MAX-7u,0x2001u);
+    e.dma_buf=dma[0];(void)sent(0,&e,&output);
     CHECK(probe_output_try_pcm_format(input,512,2,96000,DBT_PCM_S32_LE)==DBT_OK);
     CHECK(dbt_audio_render(&output.audio,64)==64);test_clock_us=90100;CHECK(service_refill_window());
     CHECK(dbt_audio_render(&output.audio,64)==64);memcpy(expected,output.audio.output_pages[0]+64u*8u,64u*8u);
@@ -59,6 +61,10 @@ static int partial_refill(void){
     for(unsigned i=128;i<256;++i)CHECK(!dma[0][i]);
     probe_output_starvation_t s;probe_output_first_unfilled(&s);
     CHECK(s.captured && s.coherent && s.taken_frames==64 && s.output_frames==64 && s.at_us==91333);
+    CHECK(s.media_coherent && s.media_arrival_valid && s.media_arrival_us==89900u && s.media_arrival_cursor==UINT32_MAX-7u && s.media_arrival_flags==0x2001u);
+    probe_output_trace_media(92000,92001,100,43,1920,255,DBT_OK);
+    probe_output_first_unfilled(&s);
+    CHECK(s.media_epoch==99 && s.media_sequence==42 && s.media_arrival_valid && s.media_arrival_us==89900u);
     close_output();CHECK(!live);
     CHECK(refill_test_start(dma,100000)==0);e.dma_buf=dma[0];(void)sent(0,&e,&output);
     CHECK(probe_output_try_pcm_format(input,512,2,96000,DBT_PCM_S32_LE)==DBT_OK);

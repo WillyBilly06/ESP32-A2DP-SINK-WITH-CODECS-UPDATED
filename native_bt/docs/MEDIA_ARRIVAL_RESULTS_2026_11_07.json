@@ -1,0 +1,1103 @@
+{
+  "schema": 1,
+  "image": "ff357cd8e33ed79c8193d90bd1cc4984668ca1d68f824f3a282cf7057d683180",
+  "archive": "D:/bt-owned61/native_bt/_build/hardware/runs/1794108421924184200-ff357cd8e33e",
+  "classification": "equivalent deadline work reduction and packet timing; continuity unresolved",
+  "timing_only_image": "5b38eac1784ad60757d5f89c7103dbfd0e672073717bb02ea85ef4bc68488962",
+  "workload": {
+    "codec": "LHDC V5",
+    "rate": 192000,
+    "bits": 24,
+    "channels": 2,
+    "selected_kbps": 900,
+    "phone_volume": 150,
+    "owned_guard_seconds": 14
+  },
+  "tests": {
+    "arrival": "D:/bt-owned61/native_bt/_build/experiments/media-arrival-1794106377362/host-pending/results.json",
+    "owner": "D:/bt-owned61/native_bt/_build/experiments/media-arrival-1794106377362/owner-wait/results.json",
+    "latch": "D:/bt-owned61/native_bt/_build/avrcp/starvation-trace-results.json",
+    "current_source_hashes_match": true
+  },
+  "target": {
+    "probe": "target_codec_selftest",
+    "passed": true,
+    "configurations": 37,
+    "selected": 37,
+    "callbacks": 173,
+    "stack_bytes": 8192,
+    "stack_low_water_bytes": 3600,
+    "tracked_peak_bytes": 56899,
+    "min_free_after_alloc_bytes": 102036,
+    "maximum_decode_us": 12671,
+    "rf_test": false
+  },
+  "query_counts": [
+    {
+      "label": "before_metronome",
+      "root_calls": 2339,
+      "root_epoch": 3,
+      "optional": [
+        {
+          "slot": 1,
+          "name": "parameters_wait",
+          "calls": 2339,
+          "epoch": 3
+        },
+        {
+          "slot": 2,
+          "name": "admission_wait",
+          "calls": 2339,
+          "epoch": 3
+        },
+        {
+          "slot": 3,
+          "name": "smp_wait",
+          "calls": 2339,
+          "epoch": 3
+        },
+        {
+          "slot": 4,
+          "name": "avrcp_wait",
+          "calls": 2339,
+          "epoch": 3
+        },
+        {
+          "slot": 5,
+          "name": "button_wait",
+          "calls": 2339,
+          "epoch": 3
+        },
+        {
+          "slot": 6,
+          "name": "rfcomm_wait",
+          "calls": 2339,
+          "epoch": 3
+        },
+        {
+          "slot": 7,
+          "name": "gap_wait",
+          "calls": 2339,
+          "epoch": 3
+        },
+        {
+          "slot": 8,
+          "name": "product_wait",
+          "calls": 2339,
+          "epoch": 3
+        },
+        {
+          "slot": 9,
+          "name": "io_wait",
+          "calls": 2339,
+          "epoch": 3
+        },
+        {
+          "slot": 10,
+          "name": "att_wait",
+          "calls": 2339,
+          "epoch": 3
+        },
+        {
+          "slot": 11,
+          "name": "security_wait",
+          "calls": 2339,
+          "epoch": 3
+        },
+        {
+          "slot": 12,
+          "name": "echo_wait",
+          "calls": 2339,
+          "epoch": 3
+        },
+        {
+          "slot": 13,
+          "name": "sdp_wait",
+          "calls": 2339,
+          "epoch": 3
+        },
+        {
+          "slot": 14,
+          "name": "audio_wait",
+          "calls": 2339,
+          "epoch": 3
+        }
+      ],
+      "omitted_queries_relative_to_every_iteration": 0
+    },
+    {
+      "label": "before_music",
+      "root_calls": 2355,
+      "root_epoch": 5,
+      "optional": [
+        {
+          "slot": 1,
+          "name": "parameters_wait",
+          "calls": 2355,
+          "epoch": 5
+        },
+        {
+          "slot": 2,
+          "name": "admission_wait",
+          "calls": 2355,
+          "epoch": 5
+        },
+        {
+          "slot": 3,
+          "name": "smp_wait",
+          "calls": 2355,
+          "epoch": 5
+        },
+        {
+          "slot": 4,
+          "name": "avrcp_wait",
+          "calls": 2355,
+          "epoch": 5
+        },
+        {
+          "slot": 5,
+          "name": "button_wait",
+          "calls": 2355,
+          "epoch": 5
+        },
+        {
+          "slot": 6,
+          "name": "rfcomm_wait",
+          "calls": 2355,
+          "epoch": 5
+        },
+        {
+          "slot": 7,
+          "name": "gap_wait",
+          "calls": 2355,
+          "epoch": 5
+        },
+        {
+          "slot": 8,
+          "name": "product_wait",
+          "calls": 2355,
+          "epoch": 5
+        },
+        {
+          "slot": 9,
+          "name": "io_wait",
+          "calls": 2355,
+          "epoch": 5
+        },
+        {
+          "slot": 10,
+          "name": "att_wait",
+          "calls": 2355,
+          "epoch": 5
+        },
+        {
+          "slot": 11,
+          "name": "security_wait",
+          "calls": 2355,
+          "epoch": 5
+        },
+        {
+          "slot": 12,
+          "name": "echo_wait",
+          "calls": 2355,
+          "epoch": 5
+        },
+        {
+          "slot": 13,
+          "name": "sdp_wait",
+          "calls": 2355,
+          "epoch": 5
+        },
+        {
+          "slot": 14,
+          "name": "audio_wait",
+          "calls": 2355,
+          "epoch": 5
+        }
+      ],
+      "omitted_queries_relative_to_every_iteration": 0
+    },
+    {
+      "label": "after_metronome",
+      "root_calls": 2666,
+      "root_epoch": 5,
+      "optional": [
+        {
+          "slot": 1,
+          "name": "parameters_wait",
+          "calls": 1554,
+          "epoch": 5
+        },
+        {
+          "slot": 2,
+          "name": "admission_wait",
+          "calls": 1554,
+          "epoch": 5
+        },
+        {
+          "slot": 3,
+          "name": "smp_wait",
+          "calls": 1554,
+          "epoch": 5
+        },
+        {
+          "slot": 4,
+          "name": "avrcp_wait",
+          "calls": 1554,
+          "epoch": 5
+        },
+        {
+          "slot": 5,
+          "name": "button_wait",
+          "calls": 1554,
+          "epoch": 5
+        },
+        {
+          "slot": 6,
+          "name": "rfcomm_wait",
+          "calls": 1554,
+          "epoch": 5
+        },
+        {
+          "slot": 7,
+          "name": "gap_wait",
+          "calls": 1554,
+          "epoch": 5
+        },
+        {
+          "slot": 8,
+          "name": "product_wait",
+          "calls": 1554,
+          "epoch": 5
+        },
+        {
+          "slot": 9,
+          "name": "io_wait",
+          "calls": 1554,
+          "epoch": 5
+        },
+        {
+          "slot": 10,
+          "name": "att_wait",
+          "calls": 1554,
+          "epoch": 5
+        },
+        {
+          "slot": 11,
+          "name": "security_wait",
+          "calls": 1554,
+          "epoch": 5
+        },
+        {
+          "slot": 12,
+          "name": "echo_wait",
+          "calls": 1554,
+          "epoch": 5
+        },
+        {
+          "slot": 13,
+          "name": "sdp_wait",
+          "calls": 1554,
+          "epoch": 5
+        },
+        {
+          "slot": 14,
+          "name": "audio_wait",
+          "calls": 1554,
+          "epoch": 5
+        }
+      ],
+      "omitted_queries_relative_to_every_iteration": 15568
+    },
+    {
+      "label": "after_music",
+      "root_calls": 2440,
+      "root_epoch": 7,
+      "optional": [
+        {
+          "slot": 1,
+          "name": "parameters_wait",
+          "calls": 1666,
+          "epoch": 7
+        },
+        {
+          "slot": 2,
+          "name": "admission_wait",
+          "calls": 1666,
+          "epoch": 7
+        },
+        {
+          "slot": 3,
+          "name": "smp_wait",
+          "calls": 1666,
+          "epoch": 7
+        },
+        {
+          "slot": 4,
+          "name": "avrcp_wait",
+          "calls": 1666,
+          "epoch": 7
+        },
+        {
+          "slot": 5,
+          "name": "button_wait",
+          "calls": 1666,
+          "epoch": 7
+        },
+        {
+          "slot": 6,
+          "name": "rfcomm_wait",
+          "calls": 1666,
+          "epoch": 7
+        },
+        {
+          "slot": 7,
+          "name": "gap_wait",
+          "calls": 1666,
+          "epoch": 7
+        },
+        {
+          "slot": 8,
+          "name": "product_wait",
+          "calls": 1666,
+          "epoch": 7
+        },
+        {
+          "slot": 9,
+          "name": "io_wait",
+          "calls": 1666,
+          "epoch": 7
+        },
+        {
+          "slot": 10,
+          "name": "att_wait",
+          "calls": 1666,
+          "epoch": 7
+        },
+        {
+          "slot": 11,
+          "name": "security_wait",
+          "calls": 1666,
+          "epoch": 7
+        },
+        {
+          "slot": 12,
+          "name": "echo_wait",
+          "calls": 1666,
+          "epoch": 7
+        },
+        {
+          "slot": 13,
+          "name": "sdp_wait",
+          "calls": 1666,
+          "epoch": 7
+        },
+        {
+          "slot": 14,
+          "name": "audio_wait",
+          "calls": 1666,
+          "epoch": 7
+        }
+      ],
+      "omitted_queries_relative_to_every_iteration": 10836
+    },
+    {
+      "label": "after_music_repeat",
+      "root_calls": 2131,
+      "root_epoch": 9,
+      "optional": [
+        {
+          "slot": 1,
+          "name": "parameters_wait",
+          "calls": 1689,
+          "epoch": 9
+        },
+        {
+          "slot": 2,
+          "name": "admission_wait",
+          "calls": 1689,
+          "epoch": 9
+        },
+        {
+          "slot": 3,
+          "name": "smp_wait",
+          "calls": 1689,
+          "epoch": 9
+        },
+        {
+          "slot": 4,
+          "name": "avrcp_wait",
+          "calls": 1689,
+          "epoch": 9
+        },
+        {
+          "slot": 5,
+          "name": "button_wait",
+          "calls": 1689,
+          "epoch": 9
+        },
+        {
+          "slot": 6,
+          "name": "rfcomm_wait",
+          "calls": 1689,
+          "epoch": 9
+        },
+        {
+          "slot": 7,
+          "name": "gap_wait",
+          "calls": 1689,
+          "epoch": 9
+        },
+        {
+          "slot": 8,
+          "name": "product_wait",
+          "calls": 1689,
+          "epoch": 9
+        },
+        {
+          "slot": 9,
+          "name": "io_wait",
+          "calls": 1689,
+          "epoch": 9
+        },
+        {
+          "slot": 10,
+          "name": "att_wait",
+          "calls": 1689,
+          "epoch": 9
+        },
+        {
+          "slot": 11,
+          "name": "security_wait",
+          "calls": 1689,
+          "epoch": 9
+        },
+        {
+          "slot": 12,
+          "name": "echo_wait",
+          "calls": 1689,
+          "epoch": 9
+        },
+        {
+          "slot": 13,
+          "name": "sdp_wait",
+          "calls": 1689,
+          "epoch": 9
+        },
+        {
+          "slot": 14,
+          "name": "audio_wait",
+          "calls": 1689,
+          "epoch": 9
+        }
+      ],
+      "omitted_queries_relative_to_every_iteration": 6188
+    }
+  ],
+  "traces": [
+    {
+      "name": "before_metronome",
+      "image": "5b38eac1784ad60757d5f89c7103dbfd0e672073717bb02ea85ef4bc68488962",
+      "unfilled": 3200,
+      "first": {
+        "probe": "first_unfilled",
+        "stream_serial": 1,
+        "captured": true,
+        "coherent": true,
+        "event_us": 91958058,
+        "taken_frames": 0,
+        "input_frames": 0,
+        "output_frames": 0,
+        "accepted_frames": 49920,
+        "rendered_frames": 49920,
+        "dma_source_frames": 49664,
+        "deadline_us": 91957966,
+        "pending_acl_metadata": 0,
+        "pending_acl_metadata_valid": true,
+        "finalized_shortage": true,
+        "snapshot_begin_us": 92624848,
+        "at_us": 92624868,
+        "snapshot_span_us": 20,
+        "record_crc32": "3b522e6b"
+      },
+      "media": {
+        "probe": "unfilled_media",
+        "stream_serial": 1,
+        "event_us": 91958058,
+        "coherent": true,
+        "last_acl_any_link_us": 91954596,
+        "last_host_poll_us": 91955007,
+        "media_begin_us": 91955396,
+        "media_admitted_us": 91955528,
+        "media_epoch": 5,
+        "media_sequence": 53,
+        "media_timestamp": 49920,
+        "media_ssrc": 255,
+        "media_result": 0,
+        "last_media_gap_us": 9992,
+        "max_media_gap_us": 26246,
+        "media_arrival_valid": true,
+        "media_current_acl_arrival_us": 91954596,
+        "media_hci_queue_cursor": 33143,
+        "media_acl_flags": 8320,
+        "snapshot_begin_us": 92651714,
+        "at_us": 92651737,
+        "snapshot_span_us": 23,
+        "record_crc32": "443991d2"
+      },
+      "decoder": {
+        "probe": "unfilled_decoder",
+        "stream_serial": 1,
+        "event_us": 91958058,
+        "coherent": true,
+        "phase": 1,
+        "phase_name": "decode",
+        "phase_since_us": 91955554,
+        "encoded_queued_at_phase_change": 1,
+        "snapshot_begin_us": 92668354,
+        "at_us": 92668373,
+        "snapshot_span_us": 19,
+        "record_crc32": "147497ff"
+      },
+      "renderer": {
+        "probe": "unfilled_renderer",
+        "stream_serial": 1,
+        "event_us": 91958058,
+        "coherent": true,
+        "inside_audio_render": false,
+        "phase_since_us": 91957768,
+        "dsp_assist_state_at_gap": 0,
+        "snapshot_begin_us": 92725930,
+        "at_us": 92726456,
+        "snapshot_span_us": 526,
+        "record_crc32": "739d9177"
+      },
+      "callback_to_admission_us": 932,
+      "fifo": {
+        "probe": "media_arrival_fifo",
+        "published": 2633,
+        "consumed": 2633,
+        "lost": 0,
+        "status": 0,
+        "metadata_bytes": 112,
+        "metadata_slots": 8,
+        "diagnostic_only": true,
+        "association_scope": "complete_current_acl_l2cap_rtp",
+        "counts_independent": true,
+        "snapshot_begin_us": 111347516,
+        "at_us": 111347520,
+        "snapshot_span_us": 4,
+        "record_crc32": "d358b4a5"
+      },
+      "costs": [
+        {
+          "name": "runtime_wait",
+          "epoch": 3,
+          "calls": 2339,
+          "mean_wall_us": 128.95214657260937,
+          "cycles": 72388577
+        },
+        {
+          "name": "parameters_wait",
+          "epoch": 3,
+          "calls": 2339,
+          "mean_wall_us": 13.659542895824426,
+          "cycles": 7667921
+        },
+        {
+          "name": "avrcp_wait",
+          "epoch": 3,
+          "calls": 2339,
+          "mean_wall_us": 103.84691285449622,
+          "cycles": 58295503
+        },
+        {
+          "name": "wait_total",
+          "epoch": 3,
+          "calls": 2339,
+          "mean_wall_us": 855.4044926606812,
+          "cycles": 480189866
+        }
+      ],
+      "descriptor_errors": 0,
+      "contract_errors": 0,
+      "other_sources": 0,
+      "invalid_integrity_rows": 0
+    },
+    {
+      "name": "before_music",
+      "image": "5b38eac1784ad60757d5f89c7103dbfd0e672073717bb02ea85ef4bc68488962",
+      "unfilled": 4928,
+      "first": {
+        "probe": "first_unfilled",
+        "stream_serial": 2,
+        "captured": true,
+        "coherent": true,
+        "event_us": 112417999,
+        "taken_frames": 64,
+        "input_frames": 0,
+        "output_frames": 0,
+        "accepted_frames": 60480,
+        "rendered_frames": 60480,
+        "dma_source_frames": 60160,
+        "deadline_us": 112417932,
+        "pending_acl_metadata": 1,
+        "pending_acl_metadata_valid": true,
+        "finalized_shortage": true,
+        "snapshot_begin_us": 112951787,
+        "at_us": 112951983,
+        "snapshot_span_us": 196,
+        "record_crc32": "175f5441"
+      },
+      "media": {
+        "probe": "unfilled_media",
+        "stream_serial": 2,
+        "event_us": 112417999,
+        "coherent": true,
+        "last_acl_any_link_us": 112415903,
+        "last_host_poll_us": 112417032,
+        "media_begin_us": 112417384,
+        "media_admitted_us": 112417530,
+        "media_epoch": 7,
+        "media_sequence": 2635,
+        "media_timestamp": 2530560,
+        "media_ssrc": 255,
+        "media_result": 0,
+        "last_media_gap_us": 18230,
+        "max_media_gap_us": 19262,
+        "media_arrival_valid": true,
+        "media_current_acl_arrival_us": 112414600,
+        "media_hci_queue_cursor": 1554275,
+        "media_acl_flags": 8320,
+        "snapshot_begin_us": 112992466,
+        "at_us": 112992489,
+        "snapshot_span_us": 23,
+        "record_crc32": "52c8015b"
+      },
+      "decoder": {
+        "probe": "unfilled_decoder",
+        "stream_serial": 2,
+        "event_us": 112417999,
+        "coherent": true,
+        "phase": 1,
+        "phase_name": "decode",
+        "phase_since_us": 112417553,
+        "encoded_queued_at_phase_change": 1,
+        "snapshot_begin_us": 113012170,
+        "at_us": 113012184,
+        "snapshot_span_us": 14,
+        "record_crc32": "d8e076eb"
+      },
+      "renderer": {
+        "probe": "unfilled_renderer",
+        "stream_serial": 2,
+        "event_us": 112417999,
+        "coherent": true,
+        "inside_audio_render": false,
+        "phase_since_us": 112417812,
+        "dsp_assist_state_at_gap": 0,
+        "snapshot_begin_us": 113053618,
+        "at_us": 113053634,
+        "snapshot_span_us": 16,
+        "record_crc32": "91acc2c1"
+      },
+      "callback_to_admission_us": 2930,
+      "fifo": {
+        "probe": "media_arrival_fifo",
+        "published": 5291,
+        "consumed": 5291,
+        "lost": 0,
+        "status": 0,
+        "metadata_bytes": 112,
+        "metadata_slots": 8,
+        "diagnostic_only": true,
+        "association_scope": "complete_current_acl_l2cap_rtp",
+        "counts_independent": true,
+        "snapshot_begin_us": 132564514,
+        "at_us": 132564521,
+        "snapshot_span_us": 7,
+        "record_crc32": "1922954f"
+      },
+      "costs": [
+        {
+          "name": "runtime_wait",
+          "epoch": 5,
+          "calls": 2355,
+          "mean_wall_us": 127.59525654635527,
+          "cycles": 72116839
+        },
+        {
+          "name": "parameters_wait",
+          "epoch": 5,
+          "calls": 2355,
+          "mean_wall_us": 12.049352441613587,
+          "cycles": 6810294
+        },
+        {
+          "name": "avrcp_wait",
+          "epoch": 5,
+          "calls": 2355,
+          "mean_wall_us": 92.00633757961783,
+          "cycles": 52001982
+        },
+        {
+          "name": "wait_total",
+          "epoch": 5,
+          "calls": 2355,
+          "mean_wall_us": 837.4361801132343,
+          "cycles": 473318929
+        }
+      ],
+      "descriptor_errors": 0,
+      "contract_errors": 0,
+      "other_sources": 0,
+      "invalid_integrity_rows": 0
+    },
+    {
+      "name": "after_metronome",
+      "image": "ff357cd8e33ed79c8193d90bd1cc4984668ca1d68f824f3a282cf7057d683180",
+      "unfilled": 5696,
+      "first": {
+        "probe": "first_unfilled",
+        "stream_serial": 2,
+        "captured": true,
+        "coherent": true,
+        "event_us": 165219820,
+        "taken_frames": 64,
+        "input_frames": 0,
+        "output_frames": 0,
+        "accepted_frames": 217920,
+        "rendered_frames": 217920,
+        "dma_source_frames": 217600,
+        "deadline_us": 165219755,
+        "pending_acl_metadata": 0,
+        "pending_acl_metadata_valid": true,
+        "finalized_shortage": true,
+        "snapshot_begin_us": 169273376,
+        "at_us": 169273397,
+        "snapshot_span_us": 21,
+        "record_crc32": "073f1732"
+      },
+      "media": {
+        "probe": "unfilled_media",
+        "stream_serial": 2,
+        "event_us": 165219820,
+        "coherent": true,
+        "last_acl_any_link_us": 165187045,
+        "last_host_poll_us": 165192466,
+        "media_begin_us": 165188465,
+        "media_admitted_us": 165188594,
+        "media_epoch": 7,
+        "media_sequence": 21300,
+        "media_timestamp": 20480640,
+        "media_ssrc": 255,
+        "media_result": 0,
+        "last_media_gap_us": 4564,
+        "max_media_gap_us": 36143,
+        "media_arrival_valid": true,
+        "media_current_acl_arrival_us": 165187045,
+        "media_hci_queue_cursor": 12546281,
+        "media_acl_flags": 8320,
+        "snapshot_begin_us": 169291736,
+        "at_us": 169291765,
+        "snapshot_span_us": 29,
+        "record_crc32": "9de8030a"
+      },
+      "decoder": {
+        "probe": "unfilled_decoder",
+        "stream_serial": 2,
+        "event_us": 165219820,
+        "coherent": true,
+        "phase": 7,
+        "phase_name": "wait_encoded_input",
+        "phase_since_us": 165208836,
+        "encoded_queued_at_phase_change": 0,
+        "snapshot_begin_us": 169369554,
+        "at_us": 169369575,
+        "snapshot_span_us": 21,
+        "record_crc32": "2e76036b"
+      },
+      "renderer": {
+        "probe": "unfilled_renderer",
+        "stream_serial": 2,
+        "event_us": 165219820,
+        "coherent": true,
+        "inside_audio_render": false,
+        "phase_since_us": 165219202,
+        "dsp_assist_state_at_gap": 0,
+        "snapshot_begin_us": 169384294,
+        "at_us": 169384309,
+        "snapshot_span_us": 15,
+        "record_crc32": "3c3a98bc"
+      },
+      "callback_to_admission_us": 1549,
+      "fifo": {
+        "probe": "media_arrival_fifo",
+        "published": 23821,
+        "consumed": 23821,
+        "lost": 0,
+        "status": 0,
+        "metadata_bytes": 112,
+        "metadata_slots": 8,
+        "diagnostic_only": true,
+        "association_scope": "complete_current_acl_l2cap_rtp",
+        "counts_independent": true,
+        "snapshot_begin_us": 184333796,
+        "at_us": 184333802,
+        "snapshot_span_us": 6,
+        "record_crc32": "c44e4a7d"
+      },
+      "costs": [
+        {
+          "name": "runtime_wait",
+          "epoch": 5,
+          "calls": 2666,
+          "mean_wall_us": 131.43067485621404,
+          "cycles": 84094603
+        },
+        {
+          "name": "parameters_wait",
+          "epoch": 5,
+          "calls": 1554,
+          "mean_wall_us": 9.828922672672673,
+          "cycles": 3665795
+        },
+        {
+          "name": "avrcp_wait",
+          "epoch": 5,
+          "calls": 1554,
+          "mean_wall_us": 88.05726887601888,
+          "cycles": 32841839
+        },
+        {
+          "name": "wait_total",
+          "epoch": 5,
+          "calls": 2666,
+          "mean_wall_us": 564.0054732433108,
+          "cycles": 360873262
+        }
+      ],
+      "descriptor_errors": 0,
+      "contract_errors": 0,
+      "other_sources": 0,
+      "invalid_integrity_rows": 0
+    },
+    {
+      "name": "after_music",
+      "image": "ff357cd8e33ed79c8193d90bd1cc4984668ca1d68f824f3a282cf7057d683180",
+      "unfilled": 3200,
+      "first": {
+        "probe": "first_unfilled",
+        "stream_serial": 3,
+        "captured": true,
+        "coherent": true,
+        "event_us": 195605285,
+        "taken_frames": 0,
+        "input_frames": 0,
+        "output_frames": 0,
+        "accepted_frames": 485760,
+        "rendered_frames": 485760,
+        "dma_source_frames": 485504,
+        "deadline_us": 195605219,
+        "pending_acl_metadata": 0,
+        "pending_acl_metadata_valid": true,
+        "finalized_shortage": true,
+        "snapshot_begin_us": 196374557,
+        "at_us": 196374578,
+        "snapshot_span_us": 21,
+        "record_crc32": "bd154175"
+      },
+      "media": {
+        "probe": "unfilled_media",
+        "stream_serial": 3,
+        "event_us": 195605285,
+        "coherent": true,
+        "last_acl_any_link_us": 195601836,
+        "last_host_poll_us": 195602147,
+        "media_begin_us": 195602633,
+        "media_admitted_us": 195602761,
+        "media_epoch": 9,
+        "media_sequence": 24211,
+        "media_timestamp": 23277120,
+        "media_ssrc": 255,
+        "media_result": 0,
+        "last_media_gap_us": 11154,
+        "max_media_gap_us": 35713,
+        "media_arrival_valid": true,
+        "media_current_acl_arrival_us": 195601836,
+        "media_hci_queue_cursor": 14260714,
+        "media_acl_flags": 8320,
+        "snapshot_begin_us": 196443799,
+        "at_us": 196443826,
+        "snapshot_span_us": 27,
+        "record_crc32": "2a839656"
+      },
+      "decoder": {
+        "probe": "unfilled_decoder",
+        "stream_serial": 3,
+        "event_us": 195605285,
+        "coherent": true,
+        "phase": 1,
+        "phase_name": "decode",
+        "phase_since_us": 195602789,
+        "encoded_queued_at_phase_change": 1,
+        "snapshot_begin_us": 196593475,
+        "at_us": 196593494,
+        "snapshot_span_us": 19,
+        "record_crc32": "0ab876e9"
+      },
+      "renderer": {
+        "probe": "unfilled_renderer",
+        "stream_serial": 3,
+        "event_us": 195605285,
+        "coherent": true,
+        "inside_audio_render": false,
+        "phase_since_us": 195605155,
+        "dsp_assist_state_at_gap": 0,
+        "snapshot_begin_us": 196605467,
+        "at_us": 196605476,
+        "snapshot_span_us": 9,
+        "record_crc32": "07b092b2"
+      },
+      "callback_to_admission_us": 925,
+      "fifo": {
+        "probe": "media_arrival_fifo",
+        "published": 26491,
+        "consumed": 26491,
+        "lost": 0,
+        "status": 0,
+        "metadata_bytes": 112,
+        "metadata_slots": 8,
+        "diagnostic_only": true,
+        "association_scope": "complete_current_acl_l2cap_rtp",
+        "counts_independent": true,
+        "snapshot_begin_us": 213380465,
+        "at_us": 213380472,
+        "snapshot_span_us": 7,
+        "record_crc32": "48a7a328"
+      },
+      "costs": [
+        {
+          "name": "runtime_wait",
+          "epoch": 7,
+          "calls": 2440,
+          "mean_wall_us": 129.4842725409836,
+          "cycles": 75825990
+        },
+        {
+          "name": "parameters_wait",
+          "epoch": 7,
+          "calls": 1666,
+          "mean_wall_us": 7.859903961584634,
+          "cycles": 3142704
+        },
+        {
+          "name": "avrcp_wait",
+          "epoch": 7,
+          "calls": 1666,
+          "mean_wall_us": 80.14477040816327,
+          "cycles": 32045085
+        },
+        {
+          "name": "wait_total",
+          "epoch": 7,
+          "calls": 2440,
+          "mean_wall_us": 617.9981847677595,
+          "cycles": 361899737
+        }
+      ],
+      "descriptor_errors": 0,
+      "contract_errors": 0,
+      "other_sources": 0,
+      "invalid_integrity_rows": 0
+    },
+    {
+      "name": "after_music_repeat",
+      "image": "ff357cd8e33ed79c8193d90bd1cc4984668ca1d68f824f3a282cf7057d683180",
+      "unfilled": 0,
+      "first": {
+        "probe": "first_unfilled",
+        "stream_serial": 4,
+        "captured": false,
+        "coherent": true,
+        "event_us": 0,
+        "taken_frames": 0,
+        "input_frames": 0,
+        "output_frames": 0,
+        "accepted_frames": 0,
+        "rendered_frames": 0,
+        "dma_source_frames": 0,
+        "deadline_us": 0,
+        "pending_acl_metadata": 0,
+        "pending_acl_metadata_valid": true,
+        "finalized_shortage": true,
+        "snapshot_begin_us": 412203429,
+        "at_us": 412203436,
+        "snapshot_span_us": 7,
+        "record_crc32": "c34f5231"
+      },
+      "media": null,
+      "decoder": null,
+      "renderer": null,
+      "callback_to_admission_us": null,
+      "fifo": {
+        "probe": "media_arrival_fifo",
+        "published": 29121,
+        "consumed": 29121,
+        "lost": 0,
+        "status": 0,
+        "metadata_bytes": 112,
+        "metadata_slots": 8,
+        "diagnostic_only": true,
+        "association_scope": "complete_current_acl_l2cap_rtp",
+        "counts_independent": true,
+        "snapshot_begin_us": 432525446,
+        "at_us": 432525453,
+        "snapshot_span_us": 7,
+        "record_crc32": "be6c67fc"
+      },
+      "costs": [
+        {
+          "name": "runtime_wait",
+          "epoch": 9,
+          "calls": 2131,
+          "mean_wall_us": 146.02110120444235,
+          "cycles": 74681032
+        },
+        {
+          "name": "parameters_wait",
+          "epoch": 9,
+          "calls": 1689,
+          "mean_wall_us": 8.477938129070456,
+          "cycles": 3436617
+        },
+        {
+          "name": "avrcp_wait",
+          "epoch": 9,
+          "calls": 1689,
+          "mean_wall_us": 90.47330274324058,
+          "cycles": 36674258
+        },
+        {
+          "name": "wait_total",
+          "epoch": 9,
+          "calls": 2131,
+          "mean_wall_us": 737.8304806037854,
+          "cycles": 377356021
+        }
+      ],
+      "descriptor_errors": 0,
+      "contract_errors": 0,
+      "other_sources": 0,
+      "invalid_integrity_rows": 0
+    }
+  ],
+  "raw_paths": {
+    "before_metronome": "D:/bt-owned61/native_bt/_build/hardware/runs/1794107357583631000-5b38eac1784a/traces/arrival-metronome-one.json",
+    "before_music": "D:/bt-owned61/native_bt/_build/hardware/runs/1794107357583631000-5b38eac1784a/traces/arrival-music-one.json",
+    "after_metronome": "D:/bt-owned61/native_bt/_build/hardware/runs/1794108421924184200-ff357cd8e33e/traces/owner-ready-metronome-one.json",
+    "after_music": "D:/bt-owned61/native_bt/_build/hardware/runs/1794108421924184200-ff357cd8e33e/traces/owner-ready-music-one.json",
+    "repeat": "D:/bt-owned61/native_bt/_build/hardware/runs/1794108421924184200-ff357cd8e33e/traces/owner-ready-music-repeat.json"
+  },
+  "qualification_complete": false
+}

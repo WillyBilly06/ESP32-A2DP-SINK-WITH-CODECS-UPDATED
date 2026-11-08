@@ -117,10 +117,13 @@ void probe_output_dsp_assist_snapshot(probe_dsp_assist_stats_t *);
  * Phase0=between operations;1=decode;2=reset;3=PCM delivery;
  *4/5/6/7/8=waiting for PCM space/loan/control/encoded input/shared renderer. */
 typedef struct {
-    uint32_t captured,coherent,deadline_us;
-    uint32_t stream_serial,at_us,taken_frames,input_frames,output_frames,accepted_frames,rendered_frames,dma_source_frames,acl_us,host_poll_us,media_us,media_admit_us,media_epoch,media_sequence,media_timestamp,media_ssrc,media_result,media_gap_us,media_max_gap_us,media_coherent,decoder_phase,decoder_at_us,decoder_coherent,render_phase,render_at_us,render_coherent,decoder_queued,dsp_assist_state;
+    uint32_t captured,coherent,deadline_us,pending_acl_metadata;
+    uint32_t stream_serial,at_us,taken_frames,input_frames,output_frames,accepted_frames,rendered_frames,dma_source_frames,acl_us,host_poll_us,media_us,media_admit_us,media_epoch,media_sequence,media_timestamp,media_ssrc,media_result,media_gap_us,media_max_gap_us,media_arrival_us,media_arrival_cursor,media_arrival_flags,media_arrival_valid,media_coherent,decoder_phase,decoder_at_us,decoder_coherent,render_phase,render_at_us,render_coherent,decoder_queued,dsp_assist_state;
 } probe_output_starvation_t;
 void probe_output_trace_media(uint32_t began,uint32_t ended,uint32_t epoch,uint16_t sequence,uint32_t timestamp,uint32_t ssrc,dbt_result_t result);
+/* Matched current complete ACL/L2CAP/RTP packet, not RF arrival. Fragmented,
+ * deferred and raw media remain uncorrelated. All fields share the version. */
+void probe_output_trace_media_arrival(uint32_t,uint32_t,uint32_t,uint16_t,uint32_t,uint32_t,dbt_result_t,bool,uint32_t,uint32_t,uint32_t);
 void probe_output_trace_acl(uint32_t at);
 void probe_output_trace_host_poll(uint32_t at);
 void probe_output_trace_decoder(uint32_t phase,uint32_t at,uint32_t queued);

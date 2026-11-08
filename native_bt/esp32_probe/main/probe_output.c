@@ -1,5 +1,8 @@
 #include "probe_schedule_limits.h"
 #include "probe_output.h"
+#if defined(DBT_PROBE_SCHEDULER_TRACE) && defined(DBT_PROBE_AUDIO_TEST)
+#include "probe_arrival.h"
+#endif
 #include "dbt_async_ticket.h"
 #ifdef DBT_PROBE_DSP_ASSIST
 #include "dbt_dsp_job.h"
@@ -184,20 +187,22 @@ static DRAM_ATTR struct {
  * bounded readers an explicit coherent/incoherent result without retry. */
 typedef struct {
   _Atomic uint32_t version,valid;
-  _Atomic uint32_t deadline_us;
-  _Atomic uint32_t stream_serial,at_us,taken_frames,input_frames,output_frames,accepted_frames,rendered_frames,dma_source_frames,acl_us,host_poll_us,media_us,media_admit_us,media_epoch,media_sequence,media_timestamp,media_ssrc,media_result,media_gap_us,media_max_gap_us,media_coherent,decoder_phase,decoder_at_us,decoder_coherent,render_phase,render_at_us,render_coherent,decoder_queued,dsp_assist_state;
+  _Atomic uint32_t deadline_us,pending_acl_metadata;
+  _Atomic uint32_t stream_serial,at_us,taken_frames,input_frames,output_frames,accepted_frames,rendered_frames,dma_source_frames,acl_us,host_poll_us,media_us,media_admit_us,media_epoch,media_sequence,media_timestamp,media_ssrc,media_result,media_gap_us,media_max_gap_us,media_arrival_us,media_arrival_cursor,media_arrival_flags,media_arrival_valid,media_coherent,decoder_phase,decoder_at_us,decoder_coherent,render_phase,render_at_us,render_coherent,decoder_queued,dsp_assist_state;
 } starvation_capture_t;
 static DRAM_ATTR struct {
   _Atomic uint32_t stream_serial,acl_us,host_poll_us;
   _Atomic uint32_t media_version,media_us,media_admit_us,media_epoch,media_sequence;
   _Atomic uint32_t media_timestamp,media_ssrc,media_result,media_gap_us,media_max_gap_us;
+  _Atomic uint32_t media_arrival_us,media_arrival_cursor,media_arrival_flags,media_arrival_valid;
   _Atomic uint32_t decoder_version,decoder_phase,decoder_at_us,decoder_queued;
   _Atomic uint32_t render_version,render_phase,render_at_us;
   starvation_capture_t first,first_unfilled;
 } timeline;
 void IRAM_ATTR probe_output_trace_acl(uint32_t at){atomic_store(&timeline.acl_us,at);}
 void probe_output_trace_host_poll(uint32_t at){atomic_store(&timeline.host_poll_us,at);}
-void probe_output_trace_media(uint32_t began,uint32_t ended,uint32_t epoch,uint16_t sequence,uint32_t timestamp,uint32_t ssrc,dbt_result_t result){
+void probe_output_trace_media_arrival(uint32_t began,uint32_t ended,uint32_t epoch,uint16_t sequence,uint32_t timestamp,uint32_t ssrc,dbt_result_t result,
+    bool arrival_valid,uint32_t arrival_us,uint32_t arrival_cursor,uint32_t arrival_flags){
   uint32_t version=atomic_load(&timeline.media_version);
   uint32_t previous=atomic_load(&timeline.media_us);
   bool same=epoch==atomic_load(&timeline.media_epoch) && ssrc==atomic_load(&timeline.media_ssrc);
@@ -210,7 +215,13 @@ void probe_output_trace_media(uint32_t began,uint32_t ended,uint32_t epoch,uint1
   atomic_store(&timeline.media_timestamp,timestamp);atomic_store(&timeline.media_ssrc,ssrc);
   atomic_store(&timeline.media_result,(uint32_t)result);atomic_store(&timeline.media_gap_us,gap);
   atomic_store(&timeline.media_max_gap_us,gap>maximum?gap:maximum);
+  atomic_store(&timeline.media_arrival_valid,arrival_valid?1u:0u);
+  atomic_store(&timeline.media_arrival_us,arrival_us);atomic_store(&timeline.media_arrival_cursor,arrival_cursor);
+  atomic_store(&timeline.media_arrival_flags,arrival_flags);
   atomic_store(&timeline.media_version,version+2u);
+}
+void probe_output_trace_media(uint32_t began,uint32_t ended,uint32_t epoch,uint16_t sequence,uint32_t timestamp,uint32_t ssrc,dbt_result_t result){
+  probe_output_trace_media_arrival(began,ended,epoch,sequence,timestamp,ssrc,result,false,0,0,0);
 }
 void probe_output_trace_decoder(uint32_t phase,uint32_t at,uint32_t queued){
   uint32_t version=atomic_load(&timeline.decoder_version);
@@ -231,6 +242,11 @@ static void IRAM_ATTR capture_starvation(starvation_capture_t *f,output_t *o,uin
   atomic_store(&f->stream_serial,atomic_load(&timeline.stream_serial));
   atomic_store(&f->at_us,now);atomic_store(&f->taken_frames,taken);
   atomic_store(&f->deadline_us,deadline);
+#ifdef DBT_PROBE_AUDIO_TEST
+  atomic_store(&f->pending_acl_metadata,probe_arrival_pending());
+#else
+  atomic_store(&f->pending_acl_metadata,UINT32_MAX);
+#endif
   /* Consumer read precedes producer written; capacity bounds remain visible.
    * These are adjacent atomic observations, not a simultaneous queue lock. */
   uint32_t read=atomic_load(&o->audio.input.read),written=atomic_load(&o->audio.input.written);
@@ -252,6 +268,10 @@ static void IRAM_ATTR capture_starvation(starvation_capture_t *f,output_t *o,uin
   atomic_store(&f->media_result,atomic_load(&timeline.media_result));
   atomic_store(&f->media_gap_us,atomic_load(&timeline.media_gap_us));
   atomic_store(&f->media_max_gap_us,atomic_load(&timeline.media_max_gap_us));
+  atomic_store(&f->media_arrival_us,atomic_load(&timeline.media_arrival_us));
+  atomic_store(&f->media_arrival_cursor,atomic_load(&timeline.media_arrival_cursor));
+  atomic_store(&f->media_arrival_flags,atomic_load(&timeline.media_arrival_flags));
+  atomic_store(&f->media_arrival_valid,atomic_load(&timeline.media_arrival_valid));
   atomic_store(&f->media_coherent,!(before&1u) && before==atomic_load(&timeline.media_version));
   before=atomic_load(&timeline.decoder_version);
   atomic_store(&f->decoder_phase,atomic_load(&timeline.decoder_phase));atomic_store(&f->decoder_at_us,atomic_load(&timeline.decoder_at_us));
@@ -280,6 +300,7 @@ static void starvation_snapshot(starvation_capture_t *f,probe_output_starvation_
   s->stream_serial=atomic_load(&f->stream_serial);
   s->at_us=atomic_load(&f->at_us);
   s->deadline_us=atomic_load(&f->deadline_us);
+  s->pending_acl_metadata=atomic_load(&f->pending_acl_metadata);
   s->taken_frames=atomic_load(&f->taken_frames);
   s->input_frames=atomic_load(&f->input_frames);
   s->output_frames=atomic_load(&f->output_frames);
@@ -297,7 +318,12 @@ static void starvation_snapshot(starvation_capture_t *f,probe_output_starvation_
   s->media_result=atomic_load(&f->media_result);
   s->media_gap_us=atomic_load(&f->media_gap_us);
   s->media_max_gap_us=atomic_load(&f->media_max_gap_us);
+  s->media_arrival_us=atomic_load(&f->media_arrival_us);
+  s->media_arrival_cursor=atomic_load(&f->media_arrival_cursor);
+  s->media_arrival_flags=atomic_load(&f->media_arrival_flags);
+  s->media_arrival_valid=atomic_load(&f->media_arrival_valid);
   s->media_coherent=atomic_load(&f->media_coherent);
+  if(!s->media_coherent)s->media_arrival_valid=0;
   s->decoder_phase=atomic_load(&f->decoder_phase);
   s->decoder_at_us=atomic_load(&f->decoder_at_us);
   s->decoder_coherent=atomic_load(&f->decoder_coherent);

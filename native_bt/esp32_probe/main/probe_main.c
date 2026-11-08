@@ -43,6 +43,9 @@ static int __attribute__((format(printf,1,2))) host_printf(const char *format,..
 #include "probe_owner_pacer.h"
 #endif
 #include "dbt_gap.h"
+#if defined(DBT_PROBE_SCHEDULER_TRACE) && defined(DBT_PROBE_AUDIO_OUTPUT) && defined(DBT_PROBE_AUDIO_TEST)
+#include "probe_arrival.h"
+#endif
 #ifdef DBT_PROBE_AUDIO_TEST
 #include "probe_audio.h"
 #define WAIT_TRACE(value,bit) do{if((value)==0)wait_zeros|=1u<<(bit);}while(0)
@@ -428,7 +431,15 @@ static int receive_packet(uint8_t *data, uint16_t size) {
 #ifdef DBT_PROBE_INGRESS_TRACE
     uint32_t token=probe_ingress_begin(data,size);
 #endif
+#if defined(DBT_PROBE_SCHEDULER_TRACE) && defined(DBT_PROBE_AUDIO_OUTPUT) && defined(DBT_PROBE_AUDIO_TEST)
+    uint32_t arrival_cursor=atomic_load_explicit(&runtime.host.ingress.written,memory_order_relaxed);
+    bool arrival_tracked=probe_arrival_begin(arrival_cursor,began_us,data,size);
+#endif
     dbt_result_t received=dbt_runtime_receive(&runtime, data, size);
+#if defined(DBT_PROBE_SCHEDULER_TRACE) && defined(DBT_PROBE_AUDIO_OUTPUT) && defined(DBT_PROBE_AUDIO_TEST)
+    if(arrival_tracked)probe_arrival_end(arrival_cursor,size,received,
+        atomic_load_explicit(&runtime.host.ingress.written,memory_order_relaxed));
+#endif
 #ifdef DBT_PROBE_AUDIO_TEST
     probe_audio_transport_received(began_us,size,size?data[0]:0,received,xPortInIsrContext());
 #else
@@ -538,6 +549,10 @@ static dbt_result_t profile_fixed_oversized(void *context,const dbt_link_t *link
 #endif
 static void observe(void *context, const dbt_hci_packet_t *packet) {
     (void)context;
+#if defined(DBT_PROBE_SCHEDULER_TRACE) && defined(DBT_PROBE_AUDIO_OUTPUT) && defined(DBT_PROBE_AUDIO_TEST)
+    if(packet->type==DBT_H4_ACL)probe_arrival_retire(atomic_load_explicit(&runtime.host.ingress.read,memory_order_relaxed),
+        (uint16_t)(packet->handle | (packet->pb<<12) | (packet->bc<<14)),(uint16_t)(packet->size+5u));
+#endif
 #ifdef DBT_PROBE_INGRESS_TRACE
     if(packet->type==DBT_H4_ACL) {
         probe_ingress_sample_t sample;
@@ -670,6 +685,9 @@ void app_main(void) {
 #ifdef DBT_PROBE_PRODUCT_SECURITY
     if(!probe_reset_dispatch_init(owner))owner_fault_park("core-0 restart timer initialization");
     if(!probe_pair_button_init(owner))owner_fault_park("local pairing button initialization");
+#endif
+#if defined(DBT_PROBE_SCHEDULER_TRACE) && defined(DBT_PROBE_AUDIO_OUTPUT) && defined(DBT_PROBE_AUDIO_TEST)
+    probe_arrival_init();
 #endif
     dbt_transport_t transport = { 0, transport_ready, transport_send };
     dbt_runtime_hooks_t hooks = {0};
@@ -1181,11 +1199,16 @@ void app_main(void) {
 #endif
         uint32_t deadline_now=now_ms();
         uint32_t wait;HOST_WAIT_VALUE(PROBE_COST_RUNTIME_WAIT,wait,dbt_runtime_wait_ms(&runtime, deadline_now));
-#ifdef DBT_PROBE_GATT_TEST
-        {uint32_t parameter_wait;HOST_WAIT_VALUE(PROBE_COST_PARAMETERS_WAIT,parameter_wait,probe_ble_parameters_wait_ms(deadline_now));if(parameter_wait<wait)wait=parameter_wait;}
-#endif
 #ifdef DBT_PROBE_AUDIO_TEST
         uint32_t wait_zeros=wait==0?1u:0;
+#endif
+        /* Every protocol poll above still runs. Once the runtime is runnable,
+         * unsigned deadline getters cannot reduce its zero minimum further.
+         * Return to the existing bounded/yield path without fourteen cold
+         * queries and their renderer checkpoints delaying queued HCI work. */
+        if(wait!=0){
+#ifdef DBT_PROBE_GATT_TEST
+        {uint32_t parameter_wait;HOST_WAIT_VALUE(PROBE_COST_PARAMETERS_WAIT,parameter_wait,probe_ble_parameters_wait_ms(deadline_now));if(parameter_wait<wait)wait=parameter_wait;}
 #endif
 #ifdef DBT_PROBE_PRODUCT_SECURITY
         {uint32_t admission_wait;HOST_WAIT_VALUE(PROBE_COST_ADMISSION_WAIT,admission_wait,probe_admission_wait_ms(deadline_now));WAIT_TRACE(admission_wait,1);if(admission_wait<wait)wait=admission_wait;}
@@ -1233,6 +1256,7 @@ void app_main(void) {
         if(audio_wait<wait)wait=audio_wait;
 #endif
 #endif
+        }
         if(wait && wait!=UINT32_MAX)wait=probe_wait_remaining(wait,deadline_now,now_ms());
 #ifdef DBT_PROBE_AUDIO_TEST
         probe_audio_owner_wait(wait_zeros);

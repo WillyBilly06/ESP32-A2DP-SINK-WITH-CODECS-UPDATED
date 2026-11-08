@@ -1,6 +1,13 @@
 # Independent ESP32 Bluetooth host
 
-The [latest queue/transport review](docs/QUEUE_ERASE_REVIEW_2026_11_07.md) rejects
+The [current arrival/owner checkpoint](docs/MEDIA_ARRIVAL_2026_11_07.md) binds
+VHCI callback times to admitted RTP packets and skips fourteen redundant deadline
+queries when the runtime is already ready. Current-source sanitizer checks and
+all 37 cold target cases pass. Short LHDC192/S24/900 traces have **5,696 / 3,200 /
+0 unfilled PCM frames**; one clean repeat does not qualify continuous playback.
+UART remains **921600 baud**. The custom host remains development firmware.
+
+The [earlier queue/transport review](docs/QUEUE_ERASE_REVIEW_2026_11_07.md) rejects
 a word-erase candidate after worse phone windows and restores the prior firmware
 implementation. New ASan/UBSan queue/SPSC regressions pass; reverse controls still
 have **1,920 / 4,736 unfilled PCM sample frames**. Input timestamp jumps and late
