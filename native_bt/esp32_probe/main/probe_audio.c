@@ -1,8 +1,10 @@
 #include "probe_schedule_limits.h"
 #include "probe_audio.h"
 #include "probe_audio_trace.h"
-#if defined(DBT_PROBE_SCHEDULER_TRACE) && defined(DBT_PROBE_AUDIO_OUTPUT)
+#if (defined(DBT_PROBE_SCHEDULER_TRACE) || defined(DBT_PROBE_STAY_NATIVE)) && defined(DBT_PROBE_AUDIO_OUTPUT)
 #include "probe_arrival.h"
+#endif
+#if defined(DBT_PROBE_SCHEDULER_TRACE) && defined(DBT_PROBE_AUDIO_OUTPUT)
 #include "probe_vhci_ready.h"
 #endif
 #include <string.h>
@@ -284,7 +286,7 @@ static void decoder_timeline(uint32_t phase,uint32_t at){
 static dbt_result_t timed_worker_media(void *context,const dbt_avdtp_media_t *packet){
     uint32_t began=(uint32_t)esp_timer_get_time();
     bool arrival_valid=false;uint32_t arrival_us=0,arrival_cursor=0,arrival_flags=0;
-#ifdef DBT_PROBE_SCHEDULER_TRACE
+#if (defined(DBT_PROBE_SCHEDULER_TRACE) || defined(DBT_PROBE_STAY_NATIVE)) && defined(DBT_PROBE_AUDIO_OUTPUT)
     probe_arrival_sample_t arrival={0};
     dbt_runtime_t *runtime=profile.bearer.runtime;
     if(runtime && runtime->host.in_poll && runtime->host.in_callback){
@@ -1073,13 +1075,15 @@ static void log_loop(void *unused){
         if(++ticks<10)continue;
         ticks=0;
         uint32_t at=(uint32_t)esp_timer_get_time();
-#if defined(DBT_PROBE_SCHEDULER_TRACE) && defined(DBT_PROBE_AUDIO_OUTPUT)
+#if (defined(DBT_PROBE_SCHEDULER_TRACE) || defined(DBT_PROBE_STAY_NATIVE)) && defined(DBT_PROBE_AUDIO_OUTPUT)
         /* Cumulative diagnostics need one heartbeat per second. Keep trace and
          * first-gap draining above the cadence gate; never print per packet. */
         probe_arrival_stats_t arrival_stats;probe_arrival_stats(&arrival_stats);
         PROBE_SNAPSHOT_LOG("{\"probe\":\"media_arrival_fifo\",\"published\":%" PRIu32 ",\"consumed\":%" PRIu32 ",\"lost\":%" PRIu32
             ",\"status\":%" PRIu32 ",\"metadata_bytes\":%" PRIu32 ",\"metadata_slots\":8,\"diagnostic_only\":true,\"association_scope\":\"complete_current_acl_l2cap_rtp\",\"counts_independent\":true}\n",
             arrival_stats.published,arrival_stats.consumed,arrival_stats.lost,arrival_stats.status,arrival_stats.bytes);
+#endif
+#if defined(DBT_PROBE_SCHEDULER_TRACE) && defined(DBT_PROBE_AUDIO_OUTPUT)
         probe_vhci_ready_stats_t readiness;probe_vhci_ready_stats(&readiness);
         PROBE_SNAPSHOT_LOG("{\"probe\":\"vhci_ready_probe\",\"observations\":%" PRIu32 ",\"held_observations\":%" PRIu32
             ",\"sdk_ready_while_held\":%" PRIu32 ",\"max_ready_observation_span_us\":%" PRIu32

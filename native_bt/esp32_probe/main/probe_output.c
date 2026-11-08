@@ -1,7 +1,9 @@
 #include "probe_schedule_limits.h"
 #include "probe_output.h"
-#if defined(DBT_PROBE_SCHEDULER_TRACE) && defined(DBT_PROBE_AUDIO_TEST)
+#if (defined(DBT_PROBE_SCHEDULER_TRACE) || defined(DBT_PROBE_STAY_NATIVE)) && defined(DBT_PROBE_AUDIO_TEST)
 #include "probe_arrival.h"
+#endif
+#if defined(DBT_PROBE_SCHEDULER_TRACE) && defined(DBT_PROBE_AUDIO_TEST)
 #include "probe_vhci_ready.h"
 #endif
 #include "dbt_async_ticket.h"
@@ -244,7 +246,7 @@ static void IRAM_ATTR capture_starvation(starvation_capture_t *f,output_t *o,uin
   atomic_store(&f->stream_serial,atomic_load(&timeline.stream_serial));
   atomic_store(&f->at_us,now);atomic_store(&f->taken_frames,taken);
   atomic_store(&f->deadline_us,deadline);
-#if defined(DBT_PROBE_SCHEDULER_TRACE) && defined(DBT_PROBE_AUDIO_TEST)
+#if (defined(DBT_PROBE_SCHEDULER_TRACE) || defined(DBT_PROBE_STAY_NATIVE)) && defined(DBT_PROBE_AUDIO_TEST)
   atomic_store(&f->pending_acl_metadata,probe_arrival_pending());
 #else
   atomic_store(&f->pending_acl_metadata,UINT32_MAX);

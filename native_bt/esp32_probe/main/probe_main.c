@@ -43,8 +43,10 @@ static int __attribute__((format(printf,1,2))) host_printf(const char *format,..
 #include "probe_owner_pacer.h"
 #endif
 #include "dbt_gap.h"
-#if defined(DBT_PROBE_SCHEDULER_TRACE) && defined(DBT_PROBE_AUDIO_OUTPUT) && defined(DBT_PROBE_AUDIO_TEST)
+#if (defined(DBT_PROBE_SCHEDULER_TRACE) || defined(DBT_PROBE_STAY_NATIVE)) && defined(DBT_PROBE_AUDIO_OUTPUT) && defined(DBT_PROBE_AUDIO_TEST)
 #include "probe_arrival.h"
+#endif
+#if defined(DBT_PROBE_SCHEDULER_TRACE) && defined(DBT_PROBE_AUDIO_OUTPUT) && defined(DBT_PROBE_AUDIO_TEST)
 #include "probe_vhci_ready.h"
 #endif
 #ifdef DBT_PROBE_AUDIO_TEST
@@ -440,12 +442,12 @@ static int receive_packet(uint8_t *data, uint16_t size) {
 #ifdef DBT_PROBE_INGRESS_TRACE
     uint32_t token=probe_ingress_begin(data,size);
 #endif
-#if defined(DBT_PROBE_SCHEDULER_TRACE) && defined(DBT_PROBE_AUDIO_OUTPUT) && defined(DBT_PROBE_AUDIO_TEST)
+#if (defined(DBT_PROBE_SCHEDULER_TRACE) || defined(DBT_PROBE_STAY_NATIVE)) && defined(DBT_PROBE_AUDIO_OUTPUT) && defined(DBT_PROBE_AUDIO_TEST)
     uint32_t arrival_cursor=atomic_load_explicit(&runtime.host.ingress.written,memory_order_relaxed);
     bool arrival_tracked=probe_arrival_begin(arrival_cursor,began_us,data,size);
 #endif
     dbt_result_t received=dbt_runtime_receive(&runtime, data, size);
-#if defined(DBT_PROBE_SCHEDULER_TRACE) && defined(DBT_PROBE_AUDIO_OUTPUT) && defined(DBT_PROBE_AUDIO_TEST)
+#if (defined(DBT_PROBE_SCHEDULER_TRACE) || defined(DBT_PROBE_STAY_NATIVE)) && defined(DBT_PROBE_AUDIO_OUTPUT) && defined(DBT_PROBE_AUDIO_TEST)
     if(arrival_tracked)probe_arrival_end(arrival_cursor,size,received,
         atomic_load_explicit(&runtime.host.ingress.written,memory_order_relaxed));
 #endif
@@ -580,7 +582,7 @@ static dbt_result_t profile_fixed_oversized(void *context,const dbt_link_t *link
 #endif
 static void observe(void *context, const dbt_hci_packet_t *packet) {
     (void)context;
-#if defined(DBT_PROBE_SCHEDULER_TRACE) && defined(DBT_PROBE_AUDIO_OUTPUT) && defined(DBT_PROBE_AUDIO_TEST)
+#if (defined(DBT_PROBE_SCHEDULER_TRACE) || defined(DBT_PROBE_STAY_NATIVE)) && defined(DBT_PROBE_AUDIO_OUTPUT) && defined(DBT_PROBE_AUDIO_TEST)
     if(packet->type==DBT_H4_ACL)probe_arrival_retire(atomic_load_explicit(&runtime.host.ingress.read,memory_order_relaxed),
         (uint16_t)(packet->handle | (packet->pb<<12) | (packet->bc<<14)),(uint16_t)(packet->size+5u));
 #endif
@@ -717,8 +719,10 @@ void app_main(void) {
     if(!probe_reset_dispatch_init(owner))owner_fault_park("core-0 restart timer initialization");
     if(!probe_pair_button_init(owner))owner_fault_park("local pairing button initialization");
 #endif
-#if defined(DBT_PROBE_SCHEDULER_TRACE) && defined(DBT_PROBE_AUDIO_OUTPUT) && defined(DBT_PROBE_AUDIO_TEST)
+#if (defined(DBT_PROBE_SCHEDULER_TRACE) || defined(DBT_PROBE_STAY_NATIVE)) && defined(DBT_PROBE_AUDIO_OUTPUT) && defined(DBT_PROBE_AUDIO_TEST)
     probe_arrival_init();
+#endif
+#if defined(DBT_PROBE_SCHEDULER_TRACE) && defined(DBT_PROBE_AUDIO_OUTPUT) && defined(DBT_PROBE_AUDIO_TEST)
     probe_vhci_ready_init(&vhci_tx_inflight);
 #endif
     dbt_transport_t transport = { 0, transport_ready, transport_send };

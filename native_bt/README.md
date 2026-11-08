@@ -1,5 +1,13 @@
 # Independent ESP32 Bluetooth host
 
+The [lightweight arrival checkpoint](docs/LIGHTWEIGHT_MEDIA_ARRIVAL_2026_11_08.md)
+correlates real HCI callbacks with admitted RTP packets without the scheduler
+profiler. It costs 112 bytes of DRAM and 96 bytes of IRAM. Short LHDC192/S24/900
+windows have **0 / 768 final unfilled PCM frames**. The finalized metronome gap
+has no pending ACL metadata, a decoder waiting 11.7 ms for encoded input, and
+no VHCI callback for 28.4 ms. Credit/owner/controller attribution remains open.
+UART remains **921600 baud**; this is unqualified development firmware.
+
 The [runtime logging checkpoint](docs/UART_NECESSARY_LOGS_2026_11_08.md) keeps
 firmware and the raw-UART web logger at **921600 baud**. Expected PCM backpressure
 is counted without individual normal-mode records; explicit detailed tracing
