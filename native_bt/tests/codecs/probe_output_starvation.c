@@ -12,20 +12,33 @@ static int flash_guard_observation(void){
     CHECK(!sample.coherent && !sample.token && sample.scheduler_state==taskSCHEDULER_SUSPENDED);
     __wrap_spi_flash_enable_interrupts_caches_and_other_cpu();
     CHECK(fixture_flash_starts==starts+1 && fixture_flash_ends==ends+1);
+    probe_flash_guard_peak_t peak;probe_flash_guard_peak(&peak);CHECK(!peak.coherent);
     probe_flash_guard_enable();test_clock_us=450000;
     __wrap_spi_flash_disable_interrupts_caches_and_other_cpu();probe_flash_guard_sample(&sample);
+    CHECK(fixture_flash_entry_token==0); /* SDK lock precedes any token publication. */
+    probe_flash_guard_peak(&peak);CHECK(!peak.coherent);
     CHECK(sample.coherent && (sample.token&3u)==2u && sample.begin_us==450000 &&
         sample.scheduler_state==taskSCHEDULER_SUSPENDED && !(sample.token&4u));
     uint32_t first=sample.token;
+    test_clock_us=450075;
     fixture_flash_end_during_sample=true;probe_flash_guard_sample(&sample);CHECK(!sample.coherent);
     probe_flash_guard_sample(&sample);CHECK(sample.coherent && (sample.token&3u)==0 && sample.scheduler_state==taskSCHEDULER_RUNNING);
+    probe_flash_guard_peak(&peak);CHECK(peak.coherent && peak.token==first && peak.begin_us==450000 && peak.elapsed_us==75);
+    uint32_t finished=atomic_load(&flash_guard.token);
     test_clock_us=450100;__wrap_spi_flash_disable_interrupts_caches_and_other_cpu();
+    CHECK(fixture_flash_entry_token==finished);
     fixture_flash_restart_during_end=true;__wrap_spi_flash_enable_interrupts_caches_and_other_cpu();
     probe_flash_guard_sample(&sample);CHECK(sample.coherent && (sample.token&3u)==2u && sample.token!=first);
     __wrap_spi_flash_enable_interrupts_caches_and_other_cpu();
     fixture_flash_core=1;test_clock_us=450200;__wrap_spi_flash_disable_interrupts_caches_and_other_cpu();
     probe_flash_guard_sample(&sample);CHECK(sample.coherent && (sample.token&7u)==6u);
-    __wrap_spi_flash_enable_interrupts_caches_and_other_cpu();fixture_flash_core=0;
+    test_clock_us=450220;__wrap_spi_flash_enable_interrupts_caches_and_other_cpu();fixture_flash_core=0;
+    probe_flash_guard_peak(&peak);CHECK(peak.coherent && peak.token==first && peak.elapsed_us==75);
+    test_clock_us=(int64_t)UINT32_MAX-40u;__wrap_spi_flash_disable_interrupts_caches_and_other_cpu();
+    uint32_t wrapped=atomic_load(&flash_guard.token);test_clock_us+=101;
+    __wrap_spi_flash_enable_interrupts_caches_and_other_cpu();probe_flash_guard_peak(&peak);
+    CHECK(peak.coherent && peak.token==wrapped && peak.begin_us==UINT32_MAX-40u && peak.elapsed_us==101);
+    atomic_store(&flash_guard.token,33);probe_flash_guard_peak(&peak);CHECK(!peak.coherent);
     atomic_store(&flash_guard.token,33);probe_flash_guard_sample(&sample);CHECK(!sample.coherent);
     atomic_store(&flash_guard.token,0xfffffff8u);__wrap_spi_flash_disable_interrupts_caches_and_other_cpu();
     CHECK(atomic_load(&flash_guard.enabled)==2 && !atomic_load(&flash_guard.token));

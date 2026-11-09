@@ -23,13 +23,17 @@ static unsigned fixture_flash_core;
 #endif
 static BaseType_t fixture_scheduler_state=taskSCHEDULER_RUNNING;
 static unsigned fixture_flash_starts,fixture_flash_ends;
+static uint32_t fixture_flash_entry_token;
 static bool fixture_flash_end_during_sample,fixture_flash_restart_during_end;
 BaseType_t xTaskGetSchedulerState(void){
     BaseType_t value=fixture_scheduler_state;
     if(fixture_flash_end_during_sample){fixture_flash_end_during_sample=false;__wrap_spi_flash_enable_interrupts_caches_and_other_cpu();}
     return value;
 }
-void __real_spi_flash_disable_interrupts_caches_and_other_cpu(void){++fixture_flash_starts;fixture_scheduler_state=taskSCHEDULER_SUSPENDED;}
+void __real_spi_flash_disable_interrupts_caches_and_other_cpu(void){
+    fixture_flash_entry_token=atomic_load(&flash_guard.token);
+    ++fixture_flash_starts;fixture_scheduler_state=taskSCHEDULER_SUSPENDED;
+}
 void __real_spi_flash_enable_interrupts_caches_and_other_cpu(void){
     ++fixture_flash_ends;fixture_scheduler_state=taskSCHEDULER_RUNNING;
     if(fixture_flash_restart_during_end){fixture_flash_restart_during_end=false;__wrap_spi_flash_disable_interrupts_caches_and_other_cpu();}

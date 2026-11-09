@@ -12,4 +12,8 @@ typedef struct {uint32_t token,begin_us,scheduler_state,coherent;} probe_flash_g
 void probe_flash_guard_enable(void);
 /* IRQ-safe one-attempt observation; no lock, retry, allocation or formatting. */
 void probe_flash_guard_sample(probe_flash_guard_sample_t *);
+/* Longest completed confirmed slice since arm; excludes SDK lock/IPC/restore
+ * handshakes and end-wrapper observation overhead. Not a worst-case bound. */
+typedef struct {uint32_t token,begin_us,elapsed_us,coherent;} probe_flash_guard_peak_t;
+void probe_flash_guard_peak(probe_flash_guard_peak_t *);
 #endif

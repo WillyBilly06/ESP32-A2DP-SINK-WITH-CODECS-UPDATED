@@ -394,6 +394,16 @@ static void media_trace(void *context,const dbt_codec_trace_t *event){
 }
 #if defined(PROBE_OUTPUT_GAP_TRACE) && defined(DBT_PROBE_AUDIO_OUTPUT)
 static void log_first_starvation(void){
+    static uint32_t prior_flash_peak;
+    probe_flash_guard_peak_t peak;probe_flash_guard_peak(&peak);
+    if(peak.coherent && peak.token!=prior_flash_peak){
+        PROBE_SNAPSHOT_LOG("{\"probe\":\"flash_guard_peak\",\"coherent\":true,\"token\":%" PRIu32
+            ",\"serial\":%" PRIu32 ",\"initiator_core\":%" PRIu32 ",\"begin_us\":%" PRIu32
+            ",\"end_us\":%" PRIu32 ",\"elapsed_us\":%" PRIu32
+            ",\"scope\":\"longest_completed_confirmed_cache_disabled_slice_since_arm\",\"worst_case_bound\":false}\n",
+            peak.token,peak.token>>3,(peak.token>>2)&1u,peak.begin_us,peak.begin_us+peak.elapsed_us,peak.elapsed_us);
+        prior_flash_peak=peak.token;
+    }
     static uint32_t prior_serial[2]={UINT32_MAX,UINT32_MAX},prior_captured[2];
     static const char *const names[2][5]={{"first_starvation","starvation_media","starvation_decoder","starvation_renderer","starvation_transport"},
                                          {"first_unfilled","unfilled_media","unfilled_decoder","unfilled_renderer","unfilled_transport"}};

@@ -1,21 +1,21 @@
 # Independent host and product feature matrix
 
 Current development checkpoint (2026-11-09): readback-verified COM6 image
-297aae153578 adds a [flash-guard observer and durable CCCD cache](FLASH_GUARD_CCCD_CACHE_2026_11_09.md).
-Frozen IRQ state confirms cache-off/scheduler suspension at a miss with 832
-decoded raw frames waiting. The 48-byte cache skips duplicate provider reads
-and verified no-op writes; changed values still commit before success. Security,
-incarnation checks and FIFO ownership remain. No task, PCM buffer, quality or
-core/priority change. Observer cost is 332 B IRAM/ 40 B data; cache adds 48 B BSS.
-Source-bound provider sanitizer, real-SDK SMP and 37 cold configurations pass.
+b566da3f908f adds [serialized observer/completed-slice timing](FLASH_SLICE_DURATION_2026_11_09.md).
+Token allocation follows the SDK flash lock. A CRC-verified peak and frozen IRQ
+record match one 17.383 ms cache-off interval with 1024 raw frames waiting and
+scheduler suspended. A completed-peak record observed before pause proves this
+miss occurred during playback. Even full processed PCM plus DMA holds only
+15.33 ms under the linked 192 kHz policy; unchanged-capacity prefill is insufficient.
 
-The guarded LHDC192/S24/phone-fixed900 sweep completes 32 descriptor ACKs and
-independent readbacks, EQ ACK/settings readback and original-CCCD ACK/readback
-before pause. It retains 2432 unfilled frames with a verified pre-pause cache-off
-miss. 94 host diagnostic events are lost; worker/snapshot/UART losses are zero.
-This does not establish an audio improvement or 1Mbps/sustained parity. The
-[asynchronous A2DP coexistence integration](A2DP_COEX_2026_11_09.md) remains.
-UART is 921600; optional heap/tick/task samplers remain OFF.
+The guarded fixed900 LHDC192/S24 sweep completes 32 descriptor ACK/readbacks,
+EQ/settings and original-CCCD restoration before pause, but retains 2496 unfilled
+frames. 92 host events are lost; worker/snapshot/UART losses are zero. Source-bound
+sanitizer/app and 37 cold codec checks pass. Observer cost is 80 B IRAM/ 16 B data,
+BSS unchanged, with 65 B IRAM remaining. No task, buffer, priority or quality change.
+UART remains 921600. Storage-aware reserve, sustained 1Mbps and full parity remain
+open. [Durable CCCD cache](FLASH_GUARD_CCCD_CACHE_2026_11_09.md) and
+[asynchronous SDK coexistence](A2DP_COEX_2026_11_09.md) remain in place.
 
 The [DMA redistribution experiment](DMA_REFILL_EXPERIMENT_2026_11_08.md)
 3ae5b531769d kept the 31744 B PCM/DMA payload and 2432-frame startup reserve,
