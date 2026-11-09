@@ -83,6 +83,12 @@ void probe_audio_event(dbt_channel_event_t event,const dbt_channel_t *channel);
 void probe_audio_event_ex(dbt_channel_event_t,const dbt_channel_t *,dbt_channel_reason_t,uint16_t);
 void probe_audio_receive(const dbt_channel_t *channel,const uint8_t *data,uint16_t size);
 void probe_audio_poll(uint32_t now_ms);
+/* Existing general background worker only: SDK coex API may take a semaphore.
+ * Host sees only the bounded mailbox; completion wakes its owner. */
+bool probe_audio_coex_work_pending(void);
+void probe_audio_coex_worker_step(void);
+/* Background logger: one coherent API-confirmed status word, not RF readback. */
+uint32_t probe_audio_coex_status(void);
 uint32_t probe_audio_wait_ms(uint32_t now_ms);
 /* Host owner only. Snapshot the Classic ACL underlying the active AVDTP
  * signaling session, even when playback is paused. EMPTY means no live peer. */

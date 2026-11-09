@@ -724,6 +724,10 @@ bool probe_product_io_led_snapshot(dbt_led_settings_t *out) {
 }
 
 bool probe_product_io_needs_worker(void) {
+#ifdef DBT_PROBE_AUDIO_TEST
+  extern bool probe_audio_coex_work_pending(void);
+  if(probe_audio_coex_work_pending())return true;
+#endif
   if (!atomic_load_explicit(&io.ready, memory_order_acquire))
     return false;
   /* Check in-flight states again after queue indices: a worker may move a job

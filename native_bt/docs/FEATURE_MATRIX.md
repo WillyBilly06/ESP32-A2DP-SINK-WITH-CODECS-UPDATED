@@ -1,17 +1,20 @@
 # Independent host and product feature matrix
 
-Current development checkpoint (2026-11-08): readback-verified COM6 image
-77101dff5795 adds [separate HCI/host media timing](MEDIA_INGRESS_TIMING_2026_11_08.md)
-with normal2x192 DMA and unchanged audio/credit/scheduling policy. Data +16 B,
-BSS unchanged, IRAM +24 B. Actual-source ASan/UBSan and37 cold configurations /
-173 callbacks pass. Heap/tick/task samplers are OFF; UART is921600 baud.
+Current development checkpoint (2026-11-09): readback-verified COM6 image
+0e1684820f1c adds [asynchronous A2DP coexistence status](A2DP_COEX_2026_11_09.md).
+The public SDK radio API runs on the existing background worker because its
+semaphore can wait. No Bluedroid/private controller hook is added. An independent
+coherent status word preserves latest state through event-ring saturation.
+DRAM data +396 B, BSS/IRAM unchanged; normal2x192 DMA and codec/DSP policy remain.
+Mailbox ASan/UBSan, full-ring app tests and37 cold configurations /173 callbacks
+pass. UART is921600; heap/tick/task samplers are OFF.
 
-Bounded fixed900 LHDC192/S24 native YouTube music completed BLE EQ ACK/readback/
-subscription restoration before pause with0 unfilled frames. Metronome retained
-3264 unfilled frames and controls finished after pause. Its first gap has empty
-PCM queues, decoder waiting for input, HCI interval11258 us and host10362 us;
-phase remains unclassified. Missing Espressif A2DP coexistence-status signalling
-is recorded as an integration gap, not a proven cause or implemented fix.
+Finite fixed900 LHDC192/S24 music has0 unfilled frames but BLE controls after
+pause. Metronome completes controls before pause but retains2688 unfilled frames,
+with1024 decoded frames waiting and a CCCD save overlapping its first miss.
+Storage/cache and render dispatch need causal tracing. Four host diagnostic
+events are lost; cached API state confirms stopped bits but not missing timings.
+Sustained1Mbps, BLE latency, acoustics and full parity remain unqualified.
 
 The [DMA redistribution experiment](DMA_REFILL_EXPERIMENT_2026_11_08.md)
 3ae5b531769d kept the 31744 B PCM/DMA payload and 2432-frame startup reserve,

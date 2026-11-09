@@ -291,10 +291,17 @@ static void product_restart_step(uint32_t now){
 }
 #endif
 static bool product_mux_worker_poll(void *ctx,bool retiring){
+#if defined(DBT_PROBE_AUDIO_TEST) && defined(DBT_PROBE_PRODUCT_IO)
+    probe_audio_coex_worker_step();
+#endif
     bool product_ok=probe_product_worker_poll_guarded(ctx,retiring,!product_audio_busy());
 #ifdef DBT_PROBE_PRODUCT_IO
     bool io_ok=product_io_ready?probe_product_io_worker_poll(NULL,retiring):true;
+#ifdef DBT_PROBE_AUDIO_TEST
+    return product_ok && io_ok && (!retiring || !probe_audio_coex_work_pending());
+#else
     return product_ok && io_ok;
+#endif
 #else
     return product_ok;
 #endif

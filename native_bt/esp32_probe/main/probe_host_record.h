@@ -2,7 +2,8 @@
 #define PROBE_HOST_RECORD_H
 #include <stdint.h>
 typedef enum { PROBE_HOST_CLASSIC_VISIBILITY=1,PROBE_HOST_GAP_STATE=2,PROBE_HOST_MEMORY_SERVICES=3,PROBE_HOST_A2DP_DELAY=4,
-    PROBE_HOST_A2DP_JOB=5,PROBE_HOST_A2DP_STATE=6,PROBE_HOST_A2DP_HANDOFF=7,PROBE_HOST_CCCD=8,PROBE_HOST_SMP=9,PROBE_HOST_CCCD_WORK=10 } probe_host_record_kind_t;
+    PROBE_HOST_A2DP_JOB=5,PROBE_HOST_A2DP_STATE=6,PROBE_HOST_A2DP_HANDOFF=7,PROBE_HOST_CCCD=8,PROBE_HOST_SMP=9,PROBE_HOST_CCCD_WORK=10,
+    PROBE_HOST_COEX=11 } probe_host_record_kind_t;
 /* CCCD-work diagnostic metadata only: low byte is operation, bit8 actual core,
  * bit9 says worker timestamps/core are valid. Never Bluetooth/codec flags. */
 enum {PROBE_CCCD_WORK_CORE_SHIFT=8,PROBE_CCCD_WORK_EXECUTED=1u<<9};

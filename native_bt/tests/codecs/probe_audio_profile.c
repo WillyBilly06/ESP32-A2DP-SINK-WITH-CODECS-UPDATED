@@ -2,7 +2,11 @@
 #include <string.h>
 int xPortGetCoreID(void);
 size_t heap_caps_get_total_size(unsigned);
+#include "esp_coexist.h"
 #include "../../esp32_probe/main/probe_audio.c"
+/* Public coex API runs only in the separate worker fixture below. */
+esp_err_t esp_coex_status_bit_set(esp_coex_status_type_t type,uint32_t bits){(void)type;(void)bits;return ESP_OK;}
+esp_err_t esp_coex_status_bit_clear(esp_coex_status_type_t type,uint32_t bits){(void)type;(void)bits;return ESP_OK;}
 #ifdef DBT_PROBE_APTX_BUILD
 #include "freeaptx.h"
 #endif
@@ -208,18 +212,36 @@ EX int probe_audio_lifecycle_records(void){
     stream_handoff_trace(0u,true,19u,DBT_PENDING);CHECK(!probe_audio_trace_pop(&media_trace_rings[1],&record));
 #endif
     test_current_override=owner;
+    const probe_coex_t coex_state={.token=77,.known=0x30,.applied=0x10,.submitted_status=0x20,.submitted_op=0};
+    coex_note(&coex_state,PROBE_COEX_COMPLETED,0);
+    CHECK(probe_audio_trace_pop(&media_trace_rings[0],&record)&&record.host.kind==PROBE_HOST_COEX);
+    CHECK(record.host.value[0]==77&&record.host.value[1]==(PROBE_COEX_COMPLETED|(0x20u<<16))&&record.host.value[2]==0x1030&&
+        record.host.value[3]==0&&record.host.value[4]==0&&record.host.value[5]==0);
+    profile.active=true;profile.sink.state=DBT_STREAM_STREAMING;CHECK(coex_streaming());
+    profile.draining=true;CHECK(!coex_streaming());profile.draining=false;
+    profile.sink.retiring=true;CHECK(!coex_streaming());profile.sink.retiring=false;
+    profile.sink.failed=true;CHECK(!coex_streaming());profile.sink.failed=false;
+    profile.sink.state=DBT_STREAM_OPEN;CHECK(!coex_streaming());profile.active=false;
     for(unsigned i=0;i<PROBE_AUDIO_TRACE_SLOTS;++i){invalid.value[6]=i;CHECK(probe_audio_host_record(&invalid)==DBT_OK);}
     CHECK(probe_audio_host_record(&invalid)==DBT_NO_SPACE&&atomic_load(&media_trace_rings[0].lost)==1);
     invalid.kind=999;CHECK(probe_audio_trace_host(&media_trace_rings[0],&invalid,trace_clock,NULL)==DBT_INVALID);
+    /* Full event storage must not hide the independently published API state. */
+    probe_coex_t lost_coex={.note=coex_note};probe_coex_poll(&lost_coex,true,true);
+    CHECK(lost_coex.pending&&atomic_load(&lost_coex.state_snapshot)==0x10000u);
+    CHECK(probe_coex_worker_step(&lost_coex,1));probe_coex_poll(&lost_coex,false,false);
+    CHECK(!lost_coex.pending&&atomic_load(&lost_coex.state_snapshot)==0x1010u&&
+        atomic_load(&media_trace_rings[0].lost)==3);
     for(unsigned i=0;i<PROBE_AUDIO_TRACE_SLOTS;++i){CHECK(probe_audio_trace_pop(&media_trace_rings[0],&record));CHECK(record.host.value[6]==i);}
-    /* Exercise the real background formatter on all three lifecycle records. */
+    /* Exercise the real background formatter, including controller completion. */
     const probe_host_record_t samples[]={
         {PROBE_HOST_A2DP_JOB,{3,9,DBT_SINK_START,101,43000,100,0}},
         {PROBE_HOST_A2DP_STATE,{3,9,DBT_SINK_STATE,DBT_STREAM_OPEN,77,101,100}},
-        {PROBE_HOST_A2DP_HANDOFF,{3,9,101,1,0,17,DBT_OK}}};
-    for(unsigned i=0;i<3;++i){probe_host_record_t sample=samples[i];
+        {PROBE_HOST_A2DP_HANDOFF,{3,9,101,1,0,17,DBT_OK}},
+        {PROBE_HOST_COEX,{77,PROBE_COEX_COMPLETED|(0x20u<<16),0x1030,0,100,120,0x101}}};
+    for(unsigned i=0;i<4;++i){probe_host_record_t sample=samples[i];
         CHECK(probe_audio_trace_host(&media_trace_rings[i==2],&sample,trace_clock,NULL)==DBT_OK);}
-    log_media_trace();CHECK(atomic_load(&media_trace_rings[0].read)==atomic_load(&media_trace_rings[0].written));
+    log_media_trace();log_media_trace(); /* Bounded logger consumes two host records per pass. */
+    CHECK(atomic_load(&media_trace_rings[0].read)==atomic_load(&media_trace_rings[0].written));
     CHECK(atomic_load(&media_trace_rings[1].read)==atomic_load(&media_trace_rings[1].written));
     for(unsigned i=0;i<2;++i)probe_audio_trace_init(&media_trace_rings[i]);
     worker=saved_worker;profile=saved_profile;owner=saved_owner;decoder_task=saved_decoder;logger_task=saved_logger;

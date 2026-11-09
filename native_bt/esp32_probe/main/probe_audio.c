@@ -2,6 +2,7 @@
 #include "probe_schedule_limits.h"
 #include "probe_audio.h"
 #include "probe_audio_trace.h"
+#include "probe_coex.h"
 #if (defined(DBT_PROBE_SCHEDULER_TRACE) || defined(DBT_PROBE_STAY_NATIVE)) && defined(DBT_PROBE_AUDIO_OUTPUT)
 #include "probe_arrival.h"
 #include "probe_owner_state.h"
@@ -525,6 +526,17 @@ static void log_media_trace(void){
                     (state->value[3]>>PROBE_CCCD_WORK_CORE_SHIFT)&1u,state->value[4],state->value[5],state->value[6],
                     executed?state->value[5]-state->value[4]:0u,executed?state->value[6]-state->value[5]:0u,
                     executed?record.at_us-state->value[6]:0u,record.at_us,record.ordinal);
+            }else if(state->kind==PROBE_HOST_COEX){
+                bool executed=(state->value[6]&0x100u)!=0;
+                PROBE_SNAPSHOT_LOG("{\"probe\":\"a2dp_coexistence\",\"backend\":\"public_sdk_api\",\"token\":%" PRIu32 ",\"stage\":%" PRIu32
+                    ",\"operation\":%" PRIu32 ",\"status_bit\":%" PRIu32 ",\"known_bits\":%" PRIu32 ",\"applied_bits\":%" PRIu32
+                    ",\"failed\":%s,\"sdk_result\":%" PRId32 ",\"worker_core_valid\":%s,\"worker_core\":%" PRIu32
+                    ",\"started_us\":%" PRIu32 ",\"finished_us\":%" PRIu32 ",\"sdk_wall_us\":%" PRIu32
+                    ",\"api_completion_not_rf_readback\":true,\"event_us\":%" PRIu32 ",\"host_log_ordinal\":%" PRIu32 "}\n",
+                    state->value[0],state->value[1]&255u,(state->value[1]>>8)&255u,state->value[1]>>16,
+                    state->value[2]&255u,(state->value[2]>>8)&255u,(state->value[2]>>16)?"true":"false",
+                    (int32_t)state->value[3],executed?"true":"false",state->value[6]&1u,
+                    state->value[4],state->value[5],executed?state->value[5]-state->value[4]:0u,record.at_us,record.ordinal);
             }else if(state->kind==PROBE_HOST_MEMORY_SERVICES){
                 PROBE_SNAPSHOT_LOG("{\"probe\":\"boot_memory\",\"host\":\"owned\",\"phase\":\"services_ready\",\"internal_free\":%u,\"internal_largest\":%u,\"internal_minimum\":%u,\"internal_total\":%u,\"owner_stack_low\":%u"
                     ",\"collection_context\":\"background_logger\",\"event_us\":%" PRIu32 ",\"host_log_ordinal\":%" PRIu32 "}\n",
@@ -1440,6 +1452,10 @@ static void log_loop(void *unused){
                (codec==5u || codec==7u)?"host_samples":"wire_rtp");
 #if defined(DBT_PROBE_AUDIO_OUTPUT) && defined(PROBE_OUTPUT_GAP_TRACE)
         probe_media_timing_t media_timing;
+        uint32_t coex_state=probe_audio_coex_status();
+        PROBE_SNAPSHOT_LOG("{\"probe\":\"a2dp_coexistence_state\",\"backend\":\"public_sdk_api\",\"known_bits\":%u,\"applied_bits\":%u,\"pending\":%s,\"failed\":%s,\"api_completion_not_rf_readback\":true,\"scope\":\"latest_coherent_owner_state_not_event_history\"}\n",
+            (unsigned)(coex_state&255u),(unsigned)((coex_state>>8)&255u),
+            (coex_state&0x10000u)?"true":"false",(coex_state&0x20000u)?"true":"false");
         if(probe_output_media_timing(&media_timing)){
             PROBE_SNAPSHOT_LOG("{\"probe\":\"media_ingress_timing\",\"epoch\":%u,\"sequence\":%u,\"media_timestamp\":%u,\"ssrc\":%u,\"host_begin_us\":%u,\"host_admitted_us\":%u,\"result\":%u,\"hci_arrival_valid\":%s,\"hci_arrival_us\":%u,\"host_gap_us\":%u,\"hci_gap_us\":%u,\"hci_gap_valid\":%s,\"scope\":\"latest_synchronous_media_tuple\"}\n",
                 (unsigned)media_timing.epoch,(unsigned)media_timing.sequence,(unsigned)media_timing.timestamp,(unsigned)media_timing.ssrc,
@@ -2016,6 +2032,31 @@ void probe_audio_receive(const dbt_channel_t *channel,const uint8_t *data,uint16
         (void)dbt_a2dp_acceptor_receive(&profile,channel,data,size);
     }
 }
+static void coex_note(const probe_coex_t *s,probe_coex_stage_t stage,int32_t result){
+    uint32_t work_state=atomic_load_explicit(&s->work_state,memory_order_relaxed);
+    const probe_host_record_t record={.kind=PROBE_HOST_COEX,.value={s->token,(uint32_t)stage|
+        ((uint32_t)s->submitted_op<<8)|((uint32_t)s->submitted_status<<16),
+        (uint32_t)s->known|((uint32_t)s->applied<<8)|((uint32_t)s->failed<<16),(uint32_t)result,
+        s->started_us,s->finished_us,((work_state&255u)==PROBE_COEX_WORK_DONE?0x100u:0u)|((work_state>>8)&1u)}};
+    (void)probe_audio_host_record(&record);
+}
+static probe_coex_t coex={.note=coex_note};
+uint32_t probe_audio_coex_status(void){return atomic_load_explicit(&coex.state_snapshot,memory_order_acquire);}
+bool probe_audio_coex_work_pending(void){return probe_coex_work_pending(&coex);}
+void probe_audio_coex_worker_step(void){
+    if(probe_coex_worker_step(&coex,(unsigned)xPortGetCoreID()))wake_owner(NULL);
+}
+static bool coex_streaming(void){
+    return profile.active && !profile.draining && !profile.sink.failed && !profile.sink.retiring &&
+        profile.sink.state==DBT_STREAM_STREAMING;
+}
+static bool coex_ready(void){
+#ifdef DBT_PROBE_PRODUCT_IO
+    return profile.runtime->host.state==DBT_HOST_IDENTIFIED;
+#else
+    return false; /* This diagnostic variant has no auxiliary worker provider. */
+#endif
+}
 void probe_audio_poll(uint32_t now){
     if(!initialized)return;
     const dbt_rx_flow_t *flow=&profile.runtime->rx_flow;
@@ -2053,6 +2094,7 @@ void probe_audio_poll(uint32_t now){
     }
     if(failed || restart_hold)restart_drained=dbt_a2dp_acceptor_stop(&profile,now)==DBT_OK;
     (void)dbt_a2dp_acceptor_poll(&profile,now);
+    probe_coex_poll(&coex,coex_ready(),coex_streaming());
     if(outgoing_connect){
         if(failed || restart_hold)(void)dbt_a2dp_connect_cancel(outgoing_connect,outgoing_connect->serial);
         dbt_a2dp_connect_poll(outgoing_connect,now);
@@ -2134,6 +2176,8 @@ void probe_audio_poll(uint32_t now){
 uint32_t probe_audio_wait_ms(uint32_t now){
     if(!initialized)return UINT32_MAX;
     uint32_t wait=dbt_a2dp_acceptor_wait_ms(&profile,now);
+    uint32_t coexistence=probe_coex_wait_ms(&coex,coex_ready(),coex_streaming());
+    if(coexistence<wait)wait=coexistence;
     if(outgoing_connect){uint32_t next=dbt_a2dp_connect_wait_ms(outgoing_connect,now);if(next<wait)wait=next;}
     if(outgoing_rank){uint32_t next=dbt_a2dp_rank_wait_ms(outgoing_rank,now);if(next<wait)wait=next;}
 #ifdef DBT_PROBE_AUDIO_OUTPUT

@@ -41,7 +41,7 @@ try:
     aptx=ws/'esp-idf/components/bt/host/bluedroid/external/libfreeaptx/main'
     aac_port=out/'probe_aac_port';subprocess.run([sys.executable,str(root/'codecs/aac/prepare_port.py'),'--source',str(helix/'aacdec.c'),'--output',str(aac_port)],env=env,check=True,stdout=subprocess.DEVNULL)
     names='alloc bitalloc-sbc bitalloc bitstream-decode decoder-oina decoder-private decoder-sbc dequant framing-sbc framing oi_codec_version synthesis-8-generated synthesis-dct8 synthesis-sbc'.split()
-    src=[root/'tests/codecs/probe_audio_profile.c',root/'src/dbt_avdtp.c',root/'src/dbt_avdtp_caps.c',root/'src/dbt_avdtp_sink.c',root/'esp32_probe/main/probe_audio_trace.c',root/'src/dbt_a2dp_sbc.c',root/'src/dbt_sbc_media.c',
+    src=[root/'tests/codecs/probe_audio_profile.c',root/'src/dbt_avdtp.c',root/'src/dbt_avdtp_caps.c',root/'src/dbt_avdtp_sink.c',root/'esp32_probe/main/probe_audio_trace.c',root/'esp32_probe/main/probe_coex.c',root/'src/dbt_a2dp_sbc.c',root/'src/dbt_sbc_media.c',
          root/'codecs/common/dbt_codec.c',root/'codecs/sbc/dbt_sbc_codec.c',root/'codecs/sbc/dbt_sbc_decoder.c',root/'codecs/opus/dbt_opus.c',root/'codecs/opus/scratch/dbt_opus_scratch.c']
     src += [(port if x.startswith('synthesis-') else sbc/'srce')/(x+'.c') for x in names]
     aac_names='aactabs bitstream buffers dct4 decelmnt dequant fft filefmt huffman hufftabs imdct noiseless pns stproc tns trigtabs'.split()
