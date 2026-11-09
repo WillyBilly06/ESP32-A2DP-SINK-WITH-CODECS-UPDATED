@@ -1,27 +1,30 @@
 # Independent host and product feature matrix
 
 Current development checkpoint (2026-11-08): readback-verified COM6 image
-f2062fa445c6 uses the owned host at 921600 baud, with heap/tick/task samplers
-OFF. The [playback-clock follow-up](AVRCP_PLAYBACK_CLOCK_2026_11_08.md) adds
-24 B BSS for timestamped peer playback-state snapshots. Cold checks pass
-37 configurations /173 callbacks with no boot watchdog/backtrace marker.
+b302e29ecaed restores normal 2x192-frame DMA geometry and the published
+72089fca source. Its allocated code/data match f2062fa445c6 except build metadata.
+Heap/tick/task samplers are OFF; logger baud is 921600. Cold checks pass
+37 configurations /173 callbacks without a boot watchdog/backtrace marker.
 
-Its two guarded LHDC192/S24/stereo/phone-fixed900 excerpts retain both outcomes:
-music has zero shortages/unfilled frames but an 8032 ms BLE connect interval,
-with controls completed after pause; metronome completes controls during
-playback but has 7360 initial /1600 recovered /5760 unfilled frames. The first
-metronome miss has 768 decoded input frames and zero output frames. No peer
-PAUSED update was observed in that excerpt, so its gap phase is unclassified.
-Neither excerpt has descriptor/watchdog/media-drop/decoder faults or diagnostic
-trace loss. The missing state update and variable LE establishment remain open.
+The [DMA redistribution experiment](DMA_REFILL_EXPERIMENT_2026_11_08.md)
+3ae5b531769d kept the 31744 B PCM/DMA payload and 2432-frame startup reserve,
+but its music excerpt retained 13952 unfilled frames. A verified UART witness
+places its first miss before the requested pause, with decoded input/output
+empty while decode was in progress. The experiment was rejected and removed.
+It is not a matched A/B comparison or a proven geometry-caused regression.
 
-The [earlier reconnect stack checkpoint](RECONNECT_STACK_2026_11_08.md) retains
-its f3890656391e scope: reconnect SMP uses 8 KiB, fresh/maintenance 12 KiB; its
-normal excerpt retains 9792 unfilled frames. Those older gaps are not
-retrospectively reclassified. Earlier active gaps/CPU1 faults, sustained 1 Mbps,
-acoustics, all live codec/security/lifecycle/product/OTA parity and matched
-Bluedroid RAM/CPU remain unqualified. Main contains development source at the
-user's request. Rows below retain their dated image scopes.
+Earlier [playback-clock observations](AVRCP_PLAYBACK_CLOCK_2026_11_08.md)
+retain their f2062fa445c6 scope: music had zero shortages but delayed BLE
+establishment and controls after pause; metronome completed controls during
+playback but retained 5760 unfilled frames, with 768 decoded frames at its
+first miss and no peer PAUSED update. Those gaps remain unclassified.
+The [reconnect stack checkpoint](RECONNECT_STACK_2026_11_08.md) retains its
+f3890656391e scope: reconnect SMP uses 8 KiB, fresh/maintenance 12 KiB.
+
+Earlier active gaps/CPU1 faults, variable BLE establishment, missing peer-state
+updates, sustained 1 Mbps, acoustics, all live codec/security/lifecycle/product/
+OTA parity and matched Bluedroid RAM/CPU remain unqualified. Main contains
+development source at the user's request. Rows below keep their dated scopes.
 
 Updated 2026-11-05. **The goal remains active and incomplete.** COM6 was
 explicitly released for flashing, serial and Bluetooth testing in this chat;

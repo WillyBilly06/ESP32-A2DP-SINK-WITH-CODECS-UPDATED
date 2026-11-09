@@ -1,0 +1,283 @@
+{
+  "schema": 1,
+  "disposition": "Rejected; experimental source removed and normal192-frame firmware restored",
+  "source_baseline_commit": "72089fca30c07cb86f2ad4bd40382b4b7839e684",
+  "candidate": {
+    "image": "3ae5b531769d35650c8535d319f8b6b347640aa67f69fb8ab73236d8109588c2",
+    "archive": "runs/1794205064654282700-3ae5b531769d",
+    "geometry": {
+      "probe": "pcm_buffer_geometry",
+      "configured_target_ms": 16,
+      "rate": 192000,
+      "decoder_transfer_limit_frames": 256,
+      "input_capacity_frames": 1024,
+      "input_bytes": 8192,
+      "output_capacity_frames": 2432,
+      "output_target_frames": 1920,
+      "output_frame_bytes": 8,
+      "render_block_limit_frames": 128,
+      "dma_descriptors": 2,
+      "dma_frames_per_descriptor": 256,
+      "dma_bytes": 4096,
+      "configured_early_input_release": true,
+      "output_capacity_from_allocation_receipt": true,
+      "snapshot_begin_us": 229859877,
+      "at_us": 229890741,
+      "snapshot_span_us": 30864,
+      "record_crc32": "0cd95154"
+    },
+    "source_archive": "experiment-source/SHA256.json",
+    "image_admission_passed": true,
+    "isr_audit_passed": true,
+    "cold": {
+      "probe": "target_codec_selftest",
+      "passed": true,
+      "configurations": 37,
+      "selected": 37,
+      "callbacks": 173,
+      "stack_bytes": 8192,
+      "stack_low_water_bytes": 3476,
+      "tracked_peak_bytes": 56899,
+      "min_free_after_alloc_bytes": 106104,
+      "maximum_decode_us": 12587,
+      "rf_test": false
+    },
+    "health": {
+      "task_watchdog_triggers": 0,
+      "idle_starvation_warnings_by_core": {
+        "0": 0,
+        "1": 0
+      },
+      "watchdog_running_task_samples_by_core": {
+        "0": {},
+        "1": {}
+      },
+      "interrupt_watchdog_timeouts": 0,
+      "backtrace_records": 0,
+      "runtime_health_passed": true
+    },
+    "static_footprint_delta": {
+      ".iram0.text": 4,
+      ".dram0.data": 0,
+      ".dram0.bss": 0,
+      ".flash.text": 8
+    }
+  },
+  "payload_contract": {
+    "before": {
+      "input_frames": 1024,
+      "output_capacity_frames": 2560,
+      "software_target_frames": 2048,
+      "dma_frames": 192,
+      "dma_count": 2,
+      "total_payload_bytes": 31744,
+      "startup_processed_plus_dma_frames": 2432
+    },
+    "experiment": {
+      "input_frames": 1024,
+      "output_capacity_frames": 2432,
+      "software_target_frames": 1920,
+      "dma_frames": 256,
+      "dma_count": 2,
+      "total_payload_bytes": 31744,
+      "startup_processed_plus_dma_frames": 2432
+    },
+    "physical_payload_equal": true,
+    "all_heap_or_latency_effects_equal_proven": false
+  },
+  "host_tests": {
+    "lifecycle_baseline_and_candidate": true,
+    "asan_ubsan": true,
+    "refill_and_exact_dsp_both_geometries_at_tick_hz": [
+      100,
+      1000
+    ],
+    "header_cases": 5,
+    "cmake_cases": 8,
+    "image_admission_cases": 16,
+    "scope": "Actual source with mocked driver/tasks; no RF or scheduler timing proof"
+  },
+  "trial": {
+    "fixture": "native YouTube music",
+    "codec": "LHDC V5",
+    "rate": 192000,
+    "precision_bits": 24,
+    "channels": 2,
+    "phone_quality_setting_kbps": 900,
+    "receipt_sha256": "da1f98b9f516854ae2823b6047578356c65bdfb1aa43be50a0d6ed1413c072e3",
+    "lifecycle_duration_upper_ms": 12788.041,
+    "duration_scope": "verified stream-start acknowledgement to confirmed renderer stop; includes startup; MCU low32 microseconds",
+    "nominal_dma_duration_ms": 12665.333333333334,
+    "controls_before_pause": {
+      "eq_ack": true,
+      "eq_readback": true,
+      "cccd_restored": true
+    },
+    "minimum_internal_heap_bytes": 20280,
+    "stopped_free_heap_bytes": 62060,
+    "stopped_largest_block_bytes": 59392,
+    "initial_shortage_frames": 31552,
+    "recovered_frames": 17600,
+    "unfilled_frames": 13952,
+    "first_unfilled": {
+      "probe": "first_unfilled",
+      "stream_serial": 1,
+      "captured": true,
+      "coherent": true,
+      "event_us": 224566816,
+      "taken_frames": 192,
+      "input_frames": 0,
+      "output_frames": 0,
+      "accepted_frames": 1414080,
+      "rendered_frames": 1414080,
+      "dma_source_frames": 1413632,
+      "deadline_us": 224566751,
+      "pending_acl_metadata": 0,
+      "pending_acl_metadata_valid": true,
+      "finalized_shortage": true,
+      "snapshot_begin_us": 230104460,
+      "at_us": 230104467,
+      "snapshot_span_us": 7,
+      "record_crc32": "5765e780"
+    },
+    "first_media": {
+      "probe": "unfilled_media",
+      "stream_serial": 1,
+      "event_us": 224566816,
+      "coherent": true,
+      "last_acl_any_link_us": 224563661,
+      "last_host_poll_us": 224563912,
+      "media_begin_us": 224564298,
+      "media_admitted_us": 224564434,
+      "media_epoch": 5,
+      "media_sequence": 1474,
+      "media_timestamp": 1414080,
+      "media_ssrc": 255,
+      "media_result": 0,
+      "last_media_gap_us": 10557,
+      "max_media_gap_us": 34998,
+      "media_arrival_valid": true,
+      "media_current_acl_arrival_us": 224563661,
+      "media_hci_queue_cursor": 871198,
+      "media_acl_flags": 8320,
+      "snapshot_begin_us": 230109061,
+      "at_us": 230109066,
+      "snapshot_span_us": 5,
+      "record_crc32": "351ab1ae"
+    },
+    "first_decoder": {
+      "probe": "unfilled_decoder",
+      "stream_serial": 1,
+      "event_us": 224566816,
+      "coherent": true,
+      "phase": 1,
+      "phase_name": "decode",
+      "phase_since_us": 224564469,
+      "encoded_queued_at_phase_change": 1,
+      "snapshot_begin_us": 230115477,
+      "at_us": 230115480,
+      "snapshot_span_us": 3,
+      "record_crc32": "034c599b"
+    },
+    "first_renderer": {
+      "probe": "unfilled_renderer",
+      "stream_serial": 1,
+      "event_us": 224566816,
+      "coherent": true,
+      "inside_audio_render": false,
+      "phase_since_us": 224565967,
+      "dsp_assist_state_at_gap": 0,
+      "snapshot_begin_us": 230118788,
+      "at_us": 230118789,
+      "snapshot_span_us": 1,
+      "record_crc32": "9edb68d0"
+    },
+    "first_credits": {
+      "probe": "unfilled_credits",
+      "stream_serial": 1,
+      "event_us": 224566816,
+      "coherent": true,
+      "pending_known": true,
+      "counts_sampled_us": 224565532,
+      "pending_classic": 0,
+      "pending_le": 0,
+      "completion_submission_known": true,
+      "completion_submitted_us": 224565068,
+      "completion_packets": 1,
+      "submission_is_sdk_return_not_controller_ack": true,
+      "snapshot_begin_us": 230136997,
+      "at_us": 230137006,
+      "snapshot_span_us": 9,
+      "record_crc32": "f917c4b7"
+    },
+    "pre_pause_proof": {
+      "first_gap_mcu_us": 224566816,
+      "witness_probe": "decoder_wait",
+      "witness_mcu_at_us": 224616607,
+      "witness_after_gap_us": 49791,
+      "witness_received_pc_s": 1794205444.2891986,
+      "pause_requested_pc_s": 1794205446.1412702,
+      "witness_received_before_pause_s": 1.8520715236663818,
+      "scope": "Same-MCU ordering plus same-PC receipt/action ordering; no MCU-to-PC clock offset assumed. Proves only the first miss preceded the requested pause."
+    },
+    "decoder_faults": 0,
+    "media_drops": 0,
+    "descriptor_errors": 0,
+    "watchdogs": 0,
+    "metronome_run": false
+  },
+  "limits": {
+    "all_unfilled_frames_pre_pause_proven": false,
+    "radio_loss_or_controller_fault_proven": false,
+    "geometry_causation_proven": false,
+    "matched_ab_comparison": false,
+    "reason": "Different runs and BLE connection timing; zero-gap requirement failed but causal attribution to geometry is not proved",
+    "stable_or_full_goal_qualification": false
+  },
+  "normal_restoration": {
+    "image": "b302e29ecaed1b34eb495d40cdf7478a4c5e37863081baf6032508c45ae7167e",
+    "archive": "runs/1794206428092279900-b302e29ecaed",
+    "source_experiment_removed": true,
+    "all_written_regions_match": true,
+    "automatic_bluedroid_restore": false,
+    "old_application_preserved": true,
+    "cold": {
+      "probe": "target_codec_selftest",
+      "passed": true,
+      "configurations": 37,
+      "selected": 37,
+      "callbacks": 173,
+      "stack_bytes": 8192,
+      "stack_low_water_bytes": 3604,
+      "tracked_peak_bytes": 56899,
+      "min_free_after_alloc_bytes": 106104,
+      "maximum_decode_us": 12620,
+      "rf_test": false
+    },
+    "health": {
+      "task_watchdog_triggers": 0,
+      "idle_starvation_warnings_by_core": {
+        "0": 0,
+        "1": 0
+      },
+      "watchdog_running_task_samples_by_core": {
+        "0": {},
+        "1": {}
+      },
+      "interrupt_watchdog_timeouts": 0,
+      "backtrace_records": 0,
+      "runtime_health_passed": true
+    },
+    "all_allocated_sections_except_app_descriptor_identical_to_f206": true,
+    "controller_modem_sleep": false,
+    "system_power_management": false,
+    "handback": {
+      "source_id": 165,
+      "logging_baud": 921600,
+      "classic_connected": true,
+      "youtube_paused": true,
+      "phone_settings_restored": true,
+      "main_app_foreground": true
+    }
+  }
+}
