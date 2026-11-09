@@ -141,6 +141,58 @@ static dbt_result_t audio_open(dbt_audio_t *a,dbt_audio_config_t config,bool bor
     dbt_audio_clock_reset(a,0);a->clock_primed=false;
     return DBT_OK;
 }
+/* Page indices are physical cursors, independent of wrapping publication
+ * counters. Changing capacity is lossless only when the occupied span is a
+ * single physical interval. The caller quiesces both owners for this check. */
+static dbt_result_t output_linear(const dbt_audio_t *a,uint32_t *queued){
+    uint32_t n=atomic_load_explicit(&a->output.written,memory_order_acquire)-
+        atomic_load_explicit(&a->output.read,memory_order_acquire);
+    *queued=n;
+    uint32_t r=a->output_read_slot,w=a->output_write_slot,frames=a->output.frames;
+    if(n>frames || r>=frames || w>=frames)return DBT_INVALID;
+    uint32_t distance=w>=r?w-r:frames-r+w;
+    if(n!=distance && !(n==frames && r==w))return DBT_INVALID;
+    return w>=r && n==w-r?DBT_OK:DBT_BUSY;
+}
+dbt_result_t dbt_audio_output_extend(dbt_audio_t *a,uint8_t *const *pages,uint32_t count){
+    if(!a || !a->opened || !pages || !count || count>DBT_AUDIO_OUTPUT_PAGES ||
+       a->output.frames!=a->config.output_frames)return DBT_INVALID;
+    if(a->render_pending)return DBT_BUSY;
+    if(a->output.frames%DBT_AUDIO_OUTPUT_PAGE_FRAMES)return DBT_UNSUPPORTED;
+    uint32_t old=a->output.frames/DBT_AUDIO_OUTPUT_PAGE_FRAMES;
+    if(old>DBT_AUDIO_OUTPUT_PAGES || count>DBT_AUDIO_OUTPUT_PAGES-old)return DBT_NO_SPACE;
+    /* All validation precedes ownership or metadata changes. New pages must
+     * be distinct complete allocations compatible with memory.release. */
+    for(uint32_t i=0;i<count;++i){
+        if(!pages[i] || ((uintptr_t)pages[i]&3u) || a->output_pages[old+i])return DBT_INVALID;
+        for(uint32_t j=0;j<old;++j)if(pages[i]==a->output_pages[j])return DBT_INVALID;
+        for(uint32_t j=0;j<i;++j)if(pages[i]==pages[j])return DBT_INVALID;
+    }
+    uint32_t queued;dbt_result_t shape=output_linear(a,&queued);if(shape!=DBT_OK)return shape;
+    for(uint32_t i=0;i<count;++i)a->output_pages[old+i]=pages[i];
+    uint32_t frames=(old+count)*DBT_AUDIO_OUTPUT_PAGE_FRAMES;
+    a->output.frames=a->config.output_frames=frames;a->output.mask=power2(frames)?frames-1u:0;
+    a->allocated_bytes+=count*DBT_AUDIO_OUTPUT_PAGE_FRAMES*8u;return DBT_OK;
+}
+dbt_result_t dbt_audio_output_trim(dbt_audio_t *a,uint32_t frames,uint8_t **pages,uint32_t capacity,uint32_t *count){
+    if(count)*count=0;
+    if(!a || !a->opened || !count || frames<2u || frames>a->output.frames ||
+       frames<=a->config.target_frames || a->output.frames!=a->config.output_frames)return DBT_INVALID;
+    if(a->render_pending)return DBT_BUSY;
+    if(frames%DBT_AUDIO_OUTPUT_PAGE_FRAMES || a->output.frames%DBT_AUDIO_OUTPUT_PAGE_FRAMES)return DBT_UNSUPPORTED;
+    uint32_t old=a->output.frames/DBT_AUDIO_OUTPUT_PAGE_FRAMES,n=(a->output.frames-frames)/DBT_AUDIO_OUTPUT_PAGE_FRAMES;
+    if(n && (!pages || capacity<n))return DBT_NO_SPACE;
+    if(!n)return DBT_OK;
+    uint32_t queued;dbt_result_t shape=output_linear(a,&queued);if(shape==DBT_INVALID)return shape;
+    /* An empty ring can restart at slot zero even above the retained pages.
+     * Nonempty data must lie wholly within the retained physical prefix. */
+    if(queued && (shape!=DBT_OK || a->output_write_slot>frames))return DBT_BUSY;
+    if(!queued)a->output_read_slot=a->output_write_slot=0;
+    else if(a->output_write_slot==frames)a->output_write_slot=0;
+    for(uint32_t i=0;i<n;++i){pages[i]=a->output_pages[old-n+i];a->output_pages[old-n+i]=0;}
+    a->output.frames=a->config.output_frames=frames;a->output.mask=power2(frames)?frames-1u:0;
+    a->allocated_bytes-=n*DBT_AUDIO_OUTPUT_PAGE_FRAMES*8u;*count=n;return DBT_OK;
+}
 dbt_result_t dbt_audio_open(dbt_audio_t *a,dbt_audio_config_t config){return audio_open(a,config,false);}
 dbt_result_t dbt_audio_open_borrowed(dbt_audio_t *a,dbt_audio_config_t config){return audio_open(a,config,true);}
 uint32_t dbt_audio_input_frames(const dbt_audio_t *a){

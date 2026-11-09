@@ -84,12 +84,18 @@ static dbt_result_t fake_bond(uint16_t handle,uint32_t generation,uint8_t *type,
   *type=0;memset(id,1,6);memset(tag,test_bond_tag,32);return DBT_OK;
 }
 dbt_result_t probe_cccd_load(uint8_t type,const uint8_t id[6],const uint8_t tag[32],uint16_t values[4]) {
+#ifdef DBT_BLE_TEST_STORAGE_WORKER
+  storage_worker_backend();
+#endif
   assert(worker_context && type==0 && id[0]==1 && tag[0]<4);
   fake_clock_us+=storage_duration_us;
   if(cccd_load_override!=DBT_OK)return cccd_load_override;
   memcpy(values,cccd_saved[tag[0]],sizeof(cccd_saved[0]));return cccd_present[tag[0]]?DBT_OK:DBT_EMPTY;
 }
 dbt_result_t probe_cccd_save(uint8_t type,const uint8_t id[6],const uint8_t tag[32],const uint16_t values[4]) {
+#ifdef DBT_BLE_TEST_STORAGE_WORKER
+  storage_worker_backend();
+#endif
   assert(worker_context && type==0 && id[0]==1 && tag[0]<4);
   fake_clock_us+=storage_duration_us;
   if(cccd_save_space)return DBT_NO_SPACE;
@@ -129,6 +135,9 @@ BaseType_t xQueueReceive(QueueHandle_t v, void *p, TickType_t timeout) {
     }
   }
   queue_t *q = v;
+#ifdef DBT_BLE_TEST_STORAGE_WORKER
+  storage_worker_queue_checkpoint(v);
+#endif
   if (!q->count)
     return 0;
   memcpy(p, q->bytes + q->head * q->item, q->item);
@@ -188,6 +197,9 @@ void heap_caps_free(void *p) {
   }
 }
 esp_err_t nvs_open(const char *name, int mode, nvs_handle_t *h) {
+#ifdef DBT_BLE_TEST_STORAGE_WORKER
+  storage_worker_backend();
+#endif
   assert(worker_context);
   if (!strcmp(name, "audio")) {
     *h = 1;
@@ -1087,6 +1099,9 @@ int main(void) {
   assert(server.connections[0].token==old_token && server.ignored_commands==old_ignored+1);
   fake_cookie++;guard_pending_acks();assert(server.connections[0].failed);
   pump_control();assert(!control_jobs);
+#ifdef DBT_BLE_TEST_STORAGE_WORKER
+  storage_worker_cases();
+#endif
   link0->used=false;
   dbt_att_clear(&server);
   vQueueDelete(control_work);

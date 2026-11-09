@@ -2,6 +2,10 @@
 #include "dbt_esp32_affinity.h"
 #include "probe_gatt.h"
 #include "probe_cccd_store.h"
+#if defined(DBT_PROBE_STORAGE_RESERVE)
+#include "probe_output.h"
+#define GATT_STORAGE_RESERVE 1
+#endif
 #include "dbt_att_bearer.h"
 #include "esp_heap_caps.h"
 #include "esp_timer.h"
@@ -270,7 +274,39 @@ static void control_task(void *unused) {
     SemaphoreHandle_t signal=eq?eq_signal:control_signal;
     TickType_t maintenance_wait=pdMS_TO_TICKS(20);
     if(!maintenance_wait)maintenance_wait=1;
+#ifdef GATT_STORAGE_RESERVE
+    control_job_t *storage_job=NULL;bool storage_retiring=false;
+#endif
     for (;;) {
+#ifdef GATT_STORAGE_RESERVE
+        if(storage_job){
+            if(storage_retiring){
+                if(probe_output_storage_retire()==DBT_PENDING){
+                    (void)ulTaskNotifyTake(pdTRUE,portMAX_DELAY);continue;
+                }
+            }else {
+                dbt_result_t prepared=probe_output_storage_prepare(storage_job,(uintptr_t)xTaskGetCurrentTaskHandle());
+                /* Accepted persistence survives disconnect. If a future owner
+                 * cancels explicitly, check after registration to close the
+                 * cancellation-before-cookie-publication wake race. */
+                if(atomic_load_explicit(&storage_job->cancelled,memory_order_acquire))
+                    probe_output_storage_cancel(storage_job);
+                if(prepared==DBT_PENDING){(void)ulTaskNotifyTake(pdTRUE,portMAX_DELAY);continue;}
+                if(prepared==DBT_OK){
+                    control_execute_job(storage_job); /* One backend call, only after fresh PCM permission. */
+                    probe_output_storage_release();storage_retiring=true;continue;
+                }
+                /* No backend ran. Preserve the old durable values and return
+                 * explicit resource pressure through the existing completion. */
+                if(storage_job->cccd_kind)storage_job->cccd_result=DBT_NO_SPACE;
+                else {storage_job->result.data[0]=0x11;storage_job->result.data[1]=storage_job->data[0];
+                    storage_job->result.data[2]=3;storage_job->result.size=3;}
+            }
+            /* Cookie and waiter stay alive until every page is retired. */
+            (void)xQueueSend(control_done,&storage_job,portMAX_DELAY);xTaskNotifyGive(control_owner);
+            storage_job=NULL;storage_retiring=false;continue;
+        }
+#endif
         if(retire){
             if(!eq && (uxQueueMessagesWaiting(queue) || atomic_load_explicit(&external_worker_required,memory_order_acquire))){
                 control_job_t *resumed=(control_job_t *)(uintptr_t)3;
@@ -294,6 +330,12 @@ static void control_task(void *unused) {
             (void)xSemaphoreTake(signal,wait);continue;
         }
         if(!job){retire=true;continue;}
+#ifdef GATT_STORAGE_RESERVE
+        if(eq && ((job->cccd_kind>=1 && job->cccd_kind<=3) ||
+            (!job->cccd_kind && job->size && (job->data[0]==1 || job->data[0]==2 || job->data[0]==3)))){
+            storage_job=job;storage_retiring=false;continue;
+        }
+#endif
         control_execute_job(job);
         if(!eq && control_hooks.worker_poll)(void)control_hooks.worker_poll(control_hooks.context,false);
         (void)xQueueSend(control_done,&job,portMAX_DELAY);xTaskNotifyGive(control_owner);
@@ -755,7 +797,7 @@ static void finish_cccd(control_job_t *job) {
             else b->phase=CCCD_ERROR;
         }
     } else if(current && b->phase==CCCD_BOUND) {
-        uint8_t error=job->cccd_result==DBT_OK?0:DBT_ATT_UNLIKELY;
+        uint8_t error=job->cccd_result==DBT_OK?0:job->cccd_result==DBT_NO_SPACE?DBT_ATT_RESOURCES:DBT_ATT_UNLIKELY;
         if(dbt_att_complete(&server,job->handle,job->generation,job->token,error,job->cccd_error_handle)==DBT_OK && !error) {
             memcpy(b->values,job->cccd_values,sizeof(b->values));
             for(unsigned i=0;i<DBT_MAX_LINKS;i++)if(&bearer.runtime->acl.links[i]==link)

@@ -1,21 +1,30 @@
 # Independent host and product feature matrix
 
-Current development checkpoint (2026-11-09): readback-verified COM6 image
-b566da3f908f adds [serialized observer/completed-slice timing](FLASH_SLICE_DURATION_2026_11_09.md).
-Token allocation follows the SDK flash lock. A CRC-verified peak and frozen IRQ
-record match one 17.383 ms cache-off interval with 1024 raw frames waiting and
-scheduler suspended. A completed-peak record observed before pause proves this
-miss occurred during playback. Even full processed PCM plus DMA holds only
-15.33 ms under the linked 192 kHz policy; unchanged-capacity prefill is insufficient.
+Current development checkpoint (2026-11-09): readback-verified default COM6 image
+`d2092d7504e9` leaves the [storage-aware PCM reserve](STORAGE_RESERVE_2026_11_09.md)
+OFF after failed coexistence acceptance. The last prototype has zero unfilled
+frames in12.773s, but all32 BLE writes/ACK/readbacks, EQ/settings and original
+CCCD restoration finish after pause. Its maximum prepare wait is10.430s and
+minimum free internal heap7,328B. No active-audio grant is observed. This is not
+a continuity or RAM improvement. Exact source/image/failed traces are retained.
 
-The guarded fixed900 LHDC192/S24 sweep completes 32 descriptor ACK/readbacks,
-EQ/settings and original-CCCD restoration before pause, but retains 2496 unfilled
-frames. 92 host events are lost; worker/snapshot/UART losses are zero. Source-bound
-sanitizer/app and 37 cold codec checks pass. Observer cost is 80 B IRAM/ 16 B data,
-BSS unchanged, with 65 B IRAM remaining. No task, buffer, priority or quality change.
-UART remains 921600. Storage-aware reserve, sustained 1Mbps and full parity remain
-open. [Durable CCCD cache](FLASH_GUARD_CCCD_CACHE_2026_11_09.md) and
-[asynchronous SDK coexistence](A2DP_COEX_2026_11_09.md) remain in place.
+Portable lossless page transitions, the event-driven single-provider protocol,
+startup/stop/cancel/publication interleavings and expiry/epoch/ticket checks pass
+actual-source sanitizer tests. Default ATT/GATT and real-codec app/worker checks
+also pass. The prototype is explicit opt-in; the default has unchanged linked
+IRAM/data/BSS, normal buffers/tasks/priorities and durable storage behavior.
+All37 cold codec configurations/173 callbacks pass. The default12.755s sweep completes
+controls before pause but retains2,560 unfilled frames. A matched16.587ms cache-off
+interval contains a pre-pause miss with832 decoded frames waiting. UART remains921600 baud;
+no automatic Bluedroid return is enabled.
+
+The earlier [17.383ms cache-off observation](FLASH_SLICE_DURATION_2026_11_09.md)
+retains its scope: full normal processed PCM+DMA holds only15.33ms at192kHz.
+The new prototype does not establish hardware coverage of that interval.
+[Durable CCCD cache](FLASH_GUARD_CCCD_CACHE_2026_11_09.md) and
+[public-SDK asynchronous coexistence](A2DP_COEX_2026_11_09.md) remain in place.
+Storage continuity, active gaps, RAM/CPU headroom, sustained1Mbps and full parity
+remain open; dated observations below are not upgraded by this checkpoint.
 
 The [DMA redistribution experiment](DMA_REFILL_EXPERIMENT_2026_11_08.md)
 3ae5b531769d kept the 31744 B PCM/DMA payload and 2432-frame startup reserve,

@@ -1,6 +1,7 @@
 #ifndef PROBE_OUTPUT_H
 #define PROBE_OUTPUT_H
 #include "dbt_audio.h"
+#include "dbt_storage_reserve.h"
 #include "probe_owner_state.h"
 #include "probe_flash_guard.h"
 /* Native runtime keeps bounded first-gap evidence without enabling the tick
@@ -76,6 +77,15 @@ typedef struct {
 } probe_output_stats_t;
 /* Startup owner only, before clients. BUSY preserves an existing instance.
  * Failed task creation retires the new queue so initialization may be retried. */
+/* Existing serialized persistence worker only; these operations never wait.
+ * PENDING means wait on its direct task notification. The cookie/context and
+ * waiter remain live through retirement. No backend I/O before prepare OK. */
+dbt_result_t probe_output_storage_prepare(const void *,uintptr_t);
+void probe_output_storage_cancel(const void *);
+void probe_output_storage_release(void);
+dbt_result_t probe_output_storage_retire(void);
+void probe_output_storage_snapshot(dbt_storage_reserve_stats_t *);
+uint32_t probe_output_storage_stop_ticket(void);
 dbt_result_t probe_output_init(void (*wake_decoder)(void *),void *context);
 /* Accepted begin returns PENDING and one opaque ticket; BUSY accepts nothing.
  * Poll consumes exactly one terminal result. Cancel remains pending until the

@@ -17,7 +17,7 @@ if (-not (Test-Path -LiteralPath (Join-Path $LhdcSourceDir 'decoder/lhdc_dec.c')
 # Default repository build: independent host + Espressif BTDM controller/VHCI.
 # Sampling/tick/task profilers stay OFF; this command never opens a device.
 $buildOptions=@{
-    ConsoleBaud=$ConsoleBaud; ConsoleIrq=$true; StayNative=$true
+    ConsoleBaud=$ConsoleBaud; ConsoleIrq=$true; StayNative=$true; StorageReserve=$false
     WithProductIo=$true; WithRfcomm=$true
     WithSbc=$true; WithAac=$true; WithAptx=$true; WithLdac=$true; WithOpus=$true; WithLhdc=$true
     AsyncAudio=$true; PcmCopied=$true; PcmTargetMs=16

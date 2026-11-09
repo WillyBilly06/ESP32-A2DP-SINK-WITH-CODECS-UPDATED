@@ -29,7 +29,7 @@ target_sources(native_bt PRIVATE
 target_sources(native_bt PRIVATE src/dbt_product_peer.c src/dbt_ota.c src/dbt_sound.c src/dbt_sound_mix.c src/dbt_led.c src/dbt_input.c)
 
 target_sources(native_bt PRIVATE src/dbt_ble_control.c
-    src/dbt_audio.c
+    src/dbt_audio.c src/dbt_storage_reserve.c
     src/dbt_resampler.c ../bt_audio_sink/main/dsp/fixed_dsp.c)
 target_include_directories(native_bt PUBLIC ../bt_audio_sink/main/dsp)
 target_include_directories(native_bt PUBLIC include)

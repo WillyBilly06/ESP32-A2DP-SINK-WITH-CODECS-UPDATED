@@ -907,6 +907,94 @@ static bool IRAM_ATTR sent(i2s_chan_handle_t channel, i2s_event_data_t *event,
   vTaskNotifyGiveFromISR(o->task, &wake);
   return finish_sent(o,now,wake);
 }
+#ifdef DBT_PROBE_STORAGE_RESERVE
+static dbt_storage_reserve_t storage_reserve;
+static uint32_t storage_epoch;
+static _Atomic uint32_t storage_stop_pending;
+static uint8_t *storage_allocate(void *unused,uint32_t bytes){
+  (void)unused;return heap_caps_malloc(bytes,MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT);
+}
+static void storage_release_page(void *unused,uint8_t *p){(void)unused;heap_caps_free(p);}
+static void storage_wake_render(void *unused){
+  (void)unused;TaskHandle_t task=atomic_load_explicit(&output.task,memory_order_acquire);if(task)xTaskNotifyGive(task);
+}
+static void storage_wake_worker(void *unused,uintptr_t waiter){(void)unused;xTaskNotifyGive((TaskHandle_t)waiter);}
+static uint32_t storage_clock(void *unused){(void)unused;return (uint32_t)esp_timer_get_time();}
+static uint32_t storage_guard_enter(void *unused){
+  (void)unused;
+#ifdef __XTENSA__
+  return XTOS_SET_MIN_INTLEVEL(5); /* DMA and high-level IPC stay outside the short metadata transition. */
+#else
+  return 0;
+#endif
+}
+static void storage_guard_exit(void *unused,uint32_t mask){
+  (void)unused;
+#ifdef __XTENSA__
+  XTOS_RESTORE_JUST_INTLEVEL(mask);
+#else
+  (void)mask;
+#endif
+}
+static const dbt_storage_reserve_ops_t storage_ops={storage_allocate,storage_release_page,storage_wake_render,storage_wake_worker,storage_clock,storage_guard_enter,storage_guard_exit};
+static void service_storage_reserve(void){
+    /* Live page metadata may change only on the actual DMA IRQ core. Wait
+     * for its first callback to confirm that affinity before admission. */
+    bool storage_core_known=!output.enabled || atomic_load(&output.callback_calls)!=0;
+    bool storage_core_valid=!output.enabled || atomic_load(&output.callback_core)==(uint32_t)xPortGetCoreID();
+    if(dbt_storage_reserve_blocks_start(&storage_reserve) && storage_core_known && (!storage_core_valid ||
+        dbt_storage_reserve_render(&storage_reserve,&output.audio,storage_epoch,output.enabled,output.stopping)!=DBT_OK)){
+      atomic_store(&output.failed,1);notify_clients();
+    }
+    if(output.audio.opened){
+      atomic_store(&output.requested_bytes,output.audio.allocated_bytes+DMA_DESCRIPTORS*DMA_FRAMES*8u);
+      uint32_t actual=output.audio.config.target_frames,storage=dbt_storage_reserve_target(&storage_reserve,storage_epoch);
+      if(output.enabled && storage>actual)actual=storage;
+      atomic_store(&output.actual_target_frames,actual);
+    }
+}
+#endif
+dbt_result_t probe_output_storage_prepare(const void *cookie,uintptr_t waiter){
+#ifdef DBT_PROBE_STORAGE_RESERVE
+  if(!atomic_load_explicit(&output.task,memory_order_acquire))return DBT_NO_SPACE;
+  return dbt_storage_reserve_prepare(&storage_reserve,cookie,waiter);
+#else
+  (void)cookie;(void)waiter;return DBT_UNSUPPORTED;
+#endif
+}
+void probe_output_storage_cancel(const void *cookie){
+#ifdef DBT_PROBE_STORAGE_RESERVE
+  dbt_storage_reserve_cancel(&storage_reserve,cookie);
+#else
+  (void)cookie;
+#endif
+}
+void probe_output_storage_release(void){
+#ifdef DBT_PROBE_STORAGE_RESERVE
+  dbt_storage_reserve_release(&storage_reserve);
+#endif
+}
+dbt_result_t probe_output_storage_retire(void){
+#ifdef DBT_PROBE_STORAGE_RESERVE
+  return dbt_storage_reserve_retire(&storage_reserve);
+#else
+  return DBT_OK;
+#endif
+}
+uint32_t probe_output_storage_stop_ticket(void){
+#ifdef DBT_PROBE_STORAGE_RESERVE
+  return atomic_load_explicit(&storage_stop_pending,memory_order_acquire);
+#else
+  return 0;
+#endif
+}
+void probe_output_storage_snapshot(dbt_storage_reserve_stats_t *stats){
+#ifdef DBT_PROBE_STORAGE_RESERVE
+  dbt_storage_reserve_stats(&storage_reserve,stats);
+#else
+  if(stats)*stats=(dbt_storage_reserve_stats_t){0};
+#endif
+}
 static void close_output(void) {
 #ifdef DBT_PROBE_DISPATCH_TRACE
   probe_dispatch_stop();
@@ -937,6 +1025,10 @@ static void close_output(void) {
   /* I2S operations and its ISR belong to this pinned render core. After
    * disable/delete no callback can run while its owner frees the SRAM rings. */
   dbt_audio_close(&output.audio);
+#ifdef DBT_PROBE_STORAGE_RESERVE
+  dbt_storage_reserve_closed(&storage_reserve);
+  atomic_store_explicit(&storage_stop_pending,0,memory_order_release);
+#endif
   output.active = output.enabled = output.stopping = false;
   atomic_store(&output.meter_value, 0);
   for (unsigned i = 0; i < 3; ++i)
@@ -1044,6 +1136,9 @@ static dbt_result_t start_output(uint32_t rate, uint8_t channels,
 #endif
     return result;
   }
+#ifdef DBT_PROBE_STORAGE_RESERVE
+  ++storage_epoch;
+#endif
   if (create_channel(rate, true) != ESP_OK &&
       create_channel(rate, false) != ESP_OK) {
     close_output();
@@ -1124,6 +1219,10 @@ static dbt_result_t start_output(uint32_t rate, uint8_t channels,
   return DBT_OK;
 }
 static dbt_result_t enable_output(void) {
+  OUTPUT_TEST_STEP(14); /* test-only request arriving after a caller precheck */
+#ifdef DBT_PROBE_STORAGE_RESERVE
+  if(dbt_storage_reserve_blocks_start(&storage_reserve))return DBT_BUSY;
+#endif
 #ifdef PROBE_OUTPUT_GAP_TRACE
   uint32_t preload_frames=dbt_audio_output_frames(&output.audio);
   uint32_t input_frames=dbt_audio_input_frames(&output.audio);
@@ -1192,6 +1291,10 @@ static dbt_result_t start_codec_output(request_t request){
   return result;
 }
 static void codec_request(request_t request){
+#ifdef DBT_PROBE_STORAGE_RESERVE
+  uint32_t pending_stop=atomic_load_explicit(&storage_stop_pending,memory_order_acquire);
+  if(pending_stop){if(!request.start && request.id==pending_stop)return;report_done(request.id,DBT_BUSY);return;}
+#endif
 #ifdef DBT_PROBE_CODEC_AWARE_RENDER
   if(transfer_output_request(&request))return;
 #endif
@@ -1206,13 +1309,19 @@ static void codec_request(request_t request){
   else if (!output.active){close_output();report_done(request.id,DBT_OK);}
   else {
     if(!output.enabled){
-      /* A stop bypasses only the new guard, draining a safely preloadable
-       * accepted clip. The prior sub-DMA short-clip behavior is unchanged. */
+      /* A stop may bypass the startup-time hold to drain an accepted clip.
+       * Storage permission remains exclusive; sub-DMA behavior is unchanged. */
       if(!(atomic_load(&output.priming_state)&PRIMING_BUDGET) ||
          dbt_audio_output_frames(&output.audio)<DMA_DESCRIPTORS*DMA_FRAMES){
         close_output();report_done(request.id,DBT_OK);return;
       }
-      if(enable_output()!=DBT_OK){close_output();atomic_store(&output.failed,1);report_done(request.id,DBT_INVALID);return;}
+      dbt_result_t enabled=enable_output();
+#ifdef DBT_PROBE_STORAGE_RESERVE
+      if(enabled==DBT_BUSY){
+        atomic_store_explicit(&storage_stop_pending,request.id,memory_order_release);return;
+      }
+#endif
+      if(enabled!=DBT_OK){close_output();atomic_store(&output.failed,1);report_done(request.id,DBT_INVALID);return;}
     }
     dbt_audio_begin_drain(&output.audio);output.stopping=true;output.stop_request=request.id;
     output.stop_at=(uint32_t)(esp_timer_get_time()/1000);
@@ -1385,6 +1494,9 @@ static dbt_result_t dsp_assist_commit(void *context,const dbt_audio_render_job_t
     uint32_t made=0;
     dbt_result_t result=dbt_audio_render_finish(&output.audio,block,success,&made);
     assist.committed_us=(uint32_t)esp_timer_get_time();
+#ifdef DBT_PROBE_STORAGE_RESERVE
+    if(made)dbt_storage_reserve_published(&storage_reserve,&output.audio,storage_epoch);
+#endif
 #ifdef DBT_PROBE_DISPATCH_TRACE
     if(made)probe_dispatch_mark(PROBE_DISPATCH_PCM_READY,PROBE_DISPATCH_HELPER,made);
 #endif
@@ -1529,6 +1641,9 @@ static bool render_step(void) {
     /* DONE is only bookkeeping. Service controls/refill and at most one local
      * block before yielding; let Core0 resume decoding before another lease. */
 #endif
+#ifdef DBT_PROBE_STORAGE_RESERVE
+    service_storage_reserve();
+#endif
     publish_dsp_quality();
 #ifdef DBT_PROBE_SOUND_BUILD
     bool made_silence=false,blocked_sound=false;
@@ -1540,6 +1655,14 @@ static bool render_step(void) {
     }
     request_t request;
     if(xQueueReceive(output.requests,&request,0)==pdTRUE)consume_request(request);
+#ifdef DBT_PROBE_STORAGE_RESERVE
+    uint32_t pending_stop=atomic_load_explicit(&storage_stop_pending,memory_order_acquire);
+    if(pending_stop && (!dbt_storage_reserve_blocks_start(&storage_reserve) ||
+        dbt_ticket_state(&output.ticket,pending_stop)==DBT_TICKET_CANCEL)){
+      atomic_store_explicit(&storage_stop_pending,0,memory_order_release);
+      consume_request((request_t){.id=pending_stop,.kind=REQ_CODEC,.start=false});
+    }
+#endif
 #ifdef DBT_PROBE_CODEC_AWARE_RENDER
     if(!owns_output())return false;
 #endif
@@ -1587,6 +1710,10 @@ static bool render_step(void) {
       (void)service_refill_window();
       uint32_t target = output.audio.config.target_frames +
                         (output.enabled ? 0 : DMA_DESCRIPTORS * DMA_FRAMES);
+#ifdef DBT_PROBE_STORAGE_RESERVE
+      uint32_t storage_target=dbt_storage_reserve_target(&storage_reserve,storage_epoch);
+      if(output.enabled && storage_target>target)target=storage_target;
+#endif
       uint32_t available = dbt_audio_output_frames(&output.audio);
       if (available < target) {
         uint32_t began = (uint32_t)esp_timer_get_time();
@@ -1672,6 +1799,9 @@ static bool render_step(void) {
           }
         }
 #endif
+#ifdef DBT_PROBE_STORAGE_RESERVE
+        if(made)(void)service_refill_window(); /* Includes a final sound-only publication. */
+#endif
 #ifdef PROBE_OUTPUT_GAP_TRACE
         trace_render(0,(uint32_t)esp_timer_get_time());
 #endif
@@ -1682,6 +1812,14 @@ static bool render_step(void) {
           render_completed(began,input_wake_owned);
         }
       }
+#ifdef DBT_PROBE_STORAGE_RESERVE
+      /* The final block may satisfy PREFILL. Grant before waiting for an EOF
+       * that would consume those samples and make the predicate false again. */
+      service_storage_reserve();
+      target=output.audio.config.target_frames+(output.enabled?0:DMA_DESCRIPTORS*DMA_FRAMES);
+      uint32_t published_storage_target=dbt_storage_reserve_target(&storage_reserve,storage_epoch);
+      if(output.enabled && published_storage_target>target)target=published_storage_target;
+#endif
       available = dbt_audio_output_frames(&output.audio);
       atomic_store(&output.ready_frames, available);
       atomic_store(&output.input_ready_frames,
@@ -1694,8 +1832,13 @@ static bool render_step(void) {
       prime_complete=prime_complete || output.sound || output.sound_standalone || output.transition_sound;
 #endif
       prime_complete=prime_complete || priming_ready((uint32_t)(esp_timer_get_time()/1000));
-      if (!output.enabled && prime_complete && available >= target) {
-        if (enable_output() != DBT_OK)
+      if (!output.enabled && prime_complete && available >= target
+#ifdef DBT_PROBE_STORAGE_RESERVE
+          && !dbt_storage_reserve_blocks_start(&storage_reserve)
+#endif
+      ) {
+        dbt_result_t enabled=enable_output();
+        if(enabled!=DBT_OK && enabled!=DBT_BUSY)
           atomic_store(&output.failed, 1);
       }
       uint32_t now = (uint32_t)(esp_timer_get_time() / 1000);
@@ -1847,6 +1990,9 @@ dbt_result_t probe_output_init(void (*wake_decoder)(void *), void *context) {
   dbt_audio_memory_t memory = {0, allocate, release};
   if (dbt_audio_init(&output.audio, memory) != DBT_OK)
     return DBT_INVALID;
+#ifdef DBT_PROBE_STORAGE_RESERVE
+  if(dbt_storage_reserve_init(&storage_reserve,&storage_ops,NULL)!=DBT_OK)return DBT_INVALID;
+#endif
   output.requests = xQueueCreate(2, sizeof(request_t));
   if (!output.requests)
     return DBT_NO_SPACE;

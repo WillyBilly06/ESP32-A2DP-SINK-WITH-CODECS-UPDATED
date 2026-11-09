@@ -5,6 +5,7 @@
 #include <stdio.h>
 static bool publication_preempt,media_timing_interference;
 static unsigned publication_preemptions;
+static bool storage_start_race;static uint32_t storage_race_cookie;static dbt_result_t storage_race_result;
 static int flash_guard_observation(void){
     probe_flash_guard_sample_t sample;unsigned starts=fixture_flash_starts,ends=fixture_flash_ends;
     atomic_store(&flash_guard.enabled,0);atomic_store(&flash_guard.token,0);atomic_store(&flash_guard.begin_us,0);
@@ -59,6 +60,8 @@ static int flash_guard_observation(void){
     return 0;
 }
 void dbt_output_test_step(unsigned stage){
+    if(stage==14 && storage_start_race){storage_start_race=false;storage_race_result=probe_output_storage_prepare(&storage_race_cookie,7);}
+
     if(stage==13 && media_timing_interference){media_timing_interference=false;
         probe_output_trace_media_arrival(90002,90012,100,44,1920,255,DBT_OK,false,0,0,0);
     }
@@ -288,9 +291,107 @@ static int fragmented_dsp_equivalence(void){
     }
     return 0;
 }
+static void storage_test_mix(void *unused,int32_t *pcm,uint32_t frames){(void)unused;(void)pcm;(void)frames;}
+static int actual_storage_renderer(void){
+    uint32_t cookie=0;TaskHandle_t old_task=atomic_load(&output.task);
+    atomic_store(&output.task,(TaskHandle_t)1);test_clock_us=5000000;test_clock_step=0;
+    CHECK(dbt_storage_reserve_init(&storage_reserve,&storage_ops,NULL)==DBT_OK);
+    CHECK(start_output(192000,2,DBT_PCM_S32_LE)==DBT_OK);
+    dbt_audio_set_mix(&output.audio,storage_test_mix,NULL);
+    CHECK(dbt_audio_render_silence(&output.audio,2432)==2432);
+    CHECK(probe_output_storage_prepare(&cookie,7)==DBT_PENDING);
+    (void)render_step();CHECK(!output.enabled && (atomic_load(&storage_reserve.state)&15u)==DBT_STORAGE_GRANTED);
+    CHECK(probe_output_storage_prepare(&cookie,7)==DBT_OK);
+    uint32_t held=dbt_audio_output_frames(&output.audio);
+    CHECK(enable_output()==DBT_BUSY && dbt_audio_output_frames(&output.audio)==held);
+    probe_output_storage_release();
+    (void)render_step();CHECK(!output.enabled && probe_output_storage_retire()==DBT_OK);
+    (void)render_step();CHECK(output.enabled);close_output();CHECK(!live);
+    CHECK(dbt_storage_reserve_init(&storage_reserve,&storage_ops,NULL)==DBT_OK);
+    CHECK(start_output(192000,2,DBT_PCM_S32_LE)==DBT_OK);
+    dbt_audio_set_mix(&output.audio,storage_test_mix,NULL);
+    CHECK(dbt_audio_render_silence(&output.audio,2432)==2432 && enable_output()==DBT_OK);
+    static int32_t storage_dma[DMA_FRAMES*2];i2s_event_data_t storage_eof={.dma_buf=storage_dma,.size=DMA_FRAMES*8u};
+    (void)sent(0,&storage_eof,&output);
+    CHECK(probe_output_storage_prepare(&cookie,7)==DBT_PENDING);(void)render_step();
+    CHECK((atomic_load(&storage_reserve.state)&15u)==DBT_STORAGE_ALLOCATE);
+    CHECK(probe_output_storage_prepare(&cookie,7)==DBT_PENDING);(void)render_step();
+    CHECK(output.audio.output.frames==4096 && storage_reserve.attached==3);
+    uint32_t ready=dbt_audio_output_frames(&output.audio);CHECK(ready<3840);
+    /* The final normal render block must grant before the task waits for
+     * an EOF that would consume the very samples satisfying the predicate. */
+    static int32_t incoming[256*2];bool stopped_full=false;
+    for(unsigned step=0;step<64;++step){
+        if(dbt_audio_input_frames(&output.audio)<=768)CHECK(probe_output_try_pcm_format(incoming,256,2,192000,DBT_PCM_S32_LE)==DBT_OK);
+        bool keep=render_step();
+        if(!keep && dbt_audio_output_frames(&output.audio)>=3840){stopped_full=true;break;}
+    }
+    CHECK(stopped_full && (atomic_load(&storage_reserve.state)&15u)==DBT_STORAGE_GRANTED);
+    CHECK(probe_output_storage_prepare(&cookie,7)==DBT_OK);
+    int32_t pcm[3338*2];CHECK(dbt_audio_take(&output.audio,pcm,3338)==3338 && !atomic_load(&output.audio.zero_frames));
+    probe_output_storage_release();(void)render_step();CHECK(probe_output_storage_retire()==DBT_PENDING);
+    ready=dbt_audio_output_frames(&output.audio);CHECK(dbt_audio_take(&output.audio,pcm,ready)==ready);
+    (void)render_step();CHECK(probe_output_storage_retire()==DBT_OK && output.audio.output.frames==2560);
+    CHECK(atomic_load(&output.requested_bytes)==31744 && !atomic_load(&storage_reserve.live_bytes));
+    close_output();CHECK(!live);atomic_store(&output.task,old_task);
+    puts("PASS actual renderer: storage blocks start, attaches only idle DSP pages, consumes long-slice PCM, trims/releases and restores31744-byte budget");return 0;
+}
+static int storage_start_interleaving(void){
+    TaskHandle_t old_task=atomic_load(&output.task);atomic_store(&output.task,(TaskHandle_t)1);
+    CHECK(dbt_storage_reserve_init(&storage_reserve,&storage_ops,NULL)==DBT_OK);
+    CHECK(start_output(192000,2,DBT_PCM_S32_LE)==DBT_OK);dbt_audio_set_mix(&output.audio,storage_test_mix,NULL);
+    CHECK(dbt_audio_render_silence(&output.audio,2432)==2432);storage_start_race=true;
+    (void)render_step();CHECK(storage_race_result==DBT_PENDING && !output.enabled && !atomic_load(&output.failed));
+    CHECK(dbt_audio_output_frames(&output.audio)==2432);(void)render_step();
+    CHECK(probe_output_storage_prepare(&storage_race_cookie,7)==DBT_OK);probe_output_storage_release();
+    (void)render_step();CHECK(probe_output_storage_retire()==DBT_OK);(void)render_step();CHECK(output.enabled);
+    close_output();CHECK(!live);atomic_store(&output.task,old_task);return 0;
+}
+static int storage_primed_stop(void){
+    static int32_t dma[2][DMA_FRAMES*2];uint32_t cookie=0;
+    TaskHandle_t old_task=atomic_load(&output.task);atomic_store(&output.task,(TaskHandle_t)1);
+    for(unsigned pattern=0;pattern<3;++pattern){
+        bool cancel=pattern==1;
+        test_clock_us=6000000+pattern*100000;test_clock_step=0;dbt_ticket_init(&output.ticket);
+        CHECK(dbt_storage_reserve_init(&storage_reserve,&storage_ops,NULL)==DBT_OK);
+        CHECK(start_output(192000,2,DBT_PCM_S32_LE)==DBT_OK);
+        dbt_audio_set_mix(&output.audio,storage_test_mix,NULL);CHECK(dbt_audio_render_silence(&output.audio,512)==512);
+        atomic_store(&output.priming_state,50u); /* Accepted sub-target clip still has enough DMA preload. */
+        if(pattern!=2){CHECK(probe_output_storage_prepare(&cookie,7)==DBT_PENDING);(void)render_step();
+            CHECK(probe_output_storage_prepare(&cookie,7)==DBT_OK && !output.enabled);}
+        else storage_start_race=true;
+        uint32_t id=0;CHECK(dbt_ticket_reserve(&output.ticket,0,0,&id)==DBT_OK && dbt_ticket_publish(&output.ticket,id));
+        output.inflight=(request_t){.id=id,.kind=REQ_CODEC,.start=false};consume_request(output.inflight);
+        CHECK(probe_output_storage_stop_ticket()==id && !output.enabled && !output.stopping && dbt_audio_output_frames(&output.audio)==512);
+        consume_request(output.inflight);CHECK(dbt_ticket_state(&output.ticket,id)==DBT_TICKET_WAITING);
+        if(pattern==2){CHECK(storage_race_result==DBT_PENDING && !atomic_load(&output.failed));(void)render_step();
+            CHECK(probe_output_storage_prepare(&storage_race_cookie,7)==DBT_OK);}
+        if(cancel){
+            (void)dbt_ticket_cancel(&output.ticket,id);(void)render_step();
+            CHECK(output.active && !output.enabled && !probe_output_storage_stop_ticket() && dbt_audio_output_frames(&output.audio)==512);
+            CHECK(probe_output_request_poll(id)==DBT_CANCELLED);
+        }
+        probe_output_storage_release();(void)render_step();CHECK(probe_output_storage_retire()==DBT_OK);(void)render_step();
+        if(!cancel){
+            CHECK(output.enabled && output.stopping && !probe_output_storage_stop_ticket());
+            CHECK(atomic_load(&output.audio.taken_frames)==384);
+            for(unsigned n=0;n<40 && output.active;++n){
+                test_clock_us+=1000;i2s_event_data_t e={.dma_buf=dma[n&1u],.size=DMA_FRAMES*8u};(void)sent(0,&e,&output);(void)render_step();
+            }
+            CHECK(!output.active && probe_output_request_poll(id)==DBT_OK);
+        }
+        if(cancel){CHECK(output.active && dbt_audio_output_frames(&output.audio)==512);close_output();}
+        CHECK(!live && !atomic_load(&storage_reserve.live_bytes));
+    }
+    atomic_store(&output.task,old_task);
+    puts("PASS primed stop: no DMA during storage, duplicate retains ticket, accepted clip drains after retirement and cancelled stop retains the primed stream without starting");return 0;
+}
 int main(void){
     int line=probe_output_refill_windows();if(!line)line=adjacent_media_arrival_gaps();if(!line)line=startup_observation();
     if(!line)line=flash_guard_observation();
+    if(!line)line=actual_storage_renderer();
+    if(!line)line=storage_start_interleaving();
+    if(!line)line=storage_primed_stop();
     if(!line)line=refill_before_diagnostics();
     if(!line)line=local_publication_refill_order();
     if(!line)line=bounded_refill_burst();

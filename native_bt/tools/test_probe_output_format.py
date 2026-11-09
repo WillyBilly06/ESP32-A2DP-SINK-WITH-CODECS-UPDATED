@@ -31,7 +31,7 @@ try:
     env.pop('CCACHE_DISABLE',None)
     incs=[root/'tests/codecs/probe_audio_stubs',root/'include',root/'esp32_probe/main',ws/'bt_audio_sink/main/dsp']
     if options.starvation_trace:incs.append(root/'tests/scheduler_stubs')
-    src=[root/'tests/codecs/probe_output_format.c',root/'src/dbt_audio.c',root/'src/dbt_resampler.c',ws/'bt_audio_sink/main/dsp/fixed_dsp.c']
+    src=[root/'tests/codecs/probe_output_format.c',root/'src/dbt_audio.c',root/'src/dbt_storage_reserve.c',root/'src/dbt_resampler.c',ws/'bt_audio_sink/main/dsp/fixed_dsp.c']
     if options.assist_refill:src[0]=root/'tests/codecs/probe_output_assist_refill.c';src+=[root/'src/dbt_dsp_job.c']
     if options.starvation_trace:src[0]=root/'tests/codecs/probe_output_starvation.c'
     if options.owner_state:src+=[root/'esp32_probe/main/probe_owner_state.c',root/'src/dbt_hci.c']
@@ -41,6 +41,7 @@ try:
         if options.owner_state:tracked+=[root/'esp32_probe/main/probe_owner_state.h',*sorted((root/'include').glob('*.h'))]
         source_hashes={str(p):hashlib.sha256(p.read_bytes()).hexdigest() for p in tracked};runs=[]
     cmd=[cache,cc,'-std=c11','-O1','-fwrapv','-shared','-DCONFIG_I2S_ISR_IRAM_SAFE=1','-DCONFIG_NATIVE_AUDIO_BCLK=26','-DCONFIG_NATIVE_AUDIO_LRCK=25','-DCONFIG_NATIVE_AUDIO_DATA=27']
+    if options.assist_refill or options.starvation_trace:cmd+=['-DDBT_PROBE_STORAGE_RESERVE=1']
     if options.refill_window:
         cmd+=['-DDBT_PROBE_STAY_NATIVE=1']
     if options.compact_copy:cmd+=['-DDBT_PROBE_PCM_COPIED=1','-DDBT_PROBE_ASYNC_AUDIO=1','-DDBT_PROBE_PCM_TARGET_MS=16']
@@ -50,6 +51,7 @@ try:
     if options.assist_refill:cmd+=['-DDBT_PROBE_DSP_ASSIST=1','-DDBT_PROBE_CODEC_AWARE_RENDER=1','-DDBT_OUTPUT_TEST_HOOKS=1','-DDBT_AUDIO_UNITY_COPY=1']
     if options.starvation_trace and not options.light_gap:cmd+=['-DDBT_PROBE_SCHEDULER_TRACE=1']
     if options.owner_state:cmd+=['-DPROBE_OWNER_STATE_TRACE=1']
+    if options.owner_state or options.assist_refill:cmd+=['-DDBT_PROBE_HIGH_RATE_PCM_REBALANCE=1']
     if os.name!='nt':cmd+=['-fPIC']
     cmd+=sum((['-I',str(i)] for i in incs),[])+[str(s) for s in src]
     if sanitized:

@@ -394,6 +394,20 @@ static void media_trace(void *context,const dbt_codec_trace_t *event){
 }
 #if defined(PROBE_OUTPUT_GAP_TRACE) && defined(DBT_PROBE_AUDIO_OUTPUT)
 static void log_first_starvation(void){
+#ifdef DBT_PROBE_STORAGE_RESERVE
+    static dbt_storage_reserve_stats_t prior_storage;static uint32_t prior_storage_stop;
+    dbt_storage_reserve_stats_t storage;probe_output_storage_snapshot(&storage);
+    uint32_t storage_stop=probe_output_storage_stop_ticket();
+    if(memcmp(&prior_storage,&storage,sizeof storage) || storage_stop!=prior_storage_stop){
+        PROBE_SNAPSHOT_LOG("{\"probe\":\"storage_reserve\",\"state_ticket\":%" PRIu32 ",\"phase\":%" PRIu32
+            ",\"primed_stop_ticket\":%" PRIu32 ",\"requests\":%" PRIu32 ",\"claims\":%" PRIu32 ",\"refused\":%" PRIu32 ",\"regrants\":%" PRIu32
+            ",\"live_extra_bytes\":%" PRIu32 ",\"peak_extra_bytes\":%" PRIu32 ",\"max_grant_age_us\":%" PRIu32
+            ",\"max_prepare_wait_us\":%" PRIu32 ",\"target_ms\":20,\"maximum_grant_age_us\":2000,\"independent_counters\":true}\n",
+            storage.state,storage.state&15u,storage_stop,storage.requests,storage.claims,storage.refused,storage.regrants,
+            storage.live_bytes,storage.peak_bytes,storage.max_age_us,storage.max_wait_us);
+        prior_storage=storage;prior_storage_stop=storage_stop;
+    }
+#endif
     static uint32_t prior_flash_peak;
     probe_flash_guard_peak_t peak;probe_flash_guard_peak(&peak);
     if(peak.coherent && peak.token!=prior_flash_peak){

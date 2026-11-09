@@ -107,6 +107,16 @@ bool dbt_audio_input_release(dbt_audio_t *);
 /* Explicit abort only: retire the view and discard unrendered input. */
 uint32_t dbt_audio_input_cancel(dbt_audio_t *);
 void dbt_audio_close(dbt_audio_t *audio);
+/* Render-owner page ownership transitions. The caller must pause the DMA
+ * consumer (on its IRQ core) and have no prepared DSP borrower while calling.
+ * No allocation, release, copy, callback, wait or retry is performed here.
+ * Capacities must use full output pages. BUSY means the occupied physical span
+ * wraps (or crosses the requested trim); retry only after a consumer event.
+ * Extend transfers exclusive pages to audio only on OK; trim transfers removed
+ * pages to the caller only on OK. The caller releases detached pages outside
+ * the real-time/IRQ path. Close releases every page still owned by audio. */
+dbt_result_t dbt_audio_output_extend(dbt_audio_t *,uint8_t *const *,uint32_t);
+dbt_result_t dbt_audio_output_trim(dbt_audio_t *,uint32_t,uint8_t **,uint32_t,uint32_t *);
 /* Producer only; whole block or BUSY, with no partial publication. Input is
  * an immutable external view and must not overlap the owned input ring. */
 dbt_result_t dbt_audio_submit(dbt_audio_t *audio,const void *pcm,uint32_t frames);

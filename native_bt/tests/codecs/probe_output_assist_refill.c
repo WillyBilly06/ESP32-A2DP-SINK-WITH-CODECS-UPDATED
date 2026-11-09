@@ -3,10 +3,20 @@
 #include "probe_output_format.c"
 #include <stdio.h>
 static unsigned publication_checks,publication_error;
+static bool storage_publication_mode;
+static unsigned deferred_owner_eofs;
 static int32_t *refill_destination;
 probe_dsp_admission_t probe_audio_dsp_assist_admission(bool reserve){(void)reserve;return PROBE_DSP_IDLE_ASSIST;}
 void dbt_output_test_step(unsigned stage){
     if(stage!=11)return;
+    if(storage_publication_mode){
+        if(dbt_audio_output_frames(&output.audio)>=3840u){
+            int32_t consumed[192*2];
+            if(dbt_audio_take(&output.audio,consumed,192)!=192)publication_error=4;
+            ++deferred_owner_eofs; /* DMA runs before the owner retires DONE. */
+        }
+        return;
+    }
     ++publication_checks;
     uint32_t ready=dbt_audio_output_frames(&output.audio);
     if(dbt_dsp_job_state(&assist.lane)!=DBT_DSP_JOB_BUSY || !ready){publication_error=1;return;}
@@ -57,8 +67,35 @@ EX int probe_output_assist_refill(void){
     fixture_core=1;CHECK(dsp_assist_complete()==1 && dbt_dsp_job_state(&assist.lane)==DBT_DSP_JOB_IDLE);
     close_output();CHECK(!live);return 0;
 }
+static void assist_test_mix(void *p,int32_t *pcm,uint32_t frames){(void)p;(void)pcm;(void)frames;}
+
+static int assisted_storage_publication(void){
+    uint32_t cookie=0;static int32_t input[256*2];
+    fixture_core=1;test_clock_us=200000;test_clock_step=0;
+    CHECK(dbt_storage_reserve_init(&storage_reserve,&storage_ops,NULL)==DBT_OK);
+    CHECK(start_output(192000,2,DBT_PCM_S32_LE)==DBT_OK);
+    /* The existing test mixer permits deterministic startup silence. */
+    dbt_audio_set_mix(&output.audio,assist_test_mix,NULL);
+    CHECK(dbt_audio_render_silence(&output.audio,2432)==2432 && enable_output()==DBT_OK);
+    atomic_store(&output.callback_calls,1);atomic_store(&output.callback_core,1);
+    CHECK(probe_output_storage_prepare(&cookie,7)==DBT_PENDING);(void)render_step();
+    CHECK((atomic_load(&storage_reserve.state)&15u)==DBT_STORAGE_ALLOCATE);
+    CHECK(probe_output_storage_prepare(&cookie,7)==DBT_PENDING);(void)render_step();
+    CHECK(storage_reserve.attached==3 && output.audio.output.frames==4096);
+    storage_publication_mode=true;deferred_owner_eofs=0;
+    for(unsigned step=0;step<64 && (atomic_load(&storage_reserve.state)&15u)!=DBT_STORAGE_GRANTED;++step){
+        if(dbt_audio_input_frames(&output.audio)<=768)CHECK(probe_output_try_pcm_format(input,256,2,192000,DBT_PCM_S32_LE)==DBT_OK);
+        fixture_core=1;(void)render_step();
+        if(dbt_dsp_job_state(&assist.lane)==DBT_DSP_JOB_READY){fixture_core=0;CHECK(dsp_assist_work());fixture_core=1;(void)render_step();}
+    }
+    storage_publication_mode=false;
+    CHECK(deferred_owner_eofs && !publication_error && (atomic_load(&storage_reserve.state)&15u)==DBT_STORAGE_GRANTED);
+    CHECK(dbt_audio_output_frames(&output.audio)<3840 && probe_output_storage_prepare(&cookie,7)==DBT_OK);
+    probe_output_storage_release();close_output();(void)render_step();CHECK(probe_output_storage_retire()==DBT_OK && !live);
+    puts("PASS assisted reserve publication survives DMA consumption before DONE retirement; host interleaving only");return 0;
+}
 #ifdef DBT_REFILL_STANDALONE
-int main(void){int line=probe_output_assist_refill();
+int main(void){int line=probe_output_assist_refill();if(!line)line=assisted_storage_publication();
     if(line){fprintf(stderr,"FAIL busy-helper published PCM refill line %d\n",line);return 1;}
     puts("PASS actual owner refill during BUSY helper, early wake/publication before DONE, unchanged DSP/lifetime; model interleaving, no target timing");return 0;
 }

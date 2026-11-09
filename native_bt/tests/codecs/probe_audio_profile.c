@@ -7,6 +7,8 @@ size_t heap_caps_get_total_size(unsigned);
 /* Flash guard/IRQ behaviour has its own actual-source fixture. */
 void probe_flash_guard_enable(void){}
 void probe_flash_guard_peak(probe_flash_guard_peak_t *out){if(out)memset(out,0,sizeof *out);}
+void probe_output_storage_snapshot(dbt_storage_reserve_stats_t *out){if(out)memset(out,0,sizeof *out);}
+uint32_t probe_output_storage_stop_ticket(void){return 0;}
 /* Public coex API runs only in the separate worker fixture below. */
 esp_err_t esp_coex_status_bit_set(esp_coex_status_type_t type,uint32_t bits){(void)type;(void)bits;return ESP_OK;}
 esp_err_t esp_coex_status_bit_clear(esp_coex_status_type_t type,uint32_t bits){(void)type;(void)bits;return ESP_OK;}
