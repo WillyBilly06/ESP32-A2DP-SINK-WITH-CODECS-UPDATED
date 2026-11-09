@@ -1,4 +1,5 @@
 #include "probe_avrcp.h"
+#include "esp_timer.h"
 #include <string.h>
 #include <stdatomic.h>
 
@@ -104,6 +105,11 @@ static void local_changed(uint8_t volume) {
     publish();
 }
 void probe_avrcp_local_volume(uint8_t volume) { if (s.initialized && volume<=127) local_changed(volume); }
+static void playback_status(uint8_t value) {
+    if(s.view.playback_status==value)return;
+    s.view.playback_status=value;
+    s.view.playback_status_changed_us=(uint32_t)esp_timer_get_time();
+}
 static void message(void *unused,const dbt_avrcp_message_t *m) {
     (void)unused;
     if (m->invalid_pid) {s.closing=true; return;}
@@ -125,10 +131,10 @@ static void message(void *unused,const dbt_avrcp_message_t *m) {
         } else if (m->pdu==0x30) {
             s.status_sent=false;
             if (m->code==12) { s.view.track_length_ms=be32(m->parameters); s.view.track_position_ms=be32(m->parameters+4);
-                s.view.playback_status=m->parameters[8]; publish(); }
+                playback_status(m->parameters[8]); publish(); }
         } else if (m->pdu==0x31) {
             for (unsigned i=0;i<2;i++) if ((s.reg_sent & (1u<<i)) && s.reg_label[i]==m->label) {
-                if ((m->code==15 || m->code==13) && i==0) {s.view.playback_status=m->parameters[1]; publish();}
+                if ((m->code==15 || m->code==13) && i==0) {playback_status(m->parameters[1]); publish();}
                 if (m->code!=15) {s.reg_sent&=(uint8_t)~(1u<<i);
                     if (m->code==13) {s.reg_wanted|=(uint8_t)(1u<<i); if (i==1) s.meta_need=true; else s.status_need=true;}}
                 break;
@@ -149,7 +155,7 @@ static void clear_session(void) {
     memset(s.volume_tokens,0,sizeof(s.volume_tokens)); s.volume_dirty=0; s.work_head=s.work_count=0;
     s.reg_wanted=s.reg_sent=0; s.metadata_retries=0; s.cap_need=s.cap_sent=s.meta_need=s.meta_sent=s.status_need=s.status_sent=false;
     if (s.view.connected) {s.view.connected=0; s.view.title[0]=s.view.artist[0]=s.view.album[0]=0;
-        s.view.playback_status=0xff; publish();}
+        s.view.playback_status=0xff; s.view.playback_status_changed_us=0; publish();}
 }
 static bool open_session(const dbt_channel_t *ch) {
     if (s.storage || s.bearer.attached || ch->tx_mtu>MAX_PEER_MTU) return false;
@@ -165,7 +171,7 @@ static bool open_session(const dbt_channel_t *ch) {
     if (r==DBT_OK) r=dbt_avctp_bearer_init(&s.bearer,s.runtime,&s.transport,ch);
     if (r!=DBT_OK) {clear_session(); return false;}
     s.cap_need=true; s.view.connected=1; s.view.generation=ch->link_generation; s.view.connection_count++;
-    s.view.playback_status=0xff; s.connect_attempts=0; publish(); return true;
+    s.view.playback_status=0xff; s.view.playback_status_changed_us=0; s.connect_attempts=0; publish(); return true;
 }
 dbt_result_t probe_avrcp_init(dbt_runtime_t *runtime,probe_avrcp_set_volume_fn fn,void *context,uint8_t volume) {
     if (!runtime || !runtime->ready || !runtime->hooks.allocate || !runtime->hooks.release || !fn || volume>127 || s.initialized)

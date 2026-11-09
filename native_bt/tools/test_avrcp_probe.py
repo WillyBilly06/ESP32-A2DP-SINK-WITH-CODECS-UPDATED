@@ -22,16 +22,22 @@ try:
         if source in tracked:continue
         tracked.add(source)
         for name in re.findall(r'^\s*#include\s+"([^"]+)"',source.read_text(encoding='utf-8-sig'),re.M):
-            for candidate in (source.parent/name,root/'include'/name,root/'esp32_probe/main'/name):
+            for candidate in (source.parent/name,root/'include'/name,root/'esp32_probe/main'/name,root/'tests/avrcp/probe_shim'/name):
                 if candidate.is_file():pending.append(candidate);break
     before={str(p):hashlib.sha256(p.read_bytes()).hexdigest() for p in tracked}
     for output in (False,True):
         artifact=out/(('probe-output' if output else 'probe')+('.dll' if os.name=='nt' else '.so'))
         define=['-DDBT_PROBE_AUDIO_OUTPUT=1'] if output else []
-        command=[cache,cc,'-std=c11','-O1','-Wall','-Wextra','-Werror','-I',str(root/'include'),'-I',str(root/'esp32_probe/main')]+define+flags+[str(x) for x in src]+['-o',str(artifact)]
+        objects=[]
+        compile_flags=[x for x in flags if x not in ('-fuse-ld=lld','-nostdlib','-shared','-Wl,/noentry')]
+        for index,source in enumerate(src):
+            obj=out/(('output-' if output else 'basic-')+str(index)+('.obj' if os.name=='nt' else '.o'))
+            command=[cache,cc,'-std=c11','-O1','-Wall','-Wextra','-Werror','-I',str(root/'include'),'-I',str(root/'esp32_probe/main'),'-I',str(root/'tests/avrcp/probe_shim')]+define+compile_flags+['-c',str(source),'-o',str(obj)]
+            subprocess.run(command,check=True);result['commands'].append(command);objects.append(obj)
+        command=[cc]+flags+[str(x) for x in objects]+['-o',str(artifact)]
         subprocess.run(command,check=True);result['commands'].append(command)
         dll=ctypes.CDLL(str(artifact))
-        for n in ('exchange','sdp','wait_backpressure','volume_burst'):
+        for n in ('exchange','sdp','wait_backpressure','volume_burst','playback_clock'):
             line=getattr(dll,'probe_test_'+n)()
             if line: raise SystemExit('FAIL '+n+' output='+str(output)+' line '+str(line))
             result['groups'].append({'group':n,'audio_output':output,'passed':True})

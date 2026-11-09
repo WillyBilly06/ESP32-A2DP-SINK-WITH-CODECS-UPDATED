@@ -1,21 +1,27 @@
 # Independent host and product feature matrix
 
 Current development checkpoint (2026-11-08): readback-verified COM6 image
-f3890656391e uses the owned host at 921600 baud, with heap/tick/task profilers
-OFF. The [reconnect stack checkpoint](RECONNECT_STACK_2026_11_08.md) lowers
-only reconnect SMP from 12 KiB to 8 KiB, preserving 12 KiB fresh/maintenance
-stacks. Diagnostic stack margin was 4736 B; comparable diagnostic minima were
-10480 B before and 14596 B after. The normal 12.526 s native-YouTube/LHDC192/S24/
-phone-fixed900 excerpt measured 20304 B minimum heap and completed EQ ACK,
-readback and CCCD restoration before pause, but retained 16064 initial, 6272
-recovered and 9792 unfilled frames. The first unfilled snapshot had empty input/
-output; MCU/PC intervals are reported separately, without blanket stop-tail
-classification. Descriptor/watchdog/media-drop/decoder faults were zero; host
-trace loss was one. Cold checks pass 37 configurations / 173 callbacks. Earlier
-active gaps/CPU1 faults, sustained 1 Mbps, acoustics, all live codec/security/
-lifecycle/product/OTA parity and matched Bluedroid RAM/CPU remain unqualified.
-Main contains development source at the user's request. Rows below retain their
-dated image scopes.
+f2062fa445c6 uses the owned host at 921600 baud, with heap/tick/task samplers
+OFF. The [playback-clock follow-up](AVRCP_PLAYBACK_CLOCK_2026_11_08.md) adds
+24 B BSS for timestamped peer playback-state snapshots. Cold checks pass
+37 configurations /173 callbacks with no boot watchdog/backtrace marker.
+
+Its two guarded LHDC192/S24/stereo/phone-fixed900 excerpts retain both outcomes:
+music has zero shortages/unfilled frames but an 8032 ms BLE connect interval,
+with controls completed after pause; metronome completes controls during
+playback but has 7360 initial /1600 recovered /5760 unfilled frames. The first
+metronome miss has 768 decoded input frames and zero output frames. No peer
+PAUSED update was observed in that excerpt, so its gap phase is unclassified.
+Neither excerpt has descriptor/watchdog/media-drop/decoder faults or diagnostic
+trace loss. The missing state update and variable LE establishment remain open.
+
+The [earlier reconnect stack checkpoint](RECONNECT_STACK_2026_11_08.md) retains
+its f3890656391e scope: reconnect SMP uses 8 KiB, fresh/maintenance 12 KiB; its
+normal excerpt retains 9792 unfilled frames. Those older gaps are not
+retrospectively reclassified. Earlier active gaps/CPU1 faults, sustained 1 Mbps,
+acoustics, all live codec/security/lifecycle/product/OTA parity and matched
+Bluedroid RAM/CPU remain unqualified. Main contains development source at the
+user's request. Rows below retain their dated image scopes.
 
 Updated 2026-11-05. **The goal remains active and incomplete.** COM6 was
 explicitly released for flashing, serial and Bluetooth testing in this chat;

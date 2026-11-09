@@ -2,6 +2,8 @@
  * the actual probe integration. Endpoint 1 is an independently scripted TG. */
 #include "runtime_pair.c"
 #include "probe_avrcp.h"
+#include "esp_timer.h"
+int64_t esp_timer_get_time(void){return (int64_t)tick*1000;}
 static uint8_t large_pool[8192],target_packet[1024],target_rx[1024],target_tx[1024],target_cont[2048],target_storage[2048];
 static bool large_used;
 static dbt_avctp_t target_transport;
@@ -10,6 +12,7 @@ static dbt_avctp_bearer_t target_bearer;
 static uint64_t tokens[16], registrations[2];
 static uint8_t pdus[16],params[16],target_metadata[600];
 static unsigned target_errors,volume_updates;
+static uint8_t target_playback=1;
 static uint8_t *probe_allocate(void *ctx,uint16_t n) {
     if(ctx==&peers[0] && n>POOL_SIZE) {if(large_used || n>sizeof(large_pool)) return 0;large_used=true;return large_pool;}
     return allocate(ctx,n);
@@ -48,9 +51,9 @@ static void target_poll(void) {
     for(unsigned i=0;i<16;i++) if(tokens[i]) {
         uint8_t b[9];const uint8_t *p=b;uint16_t n;uint8_t code=12;
         if(pdus[i]==0x10) {b[0]=3;b[1]=2;b[2]=1;b[3]=2;n=4;}
-        else if(pdus[i]==0x31) {code=15;b[0]=params[i];if(params[i]==1) {b[1]=1;n=2;}else {memset(b+1,0,8);b[8]=1;n=9;}}
+        else if(pdus[i]==0x31) {code=15;b[0]=params[i];if(params[i]==1) {b[1]=target_playback;n=2;}else {memset(b+1,0,8);b[8]=1;n=9;}}
         else if(pdus[i]==0x20) {p=target_metadata;n=sizeof(target_metadata);}
-        else if(pdus[i]==0x30) {memset(b,0,9);b[3]=100;b[7]=4;b[8]=1;n=9;}
+        else if(pdus[i]==0x30) {memset(b,0,9);b[3]=100;b[7]=4;b[8]=target_playback;n=9;}
         else {target_errors++;tokens[i]=0;break;}
         dbt_result_t r=dbt_avrcp_reply(&target_profile,tokens[i],code,p,n,tick);
         if(r==DBT_OK) {if(pdus[i]==0x31 && params[i]>=1 && params[i]<=2)registrations[params[i]-1]=tokens[i];tokens[i]=0;}
@@ -82,6 +85,31 @@ EXPORT int probe_runtime_exchange(void) {
     probe_avrcp_snapshot_t snap;CHECK(probe_avrcp_snapshot(&snap)==DBT_OK && snap.connected && snap.metadata_updates==1);
     CHECK(registrations[0] && registrations[1] && snap.title[0]=='x' && snap.metadata_truncated && snap.track_length_ms==100);
     CHECK(!peers[0].errors && !peers[1].errors && !target_errors && large_used);
+    /* Two successive tracks exercise both long-lived notification labels.
+     * Every Changed response must be re-registered before the next transition;
+     * interim/GetPlayStatus duplicates must retain its callback timestamp. */
+    for(unsigned round=0;round<2;round++){
+        uint64_t old_status=registrations[0];CHECK(old_status);target_playback=2;
+        const uint8_t paused[]={1,2};
+        CHECK(dbt_avrcp_reply(&target_profile,old_status,13,paused,sizeof(paused),tick)==DBT_OK);
+        registrations[0]=0;paired_pump(400);
+        CHECK(probe_avrcp_snapshot(&snap)==DBT_OK && snap.playback_status==2);
+        CHECK(registrations[0] && registrations[0]!=old_status);
+        uint32_t pause_us=snap.playback_status_changed_us,metadata_revision=snap.metadata_updates;
+        uint64_t old_track=registrations[1];CHECK(old_track);target_metadata[9]=(uint8_t)('a'+round);
+        uint8_t changed_track[9]={2,0,0,0,0,0,0,0,(uint8_t)(round+2)};
+        CHECK(dbt_avrcp_reply(&target_profile,old_track,13,changed_track,sizeof(changed_track),tick)==DBT_OK);
+        registrations[1]=0;paired_pump(400);
+        CHECK(probe_avrcp_snapshot(&snap)==DBT_OK && snap.playback_status==2 && snap.playback_status_changed_us==pause_us);
+        CHECK(snap.metadata_updates>metadata_revision && snap.title[0]==(char)('a'+round));
+        CHECK(registrations[1] && registrations[1]!=old_track);
+        old_status=registrations[0];target_playback=1;const uint8_t playing[]={1,1};
+        CHECK(dbt_avrcp_reply(&target_profile,old_status,13,playing,sizeof(playing),tick)==DBT_OK);
+        registrations[0]=0;paired_pump(400);
+        CHECK(probe_avrcp_snapshot(&snap)==DBT_OK && snap.playback_status==1 && snap.playback_status_changed_us!=pause_us);
+        CHECK(registrations[0] && registrations[0]!=old_status);
+        CHECK(!peers[0].errors && !peers[1].errors && !target_errors);
+    }
     /* Hold must not claim idle while a real runtime owns an AVCTP TX loan.
      * No further keys, incoming channel admissions or reconnects are allowed. */
     uint16_t credits=peers[0].runtime.acl.pools[0].available;

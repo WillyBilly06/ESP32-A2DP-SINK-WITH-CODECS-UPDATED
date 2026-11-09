@@ -8,6 +8,8 @@
 #endif
 #define CHECK(x) do {if(!(x)) return __LINE__;} while(0)
 static dbt_runtime_t rt;
+static uint64_t fixture_clock_us=UINT64_MAX;
+int64_t esp_timer_get_time(void){return (int64_t)(fixture_clock_us==UINT64_MAX?(uint64_t)rt.now_ms*1000u:fixture_clock_us);}
 static dbt_channel_t channel;
 static dbt_link_t link;
 static uint8_t memory[8192],wire[1024];
@@ -228,4 +230,48 @@ EX int probe_test_volume_burst(void) {
     probe_avrcp_snapshot_t view;CHECK(probe_avrcp_snapshot(&view)==DBT_OK && view.connected && view.volume==31);
     probe_avrcp_event(DBT_CH_EVENT_CLOSED,&channel);channel.state=DBT_CH_FREE;step(116);
     CHECK(!s.storage && !done && allocations==releases);return 0;
+}
+
+/* Real adapter/profile packets: preserve the first status-change observation
+ * through duplicate replies, unrelated publications, clock wrap and teardown. */
+EX int probe_test_playback_clock(void) {
+    CHECK(!s.storage && !done && allocations==releases);
+    memset(&s,0,sizeof(s));memset(&rt,0,sizeof(rt));
+    rt.ready=true;rt.host.state=DBT_HOST_IDENTIFIED;rt.hooks.allocate=allocate;rt.hooks.release=release;
+    link=(dbt_link_t){.used=true,.encrypted=true,.handle=1,.generation=29,.kind=DBT_LINK_CLASSIC};
+    channel=(dbt_channel_t){.state=DBT_CH_OPEN,.serial=31,.link_generation=29,.handle=1,.local_cid=64,.remote_cid=65,.psm=0x17,.rx_mtu=48,.tx_mtu=48};
+    CHECK(probe_avrcp_init(&rt,set_volume,0,55)==DBT_OK);probe_avrcp_event(DBT_CH_EVENT_OPEN,&channel);
+    s.cap_need=false;s.reg_wanted=1;
+    step(100);CHECK(done && pdu()==0x31 && wire[13]==1);unsigned reg=label();finish();
+    {const uint8_t value[]={1,1};feed((uint8_t)reg,true,15,0x31,value,sizeof(value));}
+    probe_avrcp_snapshot_t snap;CHECK(probe_avrcp_snapshot(&snap)==DBT_OK && snap.playback_status==1 && snap.playback_status_changed_us==100000);
+    s.status_need=true;step(101);CHECK(done && pdu()==0x30);unsigned get=label();finish();
+    {const uint8_t value[]={0,0,0,200,0,0,0,9,1};feed((uint8_t)get,true,12,0x30,value,sizeof(value));}
+    CHECK(probe_avrcp_snapshot(&snap)==DBT_OK && snap.playback_status_changed_us==100000 && snap.track_position_ms==9);
+    rt.now_ms=102;probe_avrcp_local_volume(81);
+    {const uint8_t title[]={1,0,0,0,1,0,106,0,1,'x'};update_metadata(title,sizeof(title));}
+    CHECK(probe_avrcp_snapshot(&snap)==DBT_OK && snap.playback_status_changed_us==100000 && snap.volume==81 && snap.title[0]=='x');
+    rt.now_ms=103;{const uint8_t value[]={1,2};feed((uint8_t)reg,true,13,0x31,value,sizeof(value));}
+    CHECK(probe_avrcp_snapshot(&snap)==DBT_OK && snap.playback_status==2 && snap.playback_status_changed_us==103000);
+    step(104);CHECK(done && pdu()==0x31);reg=label();finish();
+    {const uint8_t value[]={1,2};feed((uint8_t)reg,true,15,0x31,value,sizeof(value));}
+    step(105);CHECK(done && pdu()==0x30);get=label();finish();
+    {const uint8_t value[]={0,0,0,200,0,0,0,9,2};feed((uint8_t)get,true,12,0x30,value,sizeof(value));}
+    CHECK(probe_avrcp_snapshot(&snap)==DBT_OK && snap.playback_status_changed_us==103000);
+    fixture_clock_us=UINT32_MAX;rt.now_ms=UINT32_MAX;{const uint8_t value[]={1,1};feed((uint8_t)reg,true,13,0x31,value,sizeof(value));}
+    CHECK(probe_avrcp_snapshot(&snap)==DBT_OK && snap.playback_status==1 && snap.playback_status_changed_us==UINT32_MAX);
+    step(0);CHECK(done && pdu()==0x31);reg=label();finish();
+    {const uint8_t value[]={1,1};feed((uint8_t)reg,true,15,0x31,value,sizeof(value));}
+    CHECK(probe_avrcp_snapshot(&snap)==DBT_OK && snap.playback_status_changed_us==UINT32_MAX);
+    fixture_clock_us=(uint64_t)UINT32_MAX+2u;rt.now_ms=1;{const uint8_t value[]={1,2};feed((uint8_t)reg,true,13,0x31,value,sizeof(value));}
+    CHECK(probe_avrcp_snapshot(&snap)==DBT_OK && snap.playback_status==2 && snap.playback_status_changed_us==1);
+    dbt_channel_t stale=channel;probe_avrcp_event(DBT_CH_EVENT_CLOSED,&channel);channel.state=DBT_CH_FREE;step(2);
+    CHECK(probe_avrcp_snapshot(&snap)==DBT_OK && !snap.connected && snap.playback_status==0xff && snap.playback_status_changed_us==0);
+    CHECK(!s.storage && allocations==releases);
+    channel.state=DBT_CH_OPEN;channel.serial++;channel.link_generation++;link.generation++;
+    probe_avrcp_event(DBT_CH_EVENT_OPEN,&channel);
+    {const uint8_t value[]={2,0x11,0x0e};probe_avrcp_receive(&stale,value,sizeof(value));}
+    CHECK(probe_avrcp_snapshot(&snap)==DBT_OK && snap.connected && snap.playback_status==0xff && snap.playback_status_changed_us==0);
+    probe_avrcp_event(DBT_CH_EVENT_CLOSED,&channel);channel.state=DBT_CH_FREE;step(3);
+    CHECK(!s.storage && allocations==releases);fixture_clock_us=UINT64_MAX;return 0;
 }

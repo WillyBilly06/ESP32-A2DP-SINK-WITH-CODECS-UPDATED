@@ -9,6 +9,10 @@ typedef dbt_result_t (*probe_avrcp_set_volume_fn)(void *, uint8_t);
 typedef struct {
     uint32_t generation, track_length_ms, track_position_ms, metadata_updates;
     uint32_t connection_count, error_count;
+    /* esp_timer microseconds (low32) at the last peer playback-status
+     * change callback; not phone action or controller-arrival time.
+     * Repeated replies preserve the first change. */
+    uint32_t playback_status_changed_us;
     uint8_t connected, volume, playback_status, metadata_truncated;
     char title[PROBE_AVRCP_TEXT_BYTES];
     char artist[PROBE_AVRCP_TEXT_BYTES];

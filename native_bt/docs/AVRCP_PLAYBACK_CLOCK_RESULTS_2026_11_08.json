@@ -1,0 +1,170 @@
+{
+  "schema": 1,
+  "image": "f2062fa445c6409fdc7b63ec9df756a9ff3baf2dc680d432b90a6b522d1cb351",
+  "archive": "runs/1794202560262065600-f2062fa445c6",
+  "scope": "Normal image; two guarded <=15s native YouTube LHDC192/S24/stereo excerpts, phone-fixed900. No 1Mbps, acoustic, sustained or full parity qualification.",
+  "build": {
+    "ccache": true,
+    "explicit_object_commands": 1036,
+    "source_inputs": 10433,
+    "passed": true,
+    "image_admission": true,
+    "isr_audit": true,
+    "heap_sampler": false,
+    "tick_task_profilers": false,
+    "controller_only_btdm": true,
+    "bluedroid_host": false,
+    "nimble_host": false,
+    "footprint_delta": {
+      ".iram0.vectors": 0,
+      ".iram0.text": 0,
+      ".dram0.data": 0,
+      ".dram0.bss": 24,
+      ".flash.text": 144
+    }
+  },
+  "host_checks": {
+    "adapter_groups": 10,
+    "passed": true,
+    "paired_notifications": "Two successive tracks with repeated status/track re-registration, duplicate status preservation and pinned disconnect/hold",
+    "only_host_evidence": true
+  },
+  "deployment": {
+    "full_readback_match": true,
+    "upload_baud": 921600,
+    "readback_baud": 115200,
+    "automatic_bluedroid_restore": false,
+    "old_application_preserved": true,
+    "cold": {
+      "probe": "target_codec_selftest",
+      "passed": true,
+      "configurations": 37,
+      "selected": 37,
+      "callbacks": 173,
+      "stack_bytes": 8192,
+      "stack_low_water_bytes": 3604,
+      "tracked_peak_bytes": 56899,
+      "min_free_after_alloc_bytes": 106104,
+      "maximum_decode_us": 12613,
+      "rf_test": false
+    },
+    "health": {
+      "task_watchdog_triggers": 0,
+      "idle_starvation_warnings_by_core": {
+        "0": 0,
+        "1": 0
+      },
+      "watchdog_running_task_samples_by_core": {
+        "0": {},
+        "1": {}
+      },
+      "interrupt_watchdog_timeouts": 0,
+      "backtrace_records": 0,
+      "runtime_health_passed": true
+    }
+  },
+  "music": {
+    "receipt_sha256": "d6310fdc061a6126b64cde33696b67144422c0771e4a2abd4c75f8e5f5e39428",
+    "i2s_elapsed_upper_ms": 12576,
+    "phone_quality_setting_kbps": 900,
+    "controls_before_pause": {
+      "eq_ack": false,
+      "eq_readback": false,
+      "cccd_restored": false
+    },
+    "ble_connect_request_to_callback_ms": 8032,
+    "minimum_free_heap_bytes": 20280,
+    "initial_shortage_frames": 0,
+    "recovered_frames": 0,
+    "unfilled_frames": 0,
+    "decoder_faults": 0,
+    "media_drops": 0,
+    "descriptor_errors": 0,
+    "watchdogs": 0,
+    "host_trace_lost": 0,
+    "worker_trace_lost": 0,
+    "snapshot_records_lost": 0,
+    "snapshot_uart_lost": 0,
+    "peer_status_records": [
+      {
+        "generation": 1,
+        "connected": true,
+        "status": 1,
+        "status_changed_us": 131236599
+      },
+      {
+        "generation": 1,
+        "connected": true,
+        "status": 2,
+        "status_changed_us": 140888009
+      }
+    ],
+    "first_unfilled": null
+  },
+  "metronome": {
+    "receipt_sha256": "78f2c2c8b8e261be116f03b0b0d87dbf84de11a19f32cf5a8b6010894f9e56bd",
+    "i2s_elapsed_upper_ms": 12492,
+    "phone_quality_setting_kbps": 900,
+    "controls_before_pause": {
+      "eq_ack": true,
+      "eq_readback": true,
+      "cccd_restored": true
+    },
+    "ble_connect_request_to_callback_ms": 1224,
+    "minimum_free_heap_bytes": 20136,
+    "initial_shortage_frames": 7360,
+    "recovered_frames": 1600,
+    "unfilled_frames": 5760,
+    "decoder_faults": 0,
+    "media_drops": 0,
+    "descriptor_errors": 0,
+    "watchdogs": 0,
+    "host_trace_lost": 0,
+    "worker_trace_lost": 0,
+    "snapshot_records_lost": 0,
+    "snapshot_uart_lost": 0,
+    "peer_status_records": [
+      {
+        "generation": 1,
+        "connected": true,
+        "status": 1,
+        "status_changed_us": 225106614
+      }
+    ],
+    "first_unfilled": {
+      "probe": "first_unfilled",
+      "stream_serial": 2,
+      "captured": true,
+      "coherent": true,
+      "event_us": 236308408,
+      "taken_frames": 128,
+      "input_frames": 768,
+      "output_frames": 0,
+      "accepted_frames": 2212800,
+      "rendered_frames": 2211968,
+      "dma_source_frames": 2211648,
+      "deadline_us": 236308334,
+      "pending_acl_metadata": 1,
+      "pending_acl_metadata_valid": true,
+      "finalized_shortage": true,
+      "snapshot_begin_us": 237522996,
+      "at_us": 237523007,
+      "snapshot_span_us": 11,
+      "record_crc32": "31a75c63"
+    }
+  },
+  "conclusions": {
+    "music_underrun_free_in_excerpt": true,
+    "music_controls_during_playback": false,
+    "music_le_link_added_after_peer_pause_callback_us": 463392,
+    "music_key_resolution_request_to_owner_completion_us": 32776,
+    "metronome_controls_during_playback": true,
+    "metronome_underrun_free": false,
+    "metronome_pause_update_observed": false,
+    "metronome_gap_phase_classified": false,
+    "source_vs_host_notification_cause_proven": false,
+    "renderer_data_available_at_first_gap": true,
+    "prior_image_gaps_reclassified": false,
+    "all_features_or_goal_complete": false
+  }
+}

@@ -968,7 +968,19 @@ static void metadata_escape(char *out,const char *in){
 static bool log_metadata(void){
     static probe_avrcp_snapshot_t metadata;
     static uint32_t previous_metadata;
-    if(probe_avrcp_snapshot(&metadata)!=DBT_OK || metadata.metadata_updates==previous_metadata)return false;
+    static uint32_t previous_playback_generation,previous_playback_us;
+    static uint32_t previous_playback_state=UINT32_MAX;
+    if(probe_avrcp_snapshot(&metadata)!=DBT_OK)return false;
+    uint32_t state=(uint32_t)metadata.playback_status|((uint32_t)metadata.connected<<8);
+    if(previous_playback_state!=state || previous_playback_generation!=metadata.generation ||
+       previous_playback_us!=metadata.playback_status_changed_us){
+        PROBE_SNAPSHOT_LOG("{\"probe\":\"avrcp_playback\",\"generation\":%" PRIu32 ",\"connected\":%s,\"status\":%u,\"status_changed_us\":%" PRIu32
+            ",\"clock\":\"esp_timer_boot_epoch_us32\",\"timestamp_is_peer_status_callback_observation\":true}\n",
+            metadata.generation,metadata.connected?"true":"false",(unsigned)metadata.playback_status,metadata.playback_status_changed_us);
+        previous_playback_state=state;previous_playback_generation=metadata.generation;
+        previous_playback_us=metadata.playback_status_changed_us;
+    }
+    if(metadata.metadata_updates==previous_metadata)return false;
     const size_t stride=PROBE_AVRCP_TEXT_BYTES*6u+1u;
     char *escaped=heap_caps_malloc(3u*stride,MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT);
     if(!escaped)return false;

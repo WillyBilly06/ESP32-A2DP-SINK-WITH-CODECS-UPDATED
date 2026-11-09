@@ -18,9 +18,15 @@ if args.list_inputs:
         if p in seen:continue
         seen.add(p)
         for name in re.findall(r'^\s*#include\s+"([^"]+)"',p.read_text(encoding='utf-8-sig'),re.MULTILINE):
-            for q in (p.parent/name,root/'include'/name,root/'esp32_probe/main'/name):
+            for q in (p.parent/name,root/'include'/name,root/'esp32_probe/main'/name,root/'tests/avrcp/probe_shim'/name):
                 if q.is_file():pending.append(q);break
     print('\n'.join(sorted(p.relative_to(root).as_posix() for p in seen)));sys.exit(0)
+cache=shutil.which('ccache')
+if not cache:
+    candidates=sorted((pathlib.Path.home()/'.espressif/tools/ccache').glob('*/ccache-*/ccache.exe'))
+    if candidates:cache=str(candidates[-1])
+assert cache,'ccache required'
+os.environ.pop('CCACHE_DISABLE',None)
 out=root/'_build'/'avrcp';out.mkdir(parents=True,exist_ok=True)
 check=[sys.executable,str(root/'tools/check_workspace.py')];subprocess.run(check,check=True)
 try:
@@ -29,7 +35,13 @@ try:
     else:
         flags=['-ffreestanding','-fno-builtin','-fno-stack-protector','-fuse-ld=lld','-nostdlib','-shared','-Wl,/noentry'] if os.name=='nt' else ['-shared','-fPIC']
         artifact=out/('probe-runtime.dll' if os.name=='nt' else 'probe-runtime.so')
-    subprocess.run([cc,'-std=c11','-O1','-g','-Wall','-Wextra','-Werror','-I',str(root/'include'),'-I',str(root/'esp32_probe/main')]+flags+[str(x) for x in src+extra]+['-o',str(artifact)],check=True)
+    compile_flags=[x for x in flags if x not in ('-fuse-ld=lld','-nostdlib','-shared','-Wl,/noentry')]
+    objects=[]
+    for index,source in enumerate(src+extra):
+        obj=out/('paired-'+str(index)+('.obj' if os.name=='nt' else '.o'))
+        subprocess.run([cache,cc,'-std=c11','-O1','-g','-Wall','-Wextra','-Werror','-I',str(root/'include'),'-I',str(root/'esp32_probe/main'),'-I',str(root/'tests/avrcp/probe_shim')]+compile_flags+['-c',str(source),'-o',str(obj)],check=True)
+        objects.append(obj)
+    subprocess.run([cc]+flags+[str(x) for x in objects]+['-o',str(artifact)],check=True)
     if args.sanitize:subprocess.run([str(artifact)],check=True,timeout=60)
     else:
         dll=ctypes.CDLL(str(artifact));line=dll.probe_runtime_exchange()
