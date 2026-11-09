@@ -7,5 +7,8 @@
 #define DBT_ESP32_DECODER_CORE 0
 #define DBT_ESP32_RENDER_CORE 1
 #define DBT_ESP32_BACKGROUND_CORE 1
+/* Bounded, preemptible reconnect preparation uses CPU0 idle quanta.
+ * Controller/protocol owners and fresh pairing keep their existing cores. */
+#define DBT_ESP32_RECONNECT_WORKER_CORE 0
 
 #endif

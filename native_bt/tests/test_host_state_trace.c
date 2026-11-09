@@ -107,7 +107,7 @@ int main(void){
     assert(atomic_load(&media_trace_rings[0].written)==1 && !atomic_load(&media_trace_rings[1].written));
     assert(probe_audio_trace_pop(&media_trace_rings[0],&out) && out.codec==9 && out.event.kind==DBT_CODEC_INPUT_CLOCK_MAX);
     event.kind=DBT_CODEC_PCM_BUSY;media_trace(NULL,&event);
-#ifdef DBT_PROBE_SCHEDULER_TRACE
+#if defined(DBT_PROBE_SCHEDULER_TRACE) && !defined(DBT_PROBE_TASK_RUNTIME_STATS)
     assert(probe_audio_trace_pop(&media_trace_rings[1],&out) && out.event.kind==DBT_CODEC_PCM_BUSY);
 #else
     assert(!probe_audio_trace_pop(&media_trace_rings[1],&out) && !atomic_load(&media_trace_rings[1].lost));

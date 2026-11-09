@@ -8,7 +8,7 @@ import sys
 root=Path(__file__).resolve().parents[1]
 sdk=Path(os.environ.get('DBT_SMP_MBEDTLS_SOURCE',root.parent/'esp-idf/components/mbedtls/mbedtls'))
 out=root/'_build/smp'
-env=os.environ.copy()
+env=os.environ.copy();env.pop('CCACHE_DISABLE',None)
 if os.name=='nt':
     vc=Path(r'C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Auxiliary\Build\vcvars64.bat')
     data=subprocess.check_output(f'call "{vc}" >nul && set',shell=True,text=True)
@@ -33,7 +33,8 @@ try:
         if not cache and os.name=='nt':
             available=sorted((Path.home()/'.espressif/tools/ccache').rglob('ccache.exe'))
             if available:cache=str(available[-1])
-        if cache:configure+=['-DCMAKE_C_COMPILER_LAUNCHER='+cache]
+        if not cache:raise RuntimeError('ccache required for SMP object compilation')
+        configure+=['-DCMAKE_C_COMPILER_LAUNCHER='+cache]
         subprocess.run(configure,env=env,check=True)
         subprocess.run([cmake,'--build',str(build),'--parallel','8'],env=env,check=True)
         for fixture in ('probe_adapter','probe_reconnect','feature_exchange'):

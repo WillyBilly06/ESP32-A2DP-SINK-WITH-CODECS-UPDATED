@@ -89,6 +89,7 @@ int main(void) {
     assert(probe_smp_init(&r,(TaskHandle_t)1,&cfg)==DBT_OK);
     fake_nvs_reset(); seed(l,true,false,16);
     assert(request(0,0)); assert(!worker_live); probe_smp_poll(0);
+    assert(requested_worker_core==0);
     assert(work_inflight && !slot.reply_pending); run_worker(); probe_smp_poll(1);
     assert(slot.reply_pending && slot.reply_opcode==0x201a);
     dbt_command_t *cmd=&r.host.commands[r.host.command_head];

@@ -6,11 +6,16 @@
 #include <stdatomic.h>
 #include <stddef.h>
 
+#if defined(DBT_PROBE_TASK_RUNTIME_ONLY) && (!defined(DBT_PROBE_TASK_RUNTIME_STATS) || defined(DBT_PROBE_TASK_CYCLE_ACCOUNTING))
+#error Runtime-only mode requires task statistics without task-switch cycle accounting
+#endif
+
 /* Tick sampling observes interrupted task identity, not precise CPU runtime.
  * Interrupt masking, higher-level ISRs and periodic-work aliasing bias it.
  * Each core is its counters' only writer. Logger reads atomically once and
  * reports a failed sequence check instead of spinning for a coherent snapshot.
  * No task priority query: that API takes the kernel's cross-core lock. */
+#ifndef DBT_PROBE_TASK_RUNTIME_ONLY
 typedef struct {
     _Atomic uint32_t sequence,counts[PROBE_SAMPLE_ROLES],at_us,max_gap_us;
     _Atomic uint32_t host_phases[PROBE_HOST_PHASES];
@@ -20,6 +25,7 @@ typedef struct {
     bool have_tick;
 } sample_core_t;
 static DRAM_ATTR sample_core_t samples[2];
+#endif
 static DRAM_ATTR TaskHandle_t tasks[5],idle_tasks[2],ipc_tasks[2],timer_task;
 #ifdef DBT_PROBE_CODEC_AWARE_RENDER
 static DRAM_ATTR _Atomic(TaskHandle_t) renderer0;
@@ -35,6 +41,7 @@ static DRAM_ATTR _Atomic uint32_t host_phase;
 static uint32_t known_task_mask;
 static bool attempted;
 
+#ifndef DBT_PROBE_TASK_RUNTIME_ONLY
 static void IRAM_ATTR sample_tick(unsigned core){
     uint32_t began=esp_cpu_get_cycle_count();
     if(!atomic_load_explicit(&enabled,memory_order_acquire))return;
@@ -73,6 +80,7 @@ static void IRAM_ATTR sample_tick(unsigned core){
 }
 static void IRAM_ATTR sample_tick0(void){sample_tick(0);}
 static void IRAM_ATTR sample_tick1(void){sample_tick(1);}
+#endif
 
 esp_err_t probe_scheduler_start(TaskHandle_t host,TaskHandle_t decoder,TaskHandle_t logger){
     if(attempted)return ESP_ERR_INVALID_STATE;
@@ -91,12 +99,16 @@ esp_err_t probe_scheduler_start(TaskHandle_t host,TaskHandle_t decoder,TaskHandl
     if(ipc_tasks[0] || ipc_tasks[1])known_task_mask|=1u<<PROBE_SAMPLE_IPC;
     if(timer_task)known_task_mask|=1u<<PROBE_SAMPLE_TIMER;
     atomic_store_explicit(&enabled,true,memory_order_release);
+#ifdef DBT_PROBE_TASK_RUNTIME_ONLY
+    esp_err_t result=ESP_OK;
+#else
     esp_err_t result=esp_register_freertos_tick_hook_for_cpu(sample_tick0,0);
     if(result==ESP_OK){
         result=esp_register_freertos_tick_hook_for_cpu(sample_tick1,1);
         if(result!=ESP_OK)esp_deregister_freertos_tick_hook_for_cpu(sample_tick0,0);
     }
     if(result!=ESP_OK)atomic_store_explicit(&enabled,false,memory_order_release);
+#endif
 #ifdef DBT_PROBE_TASK_CYCLE_ACCOUNTING
     if(result==ESP_OK)probe_task_cycles_enable();
 #endif
@@ -105,6 +117,9 @@ esp_err_t probe_scheduler_start(TaskHandle_t host,TaskHandle_t decoder,TaskHandl
 void probe_scheduler_snapshot(unsigned core,probe_scheduler_snapshot_t *out){
     if(!out)return;
     *out=(probe_scheduler_snapshot_t){0};
+#ifdef DBT_PROBE_TASK_RUNTIME_ONLY
+    (void)core;return; /* Tick samples are explicitly unavailable in this mode. */
+#else
     if(core>=2 || !atomic_load_explicit(&enabled,memory_order_acquire))return;
     sample_core_t *s=&samples[core];uint32_t before=atomic_load_explicit(&s->sequence,memory_order_acquire);
     for(unsigned i=0;i<PROBE_SAMPLE_ROLES;++i)out->counts[i]=atomic_load_explicit(&s->counts[i],memory_order_relaxed);
@@ -116,6 +131,7 @@ void probe_scheduler_snapshot(unsigned core,probe_scheduler_snapshot_t *out){
     atomic_thread_fence(memory_order_seq_cst);
     out->known_task_mask=known_task_mask;
     out->coherent=!(before&1u) && before==atomic_load_explicit(&s->sequence,memory_order_acquire);
+#endif
 }
 #ifdef DBT_PROBE_TASK_CYCLE_ACCOUNTING
 static struct {
@@ -272,6 +288,9 @@ static DRAM_ATTR interval_record_t intervals[PROBE_DELAY_KINDS];
 void probe_scheduler_mark(unsigned core,probe_scheduler_mark_t *out){
     if(!out)return;
     *out=(probe_scheduler_mark_t){0};
+#ifdef DBT_PROBE_TASK_RUNTIME_ONLY
+    (void)core;return; /* No tick-derived interval attribution. */
+#else
     if(core>=2 || !atomic_load_explicit(&enabled,memory_order_acquire))return;
     uint32_t began=esp_cpu_get_cycle_count();
     sample_core_t *s=&samples[core];uint32_t before=atomic_load_explicit(&s->sequence,memory_order_acquire);
@@ -283,6 +302,7 @@ void probe_scheduler_mark(unsigned core,probe_scheduler_mark_t *out){
     out->read_cycles=esp_cpu_get_cycle_count()-began;
 #ifdef DBT_PROBE_TASK_CYCLE_ACCOUNTING
     probe_task_cycles_mark(core,&out->task);
+#endif
 #endif
 }
 #ifdef DBT_PROBE_TASK_CYCLE_ACCOUNTING

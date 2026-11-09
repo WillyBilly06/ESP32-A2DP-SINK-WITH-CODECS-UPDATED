@@ -14,8 +14,10 @@
 #include "probe_console.h"
 #endif
 #include "probe_audio_limits.h"
-#ifdef DBT_PROBE_SCHEDULER_TRACE
+#if defined(DBT_PROBE_SCHEDULER_TRACE) || defined(DBT_PROBE_TASK_RUNTIME_STATS)
 #include "probe_scheduler.h"
+#endif
+#ifdef DBT_PROBE_SCHEDULER_TRACE
 #include "probe_pcm_level.h"
 #endif
 #include "probe_security.h"
@@ -367,16 +369,17 @@ dbt_result_t probe_audio_host_controller(const probe_host_controller_t *controll
     if(!initialized || !logger_task || xTaskGetCurrentTaskHandle()!=owner)return DBT_UNSUPPORTED;
     return probe_audio_trace_controller(&media_trace_rings[0],controller,trace_clock,NULL);
 }
-#ifdef DBT_PROBE_SCHEDULER_TRACE
+#if defined(DBT_PROBE_SCHEDULER_TRACE) && !defined(DBT_PROBE_TASK_RUNTIME_STATS)
 #define PCM_BUSY_TRACE_JSON "true"
 #else
 #define PCM_BUSY_TRACE_JSON "false"
 #endif
 static void media_trace(void *context,const dbt_codec_trace_t *event){
     (void)context;
-#ifndef DBT_PROBE_SCHEDULER_TRACE
-    /* Expected PCM backpressure is already counted by the worker. Keep each
-     * episode only in explicit detailed traces; normal mode preserves faults,
+#if !defined(DBT_PROBE_SCHEDULER_TRACE) || defined(DBT_PROBE_TASK_RUNTIME_STATS)
+    /* Expected PCM backpressure is already counted by the worker. Runtime
+     * observation preserves normal event load; detailed packet-only mode
+     * keeps individual episodes. Both preserve faults,
      * sequence changes and the immutable first-gap snapshots. */
     if(event->kind==DBT_CODEC_PCM_BUSY)return;
 #endif
@@ -1253,7 +1256,7 @@ static void log_loop(void *unused){
                 ",\"host\":%" PRIu32 ",\"decoder\":%" PRIu32 ",\"renderer\":%" PRIu32 ",\"logger\":%" PRIu32 ",\"controller\":%" PRIu32
                 ",\"idle\":%" PRIu32 ",\"other\":%" PRIu32 ",\"ipc\":%" PRIu32 ",\"timer\":%" PRIu32 ",\"last_tick_us\":%" PRIu32 ",\"max_tick_gap_us\":%" PRIu32
                 ",\"max_gap_begin_us\":%" PRIu32 ",\"max_gap_end_us\":%" PRIu32 ",\"max_gap_previous_role\":%" PRIu32 ",\"max_gap_current_role\":%" PRIu32
-                ",\"max_callback_body_cycles\":%" PRIu32 "}\n",core,(unsigned)configTICK_RATE_HZ,sample.coherent?"true":"false",sample.known_task_mask,
+                ",\"max_callback_body_cycles\":%" PRIu32 "}\n",core,(unsigned)PROBE_SCHEDULER_SAMPLE_HZ,sample.coherent?"true":"false",sample.known_task_mask,
                 sample.counts[0],sample.counts[1],sample.counts[2],sample.counts[3],sample.counts[4],sample.counts[5],sample.counts[6],sample.counts[7],sample.counts[8],
                 sample.at_us,sample.max_gap_us,sample.max_gap_begin_us,sample.max_gap_end_us,sample.max_gap_previous_role,sample.max_gap_current_role,sample.max_callback_cycles);
             snapshot_log(began,"{\"probe\":\"host_phase_samples\",\"core\":%u,\"coherent\":%s,\"last_tick_us\":%" PRIu32
@@ -1693,10 +1696,10 @@ dbt_result_t probe_audio_init(dbt_runtime_t *runtime,TaskHandle_t host_owner){
     if(result!=DBT_OK){vTaskDelete(decoder_task);decoder_task=0;return result;}
 #endif
     if(xTaskCreatePinnedToCore(log_loop,"native_pcm_log",4096,0,1,&logger_task,AUDIO_LOGGER_CORE)!=pdPASS){vTaskDelete(decoder_task);decoder_task=0;return DBT_NO_SPACE;}
-#ifdef DBT_PROBE_SCHEDULER_TRACE
+#if defined(DBT_PROBE_SCHEDULER_TRACE) || defined(DBT_PROBE_TASK_RUNTIME_STATS)
     esp_err_t sampled=probe_scheduler_start(owner,decoder_task,logger_task);
-    printf("{\"probe\":\"scheduler_sampler\",\"active\":%s,\"result\":%u,\"sample_hz\":%u,\"task_count_added\":0,\"cpu_runtime_exact\":false}\n",
-        sampled==ESP_OK?"true":"false",(unsigned)sampled,(unsigned)configTICK_RATE_HZ);
+    printf("{\"probe\":\"scheduler_sampler\",\"active\":%s,\"result\":%u,\"sample_hz\":%u,\"tick_sampling\":%s,\"runtime_only\":%s,\"task_count_added\":0,\"cpu_runtime_exact\":false}\n",
+        sampled==ESP_OK?"true":"false",(unsigned)sampled,(unsigned)PROBE_SCHEDULER_SAMPLE_HZ,PROBE_TICK_SAMPLING_JSON,PROBE_RUNTIME_ONLY_JSON);
 #endif
     initialized=true;
 #ifdef DBT_PROBE_DISPATCH_TRACE

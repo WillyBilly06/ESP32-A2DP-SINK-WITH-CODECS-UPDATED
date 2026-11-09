@@ -10,6 +10,7 @@
 
 typedef struct { size_t size; int full; unsigned char *bytes; } queue_t;
 static int worker_context, crypto_calls, store_calls, open_calls, close_calls, starts, fail_start, nvs_closes;
+static BaseType_t requested_worker_core=DBT_ESP32_BACKGROUND_CORE;
 QueueHandle_t xQueueCreate(UBaseType_t n,UBaseType_t size) {
     assert(n==1); queue_t *q=calloc(1,sizeof(*q)); assert(q); q->size=size; q->bytes=malloc(size); assert(q->bytes); return q;
 }
@@ -25,6 +26,13 @@ BaseType_t xTaskCreate(void (*fn)(void *),const char *name,uint32_t stack,void *
     (void)fn; (void)name; (void)p; (void)pri; (void)out; assert(stack==WORKER_STACK_BYTES);
     ++starts; return fail_start ? 0 : pdPASS;
 }
+BaseType_t xTaskCreatePinnedToCore(void (*fn)(void *),const char *name,uint32_t stack,void *p,UBaseType_t pri,TaskHandle_t *out,BaseType_t core) {
+    assert(pri==1);
+    assert(core==((!maintenance.active && slot.reconnect)?DBT_ESP32_RECONNECT_WORKER_CORE:DBT_ESP32_BACKGROUND_CORE));
+    if(!maintenance.active && slot.reconnect)assert(core==0);else assert(core==1);
+    requested_worker_core=core;return xTaskCreate(fn,name,stack,p,pri,out);
+}
+int xPortGetCoreID(void) { assert(worker_context);return requested_worker_core; }
 void xTaskNotifyGive(TaskHandle_t h) { assert(h); }
 void vTaskDelete(TaskHandle_t h) { (void)h; abort(); }
 void esp_fill_random(void *p,size_t n) { assert(worker_context); memset(p,0x13,n); }
@@ -74,6 +82,7 @@ static void run_worker(void) {
     assert(xQueueReceive(work_queue,&token,0)==pdTRUE);
     w=work_mailbox; wipe(&work_mailbox,sizeof(work_mailbox));
     worker_context=1; worker_execute(&fake_worker,&w,&c); worker_context=0;
+    if(w.kind==WORK_LOAD || w.kind==WORK_RESOLVE)assert(c.worker_core==(uint8_t)requested_worker_core);
     memset(&w,0,sizeof(w)); completion_mailbox=c; token=1;
     assert(xQueueSend(done_queue,&token,0)==pdTRUE); memset(&c,0,sizeof(c));
 }
@@ -209,14 +218,15 @@ int main(void) {
     memset(&w,0,sizeof(w)); w.kind=WORK_STORE; w.generation=8; w.payload.store.serial=4;
     w.payload.store.generation=8; w.payload.store.op=DBT_SMP_BOND_STORE;
     worker_context=1; worker_execute(&state,&w,&c); worker_context=0;
-    assert(c.success && c.serial==4 && store_calls==2);
+    /* Current store preserves prior identity proof through a load then store. */
+    assert(c.success && c.serial==4 && store_calls==3);
     w.require_rpa_binding=true; w.payload.store.record.have_irk=true; w.payload.store.record.candidate_present=true;
     w.binding_rpa[0]=1; worker_context=1; worker_execute(&state,&w,&c); worker_context=0;
-    assert(!c.success && store_calls==2);
+    assert(!c.success && store_calls==3);
     w.binding_rpa[0]=0xaa; worker_context=1; worker_execute(&state,&w,&c); worker_context=0;
-    assert(c.success && store_calls==3);
+    assert(c.success && store_calls==5);
     w.generation=9; worker_context=1; worker_execute(&state,&w,&c); worker_context=0;
-    assert(!c.success && store_calls==3); w.generation=8;
+    assert(!c.success && store_calls==5); w.generation=8;
     state.provider.poisoned=true;
     worker_context=1; worker_execute(&state,&w,&c); worker_context=0; assert(!c.success && storage_poisoned);
     w.kind=WORK_RETIRE; worker_context=1; worker_execute(&state,&w,&c); worker_context=0;

@@ -34,7 +34,7 @@ scheduler_trace=bool(build_status.get('scheduler_trace'))
 assert ('DBT_PROBE_SCHEDULER_TRACE:BOOL=ON' in cache)==scheduler_trace, 'Scheduler sampler receipt/cache mismatch'
 assert re.findall(r'(?:^|\s)-DDBT_PROBE_SCHEDULER_TRACE=(\S+)',main_command)==(['1'] if scheduler_trace else [])
 sampler_units=[e for e in commands if Path(e['file']).name=='probe_scheduler.c']
-assert bool(sampler_units)==scheduler_trace, 'Unexpected or missing sampler unit'
+assert len(sampler_units)==int(scheduler_trace or build_status.get('task_runtime_stats',False)), 'Unexpected or missing observer unit'
 if scheduler_trace:
     assert not diagnostic and not pipeline and ('DBT_PROBE_KEEP_OWNED_ACTIVE:BOOL=ON' not in cache or (build_status.get('stay_native') is True and 'DBT_PROBE_STAY_NATIVE:BOOL=ON' in cache))
     assert not re.search(r'(?:^|\s)-UDBT_PROBE_SCHEDULER_TRACE(?:\s|$)',main_command)
@@ -78,7 +78,7 @@ else:assert not dispatch_inclusions
 task_runtime_stats=build_status.get('task_runtime_stats',False)
 assert type(task_runtime_stats) is bool and ('DBT_PROBE_TASK_RUNTIME_STATS:BOOL=ON' in cache)==task_runtime_stats
 if task_runtime_stats:
-    assert stay_native and scheduler_trace and build_status.get('async_audio') and not diagnostic and not pipeline
+    assert stay_native and (scheduler_trace or build_status.get('task_runtime_only')) and build_status.get('async_audio') and not diagnostic and not pipeline
 for unit in (entry_name,'probe_scheduler.c','probe_audio.c'):
     found=[e['command'] for e in commands if Path(e['file']).name==unit]
     if task_runtime_stats:assert len(found)==1
@@ -107,6 +107,17 @@ if task_cycle_accounting:
         assert e['command'].count(trace_header)==1
         assert re.search(r'(?:^|\s)-include\s+(?:"[^"]*[/\\]|\S*[/\\])probe_task_accounting_trace\.h(?:["\s]|$)',e['command'])
 else:assert not trace_inclusions
+task_runtime_only=build_status.get('task_runtime_only',False)
+assert type(task_runtime_only) is bool and ('DBT_PROBE_TASK_RUNTIME_ONLY:BOOL=ON' in cache)==task_runtime_only
+assert not task_runtime_only or (task_runtime_stats and not scheduler_trace and not task_cycle_accounting)
+for unit in (entry_name,'probe_scheduler.c','probe_audio.c'):
+    found=[e['command'] for e in commands if Path(e['file']).name==unit]
+    if task_runtime_only:assert len(found)==1
+    for command in found:
+        assert re.findall(r'(?:^|\s)-DDBT_PROBE_TASK_RUNTIME_ONLY=(\S+)',command)==(['1'] if task_runtime_only else [])
+        assert not re.search(r'(?:^|\s)-UDBT_PROBE_TASK_RUNTIME_ONLY(?:\s|$)',command)
+        if task_runtime_only:
+            assert not re.search(r'(?:^|\s)-[DU]DBT_PROBE_SCHEDULER_TRACE(?:[=\s]|$)',command)
 volume_ramp=bool(build_status.get('volume_ramp_block'))
 volume_compare=bool(build_status.get('volume_ramp_compare'))
 assert ('DBT_PROBE_VOLUME_RAMP_BLOCK:BOOL=ON' in cache)==volume_ramp
@@ -456,7 +467,7 @@ if dsp_assist:
     assert 'DBT_PROBE_LHDC_BUILD:BOOL=ON' in cache
     assert not build_status.get('lhdc_core0_render') and 'DBT_PROBE_LHDC_CORE0_RENDER:BOOL=ON' not in cache
     assert not build_status.get('aptx_snapshot') and 'DBT_PROBE_APTX_SNAPSHOT:BOOL=ON' not in cache
-report={'passed':True,'dsp_assist':dsp_assist,'dsp_assist_blocks':dsp_assist_blocks,'scheduler_trace':scheduler_trace,'task_runtime_stats':task_runtime_stats,'task_cycle_accounting':task_cycle_accounting,'dispatch_trace':dispatch_trace,'console_irq':console_irq,'stay_native':stay_native,'priority_order':priority_order,'host_priority':host_priority,'decoder_priority':decoder_priority,'renderer_priority':renderer_priority,'early_input_release':early_input_release,'high_rate_pcm_rebalance':high_rate_pcm_rebalance,'matched_feedback':matched_feedback,'matched_feedback_compare':matched_compare,'render_fair_share':render_fair_share,'auxiliary_renderer_priority':build_status.get('auxiliary_renderer_priority',renderer_priority),'owner_ready_yield':owner_ready_yield,'scope':'offline image checksum/digest, ESP32 revision and admitted OTA capacity; no device access or runtime qualification',
+report={'passed':True,'dsp_assist':dsp_assist,'dsp_assist_blocks':dsp_assist_blocks,'scheduler_trace':scheduler_trace,'task_runtime_stats':task_runtime_stats,'task_runtime_only':task_runtime_only,'task_cycle_accounting':task_cycle_accounting,'dispatch_trace':dispatch_trace,'console_irq':console_irq,'stay_native':stay_native,'priority_order':priority_order,'host_priority':host_priority,'decoder_priority':decoder_priority,'renderer_priority':renderer_priority,'early_input_release':early_input_release,'high_rate_pcm_rebalance':high_rate_pcm_rebalance,'matched_feedback':matched_feedback,'matched_feedback_compare':matched_compare,'render_fair_share':render_fair_share,'auxiliary_renderer_priority':build_status.get('auxiliary_renderer_priority',renderer_priority),'owner_ready_yield':owner_ready_yield,'scope':'offline image checksum/digest, ESP32 revision and admitted OTA capacity; no device access or runtime qualification',
  'image_sha256':hashlib.sha256(blob).hexdigest(),'image_bytes':len(blob),'project':project,'chip_id':image.chip_id,'codec_diagnostic_only':diagnostic,'pipeline_diagnostic':pipeline,
  'rf_protocol_diagnostic':rf_diagnostic,'pcm_target_ms':pcm_target_ms,'pcm_copied':pcm_copied,'logger_core':logger_core,'block_dsp':block_dsp,'word_dsp':word_dsp,'experimental_short_pcm_target':pcm_target_ms!=64,'revision_range':[image.min_rev_full,image.max_rev_full],'checksum_verified':True,'digest_verified':bool(image.append_digest),
  'latest_local_build_completed':True,'build_sources_match':True,'build_source_units':source_count,'product_io':bool(build_status.get('product_io')),'product_security':product_security,'rfcomm_profile':rfcomm,'controller_only_dual_mode':True,'anti_rollback_fuse_updates':False,'partition_offset':slot['offset'],'partition_bytes':slot['size'],

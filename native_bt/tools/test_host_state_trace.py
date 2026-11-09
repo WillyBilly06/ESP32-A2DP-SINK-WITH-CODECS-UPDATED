@@ -1,7 +1,7 @@
 """Actual host trace/producer/logger tests; no ESP32/phone access."""
 import argparse,hashlib,json,os,pathlib,shutil,subprocess
-parser=argparse.ArgumentParser();parser.add_argument("--detailed",action="store_true");options=parser.parse_args()
-ROOT=pathlib.Path(__file__).resolve().parents[1];OUT=ROOT/('_build/host_state_trace_detailed' if options.detailed else '_build/host_state_trace');OUT.mkdir(exist_ok=True)
+parser=argparse.ArgumentParser();parser.add_argument("--detailed",action="store_true");parser.add_argument("--runtime-observer",action="store_true");options=parser.parse_args();options.detailed=options.detailed or options.runtime_observer
+ROOT=pathlib.Path(__file__).resolve().parents[1];OUT=ROOT/('_build/host_state_trace_runtime' if options.runtime_observer else '_build/host_state_trace_detailed' if options.detailed else '_build/host_state_trace');OUT.mkdir(exist_ok=True)
 (OUT/'results.json').write_text(json.dumps({'passed':False,'hardware_accessed':False})+'\n')
 source=ROOT/'esp32_probe/main/probe_audio.c';text=source.read_text()
 types=text[text.index('typedef probe_audio_trace_record_t media_trace_t;'):text.index('static media_trace_ring_t media_trace_rings[2];')]
@@ -46,6 +46,7 @@ before={str(p):hashlib.sha256(p.read_bytes()).hexdigest() for p in tracked}
 base=[cache,cc,'-std=c11','-O1','-g','-Wall','-Wextra','-Werror','-fsanitize=address,undefined','-fno-sanitize-recover=all','-fno-omit-frame-pointer','-include',str(ROOT/'tests/host_trace_hook.h')]
 if os.name=='nt':base+=['-fms-runtime-lib=dll','-D_DLL']
 if options.detailed:base+=['-DDBT_PROBE_SCHEDULER_TRACE=1']
+if options.runtime_observer:base+=['-DDBT_PROBE_TASK_RUNTIME_STATS=1']
 base+=['-I'+str(p) for p in includes];commands=[];objects=[]
 for i,path in enumerate(sources):
     obj=OUT/(str(i)+('.obj' if os.name=='nt' else '.o'));command=[*base,'-c',str(path),'-o',str(obj)]
@@ -94,4 +95,4 @@ expected_controller=extra['CONTROLLER_LEGACY_JSON']|{'internal_free':222222,'int
 assert extra['MEMORY_DEFERRED_JSON']==expected_memory,extra
 assert extra['CONTROLLER_DEFERRED_JSON']==expected_controller,extra
 assert all(hashlib.sha256(pathlib.Path(p).read_bytes()).hexdigest()==value for p,value in before.items())
-(OUT/'results.json').write_text(json.dumps({'passed':True,'hardware_accessed':False,'sanitizers':['address','undefined'],'signed_overflow_wrapping':False,'sanitizer_runtime_sha256':runtime_sha256 if os.name=='nt' else None,'scope':'actual queue plus exact main/producer/logger spans,24-field failure group and atomic publication: owner validation, immutable copies, mixed media/state, full/drop/no-clock, uint32 wrap, real JSON fields, stalled logger after slot release; no UART or MCU timing','deferred_heap_json':extra,'failure_json':parsed,'stalled_failure_json':stalled,'sources':before,'commands':commands,'stdout':run.stdout},indent=2)+'\n')
+(OUT/'results.json').write_text(json.dumps({'passed':True,'runtime_observer':options.runtime_observer,'detailed':options.detailed,'hardware_accessed':False,'sanitizers':['address','undefined'],'signed_overflow_wrapping':False,'sanitizer_runtime_sha256':runtime_sha256 if os.name=='nt' else None,'scope':'actual queue plus exact main/producer/logger spans,24-field failure group and atomic publication: owner validation, immutable copies, mixed media/state, full/drop/no-clock, uint32 wrap, real JSON fields, stalled logger after slot release; no UART or MCU timing','deferred_heap_json':extra,'failure_json':parsed,'stalled_failure_json':stalled,'sources':before,'commands':commands,'stdout':run.stdout},indent=2)+'\n')

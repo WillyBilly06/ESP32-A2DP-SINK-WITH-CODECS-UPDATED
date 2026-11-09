@@ -1,5 +1,14 @@
 #ifndef PROBE_SCHEDULER_H
 #define PROBE_SCHEDULER_H
+#ifdef DBT_PROBE_TASK_RUNTIME_ONLY
+#define PROBE_TICK_SAMPLING_JSON "false"
+#define PROBE_RUNTIME_ONLY_JSON "true"
+#define PROBE_SCHEDULER_SAMPLE_HZ 0u
+#else
+#define PROBE_TICK_SAMPLING_JSON "true"
+#define PROBE_RUNTIME_ONLY_JSON "false"
+#define PROBE_SCHEDULER_SAMPLE_HZ ((unsigned)configTICK_RATE_HZ)
+#endif
 #include "esp_err.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"

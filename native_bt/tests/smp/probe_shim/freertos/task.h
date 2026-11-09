@@ -3,6 +3,8 @@
 #include "FreeRTOS.h"
 typedef void *TaskHandle_t;
 BaseType_t xTaskCreate(void (*fn)(void *),const char *,uint32_t,void *,UBaseType_t,TaskHandle_t *);
+BaseType_t xTaskCreatePinnedToCore(void (*fn)(void *),const char *,uint32_t,void *,UBaseType_t,TaskHandle_t *,BaseType_t);
+int xPortGetCoreID(void);
 void xTaskNotifyGive(TaskHandle_t);
 void vTaskDelete(TaskHandle_t);
 #endif

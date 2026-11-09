@@ -7,6 +7,7 @@
 #include "freertos/queue.h"
 #include <nvs.h>
 #include <string.h>
+#include <stdatomic.h>
 #if defined(DBT_PROBE_RF_PROTOCOL_DIAGNOSTIC) || defined(DBT_PROBE_PRODUCT_SECURITY)
 #include "probe_security.h"
 /* Owner-only, at most 64 metadata records per link generation. Nonblocking
@@ -52,7 +53,7 @@ typedef struct {
     work_kind_t kind;
     uint32_t generation,serial;
     bool success,existing,resolved_candidate;
-    uint8_t store_step;bool identity_proof_preserved;
+    union {uint8_t store_step,worker_core;};bool identity_proof_preserved;
     dbt_smp_session_crypto_kind_t crypto_kind;
     dbt_result_t status;
     dbt_smp_bond_op_t operation;
@@ -105,7 +106,9 @@ static completion_t completion_mailbox;
 static bool pending_valid,work_inflight,worker_live;
 /* A failed/ambiguous mutation is latched across worker lifetimes. Reboot or
  * an explicit external reconciliation is needed before enabling bonding. */
-static bool storage_poisoned;
+static _Atomic bool storage_poisoned;
+_Static_assert(ATOMIC_BOOL_LOCK_FREE==2 && sizeof(storage_poisoned)==sizeof(bool),
+               "Cross-core poison latch must be lock-free without growing storage");
 static struct { bool pending; uint16_t handle; uint32_t generation; } failure;
 static struct {
     bool active,issued,done,retiring,retired,applied;
@@ -458,6 +461,7 @@ static void worker_execute(worker_state_t *state,work_t *w,completion_t *result)
             wipe(provider,sizeof(*provider));
             done.success=true;
         }
+        if(work.kind==WORK_LOAD || work.kind==WORK_RESOLVE)done.worker_core=(uint8_t)xPortGetCoreID();
         wipe(&work,sizeof(work));
         *result=done;
         wipe(&done,sizeof(done));
@@ -776,7 +780,11 @@ static void reconnect_reply(uint32_t now) {
 }
 static void complete(completion_t *done,uint32_t now) {
     if(slot.active && done->generation==slot.generation){
-        trace_smp(slot.handle,slot.generation,9,(int)done->status,(uint8_t)done->kind,(uint16_t)((done->success?1:0)|(done->existing?2:0)),request_window(now));
+        uint16_t flags=(uint16_t)((done->success?1:0)|(done->existing?2:0));
+        /* Stage9 size is diagnostic flags: bit2 validates core, bit3 is core ID. */
+        if(done->kind==WORK_LOAD || done->kind==WORK_RESOLVE)flags|=(uint16_t)(4u|((done->worker_core&1u)<<3));
+        trace_smp(slot.handle,slot.generation,9,(int)done->status,(uint8_t)done->kind,flags,request_window(now));
+        (void)flags;
         if(done->kind==WORK_STORE)trace_smp(slot.handle,slot.generation,12,(int)done->status,done->store_step,
             (uint16_t)((done->success?1:0)|(done->identity_proof_preserved?2:0)),request_window(now));
     }
@@ -977,7 +985,8 @@ void probe_smp_poll(uint32_t now) {
     }
     if (!slot.prepare_queued) {
         if (!worker_live) {
-            if (xTaskCreatePinnedToCore(worker,"native_smp_worker",WORKER_STACK_BYTES,NULL,1,NULL,DBT_ESP32_BACKGROUND_CORE)!=pdPASS) {
+            BaseType_t worker_core=slot.reconnect?DBT_ESP32_RECONNECT_WORKER_CORE:DBT_ESP32_BACKGROUND_CORE;
+            if (xTaskCreatePinnedToCore(worker,"native_smp_worker",WORKER_STACK_BYTES,NULL,1,NULL,worker_core)!=pdPASS) {
                 if (slot.reconnect && !slot.reconnect_central) slot.negative_needed=true; else slot.failed=true;
                 return;
             }

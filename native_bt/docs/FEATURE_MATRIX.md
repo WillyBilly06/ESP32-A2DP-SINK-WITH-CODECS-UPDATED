@@ -1,15 +1,17 @@
 # Independent host and product feature matrix
 
-Current development checkpoint (2026-11-08): image861ec6f23c4a passes readback,
-37 cold codec configurations and173 callbacks on COM6 at921600 baud. The
-[deferred CCCD fix](CCCD_DEFERRED_RESTORE_2026_11_08.md) preserves persistence,
-other subscriptions and bond/token/generation checks, adding16B BSS. Seven
-arrival and nine failure/retry cases pass. A guarded LHDC192/S24/fixed900
-roundtrip receives ACK/readback/restoration before pause with0 PCM shortages,
-but one descriptor-order fault and one CPU1 idle-starvation watchdog event.
-Overall playback remains unqualified. CPU1 budgets,1Mbps, sustained coexistence,
-acoustics, live all-codec/security/lifecycle/product/OTA parity and comparative
-RAM/CPU qualification remain open. Rows below retain their dated image scopes.
+Current development checkpoint (2026-11-08): image7d131bf9e47d passes readback and
+37 cold codec configurations /173 callbacks on COM6 at921600 baud. The
+[runtime/reconnect checkpoint](CPU_RUNTIME_RECONNECT_2026_11_08.md) moves existing
+priority-1 bonded reconnect preparation to Core0, with unchanged linked IRAM/data/BSS
+and no new task/stack/buffer. Two normal-image resolutions take54–55ms. Temporary
+runtime profiling is OFF. A13.159s guarded LHDC192/S24/fixed900 metronome excerpt
+completes BLE ACK/readback/CCCD restoration before pause with0 shortages/descriptor
+faults/new watchdog events. Music controls complete after pause;1152 unfilled frames
+are retained in its stop tail. Earlier diagnostic active gaps/watchdog faults remain.
+Sustained coexistence,1Mbps, acoustics, full live codec/security/lifecycle/product/OTA
+parity and equivalent Bluedroid RAM/CPU qualification remain open. Rows below retain
+their dated image scopes. This checkpoint is development firmware.
 
 Updated 2026-11-05. **The goal remains active and incomplete.** COM6 was
 explicitly released for flashing, serial and Bluetooth testing in this chat;

@@ -1,5 +1,21 @@
 # Independent ESP32 Bluetooth host
 
+The [runtime/reconnect checkpoint](docs/CPU_RUNTIME_RECONNECT_2026_11_08.md) runs on
+readback-verified COM6 image7d131bf9e47d. Firmware and the raw-UART viewer use
+**921600 baud**, with bounded producer events and background formatting/transmit.
+Normal operation suppresses repetitive PCM-busy records; faults and counters remain.
+The temporary runtime profiler is OFF in the current image.
+
+Bonded reconnect preparation uses the existing low-priority worker on Core0,
+without additional RAM buffers/tasks. Two normal-image completions took54–55ms.
+A guarded LHDC192/S24/fixed900 metronome excerpt completed BLE ACK/readback/CCCD
+restoration before pause with0 PCM shortages, descriptor faults or watchdog events.
+A music excerpt completed controls after pause and retained1152 stop-tail frames.
+Earlier active gaps/watchdog faults and sustained1Mbps/feature parity remain open.
+This is development firmware; details and failed traces are preserved in the report.
+
+## Earlier checkpoints
+
 The [deferred subscription fix](docs/CCCD_DEFERRED_RESTORE_2026_11_08.md) runs on
 readback-verified COM6 image861ec6f23c4a at **921600 baud**. Valid first CCCD writes
 wait for restored values and durable merged persistence; other subscriptions and
@@ -12,8 +28,6 @@ independent readback and original-subscription restoration before pause. It has
 0 PCM shortage frames, but **one descriptor-order fault and one CPU1 idle-starvation
 watchdog event**. Playback is not clean. CPU1 budgets, full1Mbps, sustained
 continuity/coexistence and complete feature parity remain open.
-
-## Earlier checkpoints
 
 The [preceding BLE/LHDC control trace](docs/BLE_LHDC_CONTROL_TRACE_2026_11_08.md)
 runs on readback-verified COM6 imagec07781e066ab at **921600 baud**. Separate

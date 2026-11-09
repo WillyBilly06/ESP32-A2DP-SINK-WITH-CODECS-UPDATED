@@ -19,6 +19,7 @@ def check(changes,valid):
     else:assert valid
     count+=1
 check({},True);check({'build_status':{},'cache':'','commands':[{'file':n,'command':'cc'} for n in units]},True)
+check({'build_status':{'task_runtime_stats':True,'task_runtime_only':True,'async_audio':True},'cache':'DBT_PROBE_TASK_RUNTIME_STATS:BOOL=ON\nDBT_PROBE_TASK_RUNTIME_ONLY:BOOL=ON','scheduler_trace':False,'commands':[{'file':n,'command':cmd+' -DDBT_PROBE_TASK_RUNTIME_ONLY=1'} for n in units]},True)
 for change in [{'build_status':{'task_runtime_stats':1,'async_audio':True}},{'build_status':{'task_runtime_stats':True,'async_audio':False}},{'cache':''},{'commands':[]},{'stay_native':False},{'scheduler_trace':False},{'diagnostic':True},{'pipeline':True}]:check(change,False)
 for bad in ['cc','cc -DDBT_PROBE_TASK_RUNTIME_STATS=0',cmd+' -UDBT_PROBE_TASK_RUNTIME_STATS',cmd+' -DDBT_PROBE_TASK_RUNTIME_STATS=1']:check({'commands':[{'file':n,'command':bad} for n in units]},False)
 start=next(i for i,n in enumerate(tree.body) if isinstance(n,ast.For) and isinstance(n.iter,ast.Tuple) and any(isinstance(v,ast.Constant) and v.value=='CONFIG_FREERTOS_GENERATE_RUN_TIME_STATS' for v in n.iter.elts))

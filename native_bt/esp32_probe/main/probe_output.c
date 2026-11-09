@@ -19,7 +19,7 @@
 #ifdef __XTENSA__
 #include <xtensa/xtruntime.h>
 #endif
-#ifdef DBT_PROBE_SCHEDULER_TRACE
+#if defined(DBT_PROBE_SCHEDULER_TRACE) || defined(DBT_PROBE_TASK_RUNTIME_STATS)
 #include "probe_scheduler.h"
 #endif
 #include "driver/i2s_std.h"
@@ -422,7 +422,7 @@ static bool ensure_auxiliary_render0(void){
 #ifdef DBT_PROBE_DISPATCH_TRACE
   probe_dispatch_bind(PROBE_DISPATCH_HELPER,worker);
 #endif
-#ifdef DBT_PROBE_SCHEDULER_TRACE
+#if defined(DBT_PROBE_SCHEDULER_TRACE) || defined(DBT_PROBE_TASK_RUNTIME_STATS)
   probe_scheduler_bind_renderer0(worker);
 #endif
   return true;
