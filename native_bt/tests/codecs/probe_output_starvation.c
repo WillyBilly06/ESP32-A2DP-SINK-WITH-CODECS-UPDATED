@@ -23,6 +23,45 @@ void probe_scheduler_interval_observe(unsigned kind,const probe_scheduler_mark_t
 #ifdef PROBE_OWNER_STATE_TRACE
 static _Atomic uint32_t fixture_tx_owned;
 #endif
+static int adjacent_media_arrival_gaps(void){
+    CHECK(!live);memset(&timeline,0,sizeof timeline);probe_media_timing_t t;
+    CHECK(!probe_output_media_timing(&t) && t.hci_gap_us==UINT32_MAX);
+    probe_output_trace_media_arrival(10000,0,7,65535,0,255,DBT_PENDING,true,8000,10,0x2001);
+    CHECK(probe_output_media_timing(&t) && t.hci_gap_us==UINT32_MAX);
+    probe_output_trace_media_arrival(10000,10100,7,65535,0,255,DBT_OK,true,8000,10,0x2001);
+    CHECK(probe_output_media_timing(&t) && t.hci_gap_us==UINT32_MAX);
+    probe_output_trace_media_arrival(20000,0,7,0,960,255,DBT_PENDING,true,12000,20,0x2001);
+    CHECK(probe_output_media_timing(&t) && t.host_gap_us==10000 && t.hci_gap_us==4000);
+    probe_output_trace_media_arrival(20000,20100,7,0,960,255,DBT_OK,true,12000,20,0x2001);
+    CHECK(probe_output_media_timing(&t) && t.host_gap_us==10000 && t.hci_gap_us==4000);
+    probe_output_trace_media_arrival(23500,23600,7,1,1920,255,DBT_OK,true,20000,30,0x2001);
+    CHECK(probe_output_media_timing(&t) && t.host_gap_us==3500 && t.hci_gap_us==8000);
+    /* Changed current-H4 identity invalidates completion correlation. */
+    probe_output_trace_media_arrival(23500,23700,7,1,1920,255,DBT_OK,true,20001,30,0x2001);
+    CHECK(probe_output_media_timing(&t) && t.hci_gap_us==UINT32_MAX);
+    probe_output_trace_media_arrival(24000,24100,7,1,1920,255,DBT_OK,true,21000,40,0x2001);
+    CHECK(probe_output_media_timing(&t) && t.hci_gap_us==UINT32_MAX);
+    probe_output_trace_media_arrival(25000,25100,7,3,2880,255,DBT_OK,true,22000,50,0x2001);
+    CHECK(probe_output_media_timing(&t) && t.hci_gap_us==UINT32_MAX);
+    probe_output_trace_media_arrival(26000,26100,7,4,3840,254,DBT_OK,true,23000,60,0x2001);
+    CHECK(probe_output_media_timing(&t) && t.hci_gap_us==UINT32_MAX);
+    probe_output_trace_media_arrival(27000,27100,8,5,4800,254,DBT_OK,true,24000,70,0x2001);
+    CHECK(probe_output_media_timing(&t) && t.hci_gap_us==UINT32_MAX);
+    probe_output_trace_media_arrival(28000,28100,8,6,5760,254,DBT_OK,false,0,0,0);
+    CHECK(probe_output_media_timing(&t) && !t.arrival_valid && t.hci_gap_us==UINT32_MAX);
+    probe_output_trace_media_arrival(29000,29100,8,7,6720,254,DBT_OK,true,26000,80,0x2001);
+    CHECK(probe_output_media_timing(&t) && t.hci_gap_us==UINT32_MAX);
+    probe_output_trace_media_arrival(UINT32_MAX-1000u,0,9,5,0,255,DBT_PENDING,true,UINT32_MAX-2000u,90,0x2001);
+    probe_output_trace_media_arrival(UINT32_MAX-1000u,UINT32_MAX-900u,9,5,0,255,DBT_OK,true,UINT32_MAX-2000u,90,0x2001);
+    probe_output_trace_media_arrival(5000,5100,9,6,960,255,DBT_OK,true,2000,100,0x2001);
+    CHECK(probe_output_media_timing(&t) && t.host_gap_us==6001 && t.hci_gap_us==4001);
+    probe_output_trace_media_arrival(6000,6100,9,7,1920,255,DBT_OK,true,1999,110,0x2001);
+    CHECK(probe_output_media_timing(&t) && t.hci_gap_us==UINT32_MAX);
+    uint32_t version=atomic_load(&timeline.media_version);atomic_store(&timeline.media_version,version+1u);
+    CHECK(!probe_output_media_timing(&t) && t.hci_gap_us==UINT32_MAX);atomic_store(&timeline.media_version,version+2u);
+    puts("PASS adjacent HCI/host gaps: split callback, sequence/time wrap, duplicate/skip, epoch/SSRC, unavailable/changed association and in-progress publication");return 0;
+}
+
 static int startup_observation(void){
     int32_t pcm[512*2]={0};
     test_clock_us=100000;CHECK(start_output(48000,2,DBT_PCM_S32_LE)==DBT_OK);
@@ -83,6 +122,7 @@ static int partial_refill(void){
     CHECK(probe_owner_state_completed(owner_ncp,sizeof owner_ncp,88020));
     probe_owner_state_mark(PROBE_OWNER_SLEEP,88030,UINT32_MAX);
 #endif
+    probe_output_trace_media_arrival(86000,86010,99,41,0,255,DBT_OK,true,85000,123u,0x2001u);
     probe_output_trace_media_arrival(90000,90010,99,42,960,255,DBT_OK,true,89900,UINT32_MAX-7u,0x2001u);
     probe_media_timing_t timing;CHECK(probe_output_media_timing(&timing) && timing.coherent);
     CHECK(timing.epoch==99 && timing.sequence==42 && timing.timestamp==960 && timing.ssrc==255 && timing.begin_us==90000 && timing.admitted_us==90010 && timing.result==DBT_OK && timing.arrival_valid && timing.arrival_us==89900);
@@ -90,6 +130,7 @@ static int partial_refill(void){
     CHECK(!probe_output_media_timing(&timing));atomic_store(&timeline.media_version,media_v+2u);
     media_timing_interference=true;CHECK(!probe_output_media_timing(&timing));
     CHECK(!probe_output_media_timing(NULL));
+    probe_output_trace_media_arrival(86000,86010,99,41,0,255,DBT_OK,true,85000,123u,0x2001u);
     probe_output_trace_media_arrival(90000,90010,99,42,960,255,DBT_OK,true,89900,UINT32_MAX-7u,0x2001u);
     e.dma_buf=dma[0];(void)sent(0,&e,&output);
     CHECK(probe_output_try_pcm_format(input,512,2,96000,DBT_PCM_S32_LE)==DBT_OK);
@@ -100,7 +141,7 @@ static int partial_refill(void){
     for(unsigned i=half*2u;i<DMA_FRAMES*2u;++i)CHECK(!dma[0][i]);
     probe_output_starvation_t s;probe_output_first_unfilled(&s);
     CHECK(s.captured && s.coherent && s.taken_frames==half && s.output_frames==half && s.at_us==91333);
-    CHECK(s.media_coherent && s.media_arrival_valid && s.media_arrival_us==89900u && s.media_arrival_cursor==UINT32_MAX-7u && s.media_arrival_flags==0x2001u);
+    CHECK(s.media_coherent && s.media_arrival_valid && s.media_arrival_us==89900u && s.media_arrival_cursor==UINT32_MAX-7u && s.media_arrival_flags==0x2001u && s.media_hci_gap_us==4900u);
 #ifdef PROBE_OWNER_STATE_TRACE
     CHECK(s.owner.coherent && s.owner.phase==PROBE_OWNER_SLEEP && s.owner.phase_at_us==88030 && s.owner.wait_ms==UINT32_MAX);
     CHECK(s.owner.credits_at_us==88010 && s.owner.pending_counts==0x10002u && (s.owner.flags&PROBE_OWNER_PENDING));
@@ -195,7 +236,7 @@ static int fragmented_dsp_equivalence(void){
     return 0;
 }
 int main(void){
-    int line=probe_output_refill_windows();if(!line)line=startup_observation();
+    int line=probe_output_refill_windows();if(!line)line=adjacent_media_arrival_gaps();if(!line)line=startup_observation();
     if(!line)line=refill_before_diagnostics();
     if(!line)line=local_publication_refill_order();
     if(!line)line=bounded_refill_burst();

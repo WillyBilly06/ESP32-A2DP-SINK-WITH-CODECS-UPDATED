@@ -1,0 +1,822 @@
+{
+  "date": "2026-11-08",
+  "scope": "Timing diagnostics and two bounded YouTube excerpts, not sustained or acoustic qualification",
+  "image_sha256": "77101dff57957ff24ca8ea4eb11fbd6ea0462a1d0682e3f51d8e672e46a03de4",
+  "image_archive": "native_bt/_build/hardware/runs/1794209900538208000-77101dff5795",
+  "source_parent": "87dc5c96ff4f5e2fe4458ee72967da43bced3cfb",
+  "source_sha256": {
+    "native_bt/esp32_probe/main/probe_audio.c": "e4f5d682955f34503c4c84aaffa6a54b6b937302252006ba8b7b435da915d6e7",
+    "native_bt/esp32_probe/main/probe_output.c": "4566f277ce7da6fc102e2d91ba6a4b08395ac38b33b258d514683428916e0ad7",
+    "native_bt/esp32_probe/main/probe_output.h": "19ad2ce9aa74c9cfc0055ea65d5da76f07e47ef1c73d15fac67792b374e843dc",
+    "native_bt/tests/codecs/probe_output_starvation.c": "8a98c38ff20da197e528f60aff798a24867e047e98d63e09b3acbff883c0ced0"
+  },
+  "source_binding_verified": true,
+  "build": {
+    "passed": true,
+    "ccache": true,
+    "object_compile_units": 1036,
+    "manifest_inputs": 10433,
+    "admission_checks_passed": true,
+    "console_baud": 921600,
+    "source_manifest_sha256": "704681370508bfc2f6cf8af0f21aedfc2cf962c865a6a32c3dea755a190257bb",
+    "source_manifest_file_sha256": "704681370508bfc2f6cf8af0f21aedfc2cf962c865a6a32c3dea755a190257bb"
+  },
+  "cold_target_checks": {
+    "probe": "target_codec_selftest",
+    "passed": true,
+    "configurations": 37,
+    "selected": 37,
+    "callbacks": 173,
+    "stack_bytes": 8192,
+    "stack_low_water_bytes": 3572,
+    "tracked_peak_bytes": 56899,
+    "min_free_after_alloc_bytes": 106088,
+    "maximum_decode_us": 12697,
+    "rf_test": false
+  },
+  "boot_health": {
+    "task_watchdog_triggers": 0,
+    "idle_starvation_warnings_by_core": {
+      "0": 0,
+      "1": 0
+    },
+    "watchdog_running_task_samples_by_core": {
+      "0": {},
+      "1": {}
+    },
+    "interrupt_watchdog_timeouts": 0,
+    "backtrace_records": 0,
+    "runtime_health_passed": true
+  },
+  "readback": [
+    {
+      "offset": 3735552,
+      "bytes": 1346576,
+      "readback_sha256": "77101dff57957ff24ca8ea4eb11fbd6ea0462a1d0682e3f51d8e672e46a03de4",
+      "readback_matches": true,
+      "write_baud": 921600,
+      "verify_baud": 115200
+    },
+    {
+      "offset": 6356992,
+      "bytes": 4096,
+      "readback_sha256": "6be0ad3504c9c85c2c25987dc7c09f6d77780e38954fc11b496e6e847c1cf0ac",
+      "readback_matches": true,
+      "write_baud": 921600,
+      "verify_baud": 115200
+    }
+  ],
+  "automatic_bluedroid_restore": false,
+  "footprint": {
+    "before_image": "b302e29ecaed1b34eb495d40cdf7478a4c5e37863081baf6032508c45ae7167e",
+    "after_image": "77101dff57957ff24ca8ea4eb11fbd6ea0462a1d0682e3f51d8e672e46a03de4",
+    "sections": [
+      {
+        ".iram0.text": 129543,
+        ".dram0.data": 24749,
+        ".dram0.bss": 51232,
+        ".flash.text": 803016
+      },
+      {
+        ".iram0.text": 129567,
+        ".dram0.data": 24765,
+        ".dram0.bss": 51232,
+        ".flash.text": 803724
+      }
+    ],
+    "delta": {
+      ".iram0.text": 24,
+      ".dram0.data": 16,
+      ".dram0.bss": 0,
+      ".flash.text": 708
+    },
+    "scope": "Static section sizes, not a performance improvement"
+  },
+  "host_validation": {
+    "passed": true,
+    "sanitizers": [
+      "address",
+      "undefined"
+    ],
+    "tick_hz": [
+      100,
+      1000
+    ],
+    "tested_sources_current": true,
+    "receipt_sha256": "5e5df72ddadedeabf0a10bd9adfbf123d12b2325f577eddb935ef3280e1626f4",
+    "scope": "actual owner/audio/DSP code with deterministic virtual clock and interleavings; no target timing or multithread proof",
+    "runs": [
+      {
+        "tick_hz": 100,
+        "stdout": "PASS adjacent HCI/host gaps: split callback, sequence/time wrap, duplicate/skip, epoch/SSRC, unavailable/changed association and in-progress publication\nPASS initial/final latches, partial prefix copies/order/expiry/cancel, urgent budget, exact split-versus-full DSP PCM with EQ/volume changes at48/192k, startup/coherence/wrap; host only\n",
+        "stderr": "",
+        "returncode": 0
+      },
+      {
+        "tick_hz": 1000,
+        "stdout": "PASS adjacent HCI/host gaps: split callback, sequence/time wrap, duplicate/skip, epoch/SSRC, unavailable/changed association and in-progress publication\nPASS initial/final latches, partial prefix copies/order/expiry/cancel, urgent budget, exact split-versus-full DSP PCM with EQ/volume changes at48/192k, startup/coherence/wrap; host only\n",
+        "stderr": "",
+        "returncode": 0
+      }
+    ]
+  },
+  "music": {
+    "receipt": "runs/1794209900538208000-77101dff5795/traces/media-gap/heap-music-1794210731961101700.json",
+    "receipt_sha256": "8a1c0b98648a26b28dd6d41743740cfd6b6b61e6fb9c08d3e75e0d6c83adf3b8",
+    "fixture": "https://youtu.be/5NV6Rdv1a3I?t=30s",
+    "serial": "9125299103B7",
+    "source_id": 167,
+    "crc_verified_record_count": 198,
+    "record_count": 211,
+    "failure": null,
+    "guard_failure": null,
+    "independent_pause_guard": {
+      "serial": "9125299103B7",
+      "guarded_resets": 1,
+      "pause_only": true,
+      "independent_phone_process": true,
+      "post_boot_pause_verified": true,
+      "guards": [
+        {
+          "pid": 11455,
+          "pause_after_seconds": 14,
+          "completed": true
+        }
+      ]
+    },
+    "i2s_elapsed_upper_ms": 12635.856,
+    "nominal_dma_duration_ms": 12502,
+    "controls_before_pause": {
+      "eq_ack": true,
+      "eq_readback": true,
+      "cccd_restored": true
+    },
+    "controls_restore_scope": "CCCD write acknowledgement; no independent descriptor readback",
+    "ble_connect_ms": 3144,
+    "client_events": [
+      {
+        "trace": "e48373cfd54c4dc2b634fd8a68cb93a6",
+        "event": "eq_ack",
+        "elapsed_ms": 6147,
+        "success": true
+      },
+      {
+        "trace": "e48373cfd54c4dc2b634fd8a68cb93a6",
+        "event": "eq_readback",
+        "elapsed_ms": 6207,
+        "matches": true,
+        "eq": [
+          12,
+          8,
+          12
+        ]
+      },
+      {
+        "trace": "e48373cfd54c4dc2b634fd8a68cb93a6",
+        "event": "cccd_restored",
+        "elapsed_ms": 6297,
+        "changed": true
+      },
+      {
+        "trace": "e48373cfd54c4dc2b634fd8a68cb93a6",
+        "event": "done",
+        "elapsed_ms": 19006,
+        "passed": true
+      }
+    ],
+    "latest_pcm": {
+      "probe": "sbc_pcm",
+      "frames": 9994,
+      "bytes": 19188736,
+      "fnv1a32": 0,
+      "fnv1a32_enabled": false,
+      "frames_unit": "pcm_views",
+      "rate": 192000,
+      "channels": 2,
+      "media_packets": 2498,
+      "drops": 0,
+      "resets": 0,
+      "resident": 60704,
+      "codec": 9,
+      "codec_name": "LHDC V5",
+      "diagnostic_scope": "all_codecs",
+      "sample_bytes": 4,
+      "faults": 0,
+      "decoder_stack_low_water_bytes": 5904,
+      "internal_heap_free": 62044,
+      "internal_heap_min_free": 20132,
+      "internal_heap_largest": 59392,
+      "i2s_output": true,
+      "snapshot_begin_us": 702095019,
+      "at_us": 702117857,
+      "snapshot_span_us": 22838,
+      "record_crc32": "815a2dc0"
+    },
+    "latest_i2s": {
+      "probe": "native_i2s",
+      "running": 0,
+      "failed": 0,
+      "rate": 192000,
+      "requested_bytes": 0,
+      "accepted_frames": 2398592,
+      "rendered_frames": 2398592,
+      "ready_frames": 0,
+      "dma_eofs": 12502,
+      "dma_source_frames": 2398592,
+      "underrun_frames": 0,
+      "descriptor_errors": 0,
+      "max_eof_gap_us": 1082,
+      "maximum_render_us": 4383,
+      "first_underrun_accepted_frames": 0,
+      "first_underrun_dma_frames": 0,
+      "pcm_target_ms": 16,
+      "block_dsp": 1,
+      "word_dsp": 1,
+      "pcm_input_mode": 2,
+      "input_capacity_frames": 0,
+      "input_ring_bytes": 0,
+      "snapshot_begin_us": 702124905,
+      "at_us": 702159378,
+      "snapshot_span_us": 34473,
+      "record_crc32": "161bd46f"
+    },
+    "latest_refill": {
+      "probe": "i2s_refill_window",
+      "collection_cycle_us": 701991648,
+      "period_us": 1000,
+      "initial_shortage_frames": 0,
+      "recovered_frames": 0,
+      "recovered_copies": 0,
+      "unfilled_frames": 0,
+      "canceled_frames": 0,
+      "copy_max_us": 0,
+      "mask_max_us": 0,
+      "contract_errors": 0,
+      "dispatch_requests": 0,
+      "pending_index": 4294967295,
+      "guard_us": 64,
+      "copy_budget_us": 32,
+      "closes_at_next_eof": true,
+      "snapshot_begin_us": 702124905,
+      "at_us": 702151349,
+      "snapshot_span_us": 26444,
+      "record_crc32": "39d6b2a6"
+    },
+    "latest_avrcp": {
+      "probe": "avrcp_playback",
+      "generation": 1,
+      "connected": true,
+      "status": 2,
+      "status_changed_us": 687370342,
+      "clock": "esp_timer_boot_epoch_us32",
+      "timestamp_is_peer_status_callback_observation": true,
+      "snapshot_begin_us": 691580485,
+      "at_us": 691580496,
+      "snapshot_span_us": 11,
+      "record_crc32": "d35dbe3c"
+    },
+    "first_unfilled": {
+      "probe": "first_unfilled",
+      "stream_serial": 1,
+      "captured": false,
+      "coherent": true,
+      "event_us": 0,
+      "taken_frames": 0,
+      "input_frames": 0,
+      "output_frames": 0,
+      "accepted_frames": 0,
+      "rendered_frames": 0,
+      "dma_source_frames": 0,
+      "deadline_us": 0,
+      "pending_acl_metadata": 4294967295,
+      "pending_acl_metadata_valid": false,
+      "finalized_shortage": true,
+      "snapshot_begin_us": 678185766,
+      "at_us": 678185783,
+      "snapshot_span_us": 17,
+      "record_crc32": "8c315ec2"
+    },
+    "unfilled_media": null,
+    "unfilled_decoder": null,
+    "unfilled_renderer": null,
+    "unfilled_owner": null,
+    "unfilled_credits": null,
+    "media_timing": [
+      {
+        "probe": "media_ingress_timing",
+        "epoch": 5,
+        "sequence": 2501,
+        "media_timestamp": 2400000,
+        "ssrc": 255,
+        "host_begin_us": 690344546,
+        "host_admitted_us": 690344728,
+        "result": 0,
+        "hci_arrival_valid": true,
+        "hci_arrival_us": 690341161,
+        "host_gap_us": 40465,
+        "hci_gap_us": 38743,
+        "hci_gap_valid": true,
+        "scope": "latest_synchronous_media_tuple",
+        "snapshot_begin_us": 690385046,
+        "at_us": 690385057,
+        "snapshot_span_us": 11,
+        "record_crc32": "b4e81561"
+      },
+      {
+        "probe": "media_ingress_timing",
+        "epoch": 5,
+        "sequence": 2501,
+        "media_timestamp": 2400000,
+        "ssrc": 255,
+        "host_begin_us": 690344546,
+        "host_admitted_us": 690344728,
+        "result": 0,
+        "hci_arrival_valid": true,
+        "hci_arrival_us": 690341161,
+        "host_gap_us": 40465,
+        "hci_gap_us": 38743,
+        "hci_gap_valid": true,
+        "scope": "latest_synchronous_media_tuple",
+        "snapshot_begin_us": 691707656,
+        "at_us": 691707667,
+        "snapshot_span_us": 11,
+        "record_crc32": "d88d96e4"
+      },
+      {
+        "probe": "media_ingress_timing",
+        "epoch": 5,
+        "sequence": 2501,
+        "media_timestamp": 2400000,
+        "ssrc": 255,
+        "host_begin_us": 690344546,
+        "host_admitted_us": 690344728,
+        "result": 0,
+        "hci_arrival_valid": true,
+        "hci_arrival_us": 690341161,
+        "host_gap_us": 40465,
+        "hci_gap_us": 38743,
+        "hci_gap_valid": true,
+        "scope": "latest_synchronous_media_tuple",
+        "snapshot_begin_us": 696911070,
+        "at_us": 696911083,
+        "snapshot_span_us": 13,
+        "record_crc32": "50f82b70"
+      },
+      {
+        "probe": "media_ingress_timing",
+        "epoch": 5,
+        "sequence": 2501,
+        "media_timestamp": 2400000,
+        "ssrc": 255,
+        "host_begin_us": 690344546,
+        "host_admitted_us": 690344728,
+        "result": 0,
+        "hci_arrival_valid": true,
+        "hci_arrival_us": 690341161,
+        "host_gap_us": 40465,
+        "hci_gap_us": 38743,
+        "hci_gap_valid": true,
+        "scope": "latest_synchronous_media_tuple",
+        "snapshot_begin_us": 702098832,
+        "at_us": 702098841,
+        "snapshot_span_us": 9,
+        "record_crc32": "b7ad3cd2"
+      }
+    ],
+    "pre_pause_uart_cursor": 3420969
+  },
+  "metronome": {
+    "receipt": "runs/1794209900538208000-77101dff5795/traces/media-gap/heap-metronome-1794210766596062200.json",
+    "receipt_sha256": "971b8da1956a3070d3fe03fd5e776570fa17d5caf749cdf45db75592fe515ed9",
+    "fixture": "https://youtu.be/xpiVrEET-YQ?t=1s",
+    "serial": "9125299103B7",
+    "source_id": 167,
+    "crc_verified_record_count": 253,
+    "record_count": 266,
+    "failure": null,
+    "guard_failure": null,
+    "independent_pause_guard": {
+      "serial": "9125299103B7",
+      "guarded_resets": 1,
+      "pause_only": true,
+      "independent_phone_process": true,
+      "post_boot_pause_verified": true,
+      "guards": [
+        {
+          "pid": 11780,
+          "pause_after_seconds": 14,
+          "completed": true
+        }
+      ]
+    },
+    "i2s_elapsed_upper_ms": 12797.496,
+    "nominal_dma_duration_ms": 12669,
+    "controls_before_pause": {
+      "eq_ack": false,
+      "eq_readback": false,
+      "cccd_restored": false
+    },
+    "controls_restore_scope": "CCCD write acknowledgement; no independent descriptor readback",
+    "ble_connect_ms": 8119,
+    "client_events": [
+      {
+        "trace": "b5919796b6d34b67b79505704516c71f",
+        "event": "eq_ack",
+        "elapsed_ms": 11125,
+        "success": true
+      },
+      {
+        "trace": "b5919796b6d34b67b79505704516c71f",
+        "event": "eq_readback",
+        "elapsed_ms": 11187,
+        "matches": true,
+        "eq": [
+          12,
+          8,
+          12
+        ]
+      },
+      {
+        "trace": "b5919796b6d34b67b79505704516c71f",
+        "event": "cccd_restored",
+        "elapsed_ms": 11246,
+        "changed": true
+      },
+      {
+        "trace": "b5919796b6d34b67b79505704516c71f",
+        "event": "done",
+        "elapsed_ms": 19007,
+        "passed": true
+      }
+    ],
+    "latest_pcm": {
+      "probe": "sbc_pcm",
+      "frames": 10104,
+      "bytes": 19399680,
+      "fnv1a32": 0,
+      "fnv1a32_enabled": false,
+      "frames_unit": "pcm_views",
+      "rate": 192000,
+      "channels": 2,
+      "media_packets": 5024,
+      "drops": 0,
+      "resets": 0,
+      "resident": 60704,
+      "codec": 9,
+      "codec_name": "LHDC V5",
+      "diagnostic_scope": "all_codecs",
+      "sample_bytes": 4,
+      "faults": 0,
+      "decoder_stack_low_water_bytes": 5904,
+      "internal_heap_free": 62044,
+      "internal_heap_min_free": 18860,
+      "internal_heap_largest": 59392,
+      "i2s_output": true,
+      "snapshot_begin_us": 737087511,
+      "at_us": 737110319,
+      "snapshot_span_us": 22808,
+      "record_crc32": "e423c056"
+    },
+    "latest_i2s": {
+      "probe": "native_i2s",
+      "running": 0,
+      "failed": 0,
+      "rate": 192000,
+      "requested_bytes": 0,
+      "accepted_frames": 2424960,
+      "rendered_frames": 2424960,
+      "ready_frames": 0,
+      "dma_eofs": 12669,
+      "dma_source_frames": 2424960,
+      "underrun_frames": 3264,
+      "descriptor_errors": 0,
+      "max_eof_gap_us": 1053,
+      "maximum_render_us": 4072,
+      "first_underrun_accepted_frames": 2424960,
+      "first_underrun_dma_frames": 2424768,
+      "pcm_target_ms": 16,
+      "block_dsp": 1,
+      "word_dsp": 1,
+      "pcm_input_mode": 2,
+      "input_capacity_frames": 0,
+      "input_ring_bytes": 0,
+      "snapshot_begin_us": 737116695,
+      "at_us": 737152702,
+      "snapshot_span_us": 36007,
+      "record_crc32": "5618b6ba"
+    },
+    "latest_refill": {
+      "probe": "i2s_refill_window",
+      "collection_cycle_us": 736984655,
+      "period_us": 1000,
+      "initial_shortage_frames": 3264,
+      "recovered_frames": 0,
+      "recovered_copies": 0,
+      "unfilled_frames": 3264,
+      "canceled_frames": 0,
+      "copy_max_us": 0,
+      "mask_max_us": 2,
+      "contract_errors": 0,
+      "dispatch_requests": 0,
+      "pending_index": 4294967295,
+      "guard_us": 64,
+      "copy_budget_us": 32,
+      "closes_at_next_eof": true,
+      "snapshot_begin_us": 737116695,
+      "at_us": 737144596,
+      "snapshot_span_us": 27901,
+      "record_crc32": "91913441"
+    },
+    "latest_avrcp": {
+      "probe": "avrcp_playback",
+      "generation": 1,
+      "connected": true,
+      "status": 1,
+      "status_changed_us": 712799982,
+      "clock": "esp_timer_boot_epoch_us32",
+      "timestamp_is_peer_status_callback_observation": true,
+      "snapshot_begin_us": 722662474,
+      "at_us": 722662484,
+      "snapshot_span_us": 10,
+      "record_crc32": "d4b591ea"
+    },
+    "first_unfilled": {
+      "probe": "first_unfilled",
+      "stream_serial": 2,
+      "captured": true,
+      "coherent": true,
+      "event_us": 725148023,
+      "taken_frames": 0,
+      "input_frames": 0,
+      "output_frames": 0,
+      "accepted_frames": 2424960,
+      "rendered_frames": 2424960,
+      "dma_source_frames": 2424768,
+      "deadline_us": 725147958,
+      "pending_acl_metadata": 0,
+      "pending_acl_metadata_valid": true,
+      "finalized_shortage": true,
+      "snapshot_begin_us": 725554002,
+      "at_us": 725554010,
+      "snapshot_span_us": 8,
+      "record_crc32": "1444e6db"
+    },
+    "unfilled_media": {
+      "probe": "unfilled_media",
+      "stream_serial": 2,
+      "event_us": 725148023,
+      "coherent": true,
+      "last_acl_any_link_us": 725125937,
+      "last_host_poll_us": 725147695,
+      "media_begin_us": 725127207,
+      "media_admitted_us": 725127487,
+      "media_epoch": 7,
+      "media_sequence": 5033,
+      "media_timestamp": 4832640,
+      "media_ssrc": 255,
+      "media_result": 0,
+      "last_media_gap_us": 10362,
+      "max_media_gap_us": 45470,
+      "media_arrival_valid": true,
+      "media_current_acl_arrival_us": 725125937,
+      "media_hci_queue_cursor": 2968557,
+      "media_acl_flags": 8320,
+      "media_hci_gap_us": 11258,
+      "media_hci_gap_valid": true,
+      "snapshot_begin_us": 725558622,
+      "at_us": 725558633,
+      "snapshot_span_us": 11,
+      "record_crc32": "c31e6b4e"
+    },
+    "unfilled_decoder": {
+      "probe": "unfilled_decoder",
+      "stream_serial": 2,
+      "event_us": 725148023,
+      "coherent": true,
+      "phase": 7,
+      "phase_name": "wait_encoded_input",
+      "phase_since_us": 725138706,
+      "encoded_queued_at_phase_change": 0,
+      "snapshot_begin_us": 725565605,
+      "at_us": 725565611,
+      "snapshot_span_us": 6,
+      "record_crc32": "a7a8166a"
+    },
+    "unfilled_renderer": {
+      "probe": "unfilled_renderer",
+      "stream_serial": 2,
+      "event_us": 725148023,
+      "coherent": true,
+      "inside_audio_render": false,
+      "phase_since_us": 725147613,
+      "dsp_assist_state_at_gap": 0,
+      "snapshot_begin_us": 725576934,
+      "at_us": 725576951,
+      "snapshot_span_us": 17,
+      "record_crc32": "32c17a6b"
+    },
+    "unfilled_owner": {
+      "probe": "unfilled_owner",
+      "stream_serial": 2,
+      "event_us": 725148023,
+      "coherent": true,
+      "phase": 2,
+      "phase_name": "runtime",
+      "phase_since_us": 725147706,
+      "phase_is_intent_marker": true,
+      "wait_ms": 4294967295,
+      "inside_runtime_window": true,
+      "tx_owned_independent": 0,
+      "tx_owned_known": true,
+      "snapshot_begin_us": 725580224,
+      "at_us": 725580243,
+      "snapshot_span_us": 19,
+      "record_crc32": "63cc58ae"
+    },
+    "unfilled_credits": {
+      "probe": "unfilled_credits",
+      "stream_serial": 2,
+      "event_us": 725148023,
+      "coherent": true,
+      "pending_known": false,
+      "counts_sampled_us": 725140296,
+      "pending_classic": 0,
+      "pending_le": 0,
+      "completion_submission_known": true,
+      "completion_submitted_us": 725128016,
+      "completion_packets": 1,
+      "submission_is_sdk_return_not_controller_ack": true,
+      "snapshot_begin_us": 725584807,
+      "at_us": 725584818,
+      "snapshot_span_us": 11,
+      "record_crc32": "75821023"
+    },
+    "media_timing": [
+      {
+        "probe": "media_ingress_timing",
+        "epoch": 7,
+        "sequence": 2885,
+        "media_timestamp": 2770560,
+        "ssrc": 255,
+        "host_begin_us": 714338683,
+        "host_admitted_us": 714338876,
+        "result": 0,
+        "hci_arrival_valid": true,
+        "hci_arrival_us": 714337268,
+        "host_gap_us": 3589,
+        "hci_gap_us": 3764,
+        "hci_gap_valid": true,
+        "scope": "latest_synchronous_media_tuple",
+        "snapshot_begin_us": 714343719,
+        "at_us": 714343736,
+        "snapshot_span_us": 17,
+        "record_crc32": "ceea09f4"
+      },
+      {
+        "probe": "media_ingress_timing",
+        "epoch": 7,
+        "sequence": 5033,
+        "media_timestamp": 4832640,
+        "ssrc": 255,
+        "host_begin_us": 725127207,
+        "host_admitted_us": 725127487,
+        "result": 0,
+        "hci_arrival_valid": true,
+        "hci_arrival_us": 725125937,
+        "host_gap_us": 10362,
+        "hci_gap_us": 11258,
+        "hci_gap_valid": true,
+        "scope": "latest_synchronous_media_tuple",
+        "snapshot_begin_us": 725291706,
+        "at_us": 725291717,
+        "snapshot_span_us": 11,
+        "record_crc32": "76396bb3"
+      },
+      {
+        "probe": "media_ingress_timing",
+        "epoch": 7,
+        "sequence": 5033,
+        "media_timestamp": 4832640,
+        "ssrc": 255,
+        "host_begin_us": 725127207,
+        "host_admitted_us": 725127487,
+        "result": 0,
+        "hci_arrival_valid": true,
+        "hci_arrival_us": 725125937,
+        "host_gap_us": 10362,
+        "hci_gap_us": 11258,
+        "hci_gap_valid": true,
+        "scope": "latest_synchronous_media_tuple",
+        "snapshot_begin_us": 726688189,
+        "at_us": 726688200,
+        "snapshot_span_us": 11,
+        "record_crc32": "a4a98224"
+      },
+      {
+        "probe": "media_ingress_timing",
+        "epoch": 7,
+        "sequence": 5033,
+        "media_timestamp": 4832640,
+        "ssrc": 255,
+        "host_begin_us": 725127207,
+        "host_admitted_us": 725127487,
+        "result": 0,
+        "hci_arrival_valid": true,
+        "hci_arrival_us": 725125937,
+        "host_gap_us": 10362,
+        "hci_gap_us": 11258,
+        "hci_gap_valid": true,
+        "scope": "latest_synchronous_media_tuple",
+        "snapshot_begin_us": 731904288,
+        "at_us": 731904299,
+        "snapshot_span_us": 11,
+        "record_crc32": "1d8dde7f"
+      },
+      {
+        "probe": "media_ingress_timing",
+        "epoch": 7,
+        "sequence": 5033,
+        "media_timestamp": 4832640,
+        "ssrc": 255,
+        "host_begin_us": 725127207,
+        "host_admitted_us": 725127487,
+        "result": 0,
+        "hci_arrival_valid": true,
+        "hci_arrival_us": 725125937,
+        "host_gap_us": 10362,
+        "hci_gap_us": 11258,
+        "hci_gap_valid": true,
+        "scope": "latest_synchronous_media_tuple",
+        "snapshot_begin_us": 737090944,
+        "at_us": 737090953,
+        "snapshot_span_us": 9,
+        "record_crc32": "65a5d073"
+      }
+    ],
+    "pre_pause_uart_cursor": 3421256
+  },
+  "coexistence_review": {
+    "implemented": false,
+    "reason": "Preserved Bluedroid enables ESP coexistence VSC; equivalent not found in owned host",
+    "opcode": "0xFC82",
+    "parameter_order": [
+      "type",
+      "operation",
+      "status"
+    ],
+    "streaming_set": [
+      2,
+      1,
+      16
+    ],
+    "paused_clear": [
+      2,
+      0,
+      32
+    ],
+    "streaming_clear": [
+      2,
+      0,
+      16
+    ],
+    "official_explanation": "https://github.com/espressif/esp-idf/issues/12434",
+    "scope": "RF coexistence scenario signalling; effect on observed Classic/BLE audio gaps not established"
+  },
+  "handback": {
+    "main_bdk_app_restored": {
+      "component": "com.bdkaudio.controller/com.bdkaudio.bdk_audio.MainActivity",
+      "failure": null,
+      "launch": "Starting: Intent { cmp=com.bdkaudio.controller/com.bdkaudio.bdk_audio.MainActivity }\nStatus: ok\nLaunchState: COLD\nActivity: com.bdkaudio.controller/com.bdkaudio.bdk_audio.MainActivity\nTotalTime: 197\nWaitTime: 200\nComplete\n",
+      "guard": {
+        "serial": "9125299103B7",
+        "guarded_resets": 1,
+        "pause_only": true,
+        "independent_phone_process": true,
+        "post_boot_pause_verified": true,
+        "guards": [
+          {
+            "pid": 12071,
+            "pause_after_seconds": 14,
+            "completed": true
+          }
+        ]
+      },
+      "foreground_lines": [
+        "topResumedActivity=ActivityRecord{6615980 u0 com.bdkaudio.controller/com.bdkaudio.bdk_audio.MainActivity t1571}"
+      ]
+    },
+    "youtube_paused": true,
+    "monitor_identity_verified": true,
+    "monitor_connected": true,
+    "monitor_baud": 921600,
+    "monitor_source_id": 167,
+    "i2s_stopped": true
+  },
+  "remaining": [
+    "Unclassified metronome gap and absent peer PAUSED status update",
+    "Variable BLE connection/control completion latency",
+    "Missing Espressif A2DP coexistence-status integration",
+    "Sustained LHDC192/S24/1Mbps headroom",
+    "Full live codec, feature, security, lifecycle, OTA and acoustic qualification"
+  ]
+}

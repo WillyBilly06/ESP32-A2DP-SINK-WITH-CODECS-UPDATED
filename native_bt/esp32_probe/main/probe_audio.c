@@ -414,9 +414,9 @@ static void log_first_starvation(void){
             ",\"media_begin_us\":%" PRIu32 ",\"media_admitted_us\":%" PRIu32 ",\"media_epoch\":%" PRIu32
             ",\"media_sequence\":%" PRIu32 ",\"media_timestamp\":%" PRIu32 ",\"media_ssrc\":%" PRIu32 ",\"media_result\":%" PRIu32
             ",\"last_media_gap_us\":%" PRIu32 ",\"max_media_gap_us\":%" PRIu32
-            ",\"media_arrival_valid\":%s,\"media_current_acl_arrival_us\":%" PRIu32 ",\"media_hci_queue_cursor\":%" PRIu32 ",\"media_acl_flags\":%" PRIu32 "}\n",names[kind][1],s.stream_serial,s.at_us,s.media_coherent?"true":"false",
+            ",\"media_arrival_valid\":%s,\"media_current_acl_arrival_us\":%" PRIu32 ",\"media_hci_queue_cursor\":%" PRIu32 ",\"media_acl_flags\":%" PRIu32 ",\"media_hci_gap_us\":%" PRIu32 ",\"media_hci_gap_valid\":%s}\n",names[kind][1],s.stream_serial,s.at_us,s.media_coherent?"true":"false",
             s.acl_us,s.host_poll_us,s.media_us,s.media_admit_us,s.media_epoch,s.media_sequence,s.media_timestamp,s.media_ssrc,s.media_result,s.media_gap_us,s.media_max_gap_us,
-            s.media_arrival_valid?"true":"false",s.media_arrival_us,s.media_arrival_cursor,s.media_arrival_flags);
+            s.media_arrival_valid?"true":"false",s.media_arrival_us,s.media_arrival_cursor,s.media_arrival_flags,s.media_hci_gap_us,s.media_hci_gap_us!=UINT32_MAX?"true":"false");
         PROBE_SNAPSHOT_LOG("{\"probe\":\"%s\",\"stream_serial\":%" PRIu32 ",\"event_us\":%" PRIu32
             ",\"coherent\":%s,\"phase\":%" PRIu32 ",\"phase_name\":\"%s\",\"phase_since_us\":%" PRIu32 ",\"encoded_queued_at_phase_change\":%" PRIu32 "}\n",
             names[kind][2],s.stream_serial,s.at_us,s.decoder_coherent?"true":"false",s.decoder_phase,s.decoder_phase<9?phases[s.decoder_phase]:"unknown",s.decoder_at_us,s.decoder_queued);
@@ -1438,6 +1438,16 @@ static void log_loop(void *unused){
                at,atomic_load(&worker.input_stream_epoch),atomic_load(&worker.input_packets),atomic_load(&worker.input_payload_bytes),
                atomic_load(&worker.input_first_timestamp),atomic_load(&worker.input_last_timestamp),rate,
                (codec==5u || codec==7u)?"host_samples":"wire_rtp");
+#if defined(DBT_PROBE_AUDIO_OUTPUT) && defined(PROBE_OUTPUT_GAP_TRACE)
+        probe_media_timing_t media_timing;
+        if(probe_output_media_timing(&media_timing)){
+            PROBE_SNAPSHOT_LOG("{\"probe\":\"media_ingress_timing\",\"epoch\":%u,\"sequence\":%u,\"media_timestamp\":%u,\"ssrc\":%u,\"host_begin_us\":%u,\"host_admitted_us\":%u,\"result\":%u,\"hci_arrival_valid\":%s,\"hci_arrival_us\":%u,\"host_gap_us\":%u,\"hci_gap_us\":%u,\"hci_gap_valid\":%s,\"scope\":\"latest_synchronous_media_tuple\"}\n",
+                (unsigned)media_timing.epoch,(unsigned)media_timing.sequence,(unsigned)media_timing.timestamp,(unsigned)media_timing.ssrc,
+                (unsigned)media_timing.begin_us,(unsigned)media_timing.admitted_us,(unsigned)media_timing.result,
+                media_timing.arrival_valid?"true":"false",(unsigned)media_timing.arrival_us,(unsigned)media_timing.host_gap_us,
+                (unsigned)media_timing.hci_gap_us,media_timing.hci_gap_us!=UINT32_MAX?"true":"false");
+        }
+#endif
         dbt_codec_input_clock_t input_clock_snapshot;dbt_codec_worker_clock_snapshot(&worker,&input_clock_snapshot);
         PROBE_SNAPSHOT_LOG("{\"probe\":\"rtp_input_clock\",\"collection_cycle_us\":%" PRIu32 ",\"stream_epoch\":%" PRIu32
             ",\"coherent\":%s,\"observed\":%s,\"revision\":%" PRIu32 ",\"max_forward_step_ticks\":%" PRIu32

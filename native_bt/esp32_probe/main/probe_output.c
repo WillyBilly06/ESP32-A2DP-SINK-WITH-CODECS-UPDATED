@@ -192,14 +192,14 @@ static DRAM_ATTR struct {
 typedef struct {
   _Atomic uint32_t version,valid;
   _Atomic uint32_t deadline_us,pending_acl_metadata;
-  _Atomic uint32_t stream_serial,at_us,taken_frames,input_frames,output_frames,accepted_frames,rendered_frames,dma_source_frames,acl_us,host_poll_us,media_us,media_admit_us,media_epoch,media_sequence,media_timestamp,media_ssrc,media_result,media_gap_us,media_max_gap_us,media_arrival_us,media_arrival_cursor,media_arrival_flags,media_arrival_valid,media_coherent,decoder_phase,decoder_at_us,decoder_coherent,render_phase,render_at_us,render_coherent,decoder_queued,dsp_assist_state;
+  _Atomic uint32_t stream_serial,at_us,taken_frames,input_frames,output_frames,accepted_frames,rendered_frames,dma_source_frames,acl_us,host_poll_us,media_us,media_admit_us,media_epoch,media_sequence,media_timestamp,media_ssrc,media_result,media_gap_us,media_max_gap_us,media_hci_gap_us,media_arrival_us,media_arrival_cursor,media_arrival_flags,media_arrival_valid,media_coherent,decoder_phase,decoder_at_us,decoder_coherent,render_phase,render_at_us,render_coherent,decoder_queued,dsp_assist_state;
   _Atomic uint32_t vhci_coherent,vhci_at_us,vhci_flags,vhci_submitted_us,vhci_packet,vhci_pending_acks,vhci_owned_now;
   _Atomic uint32_t owner_coherent,owner_phase,owner_phase_at_us,owner_wait_ms,owner_credits_at_us,owner_pending_counts,owner_ncp_at_us,owner_ncp_packets,owner_flags,owner_tx_owned;
 } starvation_capture_t;
 static DRAM_ATTR struct {
   _Atomic uint32_t stream_serial,acl_us,host_poll_us;
   _Atomic uint32_t media_version,media_us,media_admit_us,media_epoch,media_sequence;
-  _Atomic uint32_t media_timestamp,media_ssrc,media_result,media_gap_us,media_max_gap_us;
+  _Atomic uint32_t media_timestamp,media_ssrc,media_result,media_gap_us,media_max_gap_us,media_hci_gap_us;
   _Atomic uint32_t media_arrival_us,media_arrival_cursor,media_arrival_flags,media_arrival_valid;
   _Atomic uint32_t decoder_version,decoder_phase,decoder_at_us,decoder_queued;
   _Atomic uint32_t render_version,render_phase,render_at_us;
@@ -215,12 +215,25 @@ void probe_output_trace_media_arrival(uint32_t began,uint32_t ended,uint32_t epo
   bool completion=same && began==previous && sequence==atomic_load(&timeline.media_sequence);
   uint32_t gap=completion?atomic_load(&timeline.media_gap_us):same && previous?began-previous:0;
   uint32_t maximum=same?atomic_load(&timeline.media_max_gap_us):0;
+  uint32_t hci_gap=UINT32_MAX;
+  if(completion){
+    if(arrival_valid && atomic_load(&timeline.media_arrival_valid) &&
+       arrival_us==atomic_load(&timeline.media_arrival_us) &&
+       arrival_cursor==atomic_load(&timeline.media_arrival_cursor) &&
+       arrival_flags==atomic_load(&timeline.media_arrival_flags))
+      hci_gap=atomic_load(&timeline.media_hci_gap_us);
+  }else if(epoch && same && previous && arrival_valid && atomic_load(&timeline.media_arrival_valid) &&
+          (uint16_t)(sequence-(uint16_t)atomic_load(&timeline.media_sequence))==1u){
+    uint32_t delta=arrival_us-atomic_load(&timeline.media_arrival_us);
+    if(delta<0x80000000u)hci_gap=delta;
+  }
   atomic_store(&timeline.media_version,version+1u);
   atomic_store(&timeline.media_us,began);atomic_store(&timeline.media_admit_us,ended);
   atomic_store(&timeline.media_epoch,epoch);atomic_store(&timeline.media_sequence,sequence);
   atomic_store(&timeline.media_timestamp,timestamp);atomic_store(&timeline.media_ssrc,ssrc);
   atomic_store(&timeline.media_result,(uint32_t)result);atomic_store(&timeline.media_gap_us,gap);
   atomic_store(&timeline.media_max_gap_us,gap>maximum?gap:maximum);
+  atomic_store(&timeline.media_hci_gap_us,hci_gap);
   atomic_store(&timeline.media_arrival_valid,arrival_valid?1u:0u);
   atomic_store(&timeline.media_arrival_us,arrival_us);atomic_store(&timeline.media_arrival_cursor,arrival_cursor);
   atomic_store(&timeline.media_arrival_flags,arrival_flags);
@@ -304,6 +317,7 @@ static void IRAM_ATTR capture_starvation(starvation_capture_t *f,output_t *o,uin
   atomic_store(&f->media_result,atomic_load(&timeline.media_result));
   atomic_store(&f->media_gap_us,atomic_load(&timeline.media_gap_us));
   atomic_store(&f->media_max_gap_us,atomic_load(&timeline.media_max_gap_us));
+  atomic_store(&f->media_hci_gap_us,atomic_load(&timeline.media_hci_gap_us));
   atomic_store(&f->media_arrival_us,atomic_load(&timeline.media_arrival_us));
   atomic_store(&f->media_arrival_cursor,atomic_load(&timeline.media_arrival_cursor));
   atomic_store(&f->media_arrival_flags,atomic_load(&timeline.media_arrival_flags));
@@ -328,6 +342,7 @@ static void starvation_snapshot(starvation_capture_t *f,probe_output_starvation_
   if(!s)return;
   *s=(probe_output_starvation_t){0};
   s->pending_acl_metadata=s->vhci_owned_now=s->vhci_pending_acks=UINT32_MAX;
+  s->media_hci_gap_us=UINT32_MAX;
   uint32_t serial=atomic_load(&timeline.stream_serial);
   s->stream_serial=serial;s->coherent=1;
   if(!atomic_load(&f->valid)){
@@ -369,12 +384,14 @@ static void starvation_snapshot(starvation_capture_t *f,probe_output_starvation_
   s->media_result=atomic_load(&f->media_result);
   s->media_gap_us=atomic_load(&f->media_gap_us);
   s->media_max_gap_us=atomic_load(&f->media_max_gap_us);
+  s->media_hci_gap_us=atomic_load(&f->media_hci_gap_us);
   s->media_arrival_us=atomic_load(&f->media_arrival_us);
   s->media_arrival_cursor=atomic_load(&f->media_arrival_cursor);
   s->media_arrival_flags=atomic_load(&f->media_arrival_flags);
   s->media_arrival_valid=atomic_load(&f->media_arrival_valid);
   s->media_coherent=atomic_load(&f->media_coherent);
   if(!s->media_coherent)s->media_arrival_valid=0;
+  if(!s->media_arrival_valid)s->media_hci_gap_us=UINT32_MAX;
   s->decoder_phase=atomic_load(&f->decoder_phase);
   s->decoder_at_us=atomic_load(&f->decoder_at_us);
   s->decoder_coherent=atomic_load(&f->decoder_coherent);
@@ -389,15 +406,18 @@ static void starvation_snapshot(starvation_capture_t *f,probe_output_starvation_
 }
 bool probe_output_media_timing(probe_media_timing_t *s){
   if(!s)return false;
-  *s=(probe_media_timing_t){0};
+  *s=(probe_media_timing_t){.hci_gap_us=UINT32_MAX};
   uint32_t v=atomic_load(&timeline.media_version);if(v&1u)return false;
   s->epoch=atomic_load(&timeline.media_epoch);s->sequence=atomic_load(&timeline.media_sequence);
   s->timestamp=atomic_load(&timeline.media_timestamp);s->ssrc=atomic_load(&timeline.media_ssrc);
   s->begin_us=atomic_load(&timeline.media_us);s->admitted_us=atomic_load(&timeline.media_admit_us);
   s->result=atomic_load(&timeline.media_result);s->arrival_us=atomic_load(&timeline.media_arrival_us);
   s->arrival_valid=atomic_load(&timeline.media_arrival_valid)!=0;
+  s->host_gap_us=atomic_load(&timeline.media_gap_us);s->hci_gap_us=atomic_load(&timeline.media_hci_gap_us);
   OUTPUT_TEST_STEP(13);
-  s->coherent=s->epoch && v==atomic_load(&timeline.media_version);return s->coherent;
+  s->coherent=s->epoch && v==atomic_load(&timeline.media_version);
+  if(!s->coherent || !s->arrival_valid)s->hci_gap_us=UINT32_MAX;
+  return s->coherent;
 }
 void probe_output_first_starvation(probe_output_starvation_t *s){starvation_snapshot(&timeline.first,s);}
 void probe_output_first_unfilled(probe_output_starvation_t *s){starvation_snapshot(&timeline.first_unfilled,s);}

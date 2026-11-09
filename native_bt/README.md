@@ -1,5 +1,7 @@
 # Independent ESP32 Bluetooth host
 
+Current [media-ingress timing checkpoint](docs/MEDIA_INGRESS_TIMING_2026_11_08.md): COM6 image `77101dff5795` distinguishes adjacent HCI arrival and host callback intervals with normal2x192 DMA. Actual-source ASan/UBSan and37 cold configurations pass. A guarded fixed900 LHDC192/S24 music excerpt completes BLE controls before pause with0 unfilled frames; metronome retains3264 frames and controls after pause. Sustained continuity remains open. The preserved Bluedroid A2DP coexistence-status command is a newly identified, still unimplemented integration gap. UART remains921600 baud; no Bluedroid fallback.
+
 The repository root now selects this host through [build.ps1](../build.ps1). Its default preset uses the included pinned LHDC source snapshot and leaves optional heap/tick/task samplers OFF. The [allocation sampler](docs/ALLOCATION_SAMPLER_2026_11_08.md) has host/build/ISR checks; its hardware measurement remains pending.
 
 The [shared persistence checkpoint](docs/SHARED_PERSISTENCE_2026_11_08.md) runs on

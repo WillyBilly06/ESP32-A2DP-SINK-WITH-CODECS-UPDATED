@@ -59,7 +59,9 @@ The normal image at that checkpoint is readback-verified and passes the existing
 
 The [playback-clock follow-up](native_bt/docs/AVRCP_PLAYBACK_CLOCK_2026_11_08.md) adds a timestamp of peer playback-state changes to the existing snapshot (24 bytes BSS). At that checkpoint, image `f2062fa445c6` passed the cold checks. Its music excerpt had zero underruns but an 8.032-second BLE connection delay, with controls completing after pause. The metronome completed controls during playback but retained 5,760 unfilled frames; decoded data was available at its first miss. No peer PAUSED update was observed for that excerpt, so its gap phase remains unclassified.
 
-COM6 now runs normal image `b302e29ecaed`, whose allocated code/data match `f2062fa445c6` apart from build metadata. A [256-frame DMA redistribution experiment](native_bt/docs/DMA_REFILL_EXPERIMENT_2026_11_08.md) preserved the audio payload budget but failed with a confirmed pre-pause miss. Its code was removed; normal 192-frame DMA geometry was restored.
+COM6 now runs readback-verified image `77101dff5795` with [separate HCI and host media timing](native_bt/docs/MEDIA_INGRESS_TIMING_2026_11_08.md). It retains normal 192-frame DMA geometry. A 12.6-second music excerpt completed BLE EQ ACK/readback/subscription restoration during playback with zero unfilled frames. Metronome retained 3,264 unfilled frames and controls completed after pause; that gap remains unclassified. The preserved Bluedroid A2DP coexistence-status command is a newly identified integration gap, still pending in the owned host.
+
+The earlier [256-frame DMA redistribution experiment](native_bt/docs/DMA_REFILL_EXPERIMENT_2026_11_08.md) preserved the audio payload budget but failed with a confirmed pre-pause miss. Its code was removed; normal 192-frame DMA geometry remains.
 
 These finite checks do not establish sustained continuity, acoustic quality or worst-case RAM. Earlier active PCM gaps and CPU1 watchdog faults remain relevant. Full 1 Mbps headroom and all codec/feature/security/lifecycle/OTA qualification remain open.
 

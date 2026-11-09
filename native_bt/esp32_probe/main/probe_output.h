@@ -126,7 +126,7 @@ void probe_output_dsp_assist_snapshot(probe_dsp_assist_stats_t *);
  *4/5/6/7/8=waiting for PCM space/loan/control/encoded input/shared renderer. */
 typedef struct {
     uint32_t captured,coherent,deadline_us,pending_acl_metadata;
-    uint32_t stream_serial,at_us,taken_frames,input_frames,output_frames,accepted_frames,rendered_frames,dma_source_frames,acl_us,host_poll_us,media_us,media_admit_us,media_epoch,media_sequence,media_timestamp,media_ssrc,media_result,media_gap_us,media_max_gap_us,media_arrival_us,media_arrival_cursor,media_arrival_flags,media_arrival_valid,media_coherent,decoder_phase,decoder_at_us,decoder_coherent,render_phase,render_at_us,render_coherent,decoder_queued,dsp_assist_state;
+    uint32_t stream_serial,at_us,taken_frames,input_frames,output_frames,accepted_frames,rendered_frames,dma_source_frames,acl_us,host_poll_us,media_us,media_admit_us,media_epoch,media_sequence,media_timestamp,media_ssrc,media_result,media_gap_us,media_max_gap_us,media_hci_gap_us,media_arrival_us,media_arrival_cursor,media_arrival_flags,media_arrival_valid,media_coherent,decoder_phase,decoder_at_us,decoder_coherent,render_phase,render_at_us,render_coherent,decoder_queued,dsp_assist_state;
     uint32_t vhci_coherent,vhci_at_us,vhci_flags,vhci_submitted_us,vhci_packet,vhci_pending_acks,vhci_owned_now;
     probe_owner_sample_t owner;
 } probe_output_starvation_t;
@@ -137,9 +137,11 @@ void probe_output_trace_media_arrival(uint32_t,uint32_t,uint32_t,uint16_t,uint32
 /* Latest host-owned RTP admission tuple. One attempt, no lock/retry. Epoch
  * remains the tuple's own binding; it may precede a new stream's first packet.
  * A stable tuple can describe an in-progress/rejected admission: inspect result.
- * Correlated HCI arrival is not an RF arrival timestamp. */
+ * Correlated HCI arrival is not an RF arrival timestamp. The HCI gap is
+ * available only for adjacent wire sequences in the same epoch/SSRC with
+ * two valid current-H4 associations; UINT32_MAX means unavailable. */
 typedef struct {
-    uint32_t epoch,sequence,timestamp,ssrc,begin_us,admitted_us,result,arrival_us;
+    uint32_t epoch,sequence,timestamp,ssrc,begin_us,admitted_us,result,arrival_us,host_gap_us,hci_gap_us;
     bool arrival_valid,coherent;
 } probe_media_timing_t;
 bool probe_output_media_timing(probe_media_timing_t *);

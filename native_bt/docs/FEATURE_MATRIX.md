@@ -1,10 +1,17 @@
 # Independent host and product feature matrix
 
 Current development checkpoint (2026-11-08): readback-verified COM6 image
-b302e29ecaed restores normal 2x192-frame DMA geometry and the published
-72089fca source. Its allocated code/data match f2062fa445c6 except build metadata.
-Heap/tick/task samplers are OFF; logger baud is 921600. Cold checks pass
-37 configurations /173 callbacks without a boot watchdog/backtrace marker.
+77101dff5795 adds [separate HCI/host media timing](MEDIA_INGRESS_TIMING_2026_11_08.md)
+with normal2x192 DMA and unchanged audio/credit/scheduling policy. Data +16 B,
+BSS unchanged, IRAM +24 B. Actual-source ASan/UBSan and37 cold configurations /
+173 callbacks pass. Heap/tick/task samplers are OFF; UART is921600 baud.
+
+Bounded fixed900 LHDC192/S24 native YouTube music completed BLE EQ ACK/readback/
+subscription restoration before pause with0 unfilled frames. Metronome retained
+3264 unfilled frames and controls finished after pause. Its first gap has empty
+PCM queues, decoder waiting for input, HCI interval11258 us and host10362 us;
+phase remains unclassified. Missing Espressif A2DP coexistence-status signalling
+is recorded as an integration gap, not a proven cause or implemented fix.
 
 The [DMA redistribution experiment](DMA_REFILL_EXPERIMENT_2026_11_08.md)
 3ae5b531769d kept the 31744 B PCM/DMA payload and 2432-frame startup reserve,
