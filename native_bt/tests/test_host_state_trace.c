@@ -253,6 +253,13 @@ int main(void){
     unsigned cccd_line=line_count;assert(probe_audio_host_record(&cccd_value)==DBT_OK);
     cccd_value.value[4]=5;log_media_trace();
     assert(line_count==cccd_line+1);printf("CCCD_JSON %s",lines[cccd_line]);
+    probe_host_record_t cccd_work={.kind=PROBE_HOST_CCCD_WORK,.value={0,6,0xfedcba98u,2u|(1u<<PROBE_CCCD_WORK_CORE_SHIFT)|PROBE_CCCD_WORK_EXECUTED,UINT32_MAX-5u,UINT32_MAX-1u,6u}};
+    clock_value=24;unsigned work_line=line_count;assert(probe_audio_host_record(&cccd_work)==DBT_OK);
+    memset(cccd_work.value,0,sizeof(cccd_work.value));log_media_trace();
+    assert(line_count==work_line+1);printf("CCCD_WORK_JSON %s",lines[work_line]);
+    cccd_work=(probe_host_record_t){.kind=PROBE_HOST_CCCD_WORK,.value={0,6,99,1,10,0,0}};
+    work_line=line_count;assert(probe_audio_host_record(&cccd_work)==DBT_OK);log_media_trace();
+    assert(line_count==work_line+1);printf("CCCD_WORK_JSON %s",lines[work_line]);
     atomic_store(&worker.gate_epoch,7);atomic_store(&worker.started_epoch,4);
     dbt_sink_job_t job={.binding=10,.token=20,.operation=DBT_SINK_START};
     unsigned job_line=line_count;assert(sink_work(&worker,&job)==DBT_OK);log_media_trace();

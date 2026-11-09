@@ -1,17 +1,17 @@
 # Independent host and product feature matrix
 
-Current development checkpoint (2026-11-08): image7d131bf9e47d passes readback and
-37 cold codec configurations /173 callbacks on COM6 at921600 baud. The
-[runtime/reconnect checkpoint](CPU_RUNTIME_RECONNECT_2026_11_08.md) moves existing
-priority-1 bonded reconnect preparation to Core0, with unchanged linked IRAM/data/BSS
-and no new task/stack/buffer. Two normal-image resolutions take54–55ms. Temporary
-runtime profiling is OFF. A13.159s guarded LHDC192/S24/fixed900 metronome excerpt
-completes BLE ACK/readback/CCCD restoration before pause with0 shortages/descriptor
-faults/new watchdog events. Music controls complete after pause;1152 unfilled frames
-are retained in its stop tail. Earlier diagnostic active gaps/watchdog faults remain.
-Sustained coexistence,1Mbps, acoustics, full live codec/security/lifecycle/product/OTA
-parity and equivalent Bluedroid RAM/CPU qualification remain open. Rows below retain
-their dated image scopes. This checkpoint is development firmware.
+Current development checkpoint (2026-11-08): readback-verified COM6 image
+fb87d978320c runs at921600 baud with profilers OFF. The [shared persistence
+checkpoint](SHARED_PERSISTENCE_2026_11_08.md) routes CCCD/EQ storage to the existing
+priority-4 Core0 worker, with general/OTA work on Core1. No new task/stack/audio
+buffer; the reserved FIFO adds4B. Cold checks pass37 configurations /173 callbacks.
+Two guarded LHDC192/S24/fixed900 excerpts complete BLE controls before pause;
+subscription-enable wait is268ms versus779–1257ms before. No descriptor/new watchdog
+faults; music has0 shortages, metronome retains2688 stop-tail unfilled frames.
+Minimum free heap is11,836B, a worse transient minimum requiring investigation.
+Earlier active PCM gaps/starvation, sustained1Mbps, acoustics, all live codec/
+security/lifecycle/product/OTA parity and comparative RAM/CPU remain unqualified.
+Rows below retain their dated image scopes. This is development firmware.
 
 Updated 2026-11-05. **The goal remains active and incomplete.** COM6 was
 explicitly released for flashing, serial and Bluetooth testing in this chat;

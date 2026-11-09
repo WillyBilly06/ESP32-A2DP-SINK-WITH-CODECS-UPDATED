@@ -3,6 +3,7 @@
 #include "probe_cccd_store.h"
 #include "dbt_att_bearer.h"
 #include "esp_heap_caps.h"
+#include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
 #include "freertos/semphr.h"
@@ -48,6 +49,11 @@ static cccd_touched_t cccd_touched[DBT_MAX_LINKS];
 static uint8_t *echo;
 static uint16_t echo_size;
 static uint32_t writes, notified[DBT_MAX_LINKS], notified_generation[DBT_MAX_LINKS];
+/* CCCD jobs do not use command reply storage. Byte-aligned clock copies keep
+ * the existing job size/alignment; neither keys nor NVS payloads enter logs. */
+typedef struct {uint8_t clock[3][sizeof(uint32_t)],worker_core;bool executed;} cccd_work_timing_t;
+_Static_assert(sizeof(cccd_work_timing_t)<=sizeof(dbt_ble_control_result_t) &&
+    _Alignof(cccd_work_timing_t)==_Alignof(dbt_ble_control_result_t),"Reuse CCCD reply storage without job growth");
 typedef struct control_job {
     struct control_job *next;
     uint32_t generation,token;
@@ -58,7 +64,7 @@ typedef struct control_job {
     uint16_t cccd_values[PROBE_CCCD_COUNT],cccd_error_handle;
     dbt_result_t cccd_result;
     _Atomic bool cancelled;
-    dbt_ble_control_result_t result;
+    union {dbt_ble_control_result_t result;cccd_work_timing_t cccd_timing;};
     dbt_ble_control_state_t state;
     uint8_t data[];
 } control_job_t;
@@ -190,11 +196,29 @@ dbt_result_t probe_gatt_control_configure(const dbt_ble_control_state_t *initial
     control_hooks=*hooks; control_display_state=*initial;memcpy(desired_eq,initial->eq,3);desired_control=initial->control;
     control_configured=true; return DBT_OK;
 }
+static void cccd_clock_set(control_job_t *job,unsigned phase,uint32_t value){
+    memcpy(job->cccd_timing.clock[phase],&value,sizeof(value));
+}
+static void cccd_work_record(const control_job_t *job){
+#if defined(DBT_PROBE_AUDIO_TEST) && (defined(DBT_PROBE_STAY_NATIVE) || defined(DBT_PROBE_SCHEDULER_TRACE))
+    uint32_t clocks[3];memcpy(clocks,job->cccd_timing.clock,sizeof(clocks));
+    const probe_host_record_t record={.kind=PROBE_HOST_CCCD_WORK,.value={
+        job->handle,job->generation,job->token,(uint32_t)job->cccd_kind|
+        ((uint32_t)(job->cccd_timing.worker_core&1u)<<PROBE_CCCD_WORK_CORE_SHIFT)|
+        (job->cccd_timing.executed?PROBE_CCCD_WORK_EXECUTED:0u),clocks[0],clocks[1],clocks[2]}};
+    (void)probe_audio_host_record(&record);
+#else
+    (void)job;
+#endif
+}
 static void control_execute_job(control_job_t *job) {
     if(job->cccd_kind) {
+        cccd_clock_set(job,1,(uint32_t)esp_timer_get_time());
+        job->cccd_timing.worker_core=(uint8_t)xPortGetCoreID();
         job->cccd_result=job->cccd_kind==1
             ? probe_cccd_load(job->identity_type,job->identity,job->bond_tag,job->cccd_values)
             : probe_cccd_save(job->identity_type,job->identity,job->bond_tag,job->cccd_values);
+        cccd_clock_set(job,2,(uint32_t)esp_timer_get_time());job->cccd_timing.executed=true;
         return;
     }
     dbt_ble_control_peer_t peer={job->handle,job->generation};
@@ -359,10 +383,13 @@ static uint16_t cccd_enqueue(const dbt_link_t *link,cccd_binding_t *binding,uint
     job->cccd_error_handle=error_handle;job->identity_type=binding->type;
     memcpy(job->identity,binding->identity,6);memcpy(job->bond_tag,binding->tag,32);
     if(values)memcpy(job->cccd_values,values,sizeof(job->cccd_values));
-    if(xQueueSend(control_work,&job,0)!=pdTRUE){heap_caps_free(job);return DBT_ATT_RESOURCES;}
+    /* Serialize CCCDs with EQ/control persistence. General provider/OTA work
+     * retains its own Core1 lane and cannot hold this NVS mailbox hostage. */
+    cccd_clock_set(job,0,(uint32_t)esp_timer_get_time());
+    if(xQueueSend(eq_work,&job,0)!=pdTRUE){heap_caps_free(job);return DBT_ATT_RESOURCES;}
     ++control_jobs;++cccd_jobs;for(unsigned i=0;i<CONTROL_REGISTRY_CAPACITY;i++)if(!control_registry[i]){control_registry[i]=job;break;}
     cccd_record(link->handle,link->generation,token,1,binding->phase,DBT_OK,kind);
-    (void)xSemaphoreGive(control_signal);return 0;
+    (void)xSemaphoreGive(eq_signal);return 0;
 }
 static dbt_result_t load_cccd(void *context,const dbt_link_t *link,uint16_t handle,uint16_t *value) {
     (void)context;static const uint16_t handles[4]={7,0x16,0x25,0x28};
@@ -596,7 +623,7 @@ dbt_result_t probe_gatt_init(dbt_runtime_t *runtime, dbt_gap_t *configuration) {
     hooks.load_cccd = load_cccd;
     hooks.failed = failed;
     control_work=xQueueCreate(CONTROL_JOBS,sizeof(control_job_t *));
-    eq_work=xQueueCreate(CONTROL_JOBS,sizeof(control_job_t *));
+    eq_work=xQueueCreate(CONTROL_JOBS+1u,sizeof(control_job_t *)); /* Reserved CCCD obligation. */
     control_done=xQueueCreate(CONTROL_JOBS,sizeof(control_job_t *));
     control_signal=xSemaphoreCreateBinary();eq_signal=xSemaphoreCreateBinary();
     control_owner=xTaskGetCurrentTaskHandle();
@@ -690,6 +717,7 @@ static void finish_cccd(control_job_t *job) {
     const dbt_link_t *link=dbt_acl_find(&bearer.runtime->acl,job->handle);
     cccd_binding_t *b=link && link->generation==job->generation?cccd_binding(link):NULL;
     cccd_record(job->handle,job->generation,job->token,2,b?b->phase:UINT32_MAX,job->cccd_result,job->cccd_kind);
+    cccd_work_record(job);
     uint8_t type,id[6],tag[32];
     bool current=b && bond_query && bond_query(job->handle,job->generation,&type,id,tag)==DBT_OK &&
         type==job->identity_type && type==b->type && !memcmp(id,job->identity,6) &&
@@ -907,7 +935,7 @@ static void pump_control(void) {
     }
     if(eq_retry_pending && (int32_t)(control_now_ms-eq_retry_at)>=0)eq_retry_pending=false;
     if(!eq_worker && !eq_retiring && !eq_retry_pending && uxQueueMessagesWaiting(eq_work)) {
-        if(xTaskCreatePinnedToCore(control_task,"ble_eq_worker",CONTROL_STACK_BYTES,(void *)(uintptr_t)1,4,NULL,DBT_ESP32_BACKGROUND_CORE)==pdPASS)eq_worker=true;
+        if(xTaskCreatePinnedToCore(control_task,"ble_persist_worker",CONTROL_STACK_BYTES,(void *)(uintptr_t)1,4,NULL,DBT_ESP32_PERSISTENCE_WORKER_CORE)==pdPASS)eq_worker=true;
         else {eq_retry_pending=true;eq_retry_at=control_now_ms+100u;}
         /* Retain every admitted persistence obligation; capacity supplies
          * backpressure until a worker can be allocated. Never ACK success here. */

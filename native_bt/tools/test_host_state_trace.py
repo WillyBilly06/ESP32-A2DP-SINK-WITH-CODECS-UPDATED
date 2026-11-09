@@ -65,6 +65,16 @@ delay_rows=[json.loads(line[len('DELAY_ESTIMATE_JSON '):]) for line in run.stdou
 assert len(delay_rows)==1
 cccd_rows=[json.loads(line[len('CCCD_JSON '):]) for line in run.stdout.splitlines() if line.startswith('CCCD_JSON ')]
 assert len(cccd_rows)==1
+work_rows=[json.loads(line[len('CCCD_WORK_JSON '):]) for line in run.stdout.splitlines() if line.startswith('CCCD_WORK_JSON ')]
+assert len(work_rows)==2
+work,unexecuted=work_rows
+assert work['probe']=='gatt_cccd_work' and work['handle']==0 and work['generation']==6 and work['token']==0xfedcba98
+assert work['job_kind']==2 and work['executed'] is True and work['worker_core_valid'] is True and work['worker_core']==1
+assert work['queued_us']==0xfffffffa and work['started_us']==0xfffffffe and work['finished_us']==6
+assert work['queue_wait_us']==4 and work['work_wall_us']==8 and work['post_work_to_owner_us']==18 and work['event_us']==24
+assert work['wall_time_includes_preemption'] is True
+assert unexecuted['token']==99 and unexecuted['executed'] is False and unexecuted['worker_core_valid'] is False
+assert not any(unexecuted[k] for k in ('queue_wait_us','work_wall_us','post_work_to_owner_us'))
 smp_rows=[json.loads(line[len('SMP_JSON '):]) for line in run.stdout.splitlines() if line.startswith('SMP_JSON ')]
 assert len(smp_rows)==1
 assert {k:v for k,v in smp_rows[0].items() if k not in ('event_us','host_log_ordinal')}=={'probe':'smp_trace','handle':0,'generation':6,'stage':7,'result':-2,'code':5,'size':13,'window':0xfedcba98,'trace_records_lost':9},smp_rows

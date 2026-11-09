@@ -515,6 +515,15 @@ static void log_media_trace(void){
             }else if(state->kind==PROBE_HOST_CCCD){
                 PROBE_SNAPSHOT_LOG("{\"probe\":\"gatt_cccd\",\"handle\":%" PRIu32 ",\"generation\":%" PRIu32 ",\"token\":%" PRIu32 ",\"stage\":%" PRIu32 ",\"phase\":%" PRIu32 ",\"result\":%" PRIu32 ",\"job_kind\":%" PRIu32 ",\"event_us\":%" PRIu32 ",\"host_log_ordinal\":%" PRIu32 "}\n",
                     state->value[0],state->value[1],state->value[2],state->value[3],state->value[4],state->value[5],state->value[6],record.at_us,record.ordinal);
+            }else if(state->kind==PROBE_HOST_CCCD_WORK){
+                bool executed=(state->value[3]&PROBE_CCCD_WORK_EXECUTED)!=0;
+                PROBE_SNAPSHOT_LOG("{\"probe\":\"gatt_cccd_work\",\"handle\":%" PRIu32 ",\"generation\":%" PRIu32 ",\"token\":%" PRIu32 ",\"job_kind\":%" PRIu32
+                    ",\"executed\":%s,\"worker_core_valid\":%s,\"worker_core\":%" PRIu32 ",\"queued_us\":%" PRIu32 ",\"started_us\":%" PRIu32 ",\"finished_us\":%" PRIu32
+                    ",\"queue_wait_us\":%" PRIu32 ",\"work_wall_us\":%" PRIu32 ",\"post_work_to_owner_us\":%" PRIu32 ",\"wall_time_includes_preemption\":true,\"event_us\":%" PRIu32 ",\"host_log_ordinal\":%" PRIu32 "}\n",
+                    state->value[0],state->value[1],state->value[2],state->value[3]&255u,executed?"true":"false",executed?"true":"false",
+                    (state->value[3]>>PROBE_CCCD_WORK_CORE_SHIFT)&1u,state->value[4],state->value[5],state->value[6],
+                    executed?state->value[5]-state->value[4]:0u,executed?state->value[6]-state->value[5]:0u,
+                    executed?record.at_us-state->value[6]:0u,record.at_us,record.ordinal);
             }else if(state->kind==PROBE_HOST_MEMORY_SERVICES){
                 PROBE_SNAPSHOT_LOG("{\"probe\":\"boot_memory\",\"host\":\"owned\",\"phase\":\"services_ready\",\"internal_free\":%u,\"internal_largest\":%u,\"internal_minimum\":%u,\"internal_total\":%u,\"owner_stack_low\":%u"
                     ",\"collection_context\":\"background_logger\",\"event_us\":%" PRIu32 ",\"host_log_ordinal\":%" PRIu32 "}\n",

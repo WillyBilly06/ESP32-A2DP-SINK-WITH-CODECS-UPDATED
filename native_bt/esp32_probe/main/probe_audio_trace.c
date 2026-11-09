@@ -28,7 +28,7 @@ bool probe_audio_trace_media(probe_audio_trace_ring_t *ring,const dbt_codec_trac
 }
 dbt_result_t probe_audio_trace_host(probe_audio_trace_ring_t *ring,const probe_host_record_t *record,
     probe_audio_trace_clock_t clock,void *context){
-    if(!ring||!record||!clock||(record->kind!=PROBE_HOST_CLASSIC_VISIBILITY&&record->kind!=PROBE_HOST_GAP_STATE&&record->kind!=PROBE_HOST_MEMORY_SERVICES&&record->kind!=PROBE_HOST_A2DP_DELAY&&record->kind!=PROBE_HOST_A2DP_JOB&&record->kind!=PROBE_HOST_A2DP_STATE&&record->kind!=PROBE_HOST_A2DP_HANDOFF&&record->kind!=PROBE_HOST_CCCD&&record->kind!=PROBE_HOST_SMP))return DBT_INVALID;
+    if(!ring||!record||!clock||(record->kind!=PROBE_HOST_CLASSIC_VISIBILITY&&record->kind!=PROBE_HOST_GAP_STATE&&record->kind!=PROBE_HOST_MEMORY_SERVICES&&record->kind!=PROBE_HOST_A2DP_DELAY&&record->kind!=PROBE_HOST_A2DP_JOB&&record->kind!=PROBE_HOST_A2DP_STATE&&record->kind!=PROBE_HOST_A2DP_HANDOFF&&record->kind!=PROBE_HOST_CCCD&&record->kind!=PROBE_HOST_CCCD_WORK&&record->kind!=PROBE_HOST_SMP))return DBT_INVALID;
     uint32_t written,ordinal;if(!reserve(ring,1,&written,&ordinal))return DBT_NO_SPACE;
     ring->items[written&(PROBE_AUDIO_TRACE_SLOTS-1u)]=(probe_audio_trace_t){.host=*record,.at_us=clock(context),.ordinal=ordinal,.codec=PROBE_AUDIO_TRACE_HOST};
     atomic_store_explicit(&ring->written,written+1u,memory_order_release);return DBT_OK;

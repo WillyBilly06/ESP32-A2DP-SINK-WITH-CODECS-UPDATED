@@ -1,5 +1,21 @@
 # Independent ESP32 Bluetooth host
 
+The [shared persistence checkpoint](docs/SHARED_PERSISTENCE_2026_11_08.md) runs on
+readback-verified COM6 image fb87d978320c at **921600 baud**, with profilers OFF.
+CCCD and EQ persistence share the existing priority-4 Core0 worker; general/OTA
+work stays on Core1. No task, stack or audio buffer was added; the reserved FIFO
+entry adds 4 bytes. Separate raw records expose queue, storage and completion delays.
+
+Two guarded LHDC192/S24/fixed900 excerpts completed BLE ACK/readback/restoration
+before pause. Phone subscription-enable wait fell from 779–1257 ms to 268 ms;
+firmware queued-to-owner storage intervals were 8–36 ms. No descriptor or watchdog
+fault occurred; music had zero shortages, and the metronome retained 2688 stop-tail
+unfilled frames. **Minimum free heap worsened to 11,836 bytes**; transient worker
+allocation overlap remains unresolved. Earlier active gaps, sustained1Mbps and
+full feature/RAM qualification remain open. This is development firmware.
+
+## Earlier checkpoints
+
 The [runtime/reconnect checkpoint](docs/CPU_RUNTIME_RECONNECT_2026_11_08.md) runs on
 readback-verified COM6 image7d131bf9e47d. Firmware and the raw-UART viewer use
 **921600 baud**, with bounded producer events and background formatting/transmit.
@@ -13,8 +29,6 @@ restoration before pause with0 PCM shortages, descriptor faults or watchdog even
 A music excerpt completed controls after pause and retained1152 stop-tail frames.
 Earlier active gaps/watchdog faults and sustained1Mbps/feature parity remain open.
 This is development firmware; details and failed traces are preserved in the report.
-
-## Earlier checkpoints
 
 The [deferred subscription fix](docs/CCCD_DEFERRED_RESTORE_2026_11_08.md) runs on
 readback-verified COM6 image861ec6f23c4a at **921600 baud**. Valid first CCCD writes

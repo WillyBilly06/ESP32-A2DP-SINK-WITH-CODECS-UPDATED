@@ -1,4 +1,6 @@
 /* Actual ATT server and product adapter with deterministic worker/NVS shims. */
+#define DBT_PROBE_AUDIO_TEST 1
+#define DBT_PROBE_STAY_NATIVE 1
 #include "../../esp32_probe/main/probe_gatt.c"
 #include "dbt_ble_nvs.h"
 #include "nvs.h"
@@ -18,9 +20,21 @@ static unsigned allocations, commits, published, publish_failures,
 static jmp_buf worker_exit;
 static bool running_worker,fail_spawn,resume_test,resume_injected;
 static unsigned spawn_calls;
+static uint32_t fake_clock_us,storage_duration_us;
+static unsigned fake_worker_core;
+static probe_host_record_t captured_cccd_work;
+static unsigned captured_cccd_work_count;
+int64_t esp_timer_get_time(void){return fake_clock_us++;}
+
 static unsigned normal_polls,retire_polls,retire_delays,retire_waits,peer_losses;
 static bool worker_context, fail_commit, load_fixture, load_error,
     bad_eq_fixture;
+BaseType_t xPortGetCoreID(void){assert(worker_context);return (BaseType_t)fake_worker_core;}
+dbt_result_t probe_audio_host_record(const probe_host_record_t *r){
+  assert(!worker_context && r);
+  if(r->kind==PROBE_HOST_CCCD_WORK){captured_cccd_work=*r;captured_cccd_work_count++;}
+  return DBT_OK;
+}
 static bool committed_bond;
 static uint32_t fake_cookie=1;
 static uint32_t capture_cookie(uint16_t h,uint32_t generation){return h && generation?fake_cookie:0;}
@@ -71,11 +85,13 @@ static dbt_result_t fake_bond(uint16_t handle,uint32_t generation,uint8_t *type,
 }
 dbt_result_t probe_cccd_load(uint8_t type,const uint8_t id[6],const uint8_t tag[32],uint16_t values[4]) {
   assert(worker_context && type==0 && id[0]==1 && tag[0]<4);
+  fake_clock_us+=storage_duration_us;
   if(cccd_load_override!=DBT_OK)return cccd_load_override;
   memcpy(values,cccd_saved[tag[0]],sizeof(cccd_saved[0]));return cccd_present[tag[0]]?DBT_OK:DBT_EMPTY;
 }
 dbt_result_t probe_cccd_save(uint8_t type,const uint8_t id[6],const uint8_t tag[32],const uint16_t values[4]) {
   assert(worker_context && type==0 && id[0]==1 && tag[0]<4);
+  fake_clock_us+=storage_duration_us;
   if(cccd_save_space)return DBT_NO_SPACE;
   if(cccd_fail)return DBT_INVALID;
   memcpy(cccd_saved[tag[0]],values,sizeof(cccd_saved[0]));cccd_present[tag[0]]=true;return DBT_OK;
@@ -142,7 +158,8 @@ BaseType_t xTaskCreate(void (*fn)(void *), const char *name, uint32_t stack,
 }
 BaseType_t xTaskCreatePinnedToCore(void (*fn)(void *),const char *name,uint32_t stack,
                                     void *arg,UBaseType_t pri,TaskHandle_t *out,BaseType_t core) {
-  assert(core==DBT_ESP32_BACKGROUND_CORE);
+  assert(core==(arg?DBT_ESP32_PERSISTENCE_WORKER_CORE:DBT_ESP32_BACKGROUND_CORE));
+  assert(pri==4);
   return xTaskCreate(fn,name,stack,arg,pri,out);
 }
 void xTaskNotifyGive(TaskHandle_t h) { assert(h); }
@@ -319,7 +336,7 @@ static void execute_one(void) {
   control_job_t *j = 0;
   QueueHandle_t q = uxQueueMessagesWaiting(eq_work) ? eq_work : control_work;
   assert(xQueueReceive(q, &j, 0) == pdTRUE && j);
-  worker_context = true;
+  worker_context = true;fake_worker_core=q==eq_work?DBT_ESP32_PERSISTENCE_WORKER_CORE:DBT_ESP32_BACKGROUND_CORE;
   control_execute_job(j);
   worker_context = false;
   assert(xQueueSend(control_done, &j, 0) == pdTRUE);
@@ -349,7 +366,7 @@ static void deferred_cccd_cases(void) {
   const uint8_t enable[2]={1,0};uint8_t out[520];unsigned n;
   for(unsigned phase=0;phase<7;phase++){
     fprintf(stderr,"CCCD deferred phase=%u\n",phase);
-    assert(!cccd_jobs && !control_jobs && !uxQueueMessagesWaiting(control_work));
+    assert(!cccd_jobs && !control_jobs && !uxQueueMessagesWaiting(control_work) && !uxQueueMessagesWaiting(eq_work));
     dbt_att_clear(&server);link0->generation++;control_now_ms=0;test_bond_tag=3;
     memcpy(cccd_saved[3],(uint16_t[]){2,1,0,0},sizeof(cccd_saved[3]));cccd_present[3]=true;
     bool touched=phase==2 || phase==3;
@@ -450,7 +467,28 @@ static void run_general_worker(void){
   if(!setjmp(worker_exit))control_task(0);
   worker_context=running_worker=false;
 }
+static void cccd_timing_cases(void){
+  for(unsigned core=0;core<2;core++){
+    control_job_t job={.handle=7,.generation=9,.token=11,.cccd_kind=1,.identity={1},.bond_tag={1}};
+    cccd_clock_set(&job,0,UINT32_MAX-5u);fake_clock_us=UINT32_MAX-1u;storage_duration_us=7;
+    worker_context=true;fake_worker_core=core;control_execute_job(&job);worker_context=false;
+    assert(job.cccd_timing.executed && job.cccd_timing.worker_core==core);
+    uint32_t clocks[3];memcpy(clocks,job.cccd_timing.clock,sizeof(clocks));
+    assert(clocks[0]==UINT32_MAX-5u && clocks[1]==UINT32_MAX-1u && clocks[2]==6u);
+    assert(clocks[1]-clocks[0]==4u && clocks[2]-clocks[1]==8u);
+    unsigned before=captured_cccd_work_count;cccd_work_record(&job);
+    assert(captured_cccd_work_count==before+1 && captured_cccd_work.kind==PROBE_HOST_CCCD_WORK);
+    assert(captured_cccd_work.value[0]==7 && captured_cccd_work.value[1]==9 && captured_cccd_work.value[2]==11);
+    assert(captured_cccd_work.value[3]==(1u|(core<<PROBE_CCCD_WORK_CORE_SHIFT)|PROBE_CCCD_WORK_EXECUTED));
+    assert(!memcmp(captured_cccd_work.value+4,clocks,sizeof(clocks)));
+    memset(&job.cccd_timing,0,sizeof(job.cccd_timing));cccd_work_record(&job);
+    assert(captured_cccd_work.value[3]==1u && !captured_cccd_work.value[4] && !captured_cccd_work.value[5] && !captured_cccd_work.value[6]);
+  }
+  fake_clock_us=storage_duration_us=0;
+  puts("CCCD queue/work timing: both cores, uint32 wrap and unexecuted completion passed");
+}
 int main(void) {
+  cccd_timing_cases();
   runtime.ready = true;
   runtime.host.state = DBT_HOST_IDENTIFIED;
   runtime.maximum_mtu = 1024;
@@ -755,19 +793,24 @@ int main(void) {
   assert(probe_gatt_control_eq_delta(0,1)==DBT_OK && desired_eq[0]==6);
   assert(probe_gatt_control_eq_delta(0,-1)==DBT_OK && desired_eq[0]==5);
   assert(probe_gatt_control_eq_delta(1,1)==DBT_BUSY && desired_eq[1]==0);
+  cccd_binding_t reserve_binding={.type=0,.identity={1},.tag={1}};
+  assert(!cccd_enqueue(&remote,&reserve_binding,1,0,0,NULL));
+  assert(cccd_enqueue(&remote,&reserve_binding,1,0,0,NULL)==DBT_ATT_RESOURCES);
+  assert(control_jobs==5 && cccd_jobs==1 && uxQueueMessagesWaiting(eq_work)==5);
   fail_spawn=true;unsigned before_eq_spawn=spawn_calls;
-  pump_control();assert(!eq_worker && eq_retry_pending && control_jobs==4 && uxQueueMessagesWaiting(eq_work)==4 && commits==before_local);
+  pump_control();assert(!eq_worker && eq_retry_pending && control_jobs==5 && uxQueueMessagesWaiting(eq_work)==5 && commits==before_local);
   assert(probe_gatt_wait_ms(0)>0);
   for(unsigned i=0;i<4;i++)pump_control();
-  assert(spawn_calls==before_eq_spawn+1 && control_jobs==4);
+  assert(spawn_calls==before_eq_spawn+1 && control_jobs==5 && cccd_jobs==1);
   fail_spawn=false;control_now_ms=100;pump_control();
-  assert(eq_worker && !eq_retry_pending && control_jobs==4);
+  assert(eq_worker && !eq_retry_pending && control_jobs==5);
   const int8_t applied[]={1,5,6,5};
   for(unsigned i=0;i<4;i++){
     execute_one();assert(commits==before_local+i+1);pump_control();
     assert(control_display_state.eq[0]==applied[i]);
   }
-  assert(eq_retiring && !control_jobs);
+  assert(!eq_retiring && control_jobs==1 && cccd_jobs==1);
+  execute_one();pump_control();assert(eq_retiring && !control_jobs && !cccd_jobs);
   worker_context=running_worker=true;
   if(!setjmp(worker_exit))control_task((void *)(uintptr_t)1);
   worker_context=running_worker=false;pump_control();
@@ -886,7 +929,7 @@ int main(void) {
   dbt_att_close(&server,1,link0->generation);link0->generation++;
   assert(dbt_att_open(&server,link0)==DBT_OK);control_now_ms=1000;fail_heap=true;sync_cccd();
   assert(cccd_binding(link0)->phase==CCCD_NONE && cccd_binding(link0)->retry_pending);
-  fail_heap=false;control_now_ms=1099;sync_cccd();assert(!uxQueueMessagesWaiting(control_work));
+  fail_heap=false;control_now_ms=1099;sync_cccd();assert(!uxQueueMessagesWaiting(eq_work));
   control_now_ms=1100;sync_cccd();assert(cccd_binding(link0)->phase==CCCD_LOADING);
   execute_one();pump_control();sync_cccd();assert(server.connections[0].bonded);
   dbt_att_close(&server,1,link0->generation);link0->generation++;test_bond_tag=2;
@@ -923,8 +966,8 @@ int main(void) {
   for(unsigned i=0;i<3;i++){write_req(0x22,ping,sizeof(ping),true);assert(uxQueueMessagesWaiting(control_work));execute_one();pump_control();}
   assert(control_jobs==3 && !cccd_jobs);sync_cccd();assert(control_jobs==4 && cccd_jobs==1);
   assert(probe_gatt_control_eq_delta(0,1)==DBT_OK && control_jobs==5);
-  assert(uxQueueMessagesWaiting(eq_work));execute_one();pump_control();assert(control_jobs==4 && cccd_jobs==1);
-  assert(uxQueueMessagesWaiting(control_work));execute_one();pump_control();fail_heap=true;sync_cccd();
+  assert(uxQueueMessagesWaiting(eq_work)==2);execute_one();pump_control();assert(control_jobs==4 && !cccd_jobs);
+  assert(uxQueueMessagesWaiting(eq_work)==1);execute_one();pump_control();fail_heap=true;sync_cccd();
   assert(cccd_binding(link0)->phase==CCCD_MERGE && cccd_binding(link0)->retry_pending && !server.connections[0].bonded);
   fail_heap=false;control_now_ms+=100;sync_cccd();
   assert(cccd_binding(link0)->phase==CCCD_SAVING && !server.connections[0].bonded && !cccd_present[3]);
