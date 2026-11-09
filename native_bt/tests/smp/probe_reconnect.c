@@ -88,7 +88,13 @@ int main(void) {
     cfg.pairing.features.support_sc=true; cfg.pairing.features.require_sc=true; cfg.pairing.features.bonding=true;
     assert(probe_smp_init(&r,(TaskHandle_t)1,&cfg)==DBT_OK);
     fake_nvs_reset(); seed(l,true,false,16);
-    assert(request(0,0)); assert(!worker_live); probe_smp_poll(0);
+    assert(request(0,0)); assert(!worker_live);
+    /* A peer cannot turn the smaller reconnect worker into a fresh-pairing
+     * crypto worker while the reconnect procedure owns the slot. */
+    const uint8_t fresh_request[7]={1,3,0,9,16,0,0};
+    assert(probe_smp_receive(l,6,fresh_request,sizeof(fresh_request))==DBT_BUSY);
+    assert(slot.reconnect && !session.runtime);
+    probe_smp_poll(0);
     assert(requested_worker_core==0);
     assert(work_inflight && !slot.reply_pending); run_worker(); probe_smp_poll(1);
     assert(slot.reply_pending && slot.reply_opcode==0x201a);

@@ -1,17 +1,21 @@
 # Independent host and product feature matrix
 
 Current development checkpoint (2026-11-08): readback-verified COM6 image
-fb87d978320c runs at921600 baud with profilers OFF. The [shared persistence
-checkpoint](SHARED_PERSISTENCE_2026_11_08.md) routes CCCD/EQ storage to the existing
-priority-4 Core0 worker, with general/OTA work on Core1. No new task/stack/audio
-buffer; the reserved FIFO adds4B. Cold checks pass37 configurations /173 callbacks.
-Two guarded LHDC192/S24/fixed900 excerpts complete BLE controls before pause;
-subscription-enable wait is268ms versus779–1257ms before. No descriptor/new watchdog
-faults; music has0 shortages, metronome retains2688 stop-tail unfilled frames.
-Minimum free heap is11,836B, a worse transient minimum requiring investigation.
-Earlier active PCM gaps/starvation, sustained1Mbps, acoustics, all live codec/
-security/lifecycle/product/OTA parity and comparative RAM/CPU remain unqualified.
-Rows below retain their dated image scopes. This is development firmware.
+f3890656391e uses the owned host at 921600 baud, with heap/tick/task profilers
+OFF. The [reconnect stack checkpoint](RECONNECT_STACK_2026_11_08.md) lowers
+only reconnect SMP from 12 KiB to 8 KiB, preserving 12 KiB fresh/maintenance
+stacks. Diagnostic stack margin was 4736 B; comparable diagnostic minima were
+10480 B before and 14596 B after. The normal 12.526 s native-YouTube/LHDC192/S24/
+phone-fixed900 excerpt measured 20304 B minimum heap and completed EQ ACK,
+readback and CCCD restoration before pause, but retained 16064 initial, 6272
+recovered and 9792 unfilled frames. The first unfilled snapshot had empty input/
+output; MCU/PC intervals are reported separately, without blanket stop-tail
+classification. Descriptor/watchdog/media-drop/decoder faults were zero; host
+trace loss was one. Cold checks pass 37 configurations / 173 callbacks. Earlier
+active gaps/CPU1 faults, sustained 1 Mbps, acoustics, all live codec/security/
+lifecycle/product/OTA parity and matched Bluedroid RAM/CPU remain unqualified.
+Main contains development source at the user's request. Rows below retain their
+dated image scopes.
 
 Updated 2026-11-05. **The goal remains active and incomplete.** COM6 was
 explicitly released for flashing, serial and Bluetooth testing in this chat;

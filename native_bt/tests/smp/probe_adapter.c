@@ -23,7 +23,10 @@ BaseType_t xQueueReceive(QueueHandle_t v,void *item,TickType_t wait) {
 UBaseType_t uxQueueMessagesWaiting(QueueHandle_t v) { return ((queue_t *)v)->full; }
 void vQueueDelete(QueueHandle_t v) { queue_t *q=v; free(q->bytes); free(q); }
 BaseType_t xTaskCreate(void (*fn)(void *),const char *name,uint32_t stack,void *p,UBaseType_t pri,TaskHandle_t *out) {
-    (void)fn; (void)name; (void)p; (void)pri; (void)out; assert(stack==WORKER_STACK_BYTES);
+    (void)fn; (void)name; (void)p; (void)pri; (void)out;
+    /* Every creation in the lifecycle scenarios must retain the fresh/
+     * maintenance budget and use the measured smaller budget only for reconnect. */
+    assert(stack==((!maintenance.active && slot.reconnect) ? 8192u : 12288u));
     ++starts; return fail_start ? 0 : pdPASS;
 }
 BaseType_t xTaskCreatePinnedToCore(void (*fn)(void *),const char *name,uint32_t stack,void *p,UBaseType_t pri,TaskHandle_t *out,BaseType_t core) {

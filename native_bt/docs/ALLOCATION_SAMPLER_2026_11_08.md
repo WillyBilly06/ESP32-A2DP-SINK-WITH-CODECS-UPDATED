@@ -1,6 +1,6 @@
 # Optional allocation sampler — 2026-11-08
 
-The transient free-heap minimum in the shared-persistence image remains unexplained. This change adds an opt-in diagnostic, not a claimed RAM/performance fix. Normal builds leave it disabled. No audio-gain change is included.
+The opt-in diagnostic has now captured allocation observations during BLE reconnect and identified overlapping SMP/persistence worker stacks in the instrumented run. The measured follow-up reduces only the reconnect stack budget; see the [stack report](RECONNECT_STACK_2026_11_08.md). Normal builds leave the sampler disabled. No audio-gain change is included.
 
 ## Capture ownership
 
@@ -18,12 +18,12 @@ Background CCCD jobs record 8-bit internal-heap free/minimum values around stora
 
 The actual hook state machine and exact deferred JSON formatter pass five Windows model cases under ASan/UBSan: normal/reused addresses, overflow/ISR context, a writer active during closure, concurrent writers, and delayed cross-core free callbacks. These tests do not establish MCU timing or exhaustive allocator capture.
 
-Mode admission passes 12 CMake cases, 19 image cases, 8 SDK checks, 3 normal/diagnostic SDK transitions and 2 CLI rejections. The full diagnostic image c0489ffb46e22d6f86a221e6d23547326a8edb2c9287756f833dbbb992df6050 built with ccache and 10,429 unchanged source inputs. Image admission and the owned hook/ISR code/literal/data placement audit pass. Owned sampler IRAM object code was reduced from 849 to 465 bytes to fit the existing region; codec/DSP settings and buffers were not reduced.
+Mode admission passes 12 CMake cases, 19 image cases, 8 SDK checks, 3 normal/diagnostic SDK transitions and 2 CLI rejections. The initial diagnostic image c0489ffb46e22d6f86a221e6d23547326a8edb2c9287756f833dbbb992df6050 built with ccache and 10,429 unchanged source inputs. Image admission and the owned hook/ISR code/literal/data placement audit pass. Owned sampler IRAM object code was reduced from 849 to 465 bytes to fit the existing region; codec/DSP settings and buffers were not reduced.
 
 Compared with normal image fb87d978320c, the diagnostic linked sizes increase 480 B IRAM, 1608 B DRAM data and 8 B BSS. These are temporary profiling costs; hardware heap results from such an image must not be reported as normal-build minimum RAM. The default repository build excludes the module and restores CONFIG_HEAP_USE_HOOKS to disabled.
 
 Earlier annotation, native typedef, IRAM-capacity and rebuildable-disk-gate failures are retained with their receipts. Completed compiler/configuration logs and test binaries were compressed losslessly with raw SHA256 verification; the 512 MiB gate was not raised. Current SDK objects/ELF/headers were preserved.
 
-A diagnostic deployment attempt stopped at the phone pause precheck with empty writes/write_attempts. No diagnostic image was flashed and no allocation hardware trace has yet been collected. The phone transport later recovered. The existing owned-host firmware remains the device observation scope; full 1 Mbps, sustained continuity/coexistence, acoustic and feature/security/OTA qualification remain open.
+An initial deployment attempt stopped at the phone pause precheck with empty writes/write_attempts; that failure remains preserved. After the phone transport recovered, diagnostic images e9247f2f002c and 2ec452c36f59 were flashed with full readback verification. Their 12.603 s and 12.621 s guarded native-YouTube/LHDC192/S24/phone-fixed900 captures contain 25 and 19 allocation/phase/retirement rows respectively, plus their capture headers. Both are explicitly nonexhaustive. SMP stack low-water was 8836 B of 12288 B, then 4736 B of 8192 B; measured minimum internal heap was 10480 B, then 14596 B. The second excerpt recovered all 64 initially short refill frames and left zero unfilled; both completed controls before pause. Normal image f3890656391e was subsequently readback-verified with allocation hooks and sampler disabled. Full 1 Mbps, sustained continuity/coexistence, acoustic and feature/security/OTA qualification remain open.
 
 Evidence: native_bt/_build/experiments/reconnect-allocation-trace-1794188270925. This directory retains source-bound host-test receipts, target-size probes, failed/successful build logs, footprint and failed precheck evidence. Rebuildable/device evidence is not part of the Git source publication.

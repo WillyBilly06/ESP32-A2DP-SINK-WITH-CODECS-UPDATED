@@ -1,0 +1,126 @@
+{
+  "schema": 1,
+  "scope": "Finite source/build and COM6/Redmagic native-YouTube observations; not sustained, 1Mbps, acoustic, worst-case stack or feature-parity qualification",
+  "change": {
+    "reconnect_stack_bytes_before": 12288,
+    "reconnect_stack_bytes_after": 8192,
+    "fresh_pairing_stack_bytes": 12288,
+    "maintenance_stack_bytes": 12288,
+    "persistence_stack_bytes": 4096,
+    "task_count_changed": false,
+    "audio_buffers_changed": false
+  },
+  "diagnostic_trials": [
+    {
+      "image": "e9247f2f002c84ca372e6ccefae62450243128510ff070af94f5447cbd8f4e2d",
+      "receipt_sha256": "9c2b865245b442327a74eb3096ac2929129e1afc20e29c548a25e7e3b378482a",
+      "i2s_elapsed_upper_ms": 12603,
+      "smp_stack_low_water_bytes": 8836,
+      "minimum_internal_8bit_heap_bytes": 10480,
+      "initial_shortage_frames": 0,
+      "recovered_frames": 0,
+      "unfilled_frames": 0,
+      "controls_ack_readback_restored_before_pause": true
+    },
+    {
+      "image": "2ec452c36f595188aef009f7058e7de028631906173887909db6484d3d77f53b",
+      "receipt_sha256": "23245c293e1e82d621c057ae1d45e25b4e33f6fa612a5a4ac6cbd27f69306dd7",
+      "i2s_elapsed_upper_ms": 12621,
+      "smp_stack_low_water_bytes": 4736,
+      "minimum_internal_8bit_heap_bytes": 14596,
+      "initial_shortage_frames": 64,
+      "recovered_frames": 64,
+      "unfilled_frames": 0,
+      "controls_ack_readback_restored_before_pause": true
+    }
+  ],
+  "diagnostic_limits": {
+    "sampler_exhaustive": false,
+    "free_callbacks_are_post_operation_observations": true,
+    "retirement_marker_precedes_vTaskDelete_but_follows_heap_and_stack_reads": true,
+    "two_run_minimum_delta_is_not_exact_isolated_allocation_saving": true,
+    "linked_dram_data_and_bss_delta_bytes": 1616,
+    "linked_iram_delta_bytes": 480
+  },
+  "format": {
+    "codec": "LHDC V5",
+    "sample_rate_hz": 192000,
+    "precision_bits": 24,
+    "channels": 2,
+    "phone_quality_setting_kbps": 900,
+    "bitrate_1000_qualified": false
+  },
+  "host_tests": {
+    "passed": true,
+    "suites": [
+      "probe_adapter",
+      "probe_reconnect",
+      "feature_exchange"
+    ],
+    "real_sdk": "ESP-IDF6.1 PSA/NVS shim",
+    "ccache": true
+  },
+  "normal_build": {
+    "image": "f3890656391e004943d5727887f8adeee03d3fd0d1bf3dc34af13567f6487811",
+    "source_inputs": 10433,
+    "compile_commands": 1036,
+    "explicit_object_compile": true,
+    "ccache": true,
+    "heap_sampler": false,
+    "heap_hooks": false,
+    "bluedroid_host": false,
+    "nimble_host": false,
+    "controller_only_btdm": true,
+    "image_admission_passed": true,
+    "owned_isr_audit_passed": true,
+    "defined_prohibited_host_or_sampler_symbols": 0
+  },
+  "normal_deployment": {
+    "pending": false,
+    "image": "f3890656391e004943d5727887f8adeee03d3fd0d1bf3dc34af13567f6487811",
+    "archive": "runs/1794201072020376800-f3890656391e",
+    "all_written_regions_readback_match": true,
+    "automatic_bluedroid_restore": false,
+    "original_application_preserved": true,
+    "boot_codec_configs": 37,
+    "boot_pcm_callbacks": 173,
+    "boot_min_free_after_alloc_bytes": 106128,
+    "boot_stack_low_water_bytes": 3468,
+    "boot_runtime_health_passed": true,
+    "live": {
+      "receipt_sha256": "242c65a400658e82e32c305a0964ad5d22933d8fd1997585eca9ac2671371e22",
+      "i2s_elapsed_upper_ms": 12526,
+      "minimum_internal_8bit_heap_bytes": 20304,
+      "stopped_heap_free_bytes": 62084,
+      "stopped_largest_block_bytes": 59392,
+      "initial_shortage_frames": 16064,
+      "recovered_frames": 6272,
+      "unfilled_frames": 9792,
+      "media_drops": 0,
+      "decoder_faults": 0,
+      "descriptor_errors": 0,
+      "watchdogs": 0,
+      "controls_before_pause": {
+        "eq_ack": true,
+        "eq_readback": true,
+        "cccd_restored": true
+      },
+      "heap_capture_records": 0,
+      "timing": {
+        "scope": "Separate MCU and PC intervals; no synchronized clock mapping or blanket stop-tail classification",
+        "first_unfilled_event_us": 132923483,
+        "i2s_enable_us": 122248571,
+        "first_unfilled_after_i2s_enable_s": 10.674912,
+        "pause_after_play_command_s": 9.566487550735474,
+        "first_gap_input_frames": 0,
+        "first_gap_output_frames": 0,
+        "host_trace_lost": 1
+      },
+      "underrun_free": false
+    },
+    "phone_main_app_restored": true,
+    "youtube_paused": true,
+    "monitor_baud": 921600
+  },
+  "qualification_complete": false
+}

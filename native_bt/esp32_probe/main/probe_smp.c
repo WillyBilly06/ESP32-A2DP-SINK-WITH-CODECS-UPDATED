@@ -34,6 +34,11 @@ static void trace_smp(uint16_t h,uint32_t g,uint8_t stage,int result,uint8_t cod
 #define GUARDS 8u
 #define QUARANTINES 16u
 #define WORKER_STACK_BYTES 12288u
+/* Reconnect executes only bond load/RPA resolution, identity promotion and
+ * retirement; it never enters fresh-pairing ECDH. The 12 KiB capture retained
+ * 8,836 bytes at retirement. Keep >4 KiB additional margin with an 8 KiB
+ * reconnect budget, while fresh pairing and maintenance retain 12 KiB. */
+#define RECONNECT_STACK_BYTES 8192u
 #define WAIT_MS 20u
 #define SECURITY_REQUEST_TTL_MS 5000u
 #define SECURITY_REQUEST_COOLDOWN_MS 2000u
@@ -993,7 +998,8 @@ void probe_smp_poll(uint32_t now) {
         if (!worker_live) {
             BaseType_t worker_core=slot.reconnect?DBT_ESP32_RECONNECT_WORKER_CORE:DBT_ESP32_BACKGROUND_CORE;
             probe_heap_alloc_owner_phase(PROBE_HEAP_CREATE_SMP);
-            BaseType_t created=xTaskCreatePinnedToCore(worker,"native_smp_worker",WORKER_STACK_BYTES,NULL,1,NULL,worker_core);
+            uint32_t stack_bytes=slot.reconnect ? RECONNECT_STACK_BYTES : WORKER_STACK_BYTES;
+            BaseType_t created=xTaskCreatePinnedToCore(worker,"native_smp_worker",stack_bytes,NULL,1,NULL,worker_core);
             probe_heap_alloc_owner_phase(0);
             if (created!=pdPASS) {
                 if (slot.reconnect && !slot.reconnect_central) slot.negative_needed=true; else slot.failed=true;

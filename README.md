@@ -53,9 +53,11 @@ The build does not open a serial port, flash or reset a board. Deployment must u
 
 ## Current validation and remaining work
 
-The [shared-persistence checkpoint](native_bt/docs/SHARED_PERSISTENCE_2026_11_08.md) records readback-verified owned-host firmware with 37 cold codec configurations / 173 PCM callbacks. Two short native YouTube/LHDC excerpts completed BLE subscription, unchanged-EQ ACK/readback and original-subscription restoration during playback. Subscription-enable wait was 268 ms in those excerpts, versus 779–1,257 ms in the preceding image.
+The [reconnect stack checkpoint](native_bt/docs/RECONNECT_STACK_2026_11_08.md) reduces only the SMP reconnect stack from 12 KiB to 8 KiB; fresh pairing and maintenance retain 12 KiB. Comparable diagnostic excerpts measured 8,836 bytes of stack margin before and 4,736 after, with minimum free heap 10,480 → 14,596 bytes. The optional sampler is disabled in the normal build.
 
-These finite checks do not establish sustained continuity or acoustic quality. Earlier active PCM gaps and CPU1 watchdog faults remain relevant. The observed transient minimum free heap of 11,836 bytes is under investigation. The latest allocation sampler is optional and has software/build/ISR checks; its hardware measurement has not yet been completed.
+The normal image is readback-verified and passes the existing 37 cold codec configurations / 173 callbacks. One short native YouTube/LHDC192/S24/phone-fixed900 excerpt completed BLE EQ ACK/readback and original-subscription restoration before pause, with 20,304 bytes minimum free heap. It also retained 9,792 unfilled frames near the end; that result is not presented as underrun-free. See the checkpoint for exact counts and timing limits.
+
+These finite checks do not establish sustained continuity, acoustic quality or worst-case RAM. Earlier active PCM gaps and CPU1 watchdog faults remain relevant. Full 1 Mbps headroom and all codec/feature/security/lifecycle/OTA qualification remain open.
 
 Preservation and verification status for BLE controls, uploads, OTA, security, lifecycle, peripheral integration and the codec variants is tracked in the [feature matrix](native_bt/docs/FEATURE_MATRIX.md) and [baseline inventory](native_bt/docs/IDF61_FEATURE_INVENTORY.md). Original working paths are retained for comparison; their existence is not presented as custom-host parity.
 
