@@ -3,6 +3,7 @@
 #include "probe_audio.h"
 #include "probe_audio_trace.h"
 #include "probe_coex.h"
+#include "probe_flash_guard.h"
 #if (defined(DBT_PROBE_SCHEDULER_TRACE) || defined(DBT_PROBE_STAY_NATIVE)) && defined(DBT_PROBE_AUDIO_OUTPUT)
 #include "probe_arrival.h"
 #include "probe_owner_state.h"
@@ -410,6 +411,17 @@ static void log_first_starvation(void){
             names[kind][0],s.stream_serial,s.captured?"true":"false",s.at_us,s.taken_frames,s.input_frames,s.output_frames,
             s.accepted_frames,s.rendered_frames,s.dma_source_frames,s.deadline_us,s.pending_acl_metadata,s.pending_acl_metadata!=UINT32_MAX?"true":"false",kind?"true":"false");
         if(!s.captured)continue;
+        const probe_flash_guard_sample_t *flash=&s.flash;
+        uint32_t guard_phase=flash->token&3u;
+        bool guard_before=flash->coherent && (uint32_t)(s.at_us-flash->begin_us)<0x80000000u;
+        PROBE_SNAPSHOT_LOG("{\"probe\":\"%s_flash_guard\",\"stream_serial\":%" PRIu32 ",\"event_us\":%" PRIu32
+            ",\"coherent\":%s,\"token\":%" PRIu32 ",\"serial\":%" PRIu32 ",\"phase\":%" PRIu32
+            ",\"active\":%s,\"initiator_core\":%" PRIu32 ",\"begin_us\":%" PRIu32
+            ",\"begin_not_after_gap\":%s,\"scheduler_state\":%" PRIu32 ",\"irq_scheduler_suspended\":%s"
+            ",\"scope\":\"SDK_cache_disabled_slice_start_return_to_end_entry\"}\n",
+            kind?"unfilled":"starvation",s.stream_serial,s.at_us,flash->coherent?"true":"false",flash->token,flash->token>>3,guard_phase,
+            flash->coherent && guard_phase==2u?"true":"false",(flash->token>>2)&1u,flash->begin_us,guard_before?"true":"false",
+            flash->scheduler_state,flash->scheduler_state==(uint32_t)taskSCHEDULER_SUSPENDED?"true":"false");
         PROBE_SNAPSHOT_LOG("{\"probe\":\"%s\",\"stream_serial\":%" PRIu32 ",\"event_us\":%" PRIu32
             ",\"coherent\":%s,\"last_acl_any_link_us\":%" PRIu32 ",\"last_host_poll_us\":%" PRIu32
             ",\"media_begin_us\":%" PRIu32 ",\"media_admitted_us\":%" PRIu32 ",\"media_epoch\":%" PRIu32
@@ -1781,6 +1793,7 @@ dbt_result_t probe_audio_init(dbt_runtime_t *runtime,TaskHandle_t host_owner){
         sampled==ESP_OK?"true":"false",(unsigned)sampled,(unsigned)PROBE_SCHEDULER_SAMPLE_HZ,PROBE_TICK_SAMPLING_JSON,PROBE_RUNTIME_ONLY_JSON);
 #endif
     initialized=true;
+    probe_flash_guard_enable();
 #ifdef DBT_PROBE_DISPATCH_TRACE
     probe_dispatch_bind(PROBE_DISPATCH_HOST,owner);probe_dispatch_bind(PROBE_DISPATCH_DECODE,decoder_task);
     probe_dispatch_bind(PROBE_DISPATCH_LOGGER,logger_task);

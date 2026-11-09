@@ -37,6 +37,7 @@ try:
     if options.owner_state:src+=[root/'esp32_probe/main/probe_owner_state.c',root/'src/dbt_hci.c']
     if sanitized:
         tracked=src+[root/'esp32_probe/main/probe_output.c',root/'esp32_probe/main/probe_output.h',root/'tests/codecs/probe_output_format.c',pathlib.Path(__file__).resolve()]
+        tracked += [root/'esp32_probe/main/probe_flash_guard.c',root/'esp32_probe/main/probe_flash_guard.h',root/'esp32_probe/main/probe_flash_guard.lf',ws/'esp-idf/components/freertos/FreeRTOS-Kernel/tasks.c']
         if options.owner_state:tracked+=[root/'esp32_probe/main/probe_owner_state.h',*sorted((root/'include').glob('*.h'))]
         source_hashes={str(p):hashlib.sha256(p.read_bytes()).hexdigest() for p in tracked};runs=[]
     cmd=[cache,cc,'-std=c11','-O1','-fwrapv','-shared','-DCONFIG_I2S_ISR_IRAM_SAFE=1','-DCONFIG_NATIVE_AUDIO_BCLK=26','-DCONFIG_NATIVE_AUDIO_LRCK=25','-DCONFIG_NATIVE_AUDIO_DATA=27']

@@ -9,6 +9,32 @@ static unsigned fixture_core;
 #define xPortGetCoreID() 0u /* This focused fixture runs ISR/owner sequentially on one simulated CPU. */
 #endif
 #include "../../esp32_probe/main/probe_output.c"
+#ifdef PROBE_OUTPUT_GAP_TRACE
+/* Actual passive observer; SDK guard bodies and scheduling are virtual here. */
+static unsigned fixture_flash_core;
+#undef xPortGetCoreID
+#define xPortGetCoreID() fixture_flash_core
+#include "../../esp32_probe/main/probe_flash_guard.c"
+#undef xPortGetCoreID
+#ifdef DBT_PROBE_DSP_ASSIST
+#define xPortGetCoreID() fixture_core
+#else
+#define xPortGetCoreID() 0u
+#endif
+static BaseType_t fixture_scheduler_state=taskSCHEDULER_RUNNING;
+static unsigned fixture_flash_starts,fixture_flash_ends;
+static bool fixture_flash_end_during_sample,fixture_flash_restart_during_end;
+BaseType_t xTaskGetSchedulerState(void){
+    BaseType_t value=fixture_scheduler_state;
+    if(fixture_flash_end_during_sample){fixture_flash_end_during_sample=false;__wrap_spi_flash_enable_interrupts_caches_and_other_cpu();}
+    return value;
+}
+void __real_spi_flash_disable_interrupts_caches_and_other_cpu(void){++fixture_flash_starts;fixture_scheduler_state=taskSCHEDULER_SUSPENDED;}
+void __real_spi_flash_enable_interrupts_caches_and_other_cpu(void){
+    ++fixture_flash_ends;fixture_scheduler_state=taskSCHEDULER_RUNNING;
+    if(fixture_flash_restart_during_end){fixture_flash_restart_during_end=false;__wrap_spi_flash_disable_interrupts_caches_and_other_cpu();}
+}
+#endif
 #ifdef _WIN32
 #define EX __declspec(dllexport)
 #else

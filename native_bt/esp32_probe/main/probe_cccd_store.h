@@ -9,6 +9,9 @@
 bool probe_cccd_bond_tag(const dbt_smp_bond_record_t *,uint8_t out[PROBE_CCCD_TAG_SIZE]);
 /* Worker only, serialized by one worker. A failure may mean an ambiguous NVS
  * mutation; the provider then stays poisoned for the lifetime of the boot. */
+/* A 48-byte last-verified snapshot avoids duplicate reads on saves. Loads
+ * always re-read/validate NVS; failed loads invalidate it. Unchanged values
+ * return success only for an already verified/committed matching incarnation. */
 dbt_result_t probe_cccd_load(uint8_t type,const uint8_t identity[6],const uint8_t tag[32],uint16_t values[PROBE_CCCD_COUNT]);
 dbt_result_t probe_cccd_save(uint8_t type,const uint8_t identity[6],const uint8_t tag[32],const uint16_t values[PROBE_CCCD_COUNT]);
 #endif

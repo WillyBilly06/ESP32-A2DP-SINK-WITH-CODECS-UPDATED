@@ -1,0 +1,5 @@
+# Public scheduler getter called only by the bounded first-gap IRQ observer.
+[mapping:probe_flash_guard_getter]
+archive: libfreertos.a
+entries:
+    tasks:xTaskGetSchedulerState (noflash_text)

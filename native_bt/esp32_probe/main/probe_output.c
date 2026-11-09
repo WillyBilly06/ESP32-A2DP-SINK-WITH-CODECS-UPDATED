@@ -195,6 +195,7 @@ typedef struct {
   _Atomic uint32_t stream_serial,at_us,taken_frames,input_frames,output_frames,accepted_frames,rendered_frames,dma_source_frames,acl_us,host_poll_us,media_us,media_admit_us,media_epoch,media_sequence,media_timestamp,media_ssrc,media_result,media_gap_us,media_max_gap_us,media_hci_gap_us,media_arrival_us,media_arrival_cursor,media_arrival_flags,media_arrival_valid,media_coherent,decoder_phase,decoder_at_us,decoder_coherent,render_phase,render_at_us,render_coherent,decoder_queued,dsp_assist_state;
   _Atomic uint32_t vhci_coherent,vhci_at_us,vhci_flags,vhci_submitted_us,vhci_packet,vhci_pending_acks,vhci_owned_now;
   _Atomic uint32_t owner_coherent,owner_phase,owner_phase_at_us,owner_wait_ms,owner_credits_at_us,owner_pending_counts,owner_ncp_at_us,owner_ncp_packets,owner_flags,owner_tx_owned;
+  _Atomic uint32_t flash_token,flash_begin_us,flash_scheduler_state,flash_coherent;
 } starvation_capture_t;
 static DRAM_ATTR struct {
   _Atomic uint32_t stream_serial,acl_us,host_poll_us;
@@ -286,6 +287,9 @@ static void IRAM_ATTR capture_starvation(starvation_capture_t *f,output_t *o,uin
   atomic_store(&f->owner_ncp_packets,owner_sample.ncp_packets);
   atomic_store(&f->owner_flags,owner_sample.flags);
   atomic_store(&f->owner_tx_owned,owner_sample.tx_owned);
+  probe_flash_guard_sample_t flash;probe_flash_guard_sample(&flash);
+  atomic_store(&f->flash_token,flash.token);atomic_store(&f->flash_begin_us,flash.begin_us);
+  atomic_store(&f->flash_scheduler_state,flash.scheduler_state);atomic_store(&f->flash_coherent,flash.coherent);
   /* Consumer read precedes producer written; capacity bounds remain visible.
    * These are adjacent atomic observations, not a simultaneous queue lock. */
   uint32_t read=atomic_load(&o->audio.input.read),written=atomic_load(&o->audio.input.written);
@@ -375,6 +379,8 @@ static void starvation_snapshot(starvation_capture_t *f,probe_output_starvation_
   s->owner.ncp_packets=atomic_load(&f->owner_ncp_packets);
   s->owner.flags=atomic_load(&f->owner_flags);
   s->owner.tx_owned=atomic_load(&f->owner_tx_owned);
+  s->flash.token=atomic_load(&f->flash_token);s->flash.begin_us=atomic_load(&f->flash_begin_us);
+  s->flash.scheduler_state=atomic_load(&f->flash_scheduler_state);s->flash.coherent=atomic_load(&f->flash_coherent);
   s->media_us=atomic_load(&f->media_us);
   s->media_admit_us=atomic_load(&f->media_admit_us);
   s->media_epoch=atomic_load(&f->media_epoch);

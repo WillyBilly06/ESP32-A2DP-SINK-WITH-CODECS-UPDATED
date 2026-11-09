@@ -5,6 +5,46 @@
 #include <stdio.h>
 static bool publication_preempt,media_timing_interference;
 static unsigned publication_preemptions;
+static int flash_guard_observation(void){
+    probe_flash_guard_sample_t sample;unsigned starts=fixture_flash_starts,ends=fixture_flash_ends;
+    atomic_store(&flash_guard.enabled,0);atomic_store(&flash_guard.token,0);atomic_store(&flash_guard.begin_us,0);
+    __wrap_spi_flash_disable_interrupts_caches_and_other_cpu();probe_flash_guard_sample(&sample);
+    CHECK(!sample.coherent && !sample.token && sample.scheduler_state==taskSCHEDULER_SUSPENDED);
+    __wrap_spi_flash_enable_interrupts_caches_and_other_cpu();
+    CHECK(fixture_flash_starts==starts+1 && fixture_flash_ends==ends+1);
+    probe_flash_guard_enable();test_clock_us=450000;
+    __wrap_spi_flash_disable_interrupts_caches_and_other_cpu();probe_flash_guard_sample(&sample);
+    CHECK(sample.coherent && (sample.token&3u)==2u && sample.begin_us==450000 &&
+        sample.scheduler_state==taskSCHEDULER_SUSPENDED && !(sample.token&4u));
+    uint32_t first=sample.token;
+    fixture_flash_end_during_sample=true;probe_flash_guard_sample(&sample);CHECK(!sample.coherent);
+    probe_flash_guard_sample(&sample);CHECK(sample.coherent && (sample.token&3u)==0 && sample.scheduler_state==taskSCHEDULER_RUNNING);
+    test_clock_us=450100;__wrap_spi_flash_disable_interrupts_caches_and_other_cpu();
+    fixture_flash_restart_during_end=true;__wrap_spi_flash_enable_interrupts_caches_and_other_cpu();
+    probe_flash_guard_sample(&sample);CHECK(sample.coherent && (sample.token&3u)==2u && sample.token!=first);
+    __wrap_spi_flash_enable_interrupts_caches_and_other_cpu();
+    fixture_flash_core=1;test_clock_us=450200;__wrap_spi_flash_disable_interrupts_caches_and_other_cpu();
+    probe_flash_guard_sample(&sample);CHECK(sample.coherent && (sample.token&7u)==6u);
+    __wrap_spi_flash_enable_interrupts_caches_and_other_cpu();fixture_flash_core=0;
+    atomic_store(&flash_guard.token,33);probe_flash_guard_sample(&sample);CHECK(!sample.coherent);
+    atomic_store(&flash_guard.token,0xfffffff8u);__wrap_spi_flash_disable_interrupts_caches_and_other_cpu();
+    CHECK(atomic_load(&flash_guard.enabled)==2 && !atomic_load(&flash_guard.token));
+    probe_flash_guard_enable();CHECK(atomic_load(&flash_guard.enabled)==2);
+    __wrap_spi_flash_enable_interrupts_caches_and_other_cpu();
+    /* Freeze the actual wrapper observation in both production IRQ latches. */
+    static int32_t dma[DMA_DESCRIPTORS][DMA_FRAMES*2];CHECK(refill_test_start(dma,470000)==0);
+    atomic_store(&flash_guard.enabled,0);atomic_store(&flash_guard.token,0);probe_flash_guard_enable();
+    test_clock_us=470100;__wrap_spi_flash_disable_interrupts_caches_and_other_cpu();
+    i2s_event_data_t event={.dma_buf=dma[0],.size=DMA_FRAMES*8u};test_clock_us=470200;(void)sent(0,&event,&output);
+    test_clock_us=472200;event.dma_buf=dma[1];(void)sent(0,&event,&output);
+    probe_output_starvation_t frozen;probe_output_first_unfilled(&frozen);
+    CHECK(frozen.captured && frozen.coherent && frozen.flash.coherent && (frozen.flash.token&3u)==2u &&
+        frozen.flash.begin_us==470100 && frozen.flash.scheduler_state==taskSCHEDULER_SUSPENDED);
+    __wrap_spi_flash_enable_interrupts_caches_and_other_cpu();probe_output_first_unfilled(&frozen);
+    CHECK((frozen.flash.token&3u)==2u && frozen.flash.scheduler_state==taskSCHEDULER_SUSPENDED);
+    close_output();CHECK(!live);atomic_store(&flash_guard.enabled,0);atomic_store(&flash_guard.token,0);
+    return 0;
+}
 void dbt_output_test_step(unsigned stage){
     if(stage==13 && media_timing_interference){media_timing_interference=false;
         probe_output_trace_media_arrival(90002,90012,100,44,1920,255,DBT_OK,false,0,0,0);
@@ -237,6 +277,7 @@ static int fragmented_dsp_equivalence(void){
 }
 int main(void){
     int line=probe_output_refill_windows();if(!line)line=adjacent_media_arrival_gaps();if(!line)line=startup_observation();
+    if(!line)line=flash_guard_observation();
     if(!line)line=refill_before_diagnostics();
     if(!line)line=local_publication_refill_order();
     if(!line)line=bounded_refill_burst();

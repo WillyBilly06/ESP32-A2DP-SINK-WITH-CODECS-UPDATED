@@ -1,20 +1,21 @@
 # Independent host and product feature matrix
 
 Current development checkpoint (2026-11-09): readback-verified COM6 image
-0e1684820f1c adds [asynchronous A2DP coexistence status](A2DP_COEX_2026_11_09.md).
-The public SDK radio API runs on the existing background worker because its
-semaphore can wait. No Bluedroid/private controller hook is added. An independent
-coherent status word preserves latest state through event-ring saturation.
-DRAM data +396 B, BSS/IRAM unchanged; normal2x192 DMA and codec/DSP policy remain.
-Mailbox ASan/UBSan, full-ring app tests and37 cold configurations /173 callbacks
-pass. UART is921600; heap/tick/task samplers are OFF.
+297aae153578 adds a [flash-guard observer and durable CCCD cache](FLASH_GUARD_CCCD_CACHE_2026_11_09.md).
+Frozen IRQ state confirms cache-off/scheduler suspension at a miss with 832
+decoded raw frames waiting. The 48-byte cache skips duplicate provider reads
+and verified no-op writes; changed values still commit before success. Security,
+incarnation checks and FIFO ownership remain. No task, PCM buffer, quality or
+core/priority change. Observer cost is 332 B IRAM/ 40 B data; cache adds 48 B BSS.
+Source-bound provider sanitizer, real-SDK SMP and 37 cold configurations pass.
 
-Finite fixed900 LHDC192/S24 music has0 unfilled frames but BLE controls after
-pause. Metronome completes controls before pause but retains2688 unfilled frames,
-with1024 decoded frames waiting and a CCCD save overlapping its first miss.
-Storage/cache and render dispatch need causal tracing. Four host diagnostic
-events are lost; cached API state confirms stopped bits but not missing timings.
-Sustained1Mbps, BLE latency, acoustics and full parity remain unqualified.
+The guarded LHDC192/S24/phone-fixed900 sweep completes 32 descriptor ACKs and
+independent readbacks, EQ ACK/settings readback and original-CCCD ACK/readback
+before pause. It retains 2432 unfilled frames with a verified pre-pause cache-off
+miss. 94 host diagnostic events are lost; worker/snapshot/UART losses are zero.
+This does not establish an audio improvement or 1Mbps/sustained parity. The
+[asynchronous A2DP coexistence integration](A2DP_COEX_2026_11_09.md) remains.
+UART is 921600; optional heap/tick/task samplers remain OFF.
 
 The [DMA redistribution experiment](DMA_REFILL_EXPERIMENT_2026_11_08.md)
 3ae5b531769d kept the 31744 B PCM/DMA payload and 2432-frame startup reserve,
