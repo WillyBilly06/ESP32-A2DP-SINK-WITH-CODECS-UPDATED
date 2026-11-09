@@ -1,0 +1,4 @@
+decoder/*.c text eol=lf
+decoder/*.h text eol=lf
+SOURCE.json text eol=lf
+README.md text eol=lf

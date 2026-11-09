@@ -1,0 +1,109 @@
+{
+  "upstream": "https://github.com/WillyBilly06/LHDC-V5-Decoder",
+  "comparison_revision": "cf857ce1a1429965e161e54adbc3f293fd9ce273",
+  "source": "user-provided decoder snapshot used by the tested custom-host build",
+  "local_differences_from_comparison_revision": [
+    "decoder/lhdc_imdct.c",
+    "decoder/lhdc_imdct.h"
+  ],
+  "line_endings": "LF; existing prepare_port.py verifies its audited source/header pins",
+  "contains_encoder_binaries": false,
+  "files": [
+    {
+      "file": "decoder/lhdc_dec.c",
+      "bytes": 93542,
+      "sha256": "b770f56d9b31a1b4b5272fd9ba6b3006195ceed68ef8949ec44e07631b20a7b0",
+      "git_blob_sha1": "00ba2af838648c87417e336b5ba5fb3ab0ed4ee6"
+    },
+    {
+      "file": "decoder/lhdc_imdct.c",
+      "bytes": 47076,
+      "sha256": "5eb7a01fe6e4c3e44b78129a841ab6bf5f667651111d617a6e110ddf073868de",
+      "git_blob_sha1": "76268851956d7e0474161f85eb6f33ab29d0c079"
+    },
+    {
+      "file": "decoder/lhdc_entropy_dec.c",
+      "bytes": 23133,
+      "sha256": "698a55c083697aa9a98578415cfdf24cf0a6197f2e23c1b7f025d16a87802f70",
+      "git_blob_sha1": "a44ba35d1b1fba7879f3b9c55f47fbe54f59776b"
+    },
+    {
+      "file": "decoder/lhdc_sns_synth.c",
+      "bytes": 14453,
+      "sha256": "b6afd0bde63a78c0a10fac06dd27f26f567f11ef88e343ff4057dad29cf97715",
+      "git_blob_sha1": "ac9593660fef5277925807ead7d23aa42ec40102"
+    },
+    {
+      "file": "decoder/lhdc_bit_reader.h",
+      "bytes": 670,
+      "sha256": "9148efdbb01b6767cadbf1f3ed5b5b7592b931db05937539ecfa54ea4aa2a21d",
+      "git_blob_sha1": "71f37ff00ef720c6df09beb4703fa1b7e9d05a57"
+    },
+    {
+      "file": "decoder/lhdc_dec.h",
+      "bytes": 6087,
+      "sha256": "cd59bb9ba2a099a3d26cf526676b4513493fc68edd84609a3c4cd0d3128efaa6",
+      "git_blob_sha1": "f06de67b577af08cff2a6d3159cec0a1a214c444"
+    },
+    {
+      "file": "decoder/lhdc_dec_internal.h",
+      "bytes": 6153,
+      "sha256": "dece279c95755c35e3f31fce1cbc6164183830db7e1c7d95aedf34bec0c66941",
+      "git_blob_sha1": "0af8821f076a3dd46e2e66cb02f639340c1333bf"
+    },
+    {
+      "file": "decoder/lhdc_dec_slot.h",
+      "bytes": 2269,
+      "sha256": "0dfa37032f39f3cb48ba2fb4eb0c479c58ba2680410def7eb0af15a40140e042",
+      "git_blob_sha1": "a35f5841a4ee209f7cb2c9342e5dd9c5dfc4a53e"
+    },
+    {
+      "file": "decoder/lhdc_diag_config.h",
+      "bytes": 2331,
+      "sha256": "ae2224a4dd86bed16ecd4b08f8ca05b3344cec42298d44114e818ebc7605cfcd",
+      "git_blob_sha1": "36040c3e74b872cae37e5dbd0534e9b8689fdc38"
+    },
+    {
+      "file": "decoder/lhdc_entropy_dec.h",
+      "bytes": 2089,
+      "sha256": "b84717ce9a6f91446f349eac9809ccebac064745d67198c78e704555f19ef982",
+      "git_blob_sha1": "51d0f55ae0a5df6a05403afae21e27914d3bd601"
+    },
+    {
+      "file": "decoder/lhdc_imdct.h",
+      "bytes": 1301,
+      "sha256": "6bb2d9f77ebfb8c30109423bc0d90dc1f9078fc9b36335ca9a817ad645b5c724",
+      "git_blob_sha1": "8d9312c866d42ab5b56a8fbf5e68db9bf3dd956a"
+    },
+    {
+      "file": "decoder/lhdc_sns_synth.h",
+      "bytes": 580,
+      "sha256": "848094a1254ae48313403db555d6e4e7e11125fe0f419281a2cf0afd8b8681fa",
+      "git_blob_sha1": "dbfb56477679b43b33c0346ceaa88f898ea1d625"
+    },
+    {
+      "file": "decoder/lhdc_tables.h",
+      "bytes": 2598,
+      "sha256": "980d7442c3466ec44545a0be2bead28e74c4d584688dbb0129d7e980cf60ef62",
+      "git_blob_sha1": "8a8da3207462f152b83fe0b2da898b37669c98af"
+    },
+    {
+      "file": "decoder/lhdc_bit_reader.c",
+      "bytes": 2778,
+      "sha256": "81eeba454ebb29aeef03184202b7aa2a84f8b94549475cfc96fef5eeb2dd3a77",
+      "git_blob_sha1": "1c51f9f4c22a8c2eaec3f34cd6b321ced7a56e86"
+    },
+    {
+      "file": "decoder/lhdc_diag_config.c",
+      "bytes": 2468,
+      "sha256": "f3a27ed3a43cdaf5e468be6b77069986a5e782c4489e197af5e0c0a6502c8354",
+      "git_blob_sha1": "352030e5685b287785310d86795961ecfe4cc173"
+    },
+    {
+      "file": "decoder/lhdc_tables.c",
+      "bytes": 62983,
+      "sha256": "bdeae531ddc5bda36807bd6f2ae2d4d8226840806790c1d77bc9360c7840dca3",
+      "git_blob_sha1": "0c0a87d6903387cac579164eef3af93c7d48342b"
+    }
+  ]
+}

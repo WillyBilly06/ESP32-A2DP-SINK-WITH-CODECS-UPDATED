@@ -1,398 +1,84 @@
-<p align="center">
-  <img src="https://img.shields.io/badge/ESP32-WROOM-000000?style=for-the-badge&logo=espressif&logoColor=white" alt="ESP32"/>
-  <img src="https://img.shields.io/badge/ESP--IDF-v6.1-E7352C?style=for-the-badge&logo=espressif&logoColor=white" alt="ESP-IDF"/>
-  <img src="https://img.shields.io/badge/Bluetooth-A2DP-0082FC?style=for-the-badge&logo=bluetooth&logoColor=white" alt="Bluetooth"/>
-  <img src="https://img.shields.io/badge/License-MIT-green?style=for-the-badge" alt="License"/>
-</p>
+# ESP32 Bluetooth audio — independent host stack
 
-<p align="center">
-  <b>ESP32 Bluetooth A2DP sink with expanded codec support and internal-RAM operation</b><br>
-  <sub>LDAC | aptX HD | aptX | aptX LL | Opus | AAC | SBC</sub>
-</p>
+The current source uses **our own Bluetooth host**, written for the original dual-core ESP32 and **ESP-IDF 6.1**. It talks directly to Espressif's dual-mode Bluetooth controller through **HCI/VHCI**.
 
-<p align="center">
-  <i>Updated ESP-IDF v6.1 build with a patched Bluetooth stack, native A2DP handling, and multi-codec decoding.</i><br>
-  <a href="https://github.com/WillyBilly06/esp32-a2dp-sink-with-LDAC-APTX-AAC">View the original ESP-IDF 5.1.4 version</a>
-</p>
+**The default build does not use the Bluedroid or NimBLE host, and does not wrap BTstack.** Espressif's controller, FreeRTOS, hardware drivers, storage and cryptographic primitives remain in use.
 
----
+This is development firmware. Playback and controls have finite hardware observations, but full codec/feature parity, sustained LHDC V5 192 kHz / 24-bit / 1 Mbps operation, worst-case RAM and long-duration coexistence are still being qualified. See the [feature matrix](native_bt/docs/FEATURE_MATRIX.md) for implementation and verification scope.
 
-# ESP32 A2DP Sink with LDAC, aptX, Opus, AAC, and SBC
+## Host architecture
 
-> **Branch:** `main` - runs entirely on internal SRAM. No PSRAM is required.
-
-This project turns a standard ESP32-WROOM module into a high-quality Bluetooth Classic A2DP audio receiver. It uses a patched ESP-IDF v6.1 Bluetooth stack with native multi-codec support for LDAC, aptX-HD, aptX, aptX-LL, Opus, AAC, and SBC.
-
-The `main` branch is designed for internal RAM operation on common ESP32-WROOM boards. For the original PSRAM-dependent implementation, see the [`PSRAM-only`](https://github.com/WillyBilly06/ESP32-A2DP-SINK-WITH-CODECS-UPDATED/tree/PSRAM-only) branch.
-
-## Releases
-
-- [Current: firmware 1.0.4 / ESP-IDF 6.1](https://github.com/WillyBilly06/ESP32-A2DP-SINK-WITH-CODECS-UPDATED/releases/tag/v1.0.4-idf6.1)
-- [Legacy: firmware 1.0.3 / ESP-IDF 5.5.2](https://github.com/WillyBilly06/ESP32-A2DP-SINK-WITH-CODECS-UPDATED/releases/tag/v1.0.3-idf5.5.2)
-
-Each release provides a USB flash bundle, raw/encrypted OTA images, checksums and source at its tag. The legacy release preserves the original main branch. The 6.1 release includes the Bluetooth name, status synchronization and OTA fixes described in [the validation record](docs/ESP_IDF_6_1_MIGRATION.md).
-
-## Highlights
-
-- Runs on ESP32-WROOM without PSRAM.
-- Supports LDAC up to 96 kHz / 24-bit output.
-- Supports Opus over A2DP at 48 kHz / 16-bit configuration.
-- Supports aptX-HD, aptX, aptX-LL, AAC, and SBC.
-- Uses a native ESP-IDF A2DP/AVRCP wrapper instead of Arduino audio libraries.
-- Includes real-time EQ, crossover, bass compensation, soft clipping, and overlay sound mixing.
-- Includes BLE control, metering, sound upload, and BLE OTA support.
-- Includes WiFi recovery OTA for fallback firmware updates.
-
-## Table of Contents
-
-- [Branch Differences](#branch-differences)
-- [Features](#features)
-- [Hardware Requirements](#hardware-requirements)
-- [Pin Configuration](#pin-configuration)
-- [Codec Support](#codec-support)
-- [Building](#building)
-- [Architecture Overview](#architecture-overview)
-- [Memory Budget](#memory-budget)
-- [OTA Updates](#ota-updates)
-- [Configuration](#configuration)
-- [Project Structure](#project-structure)
-- [Runtime Flow](#runtime-flow)
-- [Troubleshooting](#troubleshooting)
-- [Compatibility](#compatibility)
-- [Changes from PSRAM-only](#changes-from-psram-only)
-- [Credits](#credits)
-- [License](#license)
-
-## Branch Differences
-
-| Area | `PSRAM-only` branch | `main` branch |
-|---|---|---|
-| Memory target | ESP32 with PSRAM | ESP32 internal SRAM only |
-| Recommended module | ESP32-WROVER | ESP32-WROOM |
-| A2DP integration | External `ESP32-A2DP` plus `arduino-audio-tools` | Native ESP-IDF A2DP/AVRCP wrapper |
-| Codecs | Original extended codec set | SBC, AAC, aptX, aptX-HD, aptX-LL, LDAC, Opus |
-| LC3 / LC3plus | Present in the older codec set | Not enabled in this build |
-| 3D sound | Stage Presence 3D enabled | Removed to reduce RAM and CPU load |
-| LED effects | Pre-allocated at boot | Lazy allocation for the active effect |
-| Sound player | New static task per playback | Persistent task with zero heap cost per play |
-| Audio buffering | Pool buffers in PSRAM | Q1.31 internal-RAM ring buffer with software ASRC |
-| DSP analysis | Goertzel on every sample | Decimated analysis to reduce CPU load |
-
-## Features
-
-### Audio
-
-- **Codec support:** LDAC, aptX-HD, aptX, aptX-LL, Opus, AAC, and SBC.
-- **Opus configuration:** 48 kHz / 16-bit.
-- **LDAC configuration:** up to 96 kHz / 24-bit output.
-- **Native ESP-IDF A2DP path:** no Arduino audio runtime dependency.
-- **Real-time DSP:**
-  - 3-band parametric EQ for bass, mid, and treble.
-  - Crossover split-ear mode with low-pass and high-pass routing.
-  - Bass boost shelf and volume-based bass compensation.
-  - Soft-clip limiter for zero-latency output protection.
-  - Division-free biquad filters using ESP32 hardware reciprocal approximations.
-- **Q1.31 stereo ring buffer** with software ASRC and A2DP backpressure.
-- **Overlay mixer** for startup, pairing, connected, and max-volume sound effects.
-
-### Visual
-
-- 16x16 WS2812B LED matrix support with SPI/DMA output.
-- 24 audio-reactive effects including spectrum analyzer, VU meter, fire, plasma, starfield, and rainbow.
-- Lazy LED effect allocation to reduce internal RAM usage.
-- EQ and volume overlay display on the LED matrix.
-- Automatic demo mode when audio is idle.
-
-### Hardware Control
-
-- Adafruit 5752 quad rotary encoder support over I2C.
-- Knobs for volume, bass, mid, treble, LED effect selection, and brightness.
-- Multi-click support for play, pause, next, and previous.
-- Hardware buttons for bass boost, channel flip, bypass, and effect cycling.
-- Configurable beat detection LED.
-
-### Connectivity
-
-- BLE GATT unified protocol with command, status, and meter characteristics.
-- Real-time 3-band level meters at selectable update rates.
-- Full EQ, control, device name, LED, sound upload, and mute synchronization.
-- BLE OTA for encrypted firmware updates.
-- WiFi recovery mode for fallback OTA when the main firmware is not bootable.
-
-## Hardware Requirements
-
-- ESP32-WROOM-32 or another ESP32 variant with Bluetooth Classic support.
-- I2S DAC such as PCM5102A, ES9018, MAX98357A, or equivalent.
-- Optional 16x16 WS2812B LED matrix.
-- Optional Adafruit Quad Rotary Encoder Breakout, product 5752.
-
-PSRAM is not required for the `main` branch.
-
-## Pin Configuration
-
-| Function | GPIO | Configurable through `menuconfig` |
-|---|---:|---|
-| I2S DATA | 26 | Yes |
-| I2S BCK | 27 | Yes |
-| I2S LRCK | 25 | Yes |
-| WS2812B data | 4 | Yes |
-| Button 1 | 18 | Yes |
-| Button 2 | 21 | Yes |
-| Encoder SDA | 23 | Yes |
-| Encoder SCL | 22 | Yes |
-
-## Codec Support
-
-| Codec | Max bitrate | Sample rate | Bit depth / output | Status |
-|---|---:|---:|---|---|
-| LDAC | 990 kbps | Up to 96 kHz | 24-bit output | Supported |
-| aptX-HD | 576 kbps | 48 kHz | 24-bit output | Supported |
-| aptX | 352 kbps | 48 kHz | 16-bit output | Supported |
-| aptX-LL | 352 kbps | 48 kHz | 16-bit output | Supported |
-| Opus | Codec-dependent | 48 kHz | 16-bit output | Supported |
-| AAC | 256 kbps | 48 kHz | 16-bit output | Supported |
-| SBC | 328 kbps | 48 kHz | 16-bit output | Supported |
-| LC3 / LC3plus | N/A | N/A | N/A | Not enabled in this build |
-
-LC3 is not listed as an available A2DP codec because LC3 is used for Bluetooth LE Audio over BLE. This project is a Bluetooth Classic A2DP sink, so LC3 is not available in this playback path.
-
-## Building
-
-### Prerequisites
-
-1. The patched **ESP-IDF v6.1** tree included in `esp-idf/`. A stock SDK does not include this project's codec integrations.
-2. Python 3.10 or newer and the tools selected by `esp-idf/tools/tools.json` (GCC 15.2 for this release).
-3. An original ESP32 with Bluetooth Classic and 8 MB flash for the supplied partition table.
-
-### Windows build
-
-Run from the repository root in Command Prompt:
-
-```bat
-cd esp-idf
-install.bat esp32
-export.bat
-cd ..\bt_audio_sink
-idf.py --ccache build
-```
-
-For PowerShell, activate with `. .\esp-idf\export.ps1`, then run the same `idf.py --ccache build` in `bt_audio_sink/`. Use a fresh build directory when migrating an existing 5.5.2 checkout: `idf.py --ccache -B build-idf61 build`.
-
-The portable helper `build_flash.bat` activates the bundled SDK and enables ccache. With no arguments it builds; additional arguments are forwarded to `idf.py`, for example `build_flash.bat -p COM6 flash monitor`.
-
-### Flash the main and recovery images
-
-After building the main project:
-
-```bat
-idf.py --ccache -p COMXX flash
-cd recovery
-idf.py --ccache build
-python -m esptool --chip esp32 --port COMXX write-flash 0x10000 build/recovery.bin
-cd ..
-idf.py -p COMXX monitor
-```
-
-Replace `COMXX` with your board's port. The main `flash` target writes the bootloader, partition table, OTA selection data and application at `0x110000`. Recovery is a **separate build**, written explicitly to its `ota_2` partition at `0x10000`; running the main `flash` target does not install recovery. Preserve existing NVS and SPIFFS when upgrading a configured speaker.
-
-### ESP-IDF 6.1 migration and validation
-
-The SDK is based on Espressif's stable `v6.1` tag, commit `fff9895c82d744c7237be8847347bdd1b07c6643`, including the matching submodule sources and libraries. The Bluedroid multi-codec extensions remain part of the bundled fork. Firmware version is configured under ESP-IDF Application Configuration (`APP_PROJECT_VER`); the image and BLE report the same version. Classic and BLE advertise the same canonical name to prevent Android name flicker. Application changes cover the Classic device-name API, I2S port configuration, explicit driver dependencies, and Mbed TLS 4's removal of the legacy MD5/AES interfaces. BLE UUIDs and command IDs remain compatible with [BDK Audio](https://github.com/WillyBilly06/BDK-AUDIO-APP).
-
-See [the migration and feature validation record](docs/ESP_IDF_6_1_MIGRATION.md) for build evidence and the separate device-test results. A successful build does not establish audio quality, physical LED/encoder operation or a successful OTA transfer.
-
-## Architecture Overview
-
-```text
-Bluetooth Classic A2DP
-  -> Patched ESP-IDF Bluetooth stack
-  -> Native codec decoder
-  -> Q1.31 stereo ring buffer
-  -> audio_render task
-  -> DSP, overlay mixer, and limiter
-  -> I2S output
-```
-
-The Bluetooth decode path and render path are separated so the ESP32 can absorb Bluetooth jitter while keeping I2S output steady. Audio is converted into the internal Q1.31 processing format, processed by the DSP chain, mixed with overlay sounds, and written to the DAC through the ESP-IDF I2S driver.
-
-## Memory Budget
-
-| Component | Approximate size |
-|---|---:|
-| Audio ring buffer | 16 KB |
-| DSP output buffer | 2 KB |
-| Overlay mixer ring | 8 KB |
-| I2S DMA buffers | 3 KB |
-| LED framebuffer | 1 KB |
-| BT/BLE stack | 90 KB |
-| Free heap with LDAC | About 40 KB |
-| Free heap with AAC / SBC | About 50 KB |
-| Free heap with aptX / aptX-HD / aptX-LL | About 45 KB |
-
-## OTA Updates
-
-### BLE OTA
-
-Firmware updates can be sent over BLE through the unified protocol. The main application receives encrypted firmware data and writes it to the OTA partition.
-
-### WiFi Recovery OTA
-
-If the main firmware is corrupted, hold **Button 1** during power-on to boot into the recovery partition. Recovery mode:
-
-- Creates a WiFi access point named `ESP32-Recovery-Setup`.
-- Serves a captive portal.
-- Downloads encrypted firmware from Google Drive.
-- Streams decrypt-and-flash without holding the full image in RAM.
-
-### Security Notice
-
-The AES-256 key in this repository is a placeholder value.
-
-Before distributing firmware, generate a unique key:
-
-```bash
-cd tools
-python encrypt_firmware.py --generate-key
-```
-
-Then update both of these files with the new key:
-
-- `tools/encrypt_firmware.py`
-- `recovery/main/recovery_main.cpp`
-
-## Configuration
-
-Run:
-
-```bat
-idf.py menuconfig
-```
-
-Then open **A2DP DSP BLE Configuration** to configure:
-
-- I2S pins and default sample rate.
-- GPIO buttons and beat LED.
-- DSP block size and crossover frequencies.
-- Beat detection thresholds.
-- LED matrix size, GPIO, brightness, and frame rate.
-- Rotary encoder I2C pins and address.
-- Device name and firmware version.
-- Audio buffer pool count and size.
-
-## Project Structure
-
-```text
-bt_audio_sink/
-  main/
-    main.cpp                    App entry point
-    bt/
-      a2dp_sink_native.h/.cpp   Native ESP-IDF A2DP/AVRCP wrapper
-    audio/
-      audio_pipeline.h          Q1.31 ring buffer, ASRC, and render loop
-      i2s_output.h              ESP-IDF I2S output
-      overlay_mixer.h           Sound effect ducking and mixing
-      sound_player.h            Streaming WAV resampler and persistent task
-    dsp/
-      dsp_processor.h           EQ, crossover, bass boost, and limiter
-      biquad.h                  Biquad filters
-      fast_math.h               Hardware reciprocal and fast math helpers
-      goertzel.h                Frequency analysis
-    ble/
-      ble_unified.h             Single-service BLE GATT protocol
-    led/
-      led_controller.h          LED effect manager
-      led_effects.h             Audio-reactive effects
-      led_driver_spi.h          SPI/DMA WS2812B driver
-    input/
-      encoder_controller.h      Quad rotary encoder support
-    ota/
-      idf_update.h/.cpp         ESP-IDF OTA wrapper
-    storage/
-      nvs_settings.h            NVS persistence layer
-    config/
-      app_config.h              Centralized Kconfig aliases
-  recovery/
-    main/
-      recovery_main.cpp         WiFi recovery OTA firmware
-  tools/
-    encrypt_firmware.py         AES-256-CBC firmware encryption helper
-  ota_releases/                 Encrypted firmware output folder
-esp-idf/                        Patched ESP-IDF v6.1 tree
-build_flash.bat                 Windows build and flash helper
-```
-
-The external Arduino libraries from the `PSRAM-only` branch are not used in the `main` branch. The A2DP sink path is implemented through `main/bt/a2dp_sink_native.cpp`, and the codec integrations are patched into the ESP-IDF Bluetooth stack.
-
-## Runtime Flow
-
-1. Bluetooth Classic and BLE initialize.
-2. The patched ESP-IDF stack advertises the enabled A2DP codecs.
-3. The source device selects the best mutual codec.
-4. The Bluetooth decoder produces PCM audio.
-5. PCM is pushed into the Q1.31 ring buffer with backpressure.
-6. The render task reads frames, applies DSP, mixes overlay sounds, and writes to I2S.
-7. BLE status and meter notifications are throttled when needed to protect internal heap.
-
-## Troubleshooting
-
-### Bluetooth pairing issues on Linux
-
-Clear the Bluetooth cache and pair again:
-
-```bash
-sudo rm -rf /var/lib/bluetooth/<adapter-mac>/cache/<device-mac>
-```
-
-### LED effects are not reactive at low volume
-
-The firmware includes automatic gain control for LED analysis. If the LEDs still do not react, check the LED matrix wiring, power supply, and configured GPIO.
-
-### AAC decoder fails to initialize
-
-AAC does not require PSRAM in this branch. If initialization fails, check that the ESP32 still has sufficient free internal heap before A2DP connects.
-
-### Audio stutters at LDAC 96 kHz
-
-- Confirm that `CONFIG_FREERTOS_HZ=1000` is set.
-- Reduce BLE meter update rate if needed.
-- Check that the source device is not forcing an unstable radio condition.
-- Keep the ESP32 close to the source device during testing.
-
-## Compatibility
-
-Expected codec behavior by common source platform:
-
-| Platform | Expected codecs |
+| Layer | Current implementation |
 |---|---|
-| Android | LDAC, aptX-HD, aptX, AAC, SBC, and Opus where source support exists |
-| Windows 11 | aptX, AAC, SBC, LDAC where source support exists |
-| macOS | AAC and SBC |
-| iOS | AAC and SBC |
-| Linux / BlueZ | Depends on BlueZ build and codec plugins |
+| Controller / radio | Espressif ESP32 BTDM controller, HCI over VHCI |
+| HCI, ACL, command/packet credits, fragmentation | Independent C host in [native_bt/src](native_bt/src) |
+| Classic GAP, pairing/bonds, SDP, L2CAP/ERTM | Independent host state machines |
+| AVDTP / A2DP, codec negotiation, AVRCP | Independent host/profile implementation |
+| BLE GAP, ATT/GATT server, SMP and bond integration | Independent host with the existing application services |
+| Media | Bounded codec-worker queues → integer DSP/EQ → PCM/I2S DMA → DAC |
 
-LC3 is not expected on any Bluetooth Classic A2DP source because LC3 is part of Bluetooth LE Audio, not Classic A2DP.
+The build explicitly enables `CONFIG_BT_CONTROLLER_ONLY` and disables `CONFIG_BT_BLUEDROID_ENABLED` and `CONFIG_BT_NIMBLE_ENABLED`. The [build-boundary audit](native_bt/tools/check_workspace.py) rejects host/reference dependencies in the generated compilation database. The [default-build receipt](native_bt/docs/DEFAULT_HOST_BUILD_2026_11_08.json) records the current configuration and linked-symbol checks.
 
-## Changes from PSRAM-only
+Some standalone SBC/AAC/aptX/LDAC/Opus codec sources remain under the bundled SDK's historical `host/bluedroid/external/` directories. Those are codec-only dependencies; the Bluedroid host, BTC/BTA profiles and its A2DP/AVRCP runtime are not built into this application. The shared fixed-point DSP source remains under `bt_audio_sink/main/dsp/`.
 
-- Reworked memory allocation for internal SRAM operation.
-- Replaced external Arduino audio libraries with a native ESP-IDF A2DP/AVRCP path.
-- Added Opus support with 48 kHz / 16-bit configuration.
-- Disabled the LC3 / LC3plus integrations in this build.
-- Removed Stage Presence 3D processing to reduce CPU and RAM pressure.
-- Added analysis decimation to reduce DSP load at high sample rates.
-- Switched the audio pipeline from PSRAM pool buffers to an internal-RAM Q1.31 ring buffer.
-- Added software ASRC and A2DP backpressure.
-- Fixed overlay sound ducking and mixing behavior.
-- Switched sound playback to a persistent task.
-- Changed LED effects to lazy allocation.
-- Added BLE OTA for the main firmware and WiFi recovery OTA as a fallback path.
+## Build the custom-host firmware
 
-## Credits
+Use the bundled ESP-IDF 6.1 SDK and its installed ESP32 toolchain, Python environment and **ccache**, with **PowerShell 7**. No PSRAM is required. The checked layout targets an original ESP32 with 8 MB flash and PCM5102A I2S output; board/peripheral definitions remain in the project.
 
-- Espressif for ESP-IDF and the Bluetooth stack.
-- Codec library authors for libldac-dec, libfreeaptx-esp, Opus, and Helix AAC.
-- Original ESP32-A2DP codec project by [cfint](https://github.com/cfint/ESP32-A2DP).
+From the repository root:
 
-## License
+```powershell
+pwsh -NoProfile -File .\build.ps1
+```
 
-MIT License. See the license file for details.
+`build_flash.bat` now selects the same custom-host build. Its historical name is retained, but it is **build-only** and does not forward arbitrary ESP-IDF flashing commands. `build_flash.bat build` also selects this preset.
+
+The default preset enables the product integration, Classic and BLE, RFCOMM, asynchronous copied PCM, integer DSP, codec-aware rendering and the current core/priority policy. It includes SBC, AAC, aptX, aptX HD, aptX LL, LDAC, Opus and LHDC V5. Configuration/compile coverage is not a claim that every live scenario is qualified.
+
+The **pinned portable LHDC V5 C snapshot is included** in [source_snapshot](native_bt/codecs/lhdcv5/source_snapshot), with [file digests and provenance](native_bt/codecs/lhdcv5/source_snapshot/SOURCE.json). A separate decoder checkout is no longer required. The audited port generator verifies its source/header pins and fails if they differ. An explicit source override is available for reviewed decoder work:
+
+```powershell
+pwsh -NoProfile -File .\build.ps1 -LhdcSourceDir C:\path\to\reviewed-decoder
+```
+
+Inspect the preset without building or accessing hardware:
+
+```powershell
+pwsh -NoProfile -File .\build.ps1 -PrintConfiguration
+```
+
+The resulting application is `native_bt/_build/esp32/native_bt_probe.bin`. Logging defaults to **921600 baud**. Formatting and UART transmission run in the low-priority background logger; runtime producers publish bounded records. Optional heap/tick/task sampling is disabled by the default preset.
+
+The build does not open a serial port, flash or reset a board. Deployment must use the matching partition layout and preserve any existing firmware/data that the board needs. The repository's current [admission/deployment helper](native_bt/tools/deploy_audio_trial.py) is identity-bound to the development COM6 fixture; it is not a generic flasher for another board. Do not apply its device identity/offset assumptions to a different board.
+
+## Current validation and remaining work
+
+The [shared-persistence checkpoint](native_bt/docs/SHARED_PERSISTENCE_2026_11_08.md) records readback-verified owned-host firmware with 37 cold codec configurations / 173 PCM callbacks. Two short native YouTube/LHDC excerpts completed BLE subscription, unchanged-EQ ACK/readback and original-subscription restoration during playback. Subscription-enable wait was 268 ms in those excerpts, versus 779–1,257 ms in the preceding image.
+
+These finite checks do not establish sustained continuity or acoustic quality. Earlier active PCM gaps and CPU1 watchdog faults remain relevant. The observed transient minimum free heap of 11,836 bytes is under investigation. The latest allocation sampler is optional and has software/build/ISR checks; its hardware measurement has not yet been completed.
+
+Preservation and verification status for BLE controls, uploads, OTA, security, lifecycle, peripheral integration and the codec variants is tracked in the [feature matrix](native_bt/docs/FEATURE_MATRIX.md) and [baseline inventory](native_bt/docs/IDF61_FEATURE_INVENTORY.md). Original working paths are retained for comparison; their existence is not presented as custom-host parity.
+
+Companion application: [BDK Audio](https://github.com/WillyBilly06/BDK-AUDIO-APP).
+
+## Older Bluedroid releases
+
+These releases preserve the previous firmware and are separate from the current custom-host development source:
+
+- [Firmware 1.0.4 / ESP-IDF 6.1](https://github.com/WillyBilly06/ESP32-A2DP-SINK-WITH-CODECS-UPDATED/releases/tag/v1.0.4-idf6.1)
+- [Firmware 1.0.3 / ESP-IDF 5.5.2](https://github.com/WillyBilly06/ESP32-A2DP-SINK-WITH-CODECS-UPDATED/releases/tag/v1.0.3-idf5.5.2)
+- [Previous Bluedroid README and build instructions](https://github.com/WillyBilly06/ESP32-A2DP-SINK-WITH-CODECS-UPDATED/blob/v1.0.4-idf6.1/README.md)
+
+The `bt_audio_sink/` application remains the historical Bluedroid baseline and supplies shared DSP/product resources. It is not the application selected by the root build launcher. The owned development image has no automatic return to Bluedroid.
+
+## Repository map
+
+- [native_bt/esp32_probe](native_bt/esp32_probe): current ESP32 application and controller integration.
+- [native_bt/src](native_bt/src), [native_bt/include](native_bt/include): independent host, profiles, audio pipeline and application modules.
+- [native_bt/codecs](native_bt/codecs): codec adapters, audited LHDC port and pinned source snapshot.
+- [native_bt/tests](native_bt/tests), [native_bt/tools](native_bt/tools): protocol/audio fixtures, build checks and diagnostics.
+- [native_bt/README.md](native_bt/README.md): detailed, dated engineering checkpoints.
+- `esp-idf/`: bundled ESP-IDF 6.1 framework/controller and standalone codec dependencies.
+- `bt_audio_sink/`: preserved prior application and shared resources.
+
+Source notices and component-specific licensing/provenance remain with the corresponding code. Reference-stack code is not linked as a host replacement.

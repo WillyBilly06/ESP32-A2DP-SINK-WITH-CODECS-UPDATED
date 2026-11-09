@@ -1,5 +1,6 @@
-param([ValidateSet(115200,230400,460800,921600)][int]$ConsoleBaud=921600,[switch]$ConsoleIrq,[switch]$DispatchTrace,[switch]$TaskRuntimeStats,[switch]$TaskRuntimeOnly,[switch]$TaskCycleAccounting,[switch]$HighRatePcmRebalance,[switch]$EarlyInputRelease,[switch]$MatchedFeedback,[switch]$MatchedFeedbackCompare,[switch]$RenderFairShare,[switch]$VolumeRampBlock,[switch]$VolumeRampCompare,[switch]$OwnerPacer,[switch]$DspAssist,[ValidateSet(4,5,6)][int]$DspAssistBlocks=4,[switch]$DspBlockIram,[switch]$UnityPcmCopy,[switch]$LhdcCore0Render,[switch]$LhdcFastMantissa,[switch]$AptxSnapshot,[switch]$StayNative,[switch]$WordDsp,[switch]$PriorityOrder,[ValidateSet(5,6,21)][int]$DecoderPriority=5,[switch]$SchedulerTrace,[switch]$CodecAwareRender,[switch]$PcmCopied,[switch]$PcmHash,[ValidateSet(-1,0,1)][int]$LoggerCore=-1,[switch]$BlockDsp,[ValidateSet(16,32,64)][int]$PcmTargetMs=64,[switch]$PcmLoans,[switch]$DspInlineCheck,[ValidateSet(0,1)][int]$DecoderCore=0,[switch]$RfProtocolDiagnostic,[switch]$FirCompilerCheck,[switch]$DspStageProfile,[switch]$AudioStageProfile,[switch]$PipelineDiagnostic,[switch]$AsyncAudio,[switch]$DeferredCodecCheck,[switch]$LhdcStageProfile,[switch]$LhdcMaximumCheck,[switch]$CodecDiagnosticOnly,[switch]$WithProductIo,[switch]$WithProductSecurity,[switch]$WithRfcomm,[switch]$WithLhdc,[switch]$WithOpus,[switch]$WithAac,[switch]$WithAptx,[switch]$WithLdac,[switch]$WithSmp,[switch]$WithAvrcp,[switch]$WithSbc,[switch]$WithAudioProbe,[switch]$WithAudioOutput,[switch]$WithGatt,[switch]$WithClassicSecurity,[switch]$TraceIngress,[switch]$WithoutRxFlow,[switch]$KeepOwned=$true,[string]$TestPeer='',[string]$LhdcSourceDir='')
+param([ValidateSet(115200,230400,460800,921600)][int]$ConsoleBaud=921600,[switch]$ConsoleIrq,[switch]$HeapAllocTrace,[switch]$DispatchTrace,[switch]$TaskRuntimeStats,[switch]$TaskRuntimeOnly,[switch]$TaskCycleAccounting,[switch]$HighRatePcmRebalance,[switch]$EarlyInputRelease,[switch]$MatchedFeedback,[switch]$MatchedFeedbackCompare,[switch]$RenderFairShare,[switch]$VolumeRampBlock,[switch]$VolumeRampCompare,[switch]$OwnerPacer,[switch]$DspAssist,[ValidateSet(4,5,6)][int]$DspAssistBlocks=4,[switch]$DspBlockIram,[switch]$UnityPcmCopy,[switch]$LhdcCore0Render,[switch]$LhdcFastMantissa,[switch]$AptxSnapshot,[switch]$StayNative,[switch]$WordDsp,[switch]$PriorityOrder,[ValidateSet(5,6,21)][int]$DecoderPriority=5,[switch]$SchedulerTrace,[switch]$CodecAwareRender,[switch]$PcmCopied,[switch]$PcmHash,[ValidateSet(-1,0,1)][int]$LoggerCore=-1,[switch]$BlockDsp,[ValidateSet(16,32,64)][int]$PcmTargetMs=64,[switch]$PcmLoans,[switch]$DspInlineCheck,[ValidateSet(0,1)][int]$DecoderCore=0,[switch]$RfProtocolDiagnostic,[switch]$FirCompilerCheck,[switch]$DspStageProfile,[switch]$AudioStageProfile,[switch]$PipelineDiagnostic,[switch]$AsyncAudio,[switch]$DeferredCodecCheck,[switch]$LhdcStageProfile,[switch]$LhdcMaximumCheck,[switch]$CodecDiagnosticOnly,[switch]$WithProductIo,[switch]$WithProductSecurity,[switch]$WithRfcomm,[switch]$WithLhdc,[switch]$WithOpus,[switch]$WithAac,[switch]$WithAptx,[switch]$WithLdac,[switch]$WithSmp,[switch]$WithAvrcp,[switch]$WithSbc,[switch]$WithAudioProbe,[switch]$WithAudioOutput,[switch]$WithGatt,[switch]$WithClassicSecurity,[switch]$TraceIngress,[switch]$WithoutRxFlow,[switch]$KeepOwned=$true,[string]$TestPeer='',[string]$LhdcSourceDir='')
 $ErrorActionPreference = 'Stop'
+if ($HeapAllocTrace -and (-not $StayNative -or -not $AsyncAudio -or -not $ConsoleIrq -or $SchedulerTrace -or $TaskRuntimeStats -or $TaskRuntimeOnly -or $TaskCycleAccounting -or $DispatchTrace)) { throw 'Allocation sampling requires full native IRQ audio without other task profilers' }
 if ($TaskRuntimeOnly) {
     if ($TaskCycleAccounting) { throw 'Runtime-only observation excludes task-cycle accounting' }
     if ($SchedulerTrace) { throw 'Runtime-only observation excludes detailed scheduler tracing' }
@@ -139,6 +140,13 @@ if (Test-Path -LiteralPath $statsSdkPath) {
     if ($TaskRuntimeStats) { $statsSdk += "`nCONFIG_FREERTOS_RUN_TIME_COUNTER_TYPE_U32=y`n# CONFIG_FREERTOS_RUN_TIME_COUNTER_TYPE_U64 is not set`nCONFIG_FREERTOS_RUN_TIME_STATS_USING_ESP_TIMER=y`n# CONFIG_FREERTOS_RUN_TIME_STATS_USING_CPU_CLK is not set`n" }
     [IO.File]::WriteAllText($statsSdkPath,$statsSdk,[Text.UTF8Encoding]::new($false))
 }
+$heapSdkPath=Join-Path $probeRoot 'sdkconfig'
+if (Test-Path -LiteralPath $heapSdkPath) {
+    $heapSdk=[IO.File]::ReadAllText($heapSdkPath)
+    $heapSdk=[regex]::Replace($heapSdk,'(?m)^(?:# )?CONFIG_HEAP_USE_HOOKS(?:=.*| is not set)\r?$','')
+    $heapSdk += [Environment]::NewLine + $(if ($HeapAllocTrace) { 'CONFIG_HEAP_USE_HOOKS=y' } else { '# CONFIG_HEAP_USE_HOOKS is not set' }) + [Environment]::NewLine
+    [IO.File]::WriteAllText($heapSdkPath,$heapSdk,[Text.UTF8Encoding]::new($false))
+}
 $env:GIT_NO_LAZY_FETCH = '1'
 if (-not (Test-Path -LiteralPath (Join-Path $idfRoot '.git'))) {
     # The bundled SDK is not this host repository's Git checkout.
@@ -210,6 +218,7 @@ $idfArguments += "-DDBT_PROBE_DECODER_PRIORITY=$DecoderPriority"
 $idfArguments += "-DDBT_PROBE_PRIORITY_ORDER=$(if ($PriorityOrder) { 'ON' } else { 'OFF' })"
 $idfArguments += "-DDBT_PROBE_LOGGER_CORE=$LoggerCore"
 $idfArguments += "-DDBT_PROBE_CONSOLE_IRQ=$(if ($ConsoleIrq) { 'ON' } else { 'OFF' })"
+$idfArguments += "-DDBT_PROBE_HEAP_ALLOC_TRACE=$(if ($HeapAllocTrace) { 'ON' } else { 'OFF' })"
 $idfArguments += "-DDBT_PROBE_TASK_RUNTIME_STATS=$(if ($TaskRuntimeStats) { 'ON' } else { 'OFF' })"
 $idfArguments += "-DDBT_PROBE_TASK_RUNTIME_ONLY=$(if ($TaskRuntimeOnly) { 'ON' } else { 'OFF' })"
 $idfArguments += "-DDBT_PROBE_TASK_CYCLE_ACCOUNTING=$(if ($TaskCycleAccounting) { 'ON' } else { 'OFF' })"
@@ -293,6 +302,7 @@ $buildReceipt.auxiliary_renderer_priority=$(if ($StayNative) { 20 } elseif ($Pri
 $buildReceipt.owner_ready_yield=($RenderFairShare -or $DecoderPriority -eq $buildReceipt.host_priority)
 $buildReceipt.logger_core=$LoggerCore
 $buildReceipt.console_irq=[bool]$ConsoleIrq
+$buildReceipt.heap_alloc_trace=[bool]$HeapAllocTrace
 $buildReceipt.task_runtime_stats=[bool]$TaskRuntimeStats
 $buildReceipt.task_runtime_only=[bool]$TaskRuntimeOnly
 $buildReceipt.task_cycle_accounting=[bool]$TaskCycleAccounting

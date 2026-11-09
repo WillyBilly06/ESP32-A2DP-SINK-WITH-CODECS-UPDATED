@@ -1,3 +1,4 @@
+#include "probe_heap_alloc_trace.h"
 #include "dbt_esp32_affinity.h"
 #include "probe_gatt.h"
 #include "probe_cccd_store.h"
@@ -213,12 +214,18 @@ static void cccd_work_record(const control_job_t *job){
 }
 static void control_execute_job(control_job_t *job) {
     if(job->cccd_kind) {
+#ifdef DBT_PROBE_HEAP_ALLOC_TRACE
+        probe_heap_mark_t mark=probe_heap_alloc_begin(job->cccd_kind);
+#endif
         cccd_clock_set(job,1,(uint32_t)esp_timer_get_time());
         job->cccd_timing.worker_core=(uint8_t)xPortGetCoreID();
         job->cccd_result=job->cccd_kind==1
             ? probe_cccd_load(job->identity_type,job->identity,job->bond_tag,job->cccd_values)
             : probe_cccd_save(job->identity_type,job->identity,job->bond_tag,job->cccd_values);
         cccd_clock_set(job,2,(uint32_t)esp_timer_get_time());job->cccd_timing.executed=true;
+#ifdef DBT_PROBE_HEAP_ALLOC_TRACE
+        probe_heap_alloc_end(mark);
+#endif
         return;
     }
     dbt_ble_control_peer_t peer={job->handle,job->generation};
@@ -259,6 +266,7 @@ static void control_execute_job(control_job_t *job) {
 }
 static void control_task(void *unused) {
     bool eq=(uintptr_t)unused!=0,retire=false;QueueHandle_t queue=eq?eq_work:control_work;
+    probe_heap_alloc_task(eq?PROBE_HEAP_PERSIST:PROBE_HEAP_GENERAL,true);
     SemaphoreHandle_t signal=eq?eq_signal:control_signal;
     TickType_t maintenance_wait=pdMS_TO_TICKS(20);
     if(!maintenance_wait)maintenance_wait=1;
@@ -276,7 +284,8 @@ static void control_task(void *unused) {
                 (void)xSemaphoreTake(signal,maintenance_wait);continue;
             }
             control_job_t *done=(control_job_t *)(uintptr_t)(eq?1u:2u);
-            (void)xQueueSend(control_done,&done,portMAX_DELAY);xTaskNotifyGive(control_owner);vTaskDelete(NULL);return;
+            (void)xQueueSend(control_done,&done,portMAX_DELAY);xTaskNotifyGive(control_owner);
+            probe_heap_alloc_task(eq?PROBE_HEAP_PERSIST:PROBE_HEAP_GENERAL,false);vTaskDelete(NULL);return;
         }
         control_job_t *job=0;
         TickType_t wait=(!eq && control_hooks.worker_poll)?maintenance_wait:portMAX_DELAY;
@@ -922,7 +931,10 @@ static void pump_control(void) {
     pump_ota();
     if(control_retry_pending && (int32_t)(control_now_ms-control_retry_at)>=0)control_retry_pending=false;
     if(!control_worker && !control_retiring && !control_retry_pending && (uxQueueMessagesWaiting(control_work) || external_worker_required)) {
-        if(xTaskCreatePinnedToCore(control_task,"ble_control_worker",CONTROL_STACK_BYTES,NULL,4,NULL,DBT_ESP32_BACKGROUND_CORE)==pdPASS)control_worker=true;
+        probe_heap_alloc_owner_phase(PROBE_HEAP_CREATE_GENERAL);
+        BaseType_t created=xTaskCreatePinnedToCore(control_task,"ble_control_worker",CONTROL_STACK_BYTES,NULL,4,NULL,DBT_ESP32_BACKGROUND_CORE);
+        probe_heap_alloc_owner_phase(0);
+        if(created==pdPASS)control_worker=true;
         else {
           control_retry_pending=true;control_retry_at=control_now_ms+100u;
           while(xQueueReceive(control_work,&job,0)==pdTRUE) if(job) {
@@ -935,7 +947,10 @@ static void pump_control(void) {
     }
     if(eq_retry_pending && (int32_t)(control_now_ms-eq_retry_at)>=0)eq_retry_pending=false;
     if(!eq_worker && !eq_retiring && !eq_retry_pending && uxQueueMessagesWaiting(eq_work)) {
-        if(xTaskCreatePinnedToCore(control_task,"ble_persist_worker",CONTROL_STACK_BYTES,(void *)(uintptr_t)1,4,NULL,DBT_ESP32_PERSISTENCE_WORKER_CORE)==pdPASS)eq_worker=true;
+        probe_heap_alloc_owner_phase(PROBE_HEAP_CREATE_PERSIST);
+        BaseType_t created=xTaskCreatePinnedToCore(control_task,"ble_persist_worker",CONTROL_STACK_BYTES,(void *)(uintptr_t)1,4,NULL,DBT_ESP32_PERSISTENCE_WORKER_CORE);
+        probe_heap_alloc_owner_phase(0);
+        if(created==pdPASS)eq_worker=true;
         else {eq_retry_pending=true;eq_retry_at=control_now_ms+100u;}
         /* Retain every admitted persistence obligation; capacity supplies
          * backpressure until a worker can be allocated. Never ACK success here. */

@@ -42,6 +42,20 @@ if scheduler_trace:
         command=next(e['command'] for e in commands if Path(e['file']).name==unit)
         assert re.findall(r'(?:^|\s)-DDBT_PROBE_SCHEDULER_TRACE=(\S+)',command)==['1']
         assert not re.search(r'(?:^|\s)-UDBT_PROBE_SCHEDULER_TRACE(?:\s|$)',command)
+heap_alloc_trace=build_status.get('heap_alloc_trace',False)
+assert type(heap_alloc_trace) is bool and ('DBT_PROBE_HEAP_ALLOC_TRACE:BOOL=ON' in cache)==heap_alloc_trace
+heap_units=[e for e in commands if Path(e['file']).name=='probe_heap_alloc_trace.c']
+assert len(heap_units)==int(heap_alloc_trace), 'Unexpected or missing allocation sampler unit'
+if heap_alloc_trace:assert re.findall(r'(?:^|\s)(-O\S+)',heap_units[0]['command'])[-1:]==['-Os'], 'Allocation sampler size optimization missing'
+if heap_alloc_trace:
+    assert stay_native and build_status.get('async_audio') and build_status.get('console_irq') and not diagnostic and not pipeline
+    assert not scheduler_trace and not build_status.get('task_runtime_stats') and not build_status.get('task_cycle_accounting') and not build_status.get('dispatch_trace')
+for unit in (entry_name,'probe_audio.c','probe_gatt.c','probe_smp.c','probe_heap_alloc_trace.c'):
+    found=[e['command'] for e in commands if Path(e['file']).name==unit]
+    if heap_alloc_trace:assert len(found)==1
+    for command in found:
+        assert re.findall(r'(?:^|\s)-DDBT_PROBE_HEAP_ALLOC_TRACE=(\S+)',command)==(['1'] if heap_alloc_trace else [])
+        assert not re.search(r'(?:^|\s)-UDBT_PROBE_HEAP_ALLOC_TRACE(?:\s|$)',command)
 console_irq=build_status.get('console_irq',False)
 assert type(console_irq) is bool and ('DBT_PROBE_CONSOLE_IRQ:BOOL=ON' in cache)==console_irq
 console_units=[e for e in commands if Path(e['file']).name=='probe_console.c']
@@ -416,6 +430,10 @@ project=blob[80:112].split(b'\0',1)[0].decode();assert project=='native_bt_probe
 config_bytes=(a.image.parent/'config/sdkconfig.h').read_bytes()
 assert hashlib.sha256(config_bytes).hexdigest()==build_status['config_sha256']
 config=config_bytes.decode()
+assert re.findall(r'^#define CONFIG_HEAP_USE_HOOKS (\d+)\r?$',config,re.M)==(['1'] if heap_alloc_trace else []), 'Heap hook SDK/receipt mismatch'
+if heap_alloc_trace:
+    assert not re.search(r'^#define CONFIG_HEAP_TRACING(?:_STANDALONE|_TOHOST)? ',config,re.M), 'Another heap tracer must not own these hooks'
+    assert '#define CONFIG_HEAP_PLACE_FUNCTION_INTO_FLASH 1' not in config, 'Diagnostic heap hook declarations must retain SDK IRAM placement'
 for key in ('CONFIG_FREERTOS_GENERATE_RUN_TIME_STATS','CONFIG_FREERTOS_USE_TRACE_FACILITY','CONFIG_FREERTOS_USE_STATS_FORMATTING_FUNCTIONS','CONFIG_FREERTOS_VTASKLIST_INCLUDE_COREID'):
     assert re.findall(r'^#define '+key+r' (\S+)\r?$',config,re.M)==(['1'] if task_runtime_stats else []), 'Kernel accounting mismatch: '+key
 if task_runtime_stats:
@@ -467,7 +485,7 @@ if dsp_assist:
     assert 'DBT_PROBE_LHDC_BUILD:BOOL=ON' in cache
     assert not build_status.get('lhdc_core0_render') and 'DBT_PROBE_LHDC_CORE0_RENDER:BOOL=ON' not in cache
     assert not build_status.get('aptx_snapshot') and 'DBT_PROBE_APTX_SNAPSHOT:BOOL=ON' not in cache
-report={'passed':True,'dsp_assist':dsp_assist,'dsp_assist_blocks':dsp_assist_blocks,'scheduler_trace':scheduler_trace,'task_runtime_stats':task_runtime_stats,'task_runtime_only':task_runtime_only,'task_cycle_accounting':task_cycle_accounting,'dispatch_trace':dispatch_trace,'console_irq':console_irq,'stay_native':stay_native,'priority_order':priority_order,'host_priority':host_priority,'decoder_priority':decoder_priority,'renderer_priority':renderer_priority,'early_input_release':early_input_release,'high_rate_pcm_rebalance':high_rate_pcm_rebalance,'matched_feedback':matched_feedback,'matched_feedback_compare':matched_compare,'render_fair_share':render_fair_share,'auxiliary_renderer_priority':build_status.get('auxiliary_renderer_priority',renderer_priority),'owner_ready_yield':owner_ready_yield,'scope':'offline image checksum/digest, ESP32 revision and admitted OTA capacity; no device access or runtime qualification',
+report={'passed':True,'dsp_assist':dsp_assist,'dsp_assist_blocks':dsp_assist_blocks,'scheduler_trace':scheduler_trace,'task_runtime_stats':task_runtime_stats,'task_runtime_only':task_runtime_only,'task_cycle_accounting':task_cycle_accounting,'dispatch_trace':dispatch_trace,'console_irq':console_irq,'heap_alloc_trace':heap_alloc_trace,'stay_native':stay_native,'priority_order':priority_order,'host_priority':host_priority,'decoder_priority':decoder_priority,'renderer_priority':renderer_priority,'early_input_release':early_input_release,'high_rate_pcm_rebalance':high_rate_pcm_rebalance,'matched_feedback':matched_feedback,'matched_feedback_compare':matched_compare,'render_fair_share':render_fair_share,'auxiliary_renderer_priority':build_status.get('auxiliary_renderer_priority',renderer_priority),'owner_ready_yield':owner_ready_yield,'scope':'offline image checksum/digest, ESP32 revision and admitted OTA capacity; no device access or runtime qualification',
  'image_sha256':hashlib.sha256(blob).hexdigest(),'image_bytes':len(blob),'project':project,'chip_id':image.chip_id,'codec_diagnostic_only':diagnostic,'pipeline_diagnostic':pipeline,
  'rf_protocol_diagnostic':rf_diagnostic,'pcm_target_ms':pcm_target_ms,'pcm_copied':pcm_copied,'logger_core':logger_core,'block_dsp':block_dsp,'word_dsp':word_dsp,'experimental_short_pcm_target':pcm_target_ms!=64,'revision_range':[image.min_rev_full,image.max_rev_full],'checksum_verified':True,'digest_verified':bool(image.append_digest),
  'latest_local_build_completed':True,'build_sources_match':True,'build_source_units':source_count,'product_io':bool(build_status.get('product_io')),'product_security':product_security,'rfcomm_profile':rfcomm,'controller_only_dual_mode':True,'anti_rollback_fuse_updates':False,'partition_offset':slot['offset'],'partition_bytes':slot['size'],

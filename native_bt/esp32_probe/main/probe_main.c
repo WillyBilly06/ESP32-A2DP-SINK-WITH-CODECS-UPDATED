@@ -1,3 +1,4 @@
+#include "probe_heap_alloc_trace.h"
 #include "probe_schedule_limits.h"
 #include "esp_task.h"
 #ifdef DBT_PROBE_STAY_NATIVE
@@ -544,6 +545,14 @@ static void release_rx(void *context, uint8_t *data) {
 #if defined(DBT_PROBE_GATT_TEST) || defined(DBT_PROBE_CLASSIC_SECURITY_TEST) || defined(DBT_PROBE_SMP)
 static void profile_link(void *context,const dbt_link_change_t *change) {
     (void)context;
+#ifdef DBT_PROBE_HEAP_ALLOC_TRACE
+    if(change && change->kind==DBT_LINK_ADDED){
+        const dbt_link_t *l=dbt_acl_find(&runtime.acl,change->handle);
+        if(l && l->kind==DBT_LINK_LE && probe_output_running())
+            (void)probe_heap_alloc_arm(l->handle,l->generation,xTaskGetCurrentTaskHandle());
+    }else if(change && change->kind==DBT_LINK_REMOVED)
+        probe_heap_alloc_link_removed(change->handle,change->generation);
+#endif
 #ifdef DBT_PROBE_PRODUCT_SECURITY
     probe_admission_link(change);
 #endif

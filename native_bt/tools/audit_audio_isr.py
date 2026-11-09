@@ -140,12 +140,45 @@ def main():
         dispatch={"functions":functions,"internal_data":data,"direct_sdk_references":references,
                   "kernel_switch":hex(values[0]),"kernel_hook_calls":hook_calls,
                   "scope":"observer IRAM code/literal/data closure and pinned kernel hook; not the full SDK callgraph or runtime overhead proof"}
+    heap_hooks = None
+    if "DBT_PROBE_HEAP_ALLOC_TRACE:BOOL=ON" in cache:
+        row = next(r for r in rows if Path(r["file"]).name == "probe_heap_alloc_trace.c")
+        obj = Path(row["directory"])/row["output"]
+        table = subprocess.check_output([str(objdump),"-t",str(obj)],text=True)
+        entries = {f[-1]:f for line in table.splitlines() if len(f:=line.split()) == 6 and f[2] in ("F","O")}
+        hot = [n for n in entries if n.startswith("heap_") or n in ("esp_heap_trace_alloc_hook","esp_heap_trace_free_hook")]
+        assert "esp_heap_trace_alloc_hook" in hot and "esp_heap_trace_free_hook" in hot
+        hot_sections=set();data_sections=set();functions={};data={}
+        for name in hot:
+            section=entries[name][3];assert section.startswith(".iram"),(name,section)
+            hot_sections.update((section,section+".literal"));values=symbols.get(name,[])
+            assert len(values)==1 and internal_code(values[0]),(name,values)
+            functions[name]=hex(values[0])
+        for name,entry in entries.items():
+            if not name.startswith("alloc_trace_"):continue
+            section=entry[3];assert section.startswith(".dram"),(name,section)
+            values=symbols.get(name,[]);assert len(values)==1 and 0x3ff80000<=values[0]<0x40000000,(name,values)
+            data_sections.add(section);data[name]=hex(values[0])
+        relocs=subprocess.check_output([str(objdump),"-r",str(obj)],text=True);active=False;references={}
+        for line in relocs.splitlines():
+            if line.startswith("RELOCATION RECORDS FOR ["):
+                active=any(line=="RELOCATION RECORDS FOR ["+s+"]:" for s in hot_sections);continue
+            f=line.split()
+            if not active or len(f)!=3 or not f[1].startswith("R_XTENSA_"):continue
+            name=f[2].split("+")[0]
+            if name.startswith("."):assert name in hot_sections or name in data_sections,("allocation hook local cache dependency",name)
+            else:
+                values=symbols.get(name,[]);assert len(values)==1 and internal_code(values[0]),("allocation hook dependency",name,values)
+                assert not any(x in name for x in ("malloc","printf","spinlock","__atomic")),name
+                references[name]=hex(values[0])
+        heap_hooks={"functions":functions,"internal_data":data,"direct_references":references,
+                    "scope":"owned hook code/literal/data closure and direct SDK callees; bounded source scans; not full SDK callgraph or timing proof"}
     config = (build/"config/sdkconfig.h").read_text()
     assert "#define CONFIG_I2S_ISR_IRAM_SAFE 1" in config
     assert "#define CONFIG_FREERTOS_PLACE_FUNCTIONS_INTO_FLASH 1" not in config
     assert any(0x3ff80000 <= address < 0x40000000 for address in symbols["output"])
     report = {"passed": True, "scope": "owned ISR roots/direct references, required SDK getter dependencies and configuration; not a whole callgraph or runtime proof",
-              "roots": evidence, "dispatch_getter": getter, "frozen_dispatch": dispatch, "context_internal_sram": True,
+              "roots": evidence, "dispatch_getter": getter, "frozen_dispatch": dispatch, "allocation_hooks":heap_hooks, "context_internal_sram": True,
               "firmware_sha256": hashlib.sha256((build/"native_bt_probe.bin").read_bytes()).hexdigest()}
     receipt.write_text(json.dumps(report, indent=2)+"\n")
     print(json.dumps(report, indent=2))

@@ -1,13 +1,10 @@
 @echo off
 setlocal
-set IDF_CCACHE_ENABLE=1
-cd /d "%~dp0esp-idf"
-call export.bat
-if errorlevel 1 exit /b %errorlevel%
-cd /d "%~dp0bt_audio_sink"
-if "%~1"=="" (
-    idf.py --ccache build
-) else (
-    idf.py --ccache %*
+where pwsh.exe >nul 2>&1
+if errorlevel 1 (
+    echo PowerShell 7 is required. Run build.ps1 with pwsh.exe.
+    exit /b 1
 )
+echo Building the independent HCI/VHCI host. This launcher is build-only.
+pwsh.exe -NoProfile -File "%~dp0build.ps1" %*
 exit /b %errorlevel%

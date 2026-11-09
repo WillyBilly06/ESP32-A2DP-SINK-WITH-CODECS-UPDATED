@@ -1,3 +1,4 @@
+#include "probe_heap_alloc_trace.h"
 #include "probe_schedule_limits.h"
 #include "probe_audio.h"
 #include "probe_audio_trace.h"
@@ -1162,6 +1163,34 @@ static void log_dispatch_trace(void){
     }
 }
 #endif
+#ifdef DBT_PROBE_HEAP_ALLOC_TRACE
+static void log_heap_alloc_capture(void){
+    static bool printed;
+    probe_heap_alloc_poll();
+    if(printed || probe_output_running())return;
+    probe_heap_capture_t s;if(!probe_heap_alloc_snapshot(&s))return;
+    printed=true;
+    PROBE_SNAPSHOT_LOG("{\"probe\":\"heap_alloc_capture\",\"handle\":%" PRIu32 ",\"generation\":%" PRIu32 ",\"records\":%" PRIu32
+        ",\"capacity\":48,\"overflow\":%" PRIu32 ",\"collision_observed\":%" PRIu32 ",\"begin_us\":%" PRIu32 ",\"stop_requested_us\":%" PRIu32
+        ",\"frozen_us\":%" PRIu32 ",\"reason\":%" PRIu32 ",\"row_storage_bytes\":%" PRIu32 ",\"minimum_request_bytes\":2048,\"creator_all_sizes\":true,\"exhaustive\":false,\"timestamps_are_callback_observations\":true,\"owner_task_id\":%" PRIu32 ",\"smp_task_id\":%" PRIu32 ",\"persist_task_id\":%" PRIu32 ",\"general_task_id\":%" PRIu32 "}\n",
+        s.handle,s.generation,s.count,s.overflow,s.collision,s.begin_us,s.stop_requested_us,s.frozen_us,s.reason,s.bytes,s.owner_task_id,s.smp_task_id,s.persist_task_id,s.general_task_id);
+    for(unsigned i=0;i<s.count && i<PROBE_HEAP_ALLOC_ROWS;i++){
+        probe_heap_row_t r;if(!probe_heap_alloc_row(i,&r))continue;
+        if(r.kind==1u)PROBE_SNAPSHOT_LOG("{\"probe\":\"heap_alloc_observation\",\"ordinal\":%u,\"address\":%" PRIu32 ",\"bytes\":%" PRIu32 ",\"caps\":%" PRIu32
+            ",\"callback_us\":%" PRIu32 ",\"task_id\":%" PRIu32 ",\"role\":%" PRIu32 ",\"entry_core\":%" PRIu32 ",\"isr\":%s}\n",
+            i,r.a,r.b,r.c,r.begin_us,r.actor,r.flags&255u,(r.flags>>8)&1u,(r.flags&512u)?"true":"false");
+        else if(r.kind==3u)PROBE_SNAPSHOT_LOG("{\"probe\":\"heap_free_observation\",\"ordinal\":%u,\"address\":%" PRIu32 ",\"callback_us\":%" PRIu32 ",\"entry_core\":%" PRIu32 "}\n",
+            i,r.a,r.begin_us,(r.flags>>8)&1u);
+        else if(r.kind==4u)PROBE_SNAPSHOT_LOG("{\"probe\":\"heap_task_retire\",\"ordinal\":%u,\"task_id\":%" PRIu32 ",\"role\":%" PRIu32
+            ",\"before_delete_us\":%" PRIu32 ",\"free_bytes\":%" PRIu32 ",\"minimum_bytes\":%" PRIu32 ",\"stack_low_water_bytes\":%" PRIu32 ",\"entry_core\":%" PRIu32 "}\n",
+            i,r.a,r.b,r.begin_us,r.c,r.actor,r.end_us,(r.flags>>8)&1u);
+        else PROBE_SNAPSHOT_LOG("{\"probe\":\"heap_phase_memory\",\"ordinal\":%u,\"job_kind\":%" PRIu32 ",\"entry_core\":%" PRIu32
+            ",\"free_before\":%" PRIu32 ",\"minimum_before\":%" PRIu32 ",\"free_after\":%" PRIu32 ",\"minimum_after\":%" PRIu32 ",\"begin_us\":%" PRIu32 ",\"end_us\":%" PRIu32 "}\n",
+            i,r.flags&255u,(r.flags>>8)&1u,r.a,r.b,r.c,r.actor,r.begin_us,r.end_us);
+    }
+}
+#endif
+
 static void log_loop(void *unused){
     (void)unused;
     uint32_t previous=UINT32_MAX,previous_errors=UINT32_MAX,previous_ignored=UINT32_MAX,previous_oversized=UINT32_MAX;
@@ -1173,6 +1202,9 @@ static void log_loop(void *unused){
 #endif
     for(;;){
         vTaskDelay(pdMS_TO_TICKS(100));log_media_trace();
+#ifdef DBT_PROBE_HEAP_ALLOC_TRACE
+        log_heap_alloc_capture();
+#endif
 #ifdef DBT_PROBE_DISPATCH_TRACE
         log_dispatch_trace();
 #endif

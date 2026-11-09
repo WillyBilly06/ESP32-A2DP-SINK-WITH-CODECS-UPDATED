@@ -1,3 +1,4 @@
+#include "probe_heap_alloc_trace.h"
 #include "dbt_esp32_affinity.h"
 #include "probe_smp.h"
 #include "dbt_smp_nvs.h"
@@ -468,6 +469,7 @@ static void worker_execute(worker_state_t *state,work_t *w,completion_t *result)
 }
 static void worker(void *unused) {
     (void)unused;
+    probe_heap_alloc_task(PROBE_HEAP_SMP,true);
     worker_state_t state={0};
     for (;;) {
         work_t work; completion_t done; uint8_t token;
@@ -480,7 +482,7 @@ static void worker(void *unused) {
         (void)xQueueSend(done_queue,&token,portMAX_DELAY);
         wipe(&done,sizeof(done));
         xTaskNotifyGive(owner);
-        if (token==2) { vTaskDelete(NULL); return; }
+        if (token==2) { probe_heap_alloc_task(PROBE_HEAP_SMP,false);vTaskDelete(NULL); return; }
     }
 }
 
@@ -919,7 +921,11 @@ void probe_smp_poll(uint32_t now) {
     }
     if (maintenance.active) {
         if (!maintenance.issued) {
-            if (!worker_live && xTaskCreatePinnedToCore(worker,"native_smp_worker",WORKER_STACK_BYTES,NULL,1,NULL,DBT_ESP32_BACKGROUND_CORE)!=pdPASS) {
+            BaseType_t created=pdPASS;
+            if(!worker_live){probe_heap_alloc_owner_phase(PROBE_HEAP_CREATE_SMP);
+                created=xTaskCreatePinnedToCore(worker,"native_smp_worker",WORKER_STACK_BYTES,NULL,1,NULL,DBT_ESP32_BACKGROUND_CORE);
+                probe_heap_alloc_owner_phase(0);}
+            if (!worker_live && created!=pdPASS) {
                 maintenance.result=DBT_NO_SPACE; maintenance.issued=true;
                 maintenance.done=true; maintenance.retired=true;
             } else {
@@ -986,7 +992,10 @@ void probe_smp_poll(uint32_t now) {
     if (!slot.prepare_queued) {
         if (!worker_live) {
             BaseType_t worker_core=slot.reconnect?DBT_ESP32_RECONNECT_WORKER_CORE:DBT_ESP32_BACKGROUND_CORE;
-            if (xTaskCreatePinnedToCore(worker,"native_smp_worker",WORKER_STACK_BYTES,NULL,1,NULL,worker_core)!=pdPASS) {
+            probe_heap_alloc_owner_phase(PROBE_HEAP_CREATE_SMP);
+            BaseType_t created=xTaskCreatePinnedToCore(worker,"native_smp_worker",WORKER_STACK_BYTES,NULL,1,NULL,worker_core);
+            probe_heap_alloc_owner_phase(0);
+            if (created!=pdPASS) {
                 if (slot.reconnect && !slot.reconnect_central) slot.negative_needed=true; else slot.failed=true;
                 return;
             }

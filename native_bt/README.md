@@ -1,5 +1,7 @@
 # Independent ESP32 Bluetooth host
 
+The repository root now selects this host through [build.ps1](../build.ps1). Its default preset uses the included pinned LHDC source snapshot and leaves optional heap/tick/task samplers OFF. The [allocation sampler](docs/ALLOCATION_SAMPLER_2026_11_08.md) has host/build/ISR checks; its hardware measurement remains pending.
+
 The [shared persistence checkpoint](docs/SHARED_PERSISTENCE_2026_11_08.md) runs on
 readback-verified COM6 image fb87d978320c at **921600 baud**, with profilers OFF.
 CCCD and EQ persistence share the existing priority-4 Core0 worker; general/OTA
